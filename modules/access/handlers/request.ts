@@ -118,7 +118,9 @@ export async function requestCreate(ctx: AskCtx, input: { resource: ResourceRef;
     const made = asRow(await ctx.call("tasks.create", {
       kind: "unblock", title: `${requesterName} asks for ${input.level} access to ${resourceTitle}`, ...(input.note ? { summary: input.note } : {}),
       why: "Someone is waiting on access only you can give.", assigned: { kind: "person", id: approver }, source: { kind: "manual", id },
-      blocks: [block], actions: [{ key: "approve", label: "Approve" }, { key: "decline", label: "Decline", note: "optional" }], idempotencyKey: `${id}:${approver}`,
+      // the actions an unblock task offers (modules/tasks/handlers/state.ts) are resolved and cannot; the card closes through access.requests.approve or decline, which transition it
+      blocks: [block],
+      actions: [{ key: "resolved", label: "Approve" }, { key: "cannot", label: "Decline", note: "optional" }], idempotencyKey: `${id}:${approver}`,
     }));
     const taskId = strOf(asRow(made?.["task"])?.["id"]);
     if (!taskId) raise(ctx.trace.traceId, "internal.unexpected", "The task for the request was not created.");

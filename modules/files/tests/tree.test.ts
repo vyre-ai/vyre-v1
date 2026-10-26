@@ -441,3 +441,53 @@ test("recent projection keeps the newest open and drops a deleted file", async (
   const counted = await handlers["files.tree"](ctx, {});
   assert.equal(counted.roots.find((root) => root.key === "recent")?.count, 2);
 });
+
+test("files.star is mine alone, shows on the file rows, and says so once", async () => {
+  const { ctx, events } = open();
+  const personalId = idOf((await handlers["files.tree"](ctx, {})).roots.find((root) => root.key === "personal")?.folderId, "personal");
+  const made = await handlers["files.create"](ctx, { folderId: personalId, name: "a.md", content: { text: "x" } });
+  const fileId = made.file.fileId;
+  assert.equal(made.file.starred, false);
+  assert.equal(made.file.conflict, false);
+  const on = await handlers["files.star"](ctx, { fileId, starred: true });
+  assert.equal(on.file.starred, true);
+  assert.equal((await handlers["files.list"](ctx, { folder: personalId })).files[0]?.starred, true);
+  await handlers["files.star"](ctx, { fileId, starred: true });
+  assert.equal(events.filter((e) => e.name === "file.starred").length, 1, "starring again changes nothing");
+  const other: Ctx = { ...ctx, principal: { kind: "person", id: "per_omar" } };
+  assert.equal((await handlers["files.get"](other, { fileId })).file.starred, false, "someone else's view has no star");
+  const off = await handlers["files.star"](ctx, { fileId, starred: false });
+  assert.equal(off.file.starred, false);
+  assert.equal(events.filter((e) => e.name === "file.starred").length, 2);
+  await expectCode("validation.bad_input", () => handlers["files.star"](ctx, { fileId, starred: "yes" }));
+});
+
+test("a file with a collided staged change in an open changeset carries the conflict flag", async () => {
+  const { ctx, db } = open();
+  const personalId = idOf((await handlers["files.tree"](ctx, {})).roots.find((root) => root.key === "personal")?.folderId, "personal");
+  const made = await handlers["files.create"](ctx, { folderId: personalId, name: "c.md", content: { text: "x" } });
+  const fileId = made.file.fileId;
+  db.run("INSERT INTO files_changeset (id, state) VALUES (?, ?)", "chg_1", "open");
+  db.run("INSERT INTO files_changeset_file (changeset_id, path, file_id, conflict) VALUES (?, ?, ?, ?)", "chg_1", "c.md", fileId, 1);
+  // each call has its own ctx in the host (flags are read once per call), so the test asks with a fresh one
+  assert.equal((await handlers["files.get"]({ ...ctx }, { fileId })).file.conflict, true);
+  db.run("UPDATE files_changeset SET state = ? WHERE id = ?", "approved", "chg_1");
+  assert.equal((await handlers["files.get"]({ ...ctx }, { fileId })).file.conflict, false, "a settled changeset holds no conflict");
+});
+
+test("folders and tree roots say whether they belong to an agent, a project or the Space, with the id", async () => {
+  const { ctx } = open();
+  const tree = await handlers["files.tree"](ctx, {});
+  assert.deepEqual(tree.roots.find((r) => r.key === "agents")?.subject, { kind: "agent" });
+  assert.deepEqual(tree.roots.find((r) => r.key === "projects")?.subject, { kind: "project" });
+  assert.deepEqual(tree.roots.find((r) => r.key === "channels")?.subject, { kind: "space" });
+  const agentsId = idOf(tree.roots.find((r) => r.key === "agents")?.folderId, "agents");
+  const mine = await handlers["files.folder.create"](ctx, { parentId: agentsId, name: "Scout", subject: { kind: "agent", id: "agt_scout1" } });
+  assert.deepEqual(mine.folder.subject, { kind: "agent", id: "agt_scout1" });
+  const inner = await handlers["files.folder.create"](ctx, { parentId: mine.folder.folderId, name: "Notes" });
+  assert.deepEqual(inner.folder.subject, { kind: "agent", id: "agt_scout1" }, "a folder below it belongs to the same agent");
+  const plain = await handlers["files.folder.create"](ctx, { parentId: idOf(tree.roots.find((r) => r.key === "channels")?.folderId, "channels"), name: "General" });
+  assert.deepEqual(plain.folder.subject, { kind: "space" });
+  await expectCode("validation.bad_input", () => handlers["files.folder.create"](ctx, { parentId: agentsId, name: "Bad", subject: { kind: "space", id: "x" } }));
+});
+// run on the final commit of P-CC_27

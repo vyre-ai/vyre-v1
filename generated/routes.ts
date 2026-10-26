@@ -9788,6 +9788,25 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/files/star",
+    "cap": "files.star",
+    "v": 1,
+    "module": "files",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "file",
+      "id": "/fileId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/files/trash/empty",
     "cap": "files.trash.empty",
     "v": 1,
@@ -26797,6 +26816,25 @@ export const routes: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/vault/item/usage",
+    "cap": "vault.item.usage",
+    "v": 1,
+    "module": "vault",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "vault_item",
+      "id": "/itemId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
     "teamOnly": false,
     "gate": null
   },

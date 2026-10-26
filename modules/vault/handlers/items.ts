@@ -163,6 +163,24 @@ export async function itemHistory(ctx: VaultCtx, input: { itemId: string; cursor
   return { entries, ...(p.next ? { next: p.next } : {}), total: p.total };
 }
 
+/**
+ * Who used this key or sign-in, and how much (the provider page's Used by): turns and tokens per agent and per person, from the turns the engine metered against this item.
+ * Level View on the item. The rows are the engine's own, so a person sees their own turns and a manager of AI spend sees everyone's; an actor the caller may not see is not listed.
+ * The total counts each turn once (by agent), so people and agents are not added together.
+ */
+export async function itemUsage(ctx: VaultCtx, input: { itemId: string; since?: number }) {
+  ensure(ctx);
+  const r = reachable(ctx, input.itemId, "view");
+  const itemId = str(r, "id");
+  const ask = async (by: "agent" | "person"): Promise<{ rows: Array<{ key: string; totals: { turns: number; tokensIn: number; tokensOut: number } }>; totals: { turns: number; tokensIn: number; tokensOut: number } }> =>
+    (await ctx.call("engine.usage.query", { by, itemId, ...(input.since !== undefined ? { from: input.since } : {}) })) as never;
+  const [agents, people] = await Promise.all([ask("agent"), ask("person")]);
+  const row = (kind: "agent" | "person") => (x: { key: string; totals: { turns: number; tokensIn: number; tokensOut: number } }) =>
+    ({ actor: { kind, id: x.key }, turns: x.totals.turns, tokens: x.totals.tokensIn + x.totals.tokensOut });
+  const actors = [...agents.rows.map(row("agent")), ...people.rows.map(row("person"))].sort((a, b) => b.tokens - a.tokens || a.actor.id.localeCompare(b.actor.id));
+  return { actors, total: { turns: agents.totals.turns, tokens: agents.totals.tokensIn + agents.totals.tokensOut } };
+}
+
 // ---- writes
 
 function cleanFields(ctx: VaultCtx, raw: unknown, what: string): Field[] {
