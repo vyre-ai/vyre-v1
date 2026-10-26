@@ -78,6 +78,7 @@ import { bootstrapSpace, mintOwner } from "./bootstrap.ts";
 import { createAccess, isAccessEvent, isMemberOrGuest, toAccessEvent, touchesAccess } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
 import { createResourceRegistrar } from "../gateway/resources.ts";
+import { createPrincipalRegistrar } from "../gateway/principals.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
 import type { HookRunner, ModuleHooks } from "./consumers.ts";
@@ -473,6 +474,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         personal,
         // P-H_16: an object a call creates is a resource in the same commit, so it is authorizable at once
         resources: createResourceRegistrar({ events: registry.events, exists: (id) => access.snap.resource(id) !== undefined }),
+        principals: createPrincipalRegistrar({
+          exists: (id) => access.snap.info(id) !== null,
+          levelOf: (person, space) => {
+            const may = (level: "edit" | "view"): boolean => authorize(access.snap, { principal: person, action: { perm: null, level }, resource: { type: "space", id: space } }).effect === "allow";
+            return may("edit") ? "edit" : may("view") ? "view" : "none";
+          },
+        }),
         commit: withEventIds(async (b) => {
           const trace = b.events[0]?.traceId ?? ZERO_TRACE;
           if (chainBroken) throw fail("internal.unavailable", trace, { message: "The event log failed verification, so this server is not accepting changes. Run vyre-server doctor." });
@@ -616,7 +624,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           log: (u) => sink.log({ space: spaceId, level: 30, msg: "computers.fill", place: "computers", attrs: { ...u } }),
         }) : null,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
-        setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
+        setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
         // the import module reads an Airtable or Notion key from the Vault by handle, for one call
         setImportHost: (d) => ({ secret: (_ctx: unknown, handle: string) => d.vault.secret(handle.startsWith("#") ? handle : `#${handle}`, d.space) }),
         setEventsHost: () => createEventsHost({
@@ -973,7 +981,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (issued) {
         const base = cfg.address ? (/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`) : `http://${cfg.host}:${boundPort}`;
         const fp = String((db?.all("SELECT fingerprint FROM identity_space WHERE id = ?", space)[0] as { fingerprint?: string } | undefined)?.fingerprint ?? "").replace(/\s/g, "");
-        claim = { url: `${base.replace(/\/$/, "")}/claim/${issued.code}#${fp ? `fp=${fp}&` : ""}s=${encodeURIComponent(space ?? "")}`, expiresAt: issued.expiresAt };
+        // the Space's name, so the claim page can say what is being set up before anyone has signed in (not a credential; the link is still private). A Space named only by its id sends no name: the page says "Set up your Space" rather than show an id
+        const name = String((db?.all("SELECT name FROM identity_space WHERE id = ?", space)[0] as { name?: string } | undefined)?.name ?? cfg.spaceName ?? "");
+        claim = { url: `${base.replace(/\/$/, "")}/claim/${issued.code}#${fp ? `fp=${fp}&` : ""}s=${encodeURIComponent(space ?? "")}${name && name !== space ? `&n=${encodeURIComponent(name)}` : ""}`, expiresAt: issued.expiresAt };
         fs.writeFileSync(path.join(paths.logDir, "claim-link.txt"), `${claim.url}\n`, { mode: 0o600 });
         // the link is a credential: it goes to the console and the 0600 file only, never to the shared log stream, the log export or the support bundle
         sink.log({ space: space ?? "-", level: 20, msg: "claim link issued, see logs/claim-link.txt", place: "boot", attrs: { expiresAt: issued.expiresAt } });

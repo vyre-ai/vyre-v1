@@ -47,6 +47,7 @@ test("a member's held call leaves gate.requested in the log, in the held call's 
     assert.deepEqual(payload["principal"], { kind: "person", id: "usr_noah" });
     assert.equal(payload["taskId"], body.data?.taskId);
     assert.ok(typeof payload["holdId"] === "string");
-    assert.ok(!JSON.stringify(payload).includes("1h"), "and it carries no input value");
+    const values = Object.values(payload).flat();
+    assert.ok(!("expiresIn" in payload) && !values.includes("1h"), "and it carries no input value");
   } finally { await d.stop(); }
 });

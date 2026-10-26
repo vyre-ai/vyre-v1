@@ -157,7 +157,14 @@ export interface SidebarInput {
   channels: readonly Channel[];
   filter: Filter;
   closed: ReadonlySet<SectionKey>;
+  /** Agents beyond the faces shown: a row under them opens All agents. */
+  facesMore?: number;
+  /** The Chats read failed: the section says so elsewhere and must not say "No chats yet". */
+  recentFailed?: boolean;
 }
+
+/** The Agents group shows this many agents (the Cmd-1..9 faces); a Space with more has an All agents row for the rest. */
+export const FACES_SHOWN = 9;
 
 export function isProject(c: Channel): boolean {
   return c.recordId !== undefined;
@@ -185,6 +192,7 @@ export function buildEntries(i: SidebarInput): Entry[] {
       out.push({ key: `f:${a.agentId}`, type: "face", agent: a, ...(d !== undefined ? { digit: d } : {}), working: i.workingAgents.has(a.agentId), waiting: i.waitingAgents?.has(a.agentId) === true });
     }
   }
+  if (open("faces") && (i.facesMore ?? 0) > 0) out.push({ key: "m:agents", type: "more", label: `All agents (${(i.facesMore ?? 0) + i.faces.length})`, to: "agents" });
   const { plain, projects } = splitChannels(i.channels);
   if (plain.length || projects.length) {
     out.push({ key: "h:channels", type: "head", section: "channels", label: "Channels", open: open("channels") });
@@ -199,7 +207,7 @@ export function buildEntries(i: SidebarInput): Entry[] {
   out.push({ key: "h:recent", type: "head", section: "recent", label: "Chats", open: open("recent") });
   if (open("recent")) {
     const rows = i.groups.reduce((n, g) => n + g.rows.length, 0);
-    if (!rows) out.push({ key: "e:recent", type: "empty", text: i.filter === "all" ? "No chats yet" : "Nothing here" });
+    if (!rows && i.recentFailed !== true) out.push({ key: "e:recent", type: "empty", text: i.filter === "all" ? "No chats yet" : "Nothing here" });
     for (const g of i.groups) {
       out.push({ key: `g:${g.key}`, type: "group", label: g.label });
       for (const r of g.rows) out.push({ key: `c:${r.threadId}`, type: "chat", row: r });
