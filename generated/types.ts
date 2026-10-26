@@ -28702,6 +28702,10 @@ export type DropboxSignWebhookReceivedPayload = {
   envelopeId: string;
   status: string;
 };
+export type EmailCreatedPayload = {
+  emailId: string;
+  folderId?: string;
+};
 export type EmailBlockSavedPayload = {
   blockId: string;
   shared: boolean;
@@ -31352,6 +31356,7 @@ export interface EventMap {
   "document.template_marked": DocumentTemplateMarkedPayload;
   "docusign.webhook_received": DocusignWebhookReceivedPayload;
   "dropbox_sign.webhook_received": DropboxSignWebhookReceivedPayload;
+  "email.created": EmailCreatedPayload;
   "email_block.saved": EmailBlockSavedPayload;
   "email_template.saved": EmailTemplateSavedPayload;
   "email_template.test_sent": EmailTemplateTestSentPayload;
