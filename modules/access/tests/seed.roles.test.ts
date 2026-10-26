@@ -8,6 +8,7 @@ const roleSet = (holder: string, role: string, actor: string, seq: number) => ({
 
 test("a seed role_set maps the kernel's names to the ids real joins store, and takes the id as written when it is already one", () => {
   const store = new AccessStore();
+  store.seed();
   assert.ok(applyEvent(store, roleSet("usr_a", "member", SEED_ACTOR, 1), 0));
   assert.ok(applyEvent(store, roleSet("usr_b", "owner", SEED_ACTOR, 2), 0));
   assert.ok(applyEvent(store, roleSet("usr_c", "temp", SEED_ACTOR, 3), 0));
@@ -17,6 +18,7 @@ test("a seed role_set maps the kernel's names to the ids real joins store, and t
 
 test("a runtime role_set that names \"owner\" does not make anyone rol_owner, whoever made the call", () => {
   const store = new AccessStore();
+  store.seed();
   for (const [i, actor] of ["usr_member", "agt_helper", "svc_host", "act_ci"].entries()) applyEvent(store, roleSet(`usr_t${i}`, "owner", actor, i + 1), 0);
   applyEvent(store, { seq: 9, type: "principal.role_set", payload: { holder: "usr_noactor", role: "owner" } }, 0);
   for (const holder of ["usr_t0", "usr_t1", "usr_t2", "usr_t3", "usr_noactor"]) assert.ok(!store.rolesOf(holder).includes("rol_owner"), `${holder} is not an owner: ${store.rolesOf(holder).join(",")}`);
@@ -25,6 +27,7 @@ test("a runtime role_set that names \"owner\" does not make anyone rol_owner, wh
 
 test("a seed role.defined for a built-in role is not defined twice, and one the store lacks gets the rol_ prefix; a runtime one keeps its id", () => {
   const store = new AccessStore();
+  store.seed();
   const before = store.roles.get("rol_member");
   assert.equal(applyEvent(store, { seq: 1, type: "role.defined", payload: { id: "member", clearance: "internal", perms: ["x.y"], name: "member" }, actor: SEED_ACTOR }, 0), false);
   assert.equal(store.roles.get("rol_member"), before, "the built-in is kept as it was");
