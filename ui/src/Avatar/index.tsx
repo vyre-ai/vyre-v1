@@ -76,7 +76,7 @@ export const Avatar = memo(function Avatar({ name, seedId, kind: kindProp, size 
   } else if (bitmap !== undefined) {
     face = createElement("img", { src: bitmap, alt: "", width: size, height: size, draggable: false, decoding: "async", style: { display: "block", width: size, height: size }, "data-face": "cached" });
   } else if (kind === "person" && browser) {
-    face = createElement("span", { style: { display: "block", width: size, height: size, backgroundImage: marbleGradient(seed) }, "data-face": "gradient" });
+    face = createElement("span", { style: { display: "block", width: size, height: size, background: marbleGradient(seed) }, "data-face": "gradient" });
   } else if (kind === "person") {
     face = web ? svg(marbleInner(seed), size, "0 0 80 80") : <NativeLetters name={name} size={size} person tint={`hsl(${hueOf(seed)}, 45%, 70%)`} />;
   } else if (kind === "agent") {
