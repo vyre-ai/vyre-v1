@@ -24,9 +24,11 @@ export async function completeJsonLines(file: string, warnings: string[]): Promi
   const lines = text.split("\n");
   if (lines.pop() !== "") warnings.push("Ignored partial final JSONL record.");
   const out: unknown[] = [];
-  for (const line of lines) {
+  for (const [index, line] of lines.entries()) {
     if (!line.trim()) continue;
-    try { out.push(JSON.parse(line)); } catch { warnings.push("Ignored corrupt JSONL record."); }
+    try { out.push(JSON.parse(line)); } catch {
+      warnings.push(index === lines.length - 1 ? "Ignored corrupt final JSONL record (possibly partial)." : "Ignored corrupt JSONL record.");
+    }
   }
   return out;
 }

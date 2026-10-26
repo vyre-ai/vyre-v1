@@ -6,6 +6,7 @@ import type { DiscoveryOptions, SessionProvider, SessionSource } from "./types.t
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const CODEX_FILE = new RegExp(`^rollout-(${UUID})\\.jsonl$`, "i");
 const CLAUDE_FILE = new RegExp(`^(${UUID})\\.jsonl(?:\\.gz)?$`, "i");
+const CLAUDE_SUBAGENT_FILE = new RegExp(`^agent-(${UUID})\\.jsonl(?:\\.gz)?$`, "i");
 
 export function providerRoots(provider: SessionProvider, options: DiscoveryOptions = {}): string[] {
   const configured = provider === "codex" ? options.codexHome : options.claudeHome;
@@ -43,7 +44,7 @@ async function discoverClaude(roots: string[]): Promise<SessionSource[]> {
     for (const area of ["projects", "projects-archive"]) {
       const base = path.join(root, area);
       for (const file of await containedFiles(base, root)) {
-        const match = CLAUDE_FILE.exec(path.basename(file));
+        const match = CLAUDE_FILE.exec(path.basename(file)) ?? CLAUDE_SUBAGENT_FILE.exec(path.basename(file));
         if (!match?.[1]) continue;
         const sessionId = match[1].toLowerCase();
         const project = projectFromPath(base, file);
