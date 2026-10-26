@@ -18,7 +18,7 @@ export function rowHeight(note?: string, tall = false): number {
   return note ? ROW_HEIGHT_WITH_NOTE : ROW_HEIGHT;
 }
 
-export const Row = memo(function Row({ id, title, titleSuffix, tall = false, emphasis = false, note, selected = false, hovered = false, leading, trailing, onPress }: RowProps) {
+export const Row = memo(function Row({ id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "accent", tall = false, emphasis = false, note, selected = false, hovered = false, leading, trailing, onPress }: RowProps) {
   const [over, setOver] = useState(false);
   const lit = hovered || over;
   return (
@@ -34,13 +34,19 @@ export const Row = memo(function Row({ id, title, titleSuffix, tall = false, emp
     >
       {leading ? <View testID={id ? `row-${id}-leading` : undefined} style={styles.leading}>{leading}</View> : null}
       <View style={styles.text}>
-        {titleSuffix ? (
+        {titleSuffix || titleMarks ? (
           <View style={styles.titleLine}>
             <Text numberOfLines={1} style={[styles.title, styles.titleMain, emphasis && BOLD]}>{title}</Text>
-            <Text numberOfLines={1} testID={id ? `row-${id}-suffix` : undefined} style={styles.suffix}>{titleSuffix}</Text>
+            {titleSuffix ? <Text numberOfLines={1} testID={id ? `row-${id}-suffix` : undefined} style={styles.suffix}>{titleSuffix}</Text> : null}
+            {titleMarks ? <View testID={id ? `row-${id}-marks` : undefined} style={styles.marks}>{titleMarks}</View> : null}
           </View>
         ) : <Text numberOfLines={1} style={[styles.title, emphasis && BOLD]}>{title}</Text>}
-        {note ? <Text numberOfLines={tall ? 2 : 1} style={styles.note}>{note}</Text> : null}
+        {note ? (
+          <Text numberOfLines={tall ? 2 : 1} style={styles.note}>
+            {noteLead ? <><Text testID={id ? `row-${id}-notelead` : undefined} style={noteLeadTone === "warning" ? NOTE_LEAD_WARN : NOTE_LEAD}>{noteLead}</Text>{" \u00b7 "}</> : null}
+            {note}
+          </Text>
+        ) : null}
       </View>
       {trailing ? <View testID={id ? `row-${id}-trailing` : undefined} style={styles.trailing}>{trailing}</View> : null}
     </Pressable>
@@ -49,6 +55,8 @@ export const Row = memo(function Row({ id, title, titleSuffix, tall = false, emp
 
 // Plain objects (not StyleSheet ids) so the painted token is visible in the element's inline style.
 const HOVER = { backgroundColor: "var(--hover)" };
+const NOTE_LEAD = { color: "var(--accent)", fontWeight: "500" as const };
+const NOTE_LEAD_WARN = { color: "var(--warn)", fontWeight: "500" as const };
 const BOLD = { fontWeight: "600" as const };
 const SELECTED = { backgroundColor: "var(--sel)" };
 
@@ -61,5 +69,6 @@ const styles = StyleSheet.create({
   titleLine: { flexDirection: "row", alignItems: "baseline", minWidth: 0, gap: 6 },
   titleMain: { flexShrink: 0, maxWidth: "70%" },
   suffix: { flexShrink: 1, color: "var(--ink-3)" as string, fontSize: 12, lineHeight: 18 },
+  marks: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 4 },
   note: { color: "var(--ink-3)" as string, fontSize: 11.5, lineHeight: 16 },
 });

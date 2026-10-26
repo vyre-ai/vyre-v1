@@ -60,6 +60,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "files.tree": Handler<"files.tree", X>;
   "files.upload_url": Handler<"files.upload_url", X>;
   "files.versions": Handler<"files.versions", X>;
+  "files.versions_purge": Handler<"files.versions_purge", X>;
   "files.viewer_data": Handler<"files.viewer_data", X>;
   "files.write": Handler<"files.write", X>;
   "sheets.add_sheet": Handler<"sheets.add_sheet", X>;

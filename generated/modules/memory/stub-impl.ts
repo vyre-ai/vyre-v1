@@ -24,6 +24,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "memory.layout.save": async () => ({"ok":true} as unknown) as never,
   "memory.maintain": async () => ({"closed":1,"maps":1,"merged":1} as unknown) as never,
   "memory.map.get": async () => ({"map":{"body":"example","lines":1,"updatedAt":1760000000000}} as unknown) as never,
+  "memory.notes.erase": async () => ({"erased":true} as unknown) as never,
   "memory.notes.list": async () => ({"next":"example","notes":[{"agentId":"agt_a1b2c3","layer":"person","noteId":"not_a1b2c3","path":"Agents/Intake/memory/notes/clients.md","title":"example","updatedAt":1760000000000}],"total":1} as unknown) as never,
   "memory.pointer": async () => ({"lines":[{"fact":"example","path":"example","title":"example","trueSince":1760000000000}],"skipped":"short_ack","tokens":1} as unknown) as never,
   "memory.promote": async () => ({"promoted":true,"promotionId":"prm_a1b2c3","taskId":"tsk_a1b2c3"} as unknown) as never,

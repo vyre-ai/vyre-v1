@@ -9,7 +9,7 @@
 //   threads.make_channel channels.create channels.connect_outside_agent; so no `chat.thread.*` names exist (prefix rule).
 // DECISION: capabilities backing agent tools carry mcpName equal to the tool name (see module agents agentTools); one tool is generated.
 import { block, create, defineManifest, entity, ev, list, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
-import { blockSchema, id, level, pageIn, pageOut, principalRef } from './_common.ts';
+import { blockSchema, id, level, pageIn, pageOut, principalRef, purgeOut } from './_common.ts';
 
 const threadKind = t.enm('chat', 'channel', 'thread', 'ask', 'run', 'helper', 'console');
 const agentMode = t.enm('lead', 'listen');
@@ -79,6 +79,10 @@ export default defineManifest({
     list('channel', 'Channel', 'Channels', 'channels.list'),
   ],
   capabilities: [
+    // ---- erase and purge (P-CC_39)
+    write('threads.erase', 'Erase one chat thread for good: messages, blocks, pins, reactions, attachment links, transcript rows, summaries and search entries (governance erase)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { threadId: id.thread }, out: { erased: t.bool() }, emits: ['thread.erased'], audit: 'always', risk: 'high' }),
+    write('channels.erase', 'Erase one channel for good with all its messages (governance erase)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { channelId: id.channel }, out: { erased: t.bool() }, emits: ['channel.erased'], audit: 'always', risk: 'high' }),
+    write('chat.transcript.purge', 'Remove messages and blocks older than a time from chats and channels, a batch at a time; threads listed in skipThreadIds (held ones) are left whole (retention)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { before: t.ts(), limit: t.opt(t.int({ minimum: 1, maximum: 5000 })), skipThreadIds: t.opt(t.arr(id.thread)) }, out: purgeOut, emits: ['transcripts.purged'], audit: 'always', risk: 'high' }),
     // ---- threads and chats
     create('chat.start', 'Start a chat or an Ask pane with one or more agents, or a direct message with one person (a third person means a channel)', {
       in: {
@@ -323,6 +327,10 @@ export default defineManifest({
     }),
   ],
   events: [
+    // ---- erase and purge (P-CC_39): governance removes data through these; each hard-deletes inside its own store
+    ev('thread.erased', 'A chat thread was erased for good with its messages, blocks, pins and transcript (ids only)', { p: { threadId: id.thread }, subject: ['entity', '/threadId'], retention: 'audit' }),
+    ev('channel.erased', 'A channel was erased for good with its messages (ids only)', { p: { channelId: id.channel }, subject: ['entity', '/channelId'], retention: 'audit' }),
+    ev('transcripts.purged', 'Chat transcripts past their retention were removed (a count)', { p: { removed: t.int({ minimum: 0 }) }, subject: ['entity', '/removed'], retention: 'audit' }),
     ev('message.received', 'A message was posted in a thread (ids and counts only, never the text)', {
       p: { messageId: id.message, threadId: id.thread, threadSeq: t.int(), author: principalRef, kind: t.str(), depth: t.int(), mentions: t.arr(mention), hasBlocks: t.bool(), via: t.opt(id.user) },
       subject: ['thread', '/threadId'], label: 'subject', retention: 'transcripts', trigger: { title: 'A message is posted', fields: ['/threadId', '/author/kind'] },

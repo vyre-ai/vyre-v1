@@ -4,7 +4,7 @@
 // DECISION: `runs.replay` is the sandbox replay of section b9 (outward capabilities stubbed, needs `server.logs`); `automations.replay` re-runs for real.
 // DECISION: the lifecycle capabilities runs.start, mark_waiting, resume, finish and record_step are system calls (no tool) used by the engine, the Gate and other modules.
 import { defineManifest, entity, ev, health, read, screen, t, write } from '../packages/contracts/src/index.ts';
-import { id, ok, pageIn, pageOut, resourceRef, runStarted } from './_common.ts';
+import { id, ok, pageIn, pageOut, purgeOut, resourceRef, runStarted } from './_common.ts';
 
 const runKind = t.enm('automation', 'automation_test', 'journey', 'journey_migrate', 'routine', 'campaign', 'deployment', 'connector_sync', 'connector_build', 'import', 'runbook', 'wait', 'terminal', 'replay', 'other');
 const runStatus = t.enm('queued', 'running', 'waiting', 'succeeded', 'failed', 'stopped');
@@ -47,6 +47,9 @@ export default defineManifest({
     }, 'run', { ownerField: 'owner', sync: { window: { days: 30, recentCount: 300 }, protectedFields: ['status', 'owner', 'key_used'] }, retention: 'run_logs' }),
   ],
   events: [
+    // ---- erase and purge (P-CC_39): governance removes data through these; each hard-deletes inside its own store
+    ev('run.erased', 'A Run was erased for good with its steps (ids only)', { p: { runId: id.run }, subject: ['entity', '/runId'], retention: 'audit' }),
+    ev('runs.purged', 'Runs past their retention were removed with their step logs (a count)', { p: { removed: t.int({ minimum: 0 }) }, subject: ['entity', '/removed'], retention: 'audit' }),
     ev('run.started', 'A Run started', { p: { runId: id.run, kind: runKind, name: t.opt(t.str()), owner: t.str(), subject: t.opt(resourceRef), definitionVersion: t.opt(t.int()), parentRun: t.opt(id.run) }, subject: ['run', '/runId'], retention: 'run_logs' }),
     ev('run.waiting', 'A Run is waiting for approval, background work or a key', { p: { runId: id.run, reason: waitReason, taskId: t.opt(id.task), on: t.opt(t.str()) }, subject: ['run', '/runId'], retention: 'run_logs' }),
     ev('run.resumed', 'A waiting Run continued', { p: { runId: id.run, reason: waitReason }, subject: ['run', '/runId'], retention: 'run_logs' }),
@@ -58,6 +61,9 @@ export default defineManifest({
     ev('run.key_fallback', 'A lost key fell back to the backup key (the Run chat records it)', { p: { runId: id.run, step: t.opt(t.str()), fromKey: t.str(), toKey: t.opt(t.str()), reason: t.str() }, subject: ['run', '/runId'], retention: 'run_logs' }),
   ],
   capabilities: [
+    // ---- erase and purge (P-CC_39)
+    write('runs.erase', 'Erase one Run for good with its steps, waits and alerts (governance erase)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { runId: id.run }, out: { erased: t.bool() }, emits: ['run.erased'], audit: 'always', risk: 'high' }),
+    write('runs.purge', 'Remove Runs and step logs older than a time, a batch at a time (retention)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { before: t.ts(), limit: t.opt(t.int({ minimum: 1, maximum: 5000 })) }, out: purgeOut, emits: ['runs.purged'], audit: 'always', risk: 'high' }),
     read('runs.list', 'List Runs by owner, subject, kind and status; scope all is for Manage holders and the Console', {
       in: {
         scope: t.enm('mine', 'subject', 'owner', 'all'), ownerId: t.opt(t.str()), subject: t.opt(resourceRef), kinds: t.opt(t.arr(runKind)),
