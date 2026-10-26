@@ -2,7 +2,7 @@
   "targets": [
     {
       "id": "P-UI_10-records-100k",
-      "route": "/m/P-L9d_01?rows=100000",
+      "route": "/m/P-L9d_01b?type=clients&rows=100000",
       "proto": "records,{skin}",
       "waitFor": "[data-testid='rec-cl_20']",
       "scroll": {
