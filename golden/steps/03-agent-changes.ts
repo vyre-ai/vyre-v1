@@ -16,14 +16,15 @@ export async function runChanges(live: readonly string[]): Promise<{ events: Obs
   const trail = new Trail();
   const { s } = await bootTolerant(trail, live);
   if (!s) return { events: [], trail };
-  // the git module takes https remotes only, so the remote is an https address that a git config in this process maps to a local bare repository (url.<dir>.insteadOf), as the module's own tests do
+  // the git module takes https remotes only, so the remote is an https address that an env git config in this process maps to a local bare repository (url.<dir>.insteadOf)
   const remoteRoot = fs.mkdtempSync(path.join(os.tmpdir(), "golden-3-remote-"));
   const bare = path.join(remoteRoot, "site.git");
   spawnSync("git", ["init", "--bare", "-b", "main", bare]);
-  const gitConfig = path.join(remoteRoot, "gitconfig");
-  fs.writeFileSync(gitConfig, `[url "${remoteRoot}/"]\n\tinsteadOf = https://git.example.test/\n`);
-  const savedConfig = process.env["GIT_CONFIG_GLOBAL"];
-  process.env["GIT_CONFIG_GLOBAL"] = gitConfig;
+  // the module forces GIT_CONFIG_GLOBAL=/dev/null for its git children but passes this process's other environment through, so the alias goes in as env config entries (no credential is filled here, so the module adds none of its own)
+  const saved = ["GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0"].map((k) => [k, process.env[k]] as const);
+  process.env["GIT_CONFIG_COUNT"] = "1";
+  process.env["GIT_CONFIG_KEY_0"] = `url.${remoteRoot}/.insteadOf`;
+  process.env["GIT_CONFIG_VALUE_0"] = "https://git.example.test/";
   const remote = "https://git.example.test/site.git";
   try {
     const admin = s.d.token;
@@ -58,7 +59,7 @@ export async function runChanges(live: readonly string[]): Promise<{ events: Obs
       assert.match(log.stdout, /Reword the home page/, `remote log: ${log.stdout}${log.stderr}`);
     }, ["a member's push to the protected branch is held by the Gate"]);
     return { events: await s.events(), trail };
-  } finally { if (savedConfig === undefined) delete process.env["GIT_CONFIG_GLOBAL"]; else process.env["GIT_CONFIG_GLOBAL"] = savedConfig; await s.stop(); }
+  } finally { for (const [k, v] of saved) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } await s.stop(); }
 }
 
 export default async function steps(): Promise<Observed[]> {
