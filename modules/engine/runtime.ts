@@ -117,7 +117,10 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       holder: h.holder, openSession: bridge ? bridge.tap(openSession) : openSession, now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
       resolveAccount: (q) => accountFor(h, q),
-      onNoAccount: (info) => unblock(h, ctx.db, info),
+      onNoAccount: async (info) => {
+        try { await unblock(h, ctx.db, info); }
+        catch (e) { h.log?.("could not open the Unblock task for a turn with no account", { threadId: info.threadId, asker: info.asker, error: e instanceof Error ? e.message : String(e) }); throw e; }
+      },
       onTurnEnd: (turn, account) => meter(h, turn, account),
       ...(apiTools ? { callTool: apiTools.runner } : {}),
     });
