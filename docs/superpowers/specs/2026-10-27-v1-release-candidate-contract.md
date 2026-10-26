@@ -107,6 +107,10 @@ Work proceeds in parallel with one integration lead and three bounded lanes:
 
 Agents work in isolated worktrees and commit only their assigned paths. The integration lead reviews each change, requires focused tests, then lands it through the repository's protected path. No agent weakens a test, branch rule, authorization boundary, or acceptance criterion to make a gate pass.
 
+### Lead continuity rule
+
+Until the release candidate is published, Simba remains active in this lead thread. Background agents handle bounded implementation and review work; Simba continuously manages them, watches CI and merge queues, reports real artifacts, and redirects blocked lanes. Simba does not end the chat or send a final handoff while any release-critical lane, gate, or owner-visible decision remains open.
+
 ## Timeboxes and reporting
 
 The first integration checkpoint occurs after 90 minutes. At that point Simba reports working surfaces, landed fixes, failing gates, and a revised RC time based on evidence.
