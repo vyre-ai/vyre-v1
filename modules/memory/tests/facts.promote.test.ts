@@ -202,3 +202,15 @@ test("the agent's owner, an admin, and a person the owner shared the folder with
   const shared = harness({ respond: { ...respond, "access.shares_of": () => ({ shares: [{ grant: { subject: { kind: "person", id: "usr_dana" }, level: "edit" }, through: "direct" }] }) } });
   assert.equal((await promote(shared.ctx, { factId: await danaFact(shared), toLayer: "agent", agentId: "agt_intake" })).promoted, true, "a direct Edit share");
 });
+
+test("a member of a group the owner shared the agent's folder with at Edit does edit its memory; a member of no such group does not", async () => {
+  const shares = () => ({ shares: [
+    { grant: { subject: { kind: "role", id: "rol_member" }, level: "edit" }, through: "folder" },
+    { grant: { subject: { kind: "group", id: "grp_billing" }, level: "edit" }, through: "group" },
+  ] });
+  const inGroup = harness({ respond: { ...respond, "access.shares_of": shares, "access.groups.get": () => ({ group: { id: "grp_billing", members: [{ kind: "person", id: "usr_dana" }, { kind: "person", id: "usr_kim" }] } }) } });
+  assert.equal((await promote(inGroup.ctx, { factId: await danaFact(inGroup), toLayer: "agent", agentId: "agt_intake" })).promoted, true, "in the Billing team");
+  const outside = harness({ respond: { ...respond, "access.shares_of": shares, "access.groups.get": () => ({ group: { id: "grp_billing", members: [{ kind: "person", id: "usr_kim" }] } }) } });
+  const out = await promote(outside.ctx, { factId: await danaFact(outside), toLayer: "agent", agentId: "agt_intake" });
+  assert.equal(out.promoted, false, "not in it, the inherited Edit alone does not count");
+});

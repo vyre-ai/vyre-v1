@@ -206,7 +206,15 @@ export function makeAccess(ctx: MemCtx): Access {
       const owner = str(((await ctx.call("agents.get", { agentId })) as { agent?: { ownerId?: string } }).agent?.ownerId);
       if (owner !== "" && owner === me) return true;
       const got = (await ctx.call("access.shares_of", { resource: { type: "folder", id: folder } })) as { shares?: { grant?: { subject?: { kind?: string; id?: string }; level?: string }; through?: string }[] };
-      return (got.shares ?? []).some((r) => (r.through === "owner" || r.through === "direct") && r.grant?.subject?.kind === "person" && r.grant.subject.id === me && (r.grant.level === "edit" || r.grant.level === "manage"));
+      const editing = (got.shares ?? []).filter((r) => r.grant?.level === "edit" || r.grant?.level === "manage");
+      if (editing.some((r) => (r.through === "owner" || r.through === "direct") && r.grant?.subject?.kind === "person" && r.grant.subject.id === me)) return true;
+      // a group the owner shared the folder with at Edit or Manage: it counts when the asker is in it
+      for (const r of editing) {
+        if (r.through !== "group" || r.grant?.subject?.kind !== "group" || !r.grant.subject.id) continue;
+        const group = (await ctx.call("access.groups.get", { groupId: r.grant.subject.id })) as { group?: { members?: { id?: string }[] } };
+        if ((group.group?.members ?? []).some((m) => m.id === me)) return true;
+      }
+      return false;
     } catch { return false; }
   };
   const allow = (level: "view" | "edit", res: Resource): boolean => ctx.authorize({ perm: null, level }, res).effect === "allow";
@@ -223,7 +231,7 @@ export function makeAccess(ctx: MemCtx): Access {
         const folder = target ? await folderOf(layer, target) : null;
         ok = folder !== null && allow(level, { type: "folder", id: folder });
         // an agent's memory is not every member's to edit (ruling 88): a member's Space-wide Edit reaches the folder by inheritance, and that alone does not count. Editing is for the agent's
-        // owner, an admin (memory.admin), and anyone the owner shared the folder with (a direct Edit or Manage grant of their own).
+        // owner, an admin (memory.admin), and anyone the owner shared the folder with (a direct Edit or Manage grant of their own, or one given to a group they are in).
         if (ok && layer === "agent" && level === "edit" && folder !== null) ok = (await ownsOrShared(target as string, folder)) || ctx.authorize({ perm: "memory.admin", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow";
       }
       memo.set(key, ok);
