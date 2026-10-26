@@ -115,6 +115,29 @@ async function projectsRoot(ctx: ProjectsCtx): Promise<string> {
   return root.folderId;
 }
 
+/**
+ * Everyone a new project starts with must be someone access.share could give that role to, checked here under the caller's own ctx, before anything is made. A person or agent must be in the
+ * Space and not removed, a group must exist, and the role must be a project role. The caller holds Manage on what they make (they own it), the most any role grants, so the ceiling for the roles
+ * they hand out is theirs by construction; the later grants are written by the host after the commit and add only these people (grantOnProject).
+ */
+async function vetStarters(ctx: ProjectsCtx, members: ReadonlyMap<string, Role>): Promise<void> {
+  for (const [id, role] of members) {
+    if (!Object.hasOwn(LEVEL_OF, role)) raise(ctx, "validation.bad_input", "That is not a project role.", { principal: id, role });
+    const kind = kindOfPrincipal(id)!;
+    try {
+      if (kind === "group") await call(ctx, "access.groups.get", { groupId: id });
+      else {
+        const got = await call<{ principal?: { status?: string } }>(ctx, "access.principals.get", { principal: { kind, id } });
+        if (got.principal?.status === "removed") raise(ctx, "validation.precondition_failed", "That person was removed.", { principal: id });
+      }
+    } catch (e) {
+      const code = codeOf(e);
+      if (code === "validation.not_found" || code === "validation.bad_input" || code === "validation.precondition_failed") raise(ctx, "validation.bad_input", `${id} is not in this Space, so it cannot hold a project role.`, { principal: id });
+      throw e;
+    }
+  }
+}
+
 interface Plan {
   type: string; title: string; summary?: string | undefined; goal?: string | undefined; lead?: string | undefined; start?: number | undefined; due?: number | undefined;
   stages: Array<{ key: string; title: string }>; members: Array<{ principal: string; role: Role }>; source: Source; key: string;
@@ -133,6 +156,8 @@ async function makeProject(ctx: ProjectsCtx, o: Plan): Promise<Made> {
   // whoever makes the project stays on it, even when someone else leads
   if (maker.startsWith("usr_") && !members.has(maker)) members.set(maker, "member");
   for (const id of members.keys()) if (!kindOfPrincipal(id)) raise(ctx, "validation.bad_input", "A person, an agent or a group holds a project role.", { principal: id });
+
+  await vetStarters(ctx, members);
 
   const rec = await call<{ record?: { id?: string } }>(ctx, "records.create", {
     type: o.type, fields: clean({ title: o.title, summary: o.summary, status: "planning", lead, start: o.start, due: o.due, goal: o.goal, stages: o.stages.map((s) => s.key) }),

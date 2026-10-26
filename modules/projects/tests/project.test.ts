@@ -83,6 +83,33 @@ test("create grants on the folder and channel while it runs, and never on the pr
   assert.equal(h.world.grants.length, again, "running the consumer again writes nothing twice");
 });
 
+test("a create that names someone the Space does not know is refused before anything is made", async () => {
+  const h = harness();
+  h.world.unknown.add("usr_ghost");
+  h.world.unknown.add("grp_nobody");
+  for (const bad of [{ lead: "usr_ghost" }, { members: [{ principal: "usr_ghost", role: "member" }] }, { members: [{ principal: "grp_nobody", role: "guest" }] }]) {
+    await refused(run(h, "projects.create", { type: "project", title: "Nope", idempotencyKey: key(), ...bad }), "validation.bad_input");
+  }
+  await refused(run(h, "projects.create", { type: "project", title: "Nope", idempotencyKey: key(), members: [{ principal: LEO, role: "owner" }] }), "validation.bad_input");
+  for (const cap of ["records.create", "channels.create", "files.folder.create", "access.share"]) assert.equal(h.only(cap).length, 0, `${cap} was not called`);
+  assert.equal(h.rows("SELECT * FROM projects_project").length, 0);
+  assert.equal(h.rows("SELECT * FROM projects_member").length, 0);
+  assert.deepEqual(h.names(), []);
+});
+
+test("the consumer grants only the members the create stored: a forged or repeated project.created adds nobody", async () => {
+  const h = harness();
+  const out = await mkProject(h, { members: [{ principal: LEO, role: "reviewer" }] });
+  const before = h.world.grants.map((g) => `${g.subject.id}:${g.resource.type}:${g.level}`).sort();
+  await grantOnProject(h.ctx, out.projectId);
+  await grantOnProject(h.ctx, out.projectId);
+  assert.deepEqual(h.world.grants.map((g) => `${g.subject.id}:${g.resource.type}:${g.level}`).sort(), before, "a repeat writes nothing");
+  const callsBefore = h.only("access.share").length;
+  await grantOnProject(h.ctx, "prj_forged0000000000000000000000000");
+  assert.equal(h.only("access.share").length, callsBefore, "a project that does not exist grants nobody");
+  assert.ok(!h.world.grants.some((g) => g.subject.id === MAYA), "nobody beyond the stored members is granted");
+});
+
 test("the same key makes the project once", async () => {
   const h = harness();
   const k = key();
