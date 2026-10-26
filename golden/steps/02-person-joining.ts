@@ -14,16 +14,22 @@ const KEYS = { personKeyByPassword: "d3JhcHBlZA==", publicKey: "cHVibGlj", priva
 
 /** Why this flow is a todo today (ruling 53: each LIVE packet cannot close until it passes). */
 export const GAPS: Gap[] = [
-  { packet: "P-L7_LIVE", lane: "L7", what: "spaces.get is a 'later' stub in modules/spaces/handlers/index.ts, so members.invites.create and preview answer 501" },
-  { packet: "P-L7_LIVE", lane: "L7", what: "the host never builds identity ctx.invites from members invitesSeam, so the accept raises 'invites are not wired'" },
-  { packet: "P-SEC_05", lane: "L7b", what: "identity mints its own tokens and never calls devices.register, so the token a new member gets back is 401 at the gateway" },
+  { packet: "P-L7_22 (w12a)", lane: "L7", what: "a newly joined person stays unauthorized, so the steps where Maya acts as herself cannot pass yet" },
 ];
+
+/** A Space needs an address before it can invite (the join link carries it); a person with server.network sets one. */
+export async function setAddress(s: FlowSpace, trail: Trail): Promise<void> {
+  await trail.step("the Space has an address for join links", async () => {
+    expectStatus(await s.call("spaces.switch_address", s.d.token, { mode: "own_domain", host: "team.seed.example.test" }), 200, "spaces.switch_address");
+  });
+}
 
 export async function runJoining(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const s = await bootFlowSpace(live);
   const trail = new Trail();
   try {
     const owner = s.d.token;
+    await setAddress(s, trail);
     const group = await trail.step("owner makes the Sales group", async () => expectStatus(await s.call("access.groups.create", owner, { name: "Sales", idempotencyKey: "golden-2-group" }), 200, "access.groups.create").group.id as string);
     const roleId = await trail.step("the Member role is listed", async () => {
       const roles = expectStatus(await s.call("access.roles.list", owner, {}), 200, "access.roles.list").roles as { id: string; name: string }[];
@@ -90,6 +96,7 @@ export interface Joiner { id: string; token: string; username: string; password:
 /** Joins one person the way flow 2 does (invite as the owner, accept with no token), for the flows that need a real account. Step names carry the label so one trail can hold several. */
 export async function joinPerson(s: FlowSpace, trail: Trail, label: string, roleId: string): Promise<Joiner | undefined> {
   const username = label.toLowerCase(), password = "correct horse battery";
+  if (!trail.lines.some((l) => l.includes("the Space has an address"))) await setAddress(s, trail);
   const code = await trail.step(`${label} is invited`, async () => {
     const out = expectStatus(await s.call("members.invites.create", s.d.token, { role: roleId, idempotencyKey: `golden-join-${username}` }), 200, "members.invites.create");
     const c = /\/join\/([A-Z0-9-]+)/.exec(out.link as string)?.[1];
