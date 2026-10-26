@@ -17,9 +17,9 @@ import { Tag, valueText } from "./parts.tsx";
 import { ViewHead, useViewState } from "./view.tsx";
 import type { ViewCtx } from "./view.tsx";
 
-/** One record as the shared ui/Row: the record's own face leading (seeded by its id), the status tag trailing, a menu on right-click. It is named Row because the rows lint reads a list item by that name. */
-function Row({ r, title, note, selected, badge, onOpen, onMenu }: {
-  r: RecordRow; title: string; note: string; selected: boolean; badge: FieldDef | undefined; onOpen: () => void; onMenu: (x: number, y: number) => void;
+/** One record as the shared ui/Row: a face leading (the lead's, else the record's own seeded by its id), the status tag trailing, a menu on right-click. It is named Row because the rows lint reads a list item by that name. */
+function Row({ r, title, note, selected, person, badge, names, onOpen, onMenu }: {
+  r: RecordRow; title: string; note: string; selected: boolean; person: unknown; badge: FieldDef | undefined; names: (id: string) => string; onOpen: () => void; onMenu: (x: number, y: number) => void;
 }): ReactElement {
   const bv = badge ? r.fields[badge.key] : undefined;
   const trig = menuTrigger(onMenu);
@@ -27,7 +27,7 @@ function Row({ r, title, note, selected, badge, onOpen, onMenu }: {
     <View testID={`list-${r.id}`} style={l.cell} {...(trig as object)}>
       <UiRow
         id={`rec-${r.id}`} title={title} note={note} selected={selected}
-        leading={<Face name={title} seedId={r.id} size={24} />}
+        leading={typeof person === "string" && person !== "" ? <Face name={names(person)} seedId={person} size={24} /> : <Face name={title} seedId={r.id} size={24} />}
         {...(badge && typeof bv === "string" && bv !== "" ? { trailing: <Tag field={badge} value={bv} /> } : {})}
         onPress={onOpen}
       />
@@ -51,6 +51,7 @@ export function ListView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const names = data.nameOf;
   const tf = def.fields.find((f) => f.key === def.titleField);
   const badge = badgeFieldOf(def);
+  const who = def.fields.find((f) => f.type === "person");
   const note = cardFields(def, st.v.hidden, badge?.key ?? null, 3);
 
   return (
@@ -64,7 +65,7 @@ export function ListView({ ctx }: { ctx: ViewCtx }): ReactElement {
             data={rows} rowHeight={44} keyOf={(r) => r.id} renderItem={(r) => (
               <Row
                 r={r} title={(tf ? cellText(tf, r.fields[tf.key], names) : "") || "Untitled"} note={noteOf(each(note, (f) => valueText(f, r, names))) || def.title} selected={selected === r.id}
-                badge={badge}
+                person={who ? r.fields[who.key] : undefined} badge={badge} names={names}
                 onOpen={() => { setSelected(r.id); data.nav.openRecord(r.id); }}
                 onMenu={(x, y) => { setSelected(r.id); menu.show([{ label: "Open", onSelect: () => data.nav.openRecord(r.id) }], x, y); }}
               />
