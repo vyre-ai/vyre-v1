@@ -38,12 +38,12 @@ const CALLS: [string, [string, unknown], [string, unknown]][] = [
   ["google", ["/v1/google/health", {}], ["/v1/google/dwd/disable", {}]],
   ["inbox", ["/v1/inbox/counts", {}], ["/v1/inbox/link_message", { channel: "email", ref: { kind: "mail_message", id: "msg_1" }, address: "a@example.com", direction: "in", at: AT }]],
   ["mail", ["/v1/mail/mailbox/list", {}], ["/v1/mail/mailbox/create", { idempotencyKey: "l5-mbx", kind: "shared", address: "team@example.com", title: "Team", provider: "inbound_only" }]],
-  ["meetings", ["/v1/meetings/list", {}], ["/v1/meetings/schedule", { idempotencyKey: "l5-meet", title: "Intake call", startsAt: AT, endsAt: AT + 1_800_000, provider: "none", attendees: [{ email: "client@example.com", name: "Client" }] }]],
+  ["meetings", ["/v1/meetings/list", {}], ["/v1/meetings/ingest", { source: "zoom", providerRef: "8123456789", startsAt: AT, attendees: [{ email: "client@example.com", name: "Client" }] }]],
   ["telephony", ["/v1/telephony/number/list", {}], ["/v1/telephony/registration/save", { legalName: "Northwind Legal LLC" }]],
-  ["zoom", ["/v1/zoom/health", {}], ["/v1/zoom/receive_webhook", { eventId: "evt_zoom_1", type: "meeting.started", at: AT }]],
+  ["zoom", ["/v1/zoom/health", {}], ["/v1/zoom/receive_webhook", { eventId: "evt_zoom_check", type: "endpoint.url_validation", plainToken: "qgg8vlvZRS6UYooatFL8Aw", at: AT }]],
   ["microsoft", ["/v1/ms/health", {}], ["/v1/ms/consent/disable", {}]],
   ["stripe", ["/v1/stripe/health", {}], ["/v1/stripe/receive_webhook", { eventId: "evt_1", type: "checkout.session.completed", objectId: "cs_1", amount: 100, currency: "USD", at: AT }]],
-  ["twilio", ["/v1/twilio/health", {}], ["/v1/twilio/receive_webhook", { kind: "status", dedupeKey: "k1", sid: "CA1", params: {} }]],
+  ["twilio", ["/v1/twilio/health", {}], ["/v1/twilio/receive_webhook", { kind: "sms", dedupeKey: "sms:SM1", sid: "SM1", params: { MessageSid: "SM1", From: "+14155550100", To: "+14155550101", Body: "hello" } }]],
 ];
 
 test("l5 live: host/modules.json has every finished L5 module live", () => {
@@ -69,6 +69,8 @@ test("l5 live: a booted daemon has no L5 module not set up, and a read and a wri
       const who = t === OWNER ? "usr_olivia" : t === MEMBER ? "usr_noah" : null;
       return who === null ? null : { space: "spc_core", principal: { kind: "person", id: who }, device: "l5-live" };
     },
+    // the Vault holds one item: Zoom's webhook secret (the URL check is signed with it); every other key is missing, which is what the clean-refusal checks below rely on
+    vault: { secret: (handle: string) => (handle === "#Zoom_Webhook_Secret" ? Promise.resolve("whsec_l5_test") : Promise.reject(new Error("no such item"))), signRs256: () => Promise.reject(new Error("no such item")) },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
   const post = (token: string, p: string, body: unknown) =>
