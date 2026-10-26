@@ -125,7 +125,7 @@ function Page({ initial }: { initial?: AppsStart | undefined }): ReactElement {
   }
   function sideRows(g: GroupKey, rows: AppRow[]): ReactElement[] {
     const out: ReactElement[] = [];
-    for (const r of rows.slice(0, 6)) out.push(<Row key={r.id} id={`nav:${r.id}`} title={r.title} selected={selected === r.id} onPress={() => press(r)} {...menuTrigger((x, y) => menuFor(r, x, y))} />);
+    for (const r of rows.slice(0, 6)) out.push(<View key={r.id} {...menuTrigger((x, y) => menuFor(r, x, y))}><Row id={`nav:${r.id}`} title={r.title} selected={selected === r.id} onPress={() => press(r)} /></View>);
     if (rows.length > 6) out.push(<Pressable key="more" accessibilityRole="button" testID={`apps-more-${g}`} onPress={() => { setGroup(g); setSelected(null); }}><Text style={s.more}>{`Show all ${rows.length}`}</Text></Pressable>);
     return out;
   }
