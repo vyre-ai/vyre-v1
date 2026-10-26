@@ -671,7 +671,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         if (!t) return null;
         if (sameToken(t, token)) return { space: spaceId, principal: { kind: "person", id: owner() }, device: ADMIN_DEVICE };
         const s = sessions.resolve(t);
-        // a session is only as good as the membership behind it: a suspended, removed or unknown person's live token stops working at once, and comes back with reactivation
+        // a session is only as good as the membership behind it: a suspended, removed or unknown person's live token stops working at once, and a fresh sign-in is needed after reactivation (suspend ends the person's devices)
         if (!s || access.snap.principal(s.person)?.status !== "active") return null;
         return { space: s.space, principal: { kind: "person", id: s.person }, device: s.device };
       };

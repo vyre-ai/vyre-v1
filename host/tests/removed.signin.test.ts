@@ -14,7 +14,7 @@ const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, heade
 const KEYS = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] };
 const PASSWORD = "correct horse battery staple 9";
 
-test("a removed member cannot sign in again, their old session token answers 401, and a suspended member is refused too until reactivated", async () => {
+test("a removed member cannot sign in again, their old session token answers 401, and a suspended member is refused too and needs a fresh sign-in after reactivation", async () => {
   const core = bootCore();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-removed-"));
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
@@ -55,7 +55,7 @@ test("a removed member cannot sign in again, their old session token answers 401
     assert.notEqual((await signIn()).status, 200, "a suspended member cannot sign in");
     assert.equal((await post(old, "/v1/identity/whoami", {})).status, 401, "and their live token stops working at once");
     assert.equal((await post(owner, "/v1/members/reactivate", { personId: person })).status, 200);
-    assert.equal((await post(old, "/v1/identity/whoami", {})).status, 200, "reactivated, the same token works again");
+    assert.equal((await post(old, "/v1/identity/whoami", {})).status, 401, "suspending ended their devices, so the old token stays gone after reactivation");
     const back = await signIn();
     assert.equal(back.status, 200, JSON.stringify(back.body));
 
