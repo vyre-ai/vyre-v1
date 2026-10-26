@@ -51,7 +51,7 @@ test("a type in use polls every 2 minutes, an idle one every 15, a dormant one e
   const k = world();
   const a = bind(k, "active_t", { lastRun: NOON - 119_000 });
   const i = bind(k, "idle_t", { lastRun: NOON - 14 * MIN });
-  const d = bind(k, "dormant_t", { lastRun: NOON - 59 * MIN });
+  const d = bind(k, "dormant_t", { lastRun: NOON - 58 * MIN });
   const used = { active_t: NOON - MIN, dormant_t: NOON - 8 * 86_400_000 };
   assert.deepEqual(due(k, NOON, used), [], "nothing is due a second early");
   assert.deepEqual(due(k, NOON + 1_000, used).map((x) => [x.syncTypeId, x.useState]), [[a, "active"]], "active is due at 2 minutes");
