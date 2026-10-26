@@ -11,9 +11,7 @@ import type { Observed } from "../harness/index.ts";
 export const LIVE_FOR_PERSONAL = ["spaces", "devices", "network", "access", "members", "documents", "identity", "records", "schema"];
 
 /** Why this flow is a todo today (ruling 53). Empty when every step passes. */
-export const GAPS: Gap[] = [
-  { packet: "P-H_19 follow-up (w2q)", lane: "L7", what: "the node boots with --space-kind personal and refuses team-only calls, but spaces.matrix still answers kind team with every feature available" },
-];
+export const GAPS: Gap[] = [];
 
 const MEMO = { op: "type.create", type: "memo", def: { title: "Memo", plural: "Memos", icon: "file", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "body", type: "longtext", title: "Body" }] } };
 const TEXT = "The Harlow filing moves to Thursday.";

@@ -99,7 +99,7 @@ export interface CapabilityDef {
   errors: ErrorCode[];                 // every code the handler may return; contract test enforces
   resource: ResourceBinding;           // what authorize checks
   permission: PermissionKey | null;    // role permission needed; null = grant-only
-  level: Level;                        // grant level needed on the resource
+  level: Level | 'member';             // grant level needed on the resource; 'member': any role or grant in the Space (no level on the resource), rows are then filtered per resource by the handler (ruling 69)
   risk: Risk;
   effects: 'read' | 'write' | 'outward';       // outward = leaves the Space (send, post, pay, deploy, push)
   gate?: { act: string; when?: string; reason?: string };   // GateActKind key; `when` is an Expr over input; `act: 'none'` needs `reason`

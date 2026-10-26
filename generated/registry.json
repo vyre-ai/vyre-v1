@@ -50846,7 +50846,7 @@
       "resource": {
         "create": true,
         "parent": "/connector",
-        "type": "connector"
+        "type": "connection"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -57829,7 +57829,7 @@
       "resource": {
         "create": true,
         "parent": "/intoFolderId",
-        "type": "folder"
+        "type": "file"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -66871,7 +66871,7 @@
       "resource": {
         "create": true,
         "parent": "/toFolderId",
-        "type": "folder"
+        "type": "file"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -93462,9 +93462,7 @@
       },
       "permission": "journeys.manage",
       "resource": {
-        "create": true,
-        "parent": "/subjectType",
-        "type": "record_type"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -95161,9 +95159,7 @@
       },
       "permission": "kits.publish",
       "resource": {
-        "create": true,
-        "parent": "/brief",
-        "type": "kit"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -118332,7 +118328,8 @@
         "permission.above_clearance",
         "permission.needs_team",
         "permission.no_grant",
-        "validation.bad_input"
+        "validation.bad_input",
+        "validation.not_found"
       ],
       "examples": [
         {
@@ -118386,7 +118383,7 @@
         ],
         "type": "object"
       },
-      "level": "edit",
+      "level": "manage",
       "module": "portal",
       "name": "portal.file_link",
       "output": {
@@ -118411,8 +118408,7 @@
       },
       "permission": null,
       "resource": {
-        "create": true,
-        "parent": "/fileId",
+        "id": "/fileId",
         "type": "file"
       },
       "risk": "medium",
@@ -119845,7 +119841,7 @@
       "resource": {
         "create": true,
         "parent": "/type",
-        "type": "record_type"
+        "type": "record"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -135356,7 +135352,7 @@
       "resource": {
         "create": true,
         "parent": "/folderId",
-        "type": "folder"
+        "type": "file"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -137479,7 +137475,8 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
-        "validation.bad_input"
+        "validation.bad_input",
+        "validation.not_found"
       ],
       "examples": [
         {
@@ -137549,9 +137546,8 @@
       },
       "permission": null,
       "resource": {
-        "create": true,
-        "parent": "/siteId",
-        "type": "record_type"
+        "id": "/siteId",
+        "type": "site"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -138099,9 +138095,7 @@
       },
       "permission": "connectors.manage",
       "resource": {
-        "create": true,
-        "parent": "/connector",
-        "type": "connector"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -142779,7 +142773,7 @@
         ],
         "type": "object"
       },
-      "level": "edit",
+      "level": "member",
       "module": "sync",
       "name": "sync.doc.close",
       "offline": "online",
@@ -142857,7 +142851,7 @@
         ],
         "type": "object"
       },
-      "level": "edit",
+      "level": "member",
       "module": "sync",
       "name": "sync.doc.compact",
       "output": {
@@ -142936,7 +142930,7 @@
         "type": "object"
       },
       "label": "check",
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.doc.open",
       "output": {
@@ -143038,7 +143032,7 @@
         "type": "object"
       },
       "label": "check",
-      "level": "edit",
+      "level": "member",
       "module": "sync",
       "name": "sync.doc.update",
       "offline": "online",
@@ -143100,7 +143094,7 @@
         "properties": {},
         "type": "object"
       },
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.endpoints",
       "output": {
@@ -143199,7 +143193,7 @@
         },
         "type": "object"
       },
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.entities",
       "output": {
@@ -143514,7 +143508,7 @@
         ],
         "type": "object"
       },
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.hello",
       "output": {
@@ -143678,7 +143672,7 @@
         "type": "object"
       },
       "label": "filter",
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.pull",
       "output": {
@@ -144018,7 +144012,7 @@
         ],
         "type": "object"
       },
-      "level": "edit",
+      "level": "member",
       "module": "sync",
       "name": "sync.push",
       "offline": "online",
@@ -144152,7 +144146,7 @@
         "type": "object"
       },
       "label": "filter",
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.snapshot.begin",
       "output": {
@@ -144257,7 +144251,7 @@
         "type": "object"
       },
       "label": "filter",
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.snapshot.page",
       "output": {
@@ -144336,7 +144330,7 @@
         },
         "type": "object"
       },
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.status",
       "output": {
@@ -153311,9 +153305,7 @@
       },
       "permission": "kits.publish",
       "resource": {
-        "create": true,
-        "parent": "/ref",
-        "type": "kit"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
