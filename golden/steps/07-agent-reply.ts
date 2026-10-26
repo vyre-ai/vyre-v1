@@ -55,9 +55,14 @@ export async function runAgentReply(live: readonly string[], opts: Parameters<ty
           const consumers = (s.d.hooks?.consumers ?? []).map((c) => c.name).filter((n) => /engine|chat/.test(n));
           const cursors = s.d.db?.all("SELECT name, seq FROM host_hook_cursor WHERE name LIKE 'engine%' OR name LIKE 'chat%'");
           const head = (await s.events()).slice(-6).map((e) => `${e.type}`);
-          const engineMsgs = (() => { try { return s.d.db?.all("SELECT id, thread_id FROM engine_messages LIMIT 5"); } catch (e) { return String(e); } })();
+          const rows = (sql: string): unknown => { try { return s.d.db?.all(sql); } catch (e) { return String(e); } };
+          const engineMsgs = rows("SELECT id, thread_id FROM engine_messages LIMIT 5");
+          const queue = rows("SELECT * FROM engine_thread_queue LIMIT 5");
+          const leases = rows("SELECT * FROM engine_thread_lease LIMIT 5");
+          const unblock = rows("SELECT * FROM engine_unblock LIMIT 5");
+          const agentState = rows("SELECT * FROM engine_agent_state LIMIT 5");
           const wired = s.d.seams?.wired?.filter((w) => /ngine|ridge/.test(w));
-          const diag = JSON.stringify({ consumers, cursors, lastEvents: head, engineMsgs, wired, missing: s.d.seams?.missing?.filter((m) => /engine|chat/.test(String(m.module))) });
+          const diag = JSON.stringify({ queue, leases, unblock, agentState, consumers, cursors, lastEvents: head, engineMsgs, wired, missing: s.d.seams?.missing?.filter((m) => /engine|chat/.test(String(m.module))) });
           const turns = await s.call("engine.turns.list", admin, { threadId: thread! });
           throw new Error(`no reply from the agent after 40 s: ${short(msgs)}; turns ${short(turns.body?.data ?? turns.body)}; host log ${JSON.stringify(logs)}; diag ${diag}`);
         }
