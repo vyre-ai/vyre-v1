@@ -16,7 +16,7 @@ export const WINDOW = 200;
 export const GROUP_LIMIT = 1000;
 const OVERSCAN = 6;
 /** The rows drawn beyond the screen above and below while scrolling, and the rows the scroll position is rounded to: a fast fling (120 px a frame) never outruns the drawn rows, and a render happens every few frames, not every frame. */
-export const FLING_OVERSCAN = 20;
+export const FLING_OVERSCAN = 12;
 export const SCROLL_BLOCK = 8;
 
 // ---------------------------------------------------------------- columns
@@ -290,3 +290,27 @@ export function colourOf(f: FieldDef | undefined, r: RecordRow): string | null {
   const hue = opt?.color && /^\d+$/.test(opt.color) ? Number(opt.color) : hueOf(key);
   return `hsla(${hue}, 65%, 52%, 0.10)`;
 }
+
+// ---------------------------------------------------------------- picking rows
+
+/** The rows picked in the table: the ids ticked one by one, or every row of the table. */
+export interface RowPick { ids: ReadonlySet<string>; every: boolean }
+export const NO_PICK: RowPick = { ids: new Set(), every: false };
+
+/** Cmd-click: that row joins or leaves the pick. Picking one by one after "all" starts again from that row. */
+export function togglePick(p: RowPick, id: string): RowPick {
+  const ids = new Set(p.every ? [] : p.ids);
+  if (ids.has(id)) ids.delete(id); else ids.add(id);
+  return { ids, every: false };
+}
+
+/** The header checkbox: anything picked clears it; nothing picked takes the rows that are loaded. */
+export function toggleHeader(p: RowPick, loaded: readonly string[]): RowPick {
+  return p.every || p.ids.size > 0 ? NO_PICK : { ids: new Set(loaded), every: false };
+}
+
+/** A row is picked when it is in the set or the pick is every row. */
+export const isPickedRow = (p: RowPick, id: string): boolean => p.every || p.ids.has(id);
+
+/** How many the pick holds, given the table's count. */
+export const pickCount = (p: RowPick, total: number): number => (p.every ? total : p.ids.size);
