@@ -15,7 +15,7 @@ import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
 
 const OWNER_TOKEN = "tok-usr_olivia";
-const MEMBER_TOKEN = "tok-usr_noah";
+const TEMP_TOKEN = "tok-usr_tess";
 const SITE = "sit_main";
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 
@@ -61,7 +61,7 @@ function boot(dir: string, sent: Sent[]): Promise<Daemon> {
     seams: { publicUrl: async () => "https://space.example" },
     session: (h) => {
       const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
-      const who = t === OWNER_TOKEN ? "usr_olivia" : t === MEMBER_TOKEN ? "usr_noah" : null;
+      const who = t === OWNER_TOKEN ? "usr_olivia" : t === TEMP_TOKEN ? "usr_tess" : null;
       return who === null ? null : { space: "spc_core", principal: { kind: "person", id: who }, device: "portal-live" };
     },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
@@ -157,14 +157,16 @@ test("portal live: the landing page shows what is shared with the client once th
   try {
     await serviceMailbox(d);
     const made = await invite(d);
-    const rec = await post(d, OWNER_TOKEN, "records.create", { type: "rt_contact", fields: { name: "Pat Client" } });
+    const typed = await post(d, OWNER_TOKEN, "schema.apply", { ops: [{ op: "type.create", type: "rt_client", def: { title: "Client", plural: "Clients", icon: "user", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }] } }] });
+    assert.equal(typed.status, 200, JSON.stringify(typed.data));
+    const rec = await post(d, OWNER_TOKEN, "records.create", { type: "rt_client", fields: { name: "Pat Client" } });
     assert.equal(rec.status, 200, JSON.stringify(rec.data));
-    const linked = await post(d, OWNER_TOKEN, "portal.link_record", { accountId: made.data.account.id, recordId: rec.data.record.id, rowRule: { recordType: "rt_contact" } });
+    const linked = await post(d, OWNER_TOKEN, "portal.link_record", { accountId: made.data.account.id, recordId: rec.data.record.id, rowRule: { recordType: "rt_client" } });
     assert.equal(linked.status, 200, JSON.stringify(linked.data));
     const page = await get(d, linkOf(sent));
     assert.equal(page.status, 200);
     assert.match(page.text, /Your records/);
-    assert.match(page.text, /Shared rt contact records/);
+    assert.match(page.text, /Shared rt client records/);
   } finally { await d.stop(); }
 });
 
@@ -180,12 +182,12 @@ test("portal live: with no service mailbox the invitation fails with a message t
   } finally { await d.stop(); }
 });
 
-test("portal live: a member without sites.deploy cannot invite", async () => {
+test("portal live: a temporary guest without sites.deploy cannot invite", async () => {
   const sent: Sent[] = [];
   const d = await boot(seededDir(), sent);
   try {
     await serviceMailbox(d);
-    const r = await invite(d, MEMBER_TOKEN);
+    const r = await invite(d, TEMP_TOKEN);
     assert.equal(r.status, 403, JSON.stringify(r.data));
     assert.equal(sent.length, 0);
   } finally { await d.stop(); }
