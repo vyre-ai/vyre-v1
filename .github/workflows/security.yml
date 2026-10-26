@@ -19,7 +19,7 @@ jobs:
         run: node scripts/license-check.ts
       - name: cargo licenses over the desktop shell (cargo deny, a pinned version kept on the host; a runner that cannot run it fails the job)
         env:
-          CARGO_DENY_VERSION: "0.16.1"
+          CARGO_DENY_VERSION: "0.18.9"
         run: |
           [ -f apps/desktop/src-tauri/Cargo.toml ] || { echo "no Cargo.toml, nothing to check"; exit 0; }
           TOOLS="${VYRE_TOOLS_CACHE:-/var/lib/ci-run/tools}/cargo-deny-$CARGO_DENY_VERSION"
