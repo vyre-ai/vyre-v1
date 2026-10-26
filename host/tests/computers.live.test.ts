@@ -121,8 +121,8 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     const mid = Math.floor(original.length / 2);
     const flipped = original.slice(0, mid) + (original[mid] === "A" ? "B" : "A") + original.slice(mid + 1);
     fs.writeFileSync(sealedFile, flipped, { mode: 0o600 });
-    const refused = await call(d, "computers.wake", { computerId });
-    assert.notEqual(refused.status, 200, "a wake over a changed sealed profile is refused");
+    const tampered = await call(d, "computers.wake", { computerId });
+    assert.notEqual(tampered.status, 200, "a wake over a changed sealed profile is refused");
     const failed = await call(d, "computers.get", { computerId });
     assert.equal(failed.data.computer.state, "error");
     assert.match(String(failed.data.computer.error), /sealed profile did not open/, "the reason is readable");
