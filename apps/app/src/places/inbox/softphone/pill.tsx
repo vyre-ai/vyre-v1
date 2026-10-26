@@ -21,9 +21,10 @@ export function CallTitlePill(): ReactElement | null {
   );
 }
 
+// The tint is the prototype's 16% of --ok (26% on hover), drawn as a gradient layer: a color-mix colour is dropped from backgroundColor on the web build.
 const s = StyleSheet.create({
-  pill: { height: 26, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 8, paddingRight: 10, borderRadius: 13, backgroundColor: "color-mix(in srgb, var(--ok) 18%, var(--win))" as string },
-  hover: { backgroundColor: "color-mix(in srgb, var(--ok) 28%, var(--win))" as string },
+  pill: { height: 26, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 8, paddingRight: 10, borderRadius: 13, backgroundImage: "linear-gradient(color-mix(in srgb, var(--ok) 16%, transparent), color-mix(in srgb, var(--ok) 16%, transparent))" as unknown as undefined },
+  hover: { backgroundImage: "linear-gradient(color-mix(in srgb, var(--ok) 26%, transparent), color-mix(in srgb, var(--ok) 26%, transparent))" as unknown as undefined },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ok)" as string },
   text: { color: "var(--ink)" as string, fontSize: 12, fontWeight: "500" },
 });
