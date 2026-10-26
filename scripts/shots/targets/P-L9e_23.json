@@ -1,0 +1,7 @@
+{
+  "targets": [
+    { "id": "P-L9e_23-forms", "route": "/m/P-L9e_23?group=forms", "proto": "apps,{skin}", "waitFor": "[data-testid='apps-place']", "note": "The Apps place: the five groups in the sidebar with their counts and the Forms list in the main view, a count of answers on each row. The prototype side is its Apps place." },
+    { "id": "P-L9e_23-campaigns", "route": "/m/P-L9e_23?group=campaigns", "proto": "apps,at:campaigns,{skin}", "waitFor": "[data-testid='apps-place']", "note": "The Campaigns list: state and who it reaches on each row. The prototype side is its Campaigns list." },
+    { "id": "P-L9e_23-personal", "route": "/m/P-L9e_23?team=0", "proto": "apps,space:personal,{skin}", "waitFor": "[data-testid='apps-needs-team']", "note": "A Personal Space: one quiet line says Apps need a Team Space. The prototype side is its Personal Space state." }
+  ]
+}
