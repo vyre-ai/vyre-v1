@@ -522,6 +522,8 @@ export interface SoftphoneViewProps extends SoftphoneProps {
 }
 
 const DOCK = (Platform.OS === "web" ? { position: "fixed", right: 16, bottom: 16, zIndex: 90 } : { position: "absolute", right: 8, bottom: 8 }) as unknown as ViewStyle;
+// a ring is the first thing a person must answer: its sheet sits at the top right under the title bar, as in the prototype; every other state stays at the bottom right
+const DOCK_RING = (Platform.OS === "web" ? { position: "fixed", right: 16, top: 46, zIndex: 90 } : { position: "absolute", right: 8, top: 8 }) as unknown as ViewStyle;
 const POP_SHADOW = { boxShadow: "var(--sh-pop)" } as unknown as ViewStyle;
 
 function IdlePill({ number, onOpen }: { number: string; onOpen?: (() => void) | undefined }): ReactElement {
@@ -825,7 +827,7 @@ export function Softphone(p: SoftphoneViewProps): ReactElement | null {
   const first = p.numbers[0];
   const from = p.numbers.find((n) => n.id === p.fromId) ?? first;
   const wrap = (child: ReactElement): ReactElement => (
-    <View accessibilityLabel={softphoneLabel(p)} testID={p.testID ?? "softphone"} {...webProps({ dataSet: { mode: p.mode } })} style={p.placement === "inline" ? styles.inline : DOCK}>
+    <View accessibilityLabel={softphoneLabel(p)} testID={p.testID ?? "softphone"} {...webProps({ dataSet: { mode: p.mode } })} style={p.placement === "inline" ? styles.inline : p.mode === "incoming" ? DOCK_RING : DOCK}>
       {child}
     </View>
   );
