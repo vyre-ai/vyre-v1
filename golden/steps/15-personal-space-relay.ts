@@ -93,6 +93,8 @@ export async function runPersonal(live: readonly string[]): Promise<{ events: Ob
       for (const u of opened.body.data.updates as string[]) Y.applyUpdate(phoneDoc, new Uint8Array(Buffer.from(u, "base64")));
       if (opened.body.data.snapshot) Y.applyUpdate(phoneDoc, new Uint8Array(Buffer.from(opened.body.data.snapshot as string, "base64")));
       assert.equal(phoneDoc.getText("body").toString(), TEXT);
+      const types = (await space.events(false)).map((e) => e.type);
+      assert.ok(types.includes("doc.updated"), `the update is in the log as doc.updated: ${types.slice(-12).join(", ")}`);
     }, ["the phone's replica pulls through the relay", "the host makes a memo with a body"]);
     await trail.step("refusal: the phone cannot revoke the host's other devices", async () => {
       const r = await space.call("devices.revoke", phone!.token, { deviceId: "dev_hostcomputer" });
