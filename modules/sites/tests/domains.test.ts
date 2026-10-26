@@ -7,7 +7,7 @@ import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { configureSites } from "../handlers/deploy.ts";
 import { edgeTarget } from "../handlers/domains.ts";
-import { handlers, routeProductionDomains } from "../impl.ts";
+import { handlers, routeProductionDomains } from "../handlers/index.ts";
 import { SPACE_DOMAIN } from "../fixtures/fakes.ts";
 import { harness } from "../fixtures/world.ts";
 import type { World } from "../fixtures/world.ts";

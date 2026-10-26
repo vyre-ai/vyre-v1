@@ -30,7 +30,7 @@ export default defineManifest({
   ],
   lists: [list('site', 'Site', 'Sites', 'sites.list')],
   capabilities: [
-    create('sites.create', 'Create a site with its root folder under Deployments/', { in: { name: t.str(), kind: t.enm('site', 'app', 'api', 'worker', 'artifact'), repoUrl: t.opt(t.str()), templateKit: t.opt(id.kit) }, out: { site: siteRow }, make: ['site', '/name'], perm: 'sites.deploy', emits: ['site.created'], tool: 'sites', team: true }),
+    create('sites.create', 'Create a site with its root folder under Deployments/', { in: { name: t.str(), kind: t.enm('site', 'app', 'api', 'worker', 'artifact'), repoUrl: t.opt(t.str()), templateKit: t.opt(id.kit), folderId: t.opt(id.folder) }, out: { site: siteRow }, make: ['site', '/folderId'], perm: 'sites.deploy', emits: ['site.created'], tool: 'sites', team: true }),
     read('sites.get', 'Read one site', { in: deployTarget, out: { site: siteRow }, on: ['site', '/siteId'], tool: 'sites' }),
     read('sites.list', 'List sites by section (Personal, Shared with me, Space) and folder', { in: { section: t.opt(t.enm('personal', 'shared', 'space')), folderId: t.opt(id.folder), ...pageIn }, out: { sites: t.arr(siteRow), ...pageOut }, tool: 'sites', label: 'filter' }),
     write('sites.update', 'Rename a site or change its settings', { in: { siteId: id.site, name: t.opt(t.str()), settings: t.opt(t.rec()) }, out: { site: siteRow }, on: ['site', '/siteId'], perm: 'sites.deploy', tool: 'sites' }),

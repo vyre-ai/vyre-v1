@@ -205,6 +205,7 @@ async function pageCreate(ctx: Ctx, input: unknown): Promise<{ form: ReturnType<
   const recordType = reqStr(ctx, o, "recordType");
   if (!/^[a-z][a-z0-9_]*$/.test(recordType)) fail(ctx, "validation.bad_input", "That record type is not valid.", { field: "recordType" });
   const form = insertForm(ctx, { name, recordType, kind: "booking" });
+  ctx.emit("form.created", `form/${str(form.id)}`, { formId: str(form.id), name, kind: "booking" });
   ctx.db.run(
     "INSERT INTO forms_booking_page (form_id, host_ids, length_minutes, buffer_minutes, hours, notice_minutes, alerted_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
     str(form.id), JSON.stringify(hosts), length, buffer, JSON.stringify(DEFAULT_HOURS), 60, null,
