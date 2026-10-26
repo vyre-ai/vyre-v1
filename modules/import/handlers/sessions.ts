@@ -76,7 +76,7 @@ export async function sessionsImport(ctx: ImportCtx, raw: In): Promise<unknown> 
   const { provider, sourceKey, sessions, scope } = checked(ctx, raw);
   const owner = me(ctx);
   const target = await resolved(ctx, owner, raw, scope);
-  if (target.spaceId !== ctx.space) return ctx.sessionDestination!.invoke(target.spaceId, raw);
+  if (target.spaceId !== ctx.space) return ctx.sessionDestination!.invoke(target.spaceId, "sessions.import", raw);
   ctx.db.run("INSERT OR IGNORE INTO import_session_source (spaceId, owner, destinationScope, sourceKey, provider, createdAt) VALUES (?, ?, ?, ?, ?, ?)", target.spaceId, owner, scope, sourceKey, provider, ctx.now());
   const out: Array<{ conversationId: string; provider: Provider; destination: Destination }> = [];
   let imported = 0, updated = 0;
@@ -117,7 +117,7 @@ export async function sessionsContinue(ctx: ImportCtx, input: In): Promise<unkno
     raise(ctx, "validation.not_found", "That imported conversation does not exist.");
   }
   if (routed.spaceId !== ctx.space) {
-    return ctx.sessionDestination.invoke(routed.spaceId, input);
+    return ctx.sessionDestination.invoke(routed.spaceId, "sessions.continue", input);
   }
   const row = (ctx.db.all("SELECT conversationId, projectId, continuedThreadId FROM import_conversation WHERE conversationId = ? AND owner = ? AND spaceId = ? AND destinationScope = ?", input.conversationId, me(ctx), routed.spaceId, routed.kind) as Array<Record<string, unknown>>)[0];
   if (!row) raise(ctx, "validation.not_found", "That imported conversation does not exist.");

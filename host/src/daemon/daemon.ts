@@ -33,7 +33,7 @@ import { createGateway, indexRoutes } from "../gateway.ts";
 import { withEventIds } from "../ids.ts";
 import type { GatewayDeps, RouteRec } from "../gateway.ts";
 import { createInvoke, createRateLimiter, fail, indexCapabilities, makeError, personalMatrix } from "../invoke.ts";
-import type { AuditRow, Handler, Invoke, InvokeDeps } from "../invoke.ts";
+import type { AuditRow, CtxSeed, Handler, Invoke, InvokeDeps } from "../invoke.ts";
 import { fileExportsImporter, fileImporter, fileSeamImporter, loadHost, readModuleList } from "../loader.ts";
 import type { RegistryLike } from "../loader.ts";
 import { LogSink } from "../logsink/index.ts";
@@ -141,6 +141,15 @@ export interface DaemonOptions {
   probes?: { diskEncrypted?: () => Promise<ProbeResult>; indexLag?: () => number | null };
   /** The Personal Space gate (the sync module's createPersonalHost(...).gate) asked first for every capability; omitted on a Team Space. */
   personal?: InvokeDeps["personal"];
+  /**
+   * The platform directory and transport for a consented local-session import.
+   * It resolves Personal from the authenticated person and verifies Team access,
+   * then invokes the target Space with the originating identity and trace.
+   */
+  sessionDestination?: {
+    resolve(a: { owner: string; request: { kind: "personal" } | { kind: "team"; spaceId: string }; seed: CtxSeed }): Promise<{ kind: "personal" | "team"; spaceId: string }>;
+    invoke(a: { spaceId: string; cap: "sessions.import" | "sessions.continue"; input: unknown; seed: CtxSeed }): Promise<unknown>;
+  };
   /** more supervised services: Caddy, the vault filler, the Chrome bridge, local turns */
   services?: ServiceSpec[];
   /** capabilities, routes, handlers and event names beyond the generated registry (tests register example.echo; later lanes register host-only calls) */
@@ -468,7 +477,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const wrapped: Handler = (ctx, input) => h({ ...ctx, call: (name, callInput, opts) => (name === "sync.epoch.bump" ? system(name, callInput, ctx.trace) : ctx.call(name, callInput, opts)) } as typeof ctx, input);
           return wrapped;
         })()),
-        services: hostServices({ base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)), seal, queue: scheduleQueue, blobs, vault: (seed) => createVaultService((c, i, sd) => invokeRef(c, i, sd), spaceId, seed) }),
+        services: hostServices({
+          base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)), seal, queue: scheduleQueue, blobs,
+          vault: (seed) => createVaultService((c, i, sd) => invokeRef(c, i, sd), spaceId, seed),
+          ...(o.sessionDestination ? { sessionDestination: (seed) => ({
+            resolve: (owner, request) => o.sessionDestination!.resolve({ owner, request, seed }),
+            invoke: (destinationSpaceId, cap, input) => o.sessionDestination!.invoke({ spaceId: destinationSpaceId, cap, input, seed }),
+          }) } : {}),
+        }),
         idem, rate: createRateLimiter(), now, log: sinkLog,
         ...(gate ? { gate } : {}),
         personal,
@@ -1010,4 +1026,3 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     },
   };
 }
-

@@ -113,7 +113,7 @@ export interface InvokeDeps {
   /** spend so far per meter, for the spend policies */
   spend?(principal: string): Record<string, number> | undefined;
   /** module services for the handler context: db, vault, http, schedule, seal */
-  services?(seed: CtxSeed, cap: CapabilityDef): Partial<Pick<Ctx, "db" | "vault" | "http" | "schedule" | "seal" | "blobs">>;
+  services?(seed: CtxSeed, cap: CapabilityDef): Partial<Pick<Ctx, "db" | "vault" | "http" | "schedule" | "seal" | "blobs" | "sessionDestination">>;
   /** P-H_16: registers the objects a call brought into being as resources, in the same commit (host/src/gateway/resources.ts) */
   resources?: ResourceRegistrar;
   /** an agent made by a call becomes an access principal in the same commit (host/src/gateway/principals.ts) */
@@ -374,6 +374,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       schedule: svc.schedule ?? unavailable("schedule"),
       seal: svc.seal ?? { seal: unavailable("seal"), unseal: unavailable("seal") },
       ...(svc.blobs ? { blobs: svc.blobs } : {}),
+      ...(svc.sessionDestination ? { sessionDestination: svc.sessionDestination } : {}),
     };
     return ctx;
   }

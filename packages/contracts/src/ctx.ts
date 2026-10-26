@@ -47,6 +47,13 @@ export interface Ctx {
   db: ScopedDb;
   emit<T>(name: EventName, subject: string, payload: T, opts?: EmitOpts): EventEnvelope<T>;
   call<C extends CapName>(cap: C, input: unknown, opts?: CallOpts): Promise<unknown>;
+  /** Host-owned cross-Space routing for consented local-session imports. The host
+   * resolves the caller's Personal Space or an authorized Team before it
+   * re-invokes the same capability with the original identity and trace. */
+  sessionDestination?: {
+    resolve(owner: string, request: { kind: 'personal' } | { kind: 'team'; spaceId: string }): Promise<{ kind: 'personal' | 'team'; spaceId: string }>;
+    invoke(spaceId: string, cap: 'sessions.import' | 'sessions.continue', input: unknown): Promise<unknown>;
+  };
   authorize(action: { perm: string | null; level: Level }, resource: ResourceRef): Decision;
   vault: { fill(handle: string, into: { kind: string; ref: string }): Promise<void>; use(handle: string): { handle: string } };
   http: (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{ status: number; text(): Promise<string> }>;

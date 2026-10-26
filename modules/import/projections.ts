@@ -35,7 +35,7 @@ export interface ImportCtx {
    */
   sessionDestination?: {
     resolve(owner: string, request: { kind: "personal" } | { kind: "team"; spaceId: string }): Promise<{ kind: "personal" | "team"; spaceId: string }>;
-    invoke(spaceId: string, input: unknown): Promise<unknown>;
+    invoke(spaceId: string, cap: "sessions.import" | "sessions.continue", input: unknown): Promise<unknown>;
   };
   http?(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<{ status: number; text(): Promise<string> }>;
   log: { warn(msg: string, attrs?: Record<string, unknown>): void };
