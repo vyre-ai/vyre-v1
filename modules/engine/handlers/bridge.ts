@@ -26,8 +26,13 @@ export interface AgentPost {
 /** Run chat.post as the agent (the host seam builds the call with the agent as principal; a person's ctx cannot speak for an agent). */
 export type PostAs = (agentId: string, post: AgentPost) => Promise<unknown>;
 
+/** Run a capability for a person through the real pipeline, so what a turn reads is what that person may read (the host builds the call; spec 6.3). */
+export type CallAs = (cap: string, input: unknown, personId: string) => Promise<unknown>;
+
 export interface BridgeOptions {
   postAs: PostAs;
+  /** Reads of the chat run as the person whose message started the turn. A private chat answers only to its members, so the host's system principal cannot read it. Without it the consumer's own ctx reads. */
+  callAs?: CallAs;
   log?: { warn(msg: string, attrs?: Record<string, unknown>): void };
   now?: () => number;
 }
@@ -143,11 +148,16 @@ export function createBridge(o: BridgeOptions): Bridge {
   type ThreadGet = { thread: { kind?: string; starter?: string; agents: Array<{ agentId: string; mode: "lead" | "listen"; model?: string; accountRef?: string; watches?: unknown }> } };
   type Row = { messageId: string; threadSeq?: number; author: { kind: string; id: string }; body: string; depth?: number };
 
-  async function open(ctx: EngineCtx, threadId: string, skipId: string): Promise<boolean> {
+  /** A read of the chat for this message: as its person author when the host gave us a way to, else with the consumer's own ctx. */
+  const reader = (ctx: EngineCtx, authorId: string): ((cap: string, input: unknown) => Promise<unknown>) =>
+    o.callAs && authorId.startsWith("usr_") ? (cap, input) => o.callAs!(cap, input, authorId) : (cap, input) => ctx.call(cap, input);
+
+  async function open(ctx: EngineCtx, threadId: string, skipId: string, authorId: string): Promise<boolean> {
+    const read = reader(ctx, authorId);
     if (!engine) return false;
     if (opened.has(threadId)) return true;
     let got: ThreadGet;
-    try { got = (await ctx.call("threads.get", { threadId })) as ThreadGet; } catch (e) {
+    try { got = (await read("threads.get", { threadId })) as ThreadGet; } catch (e) {
       // not "no agents": the thread could not be read at all (a private chat the calling principal is not in, a thread that is gone). Say so, with the trace, instead of skipping in silence.
       ctx.log.warn("the bridge could not read the thread, so no turn runs for its message", { traceId: ctx.trace.traceId, threadId, code: (e as { error?: { code?: string } })?.error?.code ?? "unknown", error: e instanceof Error ? e.message : String(e) });
       return false;
@@ -159,7 +169,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     const store = sqlMessages(ctx.db, ctx.now);
     if (store.recent(threadId, 1).length === 0) {
       // First time this host sees the thread: copy the window the agent will read as history, oldest first, under chat's own ids.
-      const list = (await ctx.call("chat.messages.list", { threadId, limit: HISTORY })) as { messages: Row[] };
+      const list = (await read("chat.messages.list", { threadId, limit: HISTORY })) as { messages: Row[] };
       for (const r of [...list.messages].sort((a, b) => (a.threadSeq ?? 0) - (b.threadSeq ?? 0))) {
         if (r.messageId === skipId || store.get(r.messageId)) continue;
         withMessageId(r.messageId, () => store.append({ id: r.messageId, threadId, author: { kind: r.author.id.startsWith("agt_") ? "agent" : "person", id: r.author.id }, mentions: [], depth: r.depth ?? 0, body: r.body }));
@@ -181,10 +191,10 @@ export function createBridge(o: BridgeOptions): Bridge {
     if (messageId.startsWith(BRIDGE_PREFIX)) return { skipped: "own_post" };
     const store = sqlMessages(ctx.db, ctx.now);
     if (store.get(messageId)) return { skipped: "known" };            // the engine stored it: its own reply echoing back, or a replay
-    if (!(await open(ctx, threadId, messageId))) return { skipped: "no_agents" };
-    if (store.get(messageId)) return { skipped: "known" };
-    const got = (await ctx.call("chat.message.get", { threadId, messageId })) as { message: Row };
     const a = (p["author"] ?? {}) as { kind?: string; id?: string };
+    if (!(await open(ctx, threadId, messageId, str(a.id)))) return { skipped: "no_agents" };
+    if (store.get(messageId)) return { skipped: "known" };
+    const got = (await reader(ctx, str(a.id))("chat.message.get", { threadId, messageId })) as { message: Row };
     const authorId = str(a.id) || got.message.author.id;
     const mentions = ((p["mentions"] ?? []) as RouteMention[]).map((m) => ({ kind: m.kind, id: m.id }));
     const eng = engine;
@@ -196,8 +206,9 @@ export function createBridge(o: BridgeOptions): Bridge {
 
   async function onEdited(ctx: EngineCtx, p: Record<string, unknown>): Promise<{ skipped?: string; receivedAs?: string[] }> {
     const messageId = str(p["messageId"]), threadId = str(p["threadId"]);
-    if (!sqlMessages(ctx.db, ctx.now).get(messageId)) return { skipped: "unknown" };
-    const got = (await ctx.call("chat.message.get", { threadId, messageId })) as { message: Row };
+    const known = sqlMessages(ctx.db, ctx.now).get(messageId);
+    if (!known) return { skipped: "unknown" };
+    const got = (await reader(ctx, known.author.id)("chat.message.get", { threadId, messageId })) as { message: Row };
     ctx.db.run("UPDATE engine_messages SET body = ? WHERE id = ?", got.message.body, messageId);
     return {};
   }
