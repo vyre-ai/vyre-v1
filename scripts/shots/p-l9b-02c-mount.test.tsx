@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import Mount, { title } from "./P-L9b_02c.tsx";
+import Mount, { title } from "./mounts/P-L9b_02c.tsx";
 
 test("the Personal Space shell mount draws nothing until it has read ?space after mount", () => {
   assert.equal(title, "Shell on Home (Personal Space)");
