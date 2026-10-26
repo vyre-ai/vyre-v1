@@ -39,14 +39,17 @@ export function marbleSpec(name: string): MarbleSpec {
   };
 }
 
+export const MARBLE_PATH_1 = "M32.4 59.4L50.4 70.5h22.1v-71H33.7l-7.2 13.9 19 27.1-13.1 18.9z";
+export const MARBLE_PATH_2 = "M22.2 24L0 46.8l14.1 38.1L78 86l-3.1-59.3-22.4 4 13 20.2-23.4 27.4L22.2 24z";
+
 /** The marble as svg markup; the caller wraps it (width, height, viewBox 0 0 80 80). */
 export function marbleInner(name: string): string {
   const m = marbleSpec(name);
   return (
     `<mask id="${m.id}m" maskUnits="userSpaceOnUse" x="0" y="0" width="80" height="80"><rect width="80" height="80" rx="160" fill="#fff"/></mask>` +
     `<g mask="url(#${m.id}m)"><rect width="80" height="80" fill="${m.base}"/>` +
-    `<path filter="url(#${m.id}f)" d="M32.4 59.4L50.4 70.5h22.1v-71H33.7l-7.2 13.9 19 27.1-13.1 18.9z" fill="${m.c1}" transform="translate(${m.t1.x} ${m.t1.y}) rotate(${m.t1.rot} 40 40) scale(1.2)"/>` +
-    `<path filter="url(#${m.id}f)" style="mix-blend-mode:overlay" d="M22.2 24L0 46.8l14.1 38.1L78 86l-3.1-59.3-22.4 4 13 20.2-23.4 27.4L22.2 24z" fill="${m.c2}" transform="translate(${m.t2.x} ${m.t2.y}) rotate(${m.t2.rot} 40 40) scale(1.2)"/></g>` +
+    `<path filter="url(#${m.id}f)" d="${MARBLE_PATH_1}" fill="${m.c1}" transform="translate(${m.t1.x} ${m.t1.y}) rotate(${m.t1.rot} 40 40) scale(1.2)"/>` +
+    `<path filter="url(#${m.id}f)" style="mix-blend-mode:overlay" d="${MARBLE_PATH_2}" fill="${m.c2}" transform="translate(${m.t2.x} ${m.t2.y}) rotate(${m.t2.rot} 40 40) scale(1.2)"/></g>` +
     `<defs><filter id="${m.id}f" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="7"/></filter></defs>`
   );
 }
@@ -71,4 +74,26 @@ export function initialsOf(name: string, size: number, person: boolean): string 
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (person && size >= 24) return words.map((w) => Array.from(w)[0] ?? "").slice(0, 2).join("").toUpperCase() || "?";
   return Array.from(words[0] ?? "?")[0]?.toUpperCase() ?? "?";
+}
+
+/** Where a marble blob's centre lands in the 80 unit box: the path's own centre, scaled 1.2, turned about (40,40), then moved. */
+function blobAt(c: readonly [number, number], t: { x: number; y: number; rot: number }): [number, number] {
+  const sx = (c[0] - 0) * 1.2, sy = (c[1] - 0) * 1.2;
+  const r = (t.rot * Math.PI) / 180;
+  const dx = sx - 40, dy = sy - 40;
+  const x = 40 + dx * Math.cos(r) - dy * Math.sin(r) + t.x;
+  const y = 40 + dx * Math.sin(r) + dy * Math.cos(r) + t.y;
+  return [Math.round(Math.min(110, Math.max(-30, (x / 80) * 100))), Math.round(Math.min(110, Math.max(-30, (y / 80) * 100)))];
+}
+
+/**
+ * The marble as CSS: the base colour under two soft radial blobs placed where the svg's two blurred shapes land. No svg, no canvas, no filter,
+ * so a list can mount thousands of faces while scrolling. Seeded exactly like marbleSpec; the same name gives the same string.
+ * The string ends in the base colour, so it is a value for the `background` shorthand and NOT for `background-image` (a colour is not an image: the declaration is dropped and the face draws blank).
+ */
+export function marbleGradient(name: string): string {
+  const m = marbleSpec(name);
+  const [x1, y1] = blobAt([50, 35], m.t1);
+  const [x2, y2] = blobAt([40, 45], m.t2);
+  return `radial-gradient(circle at ${x1}% ${y1}%, ${m.c1} 0%, ${m.c1} 22%, transparent 62%), radial-gradient(circle at ${x2}% ${y2}%, ${m.c2}B3 0%, ${m.c2}B3 16%, transparent 56%), ${m.base}`;
 }

@@ -20,8 +20,8 @@ export interface LiveLinkOptions {
   /** A numbered batch arrived: something in the Space changed. */
   onChange(seq: number): void;
   onStatus?(s: LiveStatus): void;
-  /** The server revoked this device: the session ends. */
-  onPurge?(): void;
+  /** The server told this device to purge (a revoke or an epoch bump, ARCH 5.7); the manager halts after it. */
+  onPurge?(epoch: number): void;
   /** Injectable for tests. */
   dial?: Dial;
   scheduler?: Scheduler;
@@ -101,7 +101,7 @@ export function createLiveLink(o: LiveLinkOptions): LiveLink {
         ...(o.scheduler ? { scheduler: o.scheduler } : {}),
         on: {
           status: (s) => set(toLive(s)),
-          purge: () => { o.onPurge?.(); },
+          purge: (epoch) => { o.onPurge?.(epoch); },
         },
       });
       conn.start();

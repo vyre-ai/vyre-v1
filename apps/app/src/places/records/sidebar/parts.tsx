@@ -37,6 +37,7 @@ export const ICON = {
   message: ["M3 3.5h10a1 1 0 011 1v6a1 1 0 01-1 1H7.5L4.5 14v-2.5H3a1 1 0 01-1-1v-6a1 1 0 011-1z"],
   route: ["M4 12.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z", "M12 6.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z", "M5.5 11h4a2 2 0 002-2V8"],
   pull: ["M4.5 5.2a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM4.5 13.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z", "M4.5 5.2v5.3M11.5 13.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z", "M11.5 10.5V6.5a2 2 0 00-2-2H8"],
+  more: ["M3.5 8h.01M8 8h.01M12.5 8h.01"],
   issue: ["M13.5 8a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z", "M8 8h.01"],
 } as const;
 export type IconName = keyof typeof ICON;
@@ -63,11 +64,11 @@ export function Glyph({ name, size = 15, color = "var(--ink-3)", width }: { name
   );
 }
 
-/** A person is a round marble seeded by the name: the shared Avatar. */
-export function Face({ name, size = 20 }: { name: string; size?: number }): ReactElement {
+/** A person is a round marble seeded by the id (the name when no id is passed): the shared Avatar. */
+export function Face({ name, seedId, size = 20 }: { name: string; seedId?: string | undefined; size?: number }): ReactElement {
   return (
     <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0 }}>
-      <Avatar name={name} kind="person" size={size} />
+      <Avatar name={name} seedId={seedId} kind="person" size={size} />
     </View>
   );
 }

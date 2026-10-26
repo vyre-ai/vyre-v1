@@ -1,9 +1,11 @@
 // Files list parts (P-L9e_01b): the column header (Name, Modified, Made by, Size, Kind; each a sort button), the cells that go in a Row's trailing slot, and the grid (tiles in rows, so the
 // grid scrolls on the same VirtualList as the list). The list itself stays in list/FilesList.tsx; this file owns what is drawn per line. Row stays the shared ui/Row (ruling 36).
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { createElement } from "react";
+import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ReactElement, ReactNode } from "react";
 import { Glyph } from "./tree/parts.tsx";
 import type { IconName } from "./tree/parts.tsx";
+import { useLive } from "./tree/data.tsx";
 import type { SortKey } from "./tree/model.ts";
 
 /** Column widths. The header and the cells use the same numbers, so they line up; the Name column takes the rest. */
@@ -49,8 +51,101 @@ function Face({ name }: { name: string }): ReactElement {
 
 export interface Cells { when: string; by: string | null; size: string; kind: string }
 
+let cssDone = false;
+/** The cells' styles, set once (a line only draws after the page is live). On the web a line is plain elements: the cells and the icon box are spans, not React Native views (P-L9e_25). */
+function ensureCellCss(): void {
+  if (cssDone) return;
+  const d = (globalThis as { document?: { getElementById(id: string): unknown; createElement(t: string): { id: string; textContent: string }; head?: { appendChild(n: unknown): void } } }).document;
+  if (!d || !d.head) return;
+  if (!d.getElementById("vyre-files-cells")) {
+    const el = d.createElement("style");
+    el.id = "vyre-files-cells";
+    el.textContent = ".vfl-cs{display:flex;flex-direction:row;align-items:center;gap:" + COL.gap + "px}"
+      + ".vfl-c{flex:none;white-space:nowrap;color:var(--ink-3);font-size:12.5px;font-variant-numeric:tabular-nums}.vfl-n{text-align:right}"
+      + ".vfl-x{overflow:hidden;text-overflow:ellipsis}.vfl-w{flex:none;display:flex;align-items:center;gap:7px;white-space:nowrap;color:var(--ink-2);font-size:12.5px}.vfl-b{min-width:0}.vfl-b.vfl-x{flex:1}"
+      + ".vfl-f{flex:none;width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--sunk);color:var(--ink-2);font-size:9px;font-weight:600}"
+      + ".vfl-i{flex:none;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--sunk);margin-right:10px}"
+      + ".vfl-t{flex:none;width:30px;height:30px;display:flex;align-items:center;justify-content:center;margin-right:10px}"
+      + ".vfl-pg{width:22px;height:26px;border-radius:3px;border:1px solid;background:var(--win);display:flex;align-items:flex-end;justify-content:center;padding-bottom:3px;box-sizing:border-box;overflow:hidden;font-size:6.5px;font-weight:700;line-height:1}"
+      + ".vfl-th{flex:none;width:30px;height:30px;border-radius:8px;overflow:hidden;margin-right:10px;background:var(--sunk)}.vfl-th img{width:30px;height:30px;object-fit:cover;display:block}";
+    d.head.appendChild(el);
+  }
+  cssDone = true;
+}
+/** A text takes the clip box and its ellipsis only when it is longer than its column holds (a little over the average glyph); the words stay whole in the page either way. */
+const longer = (text: string, width: number): string => (text.length > Math.floor(width / 6.6) ? " vfl-x" : "");
+
+/** The icon box of a line: the kind's glyph on a quiet tile. */
+export function LineIcon({ icon, folder }: { icon: IconName; folder: boolean }): ReactElement {
+  const glyph = Glyph({ name: icon, size: 18, color: folder ? "var(--accent)" : "var(--ink-3)" });
+  if (Platform.OS !== "web") return <View style={styles.lineIcon}>{glyph}</View>;
+  ensureCellCss();
+  return createElement("span", { className: "vfl-i" }, glyph);
+}
+
+/** A hue per file type, so the page tiles read at a glance on every skin. */
+const TILE_HUE: Readonly<Record<string, number>> = { PDF: 5, MD: 215, CSV: 145, XLSX: 145, DOCX: 215, PPTX: 25, TXT: 220, JSON: 190, ZIP: 40 };
+
+/** The leading tile of a line: a folder or picture icon, or a small page with the file type on it (PDF, MD, CSV, DOCX), tinted by type. Sits in the shared Row's leading slot. */
+export function TypeTile({ label, icon, folder }: { label: string | null; icon: IconName; folder: boolean }): ReactElement {
+  if (label === null) return <LineIcon icon={icon} folder={folder} />;
+  const h = TILE_HUE[label] ?? 220;
+  const border = `hsla(${h}, 45%, 50%, 0.45)`, ink = `hsl(${h}, 55%, 42%)`;
+  if (Platform.OS === "web") {
+    ensureCellCss();
+    return createElement("span", { className: "vfl-t", "data-testid": "type-tile" }, createElement("span", { className: "vfl-pg", "data-testid": "type-page", style: { borderColor: border, color: ink } }, createElement("span", { "data-testid": "type-tile-label" }, label)));
+  }
+  return (
+    <View style={styles.typeTile} testID="type-tile">
+      <View style={[styles.page, { borderColor: border as string }]} testID="type-page"><Text numberOfLines={1} style={[styles.pageText, { color: ink as string }]} testID="type-tile-label">{label}</Text></View>
+    </View>
+  );
+}
+
+/** A picture's own thumbnail in the leading slot: the preview the viewer shows (files.viewer_data previewUrl), 30 px, cropped to fill; the type tile until it arrives. */
+export function ThumbTile({ fileId, label, icon }: { fileId: string; label: string | null; icon: IconName }): ReactElement {
+  const q = useLive("files.viewer_data", { fileId });
+  const url = q.status === "ready" ? q.data.previewUrl : undefined;
+  if (url === undefined) return <TypeTile label={label} icon={icon} folder={false} />;
+  if (Platform.OS === "web") {
+    ensureCellCss();
+    return createElement("span", { className: "vfl-th", "data-testid": "type-tile" }, createElement("img", { src: url, alt: "Preview", "data-testid": "thumb-image" }));
+  }
+  return <View style={styles.typeTile} testID="type-tile"><Image source={{ uri: url }} accessibilityLabel="Preview" testID="thumb-image" resizeMode="cover" style={styles.thumbImg} /></View>;
+}
+
+/** After the name: a star where the file is starred, and the Conflict tag where two edits wait. The tag is a button that opens the choice (prototype: "Two edits. Click to resolve."). */
+export function LineMarks({ starred, conflict, onResolve }: { starred: boolean; conflict: boolean; onResolve?: (() => void) | undefined }): ReactElement | null {
+  if (!starred && !conflict) return null;
+  return (
+    <View style={styles.marks} testID="line-marks">
+      {conflict ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Conflict. Two edits. Click to resolve." testID="conflict-tag" {...(onResolve ? { onPress: onResolve } : {})}
+          style={({ hovered }: { hovered?: boolean }) => [styles.warn, hovered === true && WARN_HOVER]}>
+          <Text style={styles.warnText}>Conflict</Text>
+        </Pressable>
+      ) : null}
+      {starred ? <View testID="star-mark" accessibilityLabel="Starred"><Glyph name="star" size={12} color="var(--warn)" width={1.3} /></View> : null}
+    </View>
+  );
+}
+
+function WebCells({ cells: c, wide }: { cells: Cells; wide: boolean }): ReactElement {
+  ensureCellCss();
+  const out: ReactElement[] = [createElement("span", { key: "m", className: `vfl-c${longer(c.when, COL.modified)}`, "data-testid": "cell-modified", style: { width: COL.modified } }, c.when)];
+  if (wide) {
+    out.push(
+      createElement("span", { key: "b", className: "vfl-w", "data-testid": "cell-by", style: { width: COL.by } }, ...(c.by ? [createElement("span", { key: "f", className: "vfl-f", "aria-hidden": true }, c.by.slice(0, 1).toUpperCase()), createElement("span", { key: "n", className: `vfl-b${longer(c.by, COL.by - 23)}` }, c.by)] : [])),
+      createElement("span", { key: "s", className: `vfl-c vfl-n${longer(c.size, COL.size)}`, "data-testid": "cell-size", style: { width: COL.size } }, c.size),
+      createElement("span", { key: "k", className: `vfl-c${longer(c.kind, COL.kind)}`, "data-testid": "cell-kind", style: { width: COL.kind } }, c.kind),
+    );
+  }
+  return createElement("div", { className: "vfl-cs" }, ...out);
+}
+
 /** The cells of a line, in the Row's trailing slot. */
 export function RowCells({ cells, wide }: { cells: Cells; wide: boolean }): ReactElement {
+  if (Platform.OS === "web") return WebCells({ cells, wide });
   return (
     <View style={styles.cells}>
       <Text numberOfLines={1} style={[styles.mut, { width: COL.modified }]} testID="cell-modified">{cells.when}</Text>
@@ -123,6 +218,7 @@ export function GridRow({ children }: { children: ReactNode }): ReactElement {
 }
 
 // Plain objects (not StyleSheet ids), as in ui/Row, so the painted token is visible in the element's inline style.
+const WARN_HOVER = { backgroundColor: "color-mix(in srgb, var(--warn) 28%, transparent)" };
 const HOVER = { backgroundColor: "var(--hover)" };
 const SORTED = { color: "var(--ink)" };
 const TILE_SEL = { backgroundColor: "var(--accent-wash)", boxShadow: "inset 0 0 0 1.5px var(--accent-line)" };
@@ -138,6 +234,14 @@ const styles = StyleSheet.create({
   num: { textAlign: "right" },
   who: { flexDirection: "row", alignItems: "center", gap: 7 },
   whoText: { fontSize: 12.5, color: "var(--ink-2)" as string, flexShrink: 1 },
+  lineIcon: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string, marginRight: 10 },
+  typeTile: { width: 30, minWidth: 30, height: 30, flexShrink: 0, overflow: "hidden", borderRadius: 8, alignItems: "center", justifyContent: "center", marginRight: 10 },
+  thumbImg: { width: 30, height: 30 },
+  page: { width: 22, height: 26, borderRadius: 3, borderWidth: 1, backgroundColor: "var(--win)" as string, alignItems: "center", justifyContent: "flex-end", paddingBottom: 3, overflow: "hidden" },
+  pageText: { fontSize: 6.5, fontWeight: "700", letterSpacing: 0 },
+  marks: { flexDirection: "row", alignItems: "center", gap: 6 },
+  warn: { height: 18, paddingHorizontal: 6, borderRadius: 5, justifyContent: "center", backgroundColor: "color-mix(in srgb, var(--warn) 16%, transparent)" as string },
+  warnText: { fontSize: 11, fontWeight: "500", color: "var(--warn)" as string },
   face: { width: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },
   faceText: { fontSize: 9, fontWeight: "600", color: "var(--ink-2)" as string },
   gridRow: { flexDirection: "row", gap: GRID_GAP, paddingHorizontal: GRID_PAD, paddingTop: 0, paddingBottom: GRID_GAP },

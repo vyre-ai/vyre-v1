@@ -6,6 +6,7 @@
   "main": "expo-router/entry",
   "description": "The Vyre app (Expo, React Native, react-native-web). Routes per place, startup from the replica only (ARCH 7, speed b12).",
   "dependencies": {
+    "@twilio/voice-sdk": "2.18.5",
     "@vyre/ui": "*",
     "graphology": "0.25.4",
     "sigma": "3.0.0"

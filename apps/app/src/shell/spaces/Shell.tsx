@@ -7,6 +7,10 @@ import { Platform, StyleSheet, View, useWindowDimensions } from "react-native";
 import { reportProblem } from "../../../../../ui/src/Menu/index.tsx";
 import { NeedsTeamSpace } from "../../../../../ui/src/NeedsTeamSpace/index.tsx";
 import { States } from "../../../../../ui/src/States/index.tsx";
+import type { PhoneDeviceLike } from "../../../../../ui/src/Softphone/index.tsx";
+import { InboxDataProvider } from "../../places/inbox/sidebar/index.ts";
+import type { InboxData } from "../../places/inbox/sidebar/index.ts";
+import { CallTitlePill, InboxPhoneDock } from "../../places/inbox/softphone/index.ts";
 import { Rail } from "../rail/Rail.tsx";
 import { SidebarBack, SidebarExpand, SidebarSlot, SidebarSlotProvider, useSidebarSlot } from "../sidebar/index.ts";
 import type { SidebarStorage } from "../sidebar/index.ts";
@@ -19,6 +23,8 @@ import type { ShellHub, ShellTheme } from "./hub.ts";
 import { shellKey } from "./keys.ts";
 import type { SpaceKind } from "./model.ts";
 import { SpaceSkeleton } from "./Skeleton.tsx";
+import { watchPurge } from "./purge.ts";
+import type { ShellPurge } from "./purge.ts";
 import { SpaceTile } from "./SpaceSwitcher.tsx";
 import type { SpaceAction } from "./SpaceSwitcher.tsx";
 
@@ -47,17 +53,21 @@ export interface ShellProps {
   onPrefetchPlace?: (place: PlaceId) => void;
   /** Who and where, for remembering a collapsed sidebar on this device. Without it the choice lasts for the session. */
   sidebar?: { deviceId: string; personId: string; storage: SidebarStorage | null };
+  /** The phone: the voice device and the Inbox's data. The softphone dock wraps the whole shell, so a call outlives the place that was open when it started, and the running call is a pill in the title bar. */
+  phone?: { device: PhoneDeviceLike; data: InboxData };
+  /** The purge client and the connection's purge signals: a purged device wipes itself and tells the server with devices.purge_ack. */
+  purge?: ShellPurge;
 }
 
 /** The body beside the sidebar. On a computer the sidebar sits left of the place. On the phone a place with a sidebar opens on its list; choosing an item shows the body with Back. */
-function Stage({ children }: { children: ReactNode }): ReactElement {
+export function Stage({ children }: { children: ReactNode }): ReactElement {
   const slot = useSidebarSlot();
   const showList = slot.compact && slot.view === "list";
   return (
     <View style={styles.stageRow}>
       <SidebarSlot />
       {/* the place stays mounted while the phone shows its list, because its sidebar content is drawn from inside the place */}
-      <View style={[styles.stageCol, showList && styles.hidden]}>
+      <View testID="place-body" aria-hidden={showList} style={[styles.stageCol, showList && styles.hidden]}>
         <SidebarBack />
         <SidebarExpand />
         <View style={styles.stage}>{children}</View>
@@ -88,6 +98,8 @@ export function Shell(props: ShellProps): ReactElement {
   const compact = width > 0 && width < COMPACT_BELOW;
   const [skin, setSkin] = useState<string>(() => theme?.current().skin ?? "system");
 
+  const purge = props.purge;
+  useEffect(() => (purge === undefined ? undefined : watchPurge(purge, (e) => hub.flash(`Couldn't remove this device's data: ${e instanceof Error ? e.message : "try again"}`))), [purge, hub]);
   useEffect(() => (theme === undefined ? undefined : theme.subscribe((t) => setSkin(t.skin))), [theme]);
   useEffect(() => { if (theme !== undefined) setSkin(theme.current().skin); }, [theme, state.epoch]);
 
@@ -162,8 +174,8 @@ export function Shell(props: ShellProps): ReactElement {
     );
   }
 
-  return (
-    <HubProvider hub={hub}>
+  const spaceTile = <SpaceTile spaces={hub.spaces()} openId={state.openId} away={state.away} onSwitch={switchBy} onAction={act} />;
+  const frame = (
       <View testID="shell" style={styles.root} accessibilityLabel={`Vyre, ${session.def.name}`}>
         <TitleBar
           title={titleText(session.def.name, state.place, state.away)}
@@ -179,17 +191,18 @@ export function Shell(props: ShellProps): ReactElement {
             hub.flash("Skin saved for this Space");
           }}
           compact={compact}
+          call={<CallTitlePill />}
         />
-        <View style={styles.body}>
-          <Rail
+        <View style={compact ? styles.bodyPhone : styles.body}>
+          {compact ? null : <Rail
             groups={hub.rail()}
             active={state.place}
             onSelect={(place) => hub.go(place)}
             {...(props.onPrefetchPlace === undefined ? {} : { onPrefetch: props.onPrefetchPlace })}
-            header={<SpaceTile spaces={hub.spaces()} openId={state.openId} away={state.away} onSwitch={switchBy} onAction={act} />}
-          />
+            header={spaceTile}
+          />}
           <View style={styles.main}>
-            <MainTabs controller={session.tabs} onNavigate={(tab) => hub.showTab(tab)} onNewTab={() => hub.newTab()} onGoToPlace={(place) => hub.go(place)} />
+            {compact ? null : <MainTabs controller={session.tabs} onNavigate={(tab) => hub.showTab(tab)} onNewTab={() => hub.newTab()} onGoToPlace={(place) => hub.go(place)} />}
             <SidebarSlotProvider
               deviceId={props.sidebar?.deviceId ?? "device"} personId={props.sidebar?.personId ?? "me"} spaceId={ctx.spaceId} place={state.place}
               epoch={state.epoch} compact={compact} storage={props.sidebar?.storage ?? null}
@@ -197,8 +210,22 @@ export function Shell(props: ShellProps): ReactElement {
               <Stage>{stage}</Stage>
             </SidebarSlotProvider>
           </View>
+          {compact ? (
+            <Rail
+              bottom
+              groups={hub.rail()}
+              active={state.place}
+              onSelect={(place) => hub.go(place)}
+              {...(props.onPrefetchPlace === undefined ? {} : { onPrefetch: props.onPrefetchPlace })}
+              header={spaceTile}
+            />
+          ) : null}
         </View>
       </View>
+  );
+  return (
+    <HubProvider hub={hub}>
+      {props.phone ? <InboxDataProvider value={props.phone.data}><InboxPhoneDock device={props.phone.device}>{frame}</InboxPhoneDock></InboxDataProvider> : frame}
     </HubProvider>
   );
 }
@@ -206,7 +233,8 @@ export function Shell(props: ShellProps): ReactElement {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "var(--win)" as string },
   body: { flex: 1, flexDirection: "row", minHeight: 0 },
-  main: { flex: 1, minWidth: 0 },
+  bodyPhone: { flex: 1, flexDirection: "column", minHeight: 0 },
+  main: { flex: 1, minWidth: 0, minHeight: 0 },
   stageRow: { flex: 1, flexDirection: "row", minHeight: 0 },
   stageCol: { flex: 1, minWidth: 0, minHeight: 0 },
   hidden: { display: "none" },

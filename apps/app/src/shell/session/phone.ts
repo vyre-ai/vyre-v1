@@ -1,39 +1,39 @@
-// How the phone's screens (mobile/shell: five tabs and one history) map onto the places and the tab hash. A tab's first screen is the place itself; a screen opened on top is
-// "<type>:<id>" and the place gets that subject as its hash. Settings, My work and Starred hang off You.
-import { formatHash, parseHash, placeForSubject } from "../hash/hash.ts";
-import type { Entry, TabId } from "../../mobile/shell/model.ts";
-import type { PlaceId } from "../rail/kits.ts";
+// The phone of the open Space (spec 3.3): a Twilio Voice device the softphone dock rings and dials through. The device is made only when the Space can mint a Voice token (a number is claimed and the
+// server holds the telephony key); otherwise `openPhone` answers undefined and the shell draws no dock. The SDK is loaded by the caller (`loadDevice`): this file never imports it, so a build without
+// the package still exports.
+import type { PhoneCallLike, PhoneDeviceLike } from "../../../../../ui/src/Softphone/index.tsx";
+import { inboxData } from "../providers/inbox.tsx";
+import type { InboxData } from "../../places/inbox/sidebar/index.ts";
+import type { RealSession } from "./session.ts";
 
-/** Below this width the production entry uses the phone shell. */
-export const PHONE_BELOW = 700;
-
-const TAB_PLACES: readonly PlaceId[] = ["chats", "inbox", "records", "files"];
-
-export function tabOf(place: PlaceId): TabId {
-  return (TAB_PLACES as readonly string[]).includes(place) ? (place as TabId) : "you";
+/** What the Voice SDK's Device offers, as far as the softphone uses it. */
+export interface VoiceDeviceLike {
+  register(): Promise<void>;
+  connect(options: { params: Record<string, string> }): Promise<PhoneCallLike>;
+  on(event: "incoming", handler: (call: PhoneCallLike) => void): void;
+  destroy(): void;
 }
+export type LoadVoiceDevice = (token: string) => Promise<VoiceDeviceLike>;
 
-/** The phone screen for a place and hash. Null for a place the phone does not have (Automations, Console). */
-export function entryFor(place: PlaceId, hash: string): Entry | null {
-  if (place === "automations" || place === "console") return null;
-  const t = parseHash(hash);
-  if (t.subject) return { tab: tabOf(place), screen: `${t.subject.type}:${t.subject.id}` };
-  if ((TAB_PLACES as readonly string[]).includes(place)) return { tab: place as TabId, screen: place };
-  if (place === "settings") return { tab: "you", screen: "you:settings", title: "Settings" };
-  if (place === "home") return { tab: "you", screen: "you:my-work", title: "My work" };
-  return { tab: "you", screen: "you" };
-}
+export interface Phone { device: PhoneDeviceLike; data: InboxData; close(): void }
 
-/** The place and hash that draw a phone screen. */
-export function placeOf(e: Entry): { place: PlaceId; hash: string } | null {
-  const i = e.screen.indexOf(":");
-  const kind = i < 0 ? e.screen : e.screen.slice(0, i);
-  if (i < 0) return (TAB_PLACES as readonly string[]).includes(kind) ? { place: kind as PlaceId, hash: "" } : null;
-  if (kind === "you") {
-    const what = e.screen.slice(i + 1);
-    if (what === "settings") return { place: "settings", hash: "" };
-    return { place: "home", hash: "" };
+/** The phone for a session, or undefined when this Space has no telephony set up. `openConversation` opens a caller's conversation in the Inbox. */
+export async function openPhone(session: Pick<RealSession, "call" | "runtime">, o: { loadDevice?: LoadVoiceDevice | undefined; openConversation(id: string): void }): Promise<Phone | undefined> {
+  if (o.loadDevice === undefined) return undefined;
+  if (session.runtime.isDeferred("telephony.voice_token")) return undefined;
+  let token: string;
+  try {
+    const out = (await session.call("telephony.voice_token", {})) as { token?: unknown };
+    if (typeof out.token !== "string" || out.token === "") return undefined;
+    token = out.token;
+  } catch {
+    return undefined; // no number or no telephony key: the dock simply does not show
   }
-  const place = placeForSubject(kind);
-  return place ? { place: place as PlaceId, hash: formatHash({ subject: { type: kind, id: e.screen.slice(i + 1) } }) } : null;
+  const dev = await o.loadDevice(token);
+  await dev.register();
+  return {
+    device: { connect: (opts) => dev.connect(opts), on: (event, handler) => dev.on(event, handler), destroy: () => dev.destroy() },
+    data: inboxData(session.runtime, o.openConversation),
+    close: () => dev.destroy(),
+  };
 }

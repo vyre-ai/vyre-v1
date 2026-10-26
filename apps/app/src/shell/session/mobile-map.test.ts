@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { entryFor, placeOf, tabOf } from "./phone.ts";
+import { entryFor, placeOf, tabOf } from "./mobile-map.ts";
 
 test("phone: a tab's place is its first screen, an opened item is <type>:<id> under that tab", () => {
   assert.deepEqual(entryFor("chats", ""), { tab: "chats", screen: "chats" });

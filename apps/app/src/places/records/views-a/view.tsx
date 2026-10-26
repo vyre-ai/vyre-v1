@@ -187,12 +187,24 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
           autoFocus onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") { set({ ...v, find: "" }); st.setFinding(false); } }} style={s.find}
         />
       ) : <HeadButton icon="find" label="Find" bare testID="records-find-btn" onPress={() => st.setFinding(true)} />}
+      {slim ? (
+        // the phone keeps Find, New and one "..." menu holding the filter, sort, lanes and fields choices
+        <HeadButton icon="more" label="More options" bare testID="records-more" onPress={(x, y) => menu.show([
+          ...filterEntries(), { separator: true },
+          ...(sort ? [...sortEntries(), { separator: true } as MenuEntry] : []),
+          ...(lanes ? [...laneEntries(), { separator: true } as MenuEntry] : []),
+          ...(fields ? fieldEntries() : []),
+        ], x, y)} />
+      ) : (
+        <>
       <HeadButton icon="filter" label="Filter" detail={v.clauses.length ? String(v.clauses.length) : undefined} on={v.clauses.length > 0} bare={slim} testID="records-filter" onPress={(x, y) => menu.show(filterEntries(), x, y)} />
       {sort ? <HeadButton icon="sort" label="Sort" detail={sortKey ? def.fields.find((f) => f.key === sortKey.field)?.title : undefined} on={sortKey !== undefined} bare={slim} testID="records-sort" onPress={(x, y) => menu.show(sortEntries(), x, y)} /> : null}
       {lanes ? <HeadButton icon="group" label="Lanes" detail={laneField?.title} bare={slim} testID="records-lanes" onPress={(x, y) => menu.show(laneEntries(), x, y)} /> : null}
       {fields ? <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={slim} testID="records-fields" onPress={(x, y) => menu.show(fieldEntries(), x, y)} /> : null}
+        </>
+      )}
       {extra}
-      <KindSwitch ctx={ctx} />
+      {slim ? null : <KindSwitch ctx={ctx} />}
       <HeadButton icon="plus" label="New" bare={slim} testID="records-new" onPress={() => st.newRecord()} />
       {online ? null : <Text style={s.offline} accessibilityRole="alert" testID="records-offline">Offline</Text>}
       {menu.element}

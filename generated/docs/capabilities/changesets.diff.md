@@ -28,6 +28,7 @@ type In = {
   changesetId: string;
   path: string;
   mode?: "unified" | "split" | "words" | "paragraph";
+  context?: "hunks" | "full";
 };
 ```
 
@@ -75,6 +76,7 @@ type Out = {
   "name": "example",
   "input": {
     "changesetId": "chg_a1b2c3",
+    "context": "hunks",
     "mode": "unified",
     "path": "example"
   },

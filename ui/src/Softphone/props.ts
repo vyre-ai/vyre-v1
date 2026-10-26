@@ -18,6 +18,8 @@ export interface SoftphoneCaller {
   number: string;
   company?: string;
   recordId?: string;
+  /** The contact's or person's id: the face is seeded by it (the name is the fallback). */
+  id?: string;
 }
 
 export interface TransferTarget {

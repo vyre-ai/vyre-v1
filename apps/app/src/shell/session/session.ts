@@ -53,6 +53,8 @@ export interface RealSession {
   readonly hooks: RemoteHooks;
   readonly runtime: ShellRuntime;
   call: CapCall;
+  /** Hears the server's purge signals (an epoch); returns how to stop. */
+  onPurge(listener: (epoch: number) => void): () => void;
   liveStatus(): LiveStatus;
   /** Warm a place's first queries (pointer-enter or focus on its rail item or tab). */
   prefetchPlace(place: PlaceId): void;
@@ -143,6 +145,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     return r;
   };
 
+  const purgeListeners = new Set<(epoch: number) => void>();
   let live: LiveStatus = "offline";
   let everLive = false;
   const link: LiveLink = createLiveLink({
@@ -152,8 +155,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     epoch: who.epoch,
     registryHash: o.registryHash ?? BUILD_REGISTRY_HASH,
     onChange: refresh,
-    onPurge: () => { if (token !== null) { token = null; o.onSignedOut?.(); } },
     onStatus: (s) => { live = s; if (s === "live") everLive = true; tell(); },
+    onPurge: (epoch) => { for (const l of [...purgeListeners]) l(epoch); },
     ...(o.dial ? { dial: o.dial } : {}),
     ...(o.scheduler ? { scheduler: o.scheduler } : {}),
   });
@@ -250,6 +253,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
 
   return {
     def, baseUrl: o.baseUrl, me, hooks, runtime, call,
+    onPurge: (l) => { purgeListeners.add(l); return () => { purgeListeners.delete(l); }; },
     liveStatus: () => live,
     prefetchPlace,
     refresh,
@@ -263,6 +267,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       for (const off of keep) off();
       hooks.close();
       listeners.clear();
+      purgeListeners.clear();
       token = null;
     },
   };
