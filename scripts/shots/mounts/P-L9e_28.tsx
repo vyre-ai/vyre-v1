@@ -31,7 +31,8 @@ function Body({ q }: { q: URLSearchParams }): ReactNode {
   const diff = q.get("diff") === "1";
   const slot = useSidebarSlot();
   // Rule 25: the query is already read after mount (Mount below); opening the body is an effect too.
-  useEffect(() => { if (q.get("file") === "1") slot.openBody(); }, []);
+  // The slot resets to the list when it registers its sidebar, so the body opens once the sidebar is there.
+  useEffect(() => { if (q.get("file") === "1" && slot.hasSidebar) slot.openBody(); }, [slot.hasSidebar]);
   return (
     <FilesDataProvider value={files.data}>
       <FilesStateProvider initial={{ where: { kind: "folder", id: "fld_pj_rivera" } }}>

@@ -5,7 +5,8 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
+import type { ViewStyle } from "react-native";
+import { Avatar, marbleGradient } from "../../../../../../ui/src/Avatar/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
@@ -109,7 +110,7 @@ function Control({ slot, shared, people }: { slot: Slot; shared: Shared; people:
     const items: MenuEntry[] = who.map((p) => ({ label: p.name, checked: p.id === value, onSelect: () => write(`"${p.id}"`) }));
     return (
       <>
-        <PickerButton label={label} shown={name || "Not set"} onPress={open(items)} testID={tid} {...(name ? { leading: <View style={st.face} testID="toml-owner-face"><Avatar name={name} seedId={value} kind="person" size={18} /></View> } : {})} />
+        <PickerButton label={label} shown={name || "Not set"} onPress={open(items)} testID={tid} {...(name ? { leading: <View style={[st.face, { backgroundImage: marbleGradient(value) } as unknown as ViewStyle]} testID="toml-owner-face"><Avatar name={name} seedId={value} kind="person" size={18} /></View> } : {})} />
         {element}
       </>
     );
@@ -221,7 +222,7 @@ const st = StyleSheet.create({
   count: { fontWeight: "500", color: "var(--ink-4)" as string },
   block: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "var(--line)", borderStyle: "dashed" },
   blockName: { fontSize: 12, color: "var(--ink-3)" as string, paddingHorizontal: 8, paddingBottom: 6 },
-  face: { width: 18, height: 18, flexShrink: 0 },
+  face: { width: 18, height: 18, flexShrink: 0, borderRadius: 9, overflow: "hidden" },
   ctl: { justifyContent: "center" },
   box: { width: "100%" },
   sw: { flexDirection: "row", alignItems: "center", height: 30 },
