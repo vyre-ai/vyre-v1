@@ -19,11 +19,31 @@ export function newTabData(base: CmdKData, nav: Pick<GateNav, "go">, extra: { fa
   };
 }
 
-/** The real shell: faces are the people and agents the replica holds (you excluded); folders and record types are read ahead into the caches, empty until then. */
-export function realNewTabData(base: CmdKData, rt: ShellRuntime, nav: Pick<GateNav, "go">, caches: { folders: () => readonly Hit[]; recordTypes: () => readonly string[] }): NewTabData {
-  return newTabData(base, nav, {
+/** What the Space answers ahead of the page: its root folders (files.tree) and its record types (schema.types.list). */
+export interface NewTabAhead { folders: readonly Hit[]; types: readonly { key: string; title: string }[] }
+
+const FOLDER_LINK = "vyre://folder/";
+
+/** Read both lists; a Space that cannot answer shows the page without them. */
+export async function loadNewTabAhead(rt: ShellRuntime): Promise<NewTabAhead> {
+  const [tree, types] = await Promise.all([
+    rt.call("files.tree", {}).catch(() => null) as Promise<{ roots: { title: string; kind: string; folderId?: string }[] } | null>,
+    rt.call("schema.types.list", { limit: 20 }).catch(() => null) as Promise<{ types: { key: string; plural: string }[] } | null>,
+  ]);
+  const folders = (tree?.roots ?? []).filter((r) => r.kind === "folder" && r.folderId !== undefined)
+    .map((r): Hit => ({ kind: "file", id: r.folderId as string, title: r.title, link: `${FOLDER_LINK}${r.folderId}`, score: 1, snippet: "Folder" }));
+  return { folders, types: (types?.types ?? []).map((t) => ({ key: t.key, title: t.plural })) };
+}
+
+/** The real shell: faces are the people and agents the replica holds (you excluded); folders open in Files, record types in Records. */
+export function realNewTabData(base: CmdKData, rt: ShellRuntime, nav: Pick<GateNav, "go">, ahead: NewTabAhead): NewTabData {
+  const full = newTabData({
+    ...base,
+    open: (hit, opts) => (hit.link.startsWith(FOLDER_LINK) ? nav.go("files", `folder=${hit.id}`) : base.open(hit, opts)),
+  }, nav, {
     faces: () => replicaHits(rt).filter((h) => (h.kind === "agent" || h.kind === "person") && h.id !== rt.me.id).slice(0, 12),
-    folders: caches.folders,
-    recordTypes: caches.recordTypes,
+    folders: () => ahead.folders,
+    recordTypes: () => ahead.types.map((t) => t.title),
   });
+  return { ...full, openType: (title) => nav.go("records", `type=${encodeURIComponent(ahead.types.find((t) => t.title === title)?.key ?? title)}`) };
 }

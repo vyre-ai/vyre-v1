@@ -40,3 +40,28 @@ test("every control is a labelled button", () => {
   const out = html();
   for (const l of ["New chat", "Chat with Intake", "Message Maya Chen", "Open Projects"]) assert.ok(out.includes(`aria-label="${l}"`), l);
 });
+
+test("the real shell's page reads root folders and record types from the Space and sends them to Files and Records", async () => {
+  const { loadNewTabAhead, realNewTabData } = await import("./data.ts");
+  const calls: string[] = [];
+  const rt = {
+    me: { id: "usr_me" },
+    principals: { subscribe: () => () => undefined, getSnapshot: () => ({ status: "ready" as const, data: [{ id: "usr_me", name: "Me", kind: "person" }, { id: "agt_a", name: "Intake", kind: "agent" }] }) },
+    screens: { query: () => ({ subscribe: () => () => undefined, getSnapshot: () => ({ status: "loading" as const }) }) },
+    call: async (cap: string) => {
+      calls.push(cap);
+      if (cap === "files.tree") return { roots: [{ key: "f1", title: "Projects", kind: "folder", folderId: "fld_1", count: 3 }, { key: "shared", title: "Shared with me", kind: "virtual", count: 0 }] };
+      return { types: [{ key: "project", plural: "Projects" }] };
+    },
+  } as never;
+  const ahead = await loadNewTabAhead(rt);
+  assert.deepEqual(calls.sort(), ["files.tree", "schema.types.list"]);
+  assert.deepEqual(ahead.folders.map((f) => f.title), ["Projects"]);
+  const went: string[] = [];
+  const base = createSampleNewTab().data;
+  const data = realNewTabData(base, rt, { go: (p, h) => void went.push(`${p}#${h ?? ""}`) }, ahead);
+  assert.deepEqual(data.faces().map((h) => h.title), ["Intake"], "you are not in your own faces");
+  data.open(data.folders()[0]!, { newTab: false });
+  data.openType("Projects");
+  assert.deepEqual(went, ["files#folder=fld_1", "records#type=project"]);
+});

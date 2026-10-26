@@ -11,7 +11,8 @@ import { mark } from "../../startup/marks.ts";
 import { CmdK } from "../cmdk/CmdK.tsx";
 import { createGateSearch, loadRecent } from "../cmdk/gate.ts";
 import type { Hit } from "../cmdk/model.ts";
-import { realNewTabData } from "../newtab/data.ts";
+import { loadNewTabAhead, realNewTabData } from "../newtab/data.ts";
+import type { NewTabAhead } from "../newtab/data.ts";
 import { NewTabPage } from "../newtab/NewTabPage.tsx";
 import { createShellHub } from "../spaces/hub.ts";
 import type { ShellHub } from "../spaces/hub.ts";
@@ -87,6 +88,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const [searchOpen, setSearchOpen] = useState(initialSearchOpen);
   const recent = useRef<readonly Hit[]>([]);
   const flags = useRef({ away: false, offline: false });
+  const [ahead, setAhead] = useState<NewTabAhead>({ folders: [], types: [] });
 
   useEffect(() => { onHub(hub); return () => onHub(null); }, [hub, onHub]);
 
@@ -129,6 +131,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     if (!session) return;
     let off = false;
     void loadRecent(session.runtime).then((hits) => { if (!off) recent.current = hits; });
+    void loadNewTabAhead(session.runtime).then((a) => { if (!off) setAhead(a); });
     return () => { off = true; };
   }, [session]);
 
@@ -137,7 +140,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const renderPlace = (ctx: PlaceContext): ReactElement => failed !== null && session === null
     ? <States kind="error" message={`Couldn't reach ${stored.def.name}`} cause={failed} next="Try again" retryable onRetry={() => setAttempt((n) => n + 1)} />
     : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} />;
-  const newTab = useMemo(() => (session && search ? realNewTabData(search, session.runtime, hub, { folders: () => [], recordTypes: () => [] }) : null), [session, search, hub]);
+  const newTab = useMemo(() => (session && search ? realNewTabData(search, session.runtime, hub, ahead) : null), [session, search, hub, ahead]);
   const renderNewTab = (): ReactElement => (newTab ? <NewTabPage data={newTab} /> : <States kind="empty" title="Open anything, or start something" icon="search" />);
   return (
     <>
