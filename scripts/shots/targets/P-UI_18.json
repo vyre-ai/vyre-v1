@@ -1,0 +1,94 @@
+{
+  "targets": [
+    {
+      "id": "P-UI_18-expect-L9b_22-chats-sidebar",
+      "route": "/m/P-L9b_22",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='chats-sidebar']",
+      "expect": [
+        {
+          "selector": ".vyre-row[data-testid^='row-n:']",
+          "min": 3,
+          "name": "sidebar Needs you rows"
+        },
+        {
+          "selector": ".vyre-row[data-testid^='row-f:']",
+          "min": 2,
+          "name": "sidebar agent rows"
+        },
+        {
+          "selector": ".vyre-row[data-testid^='row-c:']",
+          "min": 3,
+          "name": "sidebar chat rows"
+        }
+      ],
+      "note": "The expect assertions of P-L9b_22-chats-sidebar run on this packet's own branch (a packet branch shoots only its own targets); same route and prototype state as that target."
+    },
+    {
+      "id": "P-UI_18-expect-L9b_22-chats-needs",
+      "route": "/m/P-L9b_22?screen=needs",
+      "proto": "chat,needs,{skin}",
+      "waitFor": "[data-testid='needs-you']",
+      "expect": [
+        {
+          "selector": ".vyre-row[data-testid^='row-need-']",
+          "min": 7,
+          "name": "Needs you rows"
+        }
+      ],
+      "note": "The expect assertions of P-L9b_22-chats-needs run on this packet's own branch (a packet branch shoots only its own targets); same route and prototype state as that target."
+    },
+    {
+      "id": "P-UI_18-expect-L9e_01c-files-header",
+      "route": "/m/P-L9e_01c?where=pj_rivera",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='files-new']",
+      "expect": [
+        {
+          "selector": ".vyre-row[data-testid^='row-line:']",
+          "min": 3,
+          "name": "Files list rows"
+        }
+      ],
+      "note": "The expect assertions of P-L9e_01c-files-header run on this packet's own branch (a packet branch shoots only its own targets); same route and prototype state as that target."
+    },
+    {
+      "id": "P-UI_18-expect-L9e_01c-files-sidebar",
+      "route": "/m/P-L9e_01c?where=pj_rivera",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='row-folder-fld_agents']",
+      "expect": [
+        {
+          "selector": ".vyre-row[data-testid^='row-folder-fld_ag_']",
+          "min": 5,
+          "name": "sidebar Agents folder rows"
+        },
+        {
+          "selector": ".vyre-row[data-testid^='row-folder-fld_pj_']",
+          "min": 2,
+          "name": "sidebar Projects folder rows"
+        }
+      ],
+      "note": "The expect assertions of P-L9e_01c-files-sidebar run on this packet's own branch (a packet branch shoots only its own targets); same route and prototype state as that target."
+    },
+    {
+      "id": "P-UI_18-expect-L9d_22-records-sidebar",
+      "route": "/m/P-L9d_22",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='records-count']",
+      "expect": [
+        {
+          "selector": "[data-testid^='rec-cl_']",
+          "min": 10,
+          "name": "Clients table rows"
+        },
+        {
+          "selector": ".vyre-row[data-testid^='row-nav:type:']",
+          "min": 4,
+          "name": "sidebar record type rows"
+        }
+      ],
+      "note": "The expect assertions of P-L9d_22-records-sidebar run on this packet's own branch (a packet branch shoots only its own targets); same route and prototype state as that target."
+    }
+  ]
+}

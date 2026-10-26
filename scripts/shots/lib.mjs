@@ -40,6 +40,7 @@ export function loadTargets(dir) {
     for (const t of list) {
       if (!t.id || !t.route || !t.proto) throw new Error(`${f}: target needs id, route and proto`);
       if (seen.has(t.id)) throw new Error(`${f}: duplicate target id ${t.id}`);
+      if (t.expect !== undefined) { try { parseExpect(t.expect); } catch (e) { throw new Error(`${f}: target ${t.id}: ${e.message}`); } }
       seen.set(t.id, t);
     }
   }
@@ -65,4 +66,20 @@ export function budgetOf(budgets, name) {
   const b = budgets[name];
   if (!b || typeof b !== "object") throw new Error(`budgets.json has no row ${name}`);
   return b;
+}
+
+/** A target's `expect` list: [{ selector, min, name? }]. Returns it with a name on every row; throws on a row that cannot be checked. */
+export function parseExpect(list) {
+  if (!Array.isArray(list)) throw new Error("expect must be a list of { selector, min, name }");
+  return list.map((e, i) => {
+    if (!e || typeof e.selector !== "string" || !e.selector.trim()) throw new Error(`expect[${i}] needs a selector`);
+    if (!Number.isInteger(e.min) || e.min < 0) throw new Error(`expect[${i}] needs an integer min of 0 or more`);
+    return { selector: e.selector, min: e.min, name: typeof e.name === "string" && e.name ? e.name : e.selector };
+  });
+}
+
+/** The verdict for one expect row: ok when the page has at least `min` matches. `message` is the stderr line when it does not. */
+export function expectVerdict(count, min, target = "", name = "") {
+  const ok = Number.isFinite(count) && count >= min;
+  return { ok, message: ok ? "" : `expect failed: ${target} ${name} had ${count} of at least ${min}` };
 }
