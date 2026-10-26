@@ -38,7 +38,7 @@ function Tag({ field, value }: { field: FieldDef; value: string }): ReactElement
   const hue = opt?.color && /^\d+$/.test(opt.color) ? Number(opt.color) : hueOf(value);
   return (
     <View style={[styles.tag, { backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)` }]}>
-      <Text numberOfLines={1} style={[styles.tagText, { color: `hsl(${hue}, 65%, 42%)` }]}>{opt?.title ?? value}</Text>
+      <Text numberOfLines={1} style={[styles.tagText, { color: `light-dark(hsl(${hue} 52% 30%), hsl(${hue} 72% 80%))` }]}>{opt?.title ?? value}</Text>
     </View>
   );
 }

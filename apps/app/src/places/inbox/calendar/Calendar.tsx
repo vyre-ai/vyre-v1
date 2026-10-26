@@ -43,6 +43,7 @@ const GRID = HH * 24;
 const FALLBACK = "#5B5BD6";
 const colorOf = (cals: readonly CalendarRow[], id: string): string => cals.find((c) => c.id === id)?.color ?? FALLBACK;
 // react-native-web drops a color-mix() backgroundColor, so a fill is a one-colour gradient in backgroundImage (as the busy stripes are): the grid shows through in both skins
+const HATCH = "repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--ink) 5%, transparent) 5px 6px)";
 const tint = (color: string, pct: number): string => { const c = `color-mix(in srgb, ${color} ${pct}%, transparent)`; return `linear-gradient(${c}, ${c})`; };
 
 /** Pointer position helpers for the web; a DOM event is not an RN event, so read what is there. */
@@ -375,7 +376,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
             <View key={d} style={[s.ccol, d === today && s.ccolToday]} testID={`col:${d}`} {...({ onPointerDown: startCreate(d), onDoubleClick: (e: PointerLike) => { const r = e.currentTarget?.getBoundingClientRect?.(); if (r) withDraft(clickCreate(d, e.clientY - r.top)); } } as object)}
               {...menuTrigger((x, y) => menu.show(dayMenuEntries({ newHere: () => withDraft(clickCreate(d, 9 * HH)), goDay: () => { dispatch({ type: "mode", mode: "day" }); dispatch({ type: "go", day: d }); } }), x, y))}>
               {each(dayStripes(d), (st) => (
-                <View key={st.top} testID={`stripe:${d}:${st.top}`} accessibilityLabel={`${whoLabel(st.who, names)} busy`} pointerEvents="none" style={[s.busy, { top: st.top, height: st.height, backgroundImage: tint("var(--ink)", st.alpha) as unknown as undefined }]} />
+                <View key={st.top} testID={`stripe:${d}:${st.top}`} accessibilityLabel={`${whoLabel(st.who, names)} busy`} pointerEvents="none" style={[s.busy, { top: st.top, height: st.height, backgroundImage: `${HATCH}, ${tint("var(--ink)", st.alpha)}` as unknown as undefined }]} />
               ))}
               {each(laid, (l) => renderEvent(l.e, d, l))}
               {d === today ? <View pointerEvents="none" style={[s.now, { top: offsetToY(clockNow.now - d) }]} testID="cal-now" /> : null}
@@ -473,7 +474,7 @@ const s = StyleSheet.create({
   cevSmall: { fontSize: 11, lineHeight: 14, color: ink("--ink-2") },
   grip: { position: "absolute", left: 0, right: 0, bottom: 0, height: 6, cursor: "ns-resize" as unknown as undefined },
   af: { position: "absolute", top: 3, right: 4 },
-  busy: { position: "absolute", left: 0, right: 0, zIndex: 1, backgroundImage: "repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--ink) 5%, transparent) 5px 6px)" as unknown as undefined },
+  busy: { position: "absolute", left: 0, right: 0, zIndex: 1, backgroundImage: HATCH as unknown as undefined },
   now: { position: "absolute", left: 0, right: 0, borderTopWidth: 1.5, borderTopColor: ink("--danger"), zIndex: 3 },
   ghost: { position: "absolute", left: 2, right: 2, borderRadius: 5, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: ink("--accent-wash"), borderLeftWidth: 3, borderLeftColor: ink("--accent"), zIndex: 5, overflow: "hidden" },
   ghostText: { fontSize: 11.5, fontWeight: "600", color: ink("--accent") },
