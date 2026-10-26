@@ -445,3 +445,43 @@ export function onTurn(ctx: AgentsCtx, kind: "started" | "ended", event: TurnEve
   else ctx.db.run("UPDATE agents_agent SET working = CASE WHEN working > 0 THEN working - 1 ELSE 0 END, lastActiveAt = ? WHERE id = ?", now, event.payload.agentId);
 }
 
+
+// ---- the boot check ------------------------------------------------------------------------------------------------------------------------------------------
+
+interface FileGot { file?: { fileId: string; folderId: string; name: string; deletedAt?: number } }
+
+/**
+ * An agent folder is never without its two files. For every live agent, AGENT.md and agent.toml must be in Agents/<name> under those names; a missing one is put back from the agent record:
+ * one in Trash is restored, one that was moved or renamed is moved back, one that is gone is made again (agent.toml from the last good text the record keeps, AGENT.md from the name and role line).
+ * Files itself refuses to delete, move or rename them (files.* guard); this catches what happened before the guard or underneath it. Answers what it put back, as "<agent>/<file>".
+ */
+export async function restoreAgentFiles(ctx: AgentsCtx): Promise<string[]> {
+  const put: string[] = [];
+  for (const a of allAgents(ctx.db)) {
+    if (a.folderId === undefined) continue;
+    const wanted: Array<{ name: "agent.toml" | "AGENT.md"; id: string | undefined; column: "tomlFileId" | "agentMdFileId"; text: () => string }> = [
+      { name: "agent.toml", id: a.tomlFileId, column: "tomlFileId", text: () => a.tomlText },
+      { name: "AGENT.md", id: a.agentMdFileId, column: "agentMdFileId", text: () => AGENT_MD_DEFAULT(a.name, a.config.description) },
+    ];
+    for (const w of wanted) {
+      try {
+        const got = w.id === undefined ? null : await tolerant<FileGot | null>(ctx, "files.get", { fileId: w.id }, null);
+        const f = got?.file;
+        if (f && f.deletedAt === undefined && f.folderId === a.folderId && f.name === w.name) continue;
+        let id = w.id;
+        if (f && f.deletedAt !== undefined) await call(ctx, "files.restore", { fileId: f.fileId, toFolderId: a.folderId });
+        else if (f) await call(ctx, "files.move", { fileId: f.fileId, toFolderId: a.folderId, name: w.name });
+        else {
+          const made = await makeFile(ctx, a.folderId, w.name, w.text(), `agents:${a.id}:restore:${w.name}:${ctx.now()}`);
+          id = made.fileId;
+          ctx.db.run(`UPDATE agents_agent SET ${w.column} = ?, updatedAt = ? WHERE id = ?`, id, ctx.now(), a.id);
+        }
+        put.push(`${a.name}/${w.name}`);
+        ctx.log.warn("agents: an agent file was missing and has been put back", { agent: a.id, file: w.name });
+      } catch (e) {
+        ctx.log.warn("agents: an agent file could not be put back", { agent: a.id, file: w.name, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+      }
+    }
+  }
+  return put;
+}
