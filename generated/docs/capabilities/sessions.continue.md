@@ -47,6 +47,7 @@ type Out = {
 - permission.no_grant
 - permission.role_lacks_permission
 - validation.bad_input
+- validation.not_found
 
 ## Example
 

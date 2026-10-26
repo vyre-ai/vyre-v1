@@ -135557,7 +135557,8 @@
         "permission.above_clearance",
         "permission.no_grant",
         "permission.role_lacks_permission",
-        "validation.bad_input"
+        "validation.bad_input",
+        "validation.not_found"
       ],
       "examples": [
         {
