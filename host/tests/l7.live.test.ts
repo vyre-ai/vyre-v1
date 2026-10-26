@@ -205,8 +205,8 @@ test("l7 live: an invite made by the owner is accepted by a stranger through the
     const mine = await post(OWNER_TOKEN, "/v1/agents/list", {});
     const listed = JSON.stringify(await mine.json());
     assert.ok(listed.includes("Newbie helper"), "the agent is still there after the removal");
-    const row = (JSON.parse(listed) as { data: { agents: { name: string; ownerId?: string; owner?: string }[] } }).data.agents.find((x) => x.name === "Newbie helper");
-    assert.equal(row?.ownerId ?? row?.owner, "usr_olivia", "and its owner is now the owner of the Space");
+    const row = (JSON.parse(listed) as { data: { agents: { name: string; ownerId: string }[] } }).data.agents.find((x) => x.name === "Newbie helper");
+    assert.equal(row?.ownerId, "usr_olivia", "and its owner is now the owner of the Space");
     const again = await join(code, "newbie2");
     assert.notEqual(again.status, 200, "an accepted invite cannot be used again");
     const bad = await join("NOPE-NOPE", "newbie3");
