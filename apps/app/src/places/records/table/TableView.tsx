@@ -171,12 +171,7 @@ const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): 
 // 100,000-row scroll probe was 66.7 ms at p95 with every column and 16.8 ms with the name column alone, so the cost is the cells. Same looks as the cell styles below.
 // No overflow or contain on a cell: each one is a clip in the paint property tree, and 13 of them a row put Layerize at 5.9 ms a frame in the perf trace (run 40219986248, 3.6 s over 606 frames).
 // The text inside clips itself with its own ellipsis and the row clips what is left.
-const CELL_BOX = { boxSizing: "border-box", display: "flex", alignItems: "center", flex: "none", height: "100%", padding: "0 10px", minWidth: 0 } as const;
 const CELL_TEXT = { fontSize: 13, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 } as const;
-const CELL_NUM = { ...CELL_TEXT, fontVariantNumeric: "tabular-nums", textAlign: "right" } as const;
-const CELL_SEALED = { ...CELL_TEXT, color: "var(--ink-3)", letterSpacing: 1 } as const;
-const CELL_STARS = { fontSize: 12, color: "var(--warn)", letterSpacing: 1, whiteSpace: "nowrap" } as const;
-const CELL_PERSON = { display: "flex", alignItems: "center", gap: 7, minWidth: 0 } as const;
 const GHOST = { height: 9, width: "55%", borderRadius: 5, backgroundColor: "var(--hover)" } as const;
 
 /**
@@ -193,6 +188,9 @@ function ensureRowCss(): void {
   el.id = CSS_ID;
   el.textContent = `.vrt-r{position:absolute;box-sizing:border-box;display:flex;align-items:center;height:${ROW_H}px;border-bottom:1px solid var(--line);contain:layout style}`
     + ".vrt-c{box-sizing:border-box;flex:none;padding:0 10px;font-size:13px;color:var(--ink);white-space:nowrap}"
+    + ".vrt-b{box-sizing:border-box;display:flex;align-items:center;flex:none;height:100%;padding:0 10px;min-width:0}.vrt-e{justify-content:flex-end}"
+    + ".vrt-chip{box-sizing:border-box;display:inline-block;height:20px;line-height:20px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap}"
+    + ".vrt-p{display:flex;align-items:center;gap:7px;min-width:0;font-size:13px;color:var(--ink);white-space:nowrap}.vrt-st{font-size:12px;color:var(--warn);letter-spacing:1px;white-space:nowrap}"
     + ".vrt-n{font-variant-numeric:tabular-nums;text-align:right}.vrt-s{color:var(--ink-3);letter-spacing:1px}"
     + ".vrt-g{width:" + GUTTER + "px;height:100%;display:flex;align-items:center;box-sizing:border-box;padding-left:10px;flex:none;font-size:11.5px;color:var(--ink-4);font-variant-numeric:tabular-nums}";
   d.head.appendChild(el);
@@ -221,19 +219,19 @@ function dot(name: string): ReactElement {
   return createElement("span", { "aria-hidden": true, "data-testid": `face-${name}`, style: st });
 }
 
-function webCell(field: FieldDef, row: RecordRow, names: (id: string) => string): ReactElement | null {
+function webCell(field: FieldDef, row: RecordRow, names: (id: string) => string, width: number): ReactElement | null {
   const v = row.fields[field.key];
   if (v === undefined || v === null || v === "") return null;
+  // one element per chip, per name, per star run: the cut to the column is made here in text, so no box has to clip
   if ((field.type === "choice" || field.type === "status") && typeof v === "string") {
     const opt = optionsOf(field).find((o) => o.key === v);
     const hue = opt?.color && /^\d+$/.test(opt.color) ? Number(opt.color) : hueOf(v);
-    return createElement("span", { style: { boxSizing: "border-box", display: "inline-flex", alignItems: "center", height: 20, padding: "0 8px", borderRadius: 6, maxWidth: "100%", overflow: "hidden", backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)` } },
-      createElement("span", { style: { fontSize: 12, fontWeight: 500, color: `hsl(${hue}, 55%, 40%)`, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, opt?.title ?? v));
+    return createElement("span", { className: "vrt-chip", style: { backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)`, color: `hsl(${hue}, 55%, 40%)` } }, fit(opt?.title ?? v, width - 36));
   }
   if (field.type === "checkbox") return v === true ? <Glyph name="check" size={14} color="var(--ink-2)" width={1.8} /> : null;
-  if (field.type === "person") return createElement("span", { style: CELL_PERSON }, dot(names(String(v))), createElement("span", { style: CELL_TEXT }, names(String(v))));
-  if (field.type === "rating" && typeof v === "number") return createElement("span", { style: CELL_STARS, "aria-label": `${v} of 5` }, "\u2605".repeat(Math.max(0, Math.min(5, v))));
-  return createElement("span", { style: field.type === "sealed" ? CELL_SEALED : isNumeric(field) ? CELL_NUM : CELL_TEXT }, cellText(field, v, names));
+  if (field.type === "person") return createElement("span", { className: "vrt-p" }, dot(names(String(v))), fit(names(String(v)), width - 45));
+  if (field.type === "rating" && typeof v === "number") return createElement("span", { className: "vrt-st", "aria-label": `${v} of 5` }, "\u2605".repeat(Math.max(0, Math.min(5, v))));
+  return createElement("span", { className: isNumeric(field) ? "vrt-c vrt-n" : "vrt-c" }, fit(cellText(field, v, names), width));
 }
 
 const RowBody = memo(function RowBody(p: PieceProps & { left: number; width: number; cols: readonly Column[]; from: number; to: number; pad: number }): ReactElement {
@@ -249,7 +247,7 @@ const RowBody = memo(function RowBody(p: PieceProps & { left: number; width: num
       cells.push(createElement("div", { key: c.field.key, className: isNumeric(c.field) ? "vrt-c vrt-n" : c.field.type === "sealed" ? "vrt-c vrt-s" : "vrt-c", style: { width: c.width } }, v === undefined || v === null || v === "" ? null : fit(cellText(c.field, v, names), c.width)));
       continue;
     }
-    cells.push(createElement("div", { key: c.field.key, style: isNumeric(c.field) ? { ...CELL_BOX, width: c.width, justifyContent: "flex-end" } : { ...CELL_BOX, width: c.width } }, row ? webCell(c.field, row, names) : createElement("div", { style: GHOST })));
+    cells.push(createElement("div", { key: c.field.key, className: isNumeric(c.field) ? "vrt-b vrt-e" : "vrt-b", style: { width: c.width } }, row ? webCell(c.field, row, names, c.width) : createElement("div", { style: GHOST })));
   }
   return createElement(
     "div",
