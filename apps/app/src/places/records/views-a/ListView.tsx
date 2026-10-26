@@ -9,7 +9,7 @@ import { Row as UiRow } from "../../../../../../ui/src/Row/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
 import { useLive, useRecordsData } from "../sidebar/data.tsx";
-import { Face } from "../sidebar/parts.tsx";
+import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { cellText, countSpec } from "../table/model.ts";
 import { badgeFieldOf, cardFields, each, LIST_PAGE, noteOf, pageSpec } from "./model.ts";
 import type { FieldDef, RecordRow } from "./model.ts";
@@ -27,7 +27,7 @@ function Row({ r, title, note, selected, person, badge, names, onOpen, onMenu }:
     <View testID={`list-${r.id}`} style={l.cell} {...(trig as object)}>
       <UiRow
         id={`rec-${r.id}`} title={title} note={note} selected={selected}
-        leading={typeof person === "string" && person !== "" ? <Face name={names(person)} seedId={person} size={24} /> : <Face name={title} seedId={r.id} size={24} />}
+        leading={typeof person === "string" && person !== "" ? <Avatar name={names(person)} seedId={person} kind="person" size={24} testID={`face-${names(person)}`} /> : <Avatar name={title} seedId={r.id} kind="person" size={24} testID={`face-${title}`} />}
         {...(badge && typeof bv === "string" && bv !== "" ? { trailing: <Tag field={badge} value={bv} /> } : {})}
         onPress={onOpen}
       />
