@@ -1,0 +1,57 @@
+{
+  "targets": [
+    {
+      "id": "P-L9d_04-page",
+      "route": "/m/P-L9d_04",
+      "proto": "records,record,{skin}",
+      "waitFor": "[data-testid='record-page']",
+      "note": "Elena Rivera's record page: title, the completeness ring (10 of 11, Ask for these), the fields in the type's sections (Contact, Deal, Linked, Notes; Private folded), relation cards, a note with [[ links, and the Activity tab at the right. The prototype side is its record page in the same skin; it lays the sheet out in one column with its own sample fields."
+    },
+    {
+      "id": "P-L9d_04-map",
+      "route": "/m/P-L9d_04?map=1&pane=0",
+      "proto": "records,relmap,{skin}",
+      "waitFor": "[data-testid='relation-map']",
+      "note": "The relationship map two hops out: the record in the middle, its projects around it. The prototype side is its relationship map for the same kind of record."
+    },
+    {
+      "id": "P-L9d_04-edit",
+      "route": "/m/P-L9d_04?edit=phone&text=%2B1%20415%20555%200100",
+      "proto": "records,record,{skin}",
+      "waitFor": "[data-testid='edit-phone']",
+      "note": "The phone field open for editing in place, no Save button. The prototype edits a field the same way, in the sheet."
+    },
+    {
+      "id": "P-L9d_04-memory",
+      "route": "/m/P-L9d_04?tab=memory",
+      "proto": "records,memory,{skin}",
+      "waitFor": "[data-testid='pane-memory']",
+      "note": "The right pane on Memory: what agents remember about this record, with the way back to the source. The prototype side is its record page with the memory section open."
+    },
+    {
+      "id": "P-L9d_04-history",
+      "route": "/m/P-L9d_04?tab=history",
+      "proto": "records,record,{skin}",
+      "waitFor": "[data-testid='pane-history']",
+      "note": "The right pane on History: the shared History tab with the record's versions, who and why."
+    },
+    {
+      "id": "P-L9d_04-harbor",
+      "route": "/m/P-L9d_04?space=harbor",
+      "proto": "records,harbor,record,{skin}",
+      "waitFor": "[data-testid='record-page']",
+      "note": "The same page over the Harbor Studio sample Space."
+    },
+    {
+      "id": "P-L9d_04-navigate",
+      "route": "/m/P-L9d_04?probe=navigate",
+      "proto": "records,record,{skin}",
+      "waitFor": "[data-testid='navigate-probe']",
+      "protoSettleMs": 3000,
+      "note": "The navigate probe, in-app: performance marks nav-start when a row is opened and nav-end when the record page content first paints; browser.mjs reads the measure on the perf runner (budget 50 ms, median of 5 after a warm-up).",
+      "probes": {
+        "navigate": {}
+      }
+    }
+  ]
+}
