@@ -19,7 +19,7 @@ List remote objects and their fields with a proposed record type and mapping
 | HTTP | POST /v1/sync_types/discover |
 | MCP tool | sync_types_discover (engineer) |
 | CLI | none |
-| Emits | none |
+| Emits | connection.needs_reconnect |
 
 ## Input
 
