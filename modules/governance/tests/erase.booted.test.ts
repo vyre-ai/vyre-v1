@@ -95,7 +95,13 @@ const post = (d: Daemon, p: string, body: unknown) => fetch(`${d.url}${p}`, { me
 async function ok<T>(d: Daemon, p: string, body: unknown): Promise<T> {
   const r = await post(d, p, body);
   const text = await r.text();
-  assert.equal(r.status, 200, `${p}: ${text.slice(0, 400)}`);
+  if (r.status !== 200) {
+    // the host logs the cause of a 500 under the trace id; show it so a red run says why
+    const traceId = /"traceId":"([0-9a-f]{32})"/.exec(text)?.[1];
+    d.sink.flush();
+    const why = traceId ? d.sink.trace(traceId).logs.filter((l) => l.level >= 40).map((l) => JSON.stringify(l.attrs ?? l.msg)).join(" | ").slice(0, 1500) : "";
+    assert.equal(r.status, 200, `${p}: ${text.slice(0, 400)} ${why}`);
+  }
   return (JSON.parse(text) as { data: T }).data;
 }
 

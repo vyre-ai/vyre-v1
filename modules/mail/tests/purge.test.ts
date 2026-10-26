@@ -32,6 +32,7 @@ test("erase removes the message, its body, links, attachment blobs and inbox ent
   const goneId = (gone as unknown as { messageId: string }).messageId;
   const keepId = (keep as unknown as { messageId: string }).messageId;
   assert.equal(count(h, "mail_message"), 2);
+  h.ctx.db.run(`CREATE TABLE IF NOT EXISTS mail_send_log (id TEXT PRIMARY KEY, "mailboxId" TEXT NOT NULL, "throttleKey" TEXT NOT NULL, address TEXT NOT NULL, "messageId" TEXT NOT NULL, at INTEGER NOT NULL)`);   // the sender creates it on first send; this test sends nothing
   h.ctx.db.run(`INSERT INTO mail_send_log (id, "mailboxId", "throttleKey", address, "messageId", at) VALUES (?, ?, ?, ?, ?, ?)`, "msl_1", "mbx_maya", "k", "lee@acme.test", goneId, 1);
 
   const out = await messageErase(h.ctx, { messageId: goneId, idempotencyKey: "k1" });
