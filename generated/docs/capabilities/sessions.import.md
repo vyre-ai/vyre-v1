@@ -33,6 +33,7 @@ type In = {
   };
   destination?: {
     kind: "personal" | "team";
+    spaceId?: string;
     confirmedAt?: number;
   };
   sessions: Array<{
@@ -67,6 +68,7 @@ type Out = {
         kind: "project" | "imported_sessions";
         projectId?: string;
         scope: "personal" | "team";
+        spaceId: string;
       };
     }>;
 };
@@ -93,7 +95,8 @@ type Out = {
     },
     "destination": {
       "confirmedAt": 1760000000000,
-      "kind": "personal"
+      "kind": "personal",
+      "spaceId": "spc_a1b2c3"
     },
     "idempotencyKey": "idem_1",
     "provider": "codex",
@@ -126,7 +129,8 @@ type Out = {
         "destination": {
           "kind": "project",
           "projectId": "prj_a1b2c3",
-          "scope": "personal"
+          "scope": "personal",
+          "spaceId": "spc_a1b2c3"
         },
         "provider": "codex"
       }
