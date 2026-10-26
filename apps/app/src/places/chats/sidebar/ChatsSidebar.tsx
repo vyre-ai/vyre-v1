@@ -2,8 +2,7 @@
 // Starred, Today, Yesterday and Earlier with a pulse where an agent works, then Channels with Projects beneath. One flat list in ui/VirtualList, every row a ui/Row with
 // leading and trailing slots (ruling 36). Everything reads from the local copy; a new chat shows as a row at once and the server answers behind it.
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
-import { States } from "../../../../../../ui/src/States/index.tsx";
-import { SidebarContent, each } from "../../../shell/sidebar/index.ts";
+import { SidebarContent } from "../../../shell/sidebar/index.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import type { QueryFailure } from "../../../../../../client/src/query/types.ts";
 import { portalInto } from "../../../shell/sidebar/portal.ts";
@@ -21,9 +20,10 @@ import type { SidebarApi } from "./actions.ts";
 import { ChatsSidebarDataProvider, useOnline, useOptionalSidebarData, useScreenQuery, useSidebarData } from "./data.tsx";
 import type { ChatsSidebarData } from "./data.tsx";
 import {
-  FILTERS, NEW_CHAT_MS, buildEntries, faceForDigit, filterCounts, groupRecent, matchesFilter, matchesQuery, needsKind, selectable, stepKey, waitingAgents, whenLabel,
+  FILTERS, NEW_CHAT_MS, buildEntries, faceForDigit, filterCounts, groupRecent, matchesFilter, matchesQuery, needsKind, refetch, selectable, stepKey, waitingAgents, whenLabel,
 } from "./model.ts";
-import type { Agent, ChatRow, Entry, Filter, Group, NeedsItem, RecentOut, SectionKey } from "./model.ts";
+import type { Agent, ChatRow, Entry, Filter, Group, NeedsItem, RecentOut, SectionError, SectionKey } from "./model.ts";
+import { REPORT_PROBLEM_EVENT } from "../../../../../../ui/src/States/index.tsx";
 import { Badge, EmptyLine, Face, GroupLabel, Glyph, LeadGlyph, SectionHead, Tool, UnreadDot } from "./parts.tsx";
 import type { Channel } from "./model.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -114,11 +114,10 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   const allNeeds: NeedsItem[] = needsQ.status === "ready" ? needsQ.data.items : [];
   const needs: NeedsItem[] = useMemo(() => allNeeds.filter((n) => matchesQuery(query, n.task.title, agentName(n.task.createdBy))), [allNeeds, query, agentName]);
   // A read that failed ends the skeleton and says so, for that section only (never the empty state: empty means nothing is here). The other sections draw what they have.
-  const failures: { key: string; label: string; error: QueryFailure }[] = [];
-  for (const [key, label, q] of [["recent", "Chats", recentQ], ["channels", "Channels", channelsQ], ["agents", "Agents", agentsQ], ["needs", "Needs you", needsQ]] as const) {
-    if (q.status === "loading" && q.error !== undefined) failures.push({ key, label, error: q.error });
+  const errors: Partial<Record<SectionKey, SectionError>> = {};
+  for (const [section, label, q] of [["recent", "Chats", recentQ], ["channels", "Channels", channelsQ], ["faces", "Agents", agentsQ], ["needs", "Needs you", needsQ]] as const) {
+    if (q.status === "loading" && q.error !== undefined) errors[section] = { text: `Couldn't load ${label.toLowerCase()}`, cause: q.error.message, ...(q.error.code ? { code: q.error.code } : {}), ...(q.error.traceId ? { traceId: q.error.traceId } : {}) };
   }
-  const failed = (key: string): boolean => failures.some((f) => f.key === key);
   const pending = (q: { status: string; error?: unknown }): boolean => q.status === "loading" && q.error === undefined;
   const loading = pending(recentQ) || pending(channelsQ) || pending(agentsQ);
 
@@ -134,8 +133,8 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   }, [groups, agents]);
 
   const entries = useMemo(
-    () => buildEntries({ needs, needsTotal: needsQ.status === "ready" ? needsQ.data.total : 0, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, closed, facesMore, recentFailed: failed("recent") }),
-    [needs, needsQ, faces, facesMore, recentQ, working, waiting, groups, channels, filter, closed],
+    () => buildEntries({ needs, needsTotal: needsQ.status === "ready" ? needsQ.data.total : 0, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, closed, facesMore, errors }),
+    [needs, needsQ, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed],
   );
   const order = useMemo(() => selectable(entries), [entries]);
   const byKey = useMemo(() => new Map(entries.map((e) => [e.key, e])), [entries]);
@@ -176,6 +175,17 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
     ...(n.task.actions.length ? [{ separator: true } as MenuEntry] : []),
     { label: "Open in Needs you", onSelect: () => { data.nav.openNeedsYou(n.task.id); leave(); } },
   ];
+
+  /** Behind the failed row: the cause as a header line, then Copy trace id and Report a problem. */
+  const errorMenu = (e: Extract<Entry, { type: "error" }>): MenuEntry[] => {
+    const trace = e.traceId;
+    const detail = { message: e.cause, ...(e.code ? { code: e.code } : {}), ...(trace ? { traceId: trace } : {}) };
+    return [
+      { head: [e.cause, e.code].filter(Boolean).join("  ") },
+      ...(trace ? [{ label: "Copy trace id", onSelect: () => { void (globalThis as { navigator?: { clipboard?: { writeText(t: string): unknown } } }).navigator?.clipboard?.writeText(trace); } }] : []),
+      { label: "Report a problem", onSelect: () => { const g = globalThis as { dispatchEvent?: (ev: unknown) => boolean; CustomEvent?: new (t: string, i: { detail: unknown }) => unknown }; if (g.dispatchEvent && g.CustomEvent) g.dispatchEvent(new g.CustomEvent(REPORT_PROBLEM_EVENT, { detail })); } },
+    ];
+  };
 
   const open = (e: Entry): void => {
     setCursor(e.key);
@@ -251,6 +261,22 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
         );
       }
       case "group": return <GroupLabel label={e.label} />;
+      case "error": {
+        const items = errorMenu(e);
+        return (
+          <View style={{ height: ROW_H }} testID={`section-error-${e.section}`} {...menuTrigger((x, y) => menu.show(items, x, y, "context", { label: e.text }))}>
+            <Row
+              id={e.key} title={e.text} leading={<LeadGlyph name="alert" color="var(--warn)" />}
+              trailing={
+                <View style={st.tools}>
+                  <Tool icon="more" label={`Details of: ${e.text}`} onPress={(x, y) => menu.show(items, x, y, "other")} testID={`error-more-${e.section}`} />
+                  <Tool icon="retry" label={`Retry: ${e.text}`} onPress={() => void refetch(data.screens)} testID={`retry-${e.section}`} />
+                </View>
+              }
+            />
+          </View>
+        );
+      }
       case "empty": return (
         <View>
           <EmptyLine text={e.text} />
@@ -344,11 +370,6 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
         </View>
       ) : null}
       {inHeader ? portalInto(slot?.actionsOutlet, newChatButton) : null}
-      {each(failures, (f) => (
-        <View key={f.key} testID={`section-error-${f.key}`} accessibilityLabel={`${f.label} could not load`}>
-          <States kind="error" message={`${f.label} could not load`} cause={f.error.message} {...(f.error.code ? { code: f.error.code } : {})} {...(f.error.traceId ? { traceId: f.error.traceId } : {})} />
-        </View>
-      ))}
       <View style={st.list}>
         {loading ? <ChatsSidebarLoading /> : (
           <VirtualList data={entries} rowHeight={ROW_H} keyOf={(e) => e.key} renderItem={(e) => renderEntry(e)} {...(window ? { window } : {})} />

@@ -143,7 +143,20 @@ export type Entry =
   | { key: string; type: "group"; label: string }
   | { key: string; type: "chat"; row: ChatRow }
   | { key: string; type: "channel"; channel: Channel; project: boolean }
-  | { key: string; type: "empty"; text: string };
+  | { key: string; type: "empty"; text: string }
+  /** A read of this section failed: one compact row under its head (the section's other reads and the other sections still draw). */
+  | { key: string; type: "error"; section: SectionKey; text: string; cause: string; code?: string; traceId?: string };
+
+/** What a failed read of a section says: the row's words, and the cause, code and trace id behind its menu. */
+export interface SectionError { text: string; cause: string; code?: string; traceId?: string }
+
+/** Retry on a failed row: ask the Space's live reads to read again (the remote hooks have `invalidate`; a stand-in without it has nothing to re-ask). True when a re-read was asked for. */
+export function refetch(screens: object): boolean {
+  const f = (screens as { invalidate?: () => void }).invalidate;
+  if (typeof f !== "function") return false;
+  f.call(screens);
+  return true;
+}
 
 export interface SidebarInput {
   needs: readonly NeedsItem[];
@@ -159,8 +172,8 @@ export interface SidebarInput {
   closed: ReadonlySet<SectionKey>;
   /** Agents beyond the faces shown: a row under them opens All agents. */
   facesMore?: number;
-  /** The Chats read failed: the section says so elsewhere and must not say "No chats yet". */
-  recentFailed?: boolean;
+  /** Sections whose read failed: the row under the head says so (and the section never says "empty"). */
+  errors?: Partial<Record<SectionKey, SectionError>>;
 }
 
 /** The Agents group shows this many agents (the Cmd-1..9 faces); a Space with more has an All agents row for the rest. */
@@ -180,12 +193,14 @@ export function splitChannels(channels: readonly Channel[]): { plain: Channel[];
 export function buildEntries(i: SidebarInput): Entry[] {
   const out: Entry[] = [];
   const open = (s: SectionKey): boolean => !i.closed.has(s);
-  if (i.needs.length) {
+  const err = (s: SectionKey): Entry[] => { const e = i.errors?.[s]; return e ? [{ key: `x:${s}`, type: "error", section: s, text: e.text, cause: e.cause, ...(e.code ? { code: e.code } : {}), ...(e.traceId ? { traceId: e.traceId } : {}) }] : []; };
+  if (i.needs.length || i.errors?.needs) {
     out.push({ key: "h:needs", type: "head", section: "needs", label: "Needs you", count: Math.max(i.needsTotal, i.needs.length), open: open("needs") });
-    if (open("needs")) for (const n of i.needs) out.push({ key: `n:${n.task.id}`, type: "need", item: n });
+    if (open("needs")) { out.push(...err("needs")); for (const n of i.needs) out.push({ key: `n:${n.task.id}`, type: "need", item: n }); }
   }
   out.push({ key: "h:faces", type: "head", section: "faces", label: "Agents", open: open("faces") });
   if (open("faces")) {
+    out.push(...err("faces"));
     const digits = faceDigits(i.faces);
     for (const a of i.faces) {
       const d = digits.get(a.agentId);
@@ -194,9 +209,10 @@ export function buildEntries(i: SidebarInput): Entry[] {
   }
   if (open("faces") && (i.facesMore ?? 0) > 0) out.push({ key: "m:agents", type: "more", label: `All agents (${(i.facesMore ?? 0) + i.faces.length})`, to: "agents" });
   const { plain, projects } = splitChannels(i.channels);
-  if (plain.length || projects.length) {
+  if (plain.length || projects.length || i.errors?.channels) {
     out.push({ key: "h:channels", type: "head", section: "channels", label: "Channels", open: open("channels") });
     if (open("channels")) {
+      out.push(...err("channels"));
       for (const c of plain) out.push({ key: `ch:${c.channelId}`, type: "channel", channel: c, project: false });
       if (projects.length) {
         out.push({ key: "g:projects", type: "group", label: "Projects" });
@@ -207,7 +223,8 @@ export function buildEntries(i: SidebarInput): Entry[] {
   out.push({ key: "h:recent", type: "head", section: "recent", label: "Chats", open: open("recent") });
   if (open("recent")) {
     const rows = i.groups.reduce((n, g) => n + g.rows.length, 0);
-    if (!rows && i.recentFailed !== true) out.push({ key: "e:recent", type: "empty", text: i.filter === "all" ? "No chats yet" : "Nothing here" });
+    out.push(...err("recent"));
+    if (!rows && !i.errors?.recent) out.push({ key: "e:recent", type: "empty", text: i.filter === "all" ? "No chats yet" : "Nothing here" });
     for (const g of i.groups) {
       out.push({ key: `g:${g.key}`, type: "group", label: g.label });
       for (const r of g.rows) out.push({ key: `c:${r.threadId}`, type: "chat", row: r });
@@ -218,7 +235,7 @@ export function buildEntries(i: SidebarInput): Entry[] {
 
 /** Entries a person can land on with the arrow keys, in order. */
 export function selectable(entries: readonly Entry[]): string[] {
-  return entries.filter((e) => e.type !== "group" && e.type !== "empty").map((e) => e.key);
+  return entries.filter((e) => e.type !== "group" && e.type !== "empty" && e.type !== "error").map((e) => e.key);
 }
 
 export function stepKey(order: readonly string[], from: string | null, dir: 1 | -1): string | null {
