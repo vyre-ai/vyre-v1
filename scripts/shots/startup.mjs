@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { ensureDeps, ensureChromium } from "./ensure-deps.mjs";
 import { parseArgs } from "./lib.mjs";
 import { serve } from "./serve.mjs";
+import { bundleReport } from "./bundle-report.mjs";
 import { exportEnv } from "../lib/registry-hash.mjs";
 
 export const BUDGET_MS = { desktop: 1000, phone: 1500 };
@@ -83,6 +84,7 @@ export async function main(argv) {
   const w = weights(dist);
   if (w.length) console.log("\n| source weight (unminified) | KB |\n|---|---:|\n" + w.slice(0, 40).map((x) => `| ${x.name} | ${(x.bytes / 1024).toFixed(0)} |`).join("\n"));
   console.log(`METRIC ${JSON.stringify({ name: "bundle_bytes", raw: rep.total, gzip: rep.totalGz, entry_raw: rep.entryRaw, entry_gzip: rep.entryGz, chunks: rep.chunks.length })}`);
+  console.log("\nLargest modules per chunk (entry first)" + bundleReport(dist));
   const server = await serve(dist, { spa: true });
   const { chromium } = await import("playwright-core");
   const browser = await chromium.launch({ args: ["--no-sandbox"] });
