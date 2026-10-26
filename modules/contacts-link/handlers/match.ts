@@ -167,14 +167,15 @@ export async function addressAdd(
   if (!row) {
     const now = ctx.now();
     const id = newId("adr", now);
+    // The row as it is stored, built from the values written, so nothing is read back (and nothing can refuse) after the write.
+    const made: Row = { id, contactId: rec.id, kind: input.kind, value: input.value.trim(), normalized, primary: 0, verified: 0, version: 1, updated_at: now, deleted_at: null };
     ctx.db.run(
       `INSERT INTO contacts_link_address (id, "contactId", kind, value, normalized, "primary", verified, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id, rec.id, input.kind, input.value.trim(), normalized, 0, 0, 1, now, null,
     );
     ctx.emit("contact.address_added", `record/${rec.id}`, { contactId: rec.id, kind: input.kind, addressId: id });
-    row = loadAddress(ctx, id);
+    row = made;
   }
-  if (!row) throw fail("internal.unexpected", ctx.trace.traceId);
   if (wantPrimary && num(row, "primary") !== 1) row = await makePrimary(ctx, rec, row);
   return { address: addressOut(row) };
 }

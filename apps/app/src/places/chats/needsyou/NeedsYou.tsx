@@ -117,7 +117,7 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
       <View style={isWithdrawn(i) ? st.dimRow : undefined} {...menuTrigger((x, y) => menu.show(entriesFor(i), x, y, "context", { label: i.task.title }))}>
         <Row
           id={`need-${i.task.id}`} title={i.task.title} note={note} noteLead={verb} noteLeadTone={i.task.kind === "unblock" ? "warning" : "accent"} selected={sel} onPress={() => choose(i.task.id)}
-          leading={<Face name={who(i.task)} size={26} />}
+          leading={<Face name={who(i.task)} seedId={i.task.createdBy} size={26} />}
           trailing={
             <RowEnd
               time={arrivedLabel(i.task.updatedAt, clock)} lit={sel}
@@ -211,7 +211,7 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
     <ScrollView testID="needs-detail" style={{ flex: 1 }} contentContainerStyle={st.dIn}>
       {narrow ? <Pressable accessibilityRole="button" accessibilityLabel="Back to Needs you" onPress={onBack} testID="needs-back" style={st.back}><Icon name="back" size={14} /><Text style={st.backText}>Needs you</Text></Pressable> : null}
       <View style={st.dTop}>
-        <Face name={who} size={36} />
+        <Face name={who} seedId={t.createdBy} size={36} />
         <View style={st.dTopText}>
           <Text testID="needs-kind" style={[st.dKind, warn && { color: "var(--warn)" as string }]}>{gone ? "Withdrawn" : needsLine(t)}</Text>
           <Text accessibilityRole="header" style={st.dTitle}>{t.title}</Text>

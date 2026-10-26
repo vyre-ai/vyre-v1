@@ -2,6 +2,7 @@
 // the board, the gallery or the list; the kinds part B adds (calendar, timeline, map, charts) arrive through `extraKinds` and appear in the same switch. Changing the kind keeps the filter and the
 // find text; a saved view of another kind opens as that kind.
 import { Fragment, useState } from "react";
+import { useWindowDimensions } from "react-native";
 import type { ReactElement } from "react";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -43,6 +44,8 @@ function TypeViews({ type, kind, view, extraKinds }: RecordViewsProps & { type: 
   const def = describe.status === "ready" ? describe.data.types.find((t) => t.key === type) : undefined;
   const kinds: KindDef[] = [...each(KIND_ORDER, (k) => ({ kind: k, label: KIND_LABEL[k] })), ...each(extraKinds ?? [], (k) => ({ kind: k.kind, label: k.label }))];
   const known = each(kinds, (k) => k.kind);
+  const winW = useWindowDimensions().width;
+  const phone = winW > 0 && winW < 700;
   const [picked, setPicked] = useState<{ key: string; kind: string } | null>(null);
   const key = `${type}:${saved?.viewId ?? ""}`;
   if (!def) return <TableLoading />;
@@ -50,6 +53,8 @@ function TypeViews({ type, kind, view, extraKinds }: RecordViewsProps & { type: 
   const active = picked && picked.key === key ? picked.kind : savedKind ?? (kind && known.includes(kind) ? kind : "table");
   const base: TableViewState = { ...fromSaved(saved), ...view };
   const ctx: ViewCtx = { type, def, views: list, saved, base, kind: active, kinds, onKind: (k) => setPicked({ key, kind: k }) };
+  // On the phone the table is its list: a face or icon, the title and one line, in the shared Row (no columns to scroll sideways).
+  if (active === "table" && phone) return <ListView key={key} ctx={ctx} />;
   if (active === "table") return <TableView key={key} type={type} {...(view ? { view } : {})} headerExtra={<KindSwitch ctx={ctx} />} />;
   const extra = (extraKinds ?? []).find((k) => k.kind === active);
   if (extra) return <Fragment key={`${key}:${active}`}>{extra.render(ctx)}</Fragment>;

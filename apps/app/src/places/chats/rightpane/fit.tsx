@@ -27,6 +27,9 @@ const ms = StyleSheet.create({
   text: { fontSize: 12.5, lineHeight: 16, fontWeight: "500" },
 });
 
+/** The down chevron that folds the rest of the tabs, as the prototype draws it. */
+export const CHEVRON = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>';
+
 export interface FitMenu { show(entries: MenuEntry[], x: number, y: number, kind: "other"): void }
 
 /**
@@ -35,12 +38,14 @@ export interface FitMenu { show(entries: MenuEntry[], x: number, y: number, kind
  */
 export function useFittedTabs<K extends string>(
   tabs: readonly { key: K; title: string }[], active: K, width: number,
-  o: { menu: FitMenu; left: number; top: number; pick(key: K): void; chrome?: number; measured?: ReadonlyMap<string, number> },
-): { strip: readonly { key: string; title: string }[]; select(key: string): void } {
+  o: { menu: FitMenu; left: number; top: number; pick(key: K): void; chrome?: number; measured?: ReadonlyMap<string, number>; extra?: number; chevron?: boolean },
+): { strip: readonly { key: string; title: string; pinned?: boolean; label?: string; iconOnly?: boolean; icon?: string }[]; select(key: string): void } {
   const measured = o.measured;
-  const widthOf = useMemo(() => (title: string): number => { const w = measured?.get(title); return w === undefined ? tabWidth(title) : w + TAB_EXTRA; }, [measured]);
+  /** What a tab adds around its text: the strip's own (TAB_EXTRA, with a close slot) unless the caller has tabs without one. */
+  const extra = o.extra ?? TAB_EXTRA;
+  const widthOf = useMemo(() => (title: string): number => { const w = measured?.get(title); return w === undefined ? tabWidth(title) : w + extra; }, [measured, extra]);
   const fitted = useMemo(() => fitTabs(tabs, active, width, { ...(o.chrome !== undefined ? { chrome: o.chrome } : {}), widthOf }), [tabs, active, width, o.chrome, widthOf]);
-  const strip = fitted.hidden.length === 0 ? tabs : [...fitted.shown, { key: MORE_KEY, title: "More" }];
+  const strip = fitted.hidden.length === 0 ? tabs : [...fitted.shown, o.chevron === true ? { key: MORE_KEY, title: "More tabs", label: "More tabs", iconOnly: true, icon: CHEVRON, pinned: true } : { key: MORE_KEY, title: "More", pinned: o.extra !== undefined }];
   const select = (key: string): void => {
     if (key === MORE_KEY) {
       const rest: MenuEntry[] = fitted.hidden.map((t) => ({ label: t.title, onSelect: () => o.pick(t.key) }));

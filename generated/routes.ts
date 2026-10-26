@@ -12793,7 +12793,7 @@ export const routes: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "delete"
   },
   {
     "method": "POST",
@@ -19632,6 +19632,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/projects/shared_view",
+    "cap": "projects.shared_view",
+    "v": 1,
+    "module": "projects",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/projects/stages/set",
     "cap": "projects.stages.set",
     "v": 1,
@@ -19695,6 +19713,25 @@ export const routes: Route[] = [
     "effects": "write",
     "permission": null,
     "level": "edit",
+    "resource": {
+      "type": "project",
+      "id": "/projectId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/projects/unshare_out",
+    "cap": "projects.unshare_out",
+    "v": 1,
+    "module": "projects",
+    "effects": "write",
+    "permission": "records.share_external",
+    "level": "manage",
     "resource": {
       "type": "project",
       "id": "/projectId"

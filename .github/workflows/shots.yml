@@ -116,14 +116,19 @@ jobs:
           path: perf-out/traces
           retention-days: 7
           if-no-files-found: ignore
+      # Every probe runs even when an earlier gate failed, so one known red never hides the other measures; the job fails at the end if any gate failed (a step that failed fails the job).
       - name: theme_flash probe (zero wrong frames)
+        if: ${{ !cancelled() }}
         run: node scripts/shots/theme-flash.mjs --skip-export
       - name: Browser perf probes (ruling 43, warm-up discarded, median of 5, worst printed) desktop 1x and phone 4x CPU
+        if: ${{ !cancelled() }}
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
           T=all
           case "$BRANCH" in build/P-*) T="${BRANCH#build/}" ;; esac
-          node scripts/shots/probes/open.mjs --target "$T"
-          node scripts/shots/probes/browser.mjs --target "$T" --size desktop
-          node scripts/shots/probes/browser.mjs --target "$T" --size phone
+          rc=0
+          node scripts/shots/probes/open.mjs --target "$T" || rc=1
+          node scripts/shots/probes/browser.mjs --target "$T" --size desktop || rc=1
+          node scripts/shots/probes/browser.mjs --target "$T" --size phone || rc=1
+          exit $rc

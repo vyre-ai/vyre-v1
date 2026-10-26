@@ -72,7 +72,7 @@ export function IconButton({ icon, label, onPress, active = false, danger = fals
 }
 
 /** A face with its mode mark: a filled dot for the agent that leads, a ring for one that listens. A press opens that agent's mode menu. */
-export function FaceButton({ name, mode, working, onPress, title, testID, size = 24, label }: { name: string; mode: "lead" | "listen"; working: boolean; onPress: (x: number, y: number) => void; title: string; testID: string; size?: number; label?: string }): ReactElement {
+export function FaceButton({ name, seedId, mode, working, onPress, title, testID, size = 24, label }: { name: string; seedId?: string | undefined; mode: "lead" | "listen"; working: boolean; onPress: (x: number, y: number) => void; title: string; testID: string; size?: number; label?: string }): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <Pressable
@@ -82,7 +82,7 @@ export function FaceButton({ name, mode, working, onPress, title, testID, size =
       style={[s.faceBtn, label !== undefined && s.faceChip, over && s.ibOver]}
     >
       <View style={s.faceBox}>
-        <Face name={name} size={size} />
+        <Face name={name} seedId={seedId} size={size} />
         <View testID={`mark-${mode}`} style={[s.mark, mode === "lead" ? s.markLead : s.markListen, working && s.markWorking]} />
       </View>
       {label !== undefined ? <Text numberOfLines={1} style={s.chipText}>{label}</Text> : null}

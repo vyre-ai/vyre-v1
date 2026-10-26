@@ -1,10 +1,87 @@
 name: release
 # Tag to live under 25 minutes (ARCH-DECISIONS 13). Live needs the suite, client, kits, images and security; never native or desktop.
+# After live: sign (in the `release` Environment, after its reviewer approves), publish to the GitHub Release of the tag, and a post-publish smoke. docs/release/runbook.md says how and why.
+# A tag whose name contains "dryrun" is a practice run: it builds and packs everything, validates the bake file (no image is pushed), signs with a key made for the run and thrown away
+# (no server trusts it), publishes a prerelease named after the tag, smoke-tests it, and deletes the prerelease. The real `sign` job (the `release` Environment) is skipped.
 on:
   push:
     tags:
       - "v*"
 jobs:
+  guard:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      channel: ${{ steps.tag.outputs.channel }}
+      dryrun: ${{ steps.tag.outputs.dryrun }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - id: tag
+        env:
+          TAG: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          case "$TAG" in
+            *dryrun*) echo "practice run: no tag/version check, no lineage; version 0.0.0-rc.1"; { echo "version=0.0.0-rc.1"; echo "channel=beta"; echo "dryrun=true"; } >> "$GITHUB_OUTPUT"; exit 0 ;;
+          esac
+          out=$(node scripts/release/cli.ts tag "$TAG")   # the tag must be a release version equal to package.json
+          { echo "version=${out% *}"; echo "channel=${out#* }"; echo "dryrun=false"; } >> "$GITHUB_OUTPUT"
+          # a commit that is not on main must be the next patch of the newest published stable release, on origin/hotfix/<tag>
+          if git merge-base --is-ancestor "$SHA" origin/main; then echo "lineage: $SHA is on main"; else node scripts/release/cli.ts lineage "$SHA" "$TAG"; fi
+  package:
+    needs: guard
+    # the multi-arch image build needs docker buildx and qemu: one host serves the `buildx` label (vyre-ci-7)
+    runs-on: [self-hosted, linux, v1, buildx]
+    timeout-minutes: 20
+    permissions: { contents: read, packages: write }
+    env:
+      VERSION: ${{ needs.guard.outputs.version }}
+      DRYRUN: ${{ needs.guard.outputs.dryrun }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/deps
+      - name: App web export
+        run: cd apps/app && npx expo export --platform web --output-dir dist
+      - name: Server image, pushed by digest
+        if: env.DRYRUN != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          docker buildx version >/dev/null 2>&1 || { echo "this runner has no docker buildx, which the multi-arch image build needs (docs/release/runbook.md)"; exit 1; }
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          TAG="$VERSION" docker buildx bake -f images/vyred/docker-bake.hcl --push --metadata-file bake.json
+          digest=$(jq -r '.vyred["containerimage.digest"]' bake.json)
+          case "$digest" in sha256:*) ;; *) echo "no image digest in the bake metadata"; exit 1 ;; esac
+          echo "VYRE_IMAGE=ghcr.io/vyre-ai/vyred@$digest" >> "$GITHUB_ENV"
+      - name: Server image, practice run (the bake file is checked, nothing is built or pushed)
+        if: env.DRYRUN == 'true'
+        run: |
+          if docker buildx version >/dev/null 2>&1; then docker buildx bake -f images/vyred/docker-bake.hcl --print > /dev/null; else echo "::warning::this runner has no docker buildx, so the bake file was not checked; a real release needs it"; fi
+          echo "VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:$(printf '0%.0s' $(seq 64))" >> "$GITHUB_ENV"
+      - name: Agent computer image with Vyre for Chrome baked in, and the proof it is in there
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/release/cli.ts stage-chrome
+          img="ghcr.io/vyre-ai/agent-computer:$VERSION"
+          docker build -t "$img" images/agent-computer
+          node scripts/release/cli.ts image-has-chrome "$img"   # fails the release when the extension is not in /opt/vyre-chrome
+          if [ "$DRYRUN" != true ]; then
+            echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+            docker push "$img"
+            echo "VYRE_AGENT_IMAGE=$(docker inspect --format '{{index .RepoDigests 0}}' "$img")" >> "$GITHUB_ENV"
+          fi
+      - name: Pack the server, the app web export, the Chrome extension and the Kits; write releases.json
+        env:
+          APP_DIST: apps/app/dist
+        run: node scripts/release/cli.ts pack dist "$VERSION"
+      - name: The installers go with the release unchanged
+        run: cp scripts/install/linux/install.sh scripts/install/windows/install.ps1 dist/
+      - uses: actions/upload-artifact@v4
+        with: { name: release-files, path: dist, if-no-files-found: error, retention-days: 7 }
   select:
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
@@ -15,23 +92,24 @@ jobs:
       - id: sel
         run: |
           # A tag has no base to select against: the whole suite, always listing tracked files. Perf is measured by perf.yml (hourly, dispatch), not by the tag (same as main.yml).
-          node scripts/ci-select.ts "" --matrix --max 8 --no-perf > select.json
+          node scripts/ci-select.ts "" --matrix --no-perf > select.json
           node -e 'const r=JSON.parse(require("fs").readFileSync("select.json","utf8"));const n=r.matrix.include.length;if(n===0){console.error("select: an empty matrix on a tag run is an error");process.exit(1)}console.log("select: "+n+" jobs; "+r.files.length+" files");require("fs").appendFileSync(process.env.GITHUB_OUTPUT,"matrix="+JSON.stringify(r.matrix)+"\n")'
   suite:
     name: ${{ matrix.name }}
     needs: select
-    runs-on: [self-hosted, linux, v1]
+    # The same plan and the same runner choice as check.yml (every shard on the self-hosted v1 runners, one job per heavy file), run by the same action.
+    runs-on: ${{ fromJSON(format('["self-hosted","linux","{0}"]', matrix.runner || 'v1')) }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
-      - env:
-          FILES: ${{ matrix.files }}
-          SLOW: ${{ matrix.slow }}
-        run: |
-          if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --files $FILES; else node scripts/test-run.mjs --files $FILES; fi
+      - uses: ./.github/actions/run-shard
+        with:
+          files: ${{ matrix.files }}
+          slow: ${{ matrix.slow }}
+          runner: ${{ matrix.runner }}
   client:
     uses: ./.github/workflows/client.yml
   kits:
@@ -47,17 +125,134 @@ jobs:
   desktop:
     uses: ./.github/workflows/desktop.yml
   live:
-    needs: [suite, client, kits, images, heavy, security]
+    needs: [guard, package, suite, client, kits, images, heavy, security]
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
       - run: echo "live gate passed"
+  sign:
+    needs: [guard, package, live]
+    if: needs.guard.outputs.dryrun != 'true'
+    # The only job that ever holds the real key. It has a runner label of its own that no other workflow names (scripts/release/runner-label.test.ts fails if one does), on a host that runs
+    # nothing else, and it runs in a container that is removed when the job ends. Never on the shared CI runners: code from an earlier PR job could have changed them.
+    runs-on: [self-hosted, linux, release-sign]
+    container:
+      image: node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205
+      options: --cap-drop ALL --security-opt no-new-privileges
+    timeout-minutes: 15
+    # The key is only in this Environment (required reviewer, main and v* tags only). A practice run never gets here.
+    environment: release
+    permissions: { contents: read }
+    env:
+      CHANNEL: ${{ needs.guard.outputs.channel }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: release-files, path: dist }
+      - name: The release key the servers have compiled in
+        id: key
+        run: |
+          pub=$(sed -n 's/^export const RELEASE_PUBLIC_KEY_HEX = "\([0-9a-f]*\)";.*/\1/p' host/src/seams/updates.ts)
+          [ "${#pub}" = 64 ] || { echo "RELEASE_PUBLIC_KEY_HEX in host/src/seams/updates.ts is empty: run the runbook's owner action first"; exit 1; }
+          echo "pub=$pub" >> "$GITHUB_OUTPUT"
+      - name: Sign every channel entry (refuses a key that is not the compiled-in one)
+        env:
+          VYRE_SIGNING_KEY: ${{ secrets.VYRE_SIGNING_KEY }}
+        run: |
+          node scripts/release/cli.ts sign dist "$CHANNEL" "${{ steps.key.outputs.pub }}"
+          node scripts/release/cli.ts assets dist
+      - name: No key material is left in the workspace (the key was only ever in this step's environment, never written)
+        if: always()
+        run: |
+          if grep -rIl "PRIVATE KEY" "$GITHUB_WORKSPACE" 2>/dev/null; then echo "a private key is in the workspace"; exit 1; fi
+      - uses: actions/upload-artifact@v4
+        with: { name: release-signed, path: dist, if-no-files-found: error, retention-days: 7 }
+  sign-dryrun:
+    needs: [guard, package]
+    if: needs.guard.outputs.dryrun == 'true'
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    permissions: { contents: read }
+    outputs:
+      pub: ${{ steps.sign.outputs.pub }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: release-files, path: dist }
+      - id: sign
+        env:
+          CHANNEL: ${{ needs.guard.outputs.channel }}
+        run: |
+          # a key that exists for this job only: it proves the sign, publish and smoke steps, and trusts nothing real
+          VYRE_SIGNING_KEY="$(openssl genpkey -algorithm ed25519)"
+          export VYRE_SIGNING_KEY
+          pub=$(node scripts/release/cli.ts pubkey | cut -d' ' -f1)
+          echo "pub=$pub" >> "$GITHUB_OUTPUT"
+          node scripts/release/cli.ts sign dist "$CHANNEL" "$pub"
+          node scripts/release/cli.ts assets dist
+      - uses: actions/upload-artifact@v4
+        with: { name: release-signed, path: dist, if-no-files-found: error, retention-days: 1 }
+  publish:
+    needs: [guard, sign, sign-dryrun]
+    if: always() && (needs.sign.result == 'success' || needs.sign-dryrun.result == 'success')
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 15
+    permissions: { contents: write }
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+      CHANNEL: ${{ needs.guard.outputs.channel }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: release-signed, path: dist }
+      - name: Attach everything to the release of the tag (a prerelease for beta)
+        run: node scripts/release/cli.ts publish dist
+      - name: The rolling release a prerelease channel is read from
+        if: env.CHANNEL != 'stable' && needs.guard.outputs.dryrun != 'true'
+        run: node scripts/release/cli.ts rolling dist "$CHANNEL"
+  smoke:
+    needs: [guard, publish, sign-dryrun]
+    if: always() && needs.publish.result == 'success'
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: A fresh reader fetches the published channel, verifies it with the compiled-in key and unpacks the server tarball
+        env:
+          VERSION: ${{ needs.guard.outputs.version }}
+          CHANNEL: ${{ needs.guard.outputs.channel }}
+          DRYRUN: ${{ needs.guard.outputs.dryrun }}
+          DRY_PUB: ${{ needs.sign-dryrun.outputs.pub }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [ "$DRYRUN" = true ]; then
+            pub="$DRY_PUB"; base="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/"   # the practice release, not the channel's address
+          else
+            pub=$(sed -n 's/^export const RELEASE_PUBLIC_KEY_HEX = "\([0-9a-f]*\)";.*/\1/p' host/src/seams/updates.ts)
+            base=$(node scripts/release/cli.ts feed-base "$CHANNEL")
+          fi
+          node scripts/release/cli.ts smoke "$base" "$CHANNEL" "$pub" "$VERSION"
+  cleanup-dryrun:
+    needs: [guard, smoke]
+    if: always() && needs.guard.outputs.dryrun == 'true' && needs.guard.result == 'success'
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 5
+    permissions: { contents: write }   # the smoke reads as a fresh reader and has no write access; only this job may delete the practice release
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: A practice release is deleted again
+        run: node scripts/release/cli.ts unpublish "$TAG"
   deploy:
     needs: live
     uses: ./.github/workflows/deploy.yml
   budget-tag:
     permissions: { contents: read, actions: read }
-    needs: [suite, client, kits, images, heavy, security, native, desktop, live, deploy]
+    # Sign waits for a person to approve, so the budget is measured to the live gate and the deploy, not to publish and smoke.
+    needs: [guard, package, suite, client, kits, images, heavy, security, native, desktop, live, deploy]
     if: always()
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5

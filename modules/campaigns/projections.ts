@@ -306,11 +306,11 @@ export function domainOf(address: string): string {
   return at < 0 ? "" : address.slice(at + 1).toLowerCase();
 }
 
-/** The contract types a reply by `msg_` id; mail ids are `eml_`, so the same suffix is used under the msg prefix. */
+/** The contract types a reply by `eml_` id (campaign.replied, campaigns.replies). A mail id is one already; an SMS reply is known by its conversation id, which takes the same suffix under the eml prefix. */
 export function asMessageId(ref: string): string {
-  if (ref.startsWith("msg_")) return ref;
+  if (ref.startsWith("eml_")) return ref;
   const at = ref.indexOf("_");
-  return `msg_${at < 0 ? ref : ref.slice(at + 1)}`;
+  return `eml_${at < 0 ? ref : ref.slice(at + 1)}`;
 }
 
 // ---- consumers ------------------------------------------------------------------------------------------------

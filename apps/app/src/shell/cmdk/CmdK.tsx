@@ -23,6 +23,9 @@ const webOnly = (props: Record<string, unknown>): Record<string, unknown> => (Pl
 
 const SVG = (d: string): string => `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 export const KIND_LABEL: ReadonlyMap<Hit["kind"], string> = new Map(GROUPS);
+// The highlighted row takes the accent with white text (the prototype palette, ruling 82); the tokens the row reads are re-pointed inside it.
+// A plain object, not StyleSheet.create, like the shared Row's own wash: it is written inline, so it is in the markup and not behind a generated class.
+const LIT = { backgroundColor: "var(--accent)", borderRadius: 6, "--ink": "#FFFFFF", "--ink-2": "rgba(255,255,255,0.86)", "--ink-3": "rgba(255,255,255,0.74)" } as object;
 const KIND_ICON: Partial<Record<Hit["kind"], string>> = {
   file: SVG('<path d="M4 2.500h5l3 3v8H4z"/><path d="M9 2.500v3h3"/>'),
   record: SVG('<rect x="2.500" y="3" width="11" height="10" rx="1.800"/><path d="M2.500 6.500h11M6.500 6.500v6.500"/>'),
@@ -42,7 +45,7 @@ export function Tile({ hit }: { hit: Hit }): ReactElement {
   const icon = KIND_ICON[hit.kind];
   return (
     <View style={styles.tile}>
-      {named ? <Avatar name={hit.title} kind={hit.kind === "person" ? "person" : "agent"} size={20} /> : icon ? <MenuIcon icon={icon} color="var(--ink-3)" size={16} /> : <AppIcon brand={hit.title} name={hit.title} size={20} />}
+      {named ? <Avatar name={hit.title} seedId={hit.id} kind={hit.kind === "person" ? "person" : "agent"} size={20} /> : icon ? <MenuIcon icon={icon} color="var(--ink-3)" size={16} /> : <AppIcon brand={hit.title} name={hit.title} size={20} />}
     </View>
   );
 }
@@ -216,7 +219,7 @@ function renderRow(
   }
   const trigger = r.type === "hit" ? menuTrigger((x, y) => rowMenu(i, x, y)) : {};
   return (
-    <View key={r.key} style={on ? styles.lit : null} {...webOnly({ onPointerMove: () => ctl.hover(i), role: "option", "aria-selected": on })} {...(trigger as object)}>
+    <View key={r.key} style={on ? LIT : null} {...webOnly({ onPointerMove: () => ctl.hover(i), role: "option", "aria-selected": on })} {...(trigger as object)}>
       {row}
     </View>
   );
@@ -278,8 +281,6 @@ const styles = StyleSheet.create({
   tile: { width: 20, height: 20, marginRight: 10, alignItems: "center", justifyContent: "center" },
   dot: { width: 12, height: 12, borderRadius: 6 },
   kind: { fontSize: 11.5, color: "var(--ink-3)" },
-  // The highlighted row takes the accent with white text (the prototype palette); the tokens the row reads are re-pointed inside it.
-  lit: { backgroundColor: "var(--accent)", borderRadius: 6, "--ink": "#FFFFFF", "--ink-2": "rgba(255,255,255,0.86)", "--ink-3": "rgba(255,255,255,0.74)" } as object,
   keys: { fontSize: 11.5, color: "var(--ink-3)" },
   foot: { flexDirection: "row", gap: 14, paddingVertical: 8, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: "var(--line)" },
   footText: { fontSize: 11.5, color: "var(--ink-3)" },

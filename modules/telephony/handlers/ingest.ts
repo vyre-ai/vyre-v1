@@ -164,6 +164,14 @@ const smsAnswer = (smsId: string, optOut: boolean, contactId?: string, conversat
 
 // ---- ingest_status
 
+/** A provider's callback has a trace of its own, but a call is one piece of work: when the call row knows the trace of the dial that placed it, the callback is applied again on that trace, so its events follow the call end to end. A call the Space did not place keeps the callback's own trace. */
+async function onCallTrace(ctx: TelCtx, sid: string, cap: string, input: unknown): Promise<unknown | undefined> {
+  const row = numberBySid(ctx, "telephony_call", sid);
+  const own = row ? strOrNull(row, "traceId") : null;
+  if (!own || own === ctx.trace.traceId) return undefined;
+  return ctx.call(cap, input, { traceId: own });
+}
+
 const CALL_RANK: Record<string, number> = { ringing: 0, answered: 1, voicemail: 1, completed: 2, missed: 2, failed: 2 };
 const SMS_RANK: Record<string, number> = { queued: 0, sent: 1, received: 1, delivered: 2, undelivered: 2, failed: 2 };
 /** Errors that mean the number cannot be reached at all: unknown destination, landline, blocked by the carrier, unreachable. */
@@ -175,6 +183,10 @@ export async function ingestStatus(ctx: TelCtx, input: { sid: string; kind: stri
   if (input.kind !== "call" && input.kind !== "sms") bad(ctx, "A status is for a call or a text.");
   if (typeof input.status !== "string" || input.status === "") bad(ctx, "A status names the status.");
   const status = input.status.toLowerCase();
+  if (input.kind === "call") {
+    const again = await onCallTrace(ctx, input.sid, "telephony.ingest_status", input);
+    if (again) return again as { applied: boolean };
+  }
   if (input.kind === "call") return { applied: await applyCall(ctx, input.sid, status, input.durationSec, input.at) };
   return { applied: await applySms(ctx, input.sid, status, input.errorCode) };
 }
@@ -261,6 +273,8 @@ async function callsFolder(ctx: TelCtx): Promise<string> {
 
 export async function ingestRecording(ctx: TelCtx, input: { callSid: string; recordingSid: string; url: string; durationSec?: number }) {
   ensure(ctx);
+  const again = typeof input.callSid === "string" && input.callSid !== "" ? await onCallTrace(ctx, input.callSid, "telephony.ingest_recording", input) : undefined;
+  if (again) return again as { callId: string; fileId: string };
   if (typeof input.callSid !== "string" || input.callSid === "") bad(ctx, "A recording names its call.");
   if (typeof input.recordingSid !== "string" || input.recordingSid === "") bad(ctx, "A recording names its Sid.");
   if (typeof input.url !== "string" || !/^https:\/\/\S+$/.test(input.url)) bad(ctx, "A recording has an https address.");

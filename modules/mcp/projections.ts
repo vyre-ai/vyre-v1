@@ -17,6 +17,7 @@ export interface Db {
 
 /** The part of the host Ctx these handlers read. A test passes a small object; the host passes the full Ctx. */
 export interface McpCtx {
+  depth?: number;
   space: string;
   principal: { kind: "person" | "agent" | "actor" | "service"; id: string };
   actingFor?: string | undefined;

@@ -351,3 +351,62 @@ test("share_out makes a read-only link that can expire, for someone who manages 
   h.allowOnly((a) => a.level !== "manage");
   await refused(run(h, "projects.share_out", { projectId: p.projectId }), "validation.not_found");
 });
+
+const HOST = { kind: "service", id: "svc_host" } as const;
+const tokenOf = (url: string): string => url.slice("/share/project/".length);
+
+test("share_out expires in 30 days by default, in the days asked, and never says both a time and days", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  assert.equal((await run(h, "projects.share_out", { projectId: p.projectId })).expiresAt, NOW + 30 * DAY, "a link nobody revokes still stops working");
+  assert.equal((await run(h, "projects.share_out", { projectId: p.projectId, expiresInDays: 2 })).expiresAt, NOW + 2 * DAY);
+  await refused(run(h, "projects.share_out", { projectId: p.projectId, expiresAt: NOW + DAY, expiresInDays: 2 }), "validation.bad_input");
+  assert.equal(h.rows("SELECT token FROM projects_share WHERE expiresAt IS NULL").length, 0, "every link has an expiry");
+  assert.match(h.rows("SELECT token FROM projects_share")[0]!["token"] as string, /^[a-f0-9]{36}$/, "144 random bits");
+});
+
+test("unshare_out revokes one link at once and the others stay", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  const a = await run(h, "projects.share_out", { projectId: p.projectId });
+  const b = await run(h, "projects.share_out", { projectId: p.projectId });
+  h.clear();
+  assert.deepEqual(await run(h, "projects.unshare_out", { projectId: p.projectId, url: a.url }), { revoked: true });
+  assert.deepEqual(h.named("project.unshared_out").map((e) => e.payload), [{ projectId: p.projectId }]);
+  await refused(run(h, "projects.shared_view", { token: tokenOf(a.url) }, h.as(HOST)), "validation.not_found");
+  assert.equal((await run(h, "projects.shared_view", { token: tokenOf(b.url) }, h.as(HOST))).title, "Probate GTM");
+  assert.deepEqual(await run(h, "projects.unshare_out", { projectId: p.projectId, url: a.url }), { revoked: false }, "twice is not an error");
+  await refused(run(h, "projects.unshare_out", { projectId: p.projectId, url: "/elsewhere/x" }), "validation.bad_input");
+  h.allowOnly((x) => x.level !== "manage");
+  await refused(run(h, "projects.unshare_out", { projectId: p.projectId, url: b.url }), "validation.not_found");
+});
+
+test("shared_view shows the client the title, status, goal, update and next milestones and nothing of people, threads or files; a stranger cannot call it", async () => {
+  const h = harness();
+  const p = await mkProject(h, { goal: "30 firms by June" });
+  const soon = h.task(p, { title: "Kickoff call", due: NOW + 2 * DAY });
+  void soon;
+  await run(h, "projects.post_update", { projectId: p.projectId, text: "On track" });
+  const link = await run(h, "projects.share_out", { projectId: p.projectId, expiresInDays: 3 });
+  const view = await run(h, "projects.shared_view", { token: tokenOf(link.url) }, h.as(HOST));
+  assert.equal(view.title, "Probate GTM");
+  assert.equal(view.goal, "30 firms by June");
+  assert.equal(view.statusUpdate.text, "On track");
+  assert.equal(view.expiresAt, NOW + 3 * DAY);
+  assert.deepEqual(Object.keys(view).sort(), ["expiresAt", "goal", "milestones", "status", "statusUpdate", "title"]);
+  for (const person of [DANA, LEO, MAYA]) assert.ok(!JSON.stringify(view).includes(person), "no member id");
+  await refused(run(h, "projects.shared_view", { token: tokenOf(link.url) }, h.person(DANA)), "permission.role_lacks_permission", "system_only");
+  await refused(run(h, "projects.shared_view", { token: tokenOf(link.url) }, h.agent(BOT, DANA)), "permission.role_lacks_permission");
+  await refused(run(h, "projects.shared_view", { token: "0".repeat(36) }, h.as(HOST)), "validation.not_found");
+  h.advance(3 * DAY);
+  await refused(run(h, "projects.shared_view", { token: tokenOf(link.url) }, h.as(HOST)), "validation.not_found");
+});
+
+test("without an authorizer nothing is allowed: the project stays closed", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  const blind = { ...h.ctx } as typeof h.ctx;
+  delete (blind as { authorize?: unknown }).authorize;
+  await refused(run(h, "projects.get", { projectId: p.projectId }, blind), "validation.not_found");
+  await refused(run(h, "projects.share_out", { projectId: p.projectId }, blind), "validation.not_found");
+});
