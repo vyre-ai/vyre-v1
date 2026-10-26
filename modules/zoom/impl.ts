@@ -3,7 +3,10 @@
 import type { Handler } from "../../host/src/invoke.ts";
 import * as h from "./handlers/index.ts";
 
-export { setZoomHost } from "./projections.ts";
+import { setZoomHost } from "./projections.ts";
+import type { SeamSetters } from "../../host/src/seams/index.ts";
+
+export { setZoomHost };
 export type { ZoomHost } from "./projections.ts";
 export { signatureMatches, signatureOf, encryptedTokenOf } from "./handlers/index.ts";
 
@@ -23,3 +26,6 @@ export const handlers: Record<string, Handler> = {
 };
 
 export const projections = { inline: {}, consumers: {} };
+
+/** Where the host registers its half at boot (ruling 31). */
+export const hostSeams: SeamSetters = { setZoomHost };

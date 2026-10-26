@@ -1,6 +1,6 @@
 // P-L5_LIVE (rulings 31, 32): the L5 modules that are done are live on a booted daemon. host/modules.json has them live, no L5 module is reported as not set up, the Stripe, Twilio and GitHub
 // host seams are wired, and one read and one write capability per module answer through the gateway with a real token. A member without connectors.manage is refused.
-// telephony, meetings and zoom are not in this list: their packets (P-L5_07, P-L5_10) have not landed, so they stay stub (comment on the packet).
+// Meetings, telephony and zoom are live too (P-L5_LIVE2); Zoom and Twilio calls that need an account answer a clean refusal when the Space has no key.
 // Path mapping: the packet owns __live__/L5; this test sits in host/tests because it boots the daemon.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -13,7 +13,7 @@ import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 
-const LIVE = ["calendar", "contacts-link", "github", "google", "inbox", "mail", "mailgun", "microsoft", "resend", "stripe", "twilio"];
+const LIVE = ["calendar", "contacts-link", "github", "google", "inbox", "mail", "mailgun", "meetings", "microsoft", "resend", "stripe", "telephony", "twilio", "zoom"];
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 
@@ -38,6 +38,9 @@ const CALLS: [string, [string, unknown], [string, unknown]][] = [
   ["google", ["/v1/google/health", {}], ["/v1/google/dwd/disable", {}]],
   ["inbox", ["/v1/inbox/counts", {}], ["/v1/inbox/link_message", { channel: "email", ref: { kind: "mail_message", id: "msg_1" }, address: "a@example.com", direction: "in", at: AT }]],
   ["mail", ["/v1/mail/mailbox/list", {}], ["/v1/mail/mailbox/create", { idempotencyKey: "l5-mbx", kind: "shared", address: "team@example.com", title: "Team", provider: "inbound_only" }]],
+  ["meetings", ["/v1/meetings/list", {}], ["/v1/meetings/schedule", { idempotencyKey: "l5-meet", title: "Intake call", startsAt: AT, endsAt: AT + 1_800_000, provider: "none", attendees: [{ email: "client@example.com", name: "Client" }] }]],
+  ["telephony", ["/v1/telephony/number/list", {}], ["/v1/telephony/registration/save", { legalName: "Northwind Legal LLC" }]],
+  ["zoom", ["/v1/zoom/health", {}], ["/v1/zoom/receive_webhook", { eventId: "evt_zoom_1", type: "meeting.started", at: AT }]],
   ["microsoft", ["/v1/ms/health", {}], ["/v1/ms/consent/disable", {}]],
   ["stripe", ["/v1/stripe/health", {}], ["/v1/stripe/receive_webhook", { eventId: "evt_1", type: "checkout.session.completed", objectId: "cs_1", amount: 100, currency: "USD", at: AT }]],
   ["twilio", ["/v1/twilio/health", {}], ["/v1/twilio/receive_webhook", { kind: "status", dedupeKey: "k1", sid: "CA1", params: {} }]],
@@ -90,6 +93,13 @@ test("l5 live: a booted daemon has no L5 module not set up, and a read and a wri
       }
     }
     assert.deepEqual(failures, [], "every read and write answers through the live handler");
+
+    // an account the Space has not set up refuses cleanly: a 4xx with a provider or precondition code, never a crash
+    for (const [p, body] of [["/v1/zoom/meetings/create", { idempotencyKey: "l5-zoom-no-key", topic: "Intake" }], ["/v1/twilio/number/search", {}]] as const) {
+      const r = await post(OWNER, p, body);
+      const text = await r.text();
+      assert.ok(r.status >= 400 && r.status < 500, `${p} with no key answers a refusal, got ${r.status} ${text}${why(text)}`);
+    }
 
     // a member holds no connectors.manage: refused before the handler runs
     const refused = await post(MEMBER, "/v1/google/dwd/disable", {});
