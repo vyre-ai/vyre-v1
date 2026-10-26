@@ -48,15 +48,26 @@ test("a fresh install: claim link, claim, sign in, work, invite a member who joi
     assert.match(d.claim.url, /^https:\/\/team\.example\.com\/claim\/clm_[A-Za-z0-9_-]+/);
     assert.equal(fs.readFileSync(path.join(d.paths.logDir, "claim-link.txt"), "utf8").trim(), d.claim.url, "the setup log holds the same link");
     const code = decodeURIComponent(new URL(d.claim.url).pathname.split("/").pop() ?? "");
+    // the link is a credential: no log file holds it, only the 0600 claim-link.txt does
+    const logText = (): string => fs.readdirSync(d.paths.logDir).filter((f) => f !== "claim-link.txt").map((f) => fs.readFileSync(path.join(d.paths.logDir, f), "utf8")).join("\n");
+    assert.ok(!logText().includes(code), "no log line holds the claim code");
+    assert.equal(fs.statSync(path.join(d.paths.logDir, "claim-link.txt")).mode & 0o077, 0, "the link file is private to the owner of the process");
 
     assert.notEqual((await post(null, "/v1/identity/claim_owner", { code: "clm_not-the-code", username: "olivia", password: PASSWORD, ...device("Mac"), keys: KEYS })).status, 200, "a wrong code is refused");
     const claimed = await post(null, "/v1/identity/claim_owner", { code, username: "olivia", displayName: "Olivia", password: PASSWORD, ...device("Olivia's Mac"), keys: KEYS });
     assert.equal(claimed.status, 200, JSON.stringify(claimed.body));
+    assert.ok(!fs.existsSync(path.join(d.paths.logDir, "claim-link.txt")), "the claim spent, the file that held the link is gone");
     const signedIn = await post(null, "/v1/identity/sign_in", { username: "olivia", password: PASSWORD, ...device("Olivia's laptop") });
     assert.equal(signedIn.status, 200, JSON.stringify(signedIn.body));
     const owner = signedIn.body.data.session.token as string;
     const who = await post(owner, "/v1/identity/whoami", {});
     assert.equal(who.status, 200, JSON.stringify(who.body));
+
+    // the support bundle and the logs never hold the code
+    const bundle = await post(owner, "/v1/health/support_bundle", {});
+    assert.equal(bundle.status, 200, JSON.stringify(bundle.body));
+    for (const row of d.db!.all("SELECT body FROM health_bundle") as { body: string }[]) assert.ok(!row.body.includes(code), "the support bundle does not hold the claim code");
+    assert.ok(!logText().includes(code), "no log line holds the claim code after the claim either");
 
     // the owner works: a record type, a record
     assert.equal((await post(owner, "/v1/schema/apply", { idempotencyKey: "fresh-type", ops: [COMPANY] })).status, 200);

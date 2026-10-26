@@ -427,6 +427,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           // The one internal call a module may make with the host's own authority: devices -> sync.epoch.bump (a device was revoked, its replica must purge). The person revoking their own
           // device holds no sync grant, and a revoke that cannot purge would leave the copy on the device. Nothing else is widened: every other ctx.call keeps the caller's authority.
           const mod = h ? (capIndex?.get(cap)?.module ?? "") : "";
+          // the owner claimed the Space: the link is spent, so the file that held it goes too
+          if (h && cap === "identity.claim_owner") return (async (ctx, input) => {
+            const out = await h({ ...ctx, ...peopleExtras?.(mod, ctx) } as typeof ctx, input);
+            claim = null;
+            try { fs.rmSync(path.join(paths.logDir, "claim-link.txt"), { force: true }); } catch { /* already gone */ }
+            return out;
+          }) as Handler;
           // identity opens a device session at sign-in by calling devices.register, which only the server itself may do (P-SEC_08): that one call, from identity, runs as the host. Nothing else is widened.
           if (h && mod === "identity") return ((ctx, input) => h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown, opts?: unknown) => (name === "devices.register" ? system(name, callInput) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
           // accepting an invite: the person proved the code, and the invite's role, groups and starting places were the inviter's to give. Those join effects run as the host, not as the signed-out caller.
@@ -823,7 +830,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         const fp = String((db?.all("SELECT fingerprint FROM identity_space WHERE id = ?", space)[0] as { fingerprint?: string } | undefined)?.fingerprint ?? "").replace(/\s/g, "");
         claim = { url: `${base.replace(/\/$/, "")}/claim/${issued.code}${fp ? `#fp=${fp}` : ""}`, expiresAt: issued.expiresAt };
         fs.writeFileSync(path.join(paths.logDir, "claim-link.txt"), `${claim.url}\n`, { mode: 0o600 });
-        sink.log({ space: space ?? "-", level: 20, msg: "claim.link", place: "boot", attrs: { url: claim.url, expiresAt: issued.expiresAt } });
+        // the link is a credential: it goes to the console and the 0600 file only, never to the shared log stream, the log export or the support bundle
+        sink.log({ space: space ?? "-", level: 20, msg: "claim link issued, see logs/claim-link.txt", place: "boot", attrs: { expiresAt: issued.expiresAt } });
       }
     }
     writeInfo(paths, { pid: process.pid, url: `http://${cfg.host}:${boundPort}`, port: boundPort, roles: cfg.roles, space, version: cfg.version, startedAt });
