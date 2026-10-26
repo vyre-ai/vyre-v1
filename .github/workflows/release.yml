@@ -48,6 +48,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          docker buildx version >/dev/null 2>&1 || { echo "this runner has no docker buildx, which the multi-arch image build needs (docs/release/runbook.md)"; exit 1; }
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           TAG="$VERSION" docker buildx bake -f images/vyred/docker-bake.hcl --push --metadata-file bake.json
           digest=$(jq -r '.vyred["containerimage.digest"]' bake.json)
@@ -56,7 +57,7 @@ jobs:
       - name: Server image, practice run (the bake file is checked, nothing is built or pushed)
         if: env.DRYRUN == 'true'
         run: |
-          docker buildx bake -f images/vyred/docker-bake.hcl --print > /dev/null
+          if docker buildx version >/dev/null 2>&1; then docker buildx bake -f images/vyred/docker-bake.hcl --print > /dev/null; else echo "::warning::this runner has no docker buildx, so the bake file was not checked; a real release needs it"; fi
           echo "VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:$(printf '0%.0s' $(seq 64))" >> "$GITHUB_ENV"
       - name: Pack the server, the app web export, the Chrome extension and the Kits; write releases.json
         env:
