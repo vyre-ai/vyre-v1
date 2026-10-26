@@ -104,6 +104,7 @@ jobs:
       matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/deps   # the dependency set (main.yml and check.yml have it; without it a test that imports yjs fails on a runner whose workspace has none)
       - env:
           FILES: ${{ matrix.files }}
           SLOW: ${{ matrix.slow }}
