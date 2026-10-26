@@ -20,6 +20,8 @@ type OwnedRow = Record<string, unknown>;
 const ownedRows = (ctx: { db: { all(sql: string, ...a: unknown[]): unknown[] } }, sql: string, ...a: unknown[]): OwnedRow[] => { try { return ctx.db.all(sql, ...a) as OwnedRow[]; } catch { return []; } };
 const ownedKept = (r: OwnedRow[], type: string, title: string) => ({ count: r.length, sample: r.slice(0, 5).map((x) => ({ type, id: String(x["id"]), title: String(x[title] ?? x["id"]) })), ids: r.slice(0, 500).map((x) => String(x["id"])) });
 export const hostCalls = {
+  /** The bytes for an upload slot from files.upload_url (the blob route's PUT): sealed into the blob store like any upload. */
+  "files.put_upload": (ctx: unknown, i: { blobId: string; token: string; base64: string }) => putUploadedBytes(ctx as never, i.blobId, i.token, Buffer.from(i.base64, "base64")),
   "files.owned_by": (ctx: HostCallCtx, i: { person: string }) => ({
     files: ownedKept([
       ...ownedRows(ctx, `SELECT "id", "name" FROM files_file WHERE "owner" = ? AND "deleted_at" IS NULL`, i.person),

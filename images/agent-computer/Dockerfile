@@ -34,7 +34,7 @@ RUN rsvg-convert -w 2560 -h 1600 /opt/desktop/wallpaper.svg -o /opt/desktop/wall
 COPY vyre-chrome/ /opt/vyre-chrome/
 # Vyre for Chrome sits in the toolbar (owner rule): an unpacked extension's id comes from its path, and the managed policy pins that id. An agent's browser never signs in to Google or syncs.
 RUN mkdir -p /etc/chromium/policies/managed \
- && node -e 'const h=require("crypto").createHash("sha256").update("/opt/vyre-chrome").digest("hex").slice(0,32);const id=[...h].map((c)=>String.fromCharCode(97+parseInt(c,16))).join("");require("fs").writeFileSync("/etc/chromium/policies/managed/vyre.json",JSON.stringify({BrowserSignin:0,SyncDisabled:true,ExtensionSettings:{[id]:{toolbar_pin:"force_pinned"}}}))'
+ && node -e 'const h=require("crypto").createHash("sha256").update("/opt/vyre-chrome").digest("hex").slice(0,32);const id=[...h].map((c)=>String.fromCharCode(97+parseInt(c,16))).join("");require("fs").writeFileSync("/etc/chromium/policies/managed/vyre.json",JSON.stringify({BrowserSignin:0,SyncDisabled:true,DownloadDirectory:"/home/agent/Vyre/downloads",PromptForDownloadLocation:false,ExtensionSettings:{[id]:{toolbar_pin:"force_pinned"}}}))'
 RUN chmod 0755 /opt/agentd/ctl && chmod 0644 /opt/agentd/*.ts /opt/agentd/*.py /opt/agentd/package.json
 
 ENV HOME=/home/agent \

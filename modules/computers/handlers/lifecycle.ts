@@ -183,7 +183,7 @@ export async function awaken(ctx: CompCtx, c: ComputerRow, by: string): Promise<
   const host = hostOf(ctx);
   setComputer(ctx.db, c.computerId, { state: "waking", error: null });
   try {
-    await host.start({ computerId: c.computerId, tabLimit: c.tabLimit });
+    await host.start({ computerId: c.computerId, tabLimit: c.tabLimit, agentId: c.agentId });
   } catch (e) {
     setComputer(ctx.db, c.computerId, { state: "error", error: e instanceof Error ? e.message.slice(0, 200) : "The computer did not start." });
     raise(ctx, "internal.unexpected", "The computer did not start. Try again.");
@@ -205,7 +205,7 @@ async function putToSleep(ctx: CompCtx, c: ComputerRow, reason: "idle" | "reques
   const host = hostOf(ctx);
   let out: { sessions?: SessionInfo[]; diskBytes?: number };
   try {
-    out = await host.stop({ computerId: c.computerId, reason });
+    out = await host.stop({ computerId: c.computerId, reason, agentId: c.agentId });
   } catch (e) {
     setComputer(ctx.db, c.computerId, { state: "error", error: e instanceof Error ? e.message.slice(0, 200) : "The computer did not stop." });
     raise(ctx, "internal.unexpected", "The computer did not go to sleep. Try again.");
