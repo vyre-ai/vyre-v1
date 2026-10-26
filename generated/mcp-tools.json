@@ -13688,6 +13688,13 @@
             "pattern": "^rec_[a-z0-9]+$",
             "type": "string"
           },
+          "recordType": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
           "signingDate": {
             "description": "ISO date",
             "examples": [
@@ -13770,6 +13777,13 @@
               "rec_a1b2c3"
             ],
             "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordType": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
             "type": "string"
           },
           "signingDate": {
@@ -14033,6 +14047,13 @@
               "eml_a1b2c3"
             ],
             "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordType": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
             "type": "string"
           },
           "variant": {

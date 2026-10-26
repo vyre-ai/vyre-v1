@@ -8,6 +8,10 @@ import type { RawDb } from "../../../host/src/ctx/db.ts";
 import type { Db } from "../projections.ts";
 import type { ReviewCtx } from "../handlers/review.ts";
 import { MemoryDb } from "./db.ts";
+import { strictGuard } from "../../../packages/contracts/src/contract-check.ts";
+import { registry as strictRegistry } from "../../../generated/registry.ts";
+import { validateInput as strictValidate } from "../../../generated/validators.ts";
+const assertStrictInput = strictGuard(strictRegistry, strictValidate);
 
 export const MIGRATION = fileURLToPath(new URL("../migrations/0003_requests_reviews.sql", import.meta.url));
 
@@ -364,6 +368,7 @@ export function harness(answers: Record<string, Answer> = {}, now = NOW): Harnes
     db,
     emit(name: string, subject: string, payload: unknown) { events.push({ name, subject, payload }); },
     async call(cap: string, input: unknown) {
+      assertStrictInput(cap, input);
       const inp = (input ?? {}) as Record<string, unknown>;
       calls.push({ cap, input: inp });
       const a = map.get(cap);

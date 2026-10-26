@@ -708,8 +708,8 @@ async function restoreVersion(ctx: Ctx, input: unknown): Promise<{ email: EmailD
   return { email: docOf(mustEmail(ctx, emailId)) };
 }
 
-async function recordValues(ctx: Ctx, recordId: string): Promise<Record<string, string>> {
-  const out = (await ctx.call("records.get", { recordId })) as { record?: { fields?: unknown } };
+async function recordValues(ctx: Ctx, recordId: string, type: string): Promise<Record<string, string>> {
+  const out = (await ctx.call("records.get", { type, recordId })) as { record?: { fields?: unknown } };
   return valuesOf(out.record?.fields);
 }
 
@@ -719,9 +719,11 @@ async function render(ctx: Ctx, input: unknown): Promise<{ html: string; warning
   const variant = reqStr(ctx, o, "variant");
   if (variant !== "desktop" && variant !== "mobile" && variant !== "dark" && variant !== "plain") fail(ctx, "validation.bad_input", "The variant is desktop, mobile, dark or plain.", { field: "variant" });
   const recordId = optStr(ctx, o, "asRecordId");
+  const recordType = optStr(ctx, o, "recordType");
+  if (recordId !== undefined && recordType === undefined) fail(ctx, "validation.bad_input", "recordType is required with recordId", { field: "recordType" });
   const values: Record<string, string> = {
     unsubscribe_url: "https://preview.invalid/unsubscribe", preferences_url: "https://preview.invalid/preferences", owner_name: ctx.principal.id,
-    ...(recordId ? await recordValues(ctx, recordId) : {}),
+    ...(recordId !== undefined && recordType !== undefined ? await recordValues(ctx, recordId, recordType) : {}),
   };
   const sendHtml = compileHtml(doc);
   const sendText = compileText(doc);

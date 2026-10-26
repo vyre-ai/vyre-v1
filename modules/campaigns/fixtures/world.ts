@@ -10,6 +10,10 @@ import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import { configureCampaigns } from "../projections.ts";
 import type { ProjEvent } from "../projections.ts";
 import { MemoryDb } from "./db.ts";
+import { strictGuard } from "../../../packages/contracts/src/contract-check.ts";
+import { registry as strictRegistry } from "../../../generated/registry.ts";
+import { validateInput as strictValidate } from "../../../generated/validators.ts";
+const assertStrictInput = strictGuard(strictRegistry, strictValidate);
 
 export const NOW = 1_760_004_000_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
@@ -64,6 +68,7 @@ export function harness(o: { now?: number; principal?: Principal; publicBase?: s
       return {} as EventEnvelope<T>;
     },
     async call(cap, input) {
+      assertStrictInput(cap, input);
       const i = input as Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
       calls.push({ cap, input: i });
       switch (cap) {

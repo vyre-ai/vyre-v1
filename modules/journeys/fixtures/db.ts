@@ -9,6 +9,10 @@ import { handlers } from "../impl.ts";
 import type { Db, JourneysCtx } from "../projections.ts";
 import { NOW } from "./seed.ts";
 import type { Caller } from "./seed.ts";
+import { strictGuard } from "../../../packages/contracts/src/contract-check.ts";
+import { registry as strictRegistry } from "../../../generated/registry.ts";
+import { validateInput as strictValidate } from "../../../generated/validators.ts";
+const assertStrictInput = strictGuard(strictRegistry, strictValidate);
 
 // Boundary B2 keeps the node:sqlite module out of the import lines of modules: only the host builds a ctx and opens databases.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
@@ -75,6 +79,7 @@ export function harness(over: { now?: number; calls?: Record<string, Callee> } =
         return { id: ev.id };
       },
       async call(c, input) {
+        assertStrictInput(c, input);
         log.push({ cap: c, input });
         const f = world[c];
         if (!f) throw new Error(`unexpected call to ${c}`);

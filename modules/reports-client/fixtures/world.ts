@@ -8,6 +8,10 @@ import { FakeReportsDb, NOW, SPACE, TRACE } from "./db.ts";
 import { send_to_vyre } from "../handlers/submit.ts";
 import type { Bundle, ReportContext, ReportEvent, ReportsCtx, ReportsDrivers } from "../handlers/submit.ts";
 import type { OutwardCall, ReplayCopy, ReplayDrivers, ReplayOutcome, ReplayTarget, ReplayValue } from "../handlers/replay.ts";
+import { strictGuard } from "../../../packages/contracts/src/contract-check.ts";
+import { registry as strictRegistry } from "../../../generated/registry.ts";
+import { validateInput as strictValidate } from "../../../generated/validators.ts";
+const assertStrictInput = strictGuard(strictRegistry, strictValidate);
 
 export { NOW, SPACE, TRACE };
 
@@ -78,6 +82,7 @@ export function world(o: { policy?: string; name?: string } = {}): World {
   } as unknown as ReportsCtx;
   // capabilities the handlers call: tasks, settings, and the module's own send (routed to the handler as the pipeline would)
   (ctx as { call: unknown }).call = async (cap: string, input: unknown) => {
+    assertStrictInput(cap, input);
     w.calls.push({ cap, input });
     if (cap === "tasks.create") { w.tasks.push(input); return { task: { id: `tsk_${w.tasks.length}` } }; }
     if (cap === "settings.get") {

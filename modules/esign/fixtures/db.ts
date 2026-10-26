@@ -12,6 +12,10 @@ import { validateEvent, validateInput, validateOutput } from "../../../generated
 import { ProviderPayloadError, configureEsign, fromBase64, toBase64 } from "../handlers/send.ts";
 import type { EnvelopeRequest, EnvelopeStatus, EsignProvider, ProviderKey, ProviderStatus, SignedFiles, WebhookEvent } from "../handlers/send.ts";
 import { handlers } from "../impl.ts";
+import { strictGuard } from "../../../packages/contracts/src/contract-check.ts";
+import { registry as strictRegistry } from "../../../generated/registry.ts";
+import { validateInput as strictValidate } from "../../../generated/validators.ts";
+const assertStrictInput = strictGuard(strictRegistry, strictValidate);
 
 // Boundary B2 keeps the node:sqlite import out of modules; a test still needs a real SQL engine behind the host's table guard.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
@@ -130,6 +134,7 @@ export function harness(o: HarnessOptions = {}) {
         return {} as EventEnvelope<T>;
       },
       async call(c, input) {
+        assertStrictInput(c, input);
         calls.push({ cap: c, input: input as CallLog["input"] });
         const f = callees[c];
         if (!f) throw new Error(`unexpected call to ${c}`);

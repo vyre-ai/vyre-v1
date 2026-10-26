@@ -15,6 +15,7 @@ const fillIn = {
   templateFileId: id.file,
   values: t.opt(t.rec()),
   recordId: t.opt(id.record),
+  recordType: t.opt(id.recordType),
   mapping: t.opt(t.rec(t.str({ description: 'Record field key that feeds the template tag' }))),
   signingDate: t.opt(t.str({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'ISO date', examples: ['2026-10-24'] })),
 };

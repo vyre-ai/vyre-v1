@@ -26,7 +26,7 @@ test("commit writes the previewed rows as an import Run and says what it did", a
   assert.deepEqual(Object.keys(out).sort(), ["importId", "runId"]);
   assert.equal(out.importId, importId);
   const start = h.only("runs.start")[0]!;
-  assert.deepEqual(start.input, { kind: "other", name: "Import contact", owner: "usr_dana" });
+  assert.deepEqual(start.input, { idempotencyKey: `imp-run:${importId}`, kind: "other", name: "Import contact", owner: "usr_dana" });
   const bulk = h.only("records.bulk_upsert");
   assert.equal(bulk.length, 1);
   assert.equal(bulk[0]!.input.type, "contact");

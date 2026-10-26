@@ -8,6 +8,10 @@ import { validate } from "../../../packages/contracts/src/jsonschema.ts";
 import { API, setGithubHost } from "../projections.ts";
 import type { GithubCtx, GithubHost, Json } from "../projections.ts";
 import { memoryDb } from "./memory-db.ts";
+import { strictGuard } from "../../../packages/contracts/src/contract-check.ts";
+import { registry as strictRegistry } from "../../../generated/registry.ts";
+import { validateInput as strictValidate } from "../../../generated/validators.ts";
+const assertStrictInput = strictGuard(strictRegistry, strictValidate);
 
 export const NOW = 1_760_000_000_000;                    // 2025-10-09T08:53:20Z
 export const WEBHOOK_SECRET = "whsec_gh_not_real";
@@ -121,6 +125,7 @@ export function harness() {
       return null;
     },
     async call(cap, input) {
+      assertStrictInput(cap, input);
       const body = input as Record<string, unknown>;
       called.push({ cap, input: body });
       const misfit = contractErrors(cap, "in", body);

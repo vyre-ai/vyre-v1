@@ -7,6 +7,10 @@ import type { HostError } from "../../../host/src/routes/errors.ts";
 import { validate } from "../../../packages/contracts/src/jsonschema.ts";
 import type { GovCtx } from "../projections.ts";
 import { memoryDb } from "./memory-db.ts";
+import { strictGuard } from "../../../packages/contracts/src/contract-check.ts";
+import { registry as strictRegistry } from "../../../generated/registry.ts";
+import { validateInput as strictValidate } from "../../../generated/validators.ts";
+const assertStrictInput = strictGuard(strictRegistry, strictValidate);
 
 export const NOW = 1_760_000_000_000;
 export const DAY = 86_400_000;
@@ -195,6 +199,7 @@ export function harness() {
       return null;
     },
     async call(cap, input) {
+      assertStrictInput(cap, input);
       const body = (input ?? {}) as Record<string, unknown>;
       called.push({ cap, input: body });
       const d = registry.capabilities.filter((c) => c.name === cap).sort((a, b) => b.v - a.v)[0];

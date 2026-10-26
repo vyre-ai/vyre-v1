@@ -380,6 +380,7 @@ export async function templateApply(ctx: AgentsCtx, input: { scope: "all" | "one
   let taskId: string | undefined;
   if (widening > 0) {
     const task = await tolerant<{ task?: { id?: string } }>(ctx, "tasks.create", {
+      idempotencyKey: `agent-template:${[...made].sort().join(",")}`,
       kind: "approve", title: `Review ${widening} Agent template ${widening === 1 ? "change" : "changes"} that give agents more room`, summary: "Accepting one lets an agent do something its own files did not allow.",
       assigned: { kind: "role", id: "admin" },
     }, {});

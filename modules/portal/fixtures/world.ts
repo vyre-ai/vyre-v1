@@ -7,6 +7,10 @@ import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import { configurePortal } from "../handlers/accounts.ts";
 import type { LinkMessage, PortalMailer } from "../handlers/accounts.ts";
 import { MemoryDb } from "./db.ts";
+import { strictGuard } from "../../../packages/contracts/src/contract-check.ts";
+import { registry as strictRegistry } from "../../../generated/registry.ts";
+import { validateInput as strictValidate } from "../../../generated/validators.ts";
+const assertStrictInput = strictGuard(strictRegistry, strictValidate);
 
 export const NOW = 1_760_000_000_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
@@ -63,6 +67,7 @@ export function harness(o: { principal?: string; now?: number; configure?: boole
       return {} as EventEnvelope<T>;
     },
     async call(cap, input) {
+      assertStrictInput(cap, input);
       calls.push({ cap, input });
       if (cap === "sites.get") {
         const siteId = (input as { siteId: string }).siteId;

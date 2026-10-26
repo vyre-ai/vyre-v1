@@ -121,7 +121,7 @@ async function makeProject(ctx: ProjectsCtx, o: Plan): Promise<Made> {
   for (const id of members.keys()) if (!kindOfPrincipal(id)) raise(ctx, "validation.bad_input", "A person, an agent or a group holds a project role.", { principal: id });
 
   const rec = await call<{ record?: { id?: string } }>(ctx, "records.create", {
-    type: o.type, fields: clean({ title: o.title, summary: o.summary, status: "planning", lead, start: o.start, due: o.due, goal: o.goal, stages: o.stages.map((s) => s.key) }),
+    idempotencyKey: `prj-rec:${o.key}`, type: o.type, fields: clean({ title: o.title, summary: o.summary, status: "planning", lead, start: o.start, due: o.due, goal: o.goal, stages: o.stages.map((s) => s.key) }),
   }, { idempotencyKey: `prj-rec:${o.key}` });
   const recordId = rec.record?.id;
   if (!recordId) raise(ctx, "internal.unexpected", "The project record was not created.");
@@ -171,7 +171,7 @@ async function copyTemplate(ctx: ProjectsCtx, templateId: string, made: Made, st
     if (t.state === "canceled") continue;
     const plan = plans.get(t.taskId);
     const out = await call<{ task?: { id?: string } }>(ctx, "tasks.create", clean({
-      title: t.title, assigned: t.assigned ? { kind: t.assigned.startsWith("agt_") ? "agent" : "person", id: t.assigned } : { kind: "person", id: me(ctx) },
+      idempotencyKey: `prj-tpl:${made.projectId}:${t.taskId}`, title: t.title, assigned: t.assigned ? { kind: t.assigned.startsWith("agt_") ? "agent" : "person", id: t.assigned } : { kind: "person", id: me(ctx) },
       recordId: made.recordId, due: t.due === undefined ? undefined : t.due + shift,
     }), { idempotencyKey: `prj-tpl:${made.projectId}:${t.taskId}` });
     const id = out.task?.id;
