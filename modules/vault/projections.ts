@@ -15,6 +15,7 @@ export const LADDER: readonly Level[] = ["use", "view", "edit", "manage"];
 
 /** The part of the host Ctx (packages/contracts/src/ctx.ts) the vault handlers use; the host Ctx satisfies it. */
 export interface VaultCtx {
+  depth?: number;
   space: string;
   principal: { kind: "person" | "agent" | "actor" | "service"; id: string };
   actingFor?: string;

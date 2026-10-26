@@ -5,7 +5,7 @@ import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 
 /** The part of the host Ctx these handlers use. The full Ctx satisfies it. */
-export type DevicesCtx = Pick<Ctx, "space" | "principal" | "trace" | "now" | "db" | "emit" | "authorize" | "device">;
+export type DevicesCtx = Pick<Ctx, "space" | "principal" | "trace" | "now" | "db" | "emit" | "authorize" | "device"> & { depth?: number };
 
 export type DeviceClass = "desktop" | "phone" | "web" | "extension" | "daemon";
 export type EpochReason = "device_revoked" | "suspended" | "removed" | "password_reset" | "clearance_lowered" | "key_rotation";

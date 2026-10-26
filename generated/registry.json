@@ -122375,6 +122375,7 @@
         {
           "input": {
             "expiresAt": 1760000000000,
+            "expiresInDays": 1,
             "idempotencyKey": "idem_1",
             "projectId": "prj_a1b2c3"
           },
@@ -122398,6 +122399,11 @@
               1760000000000
             ],
             "minimum": 0,
+            "type": "integer"
+          },
+          "expiresInDays": {
+            "maximum": 365,
+            "minimum": 1,
             "type": "integer"
           },
           "idempotencyKey": {
@@ -122434,12 +122440,150 @@
       },
       "risk": "high",
       "since": "1.0.0",
-      "summary": "Make a read-only link to the project Overview for a client",
+      "summary": "Make a read-only link to the project Overview for a client; it expires in 30 days unless expiresAt or expiresInDays says otherwise",
       "surfaces": {
         "http": "auto",
         "mcp": {
           "toolset": "records"
         }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "token": "a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "expiresAt": 1760000000000,
+            "goal": "example",
+            "milestones": [
+              {
+                "due": 1760000000000,
+                "status": "example",
+                "title": "example"
+              }
+            ],
+            "status": "example",
+            "statusUpdate": {
+              "at": 1760000000000,
+              "text": "example"
+            },
+            "title": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "token": {
+            "examples": [
+              "a1b2c3"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "projects",
+      "name": "projects.shared_view",
+      "output": {
+        "properties": {
+          "expiresAt": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "goal": {
+            "type": "string"
+          },
+          "milestones": {
+            "items": {
+              "properties": {
+                "due": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title",
+                "status"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "status": {
+            "type": "string"
+          },
+          "statusUpdate": {
+            "properties": {
+              "at": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text",
+              "at"
+            ],
+            "type": "object"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "status",
+          "milestones"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "System: what a shared link shows a client (title, status, goal, status update, next milestones; no people, threads or files). Only the host calls it, for /share/project/<token>",
+      "surfaces": {
+        "http": "auto"
       },
       "v": 1
     },
@@ -122741,6 +122885,85 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Unpin a file from the Overview",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "project.unshared_out"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "projectId": "prj_a1b2c3",
+            "url": "/share/project/a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "revoked": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "url": {
+            "examples": [
+              "/share/project/a1b2c3"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "url"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "projects",
+      "name": "projects.unshare_out",
+      "output": {
+        "properties": {
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "revoked"
+        ],
+        "type": "object"
+      },
+      "permission": "records.share_external",
+      "resource": {
+        "id": "/projectId",
+        "type": "project"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Revoke a read-only link to the project Overview; the link answers not found at once",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -184235,6 +184458,33 @@
         "type": "project"
       },
       "summary": "A dependency was removed",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "projects",
+      "name": "project.unshared_out",
+      "payload": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "replay": "stub",
+      "subject": {
+        "id": "/projectId",
+        "type": "project"
+      },
+      "summary": "A read-only link to the project Overview was revoked",
       "sv": 1,
       "vis": "space"
     },

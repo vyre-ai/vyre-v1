@@ -1,5 +1,6 @@
 // Home projections (spec 3.1, 2.6; ARCH 7.1). The digest entity row, its ranking, the Projects at risk rule and the local day of a person.
 // Durable tables: generated/modules/home/schema.sql (home_digests) and migrations/0001_home.sql. Every statement names only home_* tables (ctx.db refuses anything else, ARCH B2).
+import { isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
 
@@ -57,7 +58,7 @@ export function page<T>(all: readonly T[], cursor?: string, limit?: number): { r
 // ---- who ----
 
 export const me = (ctx: HomeCtx): string => ctx.actingFor ?? ctx.principal.id;
-export const isService = (ctx: HomeCtx): boolean => ctx.principal.kind === "service";
+export const isService = (ctx: HomeCtx): boolean => isTrustedService(ctx.principal);
 /** The person a digest is about may read it; the host (a service) and the assistant acting for that person may write it. */
 export const mayActFor = (ctx: HomeCtx, person: string): boolean => isService(ctx) || person === ctx.principal.id || person === ctx.actingFor;
 
