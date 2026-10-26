@@ -84,7 +84,10 @@ test("each place renders its data from a seeded replica, not its loading frame",
     home: "Send 12 invoices", chat: "Pruitt retainer thread", mail: "Marcus Pruitt", records: "Active clients", files: "Rivera engagement letter.docx",
     sites: "Northwind website", automations: "Welcome new leads", vault: "Stripe restricted key", settings: "Profile",
   };
+  const firstList = (await import("./providers/first-list.tsx")).default;
   for (const p of SHELL_PLACES) {
+    // A place with its own composed layout (providers/<place>.tsx) is tested beside it; this test covers Home and the places still on the first list.
+    if (p.id !== "home" && (await p.load()).default !== firstList) continue;
     const out = await mount(p.id, rt);
     assert.ok(out.includes(titles[p.id]!), `${p.id} shows ${titles[p.id]}`);
     assert.ok(!out.includes("-loading"), `${p.id} is not a loading frame`);
@@ -102,10 +105,10 @@ test("before the Space's runtime exists a place draws its loading frame, never a
 
 test("a place whose list is empty says so with the shared empty state", async () => {
   const { rt, sample } = runtimeFor("northwind", true);
-  (sample.replica as unknown as Loose).resolve("files.list", () => ({ files: [] }));
-  const out = await mount("files", rt);
-  assert.ok(out.includes("No files here yet."));
-  assert.ok(!out.includes("Rivera engagement letter.docx"));
+  (sample.replica as unknown as Loose).resolve("sites.list", () => ({ sites: [] }));
+  const out = await mount("sites", rt);
+  assert.ok(out.includes("No sites or apps yet."));
+  assert.ok(!out.includes("Northwind website"));
   assert.deepEqual(listItems({ files: [] }), []);
 });
 

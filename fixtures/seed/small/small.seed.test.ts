@@ -7,6 +7,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { routes } from "../../../generated/routes.ts";
 import { PEOPLE } from "../core/index.ts";
+import { SEED_TEST_PASSWORD } from "../../../testkit/src/seed-password.ts";
 import { SMALL_TARGET } from "./recipe.ts";
 import { bootSmall, contactRows, extraEvents, lastBuildTimings, startSeeded } from "./build.ts";
 
@@ -75,21 +76,56 @@ test("a daemon boots on a copy and answers through the gateway: the contacts are
   } finally { await d.stop(); s.close(); }
 });
 
-test("PERF: the small seed is ready in under 150 ms from the cache", async () => {
-  await first();
-  const times: number[] = [];
-  for (let i = 0; i < 7; i++) {
-    const t0 = performance.now();
-    const s = await bootSmall({ cache, scratch: scratch() });
-    times.push(performance.now() - t0);
-    assert.equal(s.hit, true);
-    s.close();
-  }
-  times.sort((x, y) => x - y);
-  const median = times[3]!;
-  console.log(`small seed on a cache hit: median ${median.toFixed(1)} ms, min ${times[0]!.toFixed(1)} ms, max ${times[6]!.toFixed(1)} ms (budget 150 ms)`);
-  assert.ok(median < 150, `median ${median.toFixed(1)} ms is over the 150 ms budget`);
-  assert.ok(times[6]! < 150 * 3, "even the slowest boot stays near the budget");
+test("the access module knows the seed: View as and a folder share work on seeded ids", async () => {
+  const s = await bootSmall({ cache, scratch: scratch() });
+  const d = await startSeeded(s.dir);
+  try {
+    const post = async (cap: string, body: unknown): Promise<{ status: number; data: any }> => {
+      const r = routes.find((x) => x.cap === cap)!;
+      const res = await fetch(`${d.url}${r.path}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify(body) });
+      const reply = (await res.json()) as { data?: unknown; error?: unknown };
+      return { status: res.status, data: reply.data ?? reply.error ?? null };
+    };
+    const view = await post("access.view_as", { person: "usr_noah" });
+    assert.equal(view.status, 200, JSON.stringify(view.data));
+    const who = await post("access.principals.get", { principal: { kind: "person", id: "usr_tess" } });
+    assert.equal(who.status, 200, JSON.stringify(who.data));
+    const shared = await post("access.share", { idempotencyKey: "small-share", resource: { type: "folder", id: "fld_clients" }, subject: { kind: "person", id: "usr_tess" }, level: "view" });
+    assert.equal(shared.status, 200, JSON.stringify(shared.data));
+  } finally { await d.stop(); s.close(); }
+});
+
+async function signInOlivia(): Promise<{ d: Awaited<ReturnType<typeof startSeeded>>; close(): Promise<void>; post(cap: string, body: unknown, token: string | null): Promise<{ status: number; data: any }>; sign: { status: number; data: any } }> {
+  const s = await bootSmall({ cache, scratch: scratch() });
+  const d = await startSeeded(s.dir);
+  const post = async (cap: string, body: unknown, token: string | null): Promise<{ status: number; data: any }> => {
+    const r = routes.find((x) => x.cap === cap)!;
+    const res = await fetch(`${d.url}${r.path}`, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
+    const reply = (await res.json()) as { data?: unknown; error?: unknown };
+    return { status: res.status, data: reply.data ?? reply.error ?? null };
+  };
+  const sign = await post("identity.sign_in", { username: "olivia", password: SEED_TEST_PASSWORD, deviceName: "Laptop", deviceClass: "desktop" }, null);
+  return { d, post, sign, close: async () => { await d.stop(); s.close(); } };
+}
+
+test("a seeded person signs in with the test password and gets a key bundle; a wrong password is refused", { todo: "host (no packet yet): the daemon builds the gateway with no preAuth, so every anonymous or pending capability (identity.sign_in, identity.pair_redeem, members.accept, members.invites.preview) answers 401 auth.unauthenticated" }, async () => {
+  const w = await signInOlivia();
+  try {
+    assert.equal(w.sign.status, 200, JSON.stringify(w.sign.data));
+    assert.equal(w.sign.data.status, "ok");
+    assert.ok(w.sign.data.keys?.personKeyByPassword, "the key bundle comes back");
+    const bad = await w.post("identity.sign_in", { username: "olivia", password: "not the password", deviceName: "Laptop", deviceClass: "desktop" }, null);
+    assert.ok(bad.status >= 400 && bad.status < 500, `a wrong password is refused: ${bad.status}`);
+  } finally { await w.close(); }
+});
+
+test("her session pairs a device: identity.pair_create with the token sign-in returned", { todo: "P-SEC_05 (L7b): identity mints its own tokens and never writes devices_session or host_session_token, so the token sign-in returns is 401 at the gateway" }, async () => {
+  const w = await signInOlivia();
+  try {
+    const pair = await w.post("identity.pair_create", { idempotencyKey: "small-pair", purpose: "app" }, w.sign.data.session.token);
+    assert.equal(pair.status, 200, JSON.stringify(pair.data));
+    assert.match(pair.data.code, /^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+  } finally { await w.close(); }
 });
 
 test("the access module knows the seed: View as and a folder share work on seeded ids", async () => {

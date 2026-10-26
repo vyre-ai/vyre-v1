@@ -4,6 +4,7 @@
 import type { Row } from "../../../../../../client/src/index.ts";
 import type { PhoneCallEvent, PhoneCallLike, PhoneDeviceLike } from "../../../../../../ui/src/Softphone/index.tsx";
 import { SAMPLE_NOW } from "../contactlist/sample.ts";
+import { SILENT_WAV } from "../contacttab/sample.ts";
 import type { ContactTabSample } from "../contacttab/sample.ts";
 import type { InboxData } from "../sidebar/data.tsx";
 import type { ContactRow } from "../sidebar/model.ts";
@@ -40,9 +41,10 @@ export class FakeVoiceDevice implements PhoneDeviceLike {
   }
   on(_event: "incoming", handler: (call: PhoneCallLike) => void): void { this.incoming.push(handler); }
   destroy(): void { this.destroyed = true; }
+  private rung = 0;
   /** Somebody calls in. */
   ring(from: string): FakeCall {
-    const call = new FakeCall({ From: from, To: SAMPLE_NUMBER_ID, CallSid: `CA_in_${this.connected.length}` });
+    const call = new FakeCall({ From: from, To: SAMPLE_NUMBER_ID, CallSid: `CA_in_${this.rung++}` });
     for (const h of this.incoming) h(call);
     return call;
   }
@@ -64,6 +66,14 @@ export function withTelephony<T extends ContactTabSample>(base: T): PhoneSample<
   const { replica } = base;
   const telephony: TelephonyRecord[] = [];
   const device = new FakeVoiceDevice();
+  // the server opens a call row when a call comes in (the voice webhook); the sample does it when the device rings
+  const ringIn = device.ring.bind(device);
+  device.ring = (from: string): FakeCall => {
+    const c = ringIn(from);
+    const who = Object.entries(PHONE_OF).find(([, n]) => sameNumber(n, from));
+    replica.put("calls", [{ id: c.parameters.CallSid, numberId: SAMPLE_NUMBER_ID, direction: "in", from, to: SAMPLE_NUMBER_ID, ...(who ? { contactId: `ct_${who[0]}` } : {}), state: "ringing", startedAt: SAMPLE_NOW, hasTranscript: false, consentLogged: false } as unknown as Row]);
+    return c;
+  };
   const contacts = (): ContactRow[] => replica.rows("contacts") as unknown as ContactRow[];
   const find = (number: string): ContactRow | undefined => {
     const hit = Object.entries(PHONE_OF).find(([, n]) => sameNumber(n, number));
@@ -96,16 +106,23 @@ export function withTelephony<T extends ContactTabSample>(base: T): PhoneSample<
       const call = calls().find((c) => c["id"] === i.callId);
       if (!call) throw new Error(`no such call ${i.callId}`);
       if (call["state"] === "completed") return { call };
-      const done = { ...call, state: "completed", answeredAt: SAMPLE_NOW, endedAt: SAMPLE_NOW + 12_000, durationSec: 12 };
+      const incoming = call["direction"] === "in";
+      const other = String(incoming ? call["from"] : call["to"]);
+      const secs = incoming ? 2 : 12;
+      const lead = incoming ? "Incoming call" : "Outgoing call";
+      const done = { ...call, state: "completed", answeredAt: SAMPLE_NOW, endedAt: SAMPLE_NOW + secs * 1000, durationSec: secs, summary: "A short call, saved to the conversation." };
       replica.put("calls", [done as unknown as Row]);
-      const to = String(call["to"]);
-      let who = typeof call["contactId"] === "string" ? contacts().find((c) => c.contactId === call["contactId"]) : find(to);
+      let who = typeof call["contactId"] === "string" ? contacts().find((c) => c.contactId === call["contactId"]) : find(other);
       // nobody matches this number: the call is saved as a new unmatched line
       if (!who) {
-        who = { id: `u_${digitsOf(to)}`, address: to, displayName: to, lastMessageAt: SAMPLE_NOW, lastChannel: "call", lastPreview: "Outgoing call · 0:12", unreadCount: 0, needsMatch: true, followed: false, alertOnReplies: false, mailboxIds: [String(call["numberId"])] } as ContactRow;
+        who = { id: `u_${digitsOf(other)}`, address: other, displayName: other, lastMessageAt: SAMPLE_NOW, lastChannel: "call", lastPreview: `${lead} · 0:${String(secs).padStart(2, "0")}`, unreadCount: 0, needsMatch: true, followed: false, alertOnReplies: false, mailboxIds: [String(call["numberId"])] } as ContactRow;
       }
-      replica.put("thread_items", [{ conversationId: who.id, kind: "call", id: `c_${i.callId}`, at: SAMPLE_NOW, direction: "out", title: "Outgoing call", preview: "Outgoing call · 0:12", ref: { state: "completed", durationSec: 12, via: String(call["numberId"]), address: to } } as unknown as Row]);
-      replica.put("contacts", [{ ...who, lastMessageAt: SAMPLE_NOW, lastChannel: "call", lastPreview: "Outgoing call · 0:12" } as unknown as Row]);
+      const preview = `${lead} · 0:${String(secs).padStart(2, "0")}`;
+      const ref = incoming
+        ? { state: "completed", durationSec: secs, via: String(call["numberId"]), address: other, summary: String(done.summary), recording: true, recordingUrl: SILENT_WAV, transcript: [{ who: who.displayName.split(" ")[0] ?? "Caller", text: "Hi, it is me. Can you call me back?" }, { who: "Irfad", text: "Yes, I will call this afternoon." }] }
+        : { state: "completed", durationSec: secs, via: String(call["numberId"]), address: other };
+      replica.put("thread_items", [{ conversationId: who.id, kind: "call", id: `c_${i.callId}`, at: SAMPLE_NOW, direction: incoming ? "in" : "out", title: lead, preview, ref } as unknown as Row]);
+      replica.put("contacts", [{ ...who, lastMessageAt: SAMPLE_NOW, lastChannel: "call", lastPreview: preview } as unknown as Row]);
       return { call: { ...done, ...(who.contactId ? { contactId: who.contactId } : {}) } };
     },
     "telephony.hold": (i: { callId: string; hold: boolean }) => { telephony.push({ cap: "telephony.hold", input: i }); return { call: calls().find((c) => c["id"] === i.callId) }; },

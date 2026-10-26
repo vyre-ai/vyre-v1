@@ -41,6 +41,7 @@ import { createGateHook } from "./gate-hook.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { createEngineHost } from "../seams/engine.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
+import { applyPendingRestore, createBackupHost } from "../seams/backup.ts";
 import { createKitsHost } from "../seams/kits.ts";
 import { createSyncSeam } from "../seams/sync.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
@@ -198,6 +199,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const paths = pathsFor(cfg.dataDir);
   ensureDirs(paths);
 
+  applyPendingRestore(paths.root);   // a restore staged by backup.restore is moved into place before any database is opened
   const existing = readInfo(paths);
   if (existing && existing.pid !== process.pid && alive(existing.pid)) throw new Error(`vyred is already running for ${paths.root} (pid ${existing.pid})`);
 
@@ -439,6 +441,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             },
           },
         }),
+        // backups: the Space's own files, the owner from the access layer (P-SEC_07: without owner() every export refuses), exports into the blob store, S3 over the seam fetch with keys from the Vault
+        setBackupHost: (d) => createBackupHost({
+          root: paths.root, space: spaceId, log: spaceLog, owner: () => cfg.owner ?? access.owner() ?? "usr_owner", system, vault: d.vault, fetch: d.fetch,
+          blobs: { put: async (bytes, type) => (await blobs.forModule("backup").put(bytes, type)).id }, secrets: () => [token],
+        }),
         setEventsDispatch: () => system,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
         setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
@@ -466,6 +473,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           blobs: o.seams?.blobs ?? { put: none("The blob store") },
           members: o.seams?.members ?? { emails: none("The member list") },
           ...(o.seams?.fetch ? { fetch: o.seams.fetch } : {}),
+          ...(o.seams?.filler ? { filler: o.seams.filler } : {}),
           // where Mailgun posts inbound mail: the address people reach this Space at, else the local URL (read at call time, the port is known only after listen)
           publicUrl: o.seams?.publicUrl ?? (async () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }),
           drivers: hostDrivers, owners: loaded.seamOwners,
