@@ -29,6 +29,8 @@ export function fakeFiles(clock: { t: number }) {
   const folders = new Map<string, FakeFolder>();
   const files = new Map<string, FakeFile>();
   const keys = new Map<string, unknown>();
+  /** Agent principals access knows, whether or not the agents module has a record for them (the seed writes some straight to the log). */
+  const principals: Array<{ id: string; kind: "agent"; name: string; owner?: string; status: "active" | "removed" }> = [];
   const calls: Array<{ cap: string; input: unknown }> = [];
   const settings: Record<string, unknown> = {};
   let n = 0;
@@ -77,6 +79,7 @@ export function fakeFiles(clock: { t: number }) {
       if (k) keys.set(k, out);
       return out;
     },
+    "access.principals.list": () => ({ principals: principals.map((p) => ({ ...p, roles: [], groups: [], createdAt: clock.t })) }),
     "files.get": (i) => ({ file: fileOut(file(i.fileId)) }),
     "files.delete": (i) => { file(i.fileId).deletedAt = clock.t; return { deleted: true }; },
     "files.restore": (i) => { const f = file(i.fileId); delete f.deletedAt; if (i.toFolderId) f.folderId = i.toFolderId; return { file: fileOut(f) }; },
@@ -123,7 +126,7 @@ export function fakeFiles(clock: { t: number }) {
   };
 
   return {
-    root: agentsRoot, folders, files, calls, handlers,
+    root: agentsRoot, folders, files, calls, handlers, principals,
     answer(cap: string, f: Handler) { handlers[cap] = f; },
     setting(key: string, value: unknown) { settings[key] = value; },
     folderNamed(name: string, parent?: string): FakeFolder | undefined { return [...folders.values()].find((f) => !f.deleted && f.name === name && f.parentId === parent); },

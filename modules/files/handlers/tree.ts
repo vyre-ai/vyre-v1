@@ -1151,15 +1151,22 @@ async function filesWrite(ctx: Ctx, input: unknown): Promise<{ file: FileOut; ve
 /** The two files an agent is made of. They stay in the agent's own folder under their own names: renaming, moving or deleting either would leave an agent with no configuration or no instructions. */
 const AGENT_OWN_FILES = new Set(["AGENT.md", "agent.toml"]);
 
-/** Refuse to delete, move or rename AGENT.md or agent.toml in an agent's home folder (Agents/<name>). Editing them stays open; deleting the agent takes the folder with it. */
+/** Refuse to delete, move or rename AGENT.md or agent.toml in an agent's home folder (Agents/<name>, made for the agent). Editing them stays open; deleting the agent takes the folder with it. */
 export function guardAgentFile(ctx: Ctx, file: Row, doing: "delete" | "move" | "rename"): void {
   const name = String(file.name);
   if (!AGENT_OWN_FILES.has(name)) return;
-  const home = many(ctx, "SELECT parent_id, system_key FROM files_folder WHERE id = ?", String(file.folder_id))[0];
+  const home = many(ctx, "SELECT id, parent_id, system_key FROM files_folder WHERE id = ?", String(file.folder_id))[0];
   if (!home) return;
-  const parent = typeof home.parent_id === "string" ? many(ctx, "SELECT root_key FROM files_folder WHERE id = ?", home.parent_id)[0] : undefined;
-  // an agent's folder is a direct child of the Agents root (the agents module makes it there), or one made for an agent (system_key agent:<id>)
-  const isHome = parent?.root_key === "agents" || (typeof home.system_key === "string" && /^agent:[^:]+$/.test(home.system_key));
+  // the agent's own folder carries the agent as its subject (system_key agent:<id>). A folder made before that has no key: it counts only when it sits straight under the Agents root and holds both files,
+  // so a person's folder dropped into Agents/ with an AGENT.md of its own is just a folder.
+  let isHome = typeof home.system_key === "string" && /^agent:[^:]+$/.test(home.system_key);
+  if (!isHome && home.system_key == null && typeof home.parent_id === "string") {
+    const parent = many(ctx, "SELECT root_key FROM files_folder WHERE id = ?", home.parent_id)[0];
+    if (parent?.root_key === "agents") {
+      const names = many(ctx, "SELECT name FROM files_file WHERE folder_id = ? AND deleted_at IS NULL", String(home.id)).map((r) => String(r.name));
+      isHome = AGENT_OWN_FILES.size === [...AGENT_OWN_FILES].filter((n) => names.includes(n)).length;
+    }
+  }
   if (!isHome) return;
   fail(ctx, "validation.precondition_failed", `${name} is part of the agent, so it cannot be ${doing === "delete" ? "deleted" : doing === "move" ? "moved" : "renamed"}. Edit it, or delete the agent to remove its folder.`, { fileId: String(file.id), name, reason: "agent_file" });
 }

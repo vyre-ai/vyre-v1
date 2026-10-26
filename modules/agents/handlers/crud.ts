@@ -102,7 +102,8 @@ export interface TreeResult { folderId: string; tomlFileId: string; agentMdFileI
 /** Agents/<name> with the decided tree, its two files, the Vyre guide and whatever the Agent template adds. */
 async function createTree(ctx: AgentsCtx, agentId: string, name: string, tomlText: string, agentMd: string): Promise<TreeResult> {
   const root = await agentsRoot(ctx);
-  const home = await makeFolder(ctx, root, name, `agents:${agentId}:folder`);
+  // the home folder carries the agent as its subject (system_key agent:<id>): that is how Files knows AGENT.md and agent.toml in it are the agent's own
+  const home = await makeFolder(ctx, root, name, `agents:${agentId}:folder`, { kind: "agent", id: agentId });
   const ids = new Map<string, string>([["", home.folderId]]);
   const template = await readTemplate(ctx);
   const folders = [...new Set([...TREE_FOLDERS, ...template.items.filter((i) => i.kind === "folder").map((i) => i.path)])]
@@ -457,8 +458,23 @@ interface FileGot { file?: { fileId: string; folderId: string; name: string; del
  */
 export async function restoreAgentFiles(ctx: AgentsCtx): Promise<string[]> {
   const put: string[] = [];
-  for (const a of allAgents(ctx.db)) {
+  await adoptAgentPrincipals(ctx, put);
+  for (let a of allAgents(ctx.db)) {
+    if (a.folderId === undefined) {
+      // a record with no home: make Agents/<name> with the decided tree and both files, and point the record at them
+      try {
+        const tree = await createTree(ctx, a.id, a.name, a.tomlText, AGENT_MD_DEFAULT(a.name, a.config.description));
+        ctx.db.run("UPDATE agents_agent SET folderId = ?, tomlFileId = ?, agentMdFileId = ?, updatedAt = ? WHERE id = ?", tree.folderId, tree.tomlFileId, tree.agentMdFileId, ctx.now(), a.id);
+        put.push(`${a.name}/agent.toml`, `${a.name}/AGENT.md`);
+        ctx.log.warn("agents: an agent had no folder and has been given one", { agent: a.id });
+        a = { ...a, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId };
+      } catch (e) {
+        ctx.log.warn("agents: an agent without a folder could not be given one", { agent: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+        continue;
+      }
+    }
     if (a.folderId === undefined) continue;
+    const folderId = a.folderId;
     const wanted: Array<{ name: "agent.toml" | "AGENT.md"; id: string | undefined; column: "tomlFileId" | "agentMdFileId"; text: () => string }> = [
       { name: "agent.toml", id: a.tomlFileId, column: "tomlFileId", text: () => a.tomlText },
       { name: "AGENT.md", id: a.agentMdFileId, column: "agentMdFileId", text: () => AGENT_MD_DEFAULT(a.name, a.config.description) },
@@ -467,12 +483,12 @@ export async function restoreAgentFiles(ctx: AgentsCtx): Promise<string[]> {
       try {
         const got = w.id === undefined ? null : await tolerant<FileGot | null>(ctx, "files.get", { fileId: w.id }, null);
         const f = got?.file;
-        if (f && f.deletedAt === undefined && f.folderId === a.folderId && f.name === w.name) continue;
+        if (f && f.deletedAt === undefined && f.folderId === folderId && f.name === w.name) continue;
         let id = w.id;
-        if (f && f.deletedAt !== undefined) await call(ctx, "files.restore", { fileId: f.fileId, toFolderId: a.folderId });
-        else if (f) await call(ctx, "files.move", { fileId: f.fileId, toFolderId: a.folderId, name: w.name });
+        if (f && f.deletedAt !== undefined) await call(ctx, "files.restore", { fileId: f.fileId, toFolderId: folderId });
+        else if (f) await call(ctx, "files.move", { fileId: f.fileId, toFolderId: folderId, name: w.name });
         else {
-          const made = await makeFile(ctx, a.folderId, w.name, w.text(), `agents:${a.id}:restore:${w.name}:${ctx.now()}`);
+          const made = await makeFile(ctx, folderId, w.name, w.text(), `agents:${a.id}:restore:${w.name}:${ctx.now()}`);
           id = made.fileId;
           ctx.db.run(`UPDATE agents_agent SET ${w.column} = ?, updatedAt = ? WHERE id = ?`, id, ctx.now(), a.id);
         }
@@ -484,4 +500,35 @@ export async function restoreAgentFiles(ctx: AgentsCtx): Promise<string[]> {
     }
   }
   return put;
+}
+
+/**
+ * An agent that access knows (a principal of kind agent) but this module has no record for, such as one the seed or an import wrote straight to the log, gets its record, its Agents/<name> folder with
+ * the decided tree and both files. Its name and owner come from the principal. An owner that is not a person, or a name another agent already has, leaves it alone and says so in the log.
+ */
+async function adoptAgentPrincipals(ctx: AgentsCtx, put: string[]): Promise<void> {
+  const listed = await tolerant<{ principals?: Array<{ id: string; name: string; owner?: string; status: string }> }>(ctx, "access.principals.list", { kind: "agent", limit: 200 }, {});
+  for (const p of listed.principals ?? []) {
+    if (p.status === "removed" || agentBy(ctx.db, p.id)) continue;
+    const name = p.name.trim();
+    const owner = p.owner;
+    if (name === "" || agentByName(ctx.db, name) || owner === undefined || !owner.startsWith("usr_")) {
+      ctx.log.warn("agents: an agent principal has no record and could not be adopted", { agent: p.id });
+      continue;
+    }
+    try {
+      const config = newConfig({ name });
+      const tomlText = tomlFor(writeConfig({}, config));
+      const tree = await createTree(ctx, p.id, name, tomlText, AGENT_MD_DEFAULT(name, undefined));
+      const now = ctx.now();
+      insertAgent(ctx.db, {
+        id: p.id, name, face: slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: false,
+        templateVersion: await templateVersion(ctx), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
+      });
+      put.push(`${name}/agent.toml`, `${name}/AGENT.md`);
+      ctx.log.warn("agents: an agent principal had no record, folder or files and has been given them", { agent: p.id });
+    } catch (e) {
+      ctx.log.warn("agents: an agent principal could not be adopted", { agent: p.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+    }
+  }
 }
