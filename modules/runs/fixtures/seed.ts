@@ -5,7 +5,7 @@ export const HOUR = 3_600_000;
 export const DAY = 86_400_000;
 
 /** The principal a call runs as. */
-export interface Caller { id: string; kind?: "person" | "agent" | "actor" | "service"; actingFor?: string; device?: string }
+export interface Caller { id: string; kind?: "person" | "agent" | "actor" | "service"; actingFor?: string; device?: string; depth?: number }
 export const alice: Caller = { id: "usr_alice", kind: "person" };
 export const bob: Caller = { id: "usr_bob", kind: "person" };
 export const admin: Caller = { id: "usr_admin", kind: "person" };
