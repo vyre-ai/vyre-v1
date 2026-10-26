@@ -1,0 +1,12 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_32-newtab",
+      "route": "/m/P-L9_32",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='newtab-sections']",
+      "note": "The new-tab page over the whole shell: the search field, then Start (six tiles), Chat with (agent and people faces), Recent with the kind at the right, Record types as chips, and Folders. The prototype side opens Home and presses the plus in its tab strip. Paper and graphite, 1280 and 390 wide.",
+      "protoClick": "[data-vplus]"
+    }
+  ]
+}

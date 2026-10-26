@@ -22,7 +22,7 @@ const webOnly = (props: Record<string, unknown>): Record<string, unknown> => (Pl
 /* ---------- icons by kind ---------- */
 
 const SVG = (d: string): string => `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
-const KIND_LABEL: ReadonlyMap<Hit["kind"], string> = new Map(GROUPS);
+export const KIND_LABEL: ReadonlyMap<Hit["kind"], string> = new Map(GROUPS);
 const KIND_ICON: Partial<Record<Hit["kind"], string>> = {
   file: SVG('<path d="M4 2.500h5l3 3v8H4z"/><path d="M9 2.500v3h3"/>'),
   record: SVG('<rect x="2.500" y="3" width="11" height="10" rx="1.800"/><path d="M2.500 6.500h11M6.500 6.500v6.500"/>'),
@@ -37,7 +37,7 @@ const KIND_ICON: Partial<Record<Hit["kind"], string>> = {
 };
 
 /** The 20 px tile before a result: the shared face for people and agents, a line icon for everything else. */
-function Tile({ hit }: { hit: Hit }): ReactElement {
+export function Tile({ hit }: { hit: Hit }): ReactElement {
   const named = hit.kind === "person" || hit.kind === "agent";
   const icon = KIND_ICON[hit.kind];
   return (
