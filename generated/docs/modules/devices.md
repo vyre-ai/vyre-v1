@@ -12,7 +12,7 @@ Requires: nothing.
 - [devices.list](../capabilities/devices.list.md): All devices in the Space, by person or class (Console > Sessions and devices)
 - [devices.mine](../capabilities/devices.mine.md): My devices and sessions in this Space (Settings > Sign-in and devices)
 - [devices.purge_ack](../capabilities/devices.purge_ack.md): System: a device reports that its replica, keychain entries and caches are gone
-- [devices.register](../capabilities/devices.register.md): System: create the device and session rows at sign-in
+- [devices.register](../capabilities/devices.register.md): Host only (svc_host): create the device and session rows at sign-in; every person, admin, agent and other service is refused
 - [devices.rename](../capabilities/devices.rename.md): Rename one of my devices
 - [devices.revoke](../capabilities/devices.revoke.md): Revoke a device: its sessions end and its replica is purged on next contact
 - [devices.revoke_others](../capabilities/devices.revoke_others.md): Sign out everywhere except this device

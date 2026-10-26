@@ -40,9 +40,9 @@ test("slow files only in slow shards; the fast critical path ignores them", () =
   for (const b of withSlow.fast) for (const f of slowFiles) assert.ok(!b.files.includes(f));
   assert.equal(withSlow.count, without.count);
   assert.equal(withSlow.makespanSec, without.makespanSec);
-  assert.ok(withSlow.makespanSec <= 25);
+  assert.ok(withSlow.makespanSec <= 50, "10 five-second files in one shard");
   const m = toMatrix(withSlow).include;
-  assert.equal(m.filter((j) => j.slow).length, 2);
+  assert.equal(m.filter((j) => j.slow).length, 1, "two slow files share one slow job");
   assert.ok(m.filter((j) => !j.slow).every((j) => !/s[12]\.test/.test(j.files)));
 });
 
@@ -79,11 +79,26 @@ test("many files cap at 24 shards and stay balanced", () => {
   assert.equal(s.makespanSec, 500);
 });
 
-test("shards scale with the file count: about 8 files per shard, at least 1, at most 24", () => {
+test("shards scale with the file count: about 40 files per shard, at least 1, at most 24", () => {
   const n = (k: number) => { const { files, timings } = mk(k, 1); return shardFiles(files, timings, []).count; };
   assert.equal(n(1), 1);
   assert.equal(n(FILES_PER_SHARD), 1);
   assert.equal(n(FILES_PER_SHARD + 1), 2);
-  assert.equal(n(40), 5);
+  assert.equal(n(100), 3);
   assert.equal(n(10000), MAX_SHARDS);
+});
+
+test("a small selection takes few jobs: 5 files give 1 fast shard, 12 plain slow files give 2 slow jobs, each perf file its own", () => {
+  const { files, timings } = mk(5, 3);
+  const slowNames = Array.from({ length: 12 }, (_, i) => `slow${i}.test.ts`);
+  const perf = ["a.perf.test.ts", "b.perf.test.ts"];
+  const slow = [...slowNames.map((f) => slowEntry(f, 60)), ...perf.map((f) => ({ ...slowEntry(f, 120), perf: true }))];
+  const m = toMatrix(shardFiles([...files, ...slowNames, ...perf], timings, slow)).include;
+  assert.equal(m.filter((j) => !j.slow).length, 1);
+  const plain = m.filter((j) => j.slow && j.runner === "v1");
+  assert.equal(plain.length, 2);
+  assert.ok(plain.every((j) => j.files.split(" ").length <= 8));
+  assert.deepEqual(plain.flatMap((j) => j.files.split(" ")).sort(), [...slowNames].sort());
+  assert.deepEqual(m.filter((j) => j.runner === "v1-perf").map((j) => j.files).sort(), perf);
+  assert.equal(m.length, 5);
 });

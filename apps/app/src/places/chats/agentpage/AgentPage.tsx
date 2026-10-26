@@ -19,9 +19,10 @@ import type { PageDeps } from "./actions.ts";
 import { AgentPageDataProvider, paneDataOf, useAgentPageData, useOnline, useOptionalAgentPageData, useScreenQuery } from "./data.tsx";
 import type { AgentPageData } from "./data.tsx";
 import { ChatsTab } from "./ChatsTab.tsx";
+import { TabMeasure, useFittedTabs, useTitleWidths } from "../rightpane/fit.tsx";
 import { RoleLine } from "./RoleLine.tsx";
 import { SettingsTab } from "./SettingsTab.tsx";
-import { DEFAULT_TAB, TABS, collect, isTabKey, spendRatio, statusLine, stripOf } from "./model.ts";
+import { DEFAULT_TAB, TABS, collect, spendRatio, statusLine, stripOf } from "./model.ts";
 import type { TabKey } from "./model.ts";
 
 type AgentOut = CapMap["agents.get"]["out"];
@@ -41,6 +42,8 @@ export interface AgentPageProps {
 export const NOTICE_MS = 8000;
 /** Below this window width the header stacks and the strip wraps. */
 export const NARROW = 640;
+/** What the strip keeps besides tabs: its 6 px padding each side and the options button (26 px) with its gap, rounded up. */
+const STRIP_PADDING = 52;
 
 export function AgentPage(props: AgentPageProps): ReactElement {
   const ctx = useOptionalAgentPageData();
@@ -69,6 +72,8 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
   const narrow = win.width > 0 && win.width < NARROW;
   const [own, setOwn] = useState<TabKey>(initialTab ?? DEFAULT_TAB);
   const tab = controlled ?? own;
+  const [colW, setColW] = useState(0);
+  const titles = useTitleWidths();
   const [notice, setNotice] = useState<{ text: string; undo?: () => Promise<void> | void } | null>(null);
   const deps: PageDeps = useMemo(() => ({
     call: data.call,
@@ -80,6 +85,14 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
     return () => clearTimeout(t);
   }, [notice]);
 
+  // The page's tab strip folds like the pane's: the same fit and More menu (rightpane/fit.tsx), at the page column's own width (390 px phone: Settings never clips).
+  const pageW = colW > 0 ? colW : win.width > 0 ? Math.min(win.width, 760) : 760;
+  const { strip, select } = useFittedTabs(TABS, tab, pageW, {
+    chrome: STRIP_PADDING, measured: titles.widths,
+    menu, left: Math.max(0, (win.width - pageW) / 2) + 16, top: 330,
+    pick: (key) => { setOwn(key); onTab?.(key); },
+  });
+
   const agentId = data.agent.agentId;
   const agentQ = useScreenQuery<AgentOut>("agent", { agentId });
   const summaryQ = useScreenQuery<SummaryOut>("summary", { agentId });
@@ -89,11 +102,6 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
   const name = agent.name;
   const paused = agent.status === "paused";
 
-  const select = (key: string): void => {
-    if (!isTabKey(key)) return;
-    setOwn(key);
-    onTab?.(key);
-  };
   const chat = (): void => { void startChat(deps, agentId, name).then((id) => { if (id !== null) data.nav.openChat(id); }); };
   const moreMenu = (x: number, y: number): void => {
     menu.show([
@@ -109,7 +117,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
   const ratio = summary ? spendRatio(summary) : 0;
   return (
     <View testID="agent-page" accessibilityLabel={`${name}, agent page`} style={st.root}>
-      <View style={[st.col, narrow && st.colNarrow]}>
+      <View style={[st.col, narrow && st.colNarrow]} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== colW) setColW(w); }}>
         <View testID="agent-head" style={[st.head, narrow && st.headNarrow]}>
           <Face name={name} size={narrow ? 48 : 56} pulse={agent.status === "working"} />
           <View style={st.who}>
@@ -142,7 +150,8 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
             ))}
           </View>
         ) : <View testID="agent-strip-loading" style={st.skStrip} />}
-        <TabStrip tabs={TABS} active={tab} onSelect={select} label={`${name}'s page`} />
+        <TabMeasure titles={TAB_TITLES} onWidth={titles.set} />
+        <TabStrip tabs={strip} active={tab} onSelect={select} label={`${name}'s page`} />
         <View testID={`page-body-${tab}`} style={st.body}>
           <RightPaneDataProvider value={paneDataOf(data)}>
             {tab === "chats" ? (summary ? <ChatsTab summary={summary} {...(window ? { window } : {})} /> : <View testID="chats-loading" accessibilityLabel="Loading" style={st.skStrip} />) : null}
@@ -158,6 +167,8 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
     </View>
   );
 }
+
+const TAB_TITLES: readonly string[] = TABS.map((x) => x.title);
 
 const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, alignItems: "center", backgroundColor: "var(--win)" as string },

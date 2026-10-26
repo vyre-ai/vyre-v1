@@ -11,7 +11,7 @@ import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { hexOf } from "../handlers/deploy.ts";
 import { tableType } from "../handlers/tables.ts";
-import { handlers } from "../impl.ts";
+import { handlers } from "../handlers/index.ts";
 import { MemoryDb, readMigration } from "../fixtures/db.ts";
 import { harness } from "../fixtures/world.ts";
 import type { World } from "../fixtures/world.ts";

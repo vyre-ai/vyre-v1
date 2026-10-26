@@ -2,7 +2,7 @@
   "module": "sites",
   "capabilities": {
     "sites.build@1": "40e23dcbe37bb801b0bdd1028c69f463614e672f67642f0e1e61bd0b704f6485",
-    "sites.create@1": "99403e0a998d6f75a0fde021a59fcd297e17e7d69aca2c78438bcc15532398ef",
+    "sites.create@1": "624584b29a1c2375648322ec9cf54647cdb6d6a69fc14c2a0bea31907f1e9db5",
     "sites.delete@1": "1aed8d85d8710d8bbfbad7af4183cd1a102126a63946690aad76284444ee0f94",
     "sites.deploy@1": "37afdee5bba5f1437fc19e5d2e43967b500b600c091141b51bd98123fe72f77e",
     "sites.deployments@1": "0c2a9da43a0a8b35ed66f39f661104478d8fa4ac7f789bf905776711a3793841",

@@ -4,9 +4,9 @@
 // DECISION: "Working" is the awake state; an awake computer with nothing to do is Working without a caption. Idle sleep is the job sleepIdle (the host schedules it), not a capability.
 // DECISION: Take over wakes a sleeping computer first, then pauses the agent's tools and hands the desktop to the person; a person must act (an agent cannot take over).
 import {
-  actorOf, addStep, computerBy, computerOut, computerOf, DEFAULT_IDLE_MINUTES, DEFAULT_TAB_LIMIT, ensure, hostOf, boundHost, mintId, mintTicket, needComputer, needTeam, raise, rowsOf, setComputer, setStepCaption,
+  actorOf, addStep, boundFill, computerBy, computerOut, computerOf, DEFAULT_IDLE_MINUTES, DEFAULT_TAB_LIMIT, dropFill, ensure, holdFill, hostOf, boundHost, mintId, mintTicket, needComputer, needTeam, raise, rowsOf, setComputer, setStepCaption,
 } from "../projections.ts";
-import type { CompCtx, ComputerRow, Probe, SessionInfo } from "../projections.ts";
+import type { CompCtx, ComputerHost, ComputerRow, Probe, SessionInfo } from "../projections.ts";
 import { finishRecording } from "./record.ts";
 
 type Row = Record<string, unknown>;
@@ -138,6 +138,7 @@ export async function remove(ctx: CompCtx, input: { computerId: string }) {
   if (AWAKE.has(c.state)) {
     try { await host.stop({ computerId: c.computerId, reason: "remove" }); } catch { /* the container is removed next */ }
   }
+  dropFill(c.computerId);
   await host.remove(c.computerId);
   for (const t of ["computers_sessions", "computers_tickets", "computers_timeline", "computers_computers"]) ctx.db.run(`DELETE FROM ${t} WHERE computer_id = ?`, c.computerId);
   ctx.emit("computer.removed", c.computerId, { computerId: c.computerId, agentId: c.agentId });
@@ -154,6 +155,27 @@ function storeSessions(ctx: CompCtx, computerId: string, sessions: readonly Sess
 }
 
 /** Start a sleeping computer. The row says Waking while the host works, then Working; a host that fails leaves an error the person can read, and the next wake tries again. */
+/**
+ * Give a running computer its Vault channel (P-L2_21): a token for this computer, the agent that lives on it and the person that agent acts for (its owner), and the address to post to.
+ * A computer that cannot take it still works, it just refuses a #Handle ("no channel to the Vault"); nothing is typed and the token is ended.
+ */
+async function connectFill(ctx: CompCtx, host: ComputerHost, c: ComputerRow): Promise<void> {
+  const binding = boundFill();
+  if (!binding) return;
+  let grant: { fillToken: string; revoke(): void } | null = null;
+  try {
+    const out = (await ctx.call("agents.get", { agentId: c.agentId })) as { agent?: { ownerId?: string } };
+    const asker = out.agent?.ownerId;
+    if (!asker) return;
+    grant = await binding.issue({ computerId: c.computerId, agentId: c.agentId, asker });
+    await host.configure({ computerId: c.computerId, tabLimit: c.tabLimit, fillUrl: binding.url(), fillToken: grant.fillToken });
+    holdFill(c.computerId, grant);
+  } catch {
+    grant?.revoke();
+    ctx.log.warn("the computer did not take its Vault channel", { computerId: c.computerId });
+  }
+}
+
 export async function awaken(ctx: CompCtx, c: ComputerRow, by: string): Promise<ComputerRow> {
   if (c.state === "working" || c.state === "takeover") return c;
   if (c.state === "provisioning") raise(ctx, "validation.bad_input", "This computer is still being set up.");
@@ -166,6 +188,7 @@ export async function awaken(ctx: CompCtx, c: ComputerRow, by: string): Promise<
     setComputer(ctx.db, c.computerId, { state: "error", error: e instanceof Error ? e.message.slice(0, 200) : "The computer did not start." });
     raise(ctx, "internal.unexpected", "The computer did not start. Try again.");
   }
+  await connectFill(ctx, host, c);
   setComputer(ctx.db, c.computerId, { state: "working", last_active_at: ctx.now() });
   ctx.emit("computer.started", c.computerId, { computerId: c.computerId, agentId: c.agentId, by });
   return refresh(ctx, needComputer(ctx, c.computerId));
@@ -187,6 +210,7 @@ async function putToSleep(ctx: CompCtx, c: ComputerRow, reason: "idle" | "reques
     setComputer(ctx.db, c.computerId, { state: "error", error: e instanceof Error ? e.message.slice(0, 200) : "The computer did not stop." });
     raise(ctx, "internal.unexpected", "The computer did not go to sleep. Try again.");
   }
+  dropFill(c.computerId);
   if (out.sessions) storeSessions(ctx, c.computerId, out.sessions);
   setComputer(ctx.db, c.computerId, { state: "asleep", caption: null, tabs: 0, error: null, ...(out.diskBytes !== undefined ? { disk_bytes: out.diskBytes } : {}) });
   ctx.emit("computer.slept", c.computerId, { computerId: c.computerId, agentId: c.agentId, reason });

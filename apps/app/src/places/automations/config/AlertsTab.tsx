@@ -10,7 +10,7 @@ import { Face, IconButton } from "../canvas/parts.tsx";
 import { each } from "../runs/each.ts";
 import { useConfigExtras } from "./data.tsx";
 import type { DirEntry } from "./data.tsx";
-import { Group, Hint, Lab, PickButton, SRow, Switch } from "./parts.tsx";
+import { Group, Lab, PickButton, SRow, Switch } from "./parts.tsx";
 import { ESCALATE_AFTER_HOURS, FAILURES_IN_A_ROW, MAX_ESCALATION_STEPS, addStep, addWho, alertSentence, hoursWords, nextStepHours, removeStep, removeWho, setStepHours, setStepTo, setWhen, setWhere, subjectKey, whenWords, withoutChannel } from "./model.ts";
 import type { Alerts, Automation, Subject } from "./model.ts";
 import { useSaved } from "./saved.ts";
@@ -135,7 +135,6 @@ export function AlertsTab({ automation }: { automation: Automation }): ReactElem
               ) : <Text style={t.dim}>{`Up to ${MAX_ESCALATION_STEPS} steps`}</Text>}
             </SRow>
           </Group>
-          <Hint>Each step tells one more person or role if the failure is still open after the time shown.</Hint>
         </>
       )}
 

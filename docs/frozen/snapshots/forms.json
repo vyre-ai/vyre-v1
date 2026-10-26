@@ -5,9 +5,9 @@
     "bookings.book@1": "2fca578a2df84ab9140180a364991620afddca174da79107cba7b1d606215561",
     "bookings.cancel@1": "5682a422ed76eff3bb99303d1e45491706a0c19c8fc3031230de0e6e3bcde645",
     "bookings.list@1": "c978481f6d02bea6d23ab9ccad3cdeb52d6bb3696547e3d4ca5c6397a0fcceba",
-    "bookings.page_create@1": "46abb87b81a07b8df617d9931b7a34fbd053e9edf7db84dc8fc440b9d323cdf7",
+    "bookings.page_create@1": "b83d84f4cbc429c5bf5ef0e55ab685afe8bbc7bc024aa6182dc5b776cd23f5d6",
     "forms.attribution_get@1": "291e770ae847fda71959b3816361ca9566ff91d21b167f9f6fb1f82d9aa59080",
-    "forms.create@1": "39a152007d7f6e1fc806c4923e85e463ca8d84c1b3c29871c484851501bc8127",
+    "forms.create@1": "8b26e24ec0ba50a381232666857a8426896d169cf47eee74a3b56958916b6852",
     "forms.delete@1": "b7abc38ad9b73adfd730600743291ca2594ef5150233f284f978b379ab885aed",
     "forms.design_set@1": "7e812ef687405dcbfe0b5dd5a434615752a492c0c4a061ea5a058d413387fb5e",
     "forms.fields_set@1": "0efdc7b61a865c1fa6dbe19f9d3c0fba08b3e3c33fc49b68a93f7425cd28020b",
@@ -28,6 +28,7 @@
   "events": {
     "booking.cancelled": "b6197cc6420ef9cea3440b3430fbb2ec04cae202ee43042e1d3c010714481261",
     "booking.created": "9dfa3c4e3afdac1824d9d087f308ed3e9985d30666cadbf7e3c425e2b65a0779",
+    "form.created": "e509c6914f888f46aa778cccdde517d2f9ab93a7590a3ae0794c8b112edda74b",
     "form.link_created": "d004ece99c68450f7ce0fc2df2c48a08fd4313c888cdba81299fc9f151291418",
     "form.published": "1877bf440814fe08c274dc328b6ce983c8fa2d0f6e9d82f9245e6071cd3837e2",
     "form.submitted": "eeede0c68212797ce1e9a753c170b1860bc3bf0a917f6c6ef32167b5dd6c1d10"

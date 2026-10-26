@@ -1,0 +1,12 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_02c-home-personal",
+      "route": "/m/P-L9b_02c?space=personal",
+      "proto": "home,space:personal,{skin}",
+      "waitFor": "[data-testid='s-ask']",
+      "note": "The real shell opened on the Personal Space Home: title bar, rail, place sidebar and main tab strip around the shared Home body. Your Personal Space subtitle, Get started 0 of 4, Quick start above the Ask pill and the locked composer at the foot. The prototype side is its Personal Space Home.",
+      "protoSettleMs": 1500
+    }
+  ]
+}

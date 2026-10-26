@@ -2,6 +2,7 @@
 // without it the pick menus are empty and the links do nothing.
 import { createContext, useContext } from "react";
 import type { ReactElement, ReactNode } from "react";
+import type { TaskState } from "../journeys/model.ts";
 
 export interface DirEntry { id: string; name: string }
 export interface ConfigDirectory {
@@ -29,6 +30,14 @@ export interface ConfigExtras {
   openRecords?(recordType: string, stage?: string): void;
   /** Opens the Automation behind a stage or an alert. */
   openAutomation?(id: string): void;
+  /** Where each task of a Journey stands (by task key). A task not listed is To do. Task progress lives on the records, so the shell supplies it. */
+  taskStates?(journeyId: string): Readonly<Record<string, TaskState>>;
+  /** Sets a task's state; the designer shows it at once and the shell keeps it. */
+  setTaskState?(journeyId: string, taskKey: string, state: TaskState): void;
+  /** The Automations that run when a record leaves each stage (by stage key). */
+  leaving?(journeyId: string): Readonly<Record<string, readonly string[]>>;
+  /** Saves the Automations that run when a record leaves a stage. */
+  setLeaving?(journeyId: string, stageKey: string, automations: readonly string[]): void;
 }
 
 export const EMPTY_DIRECTORY: ConfigDirectory = { people: [], groups: [], roles: [], agents: [], channels: [], automations: [] };

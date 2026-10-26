@@ -1,7 +1,8 @@
 // Capability handlers for devices (14). One file holds them all: sessions.ts.
 import {
-  epoch, epochBump, get, list, mine, purgeAck, register, rename, revoke, revokeOthers, rotateSpaceKey, sessionsList, sessionsRevoke, touch,
+  epoch, epochBump, get, list, mine, purgeAck, rename, revoke, revokeOthers, rotateSpaceKey, sessionsList, sessionsRevoke, touch,
 } from "./sessions.ts";
+import { register } from "./register.ts";
 
 export type { DevicesCtx } from "../projections.ts";
 

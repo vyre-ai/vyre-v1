@@ -59,7 +59,7 @@ test("journeys.create on a booted daemon makes the Journey and its record type w
   const d = await boot(seededDir());
   try {
     const stages = [{ key: "intake", title: "Intake", order: 1, exit: { requireTasks: false }, tasks: [], automations: [] }, { key: "done", title: "Done", order: 2, exit: { requireTasks: false }, tasks: [], automations: [], final: true }];
-    const made = await post(d, "journeys.create", { name: "Client onboarding", subjectType: "contact", stages });
+    const made = await post(d, "journeys.create", { name: "Client onboarding", subjectType: "contact", stages, idempotencyKey: "jrn-live-1" });
     const body = (await made.json()) as { data?: { journey?: { journeyId?: string; recordType?: string } }; error?: unknown };
     assert.equal(made.status, 200, JSON.stringify(body));
     const recordType = body.data!.journey!.recordType!;
@@ -71,10 +71,10 @@ test("journeys.create on a booted daemon makes the Journey and its record type w
     const stage = detail.data!.type.fields.find((f) => f.key === "stage")!;
     assert.deepEqual(stage.options?.stages, [{ key: "intake", title: "Intake" }, { key: "done", title: "Done" }], "the record type carries the Journey's stages");
 
-    const dup = await post(d, "journeys.create", { name: "client onboarding", subjectType: "contact" });
+    const dup = await post(d, "journeys.create", { name: "client onboarding", subjectType: "contact", idempotencyKey: "jrn-live-2" });
     assert.equal(dup.status, 409, "the same name twice is refused");
 
-    const refused = await post(d, "journeys.create", { name: "Member's journey", subjectType: "contact" }, "member");
+    const refused = await post(d, "journeys.create", { name: "Member's journey", subjectType: "contact", idempotencyKey: "jrn-live-3" }, "member");
     assert.equal(refused.status, 403, "a member without journeys.manage is refused");
   } finally { await d.stop(); }
 });
