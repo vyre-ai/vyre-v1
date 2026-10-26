@@ -7,107 +7,8 @@
 // Needs a Chromium (CHROME_BIN, or playwright-core's own) and a web export (VYRE_APP_DIST; without it the test skips with a message). VYRE_REQUIRE_CHROME=1 turns a missing Chromium into a failure.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import type { ChildProcess } from "node:child_process";
 import fs from "node:fs";
-import http from "node:http";
-import net from "node:net";
-import os from "node:os";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { CORE_SPACE, bootCore } from "../../../fixtures/seed/core/index.ts";
-
-const REPO = fileURLToPath(new URL("../../..", import.meta.url));
-
-/** Which module each step needs, and the packet that flips it (docs/lanes: L7 identity/spaces, L2 chat, L3 records, L4 files). */
-export const STEP_NEEDS: Record<string, { modules: string[]; packet: string }> = {
-  "sign in": { modules: ["identity", "spaces", "devices"], packet: "P-L7_LIVE" },
-  "home": { modules: ["home", "tasks"], packet: "P-L6_LIVE" },
-  "chats": { modules: ["chat"], packet: "P-L2_LIVE" },
-  "records": { modules: ["records"], packet: "P-L3_LIVE" },
-  "files": { modules: ["files"], packet: "P-L4_LIVE" },
-};
-
-export function liveModules(root = REPO): Set<string> {
-  const list = JSON.parse(fs.readFileSync(path.join(root, "host/modules.json"), "utf8")) as { modules: { id: string; status: string }[] };
-  return new Set(list.modules.filter((m) => m.status === "live").map((m) => m.id));
-}
-
-/** Null when every module the step needs is live; else the TODO line naming what is missing and who flips it. */
-export function todoFor(step: string, live: Set<string>): string | null {
-  const need = STEP_NEEDS[step];
-  if (!need) throw new Error(`unknown step ${step}`);
-  const missing = need.modules.filter((m) => !live.has(m));
-  return missing.length === 0 ? null : `${step}: ${missing.join(", ")} still a stub in host/modules.json (live with ${need.packet})`;
-}
-
-const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".png": "image/png", ".svg": "image/svg+xml", ".ico": "image/x-icon", ".woff2": "font/woff2", ".ttf": "font/ttf" };
-
-interface Edge { origin: string; close(): void }
-
-/** The app's export on one origin, with the gateway (/v1, /sync, /healthz) and the live socket (/live) passed through to the daemon. */
-function edge(dist: string, daemonUrl: string): Promise<Edge> {
-  const target = new URL(daemonUrl);
-  const base = path.resolve(dist);
-  const proxied = (p: string): boolean => p.startsWith("/v1/") || p.startsWith("/sync/") || p === "/healthz" || p.startsWith("/live");
-  const server = http.createServer((req, res) => {
-    const u = new URL(req.url ?? "/", "http://edge");
-    if (proxied(u.pathname)) {
-      const up = http.request({ host: target.hostname, port: target.port, path: req.url, method: req.method, headers: req.headers }, (r) => { res.writeHead(r.statusCode ?? 502, r.headers); r.pipe(res); });
-      up.on("error", () => { res.writeHead(502); res.end("daemon unreachable"); });
-      req.pipe(up);
-      return;
-    }
-    const p = decodeURIComponent(u.pathname);
-    const cands = [p, `${p}.html`, path.join(p, "index.html")].map((c) => path.join(base, c));
-    let file = cands.find((c) => c.startsWith(base) && fs.existsSync(c) && fs.statSync(c).isFile());
-    if (!file) file = path.join(base, "index.html");
-    res.writeHead(200, { "content-type": TYPES[path.extname(file)] ?? "application/octet-stream" });
-    fs.createReadStream(file).pipe(res);
-  });
-  server.on("upgrade", (req, socket, head) => {
-    const up = net.connect(Number(target.port), target.hostname, () => {
-      const lines = [`${req.method ?? "GET"} ${req.url ?? "/"} HTTP/1.1`];
-      for (let i = 0; i < req.rawHeaders.length; i += 2) lines.push(`${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}`);
-      up.write(`${lines.join("\r\n")}\r\n\r\n`);
-      if (head.length) up.write(head);
-      socket.pipe(up).pipe(socket);
-    });
-    up.on("error", () => socket.destroy());
-    socket.on("error", () => up.destroy());
-  });
-  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve({ origin: `http://127.0.0.1:${(server.address() as net.AddressInfo).port}`, close: () => server.close() })));
-}
-
-const ADMIN_TOKEN = "e2e-owner-bootstrap-token";
-
-interface Space { url: string; token: string; space: string; dir: string; stop(): Promise<void> }
-
-/** The daemon as a person starts it (`node host/src/daemon/main.ts`), on a copy of the frozen core seed. The app tests may not import host, so it runs as its own process. */
-async function bootSpace(): Promise<Space> {
-  const core = bootCore();
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-real-app-"));
-  core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
-  fs.copyFileSync(core.file, path.join(dir, "events.db"));
-  core.close();
-  const child: ChildProcess = spawn(process.execPath, ["host/src/daemon/main.ts", "--role", "space", "--data-dir", dir, "--space", CORE_SPACE, "--port", "0"], {
-    cwd: REPO, env: { ...process.env, VYRE_ADMIN_TOKEN: ADMIN_TOKEN }, stdio: ["ignore", "pipe", "inherit"],
-  });
-  const url = await new Promise<string>((resolve, reject) => {
-    let out = "";
-    const timer = setTimeout(() => reject(new Error(`the daemon did not start in 30 s: ${out}`)), 30_000);
-    child.stdout?.on("data", (d: Buffer) => {
-      out += d.toString();
-      const m = /listening on (http\S+)/.exec(out);
-      if (m?.[1]) { clearTimeout(timer); resolve(m[1]); }
-    });
-    child.once("exit", (code) => { clearTimeout(timer); reject(new Error(`the daemon exited with ${String(code)}: ${out}`)); });
-  });
-  return {
-    url, token: ADMIN_TOKEN, space: CORE_SPACE, dir,
-    stop: () => new Promise<void>((resolve) => { child.once("exit", () => resolve()); child.kill("SIGTERM"); setTimeout(() => child.kill("SIGKILL"), 10_000).unref(); }),
-  };
-}
+import { bootFreshSpace, claimOnEdge, edge, liveModules, todoFor } from "./real-app-harness.test.ts";
 
 function exportApp(): string {
   return process.env["VYRE_APP_DIST"] ?? "";
@@ -136,7 +37,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
     return;
   }
   const live = liveModules();
-  const space = await bootSpace();
+  const space = await bootFreshSpace();
   const dist = exportApp();
   const web = await edge(dist, space.url);
   const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
@@ -153,11 +54,21 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       void r.text().then((b) => { if (r.status() >= 400) seen.push(`${r.status()} ${r.request().method()} ${u.pathname} ${b.slice(0, 200)}`); }).catch(() => undefined);
     }
   });
+  // Calls to the Space that carried no bearer token: a 401 "No valid session" can mean the app sent none.
+  const bare: string[] = [];
+  page.on("request", (r) => {
+    const u = new URL(r.url());
+    if ((u.pathname.startsWith("/v1/") && u.pathname !== "/v1/identity/claim_owner" && u.pathname !== "/v1/identity/sign_in") && !r.headers()["authorization"]) bare.push(`${r.method()} ${u.pathname}`);
+  });
   const dump = async (label: string): Promise<void> => {
     const text = await page.locator("body").innerText({ timeout: 2000 }).catch(() => "(no body)");
-    console.log(`real-app e2e ${label}: on screen: ${text.replace(/\s+/g, " ").slice(0, 400)}\n  calls: ${seen.slice(-8).join(" | ") || "(no failed calls)"}`);
+    console.log(`real-app e2e ${label}: on screen: ${text.replace(/\s+/g, " ").slice(0, 400)}\n  calls: ${seen.slice(-8).join(" | ") || "(no failed calls)"}\n  without a token: ${bare.slice(0, 6).join(", ") || "(none)"}\n  page errors: ${errors.slice(-3).join(" | ") || "(none)"}`);
+  };
+  const step = async (label: string, body: () => Promise<void>): Promise<void> => {
+    try { await body(); } catch (e) { await dump(label); throw e; }
   };
   const todo: string[] = [];
+  let signedIn = false;
   try {
     await t.test("1 the app opens on sign-in when nobody is signed in", async () => {
       await page.goto(`${web.origin}/home`, { waitUntil: "load" });
@@ -165,21 +76,28 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       assert.equal(await page.getByTestId("shell").count(), 0, "no shell before sign-in");
     });
 
-    await t.test("2 sign in (owner bootstrap token) opens the shell on the Space", async (s) => {
-      const gap = todoFor("sign in", live);
+    await t.test("2 the owner claims the Space with the one-time link and lands in the shell", async (s) => {
+      const gap = todoFor("sign in", live) ?? (space.claim ? null : "claim: the daemon printed no claim link (a fresh install prints one with P-L7_23, #578)");
       if (gap) { todo.push(gap); s.todo(gap); return; }
-      const def = { spaceId: space.space, name: "Space", kind: "team", address: web.origin, role: "Owner", tint: ["#6E5CF0", "#9B6BE8"], kit: "northwind", skinDefault: "system", starred: true, needsYou: false, console: true, terminal: true, counts: {}, dots: {} };
-      await page.evaluate(([origin, token, d]) => { localStorage.setItem("vyre.session.v1", JSON.stringify({ baseUrl: origin, token, def: d, personId: "owner" })); }, [web.origin, space.token, def] as const);
-      await page.reload({ waitUntil: "load" });
-      await page.getByTestId("shell").waitFor({ timeout: 15_000 });
+      await step("claim", async () => {
+        await page.goto(claimOnEdge(space.claim ?? "", web.origin), { waitUntil: "load" });
+        // The page names the Space by its name (from the link), never by a host or an address.
+        await page.getByText("Set up Fresh Co").first().waitFor({ timeout: 15_000 });
+        assert.equal(await page.getByText(/127\.0\.0\.1|localhost/).count(), 0, "no host or address on the claim page");
+        await page.getByTestId("claim-name").fill("Olivia Owner");
+        await page.getByTestId("claim-username").fill("olivia");
+        await page.getByTestId("claim-password").fill("correct horse battery 9");
+        await page.getByTestId("claim-confirm").fill("correct horse battery 9");
+        await page.getByTestId("claim-next").click();
+        await page.getByTestId("claim-saved").click();
+        await page.getByTestId("claim-create").click();
+        await page.getByTestId("shell").waitFor({ timeout: 30_000 });
+        signedIn = true;
+      });
     });
 
-    const step = async (label: string, body: () => Promise<void>): Promise<void> => {
-      try { await body(); } catch (e) { await dump(label); throw e; }
-    };
-
     await t.test("3 Home shows real data from the Space", async (s) => {
-      const gap = todoFor("sign in", live) ?? todoFor("home", live);
+      const gap = (signedIn ? null : "needs the claimed owner session (step 2)") ?? todoFor("home", live);
       if (gap) { todo.push(gap); s.todo(gap); return; }
       await step("home", async () => {
         await page.getByTestId("rail-home").or(page.getByTestId("rail-home-selected")).first().click();
@@ -188,35 +106,84 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
     });
 
     await t.test("4 Chats: a message sent from the composer appears in the conversation", async (s) => {
-      const gap = todoFor("sign in", live) ?? todoFor("chats", live);
+      const gap = (signedIn ? null : "needs the claimed owner session (step 2)") ?? todoFor("chats", live);
       if (gap) { todo.push(gap); s.todo(gap); return; }
       await step("chats", async () => {
         await page.getByTestId("rail-chats").or(page.getByTestId("rail-chats-selected")).first().click();
-        const field = page.getByTestId("composer-field");
-        await field.waitFor({ timeout: 15_000 });
+        await page.getByTestId("chats-place").waitFor({ timeout: 15_000 });
+        // A claimed Space starts with no chats: the sidebar then says so (the shared empty state) and there is no composer to type in. With a chat open, a sent message must appear.
+        const composer = page.getByTestId("composer-field");
+        if (await composer.count() === 0) { await page.getByTestId("state-empty").first().waitFor({ timeout: 15_000 }); return; }
         const text = `real app check ${Date.now()}`;
-        await field.fill(text);
-        await field.press("Enter");
+        await composer.fill(text);
+        await composer.press("Enter");
         await page.getByText(text).first().waitFor({ timeout: 15_000 });
       });
     });
 
     await t.test("5 Records: a table opens with its rows", async (s) => {
-      const gap = todoFor("sign in", live) ?? todoFor("records", live);
+      const gap = (signedIn ? null : "needs the claimed owner session (step 2)") ?? todoFor("records", live);
       if (gap) { todo.push(gap); s.todo(gap); return; }
       await step("records", async () => {
         await page.getByTestId("rail-records").or(page.getByTestId("rail-records-selected")).first().click();
-        await page.locator('[data-testid^="rec-"]').first().waitFor({ timeout: 15_000 });
+        await page.getByTestId("records-place").waitFor({ timeout: 15_000 });
+        await page.locator('[data-testid^="rec-"], [data-testid="state-empty"]').first().waitFor({ timeout: 15_000 });
       });
     });
 
     await t.test("6 Files: the list shows files and one opens", async (s) => {
-      const gap = todoFor("sign in", live) ?? todoFor("files", live);
+      const gap = (signedIn ? null : "needs the claimed owner session (step 2)") ?? todoFor("files", live);
       if (gap) { todo.push(gap); s.todo(gap); return; }
       await step("files", async () => {
         await page.getByTestId("rail-files").or(page.getByTestId("rail-files-selected")).first().click();
-        await page.getByTestId("files-list").waitFor({ timeout: 15_000 });
+        await page.getByTestId("files-place").waitFor({ timeout: 15_000 });
+        await page.locator('[data-testid="files-list"], [data-testid="state-empty"]').first().waitFor({ timeout: 15_000 });
       });
+    });
+
+    await t.test("7 every place draws on its own page load, with no page errors", async (s) => {
+      const gap = signedIn ? null : "needs the claimed owner session (step 2)";
+      if (gap) { todo.push(gap); s.todo(gap); return; }
+      // One fresh page per place: a place that loops or throws takes its whole page down, and must not hide the places after it.
+      const places: [string, string][] = [
+        ["home", '[data-testid="s-needs"], [data-testid="home-place"]'], ["chat", '[data-testid="chats-place"]'], ["mail", '[data-testid="inbox-place"]'], ["records", '[data-testid="records-place"]'],
+        ["files", '[data-testid="files-place"]'], ["sites", '[data-testid="place-sites"], [data-testid="place-sites-failed"]'], ["automations", '[data-testid="automations-place"]'],
+        ["vault", '[data-testid="vault-place"]'], ["settings", '[data-testid="settings-place"]'],
+      ];
+      const failures: string[] = [];
+      const bareCalls: string[] = [];
+      for (const [route, selector] of places) {
+        const p = await ctx.newPage();
+        const errs: string[] = [];
+        const refused: string[] = [];
+        const frames: string[] = [];
+        const crashes: string[] = [];
+        p.on("pageerror", (e) => errs.push(e.message.slice(0, 120)));
+        p.on("console", (m) => { if (m.text().startsWith("vyre session closed")) frames.push(m.text()); if (m.text().startsWith("vyre place crashed")) crashes.push(m.text().slice(0, 900)); });
+        p.on("response", (r) => { const u = new URL(r.url()); if (u.pathname.startsWith("/v1/") || u.pathname.startsWith("/sync/")) void r.request().allHeaders().then((h) => { if (r.status() >= 400) refused.push(`${r.status()} ${u.pathname} auth:${h["authorization"] ? "sent" : "none"}`); else if (!h["authorization"] && !/claim_owner|sign_in/.test(u.pathname)) bareCalls.push(`${u.pathname}`); }).catch(() => undefined); });
+        // What the live socket told this page (hello_ok mode and epoch, a purge): a 401 on every call can be a revoked session after a purge.
+        p.on("websocket", (ws) => ws.on("framereceived", (f) => { const t = String(f.payload); if (/purge|hello_ok/.test(t)) frames.push(t.slice(0, 140)); }));
+        await p.goto(`${web.origin}/${route}`, { waitUntil: "load" });
+        await p.getByTestId("shell").waitFor({ timeout: 15_000 }).catch(() => undefined);
+        const drew = await p.locator(selector).first().waitFor({ timeout: 10_000 }).then(() => true, () => false);
+        if (!drew || errs.length || crashes.length) failures.push(`${route}: ${drew ? "drew" : "did not draw"}${errs.length ? `, page errors: ${errs.join(" | ")}` : ""}${refused.length ? `, refused: ${[...new Set(refused)].slice(0, 5).join(", ")}` : ""}${frames.length ? `, live: ${frames.slice(0, 3).join(" ")}` : ""}${crashes.length ? `, crashed: ${crashes[0]}` : ""}`);
+        await p.close();
+      }
+      assert.deepEqual(bareCalls, [], "no request to the Space leaves without the session token");
+      assert.deepEqual(failures, [], "every place must draw");
+    });
+
+    await t.test("8 a session the Space no longer knows lands on sign-in with a calm line, never a blank page", async (s) => {
+      const gap = signedIn ? null : "needs the claimed owner session (step 2)";
+      if (gap) { todo.push(gap); s.todo(gap); return; }
+      const p = await ctx.newPage();
+      await p.goto(`${web.origin}/home`, { waitUntil: "load" });
+      await p.evaluate(() => { const raw = localStorage.getItem("vyre.session.v1"); if (raw) localStorage.setItem("vyre.session.v1", JSON.stringify({ ...JSON.parse(raw), token: "vst_not_a_session" })); });
+      await p.reload({ waitUntil: "load" });
+      await p.getByTestId("si-user").waitFor({ timeout: 15_000 });
+      assert.ok(await p.getByText("You were signed out").first().isVisible(), "the sign-in page says the person was signed out");
+      assert.ok((await p.locator("body").innerText()).trim().length > 0, "not a blank page");
+      await p.close();
     });
 
     assert.deepEqual(errors, [], "the page threw no errors");

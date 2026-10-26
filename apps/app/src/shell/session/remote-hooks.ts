@@ -2,9 +2,25 @@
 // A LiveQuery shows `loading` until the first answer, then `ready` with the data; it keeps showing the last answer while it refreshes, and its snapshot changes only when the
 // data does (useSyncExternalStore needs that). `invalidate()` re-reads every query someone is watching; queries nobody watches are marked stale and re-read when watched again.
 // This stands in for the SQLite replica's per-capability readers until they land: a place never knows the difference, because the type is the same.
-import { resolveInput } from "../../../../../client/src/index.ts";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../client/src/index.ts";
 import type { ScreenIndexEntry } from "../../../../../generated/screens.ts";
+
+/**
+ * A screen query's input pointers against the screen state. `/state/k` is `state.k`; any other namespace a screen declares (`/route/k`, `/draft/k`, `/filter/k`, `/query/k`, `/scope/k`,
+ * `/selected/k`, `/hit/k`) is `state[ns][k]`, which is how a place hands over its route and its drafts. A missing key is left out, not sent as undefined.
+ */
+export function resolvePointers(pointers: Record<string, string>, state: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, p] of Object.entries(pointers)) {
+    const m = /^\/([a-z]+)\/(.+)$/.exec(p);
+    if (!m) continue;
+    const ns = m[1] ?? "", key = m[2] ?? "";
+    const holder = ns === "state" ? state : state[ns];
+    const v = holder !== null && typeof holder === "object" ? (holder as Record<string, unknown>)[key] : undefined;
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
+}
 
 export interface RemoteHooksOptions {
   screens: ReadonlyMap<string, ScreenIndexEntry>;
@@ -12,6 +28,8 @@ export interface RemoteHooksOptions {
   read(cap: string, input: Record<string, unknown>): Promise<unknown>;
   /** A read failed; the query keeps its last answer. */
   onError?(cap: string, error: unknown): void;
+  /** A failure that is not the query's own (a 401: the session ended). The query keeps what it had and nobody is told, so nothing reacts to it. */
+  ignoreError?(error: unknown): boolean;
 }
 
 export interface RemoteHooks extends ScreenHooks {
@@ -19,6 +37,8 @@ export interface RemoteHooks extends ScreenHooks {
   capQuery<T>(cap: string, input?: Record<string, unknown>): LiveQuery<T>;
   /** Re-read every query that is being watched. */
   invalidate(): void;
+  /** Warm a screen query: read it now with nobody watching, so the first draw of the place finds the answer. */
+  prefetch(screenId: string, name: string, state?: Record<string, unknown>): void;
   /** How many queries are being watched right now. */
   watching(): number;
   close(): void;
@@ -78,8 +98,14 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
       done();
     }, (err: unknown) => {
       opts.onError?.(e.cap, err);
+      if (opts.ignoreError?.(err)) { done(); return; }
       // Never answered: say why (a `ready` query keeps its last answer). The next read, when something changes, replaces this.
-      if (e.snap.status !== "ready") { e.snap = { status: "loading", error: failureOf(err) }; notify(e); }
+      // The same failure again keeps the same snapshot: a re-read that fails the same way must not look like a change (an effect that reacts to the snapshot would call, refresh, fail and react again, for ever).
+      if (e.snap.status !== "ready") {
+        const f = failureOf(err);
+        const was = e.snap.error;
+        if (!was || was.message !== f.message || was.code !== f.code) { e.snap = { status: "loading", error: f }; notify(e); }
+      }
       done();
     });
   };
@@ -111,7 +137,7 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
       const q = screen.queries[name];
       if (!q) throw new Error(`screen ${screenId} has no query ${name}`);
       if (!q.live) throw new Error(`query ${screenId}.${name} is not live`);
-      return entryFor(q.cap, resolveInput(q.input, state)).live;
+      return entryFor(q.cap, resolvePointers(q.input, state)).live;
     },
     capQuery<T>(cap: string, input: Record<string, unknown> = {}): LiveQuery<T> {
       return entryFor(cap, input).live as LiveQuery<T>;
@@ -121,6 +147,13 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
         if (e.listeners.size > 0) fetchEntry(e);
         else e.stale = true;
       }
+    },
+    prefetch(screenId, name, state = {}) {
+      const screen = opts.screens.get(screenId);
+      const q = screen?.queries[name];
+      if (!q || !q.live) return;
+      const e = entryFor(q.cap, resolvePointers(q.input, state));
+      if (e.snap.status === "loading" && !e.inflight) fetchEntry(e);
     },
     watching() {
       let n = 0;

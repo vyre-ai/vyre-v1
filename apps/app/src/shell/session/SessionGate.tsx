@@ -1,9 +1,9 @@
 // The production root (ARCH 7.0): no stored session shows sign-in; a stored session paints the shell frame at once from the Space card kept on this device, then opens the real
 // session behind it (whoami, the Space, the live link) and hands the runtime to the places. A 401 or a sign-out clears the stored session and returns to sign-in. A Space that cannot
 // be reached keeps the frame and says so with Try again; it never shows another Space's rows.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, useWindowDimensions } from "react-native";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import { JoinFlow } from "../../join/JoinFlow.tsx";
 import type { JoinInvite } from "../../join/logic.ts";
@@ -12,19 +12,26 @@ import { CmdK, NewTabSearch } from "../cmdk/CmdK.tsx";
 import { createGateSearch, loadRecent } from "../cmdk/gate.ts";
 import type { Hit } from "../cmdk/model.ts";
 import { createShellHub } from "../spaces/hub.ts";
+import type { PlaceId } from "../rail/kits.ts";
 import type { ShellHub } from "../spaces/hub.ts";
 import { Shell } from "../spaces/Shell.tsx";
 import type { PlaceContext } from "../spaces/Shell.tsx";
+import { dropKeyOnOwnNode, holdKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
 import { CapError, createCapCaller } from "./caps.ts";
+import { formatHash } from "../hash/hash.ts";
 import { webPurgeClient, wipeBrowserStorage } from "../spaces/purge.ts";
 import type { ShellPurge } from "../spaces/purge.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
+import { PHONE_BELOW } from "./mobile-map.ts";
 import { openPhone } from "./phone.ts";
 import type { LoadVoiceDevice, Phone } from "./phone.ts";
 import { openRealSession } from "./session.ts";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
 import { clearStored, readStored, spaceAddress, writeStored } from "./stored.ts";
 import type { StoredSession } from "./stored.ts";
+
+/** The phone shell (and mobile/shell with it) loads only when the window is a phone's, so desktop never pays for it. */
+const PhoneHost = lazy(() => import("./PhoneHost.tsx").then((m) => ({ default: m.PhoneHost })));
 
 export interface SessionGateProps {
   /** Overrides, for tests: where the Space is, and how a session opens. */
@@ -46,17 +53,30 @@ type Phase = { kind: "signin" } | { kind: "shell"; stored: StoredSession };
 const noHub = (): void => undefined;
 const hostOf = (baseUrl: string): string => baseUrl.replace(/^https?:\/\//, "").split(":")[0] ?? baseUrl;
 
-function SignInScreen({ baseUrl, onSignedIn }: { baseUrl: string; onSignedIn: (s: StoredSession) => void }): ReactElement {
+/** Opens the person key with the password and gives it to this computer's own daemon. The key lives only in this function; a Space on another machine never gets it, and a failure leaves sign-in working with personal keys locked. */
+async function unlockOwnKey(baseUrl: string, token: string, password: string, keys: { personKeyByPassword: string; personKeyByRecovery?: string; publicKey: string; privateKeyWrapped: string }): Promise<void> {
+  try {
+    const { openBundle, wipe } = await import("../../../../../client/src/crypto/keys.ts");
+    const opened = await openBundle(password, { ...keys, personKeyByRecovery: keys.personKeyByRecovery ?? "" });
+    try { await holdKeyOnOwnNode(baseUrl, token, opened.personKey); } finally { wipe(opened.personKey); wipe(opened.privateKey); }
+  } catch { /* personal keys stay locked; signing in does not depend on them */ }
+}
+
+/** The calm line after the Space ended the session (a 401, a purge): one sentence on the sign-in page, never a blank or a frozen place. */
+export const SIGNED_OUT_LINE = "You were signed out. Sign in again to continue.";
+
+function SignInScreen({ baseUrl, onSignedIn, notice }: { baseUrl: string; onSignedIn: (s: StoredSession) => void; notice?: boolean }): ReactElement {
   useEffect(() => { mark("app.usable"); }, []);
   const invite: JoinInvite = useMemo(() => ({ space: hostOf(baseUrl), host: hostOf(baseUrl), by: "", role: "", sso: [], github: false, adminKey: false }), [baseUrl]);
   const anonymous = useMemo(() => createCapCaller({ baseUrl, token: () => null }), [baseUrl]);
   const signIn = useCallback(async (v: { username: string; password: string; code?: string }): Promise<"ok" | "second_factor_required"> => {
     const out = (await anonymous("identity.sign_in", {
       username: v.username, password: v.password, deviceName: "Web browser", deviceClass: "web", ...(v.code ? { totp: v.code } : {}),
-    })) as { status: "ok" | "second_factor_required"; session?: { token: string } };
+    })) as { status: "ok" | "second_factor_required"; session?: { token: string }; keys?: { personKeyByPassword: string; personKeyByRecovery?: string; publicKey: string; privateKeyWrapped: string } };
     if (out.status === "second_factor_required") return "second_factor_required";
     const token = out.session?.token;
     if (!token) throw new Error("The Space did not return a session. Try again.");
+    if (out.keys) await unlockOwnKey(baseUrl, token, v.password, out.keys);
     const real = await openRealSession({ baseUrl, token });
     const stored: StoredSession = { baseUrl, token, def: real.def, personId: real.me.id };
     real.close();
@@ -64,13 +84,14 @@ function SignInScreen({ baseUrl, onSignedIn }: { baseUrl: string; onSignedIn: (s
     onSignedIn(stored);
     return "ok";
   }, [anonymous, baseUrl, onSignedIn]);
-  return <JoinFlow invite={invite} initial={{ stage: "signin" }} onSignIn={signIn} />;
+  return <JoinFlow invite={invite} initial={{ stage: "signin", ...(notice ? { error: SIGNED_OUT_LINE } : {}) }} onSignIn={signIn} />;
 }
 
 export interface ShellHostProps {
   stored: StoredSession;
   open: NonNullable<SessionGateProps["open"]>;
-  onSignedOut: () => void;
+  /** `manual` when the person pressed Sign out; anything else is the Space ending the session (the sign-in page then says so). */
+  onSignedOut: (why?: "manual") => void;
   onHub: (h: ShellHub | null) => void;
   /** For tests: a hub made outside, and the search sheet already open. */
   hub?: ShellHub;
@@ -80,6 +101,10 @@ export interface ShellHostProps {
 
 export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initialSearchOpen = false, voice }: ShellHostProps): ReactElement {
   const navRef = useRef<ShellHub | null>(null);
+  const phoneGo = useRef<((p: PlaceId, hash: string) => void) | null>(null);
+  const width = useWindowDimensions().width;
+  const narrow = width > 0 && width < PHONE_BELOW;
+  const registerGo = useCallback((go: ((p: PlaceId, hash: string) => void) | null) => { phoneGo.current = go; }, []);
   const hub = useMemo(() => {
     if (given) { navRef.current = given; return given; }
     const h = createShellHub({ spaces: [{ ...stored.def, starred: true }], openId: stored.def.spaceId, personId: stored.personId, deviceId: "web", storage: tabsStorage() });
@@ -99,7 +124,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     let off = false;
     let opened: RealSession | null = null;
     setFailed(null);
-    open({ baseUrl: stored.baseUrl, token: stored.token, navigate: (p, hash) => navRef.current?.go(p, hash),
+    open({ baseUrl: stored.baseUrl, token: stored.token, ...(stored.syncEpoch !== undefined ? { syncEpoch: stored.syncEpoch } : {}), onSyncEpoch: (e) => { const now = readStored(); if (now && now.token === stored.token) writeStored({ ...now, syncEpoch: e }); }, navigate: (p, hash) => { if (phoneGo.current) phoneGo.current(p, hash); else navRef.current?.go(p, hash); },
       shell: (screen) => {
         const h = navRef.current;
         if (!h) return;
@@ -109,7 +134,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
       },
       onSignedOut })
       .then((s) => {
-        if (off) { s.close(); return; }
+        if (off) { s.close("superseded before it opened"); return; }
         opened = s;
         setSession(s);
       })
@@ -118,7 +143,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
         if (e instanceof CapError && e.status === 401) { onSignedOut(); return; }
         setFailed(e instanceof Error && e.message ? e.message : "The Space did not answer.");
       });
-    return () => { off = true; opened?.close(); setSession(null); };
+    return () => { off = true; opened?.close("shell effect cleanup"); setSession(null); };
   }, [open, stored.baseUrl, stored.token, onSignedOut, attempt]);
 
   // The runtime's online flag feeds the title bar's offline line.
@@ -139,17 +164,24 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
 
   const search = useMemo(() => (session ? createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current }) : null), [session, hub]);
 
-  // The phone: made once the Space is open and only when it has a number and the telephony key; the dock wraps the shell when it exists.
+  // The phone: made once the Space is open and only when a telephony provider is connected (read first, so a Space without Twilio never asks for a token and logs no error). A provider that then
+  // refuses the token (provider.auth_failed: no key in the Vault) means calls are not set up: no dock, nothing said. The dock wraps the shell when it exists.
   const [phone, setPhone] = useState<Phone | undefined>(undefined);
+  const connections = useMemo(() => (session ? session.hooks.capQuery<{ connections: { connector: string; state: string }[] }>("connections.list", {}) : null), [session]);
+  const telephony = useSyncExternalStore(
+    connections ? connections.subscribe : () => () => undefined,
+    () => { const s = connections?.getSnapshot(); return s?.status === "ready" && s.data.connections.some((c) => c.state === "active" && /twilio|telephony/i.test(c.connector)); },
+    () => false,
+  );
   useEffect(() => {
-    if (!session) return undefined;
+    if (!session || !telephony) return undefined;
     let off = false;
     let made: Phone | undefined;
     openPhone(session, { loadDevice: voice, openConversation: (id) => navRef.current?.go("inbox", id) })
       .then((p) => { if (off) { p?.close(); return; } made = p; setPhone(p); })
       .catch(() => undefined);
     return () => { off = true; made?.close(); setPhone(undefined); };
-  }, [session, voice]);
+  }, [session, voice, telephony]);
 
   // A purge signal from the server (a revoke or an epoch bump): the wipe of what this browser holds, the ack, then back to sign-in.
   const purge = useMemo<ShellPurge | undefined>(() => (session ? {
@@ -159,11 +191,18 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
 
   const renderPlace = (ctx: PlaceContext): ReactElement => failed !== null && session === null
     ? <States kind="error" message={`Couldn't reach ${stored.def.name}`} cause={failed} next="Try again" retryable onRetry={() => setAttempt((n) => n + 1)} />
-    : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} />;
+    : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} hash={ctx.hash} opened={(t) => { const next = formatHash(t); if (next !== ctx.hash) hub.go(ctx.place, next); }} />;
+  const signOut = (): void => {
+    void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined);
+    void session?.call("identity.sign_out", {}).catch(() => undefined);
+    onSignedOut("manual");
+  };
+  const onSpaceAction = (a: string): void => { if (a === "sign-out") signOut(); };
   const renderNewTab = (): ReactElement => (search ? <NewTabSearch data={search} /> : <States kind="empty" title="Open anything, or start something" icon="search" />);
+  if (narrow) return <Suspense fallback={<View style={styles.fill} />}><PhoneHost session={session} needsYou={stored.def.counts.chats ?? 0} registerGo={registerGo} onSignOut={signOut} /></Suspense>;
   return (
     <>
-      <Shell hub={hub} renderPlace={renderPlace} renderNewTab={renderNewTab} onSearch={() => setSearchOpen(true)} {...(phone ? { phone: { device: phone.device, data: phone.data } } : {})} {...(purge ? { purge } : {})} />
+      <Shell hub={hub} renderPlace={renderPlace} renderNewTab={renderNewTab} onSearch={() => setSearchOpen(true)} onSpaceAction={onSpaceAction} {...(phone ? { phone: { device: phone.device, data: phone.data } } : {})} {...(purge ? { purge } : {})} />
       {searchOpen && search ? <CmdK data={search} onClose={() => setSearchOpen(false)} /> : null}
     </>
   );
@@ -175,6 +214,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const onHub = props.onHub ?? noHub;
   const [phase, setPhase] = useState<Phase>({ kind: "signin" });
   const [ready, setReady] = useState(false);
+  const [notice, setNotice] = useState(false);
 
   // Read the stored session after mount, never during the first render: the static export pre-renders the sign-in markup and must match it.
   useEffect(() => {
@@ -183,13 +223,13 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     setReady(true);
   }, [baseUrl]);
 
-  const signedOut = useCallback(() => { clearStored(); setPhase({ kind: "signin" }); }, []);
+  const signedOut = useCallback((why?: "manual") => { clearStored(); setNotice(why !== "manual"); setPhase({ kind: "signin" }); }, []);
   const signedIn = useCallback((stored: StoredSession) => setPhase({ kind: "shell", stored }), []);
 
   if (!ready) return <View style={styles.fill} />;
   if (phase.kind === "shell") return <ShellHost stored={phase.stored} open={open} onSignedOut={signedOut} onHub={onHub} voice={props.voice} />;
   if (!baseUrl) return <States kind="error" message="No Space to connect to" cause="This page has no address for a Space." next="Open it from your Space's address" />;
-  return <SignInScreen baseUrl={baseUrl} onSignedIn={signedIn} />;
+  return <SignInScreen baseUrl={baseUrl} onSignedIn={signedIn} notice={notice} />;
 }
 
 const styles = StyleSheet.create({
