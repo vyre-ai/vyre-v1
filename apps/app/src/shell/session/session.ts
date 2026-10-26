@@ -5,13 +5,17 @@ import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
 import type { ScreenIndexEntry } from "../../../../../generated/screens.ts";
 import type { CapMap } from "../../../../../generated/types.ts";
 import type { Principal } from "../../places/home/sections-a/data.tsx";
+import { formatHash, placeForSubject } from "../hash/hash.ts";
 import type { ShellRuntime, ShellTarget } from "../providers/runtime.tsx";
 import type { PlaceId } from "../rail/kits.ts";
 import type { SpaceDef } from "../spaces/model.ts";
 import { CapError, createCapCaller } from "./caps.ts";
 import type { CapCall, RouteRow } from "./caps.ts";
 import { createLiveLink } from "./live.ts";
-import type { LiveLink, LiveStatus, SocketFactory } from "./live.ts";
+import type { LiveLink, LiveStatus } from "./live.ts";
+import { BUILD_REGISTRY_HASH } from "../../../../../client/src/connection/registry-hash.ts";
+import type { Dial, Scheduler } from "../../../../../client/src/connection/index.ts";
+import { PLACE_QUERIES, WARM_ORDER } from "./prefetch.ts";
 import { createRemoteScreenHooks } from "./remote-hooks.ts";
 import type { RemoteHooks } from "./remote-hooks.ts";
 
@@ -28,9 +32,15 @@ export interface OpenSessionOptions {
   fetch?: typeof fetch;
   routes?: () => Promise<readonly RouteRow[]>;
   screens?: () => Promise<ReadonlyMap<string, ScreenIndexEntry>>;
-  socket?: SocketFactory;
+  /** The live socket's dialer and clock, injectable for tests. */
+  dial?: Dial;
+  scheduler?: Scheduler;
+  /** The contract hash this build was made with (sent in hello); defaults to the one baked in at export. */
+  registryHash?: string;
   /** Re-read period while the live link is down. */
   pollMs?: number;
+  /** When the idle warm-up starts after the Space opens (ms); default 1500. */
+  warmAfterMs?: number;
   now?: () => number;
   openUrl?(url: string): void;
 }
@@ -43,6 +53,8 @@ export interface RealSession {
   readonly runtime: ShellRuntime;
   call: CapCall;
   liveStatus(): LiveStatus;
+  /** Warm a place's first queries (pointer-enter or focus on its rail item or tab). */
+  prefetchPlace(place: PlaceId): void;
   /** Re-read everything on screen now. */
   refresh(): void;
   close(): void;
@@ -56,14 +68,8 @@ type Out<C extends keyof CapMap> = CapMap[C]["out"];
 const RAIL_PLACES: readonly PlaceId[] = ["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "settings", "console"];
 const railPlace = (p: string): PlaceId | null => (RAIL_PLACES as readonly string[]).includes(p) ? (p as PlaceId) : null;
 
-/** The hash a place opens its item from: `screen=<id>&k=v&subject=<type>:<id>`. */
-export function targetHash(t: ShellTarget): string {
-  const p = new URLSearchParams();
-  if (t.screen) p.set("screen", t.screen);
-  if (t.subject) p.set("subject", `${t.subject.type}:${t.subject.id}`);
-  for (const [k, v] of Object.entries(t.args ?? {})) if (v !== undefined && v !== null) p.set(k, typeof v === "string" ? v : JSON.stringify(v));
-  return p.toString();
-}
+/** The hash a place opens its item from (see ../hash/hash.ts). */
+export const targetHash = (t: ShellTarget): string => formatHash(t);
 
 /** A live query computed from other live queries; its snapshot is the same object until one of its sources changes. */
 export function derived<T>(sources: readonly LiveQuery<unknown>[], make: (snaps: readonly QueryState<unknown>[]) => QueryState<T>): LiveQuery<T> {
@@ -140,12 +146,27 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const link: LiveLink = createLiveLink({
     baseUrl: o.baseUrl,
     token: () => token,
+    deviceId: who.deviceId ?? "web",
+    epoch: who.epoch,
+    registryHash: o.registryHash ?? BUILD_REGISTRY_HASH,
     onChange: refresh,
+    onPurge: () => { if (token !== null) { token = null; o.onSignedOut?.(); } },
     onStatus: (s) => { live = s; if (s === "live") everLive = true; tell(); },
-    ...(o.socket ? { socket: o.socket } : {}),
+    ...(o.dial ? { dial: o.dial } : {}),
+    ...(o.scheduler ? { scheduler: o.scheduler } : {}),
   });
   link.start();
   const poll = setInterval(() => { if (!closed && live !== "live" && hooks.watching() > 0) hooks.invalidate(); }, o.pollMs ?? 5000);
+
+  const prefetchPlace = (place: PlaceId): void => {
+    if (closed) return;
+    for (const w of PLACE_QUERIES[place] ?? []) {
+      try { hooks.prefetch(w.screen, w.query, w.state ?? {}); } catch { /* a screen the registry lacks is not worth failing a hover for */ }
+    }
+  };
+  // Idle warm-up: once the Space is open, read each place's first list one after another so the first visit paints from the session's cache.
+  const warmTimers: ReturnType<typeof setTimeout>[] = [];
+  WARM_ORDER.forEach((place, i) => { warmTimers.push(setTimeout(() => prefetchPlace(place), o.warmAfterMs === undefined ? 1500 + i * 250 : o.warmAfterMs + i * 250)); });
 
   const connections = hooks.capQuery<Out<"connections.list">>("connections.list", {});
   const principalsList = hooks.capQuery<Out<"access.principals.list">>("access.principals.list", {});
@@ -178,7 +199,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   };
 
   const open = (t: ShellTarget): void => {
-    const where = t.screen ? (screens.get(t.screen)?.place ?? "") : "";
+    const where = t.screen ? (screens.get(t.screen)?.place ?? "") : (t.subject ? (placeForSubject(t.subject.type) ?? "") : "");
     if (where === "shell") { if (t.screen) o.shell?.(t.screen, t.args ?? {}); return; }
     const place = railPlace(where);
     if (place && o.navigate) o.navigate(place, targetHash(t));
@@ -226,11 +247,13 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   return {
     def, baseUrl: o.baseUrl, me, hooks, runtime, call,
     liveStatus: () => live,
+    prefetchPlace,
     refresh,
     close() {
       if (closed) return;
       closed = true;
       clearInterval(poll);
+      for (const t of warmTimers) clearTimeout(t);
       if (refreshTimer !== null) clearTimeout(refreshTimer);
       link.stop();
       for (const off of keep) off();

@@ -1,7 +1,9 @@
 // Draws the open place inside the shell (ARCH 7): the place module loads on demand behind its registered loader, and the Space's runtime is handed to it through context.
 // Before the runtime exists (the session is still opening) the place draws its own loading frame, the size of the page. `app.usable` is marked once the place module has drawn.
-import { Suspense, lazy, useEffect } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef } from "react";
 import type { ComponentType, LazyExoticComponent, ReactElement } from "react";
+import { PlaceHashProvider } from "../hash/context.tsx";
+import type { PlaceHash } from "../hash/context.tsx";
 import { mark } from "../../startup/marks.ts";
 import { webUiStateStore } from "../../startup/persisted.ts";
 import { loaderFor } from "../../startup/places.ts";
@@ -42,15 +44,20 @@ function Usable({ place }: { place: string }): null {
   return null;
 }
 
-export function PlaceHost({ place, runtime }: { place: PlaceId; runtime: ShellRuntime | null }): ReactElement | null {
+export function PlaceHost({ place, runtime, hash = "", opened }: { place: PlaceId; runtime: ShellRuntime | null; hash?: string; opened?: PlaceHash["opened"] }): ReactElement | null {
+  const latest = useRef(opened);
+  latest.current = opened;
+  const stable = useCallback<PlaceHash["opened"]>((t) => latest.current?.(t), []);
   const routeId = routeIdOf(place);
   if (!routeId) return null;
   const Place = lazyFor(routeId);
   const body = (
-    <Suspense fallback={null}>
-      <Place place={routeId} />
-      <Usable place={routeId} />
-    </Suspense>
+    <PlaceHashProvider hash={hash} opened={stable}>
+      <Suspense fallback={null}>
+        <Place place={routeId} />
+        <Usable place={routeId} />
+      </Suspense>
+    </PlaceHashProvider>
   );
   return runtime ? <ShellRuntimeProvider value={runtime}>{body}</ShellRuntimeProvider> : body;
 }

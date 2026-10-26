@@ -1,23 +1,30 @@
 // The production root (ARCH 7.0): no stored session shows sign-in; a stored session paints the shell frame at once from the Space card kept on this device, then opens the real
 // session behind it (whoami, the Space, the live link) and hands the runtime to the places. A 401 or a sign-out clears the stored session and returns to sign-in. A Space that cannot
 // be reached keeps the frame and says so with Try again; it never shows another Space's rows.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, useWindowDimensions } from "react-native";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import { JoinFlow } from "../../join/JoinFlow.tsx";
 import type { JoinInvite } from "../../join/logic.ts";
 import { mark } from "../../startup/marks.ts";
 import { createShellHub } from "../spaces/hub.ts";
+import type { PlaceId } from "../rail/kits.ts";
 import type { ShellHub } from "../spaces/hub.ts";
 import { Shell } from "../spaces/Shell.tsx";
 import type { PlaceContext } from "../spaces/Shell.tsx";
+import { dropKeyOnOwnNode, holdKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
 import { CapError, createCapCaller } from "./caps.ts";
+import { formatHash } from "../hash/hash.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
+import { PHONE_BELOW } from "./phone.ts";
 import { openRealSession } from "./session.ts";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
 import { clearStored, readStored, spaceAddress, writeStored } from "./stored.ts";
 import type { StoredSession } from "./stored.ts";
+
+/** The phone shell (and mobile/shell with it) loads only when the window is a phone's, so desktop never pays for it. */
+const PhoneHost = lazy(() => import("./PhoneHost.tsx").then((m) => ({ default: m.PhoneHost })));
 
 export interface SessionGateProps {
   /** Overrides, for tests: where the Space is, and how a session opens. */
@@ -37,6 +44,15 @@ type Phase = { kind: "signin" } | { kind: "shell"; stored: StoredSession };
 const noHub = (): void => undefined;
 const hostOf = (baseUrl: string): string => baseUrl.replace(/^https?:\/\//, "").split(":")[0] ?? baseUrl;
 
+/** Opens the person key with the password and gives it to this computer's own daemon. The key lives only in this function; a Space on another machine never gets it, and a failure leaves sign-in working with personal keys locked. */
+async function unlockOwnKey(baseUrl: string, token: string, password: string, keys: { personKeyByPassword: string; personKeyByRecovery?: string; publicKey: string; privateKeyWrapped: string }): Promise<void> {
+  try {
+    const { openBundle, wipe } = await import("../../../../../client/src/crypto/keys.ts");
+    const opened = await openBundle(password, { ...keys, personKeyByRecovery: keys.personKeyByRecovery ?? "" });
+    try { await holdKeyOnOwnNode(baseUrl, token, opened.personKey); } finally { wipe(opened.personKey); wipe(opened.privateKey); }
+  } catch { /* personal keys stay locked; signing in does not depend on them */ }
+}
+
 function SignInScreen({ baseUrl, onSignedIn }: { baseUrl: string; onSignedIn: (s: StoredSession) => void }): ReactElement {
   useEffect(() => { mark("app.usable"); }, []);
   const invite: JoinInvite = useMemo(() => ({ space: hostOf(baseUrl), host: hostOf(baseUrl), by: "", role: "", sso: [], github: false, adminKey: false }), [baseUrl]);
@@ -44,10 +60,11 @@ function SignInScreen({ baseUrl, onSignedIn }: { baseUrl: string; onSignedIn: (s
   const signIn = useCallback(async (v: { username: string; password: string; code?: string }): Promise<"ok" | "second_factor_required"> => {
     const out = (await anonymous("identity.sign_in", {
       username: v.username, password: v.password, deviceName: "Web browser", deviceClass: "web", ...(v.code ? { totp: v.code } : {}),
-    })) as { status: "ok" | "second_factor_required"; session?: { token: string } };
+    })) as { status: "ok" | "second_factor_required"; session?: { token: string }; keys?: { personKeyByPassword: string; personKeyByRecovery?: string; publicKey: string; privateKeyWrapped: string } };
     if (out.status === "second_factor_required") return "second_factor_required";
     const token = out.session?.token;
     if (!token) throw new Error("The Space did not return a session. Try again.");
+    if (out.keys) await unlockOwnKey(baseUrl, token, v.password, out.keys);
     const real = await openRealSession({ baseUrl, token });
     const stored: StoredSession = { baseUrl, token, def: real.def, personId: real.me.id };
     real.close();
@@ -60,6 +77,10 @@ function SignInScreen({ baseUrl, onSignedIn }: { baseUrl: string; onSignedIn: (s
 
 function ShellHost({ stored, open, onSignedOut, onHub }: { stored: StoredSession; open: NonNullable<SessionGateProps["open"]>; onSignedOut: () => void; onHub: (h: ShellHub | null) => void }): ReactElement {
   const navRef = useRef<ShellHub | null>(null);
+  const phoneGo = useRef<((p: PlaceId, hash: string) => void) | null>(null);
+  const width = useWindowDimensions().width;
+  const phone = width > 0 && width < PHONE_BELOW;
+  const registerGo = useCallback((go: ((p: PlaceId, hash: string) => void) | null) => { phoneGo.current = go; }, []);
   const hub = useMemo(() => {
     const h = createShellHub({ spaces: [{ ...stored.def, starred: true }], openId: stored.def.spaceId, personId: stored.personId, deviceId: "web", storage: tabsStorage() });
     navRef.current = h;
@@ -75,7 +96,7 @@ function ShellHost({ stored, open, onSignedOut, onHub }: { stored: StoredSession
     let off = false;
     let opened: RealSession | null = null;
     setFailed(null);
-    open({ baseUrl: stored.baseUrl, token: stored.token, navigate: (p, hash) => navRef.current?.go(p, hash),
+    open({ baseUrl: stored.baseUrl, token: stored.token, navigate: (p, hash) => { if (phoneGo.current) phoneGo.current(p, hash); else navRef.current?.go(p, hash); },
       shell: (screen) => {
         const h = navRef.current;
         if (!h) return;
@@ -106,8 +127,15 @@ function ShellHost({ stored, open, onSignedOut, onHub }: { stored: StoredSession
 
   const renderPlace = (ctx: PlaceContext): ReactElement => failed !== null && session === null
     ? <States kind="error" message={`Couldn't reach ${stored.def.name}`} cause={failed} next="Try again" retryable onRetry={() => setAttempt((n) => n + 1)} />
-    : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} />;
-  return <Shell hub={hub} renderPlace={renderPlace} />;
+    : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} hash={ctx.hash} opened={(t) => { const next = formatHash(t); if (next !== ctx.hash) hub.go(ctx.place, next); }} />;
+  const signOut = (): void => {
+    void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined);
+    void session?.call("identity.sign_out", {}).catch(() => undefined);
+    onSignedOut();
+  };
+  const onSpaceAction = (a: string): void => { if (a === "sign-out") signOut(); };
+  if (phone) return <Suspense fallback={<View style={styles.fill} />}><PhoneHost session={session} needsYou={stored.def.counts.chats ?? 0} registerGo={registerGo} onSignOut={signOut} /></Suspense>;
+  return <Shell hub={hub} renderPlace={renderPlace} onSpaceAction={onSpaceAction} />;
 }
 
 export function SessionGate(props: SessionGateProps): ReactElement {
