@@ -13,12 +13,12 @@ import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useFilesData, useFolderNodes, useLive, useOnline, useOptionalFilesData, useSource } from "../tree/data.tsx";
 import {
-  SORTS, SORT_LABEL, WHERE_LABEL, createSpring, crumbs, dragPayload, dropMoves, emptyText, fileLine, folderLine, kindLabel, parsePayload, sizeText, sortLines, sourceOf, updatedText,
+  SORTS, SORT_LABEL, WHERE_LABEL, createSpring, crumbs, dragPayload, dropMoves, emptyText, fileLine, folderLine, kindLabel, parsePayload, tileLabel, sizeText, sortLines, sourceOf, updatedText,
 } from "../tree/model.ts";
 import type { Line, SortKey, Spring } from "../tree/model.ts";
-import { Glyph, iconOfKind } from "../tree/parts.tsx";
+import { iconOfKind } from "../tree/parts.tsx";
 import { useFilesState } from "../tree/state.tsx";
-import { ColumnHeader, GridRow, LIST_ROW, LineMarks, RowCells, Tile, WIDE, chunk, gridKey, gridLayout } from "../FileList.tsx";
+import { ColumnHeader, GridRow, LIST_ROW, LineMarks, RowCells, TypeTile, Tile, WIDE, chunk, gridKey, gridLayout } from "../FileList.tsx";
 import { Toolbar, crumbTrail } from "../Toolbar.tsx";
 import { DragWrap } from "./DragWrap.tsx";
 import { StagedBanner } from "./StagedBanner.tsx";
@@ -215,7 +215,7 @@ function List(): ReactElement {
         {...(l.starred === true || l.conflict === true ? { titleMarks: <LineMarks starred={l.starred === true} conflict={l.conflict === true} onResolve={data.nav.resolveConflict ? () => data.nav.resolveConflict?.(l.id) : undefined} /> } : {})}
         selected={state.selection.includes(l.key)}
         hovered={over === l.key}
-        leading={<View style={styles.icon}><Glyph name={iconOfKind(l.kind)} size={18} color={l.type === "folder" ? "var(--accent)" : "var(--ink-3)"} /></View>}
+        leading={<TypeTile label={tileLabel(l.name, l.kind)} icon={iconOfKind(l.kind)} folder={l.type === "folder"} />}
         trailing={<RowCells wide={wide} cells={{ when: whenOf(l), by: byOf(l), byAgent: byAgent(l), size: sizeOfLine(l), kind: kindOfLine(l) }} />}
         onPress={() => press(l)}
       />

@@ -70,6 +70,15 @@ export function folderLine(f: FolderRow): Line {
   return { key: `folder:${f.folderId}`, type: "folder", id: f.folderId, name: f.name, kind: "folder", size: 0, updatedAt: 0, updatedBy: null, thumb: false, source: f.source?.provider ?? null, items: f.fileCount + f.folderCount, folderId: f.parentId ?? null };
 }
 
+const EXT_LABEL: Readonly<Record<string, string>> = { pdf: "PDF", md: "MD", markdown: "MD", csv: "CSV", docx: "DOCX", doc: "DOCX", xlsx: "XLSX", pptx: "PPTX", txt: "TXT", json: "JSON", zip: "ZIP" };
+
+/** The short label on a file's type tile (PDF, MD, CSV, DOCX), from its extension; pictures, folders and files with no known extension get an icon instead (null). */
+export function tileLabel(name: string, kind: FileKind | "folder"): string | null {
+  if (kind === "folder" || kind === "image") return null;
+  const dot = name.lastIndexOf(".");
+  return dot < 0 ? null : EXT_LABEL[name.slice(dot + 1).toLowerCase()] ?? null;
+}
+
 const KIND_LABEL: Record<FileKind | "folder", string> = {
   folder: "Folder", text: "Text", markdown: "Markdown", document: "Document", spreadsheet: "Spreadsheet", presentation: "Presentation", pdf: "PDF", image: "Image", video: "Video", audio: "Audio",
   code: "Code", archive: "Archive", google_native: "Google file", other: "File",

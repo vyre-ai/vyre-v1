@@ -86,6 +86,7 @@ const SUBJECT_FOLDERS: FolderSeed[] = [
   F("fld_ag_docs", "Docs", "fld_agents", "space", { subject: { kind: "agent", id: "agt_docs" } }),
   F("fld_ag_intake", "Intake", "fld_agents", "space", { subject: { kind: "agent", id: "agt_intake" } }),
   F("fld_ag_research", "Research", "fld_agents", "space", { subject: { kind: "agent", id: "agt_research" } }),
+  F("fld_ag_scout", "Scout", "fld_agents", "space", { subject: { kind: "agent", id: "agt_scout" } }),
   F("fld_projects", "Projects", null, "space", { subject: { kind: "project" } }),
   F("fld_pj_launch", "Northwind launch", "fld_projects", "space", { subject: { kind: "project", id: "pj_launch" } }),
   F("fld_pj_rivera", "Rivera matter", "fld_projects", "space", { subject: { kind: "project", id: "pj_rivera" } }),

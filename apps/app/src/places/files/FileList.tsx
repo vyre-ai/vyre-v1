@@ -48,6 +48,20 @@ function Face({ name, agent }: { name: string; agent: boolean }): ReactElement {
   return <Avatar name={name} kind={agent ? "agent" : "person"} size={16} testID={`face-${name}`} />;
 }
 
+/** A hue per file type, so the tiles read at a glance on every skin (translucent ground, the hue as ink). */
+const TILE_HUE: Readonly<Record<string, number>> = { PDF: 5, MD: 215, CSV: 145, XLSX: 145, DOCX: 215, PPTX: 25, TXT: 220, JSON: 190, ZIP: 40 };
+
+/** The leading tile of a line: a folder or picture icon, or the file type's short label (PDF, MD, CSV, DOCX) on a tinted ground. Sits in the shared Row's leading slot. */
+export function TypeTile({ label, icon, folder }: { label: string | null; icon: IconName; folder: boolean }): ReactElement {
+  if (label === null) return <View style={styles.tile} testID="type-tile"><Glyph name={icon} size={18} color={folder ? "var(--accent)" : "var(--ink-3)"} /></View>;
+  const h = TILE_HUE[label] ?? 220;
+  return (
+    <View style={[styles.tile, { backgroundColor: `hsla(${h}, 65%, 52%, 0.14)` as string }]} testID="type-tile">
+      <Text style={[styles.tileText, { color: `hsl(${h}, 55%, 40%)` as string }]} testID="type-tile-label">{label}</Text>
+    </View>
+  );
+}
+
 /** The Kind cell: plain text, as the prototype has it, with where it comes from beside it ("Spreadsheet · Google Drive"). */
 export function KindBadge({ kind }: { kind: string }): ReactElement {
   const [base, source] = kind.split(" \u00b7 ");
@@ -170,6 +184,8 @@ const styles = StyleSheet.create({
   kind: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 },
   kindText: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 0 },
   src: { fontSize: 11.5, color: "var(--ink-3)" as string, flexShrink: 1 },
+  tile: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string, marginRight: 10 },
+  tileText: { fontSize: 8.5, fontWeight: "700", letterSpacing: 0.2 },
   marks: { flexDirection: "row", alignItems: "center", gap: 6 },
   warn: { height: 18, paddingHorizontal: 6, borderRadius: 5, justifyContent: "center", backgroundColor: "color-mix(in srgb, var(--warn) 16%, transparent)" as string },
   warnText: { fontSize: 11, fontWeight: "500", color: "var(--warn)" as string },

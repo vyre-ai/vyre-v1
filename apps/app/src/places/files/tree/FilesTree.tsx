@@ -102,7 +102,7 @@ function FolderLine({ f, depth, c, flat = false }: { f: FolderRow; depth: number
     <View>
       <SlotRow
         id={`folder-${fid}`} title={f.name} selected={fid === c.folderId} over={c.over === fid}
-        leadWidth={depth * DEPTH_PX + 18 + 7 + (face ? 18 : 16) + 6} lead={lead} trail={<Text style={styles.count} testID={`folder-count-${fid}`}>{f.fileCount}</Text>}
+        leadWidth={depth * DEPTH_PX + 18 + 7 + (face ? 18 : 16) + 6} lead={lead} trail={f.fileCount > 0 ? <Text style={styles.count} testID={`folder-count-${fid}`}>{f.fileCount}</Text> : undefined}
         onPress={() => c.goFolder(fid)} dom={drop}
         onMenu={(x, y) => c.menu.show(folderMenu(node, isOpen, kids > 0, c.handlers), x, y, "context", { label: `Folder ${f.name}` })}
       />

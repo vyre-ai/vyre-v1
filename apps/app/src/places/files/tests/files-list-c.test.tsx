@@ -6,10 +6,10 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import { FilesList, StagedBanner, approveStaged, lineMenuEntries, moreMenuEntries, newMenuEntries, stagedText } from "../list/index.ts";
-import { KindBadge, LineMarks, RowCells } from "../FileList.tsx";
+import { KindBadge, LineMarks, RowCells, TypeTile } from "../FileList.tsx";
 import { createSampleFiles } from "../list/sample.ts";
 import type { SampleFiles } from "../list/sample.ts";
-import { FilesDataProvider, FilesStateProvider, FilesTree, INITIAL_STATE, emptyText, fileLine, hasAgentFace, openByDefault, orderFolders, reduce, rootRank, skippedRoots, sourceOf } from "../tree/index.ts";
+import { FilesDataProvider, FilesStateProvider, FilesTree, INITIAL_STATE, emptyText, fileLine, hasAgentFace, openByDefault, orderFolders, reduce, rootRank, skippedRoots, sourceOf, tileLabel } from "../tree/index.ts";
 import type { FileRow, FilesState, FolderRow, TreeRoots, Where } from "../tree/index.ts";
 import { isItem } from "../../../../../../ui/src/Menu/props.ts";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/props.ts";
@@ -266,4 +266,29 @@ test("the Rivera matter folder is as the prototype has it: its files, the staged
   const out = list(subjects(), folder("fld_pj_rivera"));
   for (const name of ["client-intake.pdf", "consult-prep.md", "engagement-checklist.csv", "id-scan.png", "Rivera onboarding plan", "rivera-engagement-letter.docx", "site-photo.png"]) assert.ok(has(out, name), name);
   assert.ok(has(out, 'data-testid="staged-banner"') && has(out, 'data-testid="conflict-tag"') && has(out, 'data-testid="star-mark"'));
+});
+
+// ---------------------------------------------------------------- type tiles, empty counts, the Space's agents
+
+test("each file leads with a type tile: PDF, MD, CSV, DOCX on a tint, an icon for pictures and folders", () => {
+  assert.equal(tileLabel("client-intake.pdf", "pdf"), "PDF");
+  assert.equal(tileLabel("consult-prep.md", "markdown"), "MD");
+  assert.equal(tileLabel("engagement-checklist.csv", "spreadsheet"), "CSV");
+  assert.equal(tileLabel("rivera-engagement-letter.docx", "document"), "DOCX");
+  assert.equal(tileLabel("id-scan.png", "image"), null, "a picture has the picture icon");
+  assert.equal(tileLabel("Contracts", "folder"), null);
+  assert.equal(tileLabel("Rivera onboarding plan", "document"), null, "no extension, no label");
+  assert.ok(has(renderToStaticMarkup(<TypeTile label="PDF" icon="doc" folder={false} />), ">PDF<"));
+  assert.ok(!has(renderToStaticMarkup(<TypeTile label={null} icon="folder" folder />), 'data-testid="type-tile-label"'));
+  const out = list(subjects(), folder("fld_pj_rivera"));
+  for (const label of ["PDF", "MD", "CSV", "DOCX"]) assert.ok(has(out, `>${label}<`), label);
+  assert.equal(out.split('data-testid="type-tile"').length - 1, 8, "a tile leads every line");
+});
+
+test("an empty folder shows no count, and the Scout, Billing and Intake agents are in the Agents folder", () => {
+  const out = tree(subjects());
+  assert.ok(!has(out, 'data-testid="folder-count-fld_people"') && !has(out, 'data-testid="folder-count-fld_ag_assistant"'), "no 0");
+  assert.ok(has(out, 'data-testid="folder-count-fld_ag_docs"'));
+  for (const id of ["fld_ag_scout", "fld_ag_billing", "fld_ag_intake"]) assert.ok(has(out, `data-testid="row-folder-${id}"`), id);
+  assert.ok(has(out, 'data-testid="face-Scout"'));
 });
