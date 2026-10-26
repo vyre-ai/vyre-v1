@@ -7,7 +7,7 @@ const sq = (x: number, y: number): string => `M${x + 1.2} ${y}h2.1a1.2 1.2 0 011
 
 export type ShellIconName =
   | "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console" | "join"
-  | "moon" | "search" | "chev" | "sync" | "cloudOff" | "user" | "userPlus" | "signOut" | "terminal" | "check";
+  | "moon" | "search" | "chev" | "sync" | "cloudOff" | "user" | "userPlus" | "signOut" | "terminal" | "check" | "more";
 
 export const SHELL_ICONS: Readonly<Record<ShellIconName, readonly string[]>> = {
   home: ["M2.5 7.5L8 3l5.5 4.5V13a.5.5 0 01-.5.5H3a.5.5 0 01-.5-.5z", "M6.5 13.5v-4h3v4"],
@@ -31,6 +31,7 @@ export const SHELL_ICONS: Readonly<Record<ShellIconName, readonly string[]>> = {
   signOut: ["M6 3H3.5v10H6M10 5l3 3-3 3M13 8H6"],
   terminal: ["M3.5 3h9A1.5 1.5 0 0114 4.5v6a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 10.5v-6A1.5 1.5 0 013.5 3z", "M5 6.5l2 1.5-2 1.5M8.5 10h2.5"],
   check: ["M3.5 8.5l3 3 6-7"],
+  more: ["M3.5 8h.01M8 8h.01M12.5 8h.01"],
 };
 
 /** The icon as an svg string, for ui/Menu items (which take an svg string as their icon). */

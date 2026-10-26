@@ -174,6 +174,7 @@ export function Shell(props: ShellProps): ReactElement {
     );
   }
 
+  const spaceTile = <SpaceTile spaces={hub.spaces()} openId={state.openId} away={state.away} onSwitch={switchBy} onAction={act} />;
   const frame = (
       <View testID="shell" style={styles.root} accessibilityLabel={`Vyre, ${session.def.name}`}>
         <TitleBar
@@ -192,16 +193,16 @@ export function Shell(props: ShellProps): ReactElement {
           compact={compact}
           call={<CallTitlePill />}
         />
-        <View style={styles.body}>
-          <Rail
+        <View style={compact ? styles.bodyPhone : styles.body}>
+          {compact ? null : <Rail
             groups={hub.rail()}
             active={state.place}
             onSelect={(place) => hub.go(place)}
             {...(props.onPrefetchPlace === undefined ? {} : { onPrefetch: props.onPrefetchPlace })}
-            header={<SpaceTile spaces={hub.spaces()} openId={state.openId} away={state.away} onSwitch={switchBy} onAction={act} />}
-          />
+            header={spaceTile}
+          />}
           <View style={styles.main}>
-            <MainTabs controller={session.tabs} onNavigate={(tab) => hub.showTab(tab)} onNewTab={() => hub.newTab()} onGoToPlace={(place) => hub.go(place)} />
+            {compact ? null : <MainTabs controller={session.tabs} onNavigate={(tab) => hub.showTab(tab)} onNewTab={() => hub.newTab()} onGoToPlace={(place) => hub.go(place)} />}
             <SidebarSlotProvider
               deviceId={props.sidebar?.deviceId ?? "device"} personId={props.sidebar?.personId ?? "me"} spaceId={ctx.spaceId} place={state.place}
               epoch={state.epoch} compact={compact} storage={props.sidebar?.storage ?? null}
@@ -209,6 +210,16 @@ export function Shell(props: ShellProps): ReactElement {
               <Stage>{stage}</Stage>
             </SidebarSlotProvider>
           </View>
+          {compact ? (
+            <Rail
+              bottom
+              groups={hub.rail()}
+              active={state.place}
+              onSelect={(place) => hub.go(place)}
+              {...(props.onPrefetchPlace === undefined ? {} : { onPrefetch: props.onPrefetchPlace })}
+              header={spaceTile}
+            />
+          ) : null}
         </View>
       </View>
   );
@@ -222,7 +233,8 @@ export function Shell(props: ShellProps): ReactElement {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "var(--win)" as string },
   body: { flex: 1, flexDirection: "row", minHeight: 0 },
-  main: { flex: 1, minWidth: 0 },
+  bodyPhone: { flex: 1, flexDirection: "column", minHeight: 0 },
+  main: { flex: 1, minWidth: 0, minHeight: 0 },
   stageRow: { flex: 1, flexDirection: "row", minHeight: 0 },
   stageCol: { flex: 1, minWidth: 0, minHeight: 0 },
   hidden: { display: "none" },

@@ -20,9 +20,11 @@ export interface RailProps {
   onPrefetch?: (place: PlaceId) => void;
   /** The Space tile, drawn above the places. */
   header?: ReactNode;
+  /** The phone: the rail lies along the bottom of the screen. The top group's places are the bar; the bottom group's places sit behind a "More" button (a menu anchored to it). */
+  bottom?: boolean;
 }
 
-export function Rail({ groups, active, onSelect, onOpenInTab, onPrefetch, header }: RailProps): ReactElement {
+export function Rail({ groups, active, onSelect, onOpenInTab, onPrefetch, header, bottom }: RailProps): ReactElement {
   const { element, show } = useMenu();
   const button = (e: RailEntry): ReactElement => (
     <RailButton
@@ -45,6 +47,34 @@ export function Rail({ groups, active, onSelect, onOpenInTab, onPrefetch, header
     for (const e of entries) out.push(button(e));
     return out;
   };
+  if (bottom === true) {
+    const more = groups.bottom;
+    const moreOn = more.some((e) => e.place === active);
+    const openMore = (x: number, y: number): void => show(
+      more.map((e) => ({ label: e.title, icon: iconMarkup(e.place), onSelect: () => onSelect(e.place), ...(e.place === active ? { checked: true } : {}) })),
+      x, y, "context", { label: "More places" },
+    );
+    return (
+      <View testID="shell-rail-bottom" accessibilityRole="navigation" aria-label="Places" style={styles.bar2}>
+        {header}
+        {buttons(groups.top)}
+        {more.length === 0 ? null : (
+          <Pressable
+            role="button" aria-label="More places" aria-haspopup="menu" testID="rail-more"
+            onPress={(e) => {
+              const box = (e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; top: number } } }).currentTarget?.getBoundingClientRect?.();
+              openMore(box?.left ?? 0, box?.top ?? 0);
+            }}
+            style={[styles.button, moreOn ? styles.on : null]}
+            {...menuTrigger(openMore)}
+          >
+            <ShellIcon name="more" color={moreOn ? "var(--ink)" : "var(--ink-3)"} />
+          </Pressable>
+        )}
+        {element}
+      </View>
+    );
+  }
   return (
     <View testID="shell-rail" accessibilityRole="navigation" aria-label="Places" style={styles.rail}>
       {header}
@@ -83,6 +113,7 @@ function RailButton({ entry, on, onPress, onPrefetch, trigger }: { entry: RailEn
 
 const styles = StyleSheet.create({
   rail: { width: RAIL_WIDTH, flexShrink: 0, alignItems: "center", gap: 2, paddingTop: 10, paddingBottom: 12, backgroundColor: "var(--rail)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
+  bar2: { flexDirection: "row", alignItems: "center", justifyContent: "space-around", height: 56, paddingHorizontal: 6, backgroundColor: "var(--rail)" as string, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   spacer: { flexGrow: 1 },
   button: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   over: { backgroundColor: "var(--hover)" as string },
