@@ -34105,7 +34105,9 @@
     },
     {
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "form.created"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -36307,7 +36309,9 @@
     },
     {
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "campaign.created"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -36319,6 +36323,7 @@
       "examples": [
         {
           "input": {
+            "folderId": "fld_a1b2c3",
             "idempotencyKey": "idem_1",
             "kind": "one_time",
             "name": "example"
@@ -36341,6 +36346,13 @@
       "idempotency": "key",
       "input": {
         "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -36376,7 +36388,7 @@
       "permission": "automations.space",
       "resource": {
         "create": true,
-        "parent": "/name",
+        "parent": "/folderId",
         "type": "campaign"
       },
       "risk": "medium",
@@ -59043,6 +59055,7 @@
       "examples": [
         {
           "input": {
+            "folderId": "fld_a1b2c3",
             "idempotencyKey": "idem_1",
             "mode": "blocks",
             "name": "example"
@@ -59069,6 +59082,13 @@
       "idempotency": "key",
       "input": {
         "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -59104,7 +59124,7 @@
       "permission": null,
       "resource": {
         "create": true,
-        "parent": "/name",
+        "parent": "/folderId",
         "type": "folder"
       },
       "risk": "medium",
@@ -71855,7 +71875,9 @@
     },
     {
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "form.created"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -88257,7 +88279,7 @@
       "rate": {
         "n": 10,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -88621,9 +88643,9 @@
       },
       "permission": null,
       "rate": {
-        "n": 10,
+        "n": 5,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -88884,7 +88906,7 @@
       "rate": {
         "n": 5,
         "perSeconds": 300,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -89074,7 +89096,7 @@
       "rate": {
         "n": 30,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -89376,7 +89398,7 @@
       "rate": {
         "n": 10,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -89663,7 +89685,7 @@
       "rate": {
         "n": 10,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -90055,7 +90077,7 @@
       "rate": {
         "n": 10,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -93485,7 +93507,7 @@
       "rate": {
         "n": 10,
         "perSeconds": 60,
-        "scope": "space"
+        "scope": "principal"
       },
       "resource": {
         "type": "space"
@@ -136787,6 +136809,7 @@
       "examples": [
         {
           "input": {
+            "folderId": "fld_a1b2c3",
             "idempotencyKey": "idem_1",
             "kind": "site",
             "name": "example",
@@ -136811,6 +136834,13 @@
       "idempotency": "key",
       "input": {
         "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -136858,7 +136888,7 @@
       "permission": "sites.deploy",
       "resource": {
         "create": true,
-        "parent": "/name",
+        "parent": "/folderId",
         "type": "site"
       },
       "risk": "medium",
@@ -172441,6 +172471,37 @@
     },
     {
       "module": "campaigns",
+      "name": "campaign.created",
+      "payload": {
+        "properties": {
+          "campaignId": {
+            "examples": [
+              "cmp_a1b2c3"
+            ],
+            "pattern": "^cmp_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "campaignId",
+          "name"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/campaignId",
+        "type": "campaign"
+      },
+      "summary": "A campaign was created as a draft",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "campaigns",
       "name": "campaign.launched",
       "payload": {
         "properties": {
@@ -176349,6 +176410,41 @@
       "summary": "A follow was removed",
       "sv": 1,
       "vis": "owner"
+    },
+    {
+      "module": "forms",
+      "name": "form.created",
+      "payload": {
+        "properties": {
+          "formId": {
+            "examples": [
+              "frm_a1b2c3"
+            ],
+            "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "formId",
+          "name",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/formId",
+        "type": "form"
+      },
+      "summary": "A form was created as a draft",
+      "sv": 1,
+      "vis": "space"
     },
     {
       "module": "forms",

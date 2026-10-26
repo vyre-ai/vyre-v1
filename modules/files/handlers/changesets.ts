@@ -641,7 +641,8 @@ async function requestChanges(ctx: Ctx, input: unknown): Promise<{ sent: number 
   if (unsent.length === 0 && note === undefined) fail(ctx, "validation.bad_input", "Add a comment or a note first.");
   if (!isNull(cs.thread_id)) {
     const lines = [note ?? "Changes requested.", ...unsent.map((c) => `${isNull(c.path) ? "" : `${String(c.path)}: `}${String(c.text)}`)];
-    await ctx.call("chat.post", { threadId: String(cs.thread_id), body: lines.join("\n") }, { idempotencyKey: `changesets.request_changes:${String(cs.id)}:${ctx.now()}` });
+    const key = `changesets.request_changes:${String(cs.id)}:${ctx.now()}`;
+    await ctx.call("chat.post", { idempotencyKey: key, threadId: String(cs.thread_id), body: lines.join("\n") }, { idempotencyKey: key });
   }
   for (const c of unsent) ctx.db.run("UPDATE files_changeset_comment SET sent = ? WHERE id = ?", 1, String(c.id));
   ctx.db.run("UPDATE files_changeset SET state = ?, reviewer = ?, updated_at = ? WHERE id = ?", "changes_requested", ctx.principal.id, ctx.now(), String(cs.id));
@@ -755,12 +756,12 @@ async function reviewExternally(ctx: Ctx, input: unknown): Promise<{ actorId: st
   let actorId = optStr(ctx, o, "actorId");
   let expiresAt = ctx.now() + REVIEW_WINDOW_MS;
   if (actorId === undefined) {
-    const made = (await ctx.call("access.actors.create", { name: `Reviewer for ${String(cs.id)}`, provider: "outside" }, { idempotencyKey: `changesets.review_externally:${String(cs.id)}` })) as { actor: { id: string }; expiresAt?: number };
+    const made = (await ctx.call("access.actors.create", { idempotencyKey: `changesets.review_externally:${String(cs.id)}`, name: `Reviewer for ${String(cs.id)}`, provider: "outside" }, { idempotencyKey: `changesets.review_externally:${String(cs.id)}` })) as { actor: { id: string }; expiresAt?: number };
     actorId = made.actor.id;
     if (typeof made.expiresAt === "number") expiresAt = made.expiresAt;
   }
   // read and comment: Use on the folder, never Edit, so changing files stays behind Approve
-  await ctx.call("access.share", { resource: { type: "folder", id: String(cs.folder_id) }, subject: { kind: "actor", id: actorId }, level: "use" }, { idempotencyKey: `changesets.review:${String(cs.id)}:${actorId}` });
+  await ctx.call("access.share", { idempotencyKey: `changesets.review:${String(cs.id)}:${actorId}`, resource: { type: "folder", id: String(cs.folder_id) }, subject: { kind: "actor", id: actorId }, level: "use" }, { idempotencyKey: `changesets.review:${String(cs.id)}:${actorId}` });
   ctx.db.run("DELETE FROM files_changeset_review WHERE changeset_id = ? AND actor_id = ?", String(cs.id), actorId);
   ctx.db.run("INSERT INTO files_changeset_review (changeset_id, actor_id, opened_at, expires_at) VALUES (?, ?, ?, ?)", String(cs.id), actorId, ctx.now(), expiresAt);
   ctx.emit("changeset.sent_for_review", `entity/${String(cs.id)}`, { changesetId: String(cs.id), actorId });
@@ -805,7 +806,7 @@ async function commentsAdd(ctx: Ctx, input: unknown): Promise<{ comment: Record<
   const agents = mentions.filter((m) => m.startsWith("agt_"));
   if (agents.length > 0 && !isNull(cs.thread_id)) {
     // an @ agent answers in the changeset's thread
-    await ctx.call("chat.post", { threadId: String(cs.thread_id), body: `${typeof path === "string" ? `${path}: ` : ""}${text}`, mentions: agents.map((a) => ({ kind: "agent", id: a })) }, { idempotencyKey: `changesets.comment:${id}` });
+    await ctx.call("chat.post", { idempotencyKey: `changesets.comment:${id}`, threadId: String(cs.thread_id), body: `${typeof path === "string" ? `${path}: ` : ""}${text}`, mentions: agents.map((a) => ({ kind: "agent", id: a })) }, { idempotencyKey: `changesets.comment:${id}` });
     ctx.db.run("UPDATE files_changeset_comment SET sent = ? WHERE id = ?", 1, id);
   }
   return { comment: commentOut(one(ctx, "SELECT * FROM files_changeset_comment WHERE id = ?", id) ?? {}) };

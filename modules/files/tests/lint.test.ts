@@ -420,7 +420,7 @@ test("files.share: the grant is access.share, once, with the file as the resourc
   const fid = (await handlers["files.create"](kit.ctx, { folderId, name: "a.txt", content: { text: "x" } })).file.fileId;
   const res = await handlers["files.share"](kit.ctx, { fileId: fid, subject: { kind: "person", id: "per_sam" }, level: "edit" });
   assert.deepEqual(res, { ok: true });
-  assert.deepEqual(kit.calls, [{ cap: "access.share", input: { resource: { type: "file", id: fid }, subject: { kind: "person", id: "per_sam" }, level: "edit" } }]);
+  assert.deepEqual(kit.calls, [{ cap: "access.share", input: { idempotencyKey: `files.share:${fid}:person:per_sam:edit`, resource: { type: "file", id: fid }, subject: { kind: "person", id: "per_sam" }, level: "edit" } }]);
   await expectCode("validation.not_found", () => handlers["files.share"](kit.ctx, { fileId: "fil_none", subject: { kind: "person", id: "per_sam" }, level: "view" }));
   await expectCode("validation.bad_input", () => handlers["files.share"](kit.ctx, { fileId: fid, level: "view" }));
 });

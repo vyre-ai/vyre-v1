@@ -217,6 +217,7 @@ async function limitCard(ctx: EngineCtx, hit: Hit, who: { agentId: string; threa
   const onceInput = { scope: hit.scope, ...(hit.scopeId === "" ? {} : { scopeId: hit.scopeId }), limit: hit.limit, mode: "once" as const };
   try {
     const out = (await ctx.call("tasks.create", {
+      idempotencyKey: `engine.limit_card:${key}`,
       kind: "unblock", title, summary: "Raise it once, or stop the work.", why: `Used ${hit.used} of ${hit.cap}.`,
       assigned: { kind: "person", id: who.asker },
       source: { kind: "chat", id: who.threadId },

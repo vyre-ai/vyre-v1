@@ -1,6 +1,7 @@
 // governance (lane L7a). The host serves the generated stubs while host/modules.json says `status: 'stub'`; the flip to live is P-L7_LIVE's (ruling 25). Governance reaches the other modules only through
 // ctx.call (files, records, memory, audit, search, inbox, contacts, settings, access); it keeps holds, job state, findings and tombstones in its own tables.
 import type { Handler } from "../../host/src/invoke.ts";
+import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import * as h from "./handlers/index.ts";
 
 export const handlers: Record<string, Handler> = {
@@ -30,3 +31,15 @@ export const periodic = {
 };
 
 export const projections = { inline: {}, consumers: {} };
+
+/**
+ * Host call for the removal wizard: how many of these items (ids from the owning modules) are on hold, counting a hold on the person themselves. A legal hold stops a delete, so the wizard asks before it deletes.
+ */
+export const hostCalls = {
+  "governance.held_among": (ctx: Ctx, i: { person: string; ids: string[] }): number => {
+    try {
+      const held = new Set((ctx.db.all(`SELECT "kind", "targetId" FROM governance_hold`) as { kind: string; targetId: string }[]).map((r) => (r.kind === "person" ? `person:${r.targetId}` : r.targetId)));
+      return [`person:${i.person}`, ...i.ids].filter((x) => held.has(x)).length;
+    } catch { return 0; }
+  },
+};

@@ -3183,7 +3183,7 @@ export const routes: Route[] = [
     "resource": {
       "type": "campaign",
       "create": true,
-      "parent": "/name"
+      "parent": "/folderId"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -7664,7 +7664,7 @@ export const routes: Route[] = [
     "resource": {
       "type": "folder",
       "create": true,
-      "parent": "/name"
+      "parent": "/folderId"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -22510,7 +22510,7 @@ export const routes: Route[] = [
     "resource": {
       "type": "site",
       "create": true,
-      "parent": "/name"
+      "parent": "/folderId"
     },
     "idempotency": "key",
     "risk": "medium",

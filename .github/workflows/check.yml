@@ -102,6 +102,10 @@ jobs:
         run: |
           git fetch -q origin main
           node scripts/lint/run.ts --base "$(git merge-base origin/main HEAD)"
+      - name: make-emits (report mode, never fails yet); a capability that makes a resource must emit an event whose subject is that type
+        run: node scripts/lint/make-emits.ts
+      - name: idem-calls (report mode, whole tree, never fails yet); ctx.call to a capability with idempotency key must pass idempotencyKey
+        run: node scripts/lint/idem-calls.ts
       - name: Typecheck every package that has a tsconfig.json above a changed file
         run: |
           git fetch -q origin main
@@ -288,6 +292,12 @@ jobs:
           set -o pipefail
           node scripts/test-run.ts --slow --no-cache --files apps/chrome/tests/ext-agent.real.test.ts 2>&1 | tee chrome-real.out
           grep -q '^ok .*apps/chrome/tests/ext-agent.real.test.ts' chrome-real.out
+      - name: Popup and save card in a real Chrome, paper and graphite (ext-core.popup-shot.test.ts)
+        # Moved here from the fast shards: a real Chrome with screenshots in two skins does not fit 30 s beside other files on a shared runner. CHROME_BIN comes from the Chromium step above.
+        run: |
+          set -o pipefail
+          node scripts/test-run.ts --slow --no-cache --files apps/chrome/tests/ext-core.popup-shot.test.ts 2>&1 | tee chrome-popup.out
+          grep -q '^ok .*apps/chrome/tests/ext-core.popup-shot.test.ts' chrome-popup.out
   check:
     needs: [select, shards, gates, chrome-real]
     if: always()

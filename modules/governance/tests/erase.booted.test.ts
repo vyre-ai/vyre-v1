@@ -162,7 +162,7 @@ test("erase a person end to end: found in every store, erased, and nothing of th
     const gone = await post(d, "/v1/records/get", { type: "rt_contact", recordId: pat });
     assert.equal(gone.status, 404, "the record is not readable, trash included");
     assert.equal((await post(d, "/v1/records/get", { type: "rt_contact", recordId: other })).status, 200, "the other person's record stays");
-    const left = dumpOf(d, ["chat_", "telephony_", "inbox_", "mail_", "memory_", "gov_"]);
+    const left = dumpOf(d, ["chat_", "telephony_", "inbox_", "mail_", "memory_", "governance_"]);
     for (const w of WORDS) assert.ok(!left.includes(w), `no row in any store holds "${w}"`);
     const ids = (sql: string): string[] => (d.db!.all(sql) as { id: string }[]).map((r) => r.id).sort();
     assert.deepEqual(ids("SELECT id FROM chat_thread WHERE kind IN ('chat', 'channel')").filter((i) => i === chat || i === keepChat), [keepChat], "Pat's chat is gone, the other chat stays");

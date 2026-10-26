@@ -369,3 +369,30 @@ export const consumers = {
 };
 
 export { RecordsError } from "./handlers/index.ts";
+
+/**
+ * Host calls for the removal wizard (members.owned): the records whose `owner` field names the person, in every type that has one, and handing them to someone else. The change goes through records.update
+ * as the person doing the removal, so record permissions, labels and holds apply as they do for anyone.
+ */
+type OwnerCtx = { call(cap: string, input: unknown): Promise<unknown> };
+async function ownedRecords(person: string): Promise<{ type: string; id: string; title: string }[]> {
+  const out: { type: string; id: string; title: string }[] = [];
+  for (const t of await live().store.types()) {
+    if (!t.fields.some((f) => f.name === "owner")) continue;
+    const page = await live().store.query(t.name, { filter: { field: "owner", op: "eq", value: person }, page: { limit: 500 } });
+    for (const r of page.rows) out.push({ type: t.name, id: r.id, title: String((r.data as Record<string, unknown>)["name"] ?? r.id) });
+  }
+  return out;
+}
+export const hostCalls = {
+  "records.owned_by": async (_ctx: unknown, i: { person: string }) => {
+    const all = await ownedRecords(i.person);
+    return { records: { count: all.length, sample: all.slice(0, 5), ids: all.slice(0, 500).map((r) => r.id) } };
+  },
+  "records.reassign_owned": async (ctx: OwnerCtx, i: { person: string; kind: string; action: string; to?: string }): Promise<number> => {
+    if (i.kind !== "records" || i.action !== "reassign" || !i.to) return 0;
+    let n = 0;
+    for (const r of await ownedRecords(i.person)) { await ctx.call("records.update", { type: r.type, recordId: r.id, patch: { owner: i.to } }); n++; }
+    return n;
+  },
+};
