@@ -38169,6 +38169,7 @@
         {
           "input": {
             "changesetId": "chg_a1b2c3",
+            "context": "hunks",
             "mode": "unified",
             "path": "example"
           },
@@ -38214,6 +38215,13 @@
               "chg_a1b2c3"
             ],
             "pattern": "^chg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "context": {
+            "enum": [
+              "hunks",
+              "full"
+            ],
             "type": "string"
           },
           "mode": {
@@ -38477,6 +38485,7 @@
               {
                 "added": 1,
                 "conflict": true,
+                "fileId": "fil_a1b2c3",
                 "path": "example",
                 "removed": 1,
                 "status": "added"
@@ -38518,6 +38527,13 @@
                 },
                 "conflict": {
                   "type": "boolean"
+                },
+                "fileId": {
+                  "examples": [
+                    "fil_a1b2c3"
+                  ],
+                  "pattern": "^fil_[a-z0-9]+$",
+                  "type": "string"
                 },
                 "path": {
                   "type": "string"
@@ -85985,16 +86001,75 @@
       ],
       "examples": [
         {
-          "input": {},
+          "input": {
+            "tombstones": [
+              {
+                "at": 1760000000000,
+                "by": "example",
+                "findingId": "example",
+                "id": "example",
+                "kind": "example",
+                "subjectId": "example",
+                "subjectType": "example"
+              }
+            ]
+          },
           "name": "example",
           "output": {
             "count": 1
           }
         }
       ],
+      "gate": {
+        "act": "delete",
+        "when": "actor.kind != actor.kind"
+      },
       "idempotency": "natural",
       "input": {
-        "properties": {},
+        "properties": {
+          "tombstones": {
+            "items": {
+              "properties": {
+                "at": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "by": {
+                  "type": "string"
+                },
+                "findingId": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "subjectId": {
+                  "type": "string"
+                },
+                "subjectType": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "subjectType",
+                "subjectId",
+                "at",
+                "by"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
         "type": "object"
       },
       "level": "view",
@@ -86018,7 +86093,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "System: replay every tombstone after a restore, before the Space opens for traffic",
+      "summary": "System: replay every tombstone after a restore, before the Space opens for traffic; `tombstones` are the ones the Space held before the restore, which the restored database does not have",
       "surfaces": {
         "http": "auto"
       },
@@ -145061,7 +145136,9 @@
     },
     {
       "effects": "read",
-      "emits": [],
+      "emits": [
+        "sync.scope_changed"
+      ],
       "errors": [
         "auth.device_revoked",
         "internal.unexpected",
