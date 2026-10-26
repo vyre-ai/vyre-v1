@@ -27,20 +27,22 @@ function driverOf(p: ProviderRow): string {
   return DRIVERS.has(p.providerKey) ? p.providerKey : "openrouter";
 }
 
-async function load(ctx: Ctx): Promise<{ rows: AccountRow[]; idByRef: Map<string, string> }> {
+async function load(ctx: Ctx): Promise<{ rows: AccountRow[]; idByRef: Map<string, string>; itemByRef: Map<string, string> }> {
   const me = ctx.actingFor ?? ctx.principal.id;
   const out = (await ctx.call("providers.list", {})) as { providers: ProviderRow[] };
   const rows: AccountRow[] = [];
   const idByRef = new Map<string, string>();
+  const itemByRef = new Map<string, string>();
   for (const p of out.providers) {
     const ref = p.handle ?? p.itemId;
     idByRef.set(ref, p.id);
+    itemByRef.set(ref, p.itemId);
     rows.push({
       ref, driver: driverOf(p), provider: p.providerKey, kind: p.connection === "subscription" ? "subscription" : "api_key", title: p.name,
       mine: p.scope === "mine", ownerId: p.scope === "mine" ? me : null, status: STATUS[p.state], lastProbeAt: null, spaceMayUse: p.spaceMayUse,
     });
   }
-  return { rows, idByRef };
+  return { rows, idByRef, itemByRef };
 }
 
 export async function accountsList(ctx: Ctx, _input: Record<string, never>) {
@@ -76,7 +78,9 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
     accounts: accounts.rows,
     onServer: placement.placement !== "device",
   });
-  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed };
+  // the Vault item behind the account, so the turn worker can meter usage against it (record_usage itemId)
+  const itemId = res.accountRef ? accounts.itemByRef.get(res.accountRef) : undefined;
+  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed, ...(itemId ? { itemId } : {}) };
 }
 
 export async function accountProbe(ctx: Ctx, input: { accountRef: string }) {

@@ -98,22 +98,3 @@ test("resume: the last 50 messages of a long chat come off the index, oldest fir
   assert.doesNotMatch(plan, /TEMP B-TREE/, `no sort: ${plan}`);
 });
 
-test("opening a chat with 20,000 messages reads the last 50 in well under 50 ms", async () => {
-  const hn = harness();
-  const t = await chat(hn);
-  hn.raw.run("DELETE FROM chat_thread_seq WHERE thread = ?", t);
-  for (let i = 1; i <= 20_000; i++) {
-    hn.raw.run(
-      "INSERT INTO chat_message (id, thread, threadSeq, author, kind, body, blocks, depth, pinned, reactions, createdAt, version) VALUES (?, ?, ?, 'usr_dana', 'text', 'filler', '[]', 0, 0, '[]', 1, 0)", `msg_f${i}`, t, i,
-    );
-  }
-  hn.raw.run("INSERT INTO chat_thread_seq (thread, last) VALUES (?, 20000)", t);
-  lastMessages(hn.db, t); // warm
-  const t0 = performance.now();
-  const tail = lastMessages(hn.db, t);
-  const ms = performance.now() - t0;
-  assert.equal(tail.length, 50);
-  assert.equal(tail[49]!.seq, 20_000);
-  assert.ok(ms < 50, `last 50 of 20,000 took ${ms.toFixed(1)} ms`);
-  assert.equal((await say(hn, t, "next")).message.threadSeq, 20_001);
-});

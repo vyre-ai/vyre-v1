@@ -134,10 +134,10 @@ test("no self-conflict: a device's second queued edit of a protected field names
 
 test("a Restricted field conflict is a plain choice and never goes to a provider", async () => {
   const r = pushRig();
-  r.policies.set("client_plan.taxId", "assistant");
-  const s0 = r.seed("client_plan", "cp1", { taxId: "11-111" });
-  await r.push("usr_bo", "dev_b", [patchOp({ id: "r1", entity: "client_plan", row: "cp1", fields: { taxId: "22-222" }, base: { taxId: s0 }, hlc: hl(NOW - 3000, 0, "dev_b") })]);
-  await r.push("usr_ada", "dev_a", [patchOp({ id: "r2", entity: "client_plan", row: "cp1", fields: { taxId: "33-333" }, base: { taxId: s0 }, hlc: hl(NOW - 1000) })]);
+  r.policies.set("client_plan.tax_id", "assistant");
+  const s0 = r.seed("client_plan", "cp1", { tax_id: "11-111" });
+  await r.push("usr_bo", "dev_b", [patchOp({ id: "r1", entity: "client_plan", row: "cp1", fields: { tax_id: "22-222" }, base: { tax_id: s0 }, hlc: hl(NOW - 3000, 0, "dev_b") })]);
+  await r.push("usr_ada", "dev_a", [patchOp({ id: "r2", entity: "client_plan", row: "cp1", fields: { tax_id: "33-333" }, base: { tax_id: s0 }, hlc: hl(NOW - 1000) })]);
   assert.equal(r.conflicts[0]!.plainChoice, true);
 });
 

@@ -518,8 +518,8 @@ export function pollInterval(now: number, lastActivityAt: number | null, subscri
 }
 
 export function ensureMailbox(ctx: MsCtx, email: string, connectionId: string): void {
-  if (first(ctx.db.all(`SELECT email FROM ms_mailbox WHERE email = ?`, email))) return;
-  ctx.db.run(`INSERT INTO ms_mailbox (email, "connectionId", "deltaLinks", "lastPolledAt", "lastActivityAt", "nextPollAt") VALUES (?, ?, ?, ?, ?, ?)`, email, connectionId, null, null, null, null);
+  if (first(ctx.db.all(`SELECT email FROM microsoft_mailbox WHERE email = ?`, email))) return;
+  ctx.db.run(`INSERT INTO microsoft_mailbox (email, "connectionId", "deltaLinks", "lastPolledAt", "lastActivityAt", "nextPollAt") VALUES (?, ?, ?, ?, ?, ?)`, email, connectionId, null, null, null, null);
 }
 
 function links(value: string | null): Record<string, string> {
@@ -540,7 +540,7 @@ export async function pullMailbox(ctx: MsCtx, a: { connectionId: string; mailbox
   const email = normalizeEmail(a.mailbox);
   const act: Act = { connectionId: a.connectionId, as: email };
   ensureMailbox(ctx, email, a.connectionId);
-  const state = first(ctx.db.all(`SELECT * FROM ms_mailbox WHERE email = ?`, email))!;
+  const state = first(ctx.db.all(`SELECT * FROM microsoft_mailbox WHERE email = ?`, email))!;
   const deltaLinks = links(strOrNull(state, "deltaLinks"));
   const now = ctx.now();
   let ingested = 0, deduped = 0, skipped = 0, complete = true, bootstrapped = false;
@@ -591,8 +591,8 @@ export async function pullMailbox(ctx: MsCtx, a: { connectionId: string; mailbox
 
   const before = state.lastActivityAt;
   const lastActivity = ingested > 0 ? now : typeof before === "number" ? before : null;
-  ctx.db.run(`UPDATE ms_mailbox SET "deltaLinks" = ?, "lastPolledAt" = ?, "lastActivityAt" = ? WHERE email = ?`, JSON.stringify(deltaLinks), now, lastActivity, email);
-  const subscribed = num(first(ctx.db.all(`SELECT "expiresAt" FROM ms_subscription WHERE mailbox = ? AND "expiresAt" > ?`, email, now)), "expiresAt") > now;
+  ctx.db.run(`UPDATE microsoft_mailbox SET "deltaLinks" = ?, "lastPolledAt" = ?, "lastActivityAt" = ? WHERE email = ?`, JSON.stringify(deltaLinks), now, lastActivity, email);
+  const subscribed = num(first(ctx.db.all(`SELECT "expiresAt" FROM microsoft_subscription WHERE mailbox = ? AND "expiresAt" > ?`, email, now)), "expiresAt") > now;
   return { ingested, deduped, skipped, bootstrapped, complete, nextPollMs: pollInterval(now, lastActivity, subscribed) };
 }
 

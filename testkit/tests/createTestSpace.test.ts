@@ -6,12 +6,15 @@ import { registry } from "../../generated/registry.ts";
 import { validateEvent } from "../../generated/validators.ts";
 import { HostError } from "../../host/src/invoke.ts";
 
-type Cap = { name: string; v: number; emits: string[]; permission: string | null; resource: { type: string }; idempotency: string; gate?: unknown; caller?: unknown; examples: { input: unknown; output: unknown }[] };
+type Cap = { name: string; module: string; v: number; emits: string[]; permission: string | null; resource: { type: string }; idempotency: string; gate?: unknown; caller?: unknown; examples: { input: unknown; output: unknown }[] };
 const caps = registry.capabilities as unknown as Cap[];
 const perms = new Map((registry.permissions as unknown as { key: string; defaults: Record<string, boolean> }[]).map((p) => [p.key, p.defaults]));
+// These tests ask for a capability's example answer. The answer is a handler the test passes in, so they do not depend on which modules are still stubs in host/modules.json (a live module
+// answers from its own handlers, and one day none is a stub).
 const usable = caps.filter((c) => c.resource.type === "space" && c.permission && c.idempotency !== "key" && !c.gate && !c.caller && c.examples.length);
 const adminOnly = usable.find((c) => perms.get(c.permission!)!["member"] === false && perms.get(c.permission!)!["admin"] === true)!;
 const memberOk = usable.find((c) => perms.get(c.permission!)!["member"] === true)!;
+const answering = (...list: Cap[]): Record<string, () => unknown> => Object.fromEntries(list.map((c) => [c.name, () => c.examples[0]!.output]));
 
 function sample(s: any): unknown {
   if (s.const !== undefined) return s.const;
@@ -42,7 +45,7 @@ test("a blank Space boots and returns api, events, clock, close (the 80 ms boot 
 });
 
 test("api(asPrincipal): a stub answers its example; the role decides who may call", async () => {
-  const s = await createTestSpace({ seed: "small" });
+  const s = await createTestSpace({ seed: "small", handlers: answering(adminOnly, memberOk) as never });
   try {
     assert.deepEqual(await s.api("usr_admin").call(adminOnly.name, adminOnly.examples[0]!.input), adminOnly.examples[0]!.output);
     await assert.rejects(s.api("usr_ana").call(adminOnly.name, adminOnly.examples[0]!.input), (e: unknown) => e instanceof HostError && e.error.code === "permission.role_lacks_permission");
@@ -86,7 +89,7 @@ test("fake clock moves only forward; an unavailable seed is refused", async () =
 });
 
 test("roles option replaces the seed's people", async () => {
-  const s = await createTestSpace({ roles: { usr_a: "owner", usr_b: "guest" } });
+  const s = await createTestSpace({ roles: { usr_a: "owner", usr_b: "guest" }, handlers: answering(adminOnly) as never });
   try {
     assert.deepEqual(await s.api("usr_a").call(adminOnly.name, adminOnly.examples[0]!.input), adminOnly.examples[0]!.output);
     await assert.rejects(s.api("usr_b").call(adminOnly.name, adminOnly.examples[0]!.input));

@@ -321,6 +321,8 @@ export interface Harness {
   as(id: string, o?: { admin?: boolean; device?: string }): DevicesCtx;
   /** A system call with no person behind it. */
   system(): DevicesCtx;
+  /** The host itself (svc_host): the only caller devices.register accepts. */
+  host(): DevicesCtx;
   advance(ms: number): void;
 }
 
@@ -341,6 +343,7 @@ export function harness(now = NOW): Harness {
     raw, events,
     as: (id, o = {}) => ({ ...base, principal: { kind: "person", id }, authorize: authorize(!!o.admin), ...(o.device ? { device: o.device } : {}) }) as DevicesCtx,
     system: () => ({ ...base, principal: { kind: "service", id: "svc_sync" }, authorize: authorize(false) }) as DevicesCtx,
+    host: () => ({ ...base, principal: { kind: "service", id: "svc_host" }, authorize: authorize(false) }) as DevicesCtx,
     advance(ms) { clock += ms; },
   };
 }

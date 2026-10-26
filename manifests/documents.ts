@@ -48,7 +48,7 @@ export default defineManifest({
     create('documents.fill', 'Fill a template into a new file in a folder; missing required tags stop the fill and are listed', {
       in: { ...fillIn, intoFolderId: id.folder, name: t.opt(t.str()), format: t.opt(t.enm('docx', 'pdf')) },
       out: { file: t.obj({ fileId: id.file, name: t.str(), versionId: id.version }), missing: t.arr(t.str()), unused: t.arr(t.str()) },
-      make: ['folder', '/intoFolderId'], perm: 'files.write', emits: ['document.filled', 'file.created', 'file.version_added'], tool: 'files', cli: 'vyre documents fill',
+      make: ['file', '/intoFolderId'], perm: 'files.write', emits: ['document.filled', 'file.created', 'file.version_added'], tool: 'files', cli: 'vyre documents fill',
       errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     read('documents.templates.list', 'List files marked as templates the caller can open', {

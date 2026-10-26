@@ -154,7 +154,7 @@ export function raiseLimit(
 type UsageBy = "day" | "person" | "agent" | "model";
 interface UsageTotals { turns: number; tokensIn: number; tokensOut: number; costMicros: number }
 
-export function usageQuery(ctx: EngineCtx, input: { by: UsageBy; from?: number; to?: number; personId?: string; agentId?: string }): {
+export function usageQuery(ctx: EngineCtx, input: { by: UsageBy; from?: number; to?: number; personId?: string; agentId?: string; itemId?: string }): {
   rows: Array<{ key: string; title: string; totals: UsageTotals }>; totals: UsageTotals;
 } {
   ensure(ctx.db);
@@ -166,6 +166,8 @@ export function usageQuery(ctx: EngineCtx, input: { by: UsageBy; from?: number; 
   const person = sees ? input.personId : me;
   if (person !== undefined) { clauses.push("person_id = ?"); args.push(person); }
   if (sees && input.agentId !== undefined) { clauses.push("agent_id = ?"); args.push(input.agentId); }
+  // only the turns that ran on this Vault item; people still see their own turns only (the person clause above)
+  if (input.itemId !== undefined) { clauses.push("turn_id IN (SELECT turn_id FROM engine_usage_item WHERE item_id = ?)"); args.push(input.itemId); }
   const key = input.by === "day" ? "strftime('%Y-%m-%d', at / 1000, 'unixepoch')" : input.by === "person" ? "person_id" : input.by === "agent" ? "agent_id" : "model";
   const out = rows(
     ctx,
@@ -217,6 +219,7 @@ async function limitCard(ctx: EngineCtx, hit: Hit, who: { agentId: string; threa
   const onceInput = { scope: hit.scope, ...(hit.scopeId === "" ? {} : { scopeId: hit.scopeId }), limit: hit.limit, mode: "once" as const };
   try {
     const out = (await ctx.call("tasks.create", {
+      idempotencyKey: `engine.limit_card:${key}`,
       kind: "unblock", title, summary: "Raise it once, or stop the work.", why: `Used ${hit.used} of ${hit.cap}.`,
       assigned: { kind: "person", id: who.asker },
       source: { kind: "chat", id: who.threadId },
@@ -235,7 +238,7 @@ async function limitCard(ctx: EngineCtx, hit: Hit, who: { agentId: string; threa
 
 export async function recordUsage(
   ctx: EngineCtx,
-  input: { turnId: string; tokensIn: number; tokensOut: number; costMicros: number },
+  input: { turnId: string; tokensIn: number; tokensOut: number; costMicros: number; itemId?: string },
 ): Promise<{ overLimit?: LimitKind }> {
   ensure(ctx.db);
   for (const [field, v] of [["tokensIn", input.tokensIn], ["tokensOut", input.tokensOut], ["costMicros", input.costMicros]] as const) {
@@ -253,6 +256,8 @@ export async function recordUsage(
        cost_micros = engine_usage.cost_micros + excluded.cost_micros`,
     turn.id, turn.threadId, turn.agentId, turn.asker, turn.model ?? "unknown", at, input.tokensIn, input.tokensOut, input.costMicros,
   );
+  // the Vault item this turn ran on, as the turn worker got it from engine.account.resolve; the first one seen for a turn stays
+  if (input.itemId !== undefined) ctx.db.run("INSERT OR IGNORE INTO engine_usage_item (turn_id, item_id) VALUES (?, ?)", turn.id, input.itemId);
   const hit = firstHit(ctx, turn, at);
   if (!hit) return {};
   // Stop the turn that crossed the line, then tell the person who pays. The card is one per scope, limit and period.
