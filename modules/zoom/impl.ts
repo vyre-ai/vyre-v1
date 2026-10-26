@@ -2,6 +2,7 @@
 // setZoomHost (Vault items, recording downloads into blobs), see projections.ts; signatureMatches is what its /hooks/zoom route checks first.
 import type { Handler } from "../../host/src/invoke.ts";
 import * as h from "./handlers/index.ts";
+import { fail } from "../../host/src/routes/errors.ts";
 import { hostOnly } from "../../host/src/ctx/host-only.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import type { WebhookAccept } from "../../host/src/routes/webhooks.ts";

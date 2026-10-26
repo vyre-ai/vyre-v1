@@ -34,6 +34,10 @@ export async function signatureMatches(secret: string, timestamp: string, body: 
   return diff === 0;
 }
 
+/** The webhook secret token the Vault holds, for one call. */
+export const webhookSecret = (ctx: ZoomCtx): Promise<string> => needHost(ctx).secret(ctx, HANDLE.webhook);
+export const isEventType = (t: string): boolean => (TYPES as readonly string[]).includes(t);
+
 /** Zoom's signed requests older (or newer) than this are refused, so a captured request cannot be played back later. */
 export const WEBHOOK_TOLERANCE_MS = 5 * 60_000;
 
