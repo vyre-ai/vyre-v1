@@ -6,6 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import { main } from "./cli.ts";
 import { EXTENSION_ZIP, SERVER_FILES, imagesLock, packExtension, packFolder, packServer, releasesFrom, sha256File, tarList, zipNames, zipRead } from "./pack.ts";
+import { publishRelease, updateRolling } from "./publish.ts";
+import type { ApiFetch } from "./publish.ts";
 import { smokeRelease } from "./smoke.ts";
 import { CHANNEL_KINDS, buildEntries, manifestFor, readFeed } from "./channels.ts";
 import type { ChannelRelease, FeedEntry } from "./channels.ts";
@@ -286,4 +288,44 @@ test("the command line: tag checks the version against package.json, and pack ma
     console.log = log; console.error = err;
     if (saved === undefined) delete process.env["VYRE_IMAGE"]; else process.env["VYRE_IMAGE"] = saved;
   }
+});
+
+function fakeGithub(existing: string[] = []) {
+  const calls: string[] = [];
+  const uploads: string[] = [];
+  const tags = new Map<string, { id: number; assets: Array<{ id: number; name: string }> }>(existing.map((t, i) => [t, { id: 100 + i, assets: [{ id: 900, name: "stable.json" }] }]));
+  let next = 500;
+  const fetch: ApiFetch = async (url, init) => {
+    calls.push(`${init.method} ${url.replace("https://api.github.com", "").replace("https://uploads.github.com", "UP")}`);
+    assert.match(init.headers["authorization"] ?? "", /^Bearer tok$/);
+    const tagged = /\/releases\/tags\/(.+)$/.exec(url)?.[1];
+    if (init.method === "GET" && tagged) { const r = tags.get(decodeURIComponent(tagged)); return { status: r ? 200 : 404, json: async () => r ?? {} }; }
+    if (init.method === "POST" && url.endsWith("/releases")) { const b = JSON.parse(String(init.body)) as { tag_name: string }; const r = { id: ++next, assets: [] }; tags.set(b.tag_name, r); return { status: 201, json: async () => r }; }
+    if (init.method === "POST" && url.includes("/assets?name=")) { uploads.push(decodeURIComponent(url.split("name=")[1] ?? "")); return { status: 201, json: async () => ({}) }; }
+    return { status: 204, json: async () => ({}) };
+  };
+  return { fetch, calls, uploads };
+}
+
+test("publish attaches every signed file to a new release, and never replaces a release that exists", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pub-"));
+  for (const f of ["stable.json", "stable.json.sig", "vyre.tgz", "feed.json", "releases.json"]) fs.writeFileSync(path.join(dir, f), f);
+  const gh = fakeGithub();
+  const r = await publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0", dir, prerelease: false, notes: "n", fetch: gh.fetch });
+  assert.deepEqual(r.attached, ["stable.json", "stable.json.sig", "vyre.tgz"], "feed.json and releases.json are build files, not release files");
+  assert.deepEqual(gh.uploads, ["stable.json", "stable.json.sig", "vyre.tgz"]);
+  await assert.rejects(publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0", dir, prerelease: false, notes: "n", fetch: fakeGithub(["v1.0.0"]).fetch }), /already has a release/);
+});
+
+test("the rolling release is created on first use and its same-named assets are replaced", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pub-"));
+  fs.writeFileSync(path.join(dir, "beta.json"), "x");
+  const first = fakeGithub();
+  await updateRolling({ repo: "o/r", token: "tok", dir, channel: "beta", fetch: first.fetch });
+  assert.ok(first.calls.some((c) => c === "POST /repos/o/r/releases"), "created");
+  const again = fakeGithub(["channel-beta"]);
+  fs.writeFileSync(path.join(dir, "stable.json"), "x");
+  await updateRolling({ repo: "o/r", token: "tok", dir, channel: "beta", fetch: again.fetch });
+  assert.ok(!again.calls.some((c) => c === "POST /repos/o/r/releases"), "not created again");
+  assert.ok(again.calls.includes("DELETE /repos/o/r/releases/assets/900"), "the asset of the same name was replaced");
 });

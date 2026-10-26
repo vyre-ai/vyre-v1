@@ -15,6 +15,7 @@ import type { FeedEntry, Releases, UpdateChannel } from "./channels.ts";
 import { assetsFor, feedBase } from "./feed.ts";
 import { APP_TARBALL, EXTENSION_ZIP, KITS_TARBALL, packExtension, packFolder, packServer, releasesFrom } from "./pack.ts";
 import type { ImageKey } from "./pack.ts";
+import { GithubReleases, publishRelease, updateRolling } from "./publish.ts";
 import { smokeRelease } from "./smoke.ts";
 import { lineage, newestStable } from "./lineage.ts";
 import { SIGNING_KEY_ENV, keyId, publicKeyHexOf } from "./sign.ts";
@@ -102,6 +103,24 @@ export function main(argv: string[]): number {
   } catch (e) { console.error(`release: ${e instanceof Error ? e.message : "failed"}`); return 1; }
 }
 
+/** publish <dir> | rolling <dir> <channel> | unpublish <tag>: GitHub Releases over the REST API (repo from GITHUB_REPOSITORY, token from GH_TOKEN, tag from TAG). */
+export async function publishMain(argv: string[]): Promise<number> {
+  const [cmd, a, b] = argv;
+  const repo = process.env["GITHUB_REPOSITORY"] ?? "", token = process.env["GH_TOKEN"] ?? "", tag = process.env["TAG"] ?? "";
+  if (repo === "" || token === "") { console.error("release: GITHUB_REPOSITORY and GH_TOKEN are needed"); return 2; }
+  try {
+    if (cmd === "publish" && a) {
+      const channel = process.env["CHANNEL"] ?? "stable";
+      const r = await publishRelease({ repo, token, tag, dir: a, prerelease: channel !== "stable", notes: `Release ${tag}. Signed manifests: ${channel}.json and ${channel}.json.sig.` });
+      console.log(`release: attached ${r.attached.join(", ")} to ${tag}`);
+      return 0;
+    }
+    if (cmd === "rolling" && a && b) { const r = await updateRolling({ repo, token, dir: a, channel: b }); console.log(`release: channel-${b} now has ${r.attached.join(", ")}`); return 0; }
+    if (cmd === "unpublish" && a) { console.log((await new GithubReleases(repo, token).remove(a)) ? `release: deleted the release of ${a}` : `release: no release of ${a}`); return 0; }
+    console.error("usage: publish <dir> | rolling <dir> <channel> | unpublish <tag>"); return 2;
+  } catch (e) { console.error(`release: ${e instanceof Error ? e.message : "failed"}`); return 1; }
+}
+
 /** smoke <base> <stable|beta|nightly> <public-key-hex> <version>: asynchronous, so it is not a case of main(). */
 export async function smokeMain(argv: string[]): Promise<number> {
   const [, base, channel, key, version] = argv;
@@ -116,5 +135,6 @@ export async function smokeMain(argv: string[]): Promise<number> {
 if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const args = process.argv.slice(2);
   if (args[0] === "smoke") void smokeMain(args).then((code) => process.exit(code));
+  else if (args[0] === "publish" || args[0] === "rolling" || args[0] === "unpublish") void publishMain(args).then((code) => process.exit(code));
   else process.exit(main(args));
 }
