@@ -15,6 +15,8 @@ export interface ChatsNav {
   openSearch(): void;
   openSpaceSwitcher(): void;
   openNewChannel(): void;
+  /** Hides the sidebar (the panel button in its header). Left out where the shell keeps the sidebar always. */
+  toggleSidebar?(): void;
 }
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }

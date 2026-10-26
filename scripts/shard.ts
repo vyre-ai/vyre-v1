@@ -65,7 +65,11 @@ export function shardFiles(files: string[], timings: Timings, slow: SlowEntry[],
 /** The select job's output: plain jobs, not matrix-expanded workflows. */
 export function toMatrix(s: Shards): { include: { name: string; files: string; slow: boolean; runner: "hosted" | "v1" | "v1-perf" }[] } {
   const perf = s.slow.filter((j) => j.perf);
-  const plain = [...s.slow.filter((j) => !j.perf)].sort((a, b) => b.capSec - a.capSec || (a.file < b.file ? -1 : 1));
+  // A *.heavy.test file (it boots Docker containers or a daemon with its own wait of seconds) gets a job to itself: next to seven other files running in parallel it starved and failed its
+  // "did not start in 12 s" wait (images/vyred/smoke.heavy.test.ts on slow-1, #661). It stays on the v1 runners.
+  const isHeavy = (j: { file: string; heavy?: boolean }): boolean => j.heavy === true || /\.heavy\.test\./.test(j.file);
+  const heavy = s.slow.filter((j) => !j.perf && isHeavy(j));
+  const plain = [...s.slow.filter((j) => !j.perf && !isHeavy(j))].sort((a, b) => b.capSec - a.capSec || (a.file < b.file ? -1 : 1));
   const groups = Array.from({ length: Math.ceil(plain.length / SLOW_FILES_PER_JOB) }, () => ({ files: [] as string[], cap: 0 }));
   for (const j of plain) {   // longest cap first into the group with the least total cap
     let best = groups[0]!;
@@ -76,6 +80,7 @@ export function toMatrix(s: Shards): { include: { name: string; files: string; s
     include: [
       ...s.fast.map((b, i) => ({ name: `fast-${i + 1}`, files: b.files.join(" "), slow: false, runner: "hosted" as const })),
       ...groups.map((g, i) => ({ name: `slow-${i + 1}`, files: g.files.sort().join(" "), slow: true, runner: "v1" as const })),
+      ...heavy.map((j, i) => ({ name: `heavy-${i + 1}`, files: j.file, slow: true, runner: "v1" as const })),
       ...perf.map((j, i) => ({ name: `perf-${i + 1}`, files: j.file, slow: true, runner: "v1-perf" as const })),
     ],
   };

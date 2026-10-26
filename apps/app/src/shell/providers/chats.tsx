@@ -1,43 +1,17 @@
-// Chats in the shell (spec 3.2): the sidebar on the left, the open conversation in the middle, the agent's pane on the right when it is toggled on. The open chat is this place's own
-// state (a click in the sidebar, a helper or a thread in the pane changes it); until one is picked the place opens the newest chat the Space has. Before the Space's runtime exists the
-// place draws its loading frame (sidebar rows and a conversation skeleton), the size of the real one.
-import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
+// Chats in the shell (spec 3.2): the sidebar on the left, the open page in the middle (a conversation, the Needs you page, an agent's page, a helper's chat), the agent's pane or a
+// terminal on the right, and the computer popup, the recording sheet, Connect an outside agent, All agents and the terminal list and rules over it. The composition lives in
+// places/chats/mounts (ChatsMounted); this file gives it the runtime of the open Space and the link another place opened Chats with (`screen=chats.agent-page&agentId=...`).
+// Before the Space's runtime exists the place draws its loading frame (sidebar rows and a conversation skeleton), the size of the real one.
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
-import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
-import type { CapMap } from "../../../../../generated/types.ts";
-import { ChatsSidebar, ChatsSidebarLoading } from "../../places/chats/sidebar/ChatsSidebar.tsx";
-import { LOCAL_PREFIX } from "../../places/chats/sidebar/model.ts";
-import { Conversation, ConversationLoading } from "../../places/chats/conversation/Conversation.tsx";
-import { ChatRightPane } from "../../places/chats/rightpane/ChatRightPane.tsx";
-import type { Principal } from "../../places/home/sections-a/data.tsx";
-import { conversationData, paneData, sidebarData } from "./chats-data.ts";
-import type { ChatsActions } from "./chats-data.ts";
+import { ChatsSidebarLoading } from "../../places/chats/sidebar/ChatsSidebar.tsx";
+import { ConversationLoading } from "../../places/chats/conversation/Conversation.tsx";
+import { ChatsMounted, PANE_W, SIDEBAR_W } from "../../places/chats/mounts/ChatsMounted.tsx";
+import { useOptionalHub } from "../spaces/context.tsx";
 import { useOptionalShellRuntime } from "./runtime.tsx";
-import type { ShellRuntime } from "./runtime.tsx";
 
-type RecentOut = CapMap["chat.recent"]["out"];
-type ThreadOut = CapMap["threads.get"]["out"];
-
-export const SIDEBAR_W = 264;
-export const PANE_W = 340;
-
-const NO_PEOPLE: Principal[] = [];
-const NEVER: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "loading" }) };
-function useLive<T>(q: LiveQuery<T> | null): QueryState<T> {
-  const live = (q ?? NEVER) as LiveQuery<T>;
-  return useSyncExternalStore(live.subscribe, live.getSnapshot, live.getSnapshot);
-}
-
-/** The newest chat or channel the Space has, in the order the sidebar lists them. */
-export function newestThread(recent: RecentOut | undefined): string | null {
-  if (!recent) return null;
-  for (const g of [recent.starred, recent.today, recent.yesterday, recent.earlier]) {
-    const first = g.find((i) => !i.threadId.startsWith(LOCAL_PREFIX));
-    if (first) return first.threadId;
-  }
-  return null;
-}
+export { newestThread } from "../../places/chats/mounts/route.ts";
+export { PANE_W, SIDEBAR_W };
 
 export function ChatsLoading(): ReactElement {
   return (
@@ -48,51 +22,16 @@ export function ChatsLoading(): ReactElement {
   );
 }
 
-function ChatsView({ rt }: { rt: ShellRuntime }): ReactElement {
-  const [picked, setPicked] = useState<string | null>(null);
-  const [pane, setPane] = useState(false);
-  const recent = useLive(useMemo(() => rt.screens.query("chats.sidebar", "recent", { filter: "all" }) as LiveQuery<RecentOut>, [rt]));
-  const principals = useLive<Principal[]>(rt.principals);
-  const list = principals.status === "ready" ? principals.data : NO_PEOPLE;
-  const threadId = picked ?? newestThread(recent.status === "ready" ? recent.data : undefined);
-
-  const actions = useMemo<ChatsActions>(() => ({
-    openThread: (id) => { if (!id.startsWith(LOCAL_PREFIX)) setPicked(id); },
-    togglePane: () => setPane((v) => !v),
-    openAgentChat: (agentId) => {
-      void rt.call("chat.start", { kind: "chat", agentIds: [agentId] }).then((out) => {
-        const id = (out as { thread?: { threadId?: string } } | null)?.thread?.threadId;
-        if (id) setPicked(id);
-      }, () => undefined);
-    },
-    fillComposer: () => undefined,
-  }), [rt]);
-
-  const side = useMemo(() => sidebarData(rt, actions), [rt, actions]);
-  const conv = useMemo(() => (threadId ? conversationData(rt, actions, threadId, list) : null), [rt, actions, threadId, list]);
-  const thread = useLive(useMemo(() => (threadId ? (rt.screens.query("chats.conversation", "thread", { threadId }) as LiveQuery<ThreadOut>) : null), [rt, threadId]));
-  const lead = thread.status === "ready" ? (thread.data.thread.agents.find((a) => a.mode === "lead") ?? thread.data.thread.agents[0]) : undefined;
-  const agent = lead ? { agentId: lead.agentId, name: list.find((p) => p.id === lead.agentId)?.name ?? lead.agentId } : { agentId: rt.assistant.id, name: rt.assistant.name };
-  const paneCtx = useMemo(() => (threadId ? paneData(rt, actions, threadId, agent) : null), [rt, actions, threadId, agent.agentId, agent.name]); // eslint-disable-line react-hooks/exhaustive-deps -- the agent is read by id and name
-
-  const toggle = useCallback(() => setPane((v) => !v), []);
-  return (
-    <View testID="chats-place" style={st.row}>
-      <View style={st.side}><ChatsSidebar data={side} /></View>
-      <View style={st.main}>{conv ? <Conversation key={conv.threadId} data={conv} /> : <ConversationLoading />}</View>
-      {pane && paneCtx ? <View style={st.pane}><ChatRightPane data={paneCtx} open onToggle={toggle} /></View> : null}
-    </View>
-  );
-}
-
 export default function ChatsPlace(): ReactElement {
   const rt = useOptionalShellRuntime();
-  return rt ? <ChatsView rt={rt} /> : <ChatsLoading />;
+  const hub = useOptionalHub();
+  // The shell keys the place by its link, so the link read here is the one this instance was opened with.
+  const hash = hub ? hub.state().hash : "";
+  return rt ? <ChatsMounted rt={rt} hash={hash} /> : <ChatsLoading />;
 }
 
 const st = StyleSheet.create({
   row: { flex: 1, flexDirection: "row", minHeight: 0, backgroundColor: "var(--win)" as string },
   side: { width: SIDEBAR_W, minHeight: 0 },
   main: { flex: 1, minWidth: 0, minHeight: 0 },
-  pane: { width: PANE_W, minHeight: 0 },
 });

@@ -73,7 +73,7 @@ export function createGateway(deps: GatewayDeps): (req: GatewayReq) => Promise<G
       }
       const seed: CtxSeed = {
         space: session.space, principal: session.principal, actingFor: session.actingFor, device: session.device, provider: session.provider,
-        run: session.run, thread: session.thread, origin: session.origin, v: route.v, preAuth: caller !== "principal",
+        run: session.run, thread: session.thread, origin: session.origin === "mcp" ? "mcp" : "user", v: route.v, preAuth: caller !== "principal",
         ...(incoming ? { trace: incoming } : {}),
       };
       const r = await deps.invoke(route.cap, input, seed);

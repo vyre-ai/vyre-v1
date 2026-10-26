@@ -48,7 +48,7 @@ export function NeedsYouTop3(): ReactElement {
         key={row.id} rowKey={`need:${row.id}`} label={`${row.title}, ${row.kind}`} onOpen={open}
         onMenu={(x, y) => menu.show(needsMenu(item, row, (k) => act(item, k, item.task.actions.find((a) => a.key === k)?.label ?? k), open), x, y, "context", { label: row.title })}
       >
-        <Face name={name(row.requester)} kind={kindOf({ kind: "agent", id: row.requester })} size={26} />
+        <Face name={name(row.requester)} seedId={row.requester} kind={kindOf({ kind: "agent", id: row.requester })} size={26} />
         <RowText
           title={row.title}
           sub={<><Text style={tone[row.tone]}>{row.kind}</Text>{row.sub ? ` · ${row.sub}` : ""}</>}

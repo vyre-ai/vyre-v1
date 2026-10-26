@@ -3,6 +3,7 @@
 // DECISION: a value leaves the vault only through fill. The place it goes is a sink the host registers per kind (configureVault); a server with no sink for a kind refuses (internal.unavailable) instead of pretending.
 // The one exception is returnValue: a person at View level (never an agent) may ask for the value back; the call is logged as a use like any other.
 // DECISION: an export is sealed by the filler when the link is made; the database keeps only the hash of the pull token. exportPull is what the pull route calls; the route itself belongs to the gateway.
+import { isSystemCall } from "../../../lib/trust.ts";
 import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -283,6 +284,7 @@ export async function exportsRevoke(ctx: VaultCtx, input: { exportId: string }) 
 
 export async function reportScrubMiss(ctx: VaultCtx, input: { itemId: string; place: string; traceId: string }) {
   ensure(ctx);
+  if (!isSystemCall(ctx)) denied(ctx, "Only the filler reports a value it could not scrub.");   // a member could otherwise raise false scrub-miss alarms on any item
   if (!isId("vit", input.itemId)) bad(ctx, "Item id is not valid.");
   if (!["terminal", "http", "browser", "file", "chat"].includes(input.place)) bad(ctx, "That place is not known.");
   if (typeof input.traceId !== "string" || !/^[0-9a-f]{32}$/.test(input.traceId)) bad(ctx, "The trace id is not valid.");

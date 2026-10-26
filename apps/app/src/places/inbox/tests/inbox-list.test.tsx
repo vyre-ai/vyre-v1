@@ -22,7 +22,7 @@ const at = (s: string, needle: string): number => {
   assert.ok(i >= 0, `expected ${needle}`);
   return i;
 };
-const lines = (out: string): string[] => [...out.matchAll(/data-testid="row-line:([^"]+)"/g)].map((m) => m[1]!).filter((k) => !k.endsWith("-leading") && !k.endsWith("-trailing"));
+const lines = (out: string): string[] => [...out.matchAll(/data-testid="row-line:([^"]+)"/g)].map((m) => m[1]!).filter((k) => !k.endsWith("-leading") && !k.endsWith("-trailing") && !k.endsWith("-suffix") && !k.endsWith("-marks") && !k.endsWith("-notelead"));
 const items = (entries: readonly MenuEntry[]): MenuItem[] => entries.filter(isItem);
 
 test("screen: By contact lists one line per person, newest first, unmatched senders on top", () => {
@@ -131,7 +131,7 @@ test("the sidebar counts unread conversations per inbox, once each", () => {
   assert.equal(data.needsMatch, 2);
   const groups = navGroups(northwind.mailboxes, data);
   assert.deepEqual(groups.map((g) => [g.label, g.items.map((i) => i.label)]), [
-    ["Mine", ["Work Gmail", "Personal", "+1 415 555 0132", "+1 415 555 0177"]], ["Shared", ["hello@", "support@"]], ["Agents", ["intake@"]],
+    ["Mine", ["Work Gmail", "Personal", "+1 415 555 0132", "+1 415 555 0177"]], ["Shared", ["hello@", "support@", "Client portal"]], ["Agents", ["intake@"]],
   ]);
   assert.ok(groups[0]!.items[1]!.lock, "a private mailbox shows its lock");
 });

@@ -1,5 +1,6 @@
 // Audit capabilities (spec 2.25, ARCH 4.1). Reads are open to audit.read (the invoke pipeline checks it); viewing the log is itself an audit row, written here because
 // list and get are low risk and the pipeline only audits medium and above. verify and export are `audit: always`, so the pipeline writes their rows.
+import { isSystemCall } from "../../../lib/trust.ts";
 import { checkpointBytes } from "../../../kernel/src/audit/index.ts";
 import type { AuditCtx, CheckpointRec, Filter, Klass, Ref, ResRef, RowRec } from "../projections.ts";
 import {
@@ -86,6 +87,7 @@ export async function archivesList(ctx: AuditCtx, _input: Record<string, never>)
 // ---- system halves
 
 export async function checkpoint(ctx: AuditCtx, _input: Record<string, never>) {
+  if (!isSystemCall(ctx)) raise(ctx, "permission.no_grant", "This is for the server and for other modules, not for a direct call.");
   if (!ctx.signer) raise(ctx, "internal.not_implemented", "no checkpoint signing key is wired");
   const head = headOf(ctx);
   const have = ctx.db.all(`SELECT * FROM audit_checkpoint WHERE seq = ?`, head.seq)[0] as CheckpointRec | undefined;
@@ -99,6 +101,8 @@ export async function checkpoint(ctx: AuditCtx, _input: Record<string, never>) {
 }
 
 export async function append(ctx: AuditCtx, input: { action: string; class: Klass; resource?: ResRef; onBehalfOf?: Ref; detail?: unknown }) {
+  // a row a module audits by hand: only a module (a nested call) or the server may write one; a person typing the URL could otherwise forge entries and who they were made on behalf of
+  if (!isSystemCall(ctx)) raise(ctx, "permission.no_grant", "This is for the server and for other modules, not for a direct call.");
   const action = input.action.trim();
   if (action.length === 0 || action.length > 200) raise(ctx, "validation.bad_input", "an audit action is 1 to 200 characters");
   const out = appendRow(ctx, {
@@ -110,6 +114,8 @@ export async function append(ctx: AuditCtx, input: { action: string; class: Klas
 
 /** Move rows older than `before` into the encrypted archive file, oldest first, and keep the chain verifiable through an anchor on the last row that moved. */
 export async function archive(ctx: AuditCtx, input: { before: number }) {
+  // archiving moves rows out of the log everyone reads: with a cutoff in the future it would hide the whole trail, so only retention (a nested call) and the server may
+  if (!isSystemCall(ctx)) raise(ctx, "permission.no_grant", "This is for the server and for other modules, not for a direct call.");
   if (!ctx.archive) raise(ctx, "internal.not_implemented", "no archive store is wired");
   const old: RowRec[] = [];
   for (let after = 0; old.length < ARCHIVE_MAX;) {

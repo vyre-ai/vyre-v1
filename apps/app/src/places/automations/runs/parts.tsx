@@ -74,9 +74,9 @@ function hueOf(name: string): number {
   return (h % 12) * 30;
 }
 
-/** A person is a circle, an agent a rounded square; the colour comes from the name. */
-export function Face({ name, kind = "person", size = 24 }: { name: string; kind?: string; size?: number }): ReactElement {
-  const hue = hueOf(name);
+/** A person is a circle, an agent a rounded square; the colour comes from the id (the name when no id is passed). */
+export function Face({ name, seedId, kind = "person", size = 24 }: { name: string; seedId?: string | undefined; kind?: string; size?: number }): ReactElement {
+  const hue = hueOf(seedId !== undefined && seedId !== "" ? seedId : name);
   return (
     <View aria-hidden style={{ width: size, height: size, borderRadius: kind === "person" ? size : Math.round(size * 0.3), backgroundColor: `hsla(${hue}, 65%, 52%, 0.22)` as string, alignItems: "center", justifyContent: "center" }}>
       <Text style={{ color: `hsl(${hue}, 55%, 46%)` as string, fontSize: Math.max(9, Math.round(size * 0.48)), fontWeight: "600" }}>{(name.trim()[0] ?? "?").toUpperCase()}</Text>

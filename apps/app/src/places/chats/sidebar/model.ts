@@ -37,6 +37,8 @@ export interface ChatRow {
   threadId: string;
   title: string;
   who: string;
+  /** The agent's id when the chat is with an agent: the face is seeded by it. */
+  whoId?: string | undefined;
   kind: "person" | "agent";
   unread: number;
   working: boolean;
@@ -52,6 +54,7 @@ export function rowOf(item: RecentItem, agentName: (id: string) => string): Chat
     threadId: item.threadId,
     title: item.title,
     who: agent !== undefined ? agentName(agent) : item.title,
+    ...(agent !== undefined ? { whoId: agent } : {}),
     kind: agent !== undefined ? "agent" : "person",
     unread: item.unread,
     working: item.working,
@@ -77,6 +80,14 @@ export function groupRecent(recent: RecentOut, local: readonly ChatRow[], agentN
 /** The server filters; this is the same rule for rows already on the device (a local row with no agent counts as People). */
 export function matchesFilter(row: ChatRow, f: Filter): boolean {
   return f === "all" || (f === "unread" && row.unread > 0) || (f === "people" && row.kind === "person") || (f === "agents" && row.kind === "agent");
+}
+
+/** The shared search field: a row stays when every word of the query is in one of its texts (case-insensitive). An empty query keeps everything. */
+export function matchesQuery(query: string, ...texts: readonly string[]): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const hay = texts.join(" ").toLowerCase();
+  return words.every((w) => hay.includes(w));
 }
 
 /** Counts for the filter menu, from the unfiltered answer. */

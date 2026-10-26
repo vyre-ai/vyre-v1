@@ -5,6 +5,7 @@
 //   mcp.tools.list / tool.search / tool.describe / toolsets.list / health   the generated tool list as this caller may see it
 // Nothing stored is a secret: tokens are kept as SHA-256 and shown once. Access (who the actor is, revoking it) belongs to the access module: it creates the actor principal when it sees
 // token.registered, and calls revokeActor (projections.ts) when it emits token.revoked. Every call the server makes still goes through the invoke pipeline as the actor acting for the person.
+import { isSystemCall } from "../../../lib/trust.ts";
 import { searchTools, toolsFor } from "../../../agent/src/tools/access.ts";
 import type { AccessDeps } from "../../../agent/src/tools/access.ts";
 import type { ToolCtx, ToolDef } from "../../../agent/src/tools/types.ts";
@@ -130,6 +131,8 @@ export async function sessionOpen(ctx: McpCtx, input: { token: string; clientNam
 }
 
 export async function sessionMint(ctx: McpCtx, input: { principal: string; actingFor: string; threadId: string; runId?: string; traceId: string; ttlSec?: number }) {
+  // a session token acts as the principal it names, for the person it names: minting one is the host's act (the engine seam drives a CLI engine through it). A member who could name any principal here would be that principal.
+  if (!isSystemCall(ctx)) raise(ctx, "permission.no_grant", "Only the server can mint a session for an engine.");
   ensure(ctx.db);
   const now = ctx.now();
   const ttl = Math.min(86_400, Math.max(60, input.ttlSec ?? DEFAULT_SESSION_TTL_SEC));

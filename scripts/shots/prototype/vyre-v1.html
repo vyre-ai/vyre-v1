@@ -6589,6 +6589,14 @@ kbd { font: 500 11px/16px var(--ui); color: var(--ink-3); padding: 0 4px; border
       return `&lt;button class="trow" style="padding-left:${pad + 14}px" data-file="${fid}" data-r="afile" data-id="${fid}" title="${esc(x.desc || "")}"&gt;${path === "agent.toml" ? IF.cfg : IF.doc}&lt;span class="tnm"&gt;${esc(x.name)}&lt;/span&gt;${x.desc &amp;&amp; /^routines\//.test(path) ? `&lt;span class="tcnt"&gt;${esc(x.desc)}&lt;/span&gt;` : ""}${/^logs\//.test(path) ? `&lt;span class="tlk" title="Read only"&gt;${I.lock}&lt;/span&gt;` : ""}&lt;/button&gt;`;
     }).join("");
   }
+  /* screenshot hashes for the agent's own files (P-L9e_03, ruling 42): agent-md opens AGENT.md and toml-form opens agent.toml in the file pane, in edit mode */
+  setTimeout(() => { try {
+    const hs = (location.hash || "").slice(1).split(","), tok = ["agent-md", "toml-form"].find((t) => hs.includes(t));
+    if (!tok) return;
+    const fid = ensureFile("Intake", tok === "agent-md" ? "AGENT.md" : "agent.toml");
+    if (ui.fvMode) ui.fvMode[fid] = "edit";
+    openFile(fid, "pane"); renderAll();
+  } catch (e) { console.error("prototype hash " + e); } }, 600);
   function settingsHtml(a) {
     const n = a.n, c = (ui.cfgDraft &amp;&amp; ui.cfgDraft[n]) || cfgOf(n), cnt = mdLines(n), pend = Object.entries(S.agentEdits || {}).filter(([, e]) =&gt; e.agent === n &amp;&amp; e.state === "open");
     const ops = cfgChanged(n) ? lineDiff(tomlText(n, cfgOf(n)), tomlText(n, c)) : null;
@@ -7440,6 +7448,8 @@ kbd { font: 500 11px/16px var(--ui); color: var(--ink-3); padding: 0 4px; border
     if (k === "chat" &amp;&amp; chat(id)) ui.sel = { k: "chat", id }; else if (k === "channel" &amp;&amp; chan(id)) ui.sel = { k: "chan", id }; else if (k === "needs") ui.sel = { k: "needs" }; else if (k === "files") ui.sel = { k: "files" }; else if (h === "demo-helper") { ui.sel = { k: "helper", id: "h1" }; } else if (/^demo-popup/.test(h)) { ui.sel = { k: "chat", id: "c1" }; if (/take|rec|sheet/.test(h)) ui.comp = { mode: "take", sel: null }; setTimeout(function () { openBig(); if (/rec|sheet/.test(h)) setTimeout(function () { var b = document.querySelector("[data-rec]"); if (b) b.click(); }, 300); if (/sheet/.test(h)) setTimeout(function () { var b = document.querySelector("[data-rec]"); if (b) b.click(); }, 1800); }, 150); } else if (h === "demo-plan") { ui.sel = { k: "chat", id: "c1" }; setTimeout(() =&gt; { openFile("plan1", "pane"); renderAll(); }, 30); } else if (h === "demo-markup") { ui.sel = { k: "chat", id: "c2" }; setTimeout(() =&gt; { openFile("img2", "pane"); ui.annot.img2 = { strokes: [[[.12, .7], [.2, .74], [.3, .72], [.38, .76]]], boxes: [{ x: .08, y: .32, w: .44, h: .32, text: "Is this offer still live?" }], tool: "box" }; renderAll(); }, 30); } else if (h === "demo-tabs") { ui.sel = { k: "chat", id: "c1" }; setTimeout(() =&gt; { openFile("pdf1", "pane"); openSide("t:intake:1"); openSide("c:d1"); openSide("a:Intake"); ui.ftab = "t:intake:1"; renderAll(); }, 30); } else if (h === "demo-review") { ui.sel = { k: "chat", id: "c4" }; setTimeout(() =&gt; { act("ok", "n2"); renderAll(); }, 30); } else if (k === "thread" &amp;&amp; chan(id)) { ui.sel = { k: "chan", id }; ui.chanThread = 1; } else if (k === "file" &amp;&amp; S.files[id]) ui.sel = { k: "file", id }; else if (k === "split" &amp;&amp; S.files[id]) { ui.sel = { k: "chat", id: id === "csv1" || id.startsWith("img") ? "c2" : id === "doc1" ? "c4" : "c1" }; setTimeout(() =&gt; { openFile(id, "pane"); renderAll(); }, 30); } else if (k === "fullchat" &amp;&amp; S.files[id]) { ui.sel = { k: "file", id }; ui.fvChat = true; } else if (k === "helper" &amp;&amp; S.helpers[id]) ui.sel = { k: "helper", id }; else if (k === "new") ui.sel = { k: "new", agent: "Assistant" };
     if (h === "newagent") setTimeout(startCreateAgent, 40);
     if (h === "agentnative") setTimeout(openAgentNative, 60);
+    if (h === "demo-terminal") setTimeout(function () { ui.sel = { k: "chat", id: "c1" }; openTerminal("agent", "Intake"); }, 60);
+    if (h === "demo-waiting") setTimeout(function () { ui.sel = { k: "chan", id: "rivera" }; var wi = S.chan.rivera.findIndex(function (m) { return m.thread && m.thread.waiting; }); if (wi !== -1) { openSide("t:rivera:" + wi); } renderAll(); }, 60);
     if (/^demo-(whathappened|modelswitch|hash|third|ask|needs7|needs6|ansperson)$/.test(h)) setTimeout(() =&gt; {
       const typ = (v) =&gt; { const ta = $("ta"); if (!ta) return; ta.value = v; ta.focus(); ta.setSelectionRange(v.length, v.length); ta.dispatchEvent(new Event("input")); };
       if (h === "demo-whathappened") { ui.sel = { k: "chat", id: "c5" }; S.msgs.c5[1].err.open = true; renderAll(); }
@@ -16140,6 +16150,9 @@ mark.wd { color: inherit; border-radius: 3px; padding: 1px 0; } .dfr.add mark.wd
     const hs = (location.hash || "").slice(1).split(","), has = (t) =&gt; hs.includes(t);
     if (has("runbook")) { go("rb"); openFile("rb-deploy", "full"); }
     else if (has("runbook-ran")) { go("rb"); const f = N["rb-deploy"]; rbSeedRan(f); ui.col["rb-deploy"] = "versions"; openFile("rb-deploy", "full"); renderAll(); }
+    else if (has("starred")) { ui.main = { k: "starred" }; renderAll(); }
+    else if (has("rivera")) { go("pj-rivera"); ui.open["pj"] = true; ui.open["pj-rivera"] = true; renderAll(); }
+    else if (has("agents-open")) { ui.open["ag"] = true; ui.open["pj"] = true; renderAll(); }
     else if (has("noteedit")) { go("rb"); ui.vmode["rb-deploy"] = "edit"; openFile("rb-deploy", "full"); renderAll(); }
     else if (has("runbook-fail")) { go("rb"); const f = N["rb-deploy"]; rbOf(f.id).where = "Intake"; openFile("rb-deploy", "full"); setTimeout(() =&gt; rbAll(f), 200); }
   }, 190);

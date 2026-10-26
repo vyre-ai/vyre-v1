@@ -7764,6 +7764,13 @@
             "pattern": "^chg_[a-z0-9]+$",
             "type": "string"
           },
+          "context": {
+            "enum": [
+              "hunks",
+              "full"
+            ],
+            "type": "string"
+          },
           "mode": {
             "enum": [
               "unified",
@@ -34467,7 +34474,7 @@
       "blocks": [],
       "cap": "projects.share_out",
       "deferred": false,
-      "description": "Make a read-only link to the project Overview for a client",
+      "description": "Make a read-only link to the project Overview for a client; it expires in 30 days unless expiresAt or expiresInDays says otherwise",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -34477,6 +34484,11 @@
               1760000000000
             ],
             "minimum": 0,
+            "type": "integer"
+          },
+          "expiresInDays": {
+            "maximum": 365,
+            "minimum": 1,
             "type": "integer"
           },
           "idempotencyKey": {
@@ -34640,6 +34652,39 @@
         "type": "object"
       },
       "name": "projects_unpin_file",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.unshare_out",
+      "deferred": false,
+      "description": "Revoke a read-only link to the project Overview; the link answers not found at once",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "url": {
+            "examples": [
+              "/share/project/a1b2c3"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "url"
+        ],
+        "type": "object"
+      },
+      "name": "projects_unshare_out",
       "planMode": "blocked",
       "toolset": "records",
       "v": 1

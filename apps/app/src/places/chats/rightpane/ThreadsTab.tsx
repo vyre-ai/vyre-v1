@@ -47,7 +47,7 @@ export function ThreadsTab({ deps, window }: { deps: PaneDeps; window?: VirtualW
   }
   entries.push({ key: "l-chats", type: "label", text: "Its chats" });
   if (g.chats.length === 0) entries.push({ key: "no-chats", type: "empty", text: "No chats yet.", testID: "chats-empty" });
-  for (const t of g.chats) entries.push({ key: `c-${t.threadId}`, type: "row", title: t.title ?? "New chat", note: chatWhen(t.createdAt, clock), leading: <Face name={data.agent.name} size={16} />, selected: t.threadId === data.threadId, onPress: () => data.nav.openThread(t.threadId, "here"), trailing: (over) => (over ? side(t) : null), menu: menu(t), testID: `chat-${t.threadId}` });
+  for (const t of g.chats) entries.push({ key: `c-${t.threadId}`, type: "row", title: t.title ?? "New chat", note: chatWhen(t.createdAt, clock), leading: <Face name={data.agent.name} seedId={data.agent.agentId} size={16} />, selected: t.threadId === data.threadId, onPress: () => data.nav.openThread(t.threadId, "here"), trailing: (over) => (over ? side(t) : null), menu: menu(t), testID: `chat-${t.threadId}` });
   if (g.worked.length === 0 && g.helpers.length === 0) entries.splice(0, 0, { key: "none-worked", type: "empty", text: `${data.agent.name} has not worked in a thread here yet.`, testID: "threads-empty" });
   return <PaneList entries={entries} {...(window ? { window } : {})} testID="threads-list" />;
 }
