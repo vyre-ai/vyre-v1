@@ -27,7 +27,7 @@ function Row({ r, title, note, selected, person, badge, names, onOpen, onMenu }:
     <View testID={`list-${r.id}`} style={l.cell} {...(trig as object)}>
       <UiRow
         id={`rec-${r.id}`} title={title} note={note} selected={selected}
-        leading={<View style={l.face}>typeof person === "string" && person !== "" ? <Avatar name={names(person)} seedId={person} kind="person" size={24} testID={`face-${names(person)}`} /> : <Avatar name={title} seedId={r.id} kind="person" size={24} testID={`face-${title}`} /></View>}
+        leading={<View style={l.face}>{typeof person === "string" && person !== "" ? <Avatar name={names(person)} seedId={person} kind="person" size={24} testID={`face-${names(person)}`} /> : <Avatar name={title} seedId={r.id} kind="person" size={24} testID={`face-${title}`} />}</View>}
         {...(badge && typeof bv === "string" && bv !== "" ? { trailing: <Tag field={badge} value={bv} /> } : {})}
         onPress={onOpen}
       />
