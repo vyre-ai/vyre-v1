@@ -20159,7 +20159,8 @@
       "audit": "always",
       "effects": "write",
       "emits": [
-        "principal.created"
+        "principal.created",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -47154,7 +47155,8 @@
     {
       "effects": "write",
       "emits": [
-        "computer.given_back"
+        "computer.given_back",
+        "computer.recording_saved"
       ],
       "errors": [
         "internal.unexpected",
@@ -48883,7 +48885,8 @@
       "audit": "sensitive",
       "effects": "write",
       "emits": [
-        "computer.session_signed_out"
+        "computer.session_signed_out",
+        "computer.started"
       ],
       "errors": [
         "internal.unexpected",
@@ -49333,7 +49336,8 @@
       "audit": "sensitive",
       "effects": "write",
       "emits": [
-        "computer.takeover"
+        "computer.takeover",
+        "computer.started"
       ],
       "errors": [
         "internal.unexpected",
@@ -49710,7 +49714,9 @@
     {
       "effects": "write",
       "emits": [
-        "conflict.proposed"
+        "conflict.proposed",
+        "conflict.confirmation_needed",
+        "conflict.resolved"
       ],
       "errors": [
         "internal.unexpected",
@@ -51346,7 +51352,9 @@
     },
     {
       "effects": "read",
-      "emits": [],
+      "emits": [
+        "connection.needs_reconnect"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -52810,7 +52818,9 @@
     {
       "audit": "always",
       "effects": "outward",
-      "emits": [],
+      "emits": [
+        "connection.needs_reconnect"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -71161,7 +71171,9 @@
       "effects": "write",
       "emits": [
         "folder.deleted",
-        "item.moved"
+        "item.moved",
+        "grant.revoked",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -71318,7 +71330,8 @@
       "effects": "write",
       "emits": [
         "folder.moved",
-        "item.moved"
+        "item.moved",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -71404,7 +71417,8 @@
     {
       "effects": "write",
       "emits": [
-        "item.moved"
+        "item.moved",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -71541,7 +71555,8 @@
     {
       "effects": "write",
       "emits": [
-        "item.moved"
+        "item.moved",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -88017,7 +88032,8 @@
       "effects": "write",
       "emits": [
         "password.changed",
-        "keys.stored"
+        "keys.stored",
+        "signin.failed"
       ],
       "errors": [
         "auth.bad_credentials",
@@ -89939,7 +89955,8 @@
       "audit": "sensitive",
       "effects": "write",
       "emits": [
-        "factor.removed"
+        "factor.removed",
+        "signin.failed"
       ],
       "errors": [
         "auth.bad_credentials",
@@ -139742,7 +139759,11 @@
       "effects": "write",
       "emits": [
         "source.received",
-        "source.mapping_failed"
+        "source.mapping_failed",
+        "source.rejected",
+        "source.deduped",
+        "source.link_pending",
+        "source.linked"
       ],
       "errors": [
         "internal.unexpected",
@@ -145061,7 +145082,9 @@
     },
     {
       "effects": "read",
-      "emits": [],
+      "emits": [
+        "connection.needs_reconnect"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",

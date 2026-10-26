@@ -409,8 +409,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // The Gate hook, only once the Gate module is live (a stub answers with examples, which must never decide a send). Its questions and parked calls run as the Space itself.
       const gate = loaded.serving.get("gate") === "live"
         ? withGateNesting(createGateHook({
-          call: async (cap, input) => {
-            const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: owner() }, origin: "gate" });
+          call: async (cap, input, trace) => {
+            const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: owner() }, origin: "gate", ...(trace ? { trace } : {}) });
             if (r.status === "held") throw fail("internal.unavailable", r.traceId, { message: "Approvals are not available right now." });
             return r.output;
           },
