@@ -5,7 +5,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { LiveQuery } from "../../../../../client/src/index.ts";
 import type { ScreenHooks } from "../../../../../client/src/index.ts";
 import { createSample } from "../../places/chats/conversation/sample.ts";
+import type { ReactElement } from "react";
+import { ChatsSidebarSlot } from "../../places/chats/sidebar/ChatsSidebar.tsx";
 import { createSampleSidebar } from "../../places/chats/sidebar/sample.ts";
+import { SidebarContent } from "../sidebar/index.ts";
+import type { SidebarSlotApi } from "../sidebar/index.ts";
 import type { Principal } from "../../places/home/sections-a/data.tsx";
 import ChatsPlace, { newestThread } from "./chats.tsx";
 import { conversationData } from "./chats-data.ts";
@@ -39,7 +43,11 @@ const html = (rt: ShellRuntime | null): string =>
 test("chats: with a runtime the sidebar lists the Space's chats and the conversation shows the open thread", () => {
   const out = html(runtime().rt);
   assert.ok(out.includes('data-testid="chats-place"'));
-  assert.ok(out.includes("Competitor pricing") && out.includes("October invoices"), "the sidebar rows");
+  assert.ok(!out.includes('data-testid="chats-sidebar"'), "the sidebar is the shell's slot, not a frame in the place");
+  const el = ChatsSidebarSlot({ data: createSampleSidebar().data, window: { start: 0, end: 500 } }) as ReactElement<{ title: string; children: (q: string, slot: SidebarSlotApi) => ReactElement }>;
+  assert.equal(el.type, SidebarContent, "the place registers its sidebar in the shared slot");
+  const side = renderToStaticMarkup(el.props.children("", { query: "", collapsed: false, setCollapsed: () => undefined, hasSidebar: true, compact: false, openBody: () => undefined, back: () => undefined, view: "body", title: "Chats" })).replaceAll("<!-- -->", "");
+  assert.ok(side.includes("Competitor pricing") && side.includes("October invoices"), "the sidebar rows");
   assert.ok(out.includes("Tuesday has two openings"), "the conversation's messages");
   assert.ok(!out.includes("-loading"), "no loading frame once the Space is open");
 });

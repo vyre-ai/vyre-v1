@@ -13,7 +13,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 
 /** The release public key, 64 hex characters. Filled from the release job's `pubkey` output when the first release key exists. */
-export const RELEASE_PUBLIC_KEY_HEX = "";
+export const RELEASE_PUBLIC_KEY_HEX = "a21dbf67e93e65718d45529896455e13a4cb296b77f872b7af19ba81b094e8fa";
 export const RELEASE_REPO = "vyre-ai/vyre-v1";
 
 export type UpdateChannel = "stable" | "beta" | "nightly";
