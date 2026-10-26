@@ -41,3 +41,8 @@ test("emits-declared: a handler imported from another file of the module is foun
   const hits = checkEmitsDeclared("modules/files/handlers/index.ts", files["modules/files/handlers/index.ts"]!, caps, "files", resolve);
   assert.deepEqual(hits.map((h) => [h.cap, h.event, h.file, h.line]), [["folders.place", "folder.placed", "modules/files/handlers/tree.ts", 2]]);
 });
+
+test("emits-declared: an apostrophe in a comment does not stretch a handler over the rest of the file", () => {
+  const src = `export const h = {\n  "files.rename": async (ctx) => {\n    // it doesn't matter here\n    ctx.emit("file.renamed", "f", {});\n  },\n};\nfunction later(ctx) { ctx.emit("file.late", "f", {}); }\n`;
+  assert.deepEqual(run(src), []);
+});

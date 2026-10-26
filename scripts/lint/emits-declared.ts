@@ -13,6 +13,31 @@ import { matchDelim } from "./finding.ts";
 export type EmitFinding = { cap: string; event: string; file: string; line: number; message: string };
 type Cap = { name: string; module: string; emits?: string[] };
 
+/** The source with every comment blanked out (newlines kept, so line numbers hold): an apostrophe inside a comment must not open a string for the brace matcher. */
+export function stripComments(source: string): string {
+  let out = "";
+  let quote = "";
+  for (let i = 0; i < source.length; i++) {
+    const c = source[i]!;
+    if (quote) {
+      out += c;
+      if (c === "\\") { out += source[i + 1] ?? ""; i++; }
+      else if (c === quote) quote = "";
+      continue;
+    }
+    if (c === "/" && source[i + 1] === "/") { while (i < source.length && source[i] !== "\n") { out += " "; i++; } if (i < source.length) out += "\n"; continue; }
+    if (c === "/" && source[i + 1] === "*") {
+      const end = source.indexOf("*/", i + 2);
+      const stop = end < 0 ? source.length : end + 2;
+      for (; i < stop; i++) out += source[i] === "\n" ? "\n" : " ";
+      i--; continue;
+    }
+    if (c === "'" || c === "\"" || c === "`") quote = c;
+    out += c;
+  }
+  return out;
+}
+
 const lineOf = (source: string, index: number): number => source.slice(0, index).split("\n").length;
 
 /**
@@ -80,7 +105,8 @@ function emitsOf(fn: Fn, resolve: Resolver, depth = 3, seen = new Set<string>())
 
 export let HANDLERS_READ = 0;   // handlers whose body was found, printed so a lint that reads nothing cannot pass silently
 
-export function checkEmitsDeclared(file: string, source: string, caps: ReadonlyMap<string, Cap>, moduleId: string, resolve?: Resolver): EmitFinding[] {
+export function checkEmitsDeclared(file: string, rawSource: string, caps: ReadonlyMap<string, Cap>, moduleId: string, resolve?: Resolver): EmitFinding[] {
+  const source = stripComments(rawSource);
   const res: Resolver = resolve ?? ((id, f) => (f === file ? functionIn(file, source, id) : null));
   const out: EmitFinding[] = [];
   for (const key of source.matchAll(/(["'`])([a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+)\1\s*:\s*/g)) {
@@ -115,7 +141,7 @@ if (directRun()) {
   const reg = JSON.parse(fs.readFileSync(path.join(repo, "generated/registry.json"), "utf8")) as { capabilities: Cap[] };
   const caps = new Map(reg.capabilities.map((c) => [c.name, c]));
   const files = spawnSync("git", ["ls-files", "modules"], { cwd: repo, encoding: "utf8" }).stdout.split("\n").filter((f) => /^modules\/[^/]+\/.*\.ts$/.test(f) && !/\.test\.ts$|\/tests\/|\/fixtures\//.test(f));
-  const sources = new Map(files.map((f) => [f, fs.readFileSync(path.join(repo, f), "utf8")]));
+  const sources = new Map(files.map((f) => [f, stripComments(fs.readFileSync(path.join(repo, f), "utf8"))]));
   // A name resolves to a function in the same file, or in the file it is imported from (relative imports only): no module-wide guessing, so two unrelated functions called `list` are never confused.
   const importsOf = new Map<string, Map<string, { file: string; name: string }>>();
   const imports = (from: string): Map<string, { file: string; name: string }> => {
