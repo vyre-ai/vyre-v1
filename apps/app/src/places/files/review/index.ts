@@ -13,7 +13,7 @@ export { LintBar, SEV_COLOR } from "./LintBar.tsx";
 export type { EditView, LintBarProps } from "./LintBar.tsx";
 export { AgentFileEditor, lineRange } from "./AgentFileEditor.tsx";
 export type { AgentFileEditorProps } from "./AgentFileEditor.tsx";
-export { AgentFilePage } from "./AgentFilePage.tsx";
+export { AgentFilePage, extOf } from "./AgentFilePage.tsx";
 export type { AgentFilePageProps } from "./AgentFilePage.tsx";
 export { SuggestionCard } from "./SuggestionCard.tsx";
 export type { SuggestionCardProps } from "./SuggestionCard.tsx";

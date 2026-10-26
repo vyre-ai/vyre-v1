@@ -418,7 +418,7 @@ function UnifiedBody({ hunk, marks, bare = false }: { hunk: DiffHunk; marks: boo
 }
 
 /** A comment: the author's face, the name, the text with every @mention coloured. */
-function Note({ comment }: { comment: DiffComment }): ReactElement {
+function Note({ comment, onReply }: { comment: DiffComment; onReply?: () => void }): ReactElement {
   const parts: ReactNode[] = [];
   bodyParts(comment.body).forEach((part, index) => {
     parts.push(<Text key={index} style={part.mention ? styles.mention : null}>{part.text}</Text>);
@@ -429,6 +429,7 @@ function Note({ comment }: { comment: DiffComment }): ReactElement {
       <View style={styles.commentBody}>
         <Text style={styles.who}>{comment.author}</Text>
         <Text style={styles.text}>{parts}</Text>
+        {onReply ? <Text accessibilityRole="button" aria-label="Reply" onPress={onReply} testID={`diff-note-reply-${comment.id}`} style={styles.replyLink}>Reply</Text> : null}
       </View>
     </View>
   );
@@ -605,7 +606,7 @@ export function DiffTab(props: DiffTabViewProps): ReactElement {
     for (const hunk of file.hunks) {
       const lit = focus !== null && focus.path === file.path && focus.hunkId === hunk.id;
       const notes: ReactNode[] = [];
-      for (const c of commentsFor(comments, hunk.id)) notes.push(<Note key={c.id} comment={c} />);
+      for (const c of commentsFor(comments, hunk.id)) notes.push(<Note key={c.id} comment={c} onReply={() => setReplying(hunk.id)} />);
       hunks.push(
         <View
           key={hunk.id}
@@ -670,7 +671,7 @@ export function DiffTab(props: DiffTabViewProps): ReactElement {
                 id={`diff-file-${f.path}`}
                 title={f.path}
                 selected={file !== null && f.path === file.path}
-                trailing={<Text style={styles.fileCounts}>{countsLabel(f)}</Text>}
+                trailing={<Text style={styles.fileCounts}>{f.body === "image" ? "image" : countsLabel(f)}</Text>}
                 onPress={() => pickFile(f.path)}
               />
             ))}
@@ -705,8 +706,9 @@ function HunkButton({ label, onPress, testID, danger = false }: { label: string;
   );
 }
 
-const DEL_WASH = "color-mix(in srgb, var(--danger) 13%, transparent)" as string;
-const ADD_WASH = "color-mix(in srgb, var(--ok) 14%, transparent)" as string;
+// react-native-web drops a color-mix() colour (it only passes var() through), so the washes are plain rgba that reads on paper and on graphite
+const DEL_WASH = "rgba(217, 63, 63, 0.14)" as string;
+const ADD_WASH = "rgba(47, 148, 97, 0.16)" as string;
 
 const styles = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
@@ -723,6 +725,7 @@ const styles = StyleSheet.create({
   bodyStack: { flexDirection: "column" },
   files: { width: 220, padding: 8, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
   filesStack: { width: "100%", borderRightWidth: 0, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  replyLink: { marginTop: 4, fontSize: 12, color: "var(--accent)" as string },
   fileCounts: { color: "var(--ink-3)" as string, fontSize: 11.5 },
   scroll: { flex: 1 },
   scrollBody: { padding: 14, gap: 14 },
@@ -743,8 +746,8 @@ const styles = StyleSheet.create({
   signDel: { color: "var(--danger)" as string },
   signAdd: { color: "var(--ok)" as string },
   code: { flex: 1, fontFamily: MONO, fontSize: 12.5, lineHeight: 20, color: "var(--ink)" as string },
-  markDel: { backgroundColor: "color-mix(in srgb, var(--danger) 30%, transparent)" as string, borderRadius: 3 },
-  markAdd: { backgroundColor: "color-mix(in srgb, var(--ok) 32%, transparent)" as string, borderRadius: 3 },
+  markDel: { backgroundColor: "rgba(217, 63, 63, 0.30)" as string, borderRadius: 3 },
+  markAdd: { backgroundColor: "rgba(47, 148, 97, 0.32)" as string, borderRadius: 3 },
   splitRow: { flexDirection: "row" },
   cell: { flex: 1, flexDirection: "row", alignItems: "flex-start", paddingVertical: 2, paddingRight: 8, minWidth: 0 },
   cellEmpty: { backgroundColor: "var(--sunk)" as string },

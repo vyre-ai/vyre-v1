@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { AskButton } from "../../../../../../ui/src/AskButton/index.tsx";
 import type { Density } from "../../../../../../ui/src/DiffTab/index.tsx";
+import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { VersionBanner } from "../../../../../../ui/src/HistoryTab/index.tsx";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import { restoreVersion } from "./actions.ts";
@@ -16,7 +17,7 @@ import { useCap, useReviewData } from "./data.tsx";
 import { HistoryPanel } from "./HistoryPanel.tsx";
 import { Glyph } from "./icons.tsx";
 import { applySuggestion, historyVersions, latestVersion, shortDay } from "./model.ts";
-import { IconBtn, Note, Segmented, TextField } from "./parts.tsx";
+import { Btn, IconBtn, Note, Segmented, TextField, anchorOf } from "./parts.tsx";
 import { SuggestionCard } from "./SuggestionCard.tsx";
 
 export interface AgentFilePageProps extends Omit<AgentFileEditorProps, "above" | "mode"> {
@@ -31,6 +32,12 @@ export interface AgentFilePageProps extends Omit<AgentFileEditorProps, "above" |
   startViewing?: string;
 }
 
+/** "MD" for AGENT.md, "TOML" for agent.toml: the file-type tile. */
+export function extOf(name: string): string {
+  const e = name.includes(".") ? name.slice(name.lastIndexOf(".") + 1) : "";
+  return (e || "FILE").toUpperCase();
+}
+
 export function AgentFilePage({ path, agentId, edit = false, startHistory = false, startViewing, ...file }: AgentFilePageProps): ReactElement {
   const data = useReviewData();
   const versions = useCap("files.versions", { fileId: file.fileId });
@@ -43,6 +50,7 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
   const [changes, setChanges] = useState(true);
   const [applied, setApplied] = useState<string | null>(null);
   const [line, setLine] = useState<{ text: string; kind: "ok" | "error" } | null>(null);
+  const { element: menu, show } = useMenu();
 
   const rows = versions.status === "ready" ? versions.data.versions : [];
   const top = latestVersion(rows);
@@ -70,9 +78,27 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
     });
   };
 
+  const copyPath = (): void => {
+    const g = globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } };
+    void g.navigator?.clipboard?.writeText?.(`${path}/${file.name}`)?.catch(() => undefined);
+    setLine({ kind: "ok", text: "Copied the path." });
+  };
+  const openMore = (e: unknown): void => {
+    const at = anchorOf(e);
+    show([
+      { label: pane ? "Hide history" : "Show history", onSelect: toggleHistory },
+      { label: finding ? "Close find" : "Find in file", onSelect: toggleFind },
+      { label: info ? "Hide info" : "Show info", onSelect: () => setInfo(!info) },
+      { separator: true },
+      { label: "Copy path", onSelect: copyPath },
+    ], at.x, at.y, "other");
+  };
+  const compact = file.density === "compact";
+
   const main = (
     <View style={st.main}>
       <View style={st.head}>
+        <View style={st.tile} testID="agent-file-tile" aria-hidden><Text style={st.tileText}>{extOf(file.name)}</Text></View>
         <View style={st.title}>
           <Text accessibilityRole="header" aria-level={2} numberOfLines={1} style={st.h2} testID="agent-file-name">{file.name}</Text>
           <Text numberOfLines={1} style={st.meta}>
@@ -96,6 +122,7 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
           testID="agent-file-ask"
           onAsk={(agent, askMode, about) => data.nav.ask?.(agent.id, askMode, { kind: about.kind, id: about.id, title: about.title })}
         />
+        <IconBtn label="More" onPress={openMore} menu testID="agent-file-more"><Glyph name="more" size={15} color="var(--ink-2)" width={1.8} /></IconBtn>
       </View>
       {info ? <Text style={st.info} testID="agent-file-info-text">{`Version ${version} · ${text.split("\n").length - (text.endsWith("\n") ? 1 : 0)} lines · ${path}/${file.name}`}</Text> : null}
       {finding ? (
@@ -123,12 +150,23 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
     </View>
   );
 
+  const history = <HistoryPanel fileId={file.fileId} density="compact" selectedId={viewing} onSelect={(id) => setViewing(id === top?.versionId ? null : id)} />;
   return (
-    <View style={st.wrap} testID="agent-file-page">
+    <View style={[st.wrap, compact && st.wrapCompact]} testID="agent-file-page">
       {main}
-      {pane ? (
+      {menu}
+      {pane && compact ? (
+        <View style={st.under} testID="agent-file-history-pane" role="region" aria-label="History">
+          <View style={st.underHead}>
+            <Text accessibilityRole="header" aria-level={3} style={st.underTitle}>History</Text>
+            <Btn label="Hide" small onPress={() => setPane(false)} testID="agent-file-history-hide" />
+          </View>
+          {history}
+        </View>
+      ) : null}
+      {pane && !compact ? (
         <SidePane paneKey="file-history" toggle={{ open: true, onPress: () => setPane(false) }} title="History" tabs={[{ key: "history", title: "History" }]} activeTab="history">
-          <HistoryPanel fileId={file.fileId} density="compact" selectedId={viewing} onSelect={(id) => setViewing(id === top?.versionId ? null : id)} />
+          {history}
         </SidePane>
       ) : null}
     </View>
@@ -137,8 +175,14 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
 
 const st = StyleSheet.create({
   wrap: { width: "100%", flexDirection: "row", alignItems: "flex-start" },
+  wrapCompact: { flexDirection: "column", alignItems: "stretch" },
+  under: { borderTopWidth: 1, borderTopColor: "var(--line)", paddingTop: 4 },
+  underHead: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 6 },
+  underTitle: { flex: 1, fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
+  tile: { width: 30, height: 30, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string, marginRight: 4 },
+  tileText: { fontSize: 9.5, fontWeight: "700", color: "var(--ink-3)" as string, letterSpacing: 0.3 },
   main: { flex: 1, minWidth: 0 },
-  head: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" },
+  head: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" },
   title: { flex: 1, minWidth: 0, marginRight: 8 },
   h2: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },
   meta: { fontSize: 12, color: "var(--ink-3)" as string },

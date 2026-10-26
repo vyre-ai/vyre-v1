@@ -107,8 +107,11 @@ export function branchChoices(b: BranchesOut): readonly { name: string; current:
 
 /* ---------- diffs ---------- */
 
-function bodyOf(kind: DiffOut["kind"]): DiffBody {
-  return kind === "binary" ? "text" : kind;
+/** A note or a letter reads as prose (word marks inline), not as code lines. The capability says paragraph for a docx; a markdown or text file is read the same way. */
+function bodyOf(kind: DiffOut["kind"], path = ""): DiffBody {
+  if (kind === "binary") return "text";
+  if (kind === "text" && /\.(md|markdown|txt|docx?)$/i.test(path)) return "paragraph";
+  return kind;
 }
 
 /** A capability's hunk as the hunk ui/DiffTab draws: the unchanged lines above and below are context, the rest is removed and added. */
@@ -134,7 +137,7 @@ export function hunkOf(h: RawHunk): DiffHunk {
 
 /** One file's diff out of files.diff, changesets.diff or git.show. An image has no lines: its two addresses ride in the one hunk, removed (before) and added (after). */
 export function diffFileOf(path: string, out: Pick<DiffOut, "kind" | "added" | "removed" | "hunks"> & { images?: DiffOut["images"] }): DiffFile {
-  const body = bodyOf(out.kind);
+  const body = bodyOf(out.kind, path);
   const hunks: DiffHunk[] = body === "image" && out.images
     ? [{ id: `${path}:image`, context: "Image", removed: out.images.left ?? "", added: out.images.right ?? "" }]
     : out.hunks.map(hunkOf);
