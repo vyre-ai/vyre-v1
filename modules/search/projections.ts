@@ -195,7 +195,24 @@ export async function embed(texts: readonly string[]): Promise<Float32Array[]> {
 
 // The scan kernel is one interface so a faster one can replace the plain JavaScript version without touching the index (P-L1_15 brings a SIMD kernel and proves the 200k-vector budget).
 /** Scores `count` vectors of `DIM` floats laid end to end in `data` from float index `from` against the unit query `q`: out[i] = dot(vector i, q). */
-export interface VectorKernel { readonly name: string; score(data: Float32Array, from: number, count: number, q: Float32Array, out: Float32Array): void }
+export interface VectorKernel {
+  readonly name: string;
+  /** Exact scoring of a plain array (the reference every faster path is measured against). */
+  score(data: Float32Array, from: number, count: number, q: Float32Array, out: Float32Array): void;
+  /** Optional: storage the kernel owns, so it can keep its own compact form of the vectors and scan that. VectorIndex uses it when offered. */
+  store?(capacity: number): VectorStore;
+}
+
+/** Vectors by slot, in the kernel's own storage. Every vector given is unit length. `top` returns the best `k` slots by cosine, best first, after the kernel's own candidate pass. */
+export interface VectorStore {
+  /** Room for at least `capacity` slots (never shrinks). */
+  reserve(capacity: number): void;
+  set(slot: number, v: Float32Array): void;
+  /** Copy the vector in slot `from` into slot `to` (the last vector fills the gap a removal leaves). */
+  move(to: number, from: number): void;
+  /** `count` is how many slots are in use; `accept` skips slots the caller does not want. */
+  top(q: Float32Array, count: number, k: number, accept?: (slot: number) => boolean): Array<{ slot: number; score: number }>;
+}
 
 /** Eight independent accumulators keep the multiply-adds from waiting on each other. */
 export const jsKernel: VectorKernel = {
@@ -216,11 +233,12 @@ let kernel: VectorKernel = jsKernel;
 /** The host (or the vectors spike) gives the module a faster kernel; null puts the JavaScript one back. */
 export function setVectorKernel(k: VectorKernel | null): void { kernel = k ?? jsKernel; }
 
-const CHUNK = 4_096;
+const CHUNK = 16_384;
 
-/** Every vector of one Space in one contiguous array, scanned in full for a query: brute force, fine to about 200k vectors (ARCH R14). */
+/** Every vector of one Space, scanned in full for a query: brute force, fine to about 200k vectors (ARCH R14). With a kernel that offers storage the kernel keeps the vectors; otherwise they lie in one array. */
 export class VectorIndex {
-  private f32: Float32Array;
+  private f32: Float32Array | null = null;
+  private store: VectorStore | null = null;
   private cap: number;
   private ids: Int32Array;
   private slot = new Map<number, number>();
@@ -232,20 +250,22 @@ export class VectorIndex {
     this.use = use;
     this.cap = capacity;
     this.ids = new Int32Array(capacity);
-    this.f32 = new Float32Array(capacity * DIM);
+    const k = use ?? kernel;
+    if (k.store) { this.store = k.store(capacity); } else { this.f32 = new Float32Array(capacity * DIM); }
   }
 
   /** Which kernel scans. */
   get kernel(): string { return (this.use ?? kernel).name; }
+  /** True when the kernel keeps the vectors (its own form), false when they lie in a plain array. */
+  get kernelStored(): boolean { return this.store !== null; }
 
   private grow(): void {
     const cap = this.cap * 2;
     const ids = new Int32Array(cap);
     ids.set(this.ids.subarray(0, this.size));
     this.ids = ids;
-    const d = new Float32Array(cap * DIM);
-    d.set(this.f32.subarray(0, this.size * DIM));
-    this.f32 = d;
+    if (this.store) this.store.reserve(cap);
+    else { const d = new Float32Array(cap * DIM); d.set(this.f32!.subarray(0, this.size * DIM)); this.f32 = d; }
     this.cap = cap;
   }
 
@@ -259,7 +279,7 @@ export class VectorIndex {
       this.slot.set(n, s);
       this.ids[s] = n;
     }
-    this.f32.set(v, s * DIM);
+    if (this.store) this.store.set(s, v); else this.f32!.set(v, s * DIM);
   }
 
   remove(n: number): void {
@@ -267,7 +287,7 @@ export class VectorIndex {
     if (s === undefined) return;
     const last = this.size - 1;
     if (s !== last) {
-      this.f32.copyWithin(s * DIM, last * DIM, (last + 1) * DIM);
+      if (this.store) this.store.move(s, last); else this.f32!.copyWithin(s * DIM, last * DIM, (last + 1) * DIM);
       const moved = this.ids[last]!;
       this.ids[s] = moved;
       this.slot.set(moved, s);
@@ -280,12 +300,15 @@ export class VectorIndex {
 
   /** The k best documents by cosine, best first. */
   top(q: Float32Array, k: number, accept?: (n: number) => boolean): Array<{ n: number; score: number }> {
+    if (this.store) {
+      return this.store.top(q, this.size, k, accept ? (s) => accept(this.ids[s]!) : undefined).map((r) => ({ n: this.ids[r.slot]!, score: r.score }));
+    }
     const best: Array<{ n: number; score: number }> = [];
     let floor = -Infinity;
     const k0 = this.use ?? kernel;
     for (let start = 0; start < this.size; start += CHUNK) {
       const count = Math.min(CHUNK, this.size - start);
-      k0.score(this.f32, start * DIM, count, q, this.scores);
+      k0.score(this.f32!, start * DIM, count, q, this.scores);
       for (let i = 0; i < count; i++) {
         const score = this.scores[i]!;
         if (best.length === k && score <= floor) continue;
