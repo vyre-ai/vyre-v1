@@ -39,6 +39,9 @@ export async function runConflict(live: readonly string[]): Promise<{ events: Ob
     await trail.step("device A pushes its offline edit", async () => {
       const out = expectStatus(await s.call("sync.push", a, { deviceId: "dev_noaha1", epoch: 0, ops: [opFor(1, "noaha1", rec!, "sent", base!)] }), 200, "sync.push");
       assert.equal(out.applied.length, 1, `A applied ${short(out)}`);
+      assert.equal(out.conflicts.length, 0, `A is the first edit from the base, so it meets no conflict ${short(out)}`);
+      const now = expectStatus(await s.call("records.get", admin, { type: "note_item", recordId: rec! }), 200, "records.get");
+      assert.equal(now.record.fields.status, "sent", `A's value is in the record ${short(now)}`);
     }, ["the record is in the sync feed"]);
     const conflict = await trail.step("device B pushes a competing edit from the same base and a conflict opens", async () => {
       const out = expectStatus(await s.call("sync.push", b, { deviceId: "dev_noahb1", epoch: 0, ops: [opFor(2, "noahb1", rec!, "lost", base!)] }), 200, "sync.push");
