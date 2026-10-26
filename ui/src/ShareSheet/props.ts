@@ -37,6 +37,8 @@ export interface ShareSheetProps {
   /** Folder sharing covers the children. An item share sits on top of its folder. */
   target: "folder" | "item";
   ownerName: string;
+  /** The owner's id: the face is seeded by it (the name is the fallback). */
+  ownerId?: string;
   /** Levels this type offers. Comes from ListDef.shareLevels. */
   levels: readonly ShareLevel[];
   shares: readonly ShareRow[];
