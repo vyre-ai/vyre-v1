@@ -205,9 +205,7 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
       assert.equal(res.status, 200, `the hook is accepted: ${res.status} ${(await res.text()).slice(0, 300)}`);
       await s.d.hooks?.pump();
     }, ["a person calls the lead"]);
-    // a provider's hook carries no trace id of ours, so the events it causes are read from the whole log
-    const answered = (await s.events(false)).filter((e) => e.type === "call.started");
-    return { events: [...(await s.events()), ...answered], trail, net };
+    return { events: await s.events(), trail, net };
   } finally { await s.stop(); }
 }
 
