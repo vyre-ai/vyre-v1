@@ -244,7 +244,15 @@ jobs:
         if: steps.scope.outputs.changed == 'true'
         env:
           VYRE_HEAVY_DOCKER: "1"
+          VYRE_SHOT_DIR: ${{ runner.temp }}/computer-shots
         run: node --test --test-force-exit --test-timeout=600000 --test-reporter=spec agent/tests/sandbox.heavy.test.ts modules/terminal/tests/tmux.heavy.test.ts modules/engine/tests/sandbox.heavy.test.ts modules/engine/tests/cli.heavy.test.ts golden/steps/07-reply.heavy.test.ts golden/steps/07-gate.heavy.test.ts host/tests/chat.live.test.ts host/tests/computers.live.test.ts
+      - name: The agent computer desktop frame (P-L2_31)
+        if: always() && steps.scope.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: computer-desktop
+          path: ${{ runner.temp }}/computer-shots
+          if-no-files-found: warn
       - name: The network wall, none skipped (agent/tests/sandbox.net.heavy.test.ts)
         if: always() && steps.scope.outputs.changed == 'true'
         env:
