@@ -5,7 +5,7 @@ import { createElement, memo, useCallback, useDeferredValue, useEffect, useMemo,
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
-import { marbleInner, marbleSpec } from "../../../../../../ui/src/Avatar/index.tsx";
+import { marbleSpec } from "../../../../../../ui/src/Avatar/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
@@ -18,10 +18,11 @@ import { useRecordsState } from "../sidebar/state.tsx";
 import { Scroller } from "./Scroller.tsx";
 import type { ScrollHandle } from "./Scroller.tsx";
 import {
-  FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, SCROLL_BLOCK, chosen, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, groupable, hasOptions,
-  hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, setSort, sortable, toSaved, toggleHidden, toggleOption, totalWidth,
+  FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, SCROLL_BLOCK, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, groupable, hasOptions,
+  hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, setSort, sortable, toSaved, toggleHidden, totalWidth,
 } from "./model.ts";
 import { allIds, eachId, recordsWord } from "./bulk.ts";
+import { filterMenuEntries } from "./filtermenu.ts";
 import { NO_PICK, isPickedRow, pickCount, toggleHeader, togglePick } from "./model.ts";
 import type { Column, FieldDef, RowPick, RecordRow, TableViewState, TypeDef } from "./model.ts";
 
@@ -337,35 +338,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
     const snap = data.live("records.counts", countSpec(type, probe, def.titleField)).getSnapshot();
     return snap.status === "ready" ? snap.data.count : null;
   };
-  // the filter menu's rows: counts in the Menu's count column, a dot in the option's colour for a status or choice, the person's face for an owner (svg strings, as ui/Menu draws them)
-  const dotIcon = (hue: number): string => `<svg viewBox="0 0 16 16" width="15" height="15"><circle cx="8" cy="8" r="4" fill="hsl(${hue}, 65%, 52%)"/></svg>`;
-  const faceIcon = (name: string): string => `<svg viewBox="0 0 80 80" width="15" height="15">${marbleInner(name)}</svg>`;
-  const filterEntries = (cur: TableViewState): MenuEntry[] => {
-    const out: MenuEntry[] = [];
-    for (const f of def.fields.filter(hasOptions)) {
-      if (out.length) out.push({ separator: true });
-      out.push({ head: f.title });
-      for (const o of optionsOf(f)) {
-        const n = countOf(f, o.key);
-        const hue = o.color && /^\d+$/.test(o.color) ? Number(o.color) : hueOf(o.key);
-        out.push({ label: o.title, icon: dotIcon(hue), ...(n === null ? {} : { count: n }), checked: chosen(cur, f.key).includes(optionValue(f, o.key)), onSelect: () => set(toggleOption(cur, f.key, optionValue(f, o.key))) });
-      }
-    }
-    // a person field lists the people the loaded rows name
-    for (const f of def.fields.filter((x) => x.type === "person")) {
-      const ids = [...new Set((loaded?.rows ?? []).map((r) => r.fields[f.key]).filter((x): x is string => typeof x === "string" && x !== ""))];
-      if (ids.length === 0) continue;
-      if (out.length) out.push({ separator: true });
-      out.push({ head: f.title });
-      for (const id of ids.sort((a, b) => data.nameOf(a).localeCompare(data.nameOf(b)))) {
-        const n = countOf(f, id);
-        out.push({ label: data.nameOf(id), icon: faceIcon(data.nameOf(id)), ...(n === null ? {} : { count: n }), checked: chosen(cur, f.key).includes(id), onSelect: () => set(toggleOption(cur, f.key, id)) });
-      }
-    }
-    if (out.length === 0) out.push({ head: "Filter" }, { label: "No fields to filter by" });
-    if (cur.clauses.length > 0) out.push({ separator: true }, { label: "Clear filters", onSelect: () => set(clearClauses(cur)) });
-    return out;
-  };
+  const filterEntries = (cur: TableViewState): MenuEntry[] => filterMenuEntries({ def, cur, rows: loaded?.rows ?? [], nameOf: data.nameOf, countOf, set });
   const sortEntries = (): MenuEntry[] => {
     const cur = v.sort[0];
     return [
