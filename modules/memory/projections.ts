@@ -200,6 +200,15 @@ export function makeAccess(ctx: MemCtx): Access {
     }
     return p;
   };
+  /** the asker owns the agent, or the folder's own shares (not what it inherits from the Space) give them Edit or Manage */
+  const ownsOrShared = async (agentId: string, folder: string): Promise<boolean> => {
+    try {
+      const owner = str(((await ctx.call("agents.get", { agentId })) as { agent?: { ownerId?: string } }).agent?.ownerId);
+      if (owner !== "" && owner === me) return true;
+      const got = (await ctx.call("access.shares_of", { resource: { type: "folder", id: folder } })) as { shares?: { grant?: { subject?: { kind?: string; id?: string }; level?: string }; through?: string }[] };
+      return (got.shares ?? []).some((r) => (r.through === "owner" || r.through === "direct") && r.grant?.subject?.kind === "person" && r.grant.subject.id === me && (r.grant.level === "edit" || r.grant.level === "manage"));
+    } catch { return false; }
+  };
   const allow = (level: "view" | "edit", res: Resource): boolean => ctx.authorize({ perm: null, level }, res).effect === "allow";
   return {
     async can(layer, ownerRef, agentId, projectId, level) {
@@ -213,6 +222,9 @@ export function makeAccess(ctx: MemCtx): Access {
         const target = layer === "agent" ? agentId ?? ownerRef : projectId ?? ownerRef;
         const folder = target ? await folderOf(layer, target) : null;
         ok = folder !== null && allow(level, { type: "folder", id: folder });
+        // an agent's memory is not every member's to edit (ruling 88): a member's Space-wide Edit reaches the folder by inheritance, and that alone does not count. Editing is for the agent's
+        // owner, an admin (memory.admin), and anyone the owner shared the folder with (a direct Edit or Manage grant of their own).
+        if (ok && layer === "agent" && level === "edit" && folder !== null) ok = (await ownsOrShared(target as string, folder)) || ctx.authorize({ perm: "memory.admin", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow";
       }
       memo.set(key, ok);
       return ok;

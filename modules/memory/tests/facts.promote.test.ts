@@ -181,3 +181,24 @@ test("golden 8 trace: a person-layer fact, a promotion task for the approver, th
   assert.deepEqual(assertEventsConform(h), []);
   assert.deepEqual(assertEventsConform(lead), []);
 });
+
+// Ruling 88: a member's Space-wide Edit reaches an agent's folder by inheritance and does not make its memory theirs to edit.
+const inherited = { "access.shares_of": () => ({ shares: [{ grant: { subject: { kind: "role", id: "rol_member" }, level: "edit" }, through: "folder" }, { grant: { subject: { kind: "person", id: "usr_boss" }, level: "manage" }, through: "owner" }] }) };
+
+test("a member whose Edit is only inherited from the Space does not edit an agent's memory: the promotion waits for its owner", async () => {
+  const h = harness({ respond: { ...respond, ...inherited } });
+  const id = await danaFact(h);
+  const out = await promote(h.ctx, { factId: id, toLayer: "agent", agentId: "agt_intake" });
+  assert.equal(out.promoted, false);
+  assert.ok(out.taskId, "a task waits for the approver");
+});
+
+test("the agent's owner, an admin, and a person the owner shared the folder with do edit it", async () => {
+  const owner = harness({ respond: { ...respond, ...inherited, "agents.get": () => ({ agent: { folderId: "fld_intake", ownerId: "usr_dana" } }) } });
+  assert.equal((await promote(owner.ctx, { factId: await danaFact(owner), toLayer: "agent", agentId: "agt_intake" })).promoted, true, "the owner");
+  const admin = harness({ respond: { ...respond, ...inherited } });
+  admin.setAdmin(true);
+  assert.equal((await promote(admin.ctx, { factId: await danaFact(admin), toLayer: "agent", agentId: "agt_intake" })).promoted, true, "an admin");
+  const shared = harness({ respond: { ...respond, "access.shares_of": () => ({ shares: [{ grant: { subject: { kind: "person", id: "usr_dana" }, level: "edit" }, through: "direct" }] }) } });
+  assert.equal((await promote(shared.ctx, { factId: await danaFact(shared), toLayer: "agent", agentId: "agt_intake" })).promoted, true, "a direct Edit share");
+});
