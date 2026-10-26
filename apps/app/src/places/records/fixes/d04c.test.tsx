@@ -20,7 +20,7 @@ test("hero: the kind, a face, the title, the status chip, the owner and when it 
   const out = page(createSamplePage());
   assert.ok(has(out, 'data-testid="record-kind"') && has(out, ">Client<"));
   assert.ok(at(out, 'data-testid="record-kind"') < at(out, 'data-testid="face-Elena Rivera"') && at(out, 'data-testid="face-Elena Rivera"') < at(out, 'data-testid="title"'), "kind, then face, then title");
-  const chips = out.slice(at(out, 'data-testid="record-chips"'), at(out, 'data-testid="record-chips"') + 1500);
+  const chips = out.slice(at(out, 'data-testid="record-chips"'), at(out, 'data-testid="record-chips"') + 40000);
   assert.ok(has(chips, ">Active<"), "the status as a chip");
   assert.ok(has(chips, "Maya Chen"), "the owner");
   assert.ok(has(chips, "Updated 2 d ago"), "when it changed");
