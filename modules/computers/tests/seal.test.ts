@@ -35,5 +35,6 @@ test("an emptied volume reads as a tar of nothing, a profile with files does not
   assert.equal(tarEntries(tarFiles([])), 0);
   assert.equal(tarEntries(new Uint8Array(1024)), 0);
   const file = (p: string) => ({ path: p, data: new TextEncoder().encode("x"), mode: 0o600, uid: 10001, gid: 10001, mtime: 1 });
-  assert.equal(tarEntries(tarFiles([file("Default/Cookies"), file("marker.txt")])), 2);
+  assert.equal(tarEntries(tarFiles([file("Cookies"), file("marker.txt")])), 2);
+  assert.equal(tarEntries(tarFiles([file("Default/Cookies")])), 2, "the folder and the file");
 });
