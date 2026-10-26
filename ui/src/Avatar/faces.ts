@@ -89,6 +89,7 @@ function blobAt(c: readonly [number, number], t: { x: number; y: number; rot: nu
 /**
  * The marble as CSS: the base colour under two soft radial blobs placed where the svg's two blurred shapes land. No svg, no canvas, no filter,
  * so a list can mount thousands of faces while scrolling. Seeded exactly like marbleSpec; the same name gives the same string.
+ * The string ends in the base colour, so it is a value for the `background` shorthand and NOT for `background-image` (a colour is not an image: the declaration is dropped and the face draws blank).
  */
 export function marbleGradient(name: string): string {
   const m = marbleSpec(name);
