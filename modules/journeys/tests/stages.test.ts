@@ -165,6 +165,23 @@ test("a task for an agent keeps its key and backup key; a task that fails to sta
   assert.ok(rec);
 });
 
+test("a stage that makes a project gives the record a Project once; a stage that does not makes none", async () => {
+  const made: Record<string, unknown>[] = [];
+  const h = harness({ calls: { "projects.create": (i) => { made.push(i); return { projectId: "prj_t1", recordId: "rec_p1", channelId: "chn_p1", folderId: "fld_p1" }; } } });
+  const plain = await mk(h, { name: "Plain" });
+  await begin(h, plain, "rec_s1");
+  assert.equal(made.length, 0, "no flag, no project");
+  const j = await mk(h, { name: "Client onboarding", stages: threeStages({ intake: { makesProject: true, tasks: [] } }) });
+  const rec = await begin(h, j, "rec_s2");
+  assert.equal(made.length, 1);
+  assert.equal(made[0]!.type, "project");
+  assert.match(String(made[0]!.title), /^Client onboarding /);
+  assert.equal(made[0]!.idempotencyKey, `jrn-project:${rec}`, "one project per record");
+  const h2 = harness({ calls: { "projects.create": () => { throw new Error("projects is down"); } } });
+  const j2 = await mk(h2, { stages: threeStages({ intake: { makesProject: true, tasks: [] } }) });
+  assert.match(await begin(h2, j2, "rec_s3"), /^rec_/, "a project that cannot be made does not stop the Journey");
+});
+
 // ---- move_stage ----
 
 test("move_stage needs a reason, leaves the old stage, enters the new, runs the new stage's Automations and posts the handoff", async () => {
