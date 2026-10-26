@@ -2,6 +2,7 @@
 // owner floor and the agent's own rule), the fixed summary line of a hold, and the exact preview blocks.
 // Durable tables: migrations/0001_gate_holds.sql. Every statement names only gate_* tables (ctx.db refuses anything else, ARCH B2).
 // The ten act kinds below mirror manifests/gate.ts gateActs (frozen, ruling 9); the contract test of this module compares them.
+import { isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { canonical } from "../../lib/canonical.ts";
 
@@ -254,7 +255,7 @@ export function holdOut(h: Hold): Record<string, unknown> {
  *  A member's request is never shown to the owner or an admin just because of their role (the owner never approves a member's mail). */
 export function mayHandle(ctx: GateCtx, h: Hold): boolean {
   const me = ctx.principal.id;
-  if (ctx.principal.kind === "service") return true;
+  if (isTrustedService(ctx.principal)) return true;
   if (h.principal.id === me || h.actingFor === me || ctx.actingFor === h.principal.id) return true;
   if (h.approver.id === me && (h.approver.kind === "person" || h.approver.kind === "agent")) return true;
   if (h.approver.kind === "role" || h.approver.kind === "group") {

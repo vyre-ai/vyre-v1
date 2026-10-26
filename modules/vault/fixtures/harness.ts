@@ -37,6 +37,7 @@ export function harness() {
     space: "spc_vault",
     principal: { kind: "person", id: MAYA },
     trace: { traceId: TRACE },
+    depth: 1,   // a call another capability made: the system halves refuse a direct call (P-SEC_10)
     now: () => clock,
     db: memoryDb(),
     emit(name, subject, payload, opts) {
