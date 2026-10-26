@@ -1014,6 +1014,7 @@ export function stubs(ctx: CallCtx) {
     },
     identity: {
       change_password: call("identity.change_password"),
+      claim_owner: call("identity.claim_owner"),
       github_link: call("identity.github_link"),
       github_sign_in: call("identity.github_sign_in"),
       github_unlink: call("identity.github_unlink"),
