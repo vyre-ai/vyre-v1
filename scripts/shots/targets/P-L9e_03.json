@@ -1,0 +1,77 @@
+{
+  "targets": [
+    {
+      "id": "P-L9e_03-changeset-review",
+      "route": "/m/P-L9e_03?part=review",
+      "proto": "files,diff-changeset,{skin}",
+      "waitFor": "[data-testid='changeset-diff']",
+      "note": "A changeset review: Docs changed 3 files, Review, the totals, Discard, Request changes and Approve and commit, then the files and their changes with Maya's comment. The prototype side is its diff tab for the same changeset; the real side has no file tabs strip above it, and the diff's own toolbar (Unified, Split, Word marks) sits under the header where the prototype puts the layout control in the header. Shown inside the Files place (sidebar and tab strip), as in the prototype.",
+      "protoSettleMs": 4000
+    },
+    {
+      "id": "P-L9e_03-changeset-git",
+      "route": "/m/P-L9e_03?part=review&repo=1",
+      "proto": "files,diff-changes,{skin}",
+      "waitFor": "[data-testid='changeset-commit']",
+      "note": "The same review in a git folder: a commit message box and Push under the header, the git row (branch docs-update, Pull, Push, Sync) below. The prototype side is the working-copy changes of the website repository, approved with Approve and commit. Shown inside the Files place (sidebar and tab strip), as in the prototype.",
+      "protoSettleMs": 4000
+    },
+    {
+      "id": "P-L9e_03-changeset-gate",
+      "route": "/m/P-L9e_03?part=review&protected=1",
+      "proto": "files,diff-gate,{skin}",
+      "waitFor": "[data-testid='gate-row']",
+      "note": "A protected main: the Gate row (Push to main waits for approval in Needs you, with Approve and Cancel) and Approve and commit off. The prototype side is its pull request on a protected base after Approve and merge; it draws the Gate as a note line, the real side as a ui/Row line. Shown inside the Files place (sidebar and tab strip), as in the prototype.",
+      "protoSettleMs": 4000
+    },
+    {
+      "id": "P-L9e_03-changeset-discard",
+      "route": "/m/P-L9e_03?part=review&panel=discard",
+      "proto": "files,diff-changeset,{skin}",
+      "protoClick": "[data-df='discard']",
+      "waitFor": "[data-testid='changeset-discard-confirm']",
+      "note": "Discard asks first: Discard these changes? with Cancel and Discard under the header. The prototype side is the same header after pressing Discard. Shown inside the Files place (sidebar and tab strip), as in the prototype.",
+      "protoSettleMs": 4000
+    },
+    {
+      "id": "P-L9e_03-history",
+      "route": "/m/P-L9e_03?part=history",
+      "proto": "files,at:versions,{skin}",
+      "waitFor": "[data-testid='version-banner']",
+      "note": "AGENT.md's history: four versions newest first with who and why, the named version, Compare, Restore this version and Name this version. The prototype side is the file's versions column. Shown inside the Files place (sidebar and tab strip), as in the prototype.",
+      "protoSettleMs": 4000
+    },
+    {
+      "id": "P-L9e_03-lint-bar",
+      "route": "/m/P-L9e_03?part=lint",
+      "proto": "files,at:agent-md,{skin}",
+      "waitFor": "[data-testid='suggestion-card']",
+      "note": "AGENT.md in the Files place: file header (name, path, who and when, View and Edit, find, info, history, Ask), the lint chips, Intake's suggestion card with its diff, Dismiss and Apply to AGENT.md, then the rendered note. The prototype side is the same file. Shown inside the Files place (sidebar and tab strip), as in the prototype.",
+      "protoSettleMs": 4000
+    },
+    {
+      "id": "P-L9e_03-toml-form",
+      "route": "/m/P-L9e_03?part=form&diff=1",
+      "proto": "files,at:toml-form,{skin}",
+      "waitFor": "[data-testid='agent-file-diff']",
+      "note": "agent.toml in the Form view with the Text and Form switch lit on Form, one value changed, and the diff before the save with Save version. The prototype side is the Form view of the Intake agent's agent.toml; its diff-before-save is a separate state there. Shown inside the Files place (sidebar and tab strip), as in the prototype.",
+      "protoSettleMs": 4000
+    },
+    {
+      "id": "P-L9e_03-git-row",
+      "route": "/m/P-L9e_03?part=git",
+      "proto": "files,gitrepo,{skin}",
+      "waitFor": "[data-testid='git-row']",
+      "note": "The git row alone: docs-update with its changes and Pull, Push, Sync. The prototype side is the repository folder with its git strip. Shown inside the Files place (sidebar and tab strip), as in the prototype.",
+      "protoSettleMs": 4000
+    },
+    {
+      "id": "P-L9e_03-changeset-harbor",
+      "route": "/m/P-L9e_03?part=review&space=harbor",
+      "proto": "files,harbor,{skin}",
+      "waitFor": "[data-testid='changeset-diff']",
+      "note": "The same review over the Harbor Studio sample Space: Proofer changed 2 files. The prototype has no changeset in Harbor Studio; its side is Harbor Studio's Files in the same skin. Shown inside the Files place (sidebar and tab strip), as in the prototype.",
+      "protoSettleMs": 4000
+    }
+  ]
+}

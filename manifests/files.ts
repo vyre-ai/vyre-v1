@@ -317,11 +317,11 @@ export default defineManifest({
     }),
     read('changesets.get', 'Read a changeset with its file list and counts', {
       in: { changesetId: id.changeset },
-      out: { changeset: changesetRow, files: t.arr(t.obj({ path: t.str(), status: t.enm('added', 'modified', 'deleted', 'renamed'), added: t.int(), removed: t.int(), conflict: t.bool() })) },
+      out: { changeset: changesetRow, files: t.arr(t.obj({ path: t.str(), fileId: t.opt(id.file), status: t.enm('added', 'modified', 'deleted', 'renamed'), added: t.int(), removed: t.int(), conflict: t.bool() })) },
       tool: 'files', label: 'check',
     }),
     read('changesets.diff', 'Hunks of one file inside a changeset, against its recorded base version', {
-      in: { changesetId: id.changeset, path: t.str(), mode: t.opt(t.enm('unified', 'split', 'words', 'paragraph')) }, out: diffOut, tool: 'files', label: 'check',
+      in: { changesetId: id.changeset, path: t.str(), mode: t.opt(t.enm('unified', 'split', 'words', 'paragraph')), context: t.opt(t.enm('hunks', 'full')) }, out: diffOut, tool: 'files', label: 'check',
     }),
     write('changesets.approve', 'Approve and commit a changeset: 3-way merge on the recorded base, conflicts go to the reviewer; optionally push', {
       in: { changesetId: id.changeset, message: t.opt(t.str()), push: t.opt(t.bool()) },

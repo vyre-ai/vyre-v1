@@ -50,6 +50,7 @@ type Out = {
   };
   files: Array<{
       path: string;
+      fileId?: string;
       status: "added" | "modified" | "deleted" | "renamed";
       added: number;
       removed: number;
@@ -93,6 +94,7 @@ type Out = {
       {
         "added": 1,
         "conflict": true,
+        "fileId": "fil_a1b2c3",
         "path": "example",
         "removed": 1,
         "status": "added"
