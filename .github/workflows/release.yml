@@ -223,13 +223,19 @@ jobs:
             base=$(node scripts/release/cli.ts feed-base "$CHANNEL")
           fi
           node scripts/release/cli.ts smoke "$base" "$CHANNEL" "$pub" "$VERSION"
+  cleanup-dryrun:
+    needs: [guard, smoke]
+    if: always() && needs.guard.outputs.dryrun == 'true' && needs.guard.result == 'success'
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 5
+    permissions: { contents: write }   # the smoke reads as a fresh reader and has no write access; only this job may delete the practice release
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
       - name: A practice release is deleted again
-        if: always() && needs.guard.outputs.dryrun == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
-        run: node scripts/release/cli.ts unpublish "$TAG" || true
+        run: node scripts/release/cli.ts unpublish "$TAG"
   deploy:
     needs: live
     uses: ./.github/workflows/deploy.yml
