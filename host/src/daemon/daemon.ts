@@ -681,6 +681,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         await syncAccess();
       }
 
+      const owner = (): string => cfg.owner ?? access.owner() ?? "usr_owner";
+
       // A restore brought an older Space back. What was erased since is erased again, as the host, before any request is served (spec 2.26, ARCH 7.10). If it cannot be done the Space does not open.
       const kept = loaded.serving.get("governance") === "live" ? readRestoredTombstones(paths.root) : null;
       if (kept) {
@@ -694,8 +696,6 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         sink.log({ space: spaceId, level: 20, msg: "restore.tombstones_reapplied", place: "boot", attrs: { count: replayed?.count ?? 0 } });
         clearRestoredTombstones(paths.root);
       }
-
-      const owner = (): string => cfg.owner ?? access.owner() ?? "usr_owner";
       // Identity comes from the bearer token alone (host/src/daemon/session.ts): a device session row gives the person and the device; the x-vyre-device header and ?device= are ignored.
       // The single admin token is the owner bootstrap path only (ensureAdminToken): it acts as the owner on the fixed device `local-admin`.
       const sessions = createSessionResolver({ db: db!, space: spaceId });
