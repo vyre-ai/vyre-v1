@@ -112,6 +112,8 @@ jobs:
         run: node scripts/lint/perf-files.ts
       - name: emits-declared (report mode, never fails yet); a handler may emit only the events its capability declares
         run: node scripts/lint/emits-declared.ts
+      - name: raise-after-write (report mode, never fails yet); a refusal must come before the handler's first write (ruling 90)
+        run: node scripts/lint/raise-after-write.ts
       - name: Typecheck every package that has a tsconfig.json above a changed file
         run: |
           git fetch -q origin main

@@ -1,0 +1,8 @@
+{
+  "modules/telephony/handlers/sms.ts#capCheck": "the SMS cap counts the attempt it refuses; the count must survive the refusal",
+  "modules/forms/projections.ts#rateLimit": "the rate limit counts the submission it refuses; the count must survive the refusal",
+  "modules/identity/projections.ts#spendCode": "single-use claim: the conditional UPDATE changes no row when it refuses, and a spent code stays spent",
+  "modules/mcp/handlers/server.ts#tokenRegister": "single-use claim: the conditional UPDATE changes no row when it refuses",
+  "modules/members/handlers/invite.ts#invitesSeam": "single-use claim: the conditional UPDATE changes no row when it refuses",
+  "modules/portal/handlers/accounts.ts#redeem": "single-use link: a link used once stays used even when the redeem is refused afterwards"
+}
