@@ -52,8 +52,14 @@ export async function runAgentReply(live: readonly string[], opts: Parameters<ty
           // what the host logged while this flow ran: a consumer that failed, a bridge that skipped, an engine that could not open a session
           s.d.sink.flush();
           const logs = new DatabaseSync(s.d.paths.logs, { readOnly: true }).prepare("SELECT level, place, cap, msg, attrs FROM logs WHERE level >= 30 OR msg LIKE '%consumer%' OR msg LIKE '%bridge%' OR msg LIKE '%engine%' ORDER BY id DESC LIMIT 30").all().map((r) => `${r.level} ${r.place ?? ""} ${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 300)}`);
+          const consumers = (s.d.hooks?.consumers ?? []).map((c) => c.name).filter((n) => /engine|chat/.test(n));
+          const cursors = s.d.db?.all("SELECT name, seq FROM host_hook_cursor WHERE name LIKE 'engine%' OR name LIKE 'chat%'");
+          const head = (await s.events()).slice(-6).map((e) => `${e.type}`);
+          const engineMsgs = (() => { try { return s.d.db?.all("SELECT id, thread_id FROM engine_messages LIMIT 5"); } catch (e) { return String(e); } })();
+          const wired = s.d.seams?.wired?.filter((w) => /ngine|ridge/.test(w));
+          const diag = JSON.stringify({ consumers, cursors, lastEvents: head, engineMsgs, wired, missing: s.d.seams?.missing?.filter((m) => /engine|chat/.test(String(m.module))) });
           const turns = await s.call("engine.turns.list", admin, { threadId: thread! });
-          throw new Error(`no reply from the agent after 40 s: ${short(msgs)}; turns ${short(turns.body?.data ?? turns.body)}; host log ${JSON.stringify(logs)}`);
+          throw new Error(`no reply from the agent after 40 s: ${short(msgs)}; turns ${short(turns.body?.data ?? turns.body)}; host log ${JSON.stringify(logs)}; diag ${diag}`);
         }
         await new Promise((r) => setTimeout(r, 100));
       }
