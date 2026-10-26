@@ -7,9 +7,7 @@ import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_PURGE = ["sync", "access", "search", "records", "schema", "devices", "spaces"];
-export const GAPS: Gap[] = [
-  { packet: "P-GF_09", lane: "L7", what: "access.unshare appends no sync.row_rescan, so the guest's next pull returns hide: [] (cursor 501, no changes); sync/src/purge/server.ts reindexScope exists but nothing calls it on a revoke (ARCH 5.7)" },
-];
+export const GAPS: Gap[] = [];
 
 export async function runPurge(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const trail = new Trail();
@@ -33,7 +31,7 @@ export async function runPurge(live: readonly string[]): Promise<{ events: Obser
     const grant = await trail.step("the row is placed in a folder made for it and the folder is shared with Tess", async () => {
       const catalog = loadCatalog();
       const rt = catalog.get(rows!.inside.entity).resource;
-      const folder = expectStatus(await s.call("folders.create", admin, { idempotencyKey: "golden-14-folder", type: rt, name: "Guest folder", scope: "space" }), 200, "folders.create").folder.id as string;
+      const folder = expectStatus(await s.call("folders.create", admin, { idempotencyKey: "golden-14-folder", type: rt, name: "Guest folder", scope: "personal" }), 200, "folders.create").folder.id as string;
       expectStatus(await s.call("folders.place", admin, { resource: { type: rt, id: rows!.inside.id }, folderId: folder }), 200, "folders.place");
       return expectStatus(await s.call("access.share", admin, { idempotencyKey: "golden-14-share", resource: { type: "folder", id: folder }, subject: { kind: "person", id: "usr_tess" }, level: "view" }), 200, "access.share").grant.id as string;
     }, ["Tess holds neither row before any grant"]);

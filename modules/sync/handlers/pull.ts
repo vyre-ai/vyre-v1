@@ -26,7 +26,7 @@ export function createPullHandlers(deps: PullDeps): PullHandlers {
   const who = (ctx: PullCtx, deviceClass: DeviceClass = ctx.deviceClass) => ({ person: ctx.principal, device: ctx.deviceId, deviceClass });
   return {
     async "sync.pull"(ctx, input) {
-      return pullChanges(deps, who(ctx), input);
+      return pullChanges(deps, who(ctx), input, ctx.trace.traceId);
     },
     async "sync.snapshot.begin"(ctx, input) {
       return snapshotBegin(deps, who(ctx, input.deviceClass), input, ctx.trace.traceId);

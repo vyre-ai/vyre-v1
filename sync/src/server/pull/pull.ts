@@ -139,7 +139,7 @@ function settle(list: Emission[]): { changes: Change[]; hide: Hide[] } {
  * response never arrived is answered the same way. The event names the row and nothing else, and is private to the server (no reader of the log sees it); who is told what is still decided
  * per person by the scan. The stamp is stored once the events are written. Runs before the scan, outside its transaction.
  */
-function rescanChanged(d: PullDeps, who: Who, viewer: Viewer, window: Window, cursor: number): void {
+function rescanChanged(d: PullDeps, who: Who, viewer: Viewer, window: Window, cursor: number, trace: string): void {
   const db = d.db;
   ensureStamp(db);
   const stamp = d.cache.stamp(who.person, d.now());
@@ -155,8 +155,10 @@ function rescanChanged(d: PullDeps, who: Who, viewer: Viewer, window: Window, cu
     const mode = cfg.profile[who.deviceClass];
     return mode !== "none" && viewer.visible(viewer.scope(cfg), row, JSON.parse(row.fields) as Cells) && window.holds(cfg, mode, row);
   };
+  const asked = new Map<string, number>();
   const ask = (entity: string, id: string): void => {
-    d.append!({ type: "sync.row_rescan", sv: 1, trace_id: "0".repeat(32), actor: "svc_host", vis: "private", payload: { entity, id } });
+    d.append!({ type: "sync.row_rescan", sv: 1, trace_id: trace, actor: "svc_host", vis: "private", payload: { entity, id } });
+    asked.set(entity, (asked.get(entity) ?? 0) + 1);
   };
   // `eff` is what the device is taken to hold at this cursor (a mark newer than the cursor is not acknowledged yet)
   const held = db.all<RowRec>(
@@ -169,10 +171,14 @@ function rescanChanged(d: PullDeps, who: Who, viewer: Viewer, window: Window, cu
       WHERE r.deleted = 0 AND (s.id IS NULL OR (CASE WHEN s.at_seq > ? THEN s.prev_vis ELSE s.vis END) = 0)`, who.person, who.device, cursor);
   for (const row of held) if (!sees(row)) ask(row.entity, row.id);
   for (const row of missing) if (sees(row)) ask(row.entity, row.id);
+  // clients refetch the range of an entity whose rows changed hands for this person (the same event reindexScope writes for a grant that moves many rows)
+  for (const [entity, rows] of [...asked].sort(([a], [b]) => (a < b ? -1 : 1))) {
+    d.append({ type: "sync.scope_changed", sv: 1, trace_id: trace, actor: "svc_host", vis: "participants", entity, payload: { entity, personId: who.person, rows } });
+  }
   db.run("INSERT INTO sync_scope_stamp (person, device, stamp) VALUES (?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET stamp = excluded.stamp", who.person, who.device, stamp);
 }
 
-export function pullChanges(d: PullDeps, who: Who, req: PullReq): PullRes {
+export function pullChanges(d: PullDeps, who: Who, req: PullReq, trace = "0".repeat(32)): PullRes {
   const db = d.db;
   const epoch = deviceEpochOf(db, who.person, who.device);
   const serverHlc = d.hlc();
@@ -191,7 +197,7 @@ export function pullChanges(d: PullDeps, who: Who, req: PullReq): PullRes {
   const now = d.now();
   const viewer = new Viewer({ cache: d.cache, who, now, phoneCeiling: d.phoneCeiling() });
   const window = new Window(db, now, (entity, id) => d.keep(who.person, entity, id));
-  rescanChanged(d, who, viewer, window, cursor);
+  rescanChanged(d, who, viewer, window, cursor, trace);
   const scanLimit = limit * 4;
   const scan = db.all<ChangeRec>(`SELECT seq, entity, id, op, fields FROM sync_changes WHERE ${where.join(" AND ")} ORDER BY seq LIMIT ${scanLimit}`, ...args);
 
