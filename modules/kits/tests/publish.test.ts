@@ -124,7 +124,7 @@ test("test_run: runs the working copy on a fixture Space and names each failing 
 test("runner: seed calls, event payload subsets, and a seed that fails", async () => {
   const kit = checkKit(kitManifest({
     tests: [
-      { name: "seeded", kind: "space", seed: [{ cap: "records.create", input: { type: "matter", name: "Estate of Dana" } }], expect: { events: [{ name: "record.created", payload: { type: "matter" } }], views: [{ cap: "records.query", contains: { name: "Estate of Dana" } }] } },
+      { name: "seeded", kind: "space", seed: [{ cap: "records.create", input: { type: "matter", fields: { name: "Estate of Dana" } } }], expect: { events: [{ name: "record.created", payload: { type: "matter" } }], views: [{ cap: "records.query", contains: { name: "Estate of Dana" } }] } },
       { name: "bad seed", kind: "space", seed: [{ cap: "records.boom", input: {} }], expect: {} },
     ],
   })).kit!;
