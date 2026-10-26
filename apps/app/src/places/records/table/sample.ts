@@ -219,10 +219,12 @@ export function createSampleRecords(space: SampleSpace = northwind, o: { online?
   // owners come from the Space's own people, so a Harbor row never names a Northwind teammate
   const owners = Object.keys(space.people).filter((id) => id.startsWith("usr_"));
   const seeded = Math.min(space.counts["clients"] ?? 0, 14);
-  const clients: Row[] = [];
-  for (let i = 0; i < seeded; i++) clients.push(client(i, owners) as unknown as Row);
-  for (let i = seeded; i < seeded + bulk; i++) clients.push(client(i, owners) as unknown as Row);
   const given = space.rows?.["clients"];
+  const clients: Row[] = [];
+  if (!given) {
+    for (let i = 0; i < seeded; i++) clients.push(client(i, owners) as unknown as Row);
+    for (let i = seeded; i < seeded + bulk; i++) clients.push(client(i, owners) as unknown as Row);
+  }
   replica.put("records:clients", given ? [...given, ...Array.from({ length: bulk }, (_, k) => ({ ...(given[k % given.length] as Row), id: `cl_x${k}` }))] : clients);
   for (const t of space.types) {
     if (t.key === "clients") continue;
@@ -243,27 +245,42 @@ export function createSampleRecords(space: SampleSpace = northwind, o: { online?
     ...(t.scope ? { scope: t.scope } : {}), rowCount: tables.get(`records:${t.key}`)?.size ?? 0, fieldCount: t.fields.length,
   }));
 
-  replica.resolve("schema.types.list", (tables) => ({ types: typeRows(tables), total: space.types.length }));
-  replica.resolve("schema.describe", (_t, i) => ({ types: space.types.filter((t) => !i.type || t.key === i.type) }));
-  replica.resolve("views.list", (_t, i) => ({ views: (replica.rows("views") as unknown as ViewRow[]).filter((v) => !i.type || v.type === i.type) }));
-  replica.resolve("records.counts", (tables, i) => ({ count: i.filter === undefined ? (tables.get(`records:${i.type}`)?.size ?? 0) : rowsOf(tables, i.type).filter((r) => matches(r, i.filter as Clause)).length }));
-  replica.resolve("records.query", (tables, i) => {
+  // The long table (100,000 rows) asks the same filter and sort again for every window and every re-render; filtering and sorting the whole table each time took seconds. The matching
+  // rows, in order, are worked out once per (type, filter, sort, group) for as long as the replica has not been written, and each window is a slice of that.
+  const ordered = new Map<string, { at: number; rows: RecordRow[] }>();
+  const orderOf = (tables: Tables, i: { type: string; filter?: unknown; sort?: readonly { field: string; dir?: string }[]; group?: string }): RecordRow[] => {
+    const id = JSON.stringify([i.type, i.filter ?? null, i.sort ?? null, i.group ?? null]);
+    const hit = ordered.get(id);
+    if (hit && hit.at === replica.version()) return hit.rows;
     let rows = rowsOf(tables, i.type);
     if (i.filter !== undefined) rows = rows.filter((r) => matches(r, i.filter as Clause));
     const sorts = [...(i.group ? [{ field: i.group, dir: "asc" as const }] : []), ...(i.sort ?? [])];
     if (sorts.length) {
-      rows = rows.slice().sort((a, b) => {
-        for (const s of sorts) {
-          const x = key(a.fields[s.field]), y = key(b.fields[s.field]);
-          if (x !== y) return (x < y ? -1 : 1) * (s.dir === "desc" ? -1 : 1);
+      // keys are read once per row and sort, not once per comparison
+      const keyed = rows.map((r) => ({ r, k: sorts.map((s) => key(r.fields[s.field])) }));
+      keyed.sort((a, b) => {
+        for (let n = 0; n < sorts.length; n++) {
+          const x = a.k[n]!, y = b.k[n]!;
+          if (x !== y) return (x < y ? -1 : 1) * (sorts[n]!.dir === "desc" ? -1 : 1);
         }
         return 0;
       });
+      rows = keyed.map((e) => e.r);
     }
+    ordered.set(id, { at: replica.version(), rows });
+    return rows;
+  };
+  replica.resolve("schema.types.list", (tables) => ({ types: typeRows(tables), total: space.types.length }));
+  replica.resolve("schema.describe", (_t, i) => ({ types: space.types.filter((t) => !i.type || t.key === i.type) }));
+  replica.resolve("views.list", (_t, i) => ({ views: (replica.rows("views") as unknown as ViewRow[]).filter((v) => !i.type || v.type === i.type) }));
+  replica.resolve("records.counts", (tables, i) => ({ count: i.filter === undefined ? (tables.get(`records:${i.type}`)?.size ?? 0) : orderOf(tables, { type: i.type, filter: i.filter }).length }));
+  replica.resolve("records.query", (tables, i) => {
+    const rows = orderOf(tables, i);
     const offset = i.offset ?? 0, limit = i.limit ?? 200;
     return { rows: rows.slice(offset, offset + limit), total: rows.length };
   });
 
+  const trash = new Map<string, Row>();
   const writes: Record<string, (i: never) => unknown> = {
     "records.create": (i: { type: string; fields: Record<string, unknown> }) => {
       const id = `${i.type}_new${replica.rows(`records:${i.type}`).length}`;
@@ -271,6 +288,21 @@ export function createSampleRecords(space: SampleSpace = northwind, o: { online?
       replica.put(`records:${i.type}`, [rec]);
       return { record: rec };
     },
+    "records.delete": (i: { type: string; recordId: string }) => {
+      const cur = (replica.rows(`records:${i.type}`) as unknown as { id: string }[]).find((r) => r.id === i.recordId);
+      if (!cur) throw new Error("not_found");
+      trash.set(i.recordId, cur as unknown as Row);
+      replica.remove(`records:${i.type}`, [i.recordId]);
+      return { deleted: true };
+    },
+    "records.restore": (i: { type: string; recordId: string }) => {
+      const cur = trash.get(i.recordId);
+      if (!cur) throw new Error("not_found");
+      trash.delete(i.recordId);
+      replica.put(`records:${i.type}`, [cur]);
+      return { record: cur };
+    },
+    "records.export": () => ({ fileId: "fil_export" }),
     "views.save": (i: { type: string; viewId?: string; kind: string; title: string; filter?: unknown; sort?: unknown; group?: string; hidden?: string[]; config?: Record<string, unknown> }) => {
       const viewId = i.viewId ?? `vw_${replica.rows("views").length + 1}`;
       const view = { id: viewId, viewId, type: i.type, kind: i.kind, title: i.title, shared: false, ownerId: space.me, updatedAt: SAMPLE_NOW, ...(i.filter !== undefined ? { filter: i.filter } : {}), ...(i.sort !== undefined ? { sort: i.sort } : {}), ...(i.group ? { group: i.group } : {}), ...(i.hidden ? { hidden: i.hidden } : {}), ...(i.config ? { config: i.config } : {}) };
@@ -292,7 +324,11 @@ export function createSampleRecords(space: SampleSpace = northwind, o: { online?
     async call(cap, input) {
       calls.push({ cap, input });
       const w = writes[cap];
-      if (!w) throw new Error(`unknown capability ${cap}`);
+      if (!w) {
+        const read = replica.run(cap as never, input as never);
+        if (read) return read.data;
+        throw new Error(`unknown capability ${cap}`);
+      }
       return w(input as never);
     },
     connection, nav,
