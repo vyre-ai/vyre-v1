@@ -43,7 +43,7 @@ export default defineManifest({
     }),
     write('governance.retention.reset', 'Put one kind back to its default', { ...V, in: { kind, recordType: recordTypeOpt }, out: { row: retentionRow }, perm: 'policy.manage', emits: ['policy.changed'], audit: 'always', tool: 'engineer', team: true }),
     read('governance.jobs.list', 'The retention jobs: last run, next run, what was removed, what a hold skipped', { ...V, in: {}, out: { jobs: t.arr(jobRow) }, perm: 'policy.manage', tool: 'engineer', team: true }),
-    write('governance.jobs.run_now', 'Run one retention job now', { ...V, idem: 'key', in: { kind }, out: { runId: id.run }, perm: 'policy.manage', run: { kind: 'retention', stoppable: true }, audit: 'always', tool: 'engineer', team: true }),
+    write('governance.jobs.run_now', 'Run one retention job now', { ...V, idem: 'key', in: { kind }, out: { runId: id.run }, perm: 'policy.manage', run: { kind: 'retention', stoppable: true }, emits: ['retention.purged'], audit: 'always', tool: 'engineer', team: true }),
     write('governance.jobs.tick', 'System: the daily job for one kind; deletes or compacts what is past retention and skips what a hold covers', {
       ...V, in: { kind }, out: { removed: t.int({ minimum: 0 }), skippedOnHold: t.int({ minimum: 0 }) }, emits: ['retention.purged'], audit: 'always',
     }),

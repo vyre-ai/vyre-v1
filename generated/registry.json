@@ -104,28 +104,6 @@
       },
       "type": "array"
     },
-    "s_01ba7de8d7": {
-      "properties": {
-        "files": {
-          "$ref": "#/$defs/s_a21144ff96"
-        },
-        "folders": {
-          "$ref": "#/$defs/s_67ef96a86f"
-        },
-        "next": {
-          "description": "Cursor for the next page; absent on the last page",
-          "type": "string"
-        },
-        "total": {
-          "type": "integer"
-        }
-      },
-      "required": [
-        "files",
-        "folders"
-      ],
-      "type": "object"
-    },
     "s_027fb3219c": {
       "properties": {
         "default": {
@@ -260,6 +238,24 @@
       },
       "required": [
         "threadId"
+      ],
+      "type": "object"
+    },
+    "s_04aaa4e969": {
+      "properties": {
+        "changesetId": {
+          "examples": [
+            "chg_a1b2c3"
+          ],
+          "pattern": "^chg_[a-z0-9]+$",
+          "type": "string"
+        },
+        "file": {
+          "$ref": "#/$defs/s_ac13e8babf"
+        }
+      },
+      "required": [
+        "file"
       ],
       "type": "object"
     },
@@ -1472,74 +1468,6 @@
         "type": "object"
       },
       "type": "array"
-    },
-    "s_13ccf833f9": {
-      "properties": {
-        "fileCount": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "folderCount": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "git": {
-          "type": "boolean"
-        },
-        "label": {
-          "maximum": 3,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "name": {
-          "type": "string"
-        },
-        "parentId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "path": {
-          "examples": [
-            "Projects/Probate GTM"
-          ],
-          "type": "string"
-        },
-        "reviewChanges": {
-          "type": "boolean"
-        },
-        "scope": {
-          "enum": [
-            "personal",
-            "space"
-          ],
-          "type": "string"
-        },
-        "source": {
-          "$ref": "#/$defs/s_79be53286e"
-        }
-      },
-      "required": [
-        "folderId",
-        "name",
-        "path",
-        "fileCount",
-        "folderCount",
-        "scope",
-        "label",
-        "git",
-        "reviewChanges"
-      ],
-      "type": "object"
     },
     "s_13ee309840": {
       "items": {
@@ -3707,6 +3635,12 @@
       },
       "type": "array"
     },
+    "s_333ebd7463": {
+      "items": {
+        "$ref": "#/$defs/s_ac13e8babf"
+      },
+      "type": "array"
+    },
     "s_3550bb561b": {
       "items": {
         "properties": {
@@ -5125,118 +5059,6 @@
       ],
       "type": "object"
     },
-    "s_486e12678d": {
-      "properties": {
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "deletedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "fileId": {
-          "examples": [
-            "fil_a1b2c3"
-          ],
-          "pattern": "^fil_[a-z0-9]+$",
-          "type": "string"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "holds": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "kind": {
-          "enum": [
-            "text",
-            "markdown",
-            "document",
-            "spreadsheet",
-            "presentation",
-            "pdf",
-            "image",
-            "video",
-            "audio",
-            "code",
-            "archive",
-            "google_native",
-            "other"
-          ],
-          "type": "string"
-        },
-        "label": {
-          "maximum": 3,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "mime": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "ownerId": {
-          "type": "string"
-        },
-        "size": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "source": {
-          "$ref": "#/$defs/s_79be53286e"
-        },
-        "thumb": {
-          "type": "boolean"
-        },
-        "updatedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "updatedBy": {
-          "type": "string"
-        },
-        "version": {
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "fileId",
-        "folderId",
-        "name",
-        "kind",
-        "mime",
-        "size",
-        "version",
-        "label",
-        "ownerId",
-        "createdAt",
-        "updatedAt",
-        "updatedBy",
-        "thumb",
-        "holds"
-      ],
-      "type": "object"
-    },
     "s_489f2891b9": {
       "properties": {
         "as": {
@@ -5287,6 +5109,77 @@
       "required": [
         "deliveryId",
         "idempotencyKey"
+      ],
+      "type": "object"
+    },
+    "s_4a1e404cdd": {
+      "properties": {
+        "fileCount": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "folderCount": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "git": {
+          "type": "boolean"
+        },
+        "label": {
+          "maximum": 3,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "parentId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "path": {
+          "examples": [
+            "Projects/Probate GTM"
+          ],
+          "type": "string"
+        },
+        "reviewChanges": {
+          "type": "boolean"
+        },
+        "scope": {
+          "enum": [
+            "personal",
+            "space"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/s_79be53286e"
+        },
+        "subject": {
+          "$ref": "#/$defs/s_b5775f40f8"
+        }
+      },
+      "required": [
+        "folderId",
+        "name",
+        "path",
+        "fileCount",
+        "folderCount",
+        "scope",
+        "label",
+        "git",
+        "reviewChanges"
       ],
       "type": "object"
     },
@@ -7752,6 +7645,28 @@
       ],
       "type": "object"
     },
+    "s_63dc3a7fc4": {
+      "properties": {
+        "files": {
+          "$ref": "#/$defs/s_333ebd7463"
+        },
+        "folders": {
+          "$ref": "#/$defs/s_76462aa6ce"
+        },
+        "next": {
+          "description": "Cursor for the next page; absent on the last page",
+          "type": "string"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "files",
+        "folders"
+      ],
+      "type": "object"
+    },
     "s_63dee7bf35": {
       "properties": {
         "fixedIn": {
@@ -8090,12 +8005,6 @@
         "name"
       ],
       "type": "object"
-    },
-    "s_67ef96a86f": {
-      "items": {
-        "$ref": "#/$defs/s_13ccf833f9"
-      },
-      "type": "array"
     },
     "s_685b085375": {
       "properties": {
@@ -8553,6 +8462,35 @@
       ],
       "type": "object"
     },
+    "s_744cca82fa": {
+      "properties": {
+        "before": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "examples": [
+            "idem_1"
+          ],
+          "minLength": 1,
+          "type": "string"
+        },
+        "limit": {
+          "maximum": 5000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "before",
+        "idempotencyKey"
+      ],
+      "type": "object"
+    },
     "s_745b46a2f2": {
       "properties": {
         "as": {
@@ -8634,24 +8572,6 @@
         "kind",
         "title",
         "line"
-      ],
-      "type": "object"
-    },
-    "s_74c6a2fb9f": {
-      "properties": {
-        "changesetId": {
-          "examples": [
-            "chg_a1b2c3"
-          ],
-          "pattern": "^chg_[a-z0-9]+$",
-          "type": "string"
-        },
-        "file": {
-          "$ref": "#/$defs/s_486e12678d"
-        }
-      },
-      "required": [
-        "file"
       ],
       "type": "object"
     },
@@ -8804,6 +8724,12 @@
         "blocks"
       ],
       "type": "object"
+    },
+    "s_76462aa6ce": {
+      "items": {
+        "$ref": "#/$defs/s_4a1e404cdd"
+      },
+      "type": "array"
     },
     "s_76a1c562f7": {
       "properties": {
@@ -10521,17 +10447,6 @@
       ],
       "type": "object"
     },
-    "s_8fffaf9035": {
-      "properties": {
-        "folder": {
-          "$ref": "#/$defs/s_13ccf833f9"
-        }
-      },
-      "required": [
-        "folder"
-      ],
-      "type": "object"
-    },
     "s_90ff7d13ee": {
       "properties": {
         "branches": {
@@ -11459,12 +11374,6 @@
       ],
       "type": "object"
     },
-    "s_a21144ff96": {
-      "items": {
-        "$ref": "#/$defs/s_486e12678d"
-      },
-      "type": "array"
-    },
     "s_a2d37875a7": {
       "properties": {
         "schedule": {
@@ -12250,6 +12159,124 @@
       ],
       "type": "object"
     },
+    "s_ac13e8babf": {
+      "properties": {
+        "conflict": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "deletedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fileId": {
+          "examples": [
+            "fil_a1b2c3"
+          ],
+          "pattern": "^fil_[a-z0-9]+$",
+          "type": "string"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "holds": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "text",
+            "markdown",
+            "document",
+            "spreadsheet",
+            "presentation",
+            "pdf",
+            "image",
+            "video",
+            "audio",
+            "code",
+            "archive",
+            "google_native",
+            "other"
+          ],
+          "type": "string"
+        },
+        "label": {
+          "maximum": 3,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ownerId": {
+          "type": "string"
+        },
+        "size": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source": {
+          "$ref": "#/$defs/s_79be53286e"
+        },
+        "starred": {
+          "type": "boolean"
+        },
+        "thumb": {
+          "type": "boolean"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "updatedBy": {
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "fileId",
+        "folderId",
+        "name",
+        "kind",
+        "mime",
+        "size",
+        "version",
+        "label",
+        "ownerId",
+        "createdAt",
+        "updatedAt",
+        "updatedBy",
+        "thumb",
+        "holds"
+      ],
+      "type": "object"
+    },
     "s_aed3f8b568": {
       "items": {
         "$ref": "#/$defs/s_a62f360c59"
@@ -12831,6 +12858,39 @@
       },
       "required": [
         "scope"
+      ],
+      "type": "object"
+    },
+    "s_b5775f40f8": {
+      "properties": {
+        "id": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "agent",
+            "project",
+            "space"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "s_b59a284a11": {
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/s_ac13e8babf"
+        }
+      },
+      "required": [
+        "file"
       ],
       "type": "object"
     },
@@ -14108,6 +14168,26 @@
       },
       "required": [
         "rowId"
+      ],
+      "type": "object"
+    },
+    "s_c6cb50d174": {
+      "properties": {
+        "more": {
+          "type": "boolean"
+        },
+        "removed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "skippedOnHold": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "removed",
+        "more"
       ],
       "type": "object"
     },
@@ -17363,17 +17443,6 @@
       ],
       "type": "object"
     },
-    "s_f9e90fdca6": {
-      "properties": {
-        "file": {
-          "$ref": "#/$defs/s_486e12678d"
-        }
-      },
-      "required": [
-        "file"
-      ],
-      "type": "object"
-    },
     "s_f9ea51f9e2": {
       "properties": {
         "message": {
@@ -17636,6 +17705,17 @@
         "contactId",
         "kind",
         "addressId"
+      ],
+      "type": "object"
+    },
+    "s_fc475b05bc": {
+      "properties": {
+        "folder": {
+          "$ref": "#/$defs/s_4a1e404cdd"
+        }
+      },
+      "required": [
+        "folder"
       ],
       "type": "object"
     },
@@ -20128,7 +20208,8 @@
       "audit": "always",
       "effects": "write",
       "emits": [
-        "principal.created"
+        "principal.created",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -39480,6 +39561,81 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "channel.erased"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "channelId": "chn_a1b2c3",
+            "idempotencyKey": "idem_1"
+          },
+          "name": "example",
+          "output": {
+            "erased": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "channelId": {
+            "examples": [
+              "chn_a1b2c3"
+            ],
+            "pattern": "^chn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "chat",
+      "name": "channels.erase",
+      "output": {
+        "properties": {
+          "erased": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "erased"
+        ],
+        "type": "object"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Erase one channel for good with all its messages (governance erase)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -43796,6 +43952,95 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "transcripts.purged"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "before": 1760000000000,
+            "idempotencyKey": "idem_1",
+            "limit": 1,
+            "skipThreadIds": [
+              "thr_a1b2c3"
+            ]
+          },
+          "name": "example",
+          "output": {
+            "more": true,
+            "removed": 1,
+            "skippedOnHold": 1
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "before": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 5000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "skipThreadIds": {
+            "items": {
+              "examples": [
+                "thr_a1b2c3"
+              ],
+              "pattern": "^thr_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "before",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "chat",
+      "name": "chat.transcript.purge",
+      "output": {
+        "$ref": "#/$defs/s_c6cb50d174"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Remove messages and blocks older than a time from chats and channels, a batch at a time; threads listed in skipThreadIds (held ones) are left whole (retention)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -47123,7 +47368,8 @@
     {
       "effects": "write",
       "emits": [
-        "computer.given_back"
+        "computer.given_back",
+        "computer.recording_saved"
       ],
       "errors": [
         "internal.unexpected",
@@ -48852,7 +49098,8 @@
       "audit": "sensitive",
       "effects": "write",
       "emits": [
-        "computer.session_signed_out"
+        "computer.session_signed_out",
+        "computer.started"
       ],
       "errors": [
         "internal.unexpected",
@@ -49302,7 +49549,8 @@
       "audit": "sensitive",
       "effects": "write",
       "emits": [
-        "computer.takeover"
+        "computer.takeover",
+        "computer.started"
       ],
       "errors": [
         "internal.unexpected",
@@ -49679,7 +49927,9 @@
     {
       "effects": "write",
       "emits": [
-        "conflict.proposed"
+        "conflict.proposed",
+        "conflict.confirmation_needed",
+        "conflict.resolved"
       ],
       "errors": [
         "internal.unexpected",
@@ -51315,7 +51565,9 @@
     },
     {
       "effects": "read",
-      "emits": [],
+      "emits": [
+        "connection.needs_reconnect"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -52779,7 +53031,9 @@
     {
       "audit": "always",
       "effects": "outward",
-      "emits": [],
+      "emits": [
+        "connection.needs_reconnect"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -60059,6 +60313,7 @@
           "output": {
             "accountRef": "#Team_Anthropic_Key",
             "allowed": true,
+            "itemId": "vit_a1b2c3",
             "payer": "usr_a1b2c3",
             "reason": "starter"
           }
@@ -60119,6 +60374,13 @@
           },
           "allowed": {
             "type": "boolean"
+          },
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
           },
           "payer": {
             "anyOf": [
@@ -64296,6 +64558,7 @@
         {
           "input": {
             "costMicros": 1,
+            "itemId": "vit_a1b2c3",
             "tokensIn": 1,
             "tokensOut": 1,
             "turnId": "trn_a1b2c3"
@@ -64311,6 +64574,13 @@
         "properties": {
           "costMicros": {
             "type": "integer"
+          },
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
           },
           "tokensIn": {
             "type": "integer"
@@ -64842,6 +65112,7 @@
             "agentId": "agt_a1b2c3",
             "by": "day",
             "from": 1760000000000,
+            "itemId": "vit_a1b2c3",
             "personId": "usr_a1b2c3",
             "to": 1760000000000
           },
@@ -64894,6 +65165,13 @@
             ],
             "minimum": 0,
             "type": "integer"
+          },
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
           },
           "personId": {
             "examples": [
@@ -66803,6 +67081,7 @@
           "name": "example",
           "output": {
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -66818,6 +67097,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -66865,7 +67145,7 @@
       "module": "files",
       "name": "files.copy",
       "output": {
-        "$ref": "#/$defs/s_f9e90fdca6"
+        "$ref": "#/$defs/s_b59a284a11"
       },
       "permission": "files.write",
       "resource": {
@@ -66918,6 +67198,7 @@
           "output": {
             "changesetId": "chg_a1b2c3",
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -66933,6 +67214,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -66998,7 +67280,7 @@
       "name": "files.create",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_74c6a2fb9f"
+        "$ref": "#/$defs/s_04aaa4e969"
       },
       "permission": "files.write",
       "resource": {
@@ -67353,7 +67635,11 @@
             "idempotencyKey": "idem_1",
             "name": "example",
             "parentId": "fld_a1b2c3",
-            "reviewChanges": true
+            "reviewChanges": true,
+            "subject": {
+              "id": "agt_a1b2c3",
+              "kind": "agent"
+            }
           },
           "name": "example",
           "output": {
@@ -67371,6 +67657,10 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
+              },
+              "subject": {
+                "id": "agt_a1b2c3",
+                "kind": "agent"
               }
             }
           }
@@ -67398,6 +67688,28 @@
           },
           "reviewChanges": {
             "type": "boolean"
+          },
+          "subject": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "agt_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "agent",
+                  "project"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
           }
         },
         "required": [
@@ -67412,7 +67724,7 @@
       "name": "files.folder.create",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_8fffaf9035"
+        "$ref": "#/$defs/s_fc475b05bc"
       },
       "permission": "files.write",
       "resource": {
@@ -67537,6 +67849,10 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
+              },
+              "subject": {
+                "id": "agt_a1b2c3",
+                "kind": "agent"
               }
             }
           }
@@ -67563,7 +67879,7 @@
       "module": "files",
       "name": "files.folder.get",
       "output": {
-        "$ref": "#/$defs/s_8fffaf9035"
+        "$ref": "#/$defs/s_fc475b05bc"
       },
       "permission": null,
       "resource": {
@@ -67617,6 +67933,10 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
+              },
+              "subject": {
+                "id": "agt_a1b2c3",
+                "kind": "agent"
               }
             }
           }
@@ -67650,7 +67970,7 @@
       "module": "files",
       "name": "files.folder.move",
       "output": {
-        "$ref": "#/$defs/s_8fffaf9035"
+        "$ref": "#/$defs/s_fc475b05bc"
       },
       "permission": "files.write",
       "resource": {
@@ -67704,6 +68024,10 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
+              },
+              "subject": {
+                "id": "agt_a1b2c3",
+                "kind": "agent"
               }
             }
           }
@@ -67717,7 +68041,7 @@
       "module": "files",
       "name": "files.folder.rename",
       "output": {
-        "$ref": "#/$defs/s_8fffaf9035"
+        "$ref": "#/$defs/s_fc475b05bc"
       },
       "permission": "files.write",
       "resource": {
@@ -67769,6 +68093,10 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
+              },
+              "subject": {
+                "id": "agt_a1b2c3",
+                "kind": "agent"
               }
             }
           }
@@ -67794,7 +68122,7 @@
       "module": "files",
       "name": "files.folder.restore",
       "output": {
-        "$ref": "#/$defs/s_8fffaf9035"
+        "$ref": "#/$defs/s_fc475b05bc"
       },
       "permission": "files.delete",
       "resource": {
@@ -67845,6 +68173,10 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
+                },
+                "subject": {
+                  "id": "agt_a1b2c3",
+                  "kind": "agent"
                 }
               }
             ]
@@ -67883,7 +68215,7 @@
       "output": {
         "properties": {
           "folders": {
-            "$ref": "#/$defs/s_67ef96a86f"
+            "$ref": "#/$defs/s_76462aa6ce"
           }
         },
         "required": [
@@ -67943,6 +68275,10 @@
               "source": {
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
+              },
+              "subject": {
+                "id": "agt_a1b2c3",
+                "kind": "agent"
               }
             }
           }
@@ -67980,7 +68316,7 @@
       "module": "files",
       "name": "files.folder.settings",
       "output": {
-        "$ref": "#/$defs/s_8fffaf9035"
+        "$ref": "#/$defs/s_fc475b05bc"
       },
       "permission": "files.write",
       "resource": {
@@ -68016,6 +68352,7 @@
           "name": "example",
           "output": {
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -68031,6 +68368,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -68060,7 +68398,7 @@
       "module": "files",
       "name": "files.get",
       "output": {
-        "$ref": "#/$defs/s_f9e90fdca6"
+        "$ref": "#/$defs/s_b59a284a11"
       },
       "permission": null,
       "resource": {
@@ -68140,6 +68478,7 @@
           "output": {
             "files": [
               {
+                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -68155,6 +68494,7 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
+                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -68176,6 +68516,10 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
+                },
+                "subject": {
+                  "id": "agt_a1b2c3",
+                  "kind": "agent"
                 }
               }
             ],
@@ -68212,10 +68556,10 @@
       "output": {
         "properties": {
           "files": {
-            "$ref": "#/$defs/s_a21144ff96"
+            "$ref": "#/$defs/s_333ebd7463"
           },
           "folders": {
-            "$ref": "#/$defs/s_67ef96a86f"
+            "$ref": "#/$defs/s_76462aa6ce"
           },
           "next": {
             "description": "Cursor for the next page; absent on the last page",
@@ -68385,6 +68729,7 @@
           "output": {
             "files": [
               {
+                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -68400,6 +68745,7 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
+                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -68421,6 +68767,10 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
+                },
+                "subject": {
+                  "id": "agt_a1b2c3",
+                  "kind": "agent"
                 }
               }
             ],
@@ -68497,7 +68847,7 @@
       "module": "files",
       "name": "files.list",
       "output": {
-        "$ref": "#/$defs/s_01ba7de8d7"
+        "$ref": "#/$defs/s_63dc3a7fc4"
       },
       "permission": null,
       "resource": {
@@ -68769,6 +69119,7 @@
           "output": {
             "changesetId": "chg_a1b2c3",
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -68784,6 +69135,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -68824,7 +69176,7 @@
       "name": "files.move",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_74c6a2fb9f"
+        "$ref": "#/$defs/s_04aaa4e969"
       },
       "permission": "files.write",
       "resource": {
@@ -69145,6 +69497,7 @@
           "output": {
             "files": [
               {
+                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -69160,6 +69513,7 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
+                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -69187,7 +69541,7 @@
       "output": {
         "properties": {
           "files": {
-            "$ref": "#/$defs/s_a21144ff96"
+            "$ref": "#/$defs/s_333ebd7463"
           }
         },
         "required": [
@@ -69236,6 +69590,7 @@
           "output": {
             "changesetId": "chg_a1b2c3",
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -69251,6 +69606,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -69284,7 +69640,7 @@
       "name": "files.rename",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_74c6a2fb9f"
+        "$ref": "#/$defs/s_04aaa4e969"
       },
       "permission": "files.write",
       "resource": {
@@ -69406,6 +69762,7 @@
           "name": "example",
           "output": {
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -69421,6 +69778,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -69456,7 +69814,7 @@
       "module": "files",
       "name": "files.restore",
       "output": {
-        "$ref": "#/$defs/s_f9e90fdca6"
+        "$ref": "#/$defs/s_b59a284a11"
       },
       "permission": "files.delete",
       "resource": {
@@ -69496,6 +69854,7 @@
           "name": "example",
           "output": {
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -69511,6 +69870,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -69550,7 +69910,7 @@
       "output": {
         "properties": {
           "file": {
-            "$ref": "#/$defs/s_486e12678d"
+            "$ref": "#/$defs/s_ac13e8babf"
           },
           "versionId": {
             "examples": [
@@ -70014,6 +70374,7 @@
           "output": {
             "files": [
               {
+                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -70029,6 +70390,7 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
+                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -70050,6 +70412,10 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
+                },
+                "subject": {
+                  "id": "agt_a1b2c3",
+                  "kind": "agent"
                 }
               }
             ],
@@ -70095,7 +70461,7 @@
       "module": "files",
       "name": "files.shared_with_me",
       "output": {
-        "$ref": "#/$defs/s_01ba7de8d7"
+        "$ref": "#/$defs/s_63dc3a7fc4"
       },
       "permission": null,
       "resource": {
@@ -70104,6 +70470,95 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "Files and folders other people shared with the caller, newest share first (the Shared with me section of the tree)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "file.starred"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "fileId": "fil_a1b2c3",
+            "starred": true
+          },
+          "name": "example",
+          "output": {
+            "file": {
+              "conflict": true,
+              "createdAt": 1760000000000,
+              "deletedAt": 1760000000000,
+              "fileId": "fil_a1b2c3",
+              "folderId": "fld_a1b2c3",
+              "holds": 1,
+              "kind": "text",
+              "label": 1,
+              "mime": "example",
+              "name": "example",
+              "ownerId": "example",
+              "size": 1,
+              "source": {
+                "mountId": "mnt_a1b2c3",
+                "provider": "example"
+              },
+              "starred": true,
+              "thumb": true,
+              "updatedAt": 1760000000000,
+              "updatedBy": "example",
+              "version": 1
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "starred": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fileId",
+          "starred"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "files",
+      "name": "files.star",
+      "offline": "queue",
+      "output": {
+        "$ref": "#/$defs/s_b59a284a11"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/fileId",
+        "type": "file"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Star a file or take the star off; a star is mine alone",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -70198,6 +70653,7 @@
           "output": {
             "files": [
               {
+                "conflict": true,
                 "createdAt": 1760000000000,
                 "deletedAt": 1760000000000,
                 "fileId": "fil_a1b2c3",
@@ -70213,6 +70669,7 @@
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
                 },
+                "starred": true,
                 "thumb": true,
                 "updatedAt": 1760000000000,
                 "updatedBy": "example",
@@ -70234,6 +70691,10 @@
                 "source": {
                   "mountId": "mnt_a1b2c3",
                   "provider": "example"
+                },
+                "subject": {
+                  "id": "agt_a1b2c3",
+                  "kind": "agent"
                 }
               }
             ],
@@ -70261,7 +70722,7 @@
       "module": "files",
       "name": "files.trash.list",
       "output": {
-        "$ref": "#/$defs/s_01ba7de8d7"
+        "$ref": "#/$defs/s_63dc3a7fc4"
       },
       "permission": null,
       "resource": {
@@ -70298,6 +70759,10 @@
                 "folderId": "fld_a1b2c3",
                 "key": "example",
                 "kind": "folder",
+                "subject": {
+                  "id": "agt_a1b2c3",
+                  "kind": "agent"
+                },
                 "title": "example"
               }
             ]
@@ -70338,6 +70803,9 @@
                     "virtual"
                   ],
                   "type": "string"
+                },
+                "subject": {
+                  "$ref": "#/$defs/s_b5775f40f8"
                 },
                 "title": {
                   "type": "string"
@@ -70531,6 +70999,95 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "file_versions.purged"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "before": 1760000000000,
+            "idempotencyKey": "idem_1",
+            "limit": 1,
+            "skipFileIds": [
+              "fil_a1b2c3"
+            ]
+          },
+          "name": "example",
+          "output": {
+            "more": true,
+            "removed": 1,
+            "skippedOnHold": 1
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "before": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 5000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "skipFileIds": {
+            "items": {
+              "examples": [
+                "fil_a1b2c3"
+              ],
+              "pattern": "^fil_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "before",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "files",
+      "name": "files.versions_purge",
+      "output": {
+        "$ref": "#/$defs/s_c6cb50d174"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Remove file versions older than a time except the newest of each file and any named version; files listed in skipFileIds (held ones) are left whole (retention)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -70552,6 +71109,7 @@
             "canEdit": true,
             "canMark": true,
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -70567,6 +71125,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -70613,7 +71172,7 @@
             "type": "boolean"
           },
           "file": {
-            "$ref": "#/$defs/s_486e12678d"
+            "$ref": "#/$defs/s_ac13e8babf"
           },
           "pages": {
             "type": "integer"
@@ -70716,6 +71275,7 @@
           "output": {
             "changesetId": "chg_a1b2c3",
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -70731,6 +71291,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -70781,7 +71342,7 @@
             "type": "string"
           },
           "file": {
-            "$ref": "#/$defs/s_486e12678d"
+            "$ref": "#/$defs/s_ac13e8babf"
           },
           "versionId": {
             "examples": [
@@ -70816,7 +71377,8 @@
       "effects": "write",
       "emits": [
         "folder.created",
-        "grant.created"
+        "grant.created",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -70911,7 +71473,9 @@
       "effects": "write",
       "emits": [
         "folder.deleted",
-        "item.moved"
+        "item.moved",
+        "grant.revoked",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -71068,7 +71632,8 @@
       "effects": "write",
       "emits": [
         "folder.moved",
-        "item.moved"
+        "item.moved",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -71154,7 +71719,8 @@
     {
       "effects": "write",
       "emits": [
-        "item.moved"
+        "item.moved",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -71291,7 +71857,8 @@
     {
       "effects": "write",
       "emits": [
-        "item.moved"
+        "item.moved",
+        "access.changed"
       ],
       "errors": [
         "internal.unexpected",
@@ -84812,7 +85379,9 @@
     {
       "audit": "always",
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "retention.purged"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -87767,7 +88336,8 @@
       "effects": "write",
       "emits": [
         "password.changed",
-        "keys.stored"
+        "keys.stored",
+        "signin.failed"
       ],
       "errors": [
         "auth.bad_credentials",
@@ -89689,7 +90259,8 @@
       "audit": "sensitive",
       "effects": "write",
       "emits": [
-        "factor.removed"
+        "factor.removed",
+        "signin.failed"
       ],
       "errors": [
         "auth.bad_credentials",
@@ -91603,6 +92174,80 @@
         "mcp": {
           "toolset": "inbox"
         }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "inbox.item_erased"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "refId": "sms_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "erased": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "refId": {
+            "examples": [
+              "sms_a1b2c3"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "refId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "inbox",
+      "name": "inbox.item.erase",
+      "output": {
+        "properties": {
+          "erased": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "erased"
+        ],
+        "type": "object"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Erase the conversation entries of one message, text or call for good: previews, subjects and participants go, the conversation keeps only what other items still say (governance erase)",
+      "surfaces": {
+        "http": "auto"
       },
       "v": 1
     },
@@ -96807,6 +97452,56 @@
     },
     {
       "audit": "always",
+      "effects": "write",
+      "emits": [
+        "logs.purged"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "before": 1760000000000,
+            "idempotencyKey": "idem_1",
+            "limit": 1
+          },
+          "name": "example",
+          "output": {
+            "more": true,
+            "removed": 1,
+            "skippedOnHold": 1
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "$ref": "#/$defs/s_744cca82fa"
+      },
+      "level": "manage",
+      "module": "logs",
+      "name": "logs.purge",
+      "output": {
+        "$ref": "#/$defs/s_c6cb50d174"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Remove log rows older than a time, a batch at a time (retention)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
       "effects": "read",
       "emits": [],
       "errors": [
@@ -99779,6 +100474,83 @@
         "mcp": {
           "toolset": "inbox"
         }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "mail.message_erased"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "messageId": "eml_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "erased": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "eml_a1b2c3"
+            ],
+            "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "messageId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "mail",
+      "name": "mail.message.erase",
+      "output": {
+        "properties": {
+          "erased": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "erased"
+        ],
+        "type": "object"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "entity": "mail_message",
+        "id": "/messageId",
+        "type": "entity"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Erase one mail message for good (governance erase)",
+      "surfaces": {
+        "http": "auto"
       },
       "v": 1
     },
@@ -108561,6 +109333,81 @@
         "mcp": {
           "toolset": "memory"
         }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "note.erased"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "noteId": "not_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "erased": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "noteId": {
+            "examples": [
+              "not_a1b2c3"
+            ],
+            "pattern": "^not_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "noteId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "memory",
+      "name": "memory.notes.erase",
+      "output": {
+        "properties": {
+          "erased": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "erased"
+        ],
+        "type": "object"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Erase one memory note for good, with its graph node and links (governance erase)",
+      "surfaces": {
+        "http": "auto"
       },
       "v": 1
     },
@@ -124056,6 +124903,140 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "record.purged"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "recordId": "rec_a1b2c3",
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "erased": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "records",
+      "name": "records.purge",
+      "output": {
+        "properties": {
+          "erased": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "erased"
+        ],
+        "type": "object"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Hard-delete one record for good: its fields, history, search entries and Trash row (governance erase; not Trash)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "records.trash_purged"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "before": 1760000000000,
+            "idempotencyKey": "idem_1",
+            "limit": 1
+          },
+          "name": "example",
+          "output": {
+            "more": true,
+            "removed": 1,
+            "skippedOnHold": 1
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "$ref": "#/$defs/s_744cca82fa"
+      },
+      "level": "manage",
+      "module": "records",
+      "name": "records.purge_trashed",
+      "output": {
+        "$ref": "#/$defs/s_c6cb50d174"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Hard-delete records that have been in Trash since before a time (retention)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -128030,6 +129011,81 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "run.erased"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "runId": "run_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "erased": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "runId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "runs",
+      "name": "runs.erase",
+      "output": {
+        "properties": {
+          "erased": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "erased"
+        ],
+        "type": "object"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Erase one Run for good with its steps, waits and alerts (governance erase)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [
         "run.succeeded",
@@ -128556,6 +129612,56 @@
         "mcp": {
           "toolset": "automations"
         }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "runs.purged"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "before": 1760000000000,
+            "idempotencyKey": "idem_1",
+            "limit": 1
+          },
+          "name": "example",
+          "output": {
+            "more": true,
+            "removed": 1,
+            "skippedOnHold": 1
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "$ref": "#/$defs/s_744cca82fa"
+      },
+      "level": "manage",
+      "module": "runs",
+      "name": "runs.purge",
+      "output": {
+        "$ref": "#/$defs/s_c6cb50d174"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Remove Runs and step logs older than a time, a batch at a time (retention)",
+      "surfaces": {
+        "http": "auto"
       },
       "v": 1
     },
@@ -135425,6 +136531,7 @@
           "name": "example",
           "output": {
             "file": {
+              "conflict": true,
               "createdAt": 1760000000000,
               "deletedAt": 1760000000000,
               "fileId": "fil_a1b2c3",
@@ -135440,6 +136547,7 @@
                 "mountId": "mnt_a1b2c3",
                 "provider": "example"
               },
+              "starred": true,
               "thumb": true,
               "updatedAt": 1760000000000,
               "updatedBy": "example",
@@ -135499,7 +136607,7 @@
       "module": "files",
       "name": "sheets.create",
       "output": {
-        "$ref": "#/$defs/s_f9e90fdca6"
+        "$ref": "#/$defs/s_b59a284a11"
       },
       "permission": "files.write",
       "resource": {
@@ -139490,7 +140598,11 @@
       "effects": "write",
       "emits": [
         "source.received",
-        "source.mapping_failed"
+        "source.mapping_failed",
+        "source.rejected",
+        "source.deduped",
+        "source.link_pending",
+        "source.linked"
       ],
       "errors": [
         "internal.unexpected",
@@ -144809,7 +145921,9 @@
     },
     {
       "effects": "read",
-      "emits": [],
+      "emits": [
+        "connection.needs_reconnect"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -149788,6 +150902,81 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "call.erased"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "callId": "cal_a1b2c3",
+            "idempotencyKey": "idem_1"
+          },
+          "name": "example",
+          "output": {
+            "erased": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "callId": {
+            "examples": [
+              "cal_a1b2c3"
+            ],
+            "pattern": "^cal_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "callId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "telephony",
+      "name": "telephony.call.erase",
+      "output": {
+        "properties": {
+          "erased": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "erased"
+        ],
+        "type": "object"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Erase one call for good: its transcript, summary and recording file (governance erase)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -152597,6 +153786,81 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "sms.erased"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "smsId": "sms_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "erased": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "smsId": {
+            "examples": [
+              "sms_a1b2c3"
+            ],
+            "pattern": "^sms_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "smsId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "telephony",
+      "name": "telephony.sms.erase",
+      "output": {
+        "properties": {
+          "erased": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "erased"
+        ],
+        "type": "object"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Erase one text message for good (governance erase)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -155109,6 +156373,81 @@
         "mcp": {
           "toolset": "chats"
         }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "thread.erased"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "erased": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "chat",
+      "name": "threads.erase",
+      "output": {
+        "properties": {
+          "erased": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "erased"
+        ],
+        "type": "object"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Erase one chat thread for good: messages, blocks, pins, reactions, attachment links, transcript rows, summaries and search entries (governance erase)",
+      "surfaces": {
+        "http": "auto"
       },
       "v": 1
     },
@@ -160920,6 +162259,134 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Change fields or settings of an item: set and remove fields, Space only lock, inject into deployments, rotation reminder",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "vault"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "itemId": "vit_a1b2c3",
+            "since": 1760000000000
+          },
+          "name": "example",
+          "output": {
+            "actors": [
+              {
+                "actor": {
+                  "id": "usr_a1b2c3",
+                  "kind": "person"
+                },
+                "tokens": 1,
+                "turns": 1
+              }
+            ],
+            "total": {
+              "tokens": 1,
+              "turns": 1
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
+          },
+          "since": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "vault",
+      "name": "vault.item.usage",
+      "output": {
+        "properties": {
+          "actors": {
+            "items": {
+              "properties": {
+                "actor": {
+                  "$ref": "#/$defs/s_6c1eb10d98"
+                },
+                "tokens": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "turns": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "actor",
+                "turns",
+                "tokens"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "total": {
+            "properties": {
+              "tokens": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "turns": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "turns",
+              "tokens"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "actors",
+          "total"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/itemId",
+        "type": "vault_item"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Who used a key or sign-in and how much: turns and tokens per agent and per person, and the total, from the turns the engine metered on the item; a person sees their own turns, a manager of AI spend all of them",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -171176,6 +172643,34 @@
       "vis": "space"
     },
     {
+      "module": "telephony",
+      "name": "call.erased",
+      "payload": {
+        "properties": {
+          "callId": {
+            "examples": [
+              "cal_a1b2c3"
+            ],
+            "pattern": "^cal_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "callId"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/callId",
+        "type": "entity"
+      },
+      "summary": "A call record was erased for good with its transcript, summary and recording (ids only)",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
       "label": "subject",
       "module": "telephony",
       "name": "call.missed",
@@ -172167,6 +173662,34 @@
       "trigger": {
         "title": "A channel is created"
       },
+      "vis": "space"
+    },
+    {
+      "module": "chat",
+      "name": "channel.erased",
+      "payload": {
+        "properties": {
+          "channelId": {
+            "examples": [
+              "chn_a1b2c3"
+            ],
+            "pattern": "^chn_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelId"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/channelId",
+        "type": "entity"
+      },
+      "summary": "A channel was erased for good with its messages (ids only)",
+      "sv": 1,
       "vis": "space"
     },
     {
@@ -175059,6 +176582,41 @@
       "vis": "space"
     },
     {
+      "module": "files",
+      "name": "file.starred",
+      "payload": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "starred": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fileId",
+          "by",
+          "starred"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/fileId",
+        "type": "file"
+      },
+      "summary": "A person starred a file or took the star off",
+      "sv": 1,
+      "vis": "owner"
+    },
+    {
       "label": "subject",
       "module": "files",
       "name": "file.version_added",
@@ -175110,6 +176668,31 @@
         ],
         "title": "A file changes"
       },
+      "vis": "space"
+    },
+    {
+      "module": "files",
+      "name": "file_versions.purged",
+      "payload": {
+        "properties": {
+          "removed": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/removed",
+        "type": "entity"
+      },
+      "summary": "Old file versions were removed by retention (a count)",
+      "sv": 1,
       "vis": "space"
     },
     {
@@ -177288,6 +178871,38 @@
       "vis": "space"
     },
     {
+      "module": "inbox",
+      "name": "inbox.item_erased",
+      "payload": {
+        "properties": {
+          "refId": {
+            "examples": [
+              "sms_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "removed": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "refId",
+          "removed"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/refId",
+        "type": "entity"
+      },
+      "summary": "The conversation entries of one message, text or call were erased for good (ids only)",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
       "module": "engine",
       "name": "incident.assigned",
       "notify": "incident.owned",
@@ -178229,6 +179844,59 @@
       "summary": "Someone read logs (reading logs is itself audited)",
       "sv": 1,
       "vis": "owner"
+    },
+    {
+      "module": "logs",
+      "name": "logs.purged",
+      "payload": {
+        "properties": {
+          "removed": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/removed",
+        "type": "entity"
+      },
+      "summary": "Log rows past their retention were removed (a count)",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "mail",
+      "name": "mail.message_erased",
+      "payload": {
+        "properties": {
+          "messageId": {
+            "examples": [
+              "eml_a1b2c3"
+            ],
+            "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "messageId"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/messageId",
+        "type": "entity"
+      },
+      "summary": "A mail message was erased for good: body, attachments and search entries (ids only)",
+      "sv": 1,
+      "vis": "space"
     },
     {
       "label": "subject",
@@ -180915,6 +182583,34 @@
       "vis": "space"
     },
     {
+      "module": "memory",
+      "name": "note.erased",
+      "payload": {
+        "properties": {
+          "noteId": {
+            "examples": [
+              "not_a1b2c3"
+            ],
+            "pattern": "^not_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "noteId"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/noteId",
+        "type": "entity"
+      },
+      "summary": "A memory note was erased for good (ids only)",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
       "module": "notifications",
       "name": "notification.capped",
       "payload": {
@@ -182968,6 +184664,22 @@
       "vis": "space"
     },
     {
+      "module": "records",
+      "name": "record.purged",
+      "payload": {
+        "$ref": "#/$defs/s_9287e79a4f"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/recordId",
+        "type": "entity"
+      },
+      "summary": "A record was hard-deleted for good (ids only)",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
       "label": "subject",
       "module": "records",
       "name": "record.restored",
@@ -183141,6 +184853,31 @@
         "type": "record"
       },
       "summary": "A reviewer accepted or rejected an agent-filled value",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "records",
+      "name": "records.trash_purged",
+      "payload": {
+        "properties": {
+          "removed": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/removed",
+        "type": "entity"
+      },
+      "summary": "Records past their Trash retention were hard-deleted (a count)",
       "sv": 1,
       "vis": "space"
     },
@@ -183607,6 +185344,34 @@
         "type": "entity"
       },
       "summary": "A sampled turn was reviewed",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "runs",
+      "name": "run.erased",
+      "payload": {
+        "properties": {
+          "runId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/runId",
+        "type": "entity"
+      },
+      "summary": "A Run was erased for good with its steps (ids only)",
       "sv": 1,
       "vis": "space"
     },
@@ -184135,6 +185900,31 @@
         "type": "file"
       },
       "summary": "The Runs on target of a runbook changed",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "runs",
+      "name": "runs.purged",
+      "payload": {
+        "properties": {
+          "removed": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/removed",
+        "type": "entity"
+      },
+      "summary": "Runs past their retention were removed with their step logs (a count)",
       "sv": 1,
       "vis": "space"
     },
@@ -185602,6 +187392,34 @@
         "type": "site"
       },
       "summary": "A site table became a Space record type",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "telephony",
+      "name": "sms.erased",
+      "payload": {
+        "properties": {
+          "smsId": {
+            "examples": [
+              "sms_a1b2c3"
+            ],
+            "pattern": "^sms_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "smsId"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/smsId",
+        "type": "entity"
+      },
+      "summary": "A text message was erased for good (ids only)",
       "sv": 1,
       "vis": "space"
     },
@@ -188313,6 +190131,34 @@
     },
     {
       "module": "chat",
+      "name": "thread.erased",
+      "payload": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/threadId",
+        "type": "entity"
+      },
+      "summary": "A chat thread was erased for good with its messages, blocks, pins and transcript (ids only)",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "chat",
       "name": "thread.plan_mode_changed",
       "payload": {
         "properties": {
@@ -188740,6 +190586,31 @@
         "type": "entity"
       },
       "summary": "Tombstones were replayed after a restore, before the Space opened for traffic",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "chat",
+      "name": "transcripts.purged",
+      "payload": {
+        "properties": {
+          "removed": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/removed",
+        "type": "entity"
+      },
+      "summary": "Chat transcripts past their retention were removed (a count)",
       "sv": 1,
       "vis": "space"
     },

@@ -19,7 +19,7 @@ Delete a folder; its items go back to their owners
 | HTTP | POST /v1/folders/delete |
 | MCP tool | folders_delete (meta) |
 | CLI | none |
-| Emits | folder.deleted, item.moved |
+| Emits | folder.deleted, item.moved, grant.revoked, access.changed |
 
 ## Input
 

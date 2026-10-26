@@ -1,13 +1,74 @@
 name: security
-# Security gates: license check, secret scan, dependency audit from the prewarmed cache.
+# Security gates (P-L11_23): licenses (npm, cargo), secret scan, dependency audit, and the layer boundaries over the whole tree. Each job fails the stage; nothing here is advisory.
+# Called by release.yml; also runs by hand and on every push to a branch (so all five jobs report on each head of a PR, not only when certain paths change), and in the merge queue.
 on:
   workflow_call:
   workflow_dispatch:
+  push:
+    branches-ignore: [main, 'gh-readonly-queue/**']
+  merge_group:
 jobs:
-  security:
+  licenses:
+    # AGPL, GPL, LGPL and SSPL are blocked (scripts/license-check.ts, ARCH 2.2 B6); MIT, Apache-2.0, BSD, ISC pass and MPL-2.0 is accepted at file level.
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: security stage
-        run: echo "security stage placeholder, security gates land with the security lane"
+      - uses: ./.github/actions/deps
+      - name: npm licenses over the installed packages
+        run: node scripts/license-check.ts
+      - name: cargo licenses over the desktop shell (cargo deny, a pinned version kept on the host; a runner that cannot run it fails the job)
+        env:
+          CARGO_DENY_VERSION: "0.18.9"
+        run: |
+          [ -f apps/desktop/src-tauri/Cargo.toml ] || { echo "no Cargo.toml, nothing to check"; exit 0; }
+          TOOLS="${VYRE_TOOLS_CACHE:-/var/lib/ci-run/tools}/cargo-deny-$CARGO_DENY_VERSION"
+          if [ ! -x "$TOOLS/bin/cargo-deny" ]; then
+            command -v cargo >/dev/null 2>&1 || { echo "::error::this runner has no Rust toolchain, so cargo-deny $CARGO_DENY_VERSION cannot be installed and the cargo licenses cannot be checked; install Rust on the runner or cargo-deny into $TOOLS/bin"; exit 1; }
+            mkdir -p "$TOOLS" && cargo install --locked --version "$CARGO_DENY_VERSION" --root "$TOOLS" cargo-deny
+          fi
+          # our rules, by absolute path: cargo-deny resolves a relative --config against the manifest directory and would fall back to its default config. A missing file fails the step.
+          CONFIG="$GITHUB_WORKSPACE/scripts/security/deny.toml"
+          [ -f "$CONFIG" ] || { echo "::error::$CONFIG is missing, the cargo licence rules cannot be applied"; exit 1; }
+          # cargo-deny runs `cargo metadata`: the hosts keep one Rust toolchain and cargo-deny under the tools cache (ciHosts); the runner service PATH does not include them, and rustup needs RUSTUP_HOME
+          TOOLS_ROOT="${VYRE_TOOLS_CACHE:-/var/lib/ci-run/tools}"
+          # the shared toolchain is read-only for the runner: its binaries stay on PATH, RUSTUP_HOME stays shared, and CARGO_HOME (the crates registry cargo writes) is a per-job directory
+          SHARED_CARGO="$TOOLS_ROOT/rust/cargo"
+          export RUSTUP_HOME="$TOOLS_ROOT/rust/rustup" CARGO_HOME="${RUNNER_TEMP:-/tmp}/cargo-home"
+          mkdir -p "$CARGO_HOME"
+          export PATH="$SHARED_CARGO/bin:$TOOLS/bin:$PATH"
+          command -v cargo >/dev/null 2>&1 || { echo "::error::no cargo under $SHARED_CARGO/bin on this runner; cargo-deny needs it for cargo metadata"; exit 1; }
+          rc=0
+          "$TOOLS/bin/cargo-deny" --manifest-path apps/desktop/src-tauri/Cargo.toml check licenses --config "$CONFIG" > cargo-deny.out 2>&1 || rc=$?
+          node scripts/license-check.ts --cargo cargo-deny.out
+          # cargo deny failing for any reason license-check did not parse (no network, a bad lockfile) is a failed check, not a pass
+          [ "$rc" = "0" ] || { echo "cargo deny exited $rc"; tail -n 20 cargo-deny.out; exit 1; }
+  secrets:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Secret scan over the tracked files (scripts/security/secret-scan.ts)
+        run: node scripts/security/secret-scan.ts
+  audit:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: npm audit, production dependencies, high and critical fail (scripts/security/audit.ts)
+        run: node scripts/security/audit.ts
+  boundaries:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Layer boundaries B1 to B8 over the whole tree; only violations listed in scripts/boundaries.json known (each with a reason) are tolerated
+        run: node scripts/boundaries.ts
+  tests:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/deps
+      - name: The scans' own tests, each with a seeded bad input that must fail
+        run: node scripts/test-run.ts --files scripts/security/secret-scan.test.ts scripts/security/audit.test.ts scripts/license-check.test.ts scripts/boundaries.test.ts

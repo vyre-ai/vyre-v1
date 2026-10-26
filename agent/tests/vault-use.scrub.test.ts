@@ -84,7 +84,7 @@ test("property: streaming in chunks of 1 to 9 characters scrubs exactly what the
 });
 
 test("two values at once, one inside the other's neighbourhood, both go; the marker names the handle, not the value", () => {
-  const a = secretRow("sk_live_AAAA1111bbbb2222", 1);
+  const a = secretRow("sk_live_AAAA1111bbbb2222", 1); // secret-scan: fake
   const b = { handle: "#Item2.token", itemId: "vit_2", value: "ghp_CCCC3333dddd4444eeee" };
   const sc = createScrubber([a, b]);
   const out = sc.scrub(`auth ${a.value}:${b.value} and ${Buffer.from(b.value).toString("base64")}`);
@@ -101,7 +101,7 @@ function source(rows: Record<string, Lookup>): ValueSource {
 const lookupOf = (value: string, itemId = "vit_1"): Lookup => ({ kind: "value", itemId, value, spaceOnly: false, injectIntoDeployments: false });
 
 test("a fragment that gets past the exact and encoded matches is a scrub_miss: reported by id and place, output withheld, value nowhere", async () => {
-  const value = "sk_live_ABCDEFGH12345678";
+  const value = "sk_live_ABCDEFGH12345678"; // secret-scan: fake
   const misses: Array<{ itemId: string; place: string; traceId: string }> = [];
   const run = await runWithVault(
     { source: source({ "#Dana_Stripe.api_key": lookupOf(value) }), reportMiss: (m) => { misses.push(m); } },
@@ -117,7 +117,7 @@ test("a fragment that gets past the exact and encoded matches is a scrub_miss: r
 });
 
 test("a streamed miss replaces the rest of the stream and reports once", async () => {
-  const value = "sk_live_ABCDEFGH12345678";
+  const value = "sk_live_ABCDEFGH12345678"; // secret-scan: fake
   let reports = 0;
   const run = await runWithVault(
     { source: source({ "#Dana_Stripe.api_key": lookupOf(value) }), reportMiss: () => { reports++; } },

@@ -22,7 +22,7 @@ export interface IdentityCtx {
   trace: { traceId: string };
   now(): number;
   db: Db;
-  emit(name: string, subject: string, payload: unknown): unknown;
+  emit(name: string, subject: string, payload: unknown, opts?: { afterFailure?: boolean }): unknown;
   /** The host's capability call. Sign-in registers the device and its session through it (devices.register). */
   call?(name: string, input: unknown): Promise<unknown>;
   /** GitHub OAuth code exchange, built by the host from ctx.http (egress github.com). */
@@ -31,6 +31,11 @@ export interface IdentityCtx {
   /** The person key this node holds for the signed-in person (ruling 62, 63). Absent: nothing to clear. */
   keyring?: Keyring;
   directory?: { of(personId: string): { roles: string[]; groups: string[] } };
+  /**
+   * Whether the Space still counts the person as an active member (the host reads it from the access projection): "refused" for a suspended, removed or unknown person, "unavailable"
+   * while the host cannot vouch for its access snapshot. `joining` is the call that creates the person (invite accept, owner claim), the one place a person is not known yet.
+   */
+  membership?: { check(personId: string, o?: { joining?: boolean }): "ok" | "refused" | "unavailable" };
   /** Invites, supplied by the members module through the host: peek never spends, accept marks the invite accepted and puts the person in the Space with its role and groups. */
   invites?: { peek(code: string): Invite | "invalid" | "expired" | Promise<Invite | "invalid" | "expired">; accept(inviteId: string, personId: string): void | Promise<void> };
   /** Counts for the reset preview, supplied by the vault, chat and memory modules through the host. */
@@ -215,7 +220,8 @@ export function noteFail(ctx: IdentityCtx, a: Account | undefined, username: str
     const until = fails >= LOCK_AFTER ? ctx.now() + Math.min(15 * 60_000, 15_000 * 2 ** (fails - LOCK_AFTER)) : a.locked_until;
     ctx.db.run(`UPDATE identity_accounts SET fails = ?, locked_until = ? WHERE person_id = ?`, fails, until, a.person_id);
   }
-  ctx.emit("signin.failed", username, { username, reason });
+  // the call that refuses is about to throw, which drops what it buffered: this one is written regardless
+  ctx.emit("signin.failed", username, { username, reason }, { afterFailure: true });
 }
 export function clearFails(ctx: IdentityCtx, a: Account): void {
   if (a.fails > 0 || a.locked_until > 0) ctx.db.run(`UPDATE identity_accounts SET fails = 0, locked_until = 0 WHERE person_id = ?`, a.person_id);
@@ -232,9 +238,13 @@ let sessionTokens: SessionTokens | null = null;
 export function configureSessionTokens(t: SessionTokens | null): void { sessionTokens = t; }
 
 /** Open a per-device session: devices.register makes the device and its session, the host mints the token for that session, and identity keeps the row that sign-out and reset act on. */
-export async function issueSession(ctx: IdentityCtx, a: Account, dev: Device, method: Method): Promise<SignInOut> {
+export async function issueSession(ctx: IdentityCtx, a: Account, dev: Device, method: Method, opts: { joining?: boolean } = {}): Promise<SignInOut> {
   const tid = ctx.trace.traceId;
   if (!sessionTokens || typeof ctx.call !== "function") raise(tid, "internal.unavailable", "Sign-in cannot open a device session on this server yet.");
+  // a suspended or removed person gets no session by any route (password, pair code, reset, recovery, GitHub): they are told what a wrong password is told
+  const member = ctx.membership?.check(a.person_id, opts);
+  if (member === "unavailable") raise(tid, "internal.unavailable", "Access is being re-checked on this server. Try again in a moment.");
+  if (member === "refused") raise(tid, "auth.bad_credentials");
   const reg = (await ctx.call("devices.register", { person: a.person_id, name: dev.deviceName, class: dev.deviceClass, idempotencyKey: nid("sin") })) as { device?: { id?: unknown }; sessionId?: unknown };
   const deviceId = typeof reg?.device?.id === "string" ? reg.device.id : "";
   const sessionId = typeof reg?.sessionId === "string" ? reg.sessionId : "";
