@@ -8,7 +8,13 @@
       "scroll": {
         "selector": "[data-testid=\"records-scroll\"]:has([data-testid=\"rec-cl_20\"])"
       },
-      "note": "Same mount and query as P-L9d_01-records-100k (faces on): the scroll probe takes the p95 frame interval over a full scroll against the 16.7 ms budget, to prove the cached face bitmaps keep faces from slowing the scroll."
+      "note": "Same mount and query as P-L9d_01-records-100k (faces on): the scroll probe takes the p95 frame interval over a full scroll against the 16.7 ms budget, to prove the cached face bitmaps keep faces from slowing the scroll.",
+      "count": {
+        "name": "faces_real",
+        "real": "[data-face=\"real\"]",
+        "rows": "[data-testid^=\"rec-cl_\"]",
+        "waitMs": 400
+      }
     }
   ]
 }

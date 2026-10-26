@@ -213,7 +213,7 @@ const dots = new Map<string, Record<string, string | number>>();
 // the DOM bits the face rules need, typed here because the app's TypeScript config carries no DOM lib
 interface FaceRule { selectorText: string }
 interface FaceSheet { cssRules: { length: number; [i: number]: FaceRule }; insertRule(rule: string, index: number): number; deleteRule(index: number): void }
-interface FaceEl { className: string; getAttribute(name: string): string | null; removeAttribute(name: string): void }
+interface FaceEl { className: string; getAttribute(name: string): string | null; removeAttribute(name: string): void; setAttribute(name: string, value: string): void }
 interface FaceDoc { createElement(tag: string): { sheet: FaceSheet | null }; head: { appendChild(node: unknown): unknown }; querySelectorAll(selector: string): ArrayLike<FaceEl> }
 /** The faces that have a CSS rule now: an LRU of 400 (the table is virtual, so about forty rows, two or three faces each, are on screen); a full one drops its 40 oldest together. */
 const faceClasses = new FaceLru(400, 40);
@@ -264,6 +264,7 @@ function upgradeFaces(): void {
     el.className = ensureFace(doc, seed);
     el.removeAttribute("style");
     el.removeAttribute("data-face-seed");
+    el.setAttribute("data-face", "real");
   }
 }
 /** Pause after the last scroll before the Name cell faces upgrade. */
