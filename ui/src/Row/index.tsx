@@ -18,7 +18,7 @@ export function rowHeight(note?: string, tall = false): number {
   return note ? ROW_HEIGHT_WITH_NOTE : ROW_HEIGHT;
 }
 
-export const Row = memo(function Row({ id, title, titleSuffix, tall = false, emphasis = false, note, selected = false, hovered = false, leading, trailing, onPress }: RowProps) {
+export const Row = memo(function Row({ id, title, titleSuffix, tall = false, emphasis = false, note, selected = false, hovered = false, leading, trailing, onPress, trigger }: RowProps) {
   const [over, setOver] = useState(false);
   const lit = hovered || over;
   return (
@@ -30,6 +30,7 @@ export const Row = memo(function Row({ id, title, titleSuffix, tall = false, emp
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
       testID={id ? `row-${id}` : undefined}
+      {...trigger}
       style={[styles.row, { height: rowHeight(note, tall) }, lit && HOVER, selected && SELECTED]}
     >
       {leading ? <View testID={id ? `row-${id}-leading` : undefined} style={styles.leading}>{leading}</View> : null}

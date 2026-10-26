@@ -1,0 +1,20 @@
+{
+  "targets": [
+    {
+      "id": "P-L7b_11-overview",
+      "route": "/m/P-L7b_11?page=overview",
+      "proto": "console,at:overview,{skin}",
+      "waitFor": "[data-testid='overview']",
+      "note": "The Console Overview: top bar, the navigation with Access open, Needs you with three rows, the server tiles and Recent admin activity. The prototype side is the Console Overview page.",
+      "protoSettleMs": 1500
+    },
+    {
+      "id": "P-L7b_11-audit",
+      "route": "/m/P-L7b_11?page=audit&open=aud_001",
+      "proto": "console,at:audit,{skin}",
+      "waitFor": "[data-testid='audit-entry']",
+      "note": "The Audit log with the first event open in the side sheet (before and after). The prototype side is the Console Audit log page.",
+      "protoSettleMs": 1500
+    }
+  ]
+}

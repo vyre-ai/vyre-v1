@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "Vyre Console",
+    "slug": "vyre-console",
+    "scheme": "vyre-console",
+    "version": "0.0.0",
+    "jsEngine": "hermes",
+    "platforms": ["web"],
+    "web": { "bundler": "metro", "output": "static" },
+    "experiments": { "typedRoutes": false },
+    "plugins": ["expo-router"]
+  }
+}
