@@ -49,7 +49,7 @@ function seededDir(): string {
   return dir;
 }
 
-interface World { chatIds: string[]; hits: { id: string; kind: string; title: string }[]; recordId: string }
+interface World { chatIds: string[]; hits: { id: string; kind: string; title: string }[]; recordId: string; transcriptPath: string; filesDeleted: string[]; filesPurged: string[] }
 
 async function boot(world: World): Promise<Daemon> {
   const dir = seededDir();
@@ -81,8 +81,9 @@ async function boot(world: World): Promise<Daemon> {
           notes: [{ noteId: "not_pat00001", layer: "agent", path: "x.md", title: "Note", updatedAt: 1 }],
         })),
         // what an erase asks of Files and Twilio
-        "files.delete": h(() => ({ deleted: true })),
-        "files.purge": h((_c, i) => { if (i["fileId"] === "fil_nothere01") throw notFound; return { purged: true }; }),
+        "files.resolve": h((_c, i) => { if (i["path"] !== world.transcriptPath) throw notFound; return { kind: "file", fileId: "fil_trans0001" }; }),
+        "files.delete": h((_c, i) => { world.filesDeleted.push(String(i["fileId"])); return { deleted: true }; }),
+        "files.purge": h((_c, i) => { world.filesPurged.push(String(i["fileId"])); return { purged: true }; }),
         "twilio.recording.delete": h(() => ({ deleted: true })),
       },
     },
@@ -110,7 +111,7 @@ function dumpOf(d: Daemon, prefixes: string[]): string {
 }
 
 test("erase a person end to end: found in every store, erased, and nothing of theirs is left; another person's data stays", async () => {
-  const world: World = { chatIds: [], hits: [], recordId: "" };
+  const world: World = { chatIds: [], hits: [], recordId: "", transcriptPath: "", filesDeleted: [], filesPurged: [] };
   const d = await boot(world);
   try {
     const run = (sql: string, ...a: unknown[]) => d.db!.run(sql, ...a);
@@ -123,6 +124,7 @@ test("erase a person end to end: found in every store, erased, and nothing of th
     const chat = (await ok<{ thread: { threadId: string } }>(d, "/v1/chat/start", { idempotencyKey: "erase-chat", kind: "chat", agentIds: ["agt_intake01"], first: "Pat Lee is going through a divorce" })).thread.threadId;
     const keepChat = (await ok<{ thread: { threadId: string } }>(d, "/v1/chat/start", { idempotencyKey: "erase-chat2", kind: "chat", agentIds: ["agt_intake01"], first: "Lunch on Friday" })).thread.threadId;
     const channel = (await ok<{ channel: { channelId: string } }>(d, "/v1/channels/create", { idempotencyKey: "erase-chn", name: "Pat Lee matter", visibility: "invite", agentIds: ["agt_intake01"] })).channel.channelId;
+    world.transcriptPath = `chats/${chat}/transcript.md`;
     world.hits.push({ id: chat, kind: "chat", title: "Pat Lee" }, { id: channel, kind: "channel", title: "Pat Lee matter" });
     // ---- a text, a call with a recording, a mail message, their inbox entries
     for (const [id, who, body] of [["sms_pat00001", "+14155550177", "call me back about the divorce"], ["sms_other001", "+14155550188", "see you at noon"]] as const) {
@@ -171,6 +173,7 @@ test("erase a person end to end: found in every store, erased, and nothing of th
     assert.deepEqual((d.db!.all("SELECT refId FROM inbox_item") as { refId: string }[]).map((r) => r.refId), [], "Pat's three inbox entries are gone");
     assert.deepEqual((d.db!.all("SELECT note_id FROM memory_notes") as { note_id: string }[]).map((r) => r.note_id), ["not_other001"]);
     assert.deepEqual(ids("SELECT id FROM memory_facts"), ["fct_other001"]);
+    assert.ok(world.filesDeleted.includes("fil_trans0001") && world.filesPurged.includes("fil_trans0001"), "the chat's transcript file was deleted and purged with it");
     // governance kept ids and counts only
     const tomb = await ok<{ total: number }>(d, "/v1/governance/tombstones/list", {});
     assert.ok(tomb.total >= 7, "a tombstone for every erased item, so a restore erases them again");
@@ -178,7 +181,7 @@ test("erase a person end to end: found in every store, erased, and nothing of th
 });
 
 test("retention removes aged Run logs through the purger and keeps the young and the unfinished", async () => {
-  const world: World = { chatIds: [], hits: [], recordId: "rec_none00001" };
+  const world: World = { chatIds: [], hits: [], recordId: "rec_none00001", transcriptPath: "", filesDeleted: [], filesPurged: [] };
   const d = await boot(world);
   try {
     const now = Date.now();
