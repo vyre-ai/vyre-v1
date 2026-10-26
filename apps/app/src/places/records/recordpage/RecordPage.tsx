@@ -341,7 +341,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
           {body}
           {all ? <Pressable accessibilityRole="button" testID="hide-empty" onPress={() => setAll(false)}><Text style={p.more}>Hide empty fields</Text></Pressable> : null}
         </ScrollView>
-        {paneOpen && late ? <Pane type={type} row={row} def={def} tab={tab} onTab={setTab} /> : null}
+        {paneOpen ? (late ? <Pane type={type} row={row} def={def} tab={tab} onTab={setTab} /> : <View style={p.pane} testID="record-pane-reserved" />) : null}
       </View>
       {menu.element}
     </View>
