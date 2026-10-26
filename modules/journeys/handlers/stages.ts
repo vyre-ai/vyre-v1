@@ -236,8 +236,11 @@ async function onEnter(ctx: JourneysCtx, j: Journey, rec: JRecord, stage: Stage,
       await ctx.call("projects.create", { type: "project", title: `${j.name} ${rec.recordId.slice(-6)}`, idempotencyKey: `jrn-project:${rec.recordId}` });
     } catch (e) {
       // the Journey carries on, but never silently: the reason goes to the log with the trace id and to the Journey owner as a task
-      const err = (e as { error?: { message?: string } } | null)?.error;
-      const reason = err?.message ?? (e instanceof Error ? e.message : "it failed");
+      const err = (e as { error?: { message?: string; code?: string; details?: unknown } } | null)?.error;
+      const said = err?.message ?? (e instanceof Error ? e.message : "it failed");
+      // the refusal's own details name the field or step, so they go with the reason into the log and the task
+      const where = err?.details !== undefined ? ` (${err.code ?? "error"}: ${JSON.stringify(err.details).slice(0, 400)})` : "";
+      const reason = `${said}${where}`;
       ctx.log?.warn("journeys: the stage's project could not be made", { journeyId: j.id, recordId: rec.recordId, stage: stage.key, reason, traceId: ctx.trace.traceId });
       try {
         await ctx.call("tasks.create", {

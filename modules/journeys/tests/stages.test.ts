@@ -177,13 +177,13 @@ test("a stage that makes a project gives the record a Project once; a stage that
   assert.equal(made[0]!.type, "project");
   assert.match(String(made[0]!.title), /^Client onboarding /);
   assert.equal(made[0]!.idempotencyKey, `jrn-project:${rec}`, "one project per record");
-  const h2 = harness({ calls: { "projects.create": () => { throw new Error("projects is down"); } } });
+  const h2 = harness({ calls: { "projects.create": () => { throw Object.assign(new Error("x"), { error: { code: "validation.bad_input", message: "projects is down", details: { errors: ["/title: too short"] } } }); } } });
   const j2 = await mk(h2, { stages: threeStages({ intake: { makesProject: true, tasks: [] } }) });
   const recId = await begin(h2, j2, "rec_s3");
   assert.match(recId, /^rec_/, "a project that cannot be made does not stop the Journey");
   const failed = h2.tasks.filter((t) => String(t.input.title).startsWith("Project for rec_s3 could not be made: "));
   assert.equal(failed.length, 1, "the owner is told, once");
-  assert.match(String(failed[0]!.input.title), /projects is down$/);
+  assert.match(String(failed[0]!.input.title), /projects is down \(validation\.bad_input: \{"errors":\["\/title: too short"\]\}\)$/, "the refusal's details name the field");
   assert.deepEqual(failed[0]!.input.assigned, { kind: "person", id: alice.id });
   assert.equal(failed[0]!.input.recordId, recId);
   assert.match(String(failed[0]!.input.summary), /Trace [0-9a-f]+\./, "the task names the trace");
