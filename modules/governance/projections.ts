@@ -14,10 +14,13 @@ export interface GovCtx {
   space: string;
   principal: { kind: "person" | "agent" | "actor" | "service"; id: string };
   trace: { traceId: string };
+  /** 0 for a call from the gateway, above 0 for a call another capability made or the scheduler's own (P-SEC_10) */
+  depth?: number;
   now(): number;
   db: GovDb;
   emit(name: string, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
+  authorize?(action: { perm: string | null; level: string }, resource: { type: string; id: string | null }): { effect: string };
   schedule?(at: number, cap: string, input: unknown): Promise<string>;
   log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
 }

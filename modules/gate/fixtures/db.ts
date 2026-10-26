@@ -49,7 +49,7 @@ export function harness(o: HarnessOptions = {}) {
   function ctxFor(cap: string | null, who: Caller): GateCtx {
     const allowed = cap ? emitsOf(cap) : null;
     return {
-      space: "spc_test", principal: { kind: who.kind ?? "person", id: who.id }, ...(who.actingFor ? { actingFor: who.actingFor } : {}), trace: { traceId: TRACE },
+      space: "spc_test", principal: { kind: who.kind ?? "person", id: who.id }, ...(who.actingFor ? { actingFor: who.actingFor } : {}), trace: { traceId: TRACE }, depth: who.depth ?? 1, ...(who.origin ? { origin: who.origin } : {}),
       ...(who.device ? { device: who.device } : {}), ...(who.run ? { run: who.run } : {}),
       now: () => clock,
       db: scopedDb("gate", raw, TRACE),

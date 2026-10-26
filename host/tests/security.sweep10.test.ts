@@ -150,10 +150,6 @@ test("no gateway caller arrives as a service, a nested call keeps the identity i
         assert.equal(nested.inner.depth, 1, "and it is one level down");
       }
     }
-    // the admin token acts as the owner on the fixed local device, never as a service, whatever the headers say
-    const admin = await data<Who>(await post(d, "/v1/example/who", d.token, FORGED_BODY, FORGED_HEADERS));
-    assert.equal(isService(admin), false);
-    assert.equal(admin.kind, "person");
     // a token nobody issued, and the server's own id offered as a token, are refused
     assert.equal((await post(d, "/v1/example/who", "svc_host", {}, FORGED_HEADERS)).status, 401);
     assert.equal((await post(d, "/v1/example/who", null, FORGED_BODY, FORGED_HEADERS)).status, 401, "a signed-out caller cannot call a principal capability");
@@ -166,6 +162,18 @@ test("no gateway caller arrives as a service, a nested call keeps the identity i
       assert.match(w.id, /^act_anon_[0-9a-f]{16}$/);
       assert.equal(isService(w), false);
     }
+  } finally { await d.stop(); }
+});
+
+test("the admin token acts as the owner on the fixed local device, never as a service, whatever the headers and body say", async () => {
+  const d = await boot();
+  try {
+    const r = await post(d, "/v1/example/who", d.token, FORGED_BODY, FORGED_HEADERS);
+    assert.equal(r.status, 200, await r.clone().text());
+    const admin = await data<Who>(r);
+    assert.equal(isService(admin), false);
+    assert.equal(admin.kind, "person");
+    assert.equal(admin.depth, 0);
   } finally { await d.stop(); }
 });
 
@@ -199,6 +207,7 @@ test("the system halves refuse a direct call from a person, the owner included, 
       ["/v1/devices/epoch_bump", { person: "usr_olivia", reason: "removed" }],
       ["/v1/devices/purge_ack", { deviceId: "dev_nothere01" }],
       ["/v1/mcp/session/mint", { principal: "usr_olivia", actingFor: "usr_olivia", threadId: "thr_forged01", traceId: "0123456789abcdef0123456789abcdef" }],
+      ["/v1/gate/park", { capName: "mail.send", capVersion: 1, input: { to: ["x@example.com"], subject: "s", body: "b" }, payloadHash: "ph_forged", act: "send", principal: { kind: "person", id: "usr_olivia" }, decisionId: "dec_forged02" }],
       ["/v1/vault/report_scrub_miss", { itemId: "vit_forged001", place: "chat", traceId: "0123456789abcdef0123456789abcdef" }],
     ];
     for (const token of [NOAH, OWNER]) {
@@ -218,5 +227,121 @@ test("the system halves refuse a direct call from a person, the owner included, 
     const back = await post(d, "/v1/members/reactivate", OWNER, { personId: "usr_noah", idempotencyKey: "sweep10-reactivate" });
     assert.equal(back.status, 200, await back.clone().text());
     assert.equal((await post(d, "/v1/access/principals/get", NOAH, {})).status, 200, "and reactivating takes it back on the next call");
+  } finally { await d.stop(); }
+});
+
+// ---- the sweep's later findings: Run owners, the Gate's park, the retention tick, and the shared project link ----
+
+const two = (h: Record<string, string | undefined>) => {
+  const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+  if (t === "tok-owner") return { space: "spc_core", principal: { kind: "person" as const, id: "usr_olivia" }, device: "dev_olivia" };
+  if (t === "tok-noah") return { space: "spc_core", principal: { kind: "person" as const, id: "usr_noah" }, device: "dev_noah" };
+  return null;
+};
+const errorOf = async (r: Response): Promise<{ status: number; code: string; reason: string }> => {
+  const b = (await r.json()) as { error?: { code?: string; details?: { reason?: string } } };
+  return { status: r.status, code: b.error?.code ?? "", reason: b.error?.details?.reason ?? "" };
+};
+const count = (d: Daemon, table: string): number => {
+  try { return (d.db!.all(`SELECT COUNT(*) AS n FROM ${table}`) as { n: number }[])[0]!.n; } catch { return 0; }
+};
+
+test("runs.start: a person starts a Run for themselves, never for someone else, whatever the forged headers say", async () => {
+  const d = await boot(two);
+  try {
+    const mine = await post(d, "/v1/runs/start", "tok-owner", { kind: "automation", name: "Mine", owner: "usr_olivia", idempotencyKey: "sweep10-run-mine" }, FORGED_HEADERS);
+    assert.equal(mine.status, 200, await mine.clone().text());
+    assert.match((await data<{ runId: string }>(mine)).runId, /^run_/);
+    const before = count(d, "runs_items");
+    // the owner of the Space cannot start a Run in someone else's name either
+    const other = await errorOf(await post(d, "/v1/runs/start", "tok-owner", { kind: "automation", name: "Theirs", owner: "usr_noah", idempotencyKey: "sweep10-run-other" }, FORGED_HEADERS));
+    assert.deepEqual(other, { status: 403, code: "permission.role_lacks_permission", reason: "owner_not_caller" });
+    const member = await post(d, "/v1/runs/start", "tok-noah", { kind: "automation", name: "Theirs", owner: "usr_olivia", idempotencyKey: "sweep10-run-member", ...FORGED_BODY });
+    assert.ok(member.status === 403 || member.status === 400 || member.status === 422, `a member naming the owner is refused, got ${member.status}`);
+    assert.equal(count(d, "runs_items"), before, "no Run was written for anyone else");
+  } finally { await d.stop(); }
+});
+
+test("gate.park: a person cannot write a hold, so a forged hold cannot be released as someone else; a forged release token is refused", async () => {
+  const d = await boot(two);
+  try {
+    const forged = {
+      capName: "mail.send", capVersion: 1, input: { to: ["victim@example.com"], subject: "Wire the funds", body: "Approved." }, payloadHash: "ph_forged", act: "send",
+      principal: { kind: "person", id: "usr_olivia" }, actingFor: "usr_olivia", decisionId: "dec_forged01", idempotencyKey: "sweep10-park", ...FORGED_BODY,
+    };
+    const owner = await errorOf(await post(d, "/v1/gate/park", "tok-owner", forged, FORGED_HEADERS));
+    assert.deepEqual(owner, { status: 403, code: "permission.role_lacks_permission", reason: "system_only" });
+    const member = await post(d, "/v1/gate/park", "tok-noah", { ...forged, idempotencyKey: "sweep10-park-2", principal: { kind: "person", id: "usr_noah" }, actingFor: "usr_noah" }, FORGED_HEADERS);
+    assert.ok(member.status === 403 || member.status === 404, `a member's park is refused, got ${member.status}`);
+    assert.equal(count(d, "gate_holds"), 0, "no hold exists");
+    // a release of a hold that does not exist, with a made-up token, does nothing
+    for (const token of ["tok-owner", "tok-noah"]) {
+      const r = await post(d, "/v1/gate/release", token, { holdId: "hld_forged0001", taskId: "tsk_forged0001", approvalToken: "forged.token", idempotencyKey: "sweep10-release" }, FORGED_HEADERS);
+      const text = await r.text();
+      assert.ok(r.status >= 400 && !text.includes('"result"'), `${token}: a forged release is refused, got ${r.status} ${text.slice(0, 160)}`);
+    }
+  } finally { await d.stop(); }
+});
+
+test("governance.jobs.tick is the schedule's call: a member is refused, someone who manages policy runs it", async () => {
+  const d = await boot(two);
+  try {
+    const member = await errorOf(await post(d, "/v1/governance/jobs/tick", "tok-noah", { kind: "logs" }));
+    assert.deepEqual(member, { status: 403, code: "permission.role_lacks_permission", reason: "system_only" });
+    const owner = await post(d, "/v1/governance/jobs/tick", "tok-owner", { kind: "logs" });
+    assert.equal(owner.status, 200, await owner.clone().text());
+  } finally { await d.stop(); }
+});
+
+test("a shared project link shows a client the safe view, stops at expiry or revoke, and only the host reads it through the gateway", async () => {
+  const d = await boot(two);
+  try {
+    const CONTACT = { op: "type.create", type: "rt_contact", def: { title: "Contact", plural: "Contacts", icon: "user", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }] } };
+    assert.equal((await post(d, "/v1/schema/apply", "tok-owner", { idempotencyKey: "sweep10-type", ops: [CONTACT] })).status, 200);
+    const made = await post(d, "/v1/records/create", "tok-owner", { idempotencyKey: "sweep10-rec", type: "rt_contact", fields: { name: "Smith & Co <matter>" } });
+    assert.equal(made.status, 200, await made.clone().text());
+    const recordId = (await data<{ record: { id: string } }>(made)).record.id;
+    assert.equal((await post(d, "/v1/projects/list", "tok-owner", {})).status, 200, "the module opens its tables");
+    const run = (sql: string, ...a: unknown[]) => d.db!.run(sql, ...a);
+    const now = Date.now();
+    run(`INSERT INTO projects_project ("projectId", "recordId", "type", "source", "createdBy", "createdAt") VALUES (?, ?, ?, ?, ?, ?)`, "prj_sweep10aaa", recordId, "rt_contact", "new", "usr_olivia", now);
+    run(`INSERT INTO projects_member ("projectId", "principal", "role", "kind", "since") VALUES (?, ?, ?, ?, ?)`, "prj_sweep10aaa", "usr_noah", "member", "person", now);
+    const live = "a1".repeat(18), expired = "b2".repeat(18), revoked = "c3".repeat(18);
+    for (const [token, at] of [[live, now + 3_600_000], [expired, now - 1000], [revoked, now + 3_600_000]] as const) {
+      run(`INSERT INTO projects_share ("token", "projectId", "expiresAt", "createdBy", "createdAt") VALUES (?, ?, ?, ?, ?)`, token, "prj_sweep10aaa", at, "usr_olivia", now);
+    }
+    const get = (token: string, init: RequestInit = {}) => fetch(`${d.url}/share/project/${token}`, init);
+
+    const ok = await get(live);
+    assert.equal(ok.status, 200);
+    const html = await ok.text();
+    assert.ok(html.includes("Smith &amp; Co &lt;matter&gt;"), "the title is shown, escaped");
+    assert.ok(!html.includes("usr_noah") && !html.includes("usr_olivia"), "no member or owner id");
+    assert.equal(ok.headers.get("cache-control"), "no-store");
+    assert.match(ok.headers.get("x-robots-tag") ?? "", /noindex/);
+    assert.equal(ok.headers.get("referrer-policy"), "no-referrer");
+    assert.match(ok.headers.get("content-security-policy") ?? "", /default-src 'none'/);
+    const asJson = await get(live, { headers: { accept: "application/json" } });
+    assert.deepEqual(Object.keys((await asJson.json() as { data: object }).data).sort(), ["expiresAt", "milestones", "status", "title"].sort());
+
+    // expired, unknown and revoked are the same 404, with no hint of which
+    run(`DELETE FROM projects_share WHERE "token" = ?`, revoked);
+    const bodies = new Set<string>();
+    for (const token of [expired, revoked, "d4".repeat(18), "short"]) {
+      const r = await get(token);
+      assert.equal(r.status, 404, token);
+      assert.equal(r.headers.get("cache-control"), "no-store");
+      bodies.add(await r.text());
+    }
+    assert.equal(bodies.size, 1, "one answer for every kind of dead link");
+    assert.equal((await get(live, { method: "POST" })).status, 405);
+    assert.equal((await get(live, { method: "HEAD" })).status, 200);
+
+    // through the gateway the view is the host's own call: a person, the owner included, is refused
+    for (const token of ["tok-owner", "tok-noah"]) {
+      const r = await post(d, "/v1/projects/shared_view", token, { token: live });
+      assert.ok(r.status === 403 || r.status === 404, `${token}: got ${r.status}`);
+      assert.ok(!(await r.text()).includes("Smith"), "no view in the refusal");
+    }
   } finally { await d.stop(); }
 });

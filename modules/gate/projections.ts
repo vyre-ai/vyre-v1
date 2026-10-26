@@ -51,6 +51,10 @@ export interface GateCtx {
   principal: { kind: string; id: string };
   actingFor?: string;
   trace: { traceId: string };
+  /** 0 for a call from the gateway, above 0 for a call another capability or the host made (P-SEC_10) */
+  depth?: number;
+  /** where the call began: the gateway's callers are "user", the Gate hook's own questions and parked calls are "gate" */
+  origin?: string;
   device?: string;
   run?: string;
   now(): number;

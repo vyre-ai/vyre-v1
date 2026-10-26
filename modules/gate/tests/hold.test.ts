@@ -287,3 +287,20 @@ test("cara and bob are strangers to a hold they did not ask for or approve", asy
 });
 // ok
 // ok2
+
+test("gate.park is the pipeline's call: a direct call from a person or an agent is refused and writes no hold", async () => {
+  const h = harness();
+  for (const who of [as(alice, { depth: 0 }), as(bot, { depth: 0 }), as(bob, { depth: 0, origin: "user" })]) {
+    await refused(h.call("gate.park", parkInput({ principal: alice, actingFor: undefined }), who), "permission.role_lacks_permission", "system_only");
+  }
+  assert.equal(holdsWhere(h.db, "1 = 1").length, 0);
+  assert.deepEqual(h.events, []);
+});
+
+test("gate.park from the Gate hook (origin gate), the host and a nested call parks as before", async () => {
+  const h = harness();
+  await park(h, { decisionId: "dec_a" }, as(alice, { depth: 0, origin: "gate" }));
+  await park(h, { decisionId: "dec_b" }, { ...svc, depth: 0 });
+  await park(h, { decisionId: "dec_c" }, as(alice, { depth: 1 }));
+  assert.equal(holdsWhere(h.db, "1 = 1").length, 3);
+});

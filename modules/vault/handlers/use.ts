@@ -278,7 +278,7 @@ export async function exportsRevoke(ctx: VaultCtx, input: { exportId: string }) 
 
 export async function reportScrubMiss(ctx: VaultCtx, input: { itemId: string; place: string; traceId: string }) {
   ensure(ctx);
-  if (!isSystemCall(ctx)) bad(ctx, "Only the filler reports a value it could not scrub.");   // a member could otherwise raise false scrub-miss alarms on any item
+  if (!isSystemCall(ctx)) denied(ctx, "Only the filler reports a value it could not scrub.");   // a member could otherwise raise false scrub-miss alarms on any item
   if (!isId("vit", input.itemId)) bad(ctx, "Item id is not valid.");
   if (!["terminal", "http", "browser", "file", "chat"].includes(input.place)) bad(ctx, "That place is not known.");
   if (typeof input.traceId !== "string" || !/^[0-9a-f]{32}$/.test(input.traceId)) bad(ctx, "The trace id is not valid.");

@@ -20,6 +20,8 @@ import { ScheduleQueue } from "../ctx/schedule.ts";
 import type { ScheduledCall } from "../ctx/schedule.ts";
 import { createBlobStore } from "../ctx/blobs.ts";
 import { createBlobRoute } from "../routes/blobs.ts";
+import { createShareRoute } from "../routes/share.ts";
+import type { SharedView } from "../routes/share.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
 import { createGateway, indexRoutes } from "../gateway.ts";
 import { withEventIds } from "../ids.ts";
@@ -240,6 +242,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let boundPort = cfg.port;
   let gateway: ReturnType<typeof createGateway> | null = null;
   let blobRoute: ReturnType<typeof createBlobRoute> | null = null;
+  let shareRoute: ReturnType<typeof createShareRoute> | null = null;
   // GET /exports/<id>?token= (P-L7_16): the vault module checks the token; until it is configured every pull is refused
   let pullVaultExport: (exportId: string, token: string) => string = () => { throw new Error("the Vault is not live on this server"); };
   const exportRoute = createVaultExportRoute({ pull: (id, t) => pullVaultExport(id, t) });
@@ -588,6 +591,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         session: async (h) => { const s = await session(h); return s ? { space: s.space, principal: s.principal, ...(s.actingFor ? { actingFor: s.actingFor } : {}) } : null; },
         allow: (c, r) => authorize(access.snap, { principal: c.principal.id, ...(c.actingFor ? { actingFor: c.actingFor } : {}), action: { perm: null, level: "view" }, resource: { type: r.type, id: r.id } }).effect === "allow",
       });
+      // GET /share/project/<token>: the read-only link a client opens without signing in; the projects module decides whether the token still works (P-SEC_10)
+      shareRoute = createShareRoute({
+        view: async (token) => {
+          if (!dispatchSystem) return null;
+          try { return (await dispatchSystem("projects.shared_view", { token })) as SharedView; } catch { return null; }
+        },
+      });
       routeIndex = indexRoutes([...routes, ...(o.extra?.routes ?? [])]);   // a duplicate route is a boot error, not a first-request error
       capIndex = indexCapabilities(caps);
 
@@ -704,7 +714,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       health, coerce,
       gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),
     });
-    server.on("request", (req, res) => { if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || exportRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return; listener(req, res); });
+    server.on("request", (req, res) => { if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || shareRoute?.handle(req, res) || exportRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return; listener(req, res); });
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error): void => reject(err);
       server.once("error", onError);

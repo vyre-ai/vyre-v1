@@ -8,7 +8,7 @@ export const dana = { kind: "person" as const, id: "usr_dana" };
 export const bot = { kind: "agent" as const, id: "agt_bot" };
 export const bot2 = { kind: "agent" as const, id: "agt_bot2" };
 
-export interface Caller { id: string; kind?: "person" | "agent" | "actor" | "service"; actingFor?: string; device?: string; run?: string }
+export interface Caller { id: string; kind?: "person" | "agent" | "actor" | "service"; actingFor?: string; device?: string; run?: string; depth?: number; origin?: string }
 export const as = (p: { kind: "person" | "agent"; id: string }, extra: Partial<Caller> = {}): Caller => ({ id: p.id, kind: p.kind, ...extra });
 
 /** What the invoke pipeline hands gate.park for a held mail.send by an agent. */

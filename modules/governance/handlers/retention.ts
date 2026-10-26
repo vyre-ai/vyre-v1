@@ -9,6 +9,8 @@
 import { DEFS, HOLD_KINDS, KINDS, ageOf, bad, codeOf, ensure, finishRun, first, holdRow, isId, list, num, numOrNull, obj, pageOf, paging, refuse, rowsOf, startRun, str, text, missing } from "../projections.ts";
 import type { Def, GovCtx, HoldKind, Json, Kind, Row } from "../projections.ts";
 import { purgeKind } from "./erasers.ts";
+import { fail } from "../../../host/src/routes/errors.ts";
+import { isSystemCall } from "../../../lib/trust.ts";
 
 const DAY = 86_400_000;
 const VALUE = /^(forever|per_policy|[0-9]+[dwmy])$/;
@@ -285,6 +287,10 @@ async function runJob(ctx: GovCtx, kind: Kind): Promise<{ removed: number; skipp
 
 export async function jobsTick(ctx: GovCtx, input: { kind: string }) {
   ensure(ctx);
+  // The daily call is the scheduler's (it runs as whoever scheduled it, an admin who pressed Run now, or the host) and the host's own. A member cannot start a purge early by calling it (P-SEC_10).
+  if (!isSystemCall(ctx) && ctx.authorize?.({ perm: "policy.manage", level: "manage" }, { type: "space", id: null }).effect !== "allow") {
+    throw fail("permission.role_lacks_permission", ctx.trace.traceId, { message: "Only the server's own schedule or someone who manages policy runs a retention job.", details: { reason: "system_only" } });
+  }
   return runJob(ctx, kindOf(ctx, input.kind));
 }
 

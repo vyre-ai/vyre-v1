@@ -31,6 +31,8 @@ export interface RunsCtx {
   principal: { kind: string; id: string };
   actingFor?: string;
   trace: { traceId: string };
+  /** 0 for a call from the gateway, above 0 for a call another capability made (P-SEC_10) */
+  depth?: number;
   device?: string;
   run?: string;
   thread?: string;

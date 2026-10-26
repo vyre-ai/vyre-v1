@@ -8,6 +8,7 @@ import {
   me, membersOf, memberOf, newId, page, pinsOf, planTask, plansOf, projectBy, projectByChannel, projectRow, raise, readRecord, remember, replaceStages, saveMember, savePlan, saveProject, saveUpdate,
   stagesOf, tolerant, updateOf, visible, writeRecord,
 } from "../projections.ts";
+import { isHostService } from "../../../lib/trust.ts";
 import type { In, Member, Project, ProjectsCtx, Role, Source, TaskView } from "../projections.ts";
 
 interface Made { projectId: string; recordId: string; channelId: string; folderId: string }
@@ -340,12 +341,62 @@ export async function fileChat(ctx: ProjectsCtx, input: In): Promise<unknown> {
   return { ok: true };
 }
 
+const DAY = 86_400_000;
+const SHARE_DAYS = 30;
+const SHARE_PREFIX = "/share/project/";
+/** 144 random bits as hex: a link is its own key, so it cannot be guessed. */
+const shareToken = (): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(18)), (b) => b.toString(16).padStart(2, "0")).join("");
+
 export async function shareOut(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
   const p = visible(ctx, input.projectId, "manage");
+  if (input.expiresAt !== undefined && input.expiresInDays !== undefined) raise(ctx, "validation.bad_input", "Say when the link expires once: a time or a number of days.");
   if (input.expiresAt !== undefined && input.expiresAt <= ctx.now()) raise(ctx, "validation.bad_input", "The link must expire in the future.");
-  const token = newId("shr", ctx.now()).slice(4);
-  ctx.db.run("INSERT INTO projects_share (token, projectId, expiresAt, createdBy, createdAt) VALUES (?, ?, ?, ?, ?)", token, p.projectId, input.expiresAt ?? null, me(ctx), ctx.now());
-  emitP(ctx, "project.shared_out", p.projectId, { expiresAt: input.expiresAt });
-  return clean({ url: `/share/project/${token}`, expiresAt: input.expiresAt });
+  const expiresAt: number = input.expiresAt ?? ctx.now() + (input.expiresInDays ?? SHARE_DAYS) * DAY;   // every link expires: a forgotten one stops working by itself
+  const token = shareToken();
+  ctx.db.run("INSERT INTO projects_share (token, projectId, expiresAt, createdBy, createdAt) VALUES (?, ?, ?, ?, ?)", token, p.projectId, expiresAt, me(ctx), ctx.now());
+  emitP(ctx, "project.shared_out", p.projectId, { expiresAt });
+  return { url: `${SHARE_PREFIX}${token}`, expiresAt };
+}
+
+/** Revoke one link of the project. The row goes, so the host answers 404 for it from the next request. Revoking a link that is gone is `revoked: false`. */
+export async function unshareOut(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  const p = visible(ctx, input.projectId, "manage");
+  const url = String(input.url);
+  if (!url.startsWith(SHARE_PREFIX) || url.length === SHARE_PREFIX.length) raise(ctx, "validation.bad_input", "That is not a project link.");
+  const token = url.slice(SHARE_PREFIX.length);
+  const have = ctx.db.all("SELECT token FROM projects_share WHERE token = ? AND projectId = ?", token, p.projectId);
+  if (have.length === 0) return { revoked: false };
+  ctx.db.run("DELETE FROM projects_share WHERE token = ? AND projectId = ?", token, p.projectId);
+  emitP(ctx, "project.unshared_out", p.projectId, {});
+  return { revoked: true };
+}
+
+/**
+ * What a client sees through a shared link, for the host's /share/project/<token> route (nobody else calls it). A link that is unknown, expired or revoked is the same `not_found`. The view is the title, status, goal,
+ * the latest status update and the next milestones: no people, threads, files or task assignees, because the link holder is not a member.
+ */
+export async function sharedView(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  if (!isHostService(ctx.principal)) raise(ctx, "permission.role_lacks_permission", "Only the server serves a shared link.", { reason: "system_only" });
+  const token = String(input.token);
+  const row = ctx.db.all("SELECT projectId, expiresAt FROM projects_share WHERE token = ?", token)[0] as { projectId?: string; expiresAt?: number | null } | undefined;
+  const p = row?.projectId ? projectBy(ctx.db, row.projectId) : undefined;
+  if (!row || !p || (typeof row.expiresAt === "number" && row.expiresAt <= ctx.now())) raise(ctx, "validation.not_found", "That link does not work.");
+  const [fields, tasks] = await Promise.all([readRecord(ctx, p), tasksOrNone(ctx, p)]);
+  const plans = plansOf(ctx.db, p.projectId);
+  const now = ctx.now();
+  const next = tasks.map((t) => planTask(t, plans.get(t.taskId)))
+    .filter((t) => t.milestone && t.status !== "done" && t.status !== "canceled" && (t.due ?? Number.MAX_SAFE_INTEGER) >= now)
+    .sort((a, b) => (a.due ?? Number.MAX_SAFE_INTEGER) - (b.due ?? Number.MAX_SAFE_INTEGER)).slice(0, 3);
+  const u = updateOf(ctx.db, p.projectId);
+  const title = typeof fields["title"] === "string" && fields["title"] ? fields["title"] : typeof fields["name"] === "string" ? fields["name"] : "Project";
+  return clean({
+    title, status: typeof fields["status"] === "string" ? fields["status"] : "active",
+    goal: typeof fields["goal"] === "string" && fields["goal"] ? fields["goal"] : undefined,
+    statusUpdate: u ? { text: u.text, at: u.at } : undefined,
+    milestones: next.map((t) => clean({ title: t.title, due: t.due, status: t.status })),
+    expiresAt: typeof row.expiresAt === "number" ? row.expiresAt : undefined,
+  });
 }
