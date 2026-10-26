@@ -39,8 +39,8 @@ export async function eraseItem(ctx: GovCtx, kind: EraseKind, type: string, id: 
       return "erased";
     }
     if (kind === "memory" && type === "fact") {
-      await ctx.call("memory.erase", { factIds: [id], reason });
-      return "erased";
+      const done = obj(await ctx.call("memory.erase", { factIds: [id], reason }));
+      return done["erased"] === 0 ? "gone" : "erased";
     }
     if (kind === "records") {
       try { await ctx.call("records.delete", { type, recordId: id }); } catch (e) { if (!gone(e)) throw e; }   // out of every view first; already in Trash is fine
