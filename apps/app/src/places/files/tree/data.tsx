@@ -9,7 +9,7 @@ import type { FolderNode } from "../../../../../../ui/src/FolderTree/index.tsx";
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
 
 /** The capabilities the list reads live that no screen declares. */
-export type LiveCap = "files.list" | "files.recent" | "files.shared_with_me" | "files.knowledge" | "files.trash.list" | "files.tree" | "changesets.list" | "stars.list";
+export type LiveCap = "files.list" | "files.recent" | "files.shared_with_me" | "files.knowledge" | "files.trash.list" | "files.tree" | "changesets.list" | "stars.list" | "files.viewer_data";
 
 /** Where a click goes. The shell supplies these (tabs, the viewer, the share sheet, the Knowledge screens); Files never decides how a thing opens. */
 export interface FilesNav {

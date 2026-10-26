@@ -1,11 +1,12 @@
 // Files list parts (P-L9e_01b): the column header (Name, Modified, Made by, Size, Kind; each a sort button), the cells that go in a Row's trailing slot, and the grid (tiles in rows, so the
 // grid scrolls on the same VirtualList as the list). The list itself stays in list/FilesList.tsx; this file owns what is drawn per line. Row stays the shared ui/Row (ruling 36).
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ReactElement, ReactNode } from "react";
 import { Avatar } from "../../../../../ui/src/Avatar/index.tsx";
 import { Glyph } from "./tree/parts.tsx";
 import type { IconName } from "./tree/parts.tsx";
 import type { SortKey } from "./tree/model.ts";
+import { useLive } from "./tree/data.tsx";
 
 /** Column widths. The header and the cells use the same numbers, so they line up; the Name column takes the rest. */
 export const COL = { modified: 112, by: 150, size: 84, kind: 128, gap: 12 } as const;
@@ -58,6 +59,18 @@ export function TypeTile({ label, icon, folder }: { label: string | null; icon: 
   return (
     <View style={[styles.tile, { backgroundColor: `hsla(${h}, 65%, 52%, 0.14)` as string }]} testID="type-tile">
       <Text style={[styles.tileText, { color: `hsl(${h}, 55%, 40%)` as string }]} testID="type-tile-label">{label}</Text>
+    </View>
+  );
+}
+
+/** A picture's own thumbnail in the leading slot: the preview the viewer shows (files.viewer_data previewUrl), 30 px, cropped to fill; the type tile until it arrives. */
+export function ThumbTile({ fileId, label, icon }: { fileId: string; label: string | null; icon: IconName }): ReactElement {
+  const q = useLive("files.viewer_data", { fileId });
+  const url = q.status === "ready" ? q.data.previewUrl : undefined;
+  if (url === undefined) return <TypeTile label={label} icon={icon} folder={false} />;
+  return (
+    <View style={styles.tile} testID="type-tile">
+      <Image source={{ uri: url }} accessibilityLabel="Preview" testID="thumb-image" resizeMode="cover" style={styles.thumbImg} />
     </View>
   );
 }
@@ -185,6 +198,7 @@ const styles = StyleSheet.create({
   kindText: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 0 },
   src: { fontSize: 11.5, color: "var(--ink-3)" as string, flexShrink: 1 },
   tile: { width: 30, minWidth: 30, height: 30, flexShrink: 0, overflow: "hidden", borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string, marginRight: 10 },
+  thumbImg: { width: 30, height: 30 },
   tileText: { fontSize: 8, fontWeight: "700", letterSpacing: 0 },
   marks: { flexDirection: "row", alignItems: "center", gap: 6 },
   warn: { height: 18, paddingHorizontal: 6, borderRadius: 5, justifyContent: "center", backgroundColor: "color-mix(in srgb, var(--warn) 16%, transparent)" as string },

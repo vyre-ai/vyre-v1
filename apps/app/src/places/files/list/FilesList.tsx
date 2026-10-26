@@ -18,7 +18,7 @@ import {
 import type { Line, SortKey, Spring } from "../tree/model.ts";
 import { iconOfKind } from "../tree/parts.tsx";
 import { useFilesState } from "../tree/state.tsx";
-import { ColumnHeader, GridRow, LIST_ROW, LineMarks, RowCells, TypeTile, Tile, WIDE, chunk, gridKey, gridLayout } from "../FileList.tsx";
+import { ColumnHeader, GridRow, LIST_ROW, LineMarks, RowCells, ThumbTile, TypeTile, Tile, WIDE, chunk, gridKey, gridLayout } from "../FileList.tsx";
 import { Toolbar, crumbTrail } from "../Toolbar.tsx";
 import { DragWrap } from "./DragWrap.tsx";
 import { StagedBanner } from "./StagedBanner.tsx";
@@ -215,7 +215,7 @@ function List(): ReactElement {
         {...(l.starred === true || l.conflict === true ? { titleMarks: <LineMarks starred={l.starred === true} conflict={l.conflict === true} onResolve={data.nav.resolveConflict ? () => data.nav.resolveConflict?.(l.id) : undefined} /> } : {})}
         selected={state.selection.includes(l.key)}
         hovered={over === l.key}
-        leading={<TypeTile label={tileLabel(l.name, l.kind)} icon={iconOfKind(l.kind)} folder={l.type === "folder"} />}
+        leading={l.type === "file" && l.thumb ? <ThumbTile fileId={l.id} label={tileLabel(l.name, l.kind)} icon={iconOfKind(l.kind)} /> : <TypeTile label={tileLabel(l.name, l.kind)} icon={iconOfKind(l.kind)} folder={l.type === "folder"} />}
         trailing={<RowCells wide={wide} cells={{ when: whenOf(l), by: byOf(l), byAgent: byAgent(l), size: sizeOfLine(l), kind: kindOfLine(l) }} />}
         onPress={() => press(l)}
       />

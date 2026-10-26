@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import { FilesList, StagedBanner, approveStaged, lineMenuEntries, moreMenuEntries, newMenuEntries, stagedText } from "../list/index.ts";
-import { KindBadge, LineMarks, RowCells, TypeTile } from "../FileList.tsx";
+import { KindBadge, LineMarks, RowCells, ThumbTile, TypeTile } from "../FileList.tsx";
 import { createSampleFiles } from "../list/sample.ts";
 import type { SampleFiles } from "../list/sample.ts";
 import { FilesDataProvider, FilesStateProvider, FilesTree, INITIAL_STATE, emptyText, fileLine, hasAgentFace, openByDefault, orderFolders, reduce, rootRank, skippedRoots, sourceOf, tileLabel } from "../tree/index.ts";
@@ -292,4 +292,16 @@ test("an empty folder shows no count, and the Scout, Billing and Intake agents a
   assert.ok(has(out, 'data-testid="folder-count-fld_ag_docs"'));
   for (const id of ["fld_ag_scout", "fld_ag_billing", "fld_ag_intake"]) assert.ok(has(out, `data-testid="row-folder-${id}"`), id);
   assert.ok(has(out, 'data-testid="face-Scout"'));
+});
+
+test("a picture with a thumbnail leads with its preview, the one the viewer shows; other files keep the type tile", () => {
+  const out = list(subjects(), folder("fld_pj_rivera"));
+  assert.equal(out.split('data-testid="thumb-image"').length - 1, 2, "id-scan.png and site-photo.png have thumbnails");
+  assert.ok(has(out, "data:image/svg+xml"), "the preview address from files.viewer_data");
+  assert.ok(has(out, ">PDF<") && has(out, ">DOCX<"), "files without a thumbnail keep their tile");
+  const s = subjects();
+  const one = wrap(s, {}, <ThumbTile fileId="fil_pj_id" label={null} icon="image" />);
+  assert.ok(has(one, 'data-testid="thumb-image"'));
+  const none = wrap(s, {}, <ThumbTile fileId="fil_pj_intake" label="PDF" icon="doc" />);
+  assert.ok(!has(none, 'data-testid="thumb-image"') && has(none, ">PDF<"), "no previewUrl, the tile");
 });

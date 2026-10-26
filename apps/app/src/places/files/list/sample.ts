@@ -178,6 +178,14 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
     const starred = i.type === undefined || i.type === "file" ? allFiles().filter((x) => live(x) && x.starred === true) : [];
     return { stars: starred.map((x) => ({ resource: { type: "file" as const, id: x.fileId }, title: x.name, at: x.updatedAt })) };
   });
+  // the preview the viewer shows for a file with a thumbnail: a small picture as a data address (the real one is a signed address on the Space)
+  replica.resolve("files.viewer_data", (_t, i) => {
+    const x = allFiles().find((fl) => fl.fileId === i.fileId);
+    if (!x) throw new Error(`no such file ${i.fileId}`);
+    const hue = [...x.name].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) % 360, 7);
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60'><rect width='60' height='60' fill='hsl(${hue},35%,62%)'/><rect y='36' width='60' height='24' fill='hsl(${hue},30%,40%)'/></svg>`;
+    return { file: strip(x), canEdit: false, canMark: false, canComment: true, pins: 0, ...(x.thumb ? { previewUrl: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}` } : {}) };
+  });
   replica.resolve("changesets.list", (_t, i) => {
     const rows = replica.rows("changesets") as unknown as (CapMap["changesets.list"]["out"]["changesets"][number] & { id: string })[];
     const list = rows.filter((c) => (i.folderId === undefined || c.folderId === i.folderId) && (i.state === undefined || c.state === i.state)).map(({ id: _id, ...c }) => c);
