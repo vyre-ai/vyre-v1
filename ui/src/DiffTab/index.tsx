@@ -425,7 +425,7 @@ function Note({ comment }: { comment: DiffComment }): ReactElement {
   });
   return (
     <View style={styles.comment} testID={`diff-note-${comment.id}`}>
-      <Avatar name={comment.author} kind="person" size={22} />
+      <Avatar name={comment.author} {...(comment.authorId !== undefined ? { seedId: comment.authorId } : {})} kind="person" size={22} />
       <View style={styles.commentBody}>
         <Text style={styles.who}>{comment.author}</Text>
         <Text style={styles.text}>{parts}</Text>
