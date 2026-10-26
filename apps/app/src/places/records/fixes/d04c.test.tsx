@@ -23,7 +23,7 @@ test("hero: the kind, a face, the title, the status chip, the owner and when it 
   const chips = out.slice(at(out, 'data-testid="record-chips"'), at(out, 'data-testid="record-chips"') + 1500);
   assert.ok(has(chips, ">Active<"), "the status as a chip");
   assert.ok(has(chips, "Maya Chen"), "the owner");
-  assert.ok(has(chips, "Updated 2 days ago"), "when it changed");
+  assert.ok(has(chips, "Updated 2 d ago"), "when it changed");
 });
 
 test("Overview and Conversation tabs: Overview is selected, Conversation opens the chat in the pane", () => {
