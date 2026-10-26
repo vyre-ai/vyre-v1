@@ -19,7 +19,7 @@ Set a new password with a recovery code (keys unwrapped by the code, re-wrapped 
 | HTTP | POST /v1/identity/recovery_restore |
 | MCP tool | none |
 | CLI | none |
-| Emits | password.reset, keys.stored, signin.succeeded |
+| Emits | password.reset, keys.stored, signin.succeeded, signin.failed |
 
 ## Input
 

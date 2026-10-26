@@ -17,9 +17,23 @@ export function withinBudget(summary, ceiling = SCROLL_P95_MS) {
   return summary.frames >= 30 && summary.p95 <= ceiling + VSYNC_JITTER_MS;
 }
 
+/**
+ * Lets the page finish what it started when it loaded (ruling 79): the sample Space seeds 100,000 rows after the load event, and the garbage collections that move those rows out of the young
+ * generation landed inside the measured scroll as 25 to 50 ms pauses. Wait for idle (or 2 s), collect where the browser allows it (--js-flags=--expose-gc), then measure the scroll only.
+ */
+export async function settle(page) {
+  await page.evaluate(() => new Promise((resolve) => {
+    const done = () => setTimeout(resolve, 300);
+    if (typeof requestIdleCallback === "function") requestIdleCallback(done, { timeout: 2000 }); else setTimeout(done, 2000);
+  }));
+  await page.evaluate(() => { if (typeof globalThis.gc === "function") globalThis.gc(); });
+  await page.waitForTimeout(500);
+}
+
 /** Scrolls the element matching `selector` `pxPerFrame` per animation frame for `frames` frames (120 px is about 7,200 px/s, a hard fling), then jumps to the end. Returns the frame intervals and layout shift. */
 export async function measureScroll(page, { selector, frames = 600, pxPerFrame = 120 }) {
   await page.waitForSelector(selector, { timeout: 30000 });
+  await settle(page);
   const out = await page.evaluate(async ({ selector, frames, pxPerFrame }) => {
     const el = document.querySelector(selector);
     const max = el.scrollHeight - el.clientHeight;

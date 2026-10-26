@@ -11,10 +11,7 @@ import type { Observed } from "../harness/index.ts";
 export const LIVE_FOR_PERSONAL = ["spaces", "devices", "network", "access", "members", "documents", "identity", "records", "schema"];
 
 /** Why this flow is a todo today (ruling 53). Empty when every step passes. */
-export const GAPS: Gap[] = [
-  { packet: "L1 sync docs", lane: "L1", what: "sync.doc.update answers a seq and declares doc.updated, but no doc.updated event reaches the log (nothing in the log after the record.created of the memo)" },
-  { packet: "L7 devices/identity", lane: "L7", what: "pair_redeem makes device.registered and session.started, but they do not carry the caller's trace id, so the flow's one-trace event chain breaks" },
-];
+export const GAPS: Gap[] = [];
 
 const MEMO = { op: "type.create", type: "memo", def: { title: "Memo", plural: "Memos", icon: "file", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "body", type: "longtext", title: "Body" }] } };
 const TEXT = "The Harlow filing moves to Thursday.";
@@ -51,7 +48,10 @@ export async function runPersonal(live: readonly string[]): Promise<{ events: Ob
       for (;;) {
         const eps = expectStatus(await space.call("network.endpoints", admin, {}), 200, "network.endpoints").endpoints as { kind: string; url: string; health: string }[];
         const e = eps.find((x) => x.kind === "relay" && x.health === "healthy");
-        if (e) return e;
+        if (e) {
+          assert.match(e.url, /#box=[A-Za-z0-9_-]{43}$/, `the relay entry carries the pinned box key: ${e.url}`);   // kept from #575 (P-L7b_16)
+          return e;
+        }
         if (Date.now() > end) throw new Error(`no healthy relay endpoint after 15 s: ${short(eps)}`);
         await new Promise((r) => setTimeout(r, 100));
       }
