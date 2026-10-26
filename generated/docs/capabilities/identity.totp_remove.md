@@ -19,7 +19,7 @@ Remove my TOTP factor (refused when the Space requires a second factor)
 | HTTP | POST /v1/identity/totp_remove |
 | MCP tool | identity_totp_remove (meta) |
 | CLI | none |
-| Emits | factor.removed |
+| Emits | factor.removed, signin.failed |
 
 ## Input
 
