@@ -1,0 +1,20 @@
+{
+  "targets": [
+    {
+      "id": "P-L9e_28-toml-form",
+      "route": "/m/P-L9e_28",
+      "proto": "files,at:toml-form,{skin}",
+      "waitFor": "[data-testid='toml-form']",
+      "note": "agent.toml of the Intake agent in the Form view: the file header (TOML tile, agent.toml, path, who and when, the version check, find, info, history, Ask, ...), the five lint chips with their dots (Schema valid, Routine prompts exist, Handoff names exist, Nothing repeated in AGENT.md, No secrets) and the Text and Form switch lit on Form, then the grouped full-width form: Identity (ID, Name, Handle, Description, Owner with the person's face, Status), Model, Whose AI account and the tables below. Shown inside the Files place (sidebar and tab strip).",
+      "protoSettleMs": 4000
+    },
+    {
+      "id": "P-L9e_28-toml-form-diff",
+      "route": "/m/P-L9e_28?diff=1",
+      "proto": "files,at:toml-form,{skin}",
+      "waitFor": "[data-testid='agent-file-diff']",
+      "note": "The same form after one change (Max output tokens 3000 to 4000), asking to save: the diff of the change sits in the History pane beside the file under Changes to save, with the reason box, never under the form. The prototype side is the unedited form; its diff before a save is a separate state there.",
+      "protoSettleMs": 4000
+    }
+  ]
+}

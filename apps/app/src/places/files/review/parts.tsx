@@ -5,6 +5,7 @@ import type { ReactElement, ReactNode } from "react";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ViewStyle } from "react-native";
+import { Glyph } from "./icons.tsx";
 
 export const webProps = (props: Record<string, unknown>): Record<string, unknown> => (Platform.OS === "web" ? props : {});
 const style = (s: Record<string, unknown>): ViewStyle => s as unknown as ViewStyle;
@@ -76,12 +77,16 @@ export function IconBtn({ label, onPress, children, testID, disabled = false, me
   );
 }
 
-export function TextField({ value, onChange, label, placeholder, onSubmit, onEscape, testID, width, multiline = false, autoFocus = false, rows = 3, mono = false, compact = false, selection }: {
+export function TextField({ value, onChange, label, placeholder, onSubmit, onEscape, testID, width, multiline = false, autoFocus = false, rows = 3, mono = false, compact = false, form = false, disabled = false, selection }: {
   value: string; onChange: (v: string) => void; label: string; placeholder?: string; onSubmit?: () => void; onEscape?: () => void; testID?: string; width?: number; multiline?: boolean; autoFocus?: boolean; rows?: number;
   /** Monospace text, for files. */
   mono?: boolean;
   /** 26 px high, for a line inside a ui/Row. */
   compact?: boolean;
+  /** 30 px high and full width, a field of a form. */
+  form?: boolean;
+  /** Read only: the text stays, the box dims and takes no input. */
+  disabled?: boolean;
   selection?: { start: number; end: number };
 }): ReactElement {
   const [focus, setFocus] = useState(false);
@@ -98,6 +103,7 @@ export function TextField({ value, onChange, label, placeholder, onSubmit, onEsc
       onSubmitEditing={onSubmit}
       onKeyPress={onKeyPress}
       autoFocus={autoFocus}
+      editable={!disabled}
       autoCapitalize="none"
       autoCorrect={false}
       spellCheck={false}
@@ -105,8 +111,33 @@ export function TextField({ value, onChange, label, placeholder, onSubmit, onEsc
       numberOfLines={multiline ? rows : 1}
       {...(selection ? { selection } : {})}
       testID={testID}
-      style={[s.input, compact && s.inputCompact, multiline && s.inputMulti, multiline && { minHeight: rows * 19 + 16 }, mono && s.mono, width === undefined ? s.inputFlex : { width }, focus && s.inputFocus]}
+      style={[s.input, compact && s.inputCompact, form && s.inputForm, disabled && s.pkOff, multiline && s.inputMulti, multiline && { minHeight: rows * 19 + 16 }, mono && s.mono, width === undefined ? s.inputFlex : { width }, focus && s.inputFocus]}
     />
+  );
+}
+
+/**
+ * A full-width picker button of a form (vyre-v1.html .pk): the shown value, an optional face before it and a chevron; a press opens the caller's menu under it. Off, it dims and does nothing.
+ */
+export function PickerButton({ label, shown, leading, onPress, testID, disabled = false }: { label: string; shown: string; leading?: ReactNode; onPress: (e: unknown) => void; testID?: string; disabled?: boolean }): ReactElement {
+  const [over, setOver] = useState(false);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label}: ${shown}`}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      onHoverIn={() => setOver(true)}
+      onHoverOut={() => setOver(false)}
+      testID={testID}
+      style={[s.pk, over && !disabled && s.pkOver, disabled && s.pkOff]}
+      {...webProps({ "aria-haspopup": "menu", title: label })}
+    >
+      {leading}
+      <Text numberOfLines={1} style={s.pkText}>{shown}</Text>
+      <Glyph name="chevd" size={9} color="var(--ink-3)" />
+    </Pressable>
   );
 }
 
@@ -197,12 +228,17 @@ const s = StyleSheet.create({
   }),
   inputCompact: { height: 26, borderRadius: 7, fontSize: 12.5 },
   mono: style({ fontFamily: "var(--mono)", fontSize: 12.5 }),
+  inputForm: { height: 30, fontSize: 13 },
   inputFlex: { flex: 1, minWidth: 0 },
   inputMulti: style({ height: "auto", minHeight: 64, paddingVertical: 8, lineHeight: 19 }),
   inputFocus: style({ boxShadow: "inset 0 0 0 1px var(--accent-line), 0 0 0 3px var(--accent-wash)" }),
   select: style({ height: 26, borderRadius: 7, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "var(--sunk)", boxShadow: "inset 0 0 0 1px var(--line)" }),
   selectOver: style({ boxShadow: "inset 0 0 0 1px var(--accent-line)" }),
   selectText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink)" as string },
+  pk: style({ width: "100%", height: 30, borderRadius: 8, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "var(--sunk)", boxShadow: "inset 0 0 0 1px var(--line)" }),
+  pkOver: style({ boxShadow: "inset 0 0 0 1px var(--line-2)" }),
+  pkOff: { opacity: 0.7 },
+  pkText: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string },
   selectChev: { fontSize: 12, color: "var(--ink-3)" as string, marginLeft: 6 },
   sw: { width: 34, height: 20, borderRadius: 99, padding: 2, backgroundColor: "var(--ink-4)" as string, justifyContent: "center" },
   swOn: { backgroundColor: "var(--accent)" as string },
