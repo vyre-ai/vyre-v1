@@ -217,7 +217,7 @@ export interface NavGroup { key: "mine" | "shared" | "agent"; label: string; ite
 export interface NavInbox { id: string; label: string; scope: Scope; unread: number; lock: boolean; agent: boolean; channel: "email" | "sms" }
 
 /** Mine, Shared and Agents: mailboxes by kind, numbers under Mine (a number is assigned to one person). Unread counts come from inbox.counts. */
-export function navGroups(mailboxes: readonly Mailbox[], counts: Counts | null): NavGroup[] {
+export function navGroups(mailboxes: readonly Mailbox[], counts: Counts | null, numberInfo?: ReadonlyMap<string, { label: string; group: "mine" | "agent" }>): NavGroup[] {
   const unread = new Map<string, number>();
   const numbers: string[] = [];
   if (counts) for (const c of counts.byInbox) { unread.set(c.id, c.unread); if (c.kind === "number") numbers.push(c.id); }
@@ -227,7 +227,10 @@ export function navGroups(mailboxes: readonly Mailbox[], counts: Counts | null):
     const key = m.kind === "personal" ? "mine" : m.kind === "agent" ? "agent" : "shared";
     put(key, { id: m.id, label: m.title, scope: { kind: "mailbox", id: m.id }, unread: unread.get(m.id) ?? 0, lock: m.privacy === "private", agent: m.kind === "agent", channel: "email" });
   }
-  for (const id of numbers) put("mine", { id, label: id, scope: { kind: "number", id }, unread: unread.get(id) ?? 0, lock: false, agent: false, channel: "sms" });
+  for (const id of numbers) {
+    const info = numberInfo?.get(id);
+    put(info?.group ?? "mine", { id, label: info?.label ?? id, scope: { kind: "number", id }, unread: unread.get(id) ?? 0, lock: false, agent: info?.group === "agent", channel: "sms" });
+  }
   return groups.filter((g) => g.items.length > 0);
 }
 
