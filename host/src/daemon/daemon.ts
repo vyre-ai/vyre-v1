@@ -483,7 +483,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       await syncAccess();
       // the drivers that need the daemon's own state (the Space log, the access snapshot, the pipeline); the registry in seams/ builds the rest from the Vault
       const spaceLog = log;
-      peopleExtras = createPeopleExtras({ access: () => access.snap, db: db!, call: (n, i, as) => hookRunner.call(n, i, as), keyring, github: o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env) });
+      peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, call: (n, i, as) => hookRunner.call(n, i, as), keyring, github: o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env) });
       const system = (cap: string, input: unknown): Promise<unknown> =>
         invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook" }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));
       // the Space record store the L3 data modules share (P-H_08): one file in the data directory, opened by the first module that needs it, closed at shutdown
@@ -637,7 +637,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         if (!t) return null;
         if (sameToken(t, token)) return { space: spaceId, principal: { kind: "person", id: owner() }, device: ADMIN_DEVICE };
         const s = sessions.resolve(t);
-        return s ? { space: s.space, principal: { kind: "person", id: s.person }, device: s.device } : null;
+        // a session is only as good as the membership behind it: a suspended, removed or unknown person's live token stops working at once, and comes back with reactivation
+        if (!s || access.snap.principal(s.person)?.status !== "active") return null;
+        return { space: s.space, principal: { kind: "person", id: s.person }, device: s.device };
       };
       const session: GatewayDeps["session"] = o.session ?? ((headers) => identify(bearer(headers["authorization"])));
       ownerOfSpace = () => cfg.owner ?? access.owner() ?? null;

@@ -55,7 +55,9 @@ test("a removed member cannot sign in again, their old session token answers 401
     // suspended: refused, and the way back is reactivation
     assert.equal((await post(owner, "/v1/members/suspend", { personId: person })).status, 200);
     assert.notEqual((await signIn()).status, 200, "a suspended member cannot sign in");
+    assert.equal((await post(old, "/v1/identity/whoami", {})).status, 401, "and their live token stops working at once");
     assert.equal((await post(owner, "/v1/members/reactivate", { personId: person })).status, 200);
+    assert.equal((await post(old, "/v1/identity/whoami", {})).status, 200, "reactivated, the same token works again");
     const back = await signIn();
     assert.equal(back.status, 200, JSON.stringify(back.body));
 
