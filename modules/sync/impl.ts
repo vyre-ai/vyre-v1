@@ -26,6 +26,7 @@ import type { ProjectionHost as Host } from "../../kernel/src/store/projection.t
 import type { Store as KStore } from "../../kernel/src/store/types.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
 export type { SyncHostSeam, SyncEndpoint, SyncStoreSeam } from "./handlers/host.ts";
+export { blankErased } from "./erase.ts";
 
 export interface SyncOpts {
   /** The in-memory access projections (grants, roles, resources). */

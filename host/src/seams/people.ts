@@ -7,9 +7,9 @@
 //   identity.keyring    clears the person's key from this node's memory at sign-out and password change (ruling 62); the key itself arrives from their client over loopback
 //   identity.losses     what a reset would lose: Mine vault items counted from the vault table (chat and memory counts follow when those modules count their private rows)
 //   members.factors     second factors per person: TOTP when identity holds a secret for them
-//   members.owned      routines, agents, automations and Mine vault items, through those modules' host calls; records, files, channels, projects, mailbox connections, private chats and memory report nothing yet
+//   members.owned      routines, agents, automations, Mine vault items, records, projects, files, channels, private chats, memory and mailbox connections, through those modules' host calls (P-L7_21)
 //   spaces.directory    the role name shown in the switcher
-//   spaces.attention    NOT built yet: zero (the Home counts come from tasks and inbox)
+//   spaces.attention    Needs you from tasks (tasks.attention) and unread from chat (chat.attention), asked as the person
 import type { AccessSnapshot } from "../../../kernel/src/authorize/snapshot.ts";
 import type { Keyring } from "./keyring.ts";
 
@@ -64,7 +64,10 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
   // the removal wizard: each owning module answers for its own kinds through its host calls (<module>.owned_by, <module>.reassign_owned), run as the admin doing the removal; a module that is not live has
   // no host call and owns nothing here. HOOK for a module that joins (files, channels, private chats, memory): export `hostCalls` with "<module>.owned_by" answering { <kind>: { count, sample, ids } } and
   // "<module>.reassign_owned" taking { person, kind, action, to? } and answering how many it touched, then add the kind to OWNERS below.
-  const OWNERS: Record<string, string> = { routines: "agents", agents: "agents", automations: "automations", vault_mine: "vault", records: "records", projects: "projects" };
+  const OWNERS: Record<string, string> = {
+    routines: "agents", agents: "agents", automations: "automations", vault_mine: "vault", records: "records", projects: "projects",
+    files: "files", channels: "chat", private_chats: "chat", memory_from_you: "memory", mailbox_connections: "mail",
+  };
   const ownedFor = (as: { principal: { kind: "person" | "agent" | "service"; id: string } } | undefined) => {
     const gather = async (personId: string) => {
       const out: Record<string, { count: number; sample: unknown[]; ids?: string[] }> = {};
@@ -105,7 +108,17 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
       factors: { of: (personId: string) => (count(d.db, `SELECT count(*) AS n FROM identity_accounts WHERE person_id = ? AND totp_secret IS NOT NULL`, personId) > 0 ? ["totp"] : []) },
       owned: ownedFor(undefined),
     },
-    spaces: { directory, attention: { of: () => ({ needsYou: 0, unread: 0 }) } },
+    spaces: {
+      directory,
+      // the tile's counts come from the modules that own them, asked as the person: tasks (Ready requests waiting on them) and chat (unread messages in their chats); a module that is not live counts nothing
+      attention: {
+        async of(personId: string) {
+          const as = { principal: { kind: "person" as const, id: personId } };
+          const n = async (name: string): Promise<number> => { try { return Math.max(0, Math.trunc(Number(await d.call(name, {}, as)) || 0)); } catch { return 0; } };
+          return { needsYou: await n("tasks.attention"), unread: await n("chat.attention") };
+        },
+      },
+    },
   };
   return (module, ctx) => {
     const base = extras[module];
