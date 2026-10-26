@@ -11,8 +11,9 @@ import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { CODE_ROOT, startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
-import { dueSyncs, liveConnectors, usedAtOf } from "../../modules/connectors/impl.ts";
-import { ensureSyncTables } from "../../modules/connectors/handlers/sync.ts";
+import { DatabaseSync } from "node:sqlite";
+import type { Tx } from "../../kernel/src/store/projection.ts";
+import { dueSyncs } from "../../modules/connectors/handlers/cadence.ts";
 
 const OLIVIA = "usr_olivia";
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
@@ -51,35 +52,57 @@ async function boot(dir: string): Promise<Daemon> {
 const post = (d: Daemon, cap: string, body: unknown, token: string | null = d.token): Promise<Response> =>
   fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
 
-test("a read of a synced type through the gateway leaves the in-use mark, and the type is then due at 2 minutes, not 15", async () => {
-  const d = await boot(seededDir());
+/** The Space store file the daemon keeps the connectors tables in, opened by a second connection: what a test sees here is what the daemon committed. */
+function viaFile(dir: string, readOnly = false): { tx: Tx; close(): void } {
+  const db = new DatabaseSync(path.join(dir, "space.db"), { readOnly });
+  if (!readOnly) db.exec("PRAGMA busy_timeout = 5000");
+  const run = (sql: string, ...a: unknown[]) => { const r = db.prepare(sql).run(...(a as never[])); return { changes: Number(r.changes), lastInsertRowid: Number(r.lastInsertRowid) }; };
+  return { tx: { run, get: (sql, ...a) => db.prepare(sql).get(...(a as never[])) as never, all: (sql, ...a) => db.prepare(sql).all(...(a as never[])) as never, exec: (sql) => db.exec(sql) }, close: () => db.close() };
+}
+const markOf = (dir: string, type: string): number | undefined => {
+  const f = viaFile(dir, true);
   try {
-    const h = liveConnectors();
-    ensureSyncTables(h.tx);
+    if (!f.tx.get("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'cn_type_use'")) return undefined;
+    return f.tx.get<{ at: number }>("SELECT at FROM cn_type_use WHERE type = ?", type)?.at;
+  } finally { f.close(); }
+};
+
+test("a read of a synced type through the gateway commits the in-use mark, and the type is then due at 2 minutes, not 15", async () => {
+  const dir = seededDir();
+  const d = await boot(dir);
+  try {
+    // the first call makes the tables; then the rows are put in through the same file
+    const listed = await post(d, "sync_types.list", {});
+    assert.equal(listed.status, 200, await listed.clone().text());
     const now = Date.now();
-    h.tx.run("INSERT INTO cn_connections (connection_id, connector, title, owner_kind, owner_id, state, created_at) VALUES ('con_live', 'acme', 'Acme', 'space', 'space', 'connected', ?)", now - 30 * 86_400_000);
+    const seed = viaFile(dir);
+    seed.tx.run("INSERT INTO cn_connections (connection_id, connector, title, owner_kind, owner_id, state, created_at) VALUES ('con_live', 'acme', 'Acme', 'space', 'space', 'connected', ?)", now - 30 * 86_400_000);
     for (const t of ["read_t", "unread_t"]) {
-      h.tx.run(
+      seed.tx.run(
         "INSERT INTO cn_synced_types (sync_type_id, type, connector, connection_id, remote, fields, match, polling, nightly, paused, schema_changes, created_at, updated_at) VALUES (?, ?, 'acme', 'con_live', 'x', '[]', '[]', ?, 0, 0, '[]', ?, ?)",
         `syt_${t}`, t, JSON.stringify({ activeSec: 120, idleSec: 900, dormantSec: 3600 }), now - 30 * 86_400_000, now - 30 * 86_400_000,
       );
     }
-    assert.equal(usedAtOf(h.tx, "read_t"), undefined, "nobody has looked yet");
+    seed.close();
+    assert.equal(markOf(dir, "read_t"), undefined, "nobody has looked yet");
 
     const refused = await post(d, "sync_types.get", { type: "read_t" }, null);
     assert.equal(refused.status, 401, "no token, no read");
-    assert.equal(usedAtOf(h.tx, "read_t"), undefined, "a refused read marks nothing");
+    assert.equal(markOf(dir, "read_t"), undefined, "a refused read marks nothing");
 
     const got = await post(d, "sync_types.get", { type: "read_t" });
     assert.equal(got.status, 200, await got.clone().text());
-    const mark = usedAtOf(h.tx, "read_t");
-    assert.ok(mark !== undefined, "the read left the in-use mark (a read that is rolled back would lose it)");
-    assert.equal(usedAtOf(h.tx, "unread_t"), undefined, "the other type was not read");
+    const mark = markOf(dir, "read_t");
+    assert.ok(mark !== undefined, "the read committed the in-use mark (a read that is rolled back would lose it)");
+    assert.equal(markOf(dir, "unread_t"), undefined, "the other type was not read");
 
     // three minutes after their last run: only the one somebody read is due
-    h.tx.exec("CREATE TABLE IF NOT EXISTS sy_state (sync_type TEXT PRIMARY KEY, cursor TEXT, last_run_at INTEGER, pending_deletes TEXT)");
-    const at = mark! + 60_000;
-    for (const t of ["read_t", "unread_t"]) h.tx.run("INSERT OR REPLACE INTO sy_state (sync_type, cursor, last_run_at, pending_deletes) VALUES (?, NULL, ?, NULL)", `syt_${t}`, at - 3 * 60_000);
-    assert.deepEqual(dueSyncs({ tx: h.tx, now: () => at }).map((x) => [x.type, x.useState]), [["read_t", "active"]]);
+    const check = viaFile(dir);
+    try {
+      check.tx.exec("CREATE TABLE IF NOT EXISTS sy_state (sync_type TEXT PRIMARY KEY, cursor TEXT, last_run_at INTEGER, pending_deletes TEXT)");
+      const at = mark! + 60_000;
+      for (const t of ["read_t", "unread_t"]) check.tx.run("INSERT OR REPLACE INTO sy_state (sync_type, cursor, last_run_at, pending_deletes) VALUES (?, NULL, ?, NULL)", `syt_${t}`, at - 3 * 60_000);
+      assert.deepEqual(dueSyncs({ tx: check.tx, now: () => at }).map((x) => [x.type, x.useState]), [["read_t", "active"]]);
+    } finally { check.close(); }
   } finally { await d.stop(); }
 });
