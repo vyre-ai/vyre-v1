@@ -72,10 +72,11 @@ export interface FlowSpace {
 }
 
 /** Boots a daemon on the `core` seed with `live` flipped in a temporary code root. Rejects with the host's own refusal text when the boot is refused. */
-export async function bootFlowSpace(live: readonly string[], opts: { engineCli?: unknown; spaceKind?: "personal" | "team"; relay?: string; fetch?: FetchFn & SeamFetch; vault?: { secret(handle: string): Promise<string>; signRs256(): Promise<string> } } = {}): Promise<FlowSpace> {
+export async function bootFlowSpace(live: readonly string[], opts: { engineCli?: unknown; spaceKind?: "personal" | "team"; relay?: string; realClock?: boolean; fetch?: FetchFn & SeamFetch; vault?: { secret(handle: string): Promise<string>; signRs256(): Promise<string> } } = {}): Promise<FlowSpace> {
   const dir = await seededDir();
   // Every flow runs on a clock that reads a weekday at 10:00 UTC when the Space boots and then ticks as real time does, so no flow depends on the hour CI runs at (windows, hours, expiries)
-  const shift = nextWeekdayTen(Date.now()) - Date.now();
+  // `realClock`: a flow whose far end is a real process with a clock of its own (the relay) stays on real time
+  const shift = opts.realClock ? 0 : nextWeekdayTen(Date.now()) - Date.now();
   const clock = (): number => Date.now() + shift;
   const start = (port: string): Promise<Daemon> => startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", port, ...(opts.spaceKind ? ["--space-kind", opts.spaceKind] : []), ...(opts.relay ? ["--relay", opts.relay] : [])], {}, "1.2.3"),
