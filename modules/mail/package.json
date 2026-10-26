@@ -1,0 +1,13 @@
+{
+  "name": "@vyre/module-mail",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Mail module. imapflow reads and idles on IMAP, mailparser parses messages, nodemailer sends over SMTP, mailauth checks SPF, DKIM and DMARC.",
+  "dependencies": {
+    "imapflow": "2.4.0",
+    "mailauth": "7.3.0",
+    "mailparser": "3.9.38",
+    "nodemailer": "10.1.0"
+  }
+}
