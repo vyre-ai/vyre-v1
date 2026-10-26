@@ -10,9 +10,9 @@ import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 
-/** The boot check: right after start, then every minute, each agent's AGENT.md and agent.toml are in its folder; a missing one is put back from the agent record (P-L5_30). */
+/** The boot check: right after start, then every 15 seconds, each agent's AGENT.md and agent.toml are in its folder; a missing one is put back from the agent record (P-L5_30). */
 export const periodic = {
-  "agents.agent_files": { everyMs: 60_000, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => restoreAgentFiles(ctx) },
+  "agents.agent_files": { everyMs: 15_000, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => restoreAgentFiles(ctx) },
 };
 
 export { restoreAgentFiles };

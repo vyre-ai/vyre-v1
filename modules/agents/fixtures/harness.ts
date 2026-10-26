@@ -30,6 +30,7 @@ export function fakeFiles(clock: { t: number }) {
   const files = new Map<string, FakeFile>();
   const keys = new Map<string, unknown>();
   /** Agent principals access knows, whether or not the agents module has a record for them (the seed writes some straight to the log). */
+  const homeGrants: Array<{ resource: { type: string; id: string }; subject: { kind: string; id: string }; level: string; source?: string }> = [];
   const principals: Array<{ id: string; kind: "agent" | "actor"; name: string; owner?: string; status: "active" | "removed" }> = [];
   const calls: Array<{ cap: string; input: unknown }> = [];
   const settings: Record<string, unknown> = {};
@@ -81,6 +82,12 @@ export function fakeFiles(clock: { t: number }) {
       if (k) keys.set(k, out);
       return out;
     },
+    "access.share": (i) => {
+      const g = homeGrants.find((x) => x.resource.id === i.resource.id && x.subject.kind === i.subject.kind && x.subject.id === i.subject.id && x.source === i.source);
+      if (g) g.level = i.level; else homeGrants.push({ resource: i.resource, subject: i.subject, level: i.level, source: i.source });
+      return { grant: { id: next("gnt") } };
+    },
+    "access.shares_of": (i) => ({ shares: homeGrants.filter((x) => x.resource.id === i.resource.id).map((g) => ({ grant: { ...g, id: "gnt_x", conditions: {}, by: "usr_x", createdAt: clock.t }, through: "direct" })) }),
     "access.principals.list": (i) => ({ principals: principals.filter((p) => i.kind === undefined || p.kind === i.kind).map((p) => ({ ...p, roles: [], groups: [], createdAt: clock.t })) }),
     "files.get": (i) => ({ file: fileOut(file(i.fileId)) }),
     "files.delete": (i) => { file(i.fileId).deletedAt = clock.t; return { deleted: true }; },
@@ -128,7 +135,7 @@ export function fakeFiles(clock: { t: number }) {
   };
 
   return {
-    root: agentsRoot, folders, files, calls, handlers, principals,
+    root: agentsRoot, folders, files, calls, handlers, principals, homeGrants,
     answer(cap: string, f: Handler) { handlers[cap] = f; },
     setting(key: string, value: unknown) { settings[key] = value; },
     folderNamed(name: string, parent?: string): FakeFolder | undefined { return [...folders.values()].find((f) => !f.deleted && f.name === name && f.parentId === parent); },

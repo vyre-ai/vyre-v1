@@ -119,3 +119,42 @@ test("an outside agent is never adopted: it is an outside actor, not an agent of
   assert.deepEqual(await restoreAgentFiles(hn.ctx), []);
   assert.equal(hn.rows("SELECT * FROM agents_agent").length, 1);
 });
+
+// ---- ruling 99: the agent edits its own home, its owner manages it ----------------------------------------------------------------------------------------
+
+const onHome = (hn: Harness, home: string): string[] => hn.world.homeGrants.filter((g) => g.resource.id === home).map((g) => `${g.subject.kind}:${g.subject.id}:${g.level}:${g.source}`).sort();
+
+test("create gives the agent Edit on its own folder (not Manage) and its owner Manage, and nothing else", async () => {
+  const hn = harness();
+  const a = await make(hn);
+  const home = String(record(hn, a.agentId)["folderId"]);
+  assert.deepEqual(onHome(hn, home), [`agent:${a.agentId}:edit:agent:${a.agentId}`, `person:${DANA}:manage:agent:${a.agentId}`].sort());
+  assert.equal(hn.world.homeGrants.length, 2, "two grants in all");
+});
+
+test("the boot pass adds the grants an existing agent lacks, once, and only those two", async () => {
+  const hn = harness();
+  const a = await make(hn);
+  const home = String(record(hn, a.agentId)["folderId"]);
+  hn.world.homeGrants.length = 0;   // an agent made before ruling 99
+  hn.clear();
+  assert.deepEqual(await restoreAgentFiles(hn.ctx), ["Intake/grants"]);
+  assert.deepEqual(onHome(hn, home), [`agent:${a.agentId}:edit:agent:${a.agentId}`, `person:${DANA}:manage:agent:${a.agentId}`].sort());
+  assert.equal(hn.world.calls.filter((c) => c.cap === "access.share").length, 2);
+  hn.clear();
+  assert.deepEqual(await restoreAgentFiles(hn.ctx), [], "the next pass writes nothing");
+  assert.equal(hn.world.calls.filter((c) => c.cap === "access.share").length, 0);
+  // an agent that already holds more is left as it is
+  hn.world.homeGrants.splice(0, hn.world.homeGrants.length, { resource: { type: "folder", id: home }, subject: { kind: "agent", id: a.agentId }, level: "manage", source: "x" });
+  hn.clear();
+  assert.deepEqual(await restoreAgentFiles(hn.ctx), ["Intake/grants"], "only the owner's grant is missing");
+  assert.equal(hn.world.calls.filter((c) => c.cap === "access.share").length, 1);
+});
+
+test("an adopted agent gets the same two grants on its new folder", async () => {
+  const hn = harness();
+  hn.world.principals.push({ id: "agt_scout", kind: "agent", name: "Scout", owner: DANA, status: "active" });
+  await restoreAgentFiles(hn.ctx);
+  const home = String(record(hn, "agt_scout")["folderId"]);
+  assert.deepEqual(onHome(hn, home), [`agent:agt_scout:edit:agent:agt_scout`, `person:${DANA}:manage:agent:agt_scout`].sort());
+});

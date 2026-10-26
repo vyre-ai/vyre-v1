@@ -68,6 +68,21 @@ test("an agent's AGENT.md and agent.toml cannot be deleted, moved or renamed thr
       assert.equal(live(id).deleted_at, null, "nothing changed");
     }
 
+    // ruling 99: the agent edits its own home (not Manage), its owner manages it, another agent has no access to it
+    const agentId = d.db!.all("SELECT id FROM agents_agent WHERE name = 'Scout'")[0] as unknown as { id: string };
+    const other = await post(d, "/v1/agents/create", { name: "Other", role: "Another agent.", idempotencyKey: "agent-files-other" }, token);
+    assert.equal(other.status, 200, JSON.stringify(other.json));
+    const otherId = (d.db!.all("SELECT id FROM agents_agent WHERE name = 'Other'")[0] as unknown as { id: string }).id;
+    const check = async (kind: string, id: string, level: string): Promise<{ effect: string; reason?: string }> => {
+      const r = await post(d, "/v1/access/check", { principal: { kind, id }, action: { perm: null, level }, resource: { type: "folder", id: folderId } }, token);
+      assert.equal(r.status, 200, JSON.stringify(r.json));
+      return r.json.data.decision;
+    };
+    assert.equal((await check("agent", agentId.id, "view")).effect, "allow", "the agent lists its own home");
+    assert.equal((await check("agent", agentId.id, "edit")).effect, "allow", "and edits it");
+    assert.equal((await check("agent", agentId.id, "manage")).effect, "deny", "but cannot share it out");
+    assert.equal((await check("agent", otherId, "view")).effect, "deny", "another agent has no access to it");
+
     // a file lost underneath Files (a restore from an old backup, a hand edit of the database): the next start puts it back from the record
     d.db!.run("UPDATE files_file SET deleted_at = ? WHERE id = ?", Date.now(), agentMdFileId);
     d.db!.run("DELETE FROM files_file WHERE id = ?", tomlFileId);
