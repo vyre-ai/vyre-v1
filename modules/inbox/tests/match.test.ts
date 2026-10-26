@@ -333,7 +333,7 @@ test("following a contact and Alert me on replies: stored per person, the follow
 
 test("every capability of the inbox manifest has a handler, and none is extra", () => {
   const caps = registry.capabilities.filter((c) => c.name.startsWith("inbox.")).map((c) => c.name).sort();
-  assert.equal(caps.length, 16);
+  assert.equal(caps.length, 17);
   assert.deepEqual(Object.keys(handlers).sort(), caps);
 });
 

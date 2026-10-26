@@ -67,6 +67,9 @@ export default defineManifest({
     }, 'space', { sync: { profile: { desktop: 'none', phone: 'none', web: 'none' } } }),
   ],
   events: [
+    // ---- erase and purge (P-CC_39): governance removes data through these; each hard-deletes inside its own store
+    ev('sms.erased', 'A text message was erased for good (ids only)', { p: { smsId: t.id('sms') }, subject: ['entity', '/smsId'], retention: 'audit' }),
+    ev('call.erased', 'A call record was erased for good with its transcript, summary and recording (ids only)', { p: { callId: id.call }, subject: ['entity', '/callId'], retention: 'audit' }),
     ev('call.ringing', 'An incoming call is ringing for someone', {
       p: { callId: id.call, numberId: id.number, from: t.str(), contactId: t.opt(id.record), ringing: t.arr(party) }, subject: ['entity', '/callId'], vis: 'participants', notify: 'call.incoming',
     }),
@@ -92,6 +95,9 @@ export default defineManifest({
     ev('registration.status_changed', 'The texting registration changed status', { p: { registrationId: regId, state: t.enm('in_review', 'approved', 'rejected') }, subject: ['entity', '/registrationId'] }),
   ],
   capabilities: [
+    // ---- erase and purge (P-CC_39)
+    write('telephony.sms.erase', 'Erase one text message for good (governance erase)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { smsId: t.id('sms') }, out: { erased: t.bool() }, emits: ['sms.erased'], audit: 'always', risk: 'high' }),
+    write('telephony.call.erase', 'Erase one call for good: its transcript, summary and recording file (governance erase)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { callId: id.call }, out: { erased: t.bool() }, emits: ['call.erased'], audit: 'always', risk: 'high' }),
     // ---- numbers
     read('telephony.number.list', 'List numbers with assignee, route and registration state', {
       in: { assigneeId: t.opt(t.str()), ...pageIn }, out: { numbers: t.arr(numberRow), ...pageOut }, tool: 'inbox', label: 'filter',

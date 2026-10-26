@@ -21,6 +21,7 @@
     "memory.layout.save@1": "b106ac7e1c7852ab413ba83055ac0c72fa2c8abb340848c147179dd7e077f3a5",
     "memory.maintain@1": "e2e93ca3c9abf54006eb68fb4c53b90f0274f017c5ceb5f1cb9ccce87c836e33",
     "memory.map.get@1": "2ec8af83998b8217f20fd68baf16eb399bb7491dc928ab73d29f1aa23ad77ec5",
+    "memory.notes.erase@1": "dd81a39305008aee7f3f350162b195248c6417328481c68ec9cba911d94ef2bd",
     "memory.notes.list@1": "8812ed58623663cdc5bcc752b161d669e866f211df00a75851edc90ad3445d26",
     "memory.pointer@1": "c171053115b1483d3b3530afff03a64200522868bdfa85ff4b982894c42f5f74",
     "memory.promote@1": "9137fa569acef50de2ffe07582fecab4b064579b1cbfc785c38aa50f765239e6",
@@ -47,6 +48,7 @@
     "memory.promotion_rejected": "4527b320a438b15db54f7c0b05b640f4148a182dadec2fb294450d167d9bc167",
     "memory.promotion_requested": "0bc2def378fadbac53640a8187265640c3f88afa78e5a994c4ed60722e9fdfcd",
     "memory.promotion_undone": "a23525863cdb06b68084b8dca6f5244385012d0d21a8b3e6ee102c0141e4444b",
-    "memory.removed": "b85b7023b754bf036057dce5209c91a55e84c137d0bf4b26619e9c0f735c7f51"
+    "memory.removed": "b85b7023b754bf036057dce5209c91a55e84c137d0bf4b26619e9c0f735c7f51",
+    "note.erased": "f8a5f40562637e84c6dcf2b8e68aaad16e67740d09a89a4060b1ac1c5e2aacc0"
   }
 }
