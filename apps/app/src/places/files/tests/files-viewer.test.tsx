@@ -8,7 +8,7 @@ import { Viewer } from "../../../../../../ui/src/Viewer/index.tsx";
 import { FileViewer } from "../viewer/FileViewer.tsx";
 import { FilesViewerDataProvider } from "../viewer/data.tsx";
 import { commentOnQuote, pinArea, resolveComment, saveMarkup, saveText } from "../viewer/actions.ts";
-import { FILE_SUBJECT_TYPES, blocksToText, boxesOf, docCommentsOf, isEditable, kindLabel, parseCsv, strokesOf, strokesToSave, textToBlocks, viewerKind } from "../viewer/model.ts";
+import { FILE_SUBJECT_TYPES, blocksToText, boxesOf, docCommentsOf, isEditable, kindLabel, nodeFor, parseCsv, strokesOf, strokesToSave, textToBlocks, viewerKind } from "../viewer/model.ts";
 import type { FileComment, ViewerData } from "../viewer/model.ts";
 import { createSampleViewer } from "../viewer/sample.ts";
 
@@ -72,7 +72,8 @@ test("a note reads as blocks, its comment marks the quoted passage, and a new co
   const s = createSampleViewer();
   const data = await read<ViewerData>(s, "files.viewer_data", { fileId: "f_note" });
   const blocks = textToBlocks(data.text ?? "", data.file.kind);
-  assert.deepEqual(blocks.map((b) => b.tag), ["h1", "p", "h2", "li", "li"]);
+  assert.deepEqual(blocks.map((b) => b.tag), ["meta", "h1", "p", "h2", "li", "li"]);
+  assert.match(blocks[0]!.text, /^kind\tdecision\nvalid_from\t2026-10-03\nlearned\t2026-10-08 2:02 pm\nsource\tchat Pricing review, you$/, "the front matter is the property block");
   const list = async (): Promise<FileComment[]> => (await read<{ comments: FileComment[] }>(s, "files.comments.list", { fileId: "f_note" })).comments;
   const comments = docCommentsOf(await list(), s.data.name, s.data.clock().now);
   assert.equal(comments.length, 1);
@@ -86,6 +87,22 @@ test("a note reads as blocks, its comment marks the quoted passage, and a new co
   const out = clean(renderToStaticMarkup(<Viewer fileId="f_note" title="Consult fee.md" kind="document" blocks={blocks} comments={comments} />));
   assert.ok(has(out, 'data-testid="vw-doc"') && has(out, "Consult fee"));
   assert.ok(isEditable(data), "a note can be edited in place");
+});
+
+test("a note shows as read text, not raw: bold and bullets are the Viewer's, the property block comes from the front matter, and Links come from the memory graph", async () => {
+  const s = createSampleViewer();
+  const data = await read<ViewerData>(s, "files.viewer_data", { fileId: "f_note" });
+  const graph = await read<Parameters<typeof nodeFor>[0] & { edges: { from: string; to: string; kind: "link" | "relation" | "came_from" }[] }>(s, "memory.graph", { scope: "space" });
+  const id = nodeFor(graph, data.file.name);
+  assert.equal(id, "n_fee", "found by the file name without its extension");
+  assert.equal(nodeFor(graph, "Nothing.md"), null);
+  const blocks = textToBlocks(data.text ?? "", data.file.kind);
+  const out = clean(renderToStaticMarkup(<Viewer fileId="f_note" title="Consult fee.md" kind="document" blocks={blocks} graph={{ nodes: graph.nodes as never, edges: graph.edges }} nodeId={id!} detailsOpen details={{ rows: [["Kind", "Note"]] }} />));
+  assert.ok(!has(out, "**$250**"), "no raw asterisks");
+  assert.ok(has(out, "•"), "list items keep their bullets");
+  assert.ok(has(out, ">kind<") && has(out, ">valid_from<") && has(out, "chat Pricing review, you"), "the property block");
+  assert.ok(has(out, "Pricing landscape") && has(out, "Referral policy"), "Links to and Linked from");
+  assert.equal(s.data.agentFor?.("f_offer"), "Research", "the markup bar names the agent that worked on the file");
 });
 
 test("an edit in place saves against the version it started from and returns the next one; a stale save is refused with words", async () => {

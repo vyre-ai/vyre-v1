@@ -15,7 +15,7 @@ const file = (id: string, name: string, kind: ViewerData["file"]["kind"], mime: 
 });
 
 const PICTURE = `data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 750"><rect width="1000" height="750" fill="#e8ecf4"/><rect x="80" y="240" width="440" height="240" rx="14" fill="#c9d4ee"/><text x="110" y="330" font-family="sans-serif" font-size="46" fill="#33415c">Free consult</text><text x="110" y="390" font-family="sans-serif" font-size="30" fill="#52618a">Book this week</text></svg>')}`;
-const NOTE = "# Consult fee\nThe standard consult fee is **$250**. It was $200 until Oct 8.\n## Rules\n- Referrals from partner firms get the first consult free\n- Anyone else: quote $250 and say a person confirms it\n";
+const NOTE = "---\nkind: decision\nvalid_from: 2026-10-03\nlearned: 2026-10-08 2:02 pm\nsource: chat Pricing review, you\n---\n# Consult fee\nThe standard consult fee is **$250**. It was $200 until Oct 8.\n## Rules\n- Referrals from partner firms get the first consult free\n- Anyone else: quote $250 and say a person confirms it\n";
 const CSV = "Client,Amount,Status\nRivera,$1200,Paid\nChen,$300,Open\nOrtiz,$900,Open\n";
 const CODE = 'def fee(matter):\n    if matter.referred_by == "maya":\n        return 0\n    return matter.total * 0.1\n';
 
@@ -55,6 +55,7 @@ export function createSampleViewer(): SampleViewer {
       switch (cap) {
         case "files.viewer_data": return need(i["fileId"]).data;
         case "files.comments.list": return { comments: need(i["fileId"]).comments };
+        case "memory.graph": return { nodes: [{ nodeId: "n_fee", kind: "note" as const, title: "Consult fee" }, { nodeId: "n_land", kind: "note" as const, title: "Pricing landscape" }, { nodeId: "n_maya", kind: "person" as const, title: "Maya Chen" }, { nodeId: "n_pol", kind: "decision" as const, title: "Referral policy", link: "Agents / Billing / memory" }], edges: [{ from: "n_fee", to: "n_land", kind: "link" as const }, { from: "n_fee", to: "n_maya", kind: "link" as const }, { from: "n_pol", to: "n_fee", kind: "link" as const }], clusters: [] };
         case "files.markup.get": return { strokes: need(i["fileId"]).strokes };
         case "files.markup.save": need(i["fileId"]).strokes = (i["strokes"] as FileRow["strokes"]); return { ok: true };
         case "files.comments.add": {
@@ -78,6 +79,7 @@ export function createSampleViewer(): SampleViewer {
     name: (id) => names[id] ?? id,
     clock: () => ({ now: SAMPLE_NOW }),
     pathOf: () => "Marketing / Brand",
+    agentFor: () => "Research",
     agents: [{ id: "assistant", name: "Assistant", assistant: true }, { id: "agt_intake", name: "Intake" }],
     ask: (agentId, _mode, about) => void asked.push(`${agentId}:${about.kind}:${about.id}`),
     openFile: (id) => void opened.push(id),

@@ -10,7 +10,7 @@ import type { DocBlock, MarkupBox, Stroke } from "../../../../../../ui/src/Viewe
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { commentOnQuote, pinArea, resolveComment, saveMarkup, saveText } from "./actions.ts";
 import { useFilesViewerData } from "./data.tsx";
-import { boxesOf, docCommentsOf, isEditable, kindLabel, parseCsv, strokesOf, subtitleOf, textToBlocks, viewerKind } from "./model.ts";
+import { boxesOf, nodeFor, docCommentsOf, kindLabel, parseCsv, strokesOf, subtitleOf, textToBlocks, viewerKind } from "./model.ts";
 import type { FileComment, ViewerData } from "./model.ts";
 
 type Markup = CapMap["files.markup.get"]["out"];
@@ -22,7 +22,8 @@ export interface FileViewerProps {
   pane?: "main" | "side";
 }
 
-type Load = { status: "loading" } | { status: "gone" } | { status: "ready"; data: ViewerData; comments: readonly FileComment[]; markup: Markup };
+type Graph = CapMap["memory.graph"]["out"];
+type Load = { status: "loading" } | { status: "gone" } | { status: "ready"; data: ViewerData; comments: readonly FileComment[]; markup: Markup; graph: Graph | null };
 
 export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactElement {
   const d = useFilesViewerData();
@@ -40,8 +41,10 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         const data = (await d.call("files.viewer_data", { fileId })) as ViewerData;
         const comments = ((await d.call("files.comments.list", { fileId })) as { comments: FileComment[] }).comments;
         const markup = data.file.kind === "image" ? ((await d.call("files.markup.get", { fileId })) as Markup) : { strokes: [] };
+        // the note's place in the memory graph gives its Links to and Linked from; a file with no node has none, and a failed read draws none
+        const graph = data.file.kind === "markdown" || data.file.kind === "text" ? ((await d.call("memory.graph", { scope: "space" }).catch(() => null)) as Graph | null) : null;
         version.current = data.file.version;
-        if (live) setLoad({ status: "ready", data, comments, markup });
+        if (live) setLoad({ status: "ready", data, comments, markup, graph });
       } catch { if (live) setLoad({ status: "gone" }); }
     })();
     return () => { live = false; if (timer.current) clearTimeout(timer.current); };
@@ -85,6 +88,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     timer.current = setTimeout(() => { void saveText(d, fileId, next, file.kind, version.current).then((v) => { version.current = v; }).catch(say); }, SAVE_DELAY_MS);
   };
 
+  const node = ready.graph ? nodeFor(ready.graph, file.name) : null;
   const siblings = file.kind === "image" ? d.siblings?.(file.folderId) : undefined;
   const path = d.pathOf?.(file.folderId);
   return (
@@ -95,10 +99,11 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         kindLabel={kindLabel(file.name)} subtitle={subtitleOf(ready.data, now, path)}
         {...(kind === "image" && ready.data.previewUrl ? { src: ready.data.previewUrl } : {})}
         boxes={boxes} strokes={strokes} blocks={blocks} {...(sheet ? { sheet } : {})}
-        editing={isEditable(ready.data) && kind === "document"}
         comments={docCommentsOf(ready.comments, d.name, now)}
         ask={{ place: "files", context: { kind: "file", id: fileId, title: file.name, access: ready.data.canEdit ? "edit" : "view" }, agents: d.agents, testID: "file-ask", onAsk: (agent, mode, about) => d.ask?.(agent.id, mode, { kind: about.kind, id: about.id, title: about.title }) }}
         {...(siblings ? { siblings, current: fileId, onSibling: (id: string) => d.openFile?.(id) } : {})}
+        {...(ready.graph && node ? { graph: ready.graph, nodeId: node, onOpenLink: (id: string) => d.openFile?.(id) } : {})}
+        agentName={d.agentFor?.(fileId) ?? d.agents.find((a) => a.assistant)?.name ?? "the agent"}
         onBoxes={addBox} onStrokes={saveStrokes} onEdit={edit}
         onComment={(quote, textIn) => void commentOnQuote(d, fileId, quote, textIn).then(reload).catch(say)}
         onResolve={(id) => void resolveComment(d, id).then(reload).catch(say)}

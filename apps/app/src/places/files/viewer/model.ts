@@ -30,10 +30,26 @@ export function kindLabel(name: string): string {
   return dot > 0 && dot < name.length - 1 ? name.slice(dot + 1).toUpperCase().slice(0, 4) : "FILE";
 }
 
+/** The memory graph's node for a note, found by its title (the file's name without the extension), or null when the note is not in the graph. */
+export function nodeFor(graph: { nodes: readonly { nodeId: string; title: string }[] }, fileName: string): string | null {
+  const title = fileName.replace(/\.[a-z0-9]+$/i, "").toLowerCase();
+  return graph.nodes.find((n) => n.title.toLowerCase() === title)?.nodeId ?? null;
+}
+
+/** Front matter (`---` lines of `key: value`) is the note's property block: one meta block, keys and values split by a tab, as the Viewer draws it. */
+export function splitFrontMatter(text: string): { meta: string | null; body: string } {
+  const m = /^---\n([\s\S]*?)\n---\n?/.exec(text);
+  if (!m) return { meta: null, body: text };
+  const rows = m[1]!.split("\n").map((l) => l.replace(/^([^:]+):\s*/, "$1\t"));
+  return { meta: rows.join("\n"), body: text.slice(m[0].length) };
+}
+
 /** Text to blocks: markdown headings and list items keep their weight, code files are one block per line, anything else is a paragraph per line. Blank lines are not blocks, so a save writes one line per block. */
 export function textToBlocks(text: string, kind: FileKind): DocBlock[] {
   const out: DocBlock[] = [];
-  const lines = text.split("\n");
+  const fm = kind === "markdown" ? splitFrontMatter(text) : { meta: null, body: text };
+  if (fm.meta !== null) out.push({ id: "meta", tag: "meta", text: fm.meta });
+  const lines = fm.body.split("\n");
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
     if (line.trim() === "") continue;
@@ -51,7 +67,8 @@ export function textToBlocks(text: string, kind: FileKind): DocBlock[] {
 export function blocksToText(blocks: readonly DocBlock[], kind: FileKind): string {
   const lines: string[] = [];
   for (const b of blocks) {
-    if (kind === "code" || b.tag === "code") lines.push(b.text);
+    if (b.tag === "meta") lines.push("---", ...b.text.split("\n").map((l) => l.replace("\t", ": ")), "---");
+    else if (kind === "code" || b.tag === "code") lines.push(b.text);
     else if (b.tag === "h1") lines.push(`# ${b.text}`);
     else if (b.tag === "h2") lines.push(`## ${b.text}`);
     else if (b.tag === "li") lines.push(`- ${b.text}`);

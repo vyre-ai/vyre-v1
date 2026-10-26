@@ -15,6 +15,8 @@ export interface FilesViewerData {
   agents: readonly { id: string; name: string; assistant?: boolean }[];
   /** Ask an agent about the file or its markup. */
   ask?(agentId: string, mode: "chat" | "do", about: { kind: string; id: string; title: string }): void;
+  /** The agent that last worked on the file, named on the markup bar ("Ask Research"); without it the assistant's name is used. */
+  agentFor?(fileId: string): string | undefined;
   /** Another file of the same folder opens in this viewer. */
   openFile?(fileId: string): void;
   /** Files in the same folder, for the strip under an image. */
