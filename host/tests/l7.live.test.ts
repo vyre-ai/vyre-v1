@@ -47,7 +47,7 @@ const CASES: { module: string; read: [string, unknown]; write: [string, unknown]
   { module: "members", read: ["/v1/members/invites/list", {}], write: ["/v1/members/invites/create", { role: "ROLE", idempotencyKey: "l7-live-invite" }], refused: ["/v1/members/invites/list", {}] },
   { module: "settings", read: ["/v1/settings/list", {}], write: ["/v1/settings/set", { key: "appearance.density", value: "compact" }], refused: ["/v1/settings/set_space", { key: "access.review_every_days", value: 30 }] },
   { module: "vault", read: ["/v1/vault/items/list", {}], write: ["/v1/vault/folders/create", { name: "L7 live folder", scope: "shared", idempotencyKey: "l7-live-vault-folder" }], refused: ["/v1/vault/exports/list", {}] },
-  { module: "vault-requests", read: ["/v1/vault/requests/list", {}], write: ["/v1/vault/request", { name: "Stripe key", reason: "billing", idempotencyKey: "l7-live-vault-request" }] },
+  { module: "vault-requests", read: ["/v1/vault/requests/list", {}], write: ["/v1/vault/request", { name: "Stripe_key", reason: "billing", idempotencyKey: "l7-live-vault-request" }] },
   { module: "spaces", read: ["/v1/spaces/get", {}], write: ["/v1/spaces/stars/toggle", { resource: { type: "space", id: "spc_core" }, on: true }], refused: ["/v1/spaces/update", { logoFileId: null }] },
 ];
 
@@ -178,7 +178,7 @@ test("l7 live: an invite made by the owner is accepted by a stranger through the
     const made = await post(OWNER_TOKEN, "/v1/members/invites/create", { role: await newRole(d.url, OWNER_TOKEN, "l7-join-role"), idempotencyKey: "l7-join-invite" });
     assert.equal(made.status, 200, await made.clone().text());
     const link = ((await made.json()) as { data: { link: string } }).data.link;
-    const code = decodeURIComponent(link.slice(link.lastIndexOf("/") + 1));
+    const code = decodeURIComponent(new URL(link).pathname.split("/").pop() ?? "");   // the fingerprint rides in the fragment
     const joined = await join(code, "newbie");
     assert.equal(joined.status, 200, await joined.clone().text());
     // offboarding (golden 9): the new member owns an agent; the removal plan hands it to the owner through the agents module's host call
@@ -283,7 +283,7 @@ test("l7 live ruling 62: a signed-in member unlocks their key from their own cli
   try {
     const made = await post(d.token, "/v1/members/invites/create", { role: await newRole(d.url, d.token, "l7-key-role"), idempotencyKey: "l7-key-invite" });
     assert.equal(made.status, 200, JSON.stringify(made.body));
-    const code = decodeURIComponent((made.body.data.link as string).split("/").pop() ?? "");
+    const code = decodeURIComponent(new URL(made.body.data.link as string).pathname.split("/").pop() ?? "");
     const joined = await post(null, "/v1/invites/accept_create_account", { code, username: "keyed", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop", keys: { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGlj", privateKeyWrapped: "cHJpdmF0ZQ==", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2U=" }] } });
     assert.equal(joined.status, 200, JSON.stringify(joined.body));
     const t1 = joined.body.data.session.token as string;
