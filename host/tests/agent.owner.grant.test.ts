@@ -62,6 +62,8 @@ test("the owner of a new agent reaches its folder from the start; after a reassi
       assert.equal(r.status, 200, JSON.stringify(r.body));
       return (r.body.data.shares as { grant: { subject: { id: string } }; through: string }[]).map((x) => `${x.through}:${x.grant.subject.id}`);
     };
+    const folderOwnerBefore = (await sharesOf("folder", agent.folderId)).filter((w) => w.startsWith("owner:"));
+    assert.equal(folderOwnerBefore.length, 1);
     assert.ok((await sharesOf("agent", agent.id)).includes(`owner:${first.id}`), "the agent resource is the named owner's from the start");
     assert.ok((await sharesOf("folder", agent.folderId)).includes(`manage:${first.id}`) || (await sharesOf("folder", agent.folderId)).some((w) => w.endsWith(`:${first.id}`)), "and so is the folder (a Manage share)");
 
@@ -88,11 +90,12 @@ test("the owner of a new agent reaches its folder from the start; after a reassi
     // the owner moves: the wizard reassigns the agent and the folder goes with it
     const removed = await post(owner, "/v1/members/remove", { personId: first.id, plan: [{ kind: "agents", action: "reassign", to: heir.id }] });
     assert.equal(removed.status, 200, JSON.stringify(removed.body));
-    for (const [type, id] of [["folder", agent.folderId], ["agent", agent.id]] as const) {
-      const who = await sharesOf(type, id);
-      assert.ok(who.some((w) => w.endsWith(`:${heir.id}`)), `the new owner holds the ${type}: ${who.join(", ")}`);
-      assert.ok(!who.some((w) => w.endsWith(`:${first.id}`)), `and the previous owner holds nothing on the ${type}`);
-    }
+    // the agent was the previous owner's, so it changes owner; the folder was made by the creator and the previous owner only held a Manage grant on it, so the grant moves and the owner stays
+    const agentWho = await sharesOf("agent", agent.id), folderWho = await sharesOf("folder", agent.folderId);
+    assert.ok(agentWho.includes(`owner:${heir.id}`), `the new owner owns the agent: ${agentWho.join(", ")}`);
+    assert.deepEqual(folderWho.filter((w) => w.startsWith("owner:")), folderOwnerBefore, "the folder's owner is unchanged");
+    assert.ok(folderWho.some((w) => w.startsWith("direct:") && w.endsWith(`:${heir.id}`)), `and the heir holds the previous owner's grant on the folder: ${folderWho.join(", ")}`);
+    for (const who of [agentWho, folderWho]) assert.ok(!who.some((w) => w.endsWith(`:${first.id}`)), "the previous owner holds nothing");
 
     assert.equal((await folderGet(heir.token)).status, 200, "the new owner reaches the folder");
     assert.notEqual((await folderGet(asker.token)).status, 200, "and the asker still does not");

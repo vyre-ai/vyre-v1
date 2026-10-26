@@ -199,12 +199,20 @@ export const hostCalls = {
     const store = storeOf(actx);
     const r = store.resources.get(input.resource.id);
     if (!r || r.type !== input.resource.type) return false;
-    const held = [...store.grants.values()].some((g) => g.resource.type === r.type && g.resource.id === r.id && g.subject.kind === "person" && g.subject.id === input.from);
-    if (r.ownerId !== input.from && !held) return false;   // the previous owner has nothing here: nothing moves
-    r.ownerId = input.to;
-    for (const [id, g] of [...store.grants]) {
-      if (g.resource.type === r.type && g.resource.id === r.id && g.subject.kind === "person" && g.subject.id === input.from) store.grants.delete(id);
-    }
+    const heldBy = (who: string) => [...store.grants.entries()].filter(([, g]) => g.resource.type === r.type && g.resource.id === r.id && g.subject.kind === "person" && g.subject.id === who);
+    const held = heldBy(input.from);
+    if (r.ownerId === input.from) {
+      // theirs: the resource changes owner and their direct grants on it go
+      r.ownerId = input.to;
+      for (const [id] of held) store.grants.delete(id);
+    } else if (held.length > 0) {
+      // not theirs, only a grant of theirs: the grant moves to the heir and the owner stays whoever it was (nobody gains ownership of what they did not own)
+      const mine = heldBy(input.to);
+      for (const [id, g] of held) {
+        const dup = mine.some(([, m]) => m.source === g.source && m.level === g.level);
+        if (dup) store.grants.delete(id); else g.subject = { kind: "person", id: input.to };
+      }
+    } else return false;   // the previous owner has nothing here: nothing moves
     changed(actx, store, "assignment");
     return true;
   },
