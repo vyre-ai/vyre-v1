@@ -10,7 +10,7 @@ Create an email design
 | Permission | grant only |
 | Grant level | edit |
 | Risk | medium |
-| Resource | folder (create under /name) |
+| Resource | space |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |
