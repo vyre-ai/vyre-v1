@@ -57,7 +57,7 @@ export async function restore(ctx: BackupCtx, input: { backupId: string; confirm
 
   // A fresh backup first: the way back if the restore is not what the admin wanted. It goes through backup.run so it is a run of its own, audited and
   // announced (backup.completed or backup.failed) like any other, and only a backup that finished lets the restore start.
-  const safety = asRow(await ctx.call("backup.run" as never, {}));
+  const safety = asRow(await ctx.call("backup.run" as never, { idempotencyKey: `restore:${runId}:safety-backup` }));
   const safetyId = typeof safety?.["backupId"] === "string" ? safety["backupId"] : "";
   if (!findItem(ctx, safetyId)) {
     const why = asRow(ctx.db.all("SELECT reason FROM backup_item WHERE backup_id = ?", safetyId)[0])?.["reason"];

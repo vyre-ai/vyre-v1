@@ -54,6 +54,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "files.share": Handler<"files.share", X>;
   "files.share_external": Handler<"files.share_external", X>;
   "files.shared_with_me": Handler<"files.shared_with_me", X>;
+  "files.star": Handler<"files.star", X>;
   "files.trash.empty": Handler<"files.trash.empty", X>;
   "files.trash.list": Handler<"files.trash.list", X>;
   "files.tree": Handler<"files.tree", X>;

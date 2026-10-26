@@ -148,6 +148,7 @@ async function samplePercent(ctx: EngineCtx): Promise<number> {
 async function unblockCard(ctx: EngineCtx, t: Row, error: ErrShape | undefined): Promise<string | undefined> {
   try {
     const out = (await ctx.call("tasks.create", {
+      idempotencyKey: `engine.unblock:${str(t["turn_id"])}`,
       kind: "unblock", title: `${str(t["agent_id"])} is blocked`, summary: error?.message ?? "The agent cannot go on.", why: error?.code ?? "provider.auth_failed",
       assigned: { kind: "person", id: str(t["asker"]) }, source: { kind: "chat", id: str(t["thread_id"]) },
     })) as { task?: { id?: string } };

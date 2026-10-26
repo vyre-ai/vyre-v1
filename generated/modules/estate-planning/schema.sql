@@ -11,8 +11,8 @@ CREATE TABLE IF NOT EXISTS "rt_client_plan" (
   "holds" INTEGER NOT NULL DEFAULT 0,
   "client" TEXT,
   "stage" TEXT,
-  "trustName" TEXT,
-  "taxId" TEXT,
+  "trust_name" TEXT,
+  "tax_id" TEXT,
   "signed" TEXT
 );
 CREATE TABLE IF NOT EXISTS "rt_client_plan__fm" (

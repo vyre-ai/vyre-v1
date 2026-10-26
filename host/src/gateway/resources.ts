@@ -20,7 +20,7 @@ const ID_SHAPE: Readonly<Record<string, RegExp | null>> = Object.freeze({
   space: /^spc_[a-z0-9]+$/, record: /^rec_[a-z0-9]+$/, record_type: /^[a-z][a-z0-9_]*$/, project: /^prj_[a-z0-9]+$/, folder: /^fld_[a-z0-9]+$/, file: /^fil_[a-z0-9]+$/,
   channel: /^chn_[a-z0-9]+$/, thread: /^thr_[a-z0-9]+$/, mailbox: /^mbx_[a-z0-9]+$/, vault_folder: /^vfd_[a-z0-9]+$/, vault_item: /^vit_[a-z0-9]+$/, automation: /^aut_[a-z0-9]+$/,
   agent: /^agt_[a-z0-9]+$/, connection: /^con_[a-z0-9]+$/, site: /^sit_[a-z0-9]+$/, form: /^frm_[a-z0-9]+$/, campaign: /^cmp_[a-z0-9]+$/, kit: /^kit_[a-z0-9]+$/,
-  terminal: /^trm_[a-z0-9]+$/, computer: /^cmt_[a-z0-9]+$/, task: /^tsk_[a-z0-9]+$/, run: /^run_[a-z0-9]+$/, number: /^num_[a-z0-9]+$/, domain: /^dom_[a-z0-9]+$/, note: /^not_[a-z0-9]+$/,
+  terminal: /^trm_[a-z0-9]+$/, computer: /^cmt_[a-z0-9]+$/, task: /^tsk_[a-z0-9]+$/, run: /^run_[a-z0-9]+$/, number: /^num_[a-z0-9]+$/, domain: /^dom_[a-z0-9]+$/, note: /^not_[a-z0-9]+$/, email: /^eml_[a-z0-9]+$/,
   inbox: null, automation_group: null, connector: null, calendar: null,
 });
 /** Every resource type the registrar checks ids for. */

@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS "rt_lead" (
   "email" TEXT,
   "phone" TEXT,
   "stage" TEXT,
-  "practiceArea" TEXT
+  "practice_area" TEXT
 );
 CREATE TABLE IF NOT EXISTS "rt_lead__fm" (
   "id" TEXT NOT NULL,

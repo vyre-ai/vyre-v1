@@ -265,7 +265,7 @@ test("lint: Inherits and Override lines, hard rules, repeated facts", () => {
 });
 
 test("secret scan: keys are found by line and kind, values never come back, vault names pass", () => {
-  const text = ["Plain text.", `aws key ${aws()}`, `token ${ghp()}`, "-----BEGIN RSA PRIVATE KEY-----", "api_key = #Team_Key", "api_key: vault:stripe", 'password = "hunter2hunter2hunter2"', "see https://user:pa55word@example.com/x"].join("\n");
+  const text = ["Plain text.", `aws key ${aws()}`, `token ${ghp()}`, "-----BEGIN RSA PRIVATE KEY-----", "api_key = #Team_Key", "api_key: vault:stripe", 'password = "hunter2hunter2hunter2"', "see https://user:pa55word@example.com/x"].join("\n"); // secret-scan: fake
   const found = scanSecrets(text);
   assert.deepEqual(found.map((f) => [f.line, f.kind]), [[2, "aws_access_key"], [3, "github_token"], [4, "private_key"], [7, "generic_assignment"], [8, "url_credentials"]]);
   const r = lintText("agent_md", text);
@@ -420,7 +420,7 @@ test("files.share: the grant is access.share, once, with the file as the resourc
   const fid = (await handlers["files.create"](kit.ctx, { folderId, name: "a.txt", content: { text: "x" } })).file.fileId;
   const res = await handlers["files.share"](kit.ctx, { fileId: fid, subject: { kind: "person", id: "per_sam" }, level: "edit" });
   assert.deepEqual(res, { ok: true });
-  assert.deepEqual(kit.calls, [{ cap: "access.share", input: { resource: { type: "file", id: fid }, subject: { kind: "person", id: "per_sam" }, level: "edit" } }]);
+  assert.deepEqual(kit.calls, [{ cap: "access.share", input: { idempotencyKey: `files.share:${fid}:person:per_sam:edit`, resource: { type: "file", id: fid }, subject: { kind: "person", id: "per_sam" }, level: "edit" } }]);
   await expectCode("validation.not_found", () => handlers["files.share"](kit.ctx, { fileId: "fil_none", subject: { kind: "person", id: "per_sam" }, level: "view" }));
   await expectCode("validation.bad_input", () => handlers["files.share"](kit.ctx, { fileId: fid, level: "view" }));
 });
