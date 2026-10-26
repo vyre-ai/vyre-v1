@@ -19,7 +19,7 @@ Take an item out of its folder back to the top of its section
 | HTTP | POST /v1/folders/unplace |
 | MCP tool | folders_unplace (meta) |
 | CLI | none |
-| Emits | item.moved |
+| Emits | item.moved, access.changed |
 
 ## Input
 

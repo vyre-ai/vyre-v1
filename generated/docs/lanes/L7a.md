@@ -169,10 +169,11 @@ Events:
 
 ### identity
 
-Capabilities to implement: 26. Events to emit: 10. Contract tests that must go green: `generated/tests/identity/`.
+Capabilities to implement: 27. Events to emit: 10. Contract tests that must go green: `generated/tests/identity/`.
 
 Capabilities:
 - identity.change_password (write, grant only, level view)
+- identity.claim_owner (write, grant only, level view)
 - identity.github_link (write, grant only, level view)
 - identity.github_sign_in (write, grant only, level view)
 - identity.github_unlink (write, grant only, level view)
@@ -301,7 +302,7 @@ Events:
 
 ### vault
 
-Capabilities to implement: 42. Events to emit: 20. Contract tests that must go green: `generated/tests/vault/`.
+Capabilities to implement: 43. Events to emit: 20. Contract tests that must go green: `generated/tests/vault/`.
 
 Capabilities:
 - providers.add (write, grant only, level view)
@@ -334,6 +335,7 @@ Capabilities:
 - vault.item.restore (write, grant only, level manage)
 - vault.item.reveal (read, grant only, level view)
 - vault.item.update (write, grant only, level edit)
+- vault.item.usage (read, grant only, level view)
 - vault.items.export_mine (outward, grant only, level view, gate secret_export)
 - vault.items.list (read, grant only, level view)
 - vault.items.match (read, grant only, level view)
