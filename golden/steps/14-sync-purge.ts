@@ -2,12 +2,13 @@
 // changes; revoking the device bumps the epoch and its next pull answers purge. Through the gateway with real device tokens.
 import assert from "node:assert/strict";
 import { bootTolerant, expectStatus, short, Trail } from "./02-space.ts";
+import { loadCatalog } from "../../sync/src/server/pull/index.ts";
 import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_PURGE = ["sync", "access", "search", "records", "schema", "devices", "spaces"];
 export const GAPS: Gap[] = [
-  { packet: "L1 ruling 69", lane: "L1", what: "a guest whose only grant is one folder pulls no rows after ruling 69 (changes is empty), so there is nothing to hide or purge" },
+  { packet: "PR 607 (P-GF_03)", lane: "L1", what: "folders.place answers 404 'no such folder' for the seed's fld_clients: the access module's folders table does not hold the seeded folders; vaultB's booted test sets this up in #607" },
 ];
 
 export async function runPurge(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
@@ -15,26 +16,43 @@ export async function runPurge(live: readonly string[]): Promise<{ events: Obser
   const { s } = await bootTolerant(trail, live);
   if (!s) return { events: [], trail };
   try {
-    const admin = s.d.token;
+    const admin = s.signedIn("usr_olivia", "dev_olivia1");
     const tess = s.signedIn("usr_tess", "dev_tessone1");
-    const pull = async (cursor: number) => expectStatus(await s.call("sync.pull", tess, { cursor, epoch: 0 }), 200, "sync.pull");
-    const grant = await trail.step("Tess is shared a folder", async () =>
-      expectStatus(await s.call("access.share", admin, { idempotencyKey: "golden-14-share", resource: { type: "folder", id: "fld_clients" }, subject: { kind: "person", id: "usr_tess" }, level: "view" }), 200, "access.share").grant.id as string);
-    const before = await trail.step("her device pulls and holds rows from it", async () => {
-      const out = await pull(0);
-      assert.ok(out.changes.length >= 1, `Tess pulled nothing: ${short(out)}`);
-      return out.next as number;
-    }, ["Tess is shared a folder"]);
-    await trail.step("the grant is revoked and her next pull hides the rows", async () => {
+    type Change = { entity: string; id: string };
+    const keyOf = (c: Change): string => `${c.entity}/${c.id}`;
+    const pull = async (token: string, cursor = 0) => expectStatus(await s.call("sync.pull", token, { cursor, epoch: 0, limit: 500 }), 200, "sync.pull") as { changes: Change[]; hide: unknown[]; next: number };
+    const rows = await trail.step("the owner pulls rows, two of which are the ones the flow uses", async () => {
+      const all = (await pull(admin)).changes;
+      assert.ok(all.length >= 2, `the owner pulls rows: ${all.length}`);
+      return { inside: all[0]!, outside: all[1]!, total: all.length };
+    });
+    await trail.step("Tess holds neither row before any grant", async () => {
+      const held = new Set((await pull(tess)).changes.map(keyOf));
+      assert.ok(!held.has(keyOf(rows!.inside)) && !held.has(keyOf(rows!.outside)), "Tess holds neither row");
+    }, ["the owner pulls rows, two of which are the ones the flow uses"]);
+    const grant = await trail.step("one row is placed in the Clients folder and the folder is shared with Tess", async () => {
+      const catalog = loadCatalog();
+      expectStatus(await s.call("folders.place", admin, { resource: { type: catalog.get(rows!.inside.entity).resource, id: rows!.inside.id }, folderId: "fld_clients" }), 200, "folders.place");
+      return expectStatus(await s.call("access.share", admin, { idempotencyKey: "golden-14-share", resource: { type: "folder", id: "fld_clients" }, subject: { kind: "person", id: "usr_tess" }, level: "view" }), 200, "access.share").grant.id as string;
+    }, ["Tess holds neither row before any grant"]);
+    const before = await trail.step("her device pulls exactly the row in the granted folder", async () => {
+      const out = await pull(tess);
+      const keys = out.changes.map(keyOf);
+      assert.ok(keys.includes(keyOf(rows!.inside)), `the guest pulls the row in the folder: ${short(keys.slice(0, 5))}`);
+      assert.ok(!keys.includes(keyOf(rows!.outside)), "and not a row outside it");
+      assert.ok(keys.length < rows!.total, `the guest pulls ${keys.length} of ${rows!.total}`);
+      return out.next;
+    }, ["one row is placed in the Clients folder and the folder is shared with Tess"]);
+    await trail.step("the grant is revoked and her next pull hides the row", async () => {
       expectStatus(await s.call("access.unshare", admin, { grantId: grant! }), 200, "access.unshare");
-      const out = await pull(before!);
+      const out = await pull(tess, before!);
       assert.ok(out.hide.length >= 1, `no hide rows: ${short(out)}`);
-    }, ["her device pulls and holds rows from it"]);
+    }, ["her device pulls exactly the row in the granted folder"]);
     await trail.step("the revoked device's next pull answers purge", async () => {
       expectStatus(await s.call("devices.revoke", admin, { deviceId: "dev_tessone1" }), 200, "devices.revoke");
       const r = await s.call("sync.pull", tess, { cursor: 0, epoch: 0 });
       assert.ok(r.status === 401 || r.body?.data?.reset === "purge", `after revoke: ${r.status} ${short(r.body)}`);
-    }, ["the grant is revoked and her next pull hides the rows"]);
+    }, ["the grant is revoked and her next pull hides the row"]);
     return { events: await s.events(), trail };
   } finally { await s.stop(); }
 }
