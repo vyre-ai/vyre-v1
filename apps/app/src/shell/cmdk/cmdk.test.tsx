@@ -78,14 +78,28 @@ test("local results never wait on the server; the server hits merge in when they
   c.dispose();
 });
 
+/** Polls until the condition holds; the 10 s cap only keeps a hang from stalling the suite. */
+const until = async (cond: () => boolean): Promise<void> => {
+  const stop = Date.now() + 10_000;
+  while (!cond()) { if (Date.now() > stop) throw new Error("condition never held"); await wait(5); }
+};
+
 test("a late answer for an older query is dropped", async () => {
-  const { data } = createSampleData({ serverDelayMs: 100 });
-  const c = new CmdKController(data);
+  const { data } = createSampleData({});
+  // The server answers when the test says so, so the old query's answer is late by construction, however loaded the runner is.
+  const answers: { text: string; resolve: () => void }[] = [];
+  const gated = { ...data, server: (text: string) => new Promise<readonly Hit[]>((resolve) => { answers.push({ text, resolve: () => resolve(text === "referral" ? SERVER_HITS : []) }); }) };
+  const c = new CmdKController(gated);
   c.setRaw("referral");
-  await wait(70);
+  await until(() => answers.length === 1);
   c.setRaw("renewal");
-  await wait(220);
-  assert.ok(!titles(c).includes("Referral policy 2026.docx"));
+  await until(() => answers.length === 2);
+  answers[1]!.resolve();
+  await answered(c);
+  answers[0]!.resolve();
+  await wait(30);
+  assert.ok(!titles(c).includes("Referral policy 2026.docx"), "the older query's answer did not land");
+  assert.equal(c.getState().serverStatus, "done");
   c.dispose();
 });
 
@@ -124,7 +138,7 @@ test("type filters narrow the results and the menu counts come from everything f
   const { data } = createSampleData({ serverDelayMs: 20 });
   const c = new CmdKController(data);
   c.setRaw("referral");
-  await wait(120);
+  await answered(c);
   const counts = c.getState().counts;
   assert.equal(counts["files"], 2);
   assert.equal(counts["records"], 2);
@@ -242,7 +256,7 @@ test("the sheet renders the search field, a filter menu button, quiet group head
   const { data } = createSampleData({ serverDelayMs: 10 });
   const c = new CmdKController(data);
   c.setRaw("referral");
-  await wait(100);
+  await answered(c);
   const html = renderToStaticMarkup(<CmdKBody controller={c} autoFocus={false} />);
   assert.match(html, /data-testid="cmdk-input"/);
   assert.match(html, /data-testid="cmdk-filter"/);
