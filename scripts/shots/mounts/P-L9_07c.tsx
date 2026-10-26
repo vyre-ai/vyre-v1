@@ -57,10 +57,10 @@ const TABS: ObjectTab[] = [
 
 
 
-const OWNS: { id: string; name: string; note: string; kind: "agent" | "record" }[] = [
+const OWNS: { id: string; name: string; note: string; kind: "agent" | "record"; tag?: string }[] = [
   { id: "scout", name: "Scout", note: "Agent", kind: "agent" },
   { id: "bookings", name: "Bookings", note: "Agent", kind: "agent" },
-  { id: "projects", name: "Projects", note: "Record type", kind: "record" },
+  { id: "projects", name: "Projects", note: "Record type", kind: "record", tag: "Internal" },
 ];
 
 const ACCOUNTS = ["Space keys", "Their own account"];
@@ -108,7 +108,7 @@ function ObjectBody() {
         title={o.name}
         note={o.note}
         leading={o.kind === "agent" ? <Avatar name={o.name} kind="agent" size={28} /> : <View style={styles.tile}><MenuIcon icon="pane" color="var(--ink-3)" size={15} /></View>}
-        trailing={<ObjectChevron />}
+        trailing={<View style={styles.end}>{o.tag === undefined ? null : <Text style={styles.quiet}>{o.tag}</Text>}<ObjectChevron /></View>}
         onPress={() => undefined}
       />,
     );
