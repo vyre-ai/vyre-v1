@@ -64,6 +64,53 @@ export function ChatRightPane(props: ChatRightPaneProps): ReactElement {
 /** The frame before data: the pane header and a body the size of the real one, so nothing moves when the data arrives. */
 export function ChatRightPaneLoading({ open, onToggle }: { open: boolean; onToggle: () => void }): ReactElement {
   return (
+    <SidePane paneKey={PANE_KEY} toggle={{ open, onPress: onToggle }} title="Agent" tabs={TABS} activeTab={DEFAULT_TAB}>
+      <View testID="right-pane-loading" accessibilityLabel="Loading" style={st.sk}><View style={st.skFace} /><View style={st.skScreen} /></View>
+    </SidePane>
+  );
+}
+
+function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, paneWidth, openRoutine }: ChatRightPaneProps): ReactElement {
+  const data = usePaneData();
+  const online = useOnline();
+  const menu = useMenu();
+  const win = useWindowDimensions();
+  const narrow = win.width > 0 && win.width < NARROW;
+  const [own, setOwn] = useState<TabKey>(initialTab ?? DEFAULT_TAB);
+  const tab = controlled ?? own;
+  const [paneW, setPaneW] = useState(PANE_WIDTH_GUESS);
+  const [notice, setNotice] = useState<{ text: string; undo?: () => Promise<void> | void } | null>(null);
+  const deps: PaneDeps = useMemo(() => ({
+    call: data.call,
+    note: (text: string, undo?: () => Promise<void> | void) => setNotice(undo ? { text, undo } : { text }),
+  }), [data.call]);
+  useEffect(() => {
+    if (notice === null) return;
+    const t = setTimeout(() => setNotice(null), NOTICE_MS);
+    return () => clearTimeout(t);
+  }, [notice]);
+
+  const agentQ = useScreenQuery<AgentOut>(AGENT_PAGE_SCREEN, "agent", { agentId: data.agent.agentId });
+  const agent = agentQ.status === "ready" ? agentQ.data.agent : null;
+  const summaryQ = useScreenQuery<CapMap["agents.summary"]["out"]>(AGENT_PAGE_SCREEN, "summary", { agentId: data.agent.agentId });
+  const facts = summaryQ.status === "ready" ? summaryQ.data.memoryFacts : 0;
+  const tabs = useMemo(() => TABS.map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Memory ${facts}` } : {}) })), [facts]);
+  const titles = useTitleWidths();
+  const paneNow = paneWidth ?? (narrow ? win.width : paneW);
+  const { strip, select } = useFittedTabs(tabs, tab, paneNow, {
+    extra: PANE_TAB_EXTRA, chrome: PANE_CHROME, ...(titles.widths.size > 0 ? { chevron: true } : {}), menu, left: Math.max(0, win.width - paneNow) + 40, top: 118, measured: withMore(titles.widths),
+    pick: (key) => { setOwn(key); onTab?.(key); },
+  });
+  /** The pane's top row: the open item as a tab, the agent with its face and a close x, as the prototype draws it above the agent's header. */
+  const openTab = { key: "open", title: data.agent.name, lead: <Face name={data.agent.name} size={16} /> };
+  const moreMenu = (x: number, y: number): void => {
+    menu.show([
+      { label: `Open ${data.agent.name}'s Page`, onSelect: () => data.nav.openAgentPage(data.agent.agentId) },
+      { label: "Chat With It", onSelect: () => data.nav.openThread(data.threadId, "here") },
+    ], x, y, "other");
+  };
+
+  return (
     <SidePane
       paneKey={PANE_KEY} toggle={{ open, onPress: onToggle }} title={data.agent.name} tabs={[openTab]} activeTab="open" onSelectTab={() => undefined} onCloseTab={onToggle}
       {...(narrow ? { max: 1, defaultWidth: win.width } : { defaultWidth: WIDE_PANE_W })}
