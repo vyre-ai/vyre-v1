@@ -12,13 +12,13 @@ const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string => rende
 const groups = railFor({ kit: kitById(NORTHWIND.kit), console: NORTHWIND.console, counts: NORTHWIND.counts, dots: NORTHWIND.dots, active: "files" });
 const noop = (): void => undefined;
 
-test("on a phone the rail is a bottom bar with the places a person lives in and a More button", () => {
+test("on a phone the rail is a bottom bar with the five places and a More button", () => {
   const out = html(<Rail bottom groups={groups} active="files" onSelect={noop} />);
   assert.ok(out.includes('data-testid="shell-rail-bottom"') && !out.includes('data-testid="shell-rail"'));
-  for (const p of ["home", "chats", "records", "files"]) assert.ok(out.includes(`data-testid="rail-${p}`), p);
+  for (const p of ["home", "chats", "inbox", "records", "files"]) assert.ok(out.includes(`data-testid="rail-${p}`), p);
   assert.ok(out.includes('data-testid="rail-files-selected"'));
   assert.ok(out.includes('aria-label="More places"') && out.includes('aria-haspopup="menu"'));
-  assert.ok(!out.includes('data-testid="rail-apps"') && !out.includes('data-testid="rail-inbox"'), "Inbox and the other places sit behind More");
+  assert.ok(!out.includes('data-testid="rail-apps"'), "the other places sit behind More");
 });
 
 test("on a computer the rail stays at the side, with every place and no More button", () => {

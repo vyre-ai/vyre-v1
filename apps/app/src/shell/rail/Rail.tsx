@@ -48,8 +48,8 @@ export function Rail({ groups, active, onSelect, onOpenInTab, onPrefetch, header
     return out;
   };
   if (bottom === true) {
-    // The bar keeps the places a person lives in; Inbox and the bottom group sit behind More.
-    const barPlaces: readonly PlaceId[] = ["home", "chats", "records", "files"];
+    // The bar is the prototype's five places; the bottom group sits behind More.
+    const barPlaces: readonly PlaceId[] = ["home", "chats", "inbox", "records", "files"];
     const inBar = (e: RailEntry): boolean => barPlaces.includes(e.place);
     const barEntries = groups.top.filter(inBar);
     const more = [...groups.top.filter((e) => !inBar(e)), ...groups.bottom];
