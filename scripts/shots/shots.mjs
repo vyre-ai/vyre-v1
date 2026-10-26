@@ -12,6 +12,7 @@ import { ensureDeps, ensureChromium } from "./ensure-deps.mjs";
 import { parseArgs, SKINS, SIZES, MAX_EXPORT_S, protoHash, routeUrl, loadTargets, sideBySideHtml } from "./lib.mjs";
 import { serve } from "./serve.mjs";
 import { measureScroll, withinBudget, SCROLL_P95_MS } from "./probes/scroll.mjs";
+import { exportEnv } from "../lib/registry-hash.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)), REPO = path.resolve(HERE, "../..");
 const args = parseArgs(process.argv.slice(2));
@@ -23,8 +24,13 @@ const sizes = (args.sizes || Object.keys(SIZES).join(",")).split(",").map((n) =>
 const maxExport = Number(args["max-export-s"] || MAX_EXPORT_S);
 const want = args.target || "all";
 
-// P-UI_14: the production app's startup and bundle report, on the perf runner (the target carries no screenshots)
-if (want === "P-UI_14") { const { main } = await import("./startup.mjs"); await main(args["skip-export"] ? ["--skip-export"] : []); process.exit(0); }
+// P-UI_14: the production app's startup and bundle report, on the perf runner (the target carries no screenshots). P-UI_14 ends there. On the perf job of any other branch (it runs only for a
+// head commit with [perf], ruling 66) the report runs first and the scroll probe follows, so a packet that changes what the app loads (P-L9_17) gets its startup number from its own branch.
+if (want === "P-UI_14" || args["probes-only"]) {
+  const { main } = await import("./startup.mjs");
+  await main(args["skip-export"] ? ["--skip-export"] : []);
+  if (want === "P-UI_14") process.exit(0);
+}
 
 // A packet id (P-L9b_02) selects that packet's targets, whose ids start with it; "all" runs everything.
 const targets = loadTargets(HERE).filter((t) => want === "all" || t.id === want || (want.startsWith("P-") && t.id.startsWith(want + "-")));
@@ -40,7 +46,7 @@ let exportSeconds = 0;
 if (!args["skip-export"]) {
   fs.rmSync(dist, { recursive: true, force: true });
   const t0 = Date.now();
-  execSync("npx expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: { ...process.env, CI: "1", EXPO_NO_TELEMETRY: "1" } });
+  execSync("npx expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
   exportSeconds = (Date.now() - t0) / 1000;
   console.log(`METRIC ${JSON.stringify({ name: "expo_web_export", seconds: exportSeconds, budget_seconds: maxExport })}`);
 }

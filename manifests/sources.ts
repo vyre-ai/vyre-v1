@@ -60,7 +60,7 @@ export default defineManifest({
     }),
     create('sources.create', 'Set up a source: a connector source or a generic webhook with a mapping into a record type', {
       in: { connector: id.connector, title: t.str(), type: id.recordType, mapping, verify: t.opt(t.enm('hmac', 'signature', 'none')), secretName: t.opt(t.str({ description: 'Vault item name holding the signing secret; never the value' })), connectionId: t.opt(id.connection) },
-      out: { source: sourceRow }, make: ['connector', '/connector'], perm: 'connectors.manage', emits: ['source.created'], audit: 'always', team: true, tool: 'records',
+      out: { source: sourceRow }, perm: 'connectors.manage', emits: ['source.created'], audit: 'always', team: true, tool: 'records',
     }),
     write('sources.update', 'Change the mapping, target type or verification of a source', {
       in: { sourceId, title: t.opt(t.str()), type: t.opt(id.recordType), mapping: t.opt(mapping), verify: t.opt(t.enm('hmac', 'signature', 'none')) },

@@ -7,6 +7,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Avatar } from "../Avatar/index.tsx";
 import { MenuIcon, menuTrigger, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 import { Row } from "../Row/index.tsx";
@@ -67,6 +68,21 @@ export function shortDate(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "";
   return `${MONTHS[at.getUTCMonth()] ?? ""} ${at.getUTCDate()}`;
+}
+
+/** "Oct 20 at 11:00 am" in UTC, the stamp the Viewing banner gives. */
+export function longStamp(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return "";
+  const hour = at.getUTCHours();
+  const minute = String(at.getUTCMinutes()).padStart(2, "0");
+  return `${MONTHS[at.getUTCMonth()] ?? ""} ${at.getUTCDate()} at ${hour % 12 === 0 ? 12 : hour % 12}:${minute} ${hour < 12 ? "am" : "pm"}`;
+}
+
+/** The banner above a page that shows an older version: "Viewing v4 from Oct 20 at 11:00 am by Lena Ortiz. Showing what changed since." */
+export function bannerLine(version: HistoryVersion, showingChanges: boolean): string {
+  const head = `Viewing v${version.n} from ${longStamp(version.at)} by ${version.who}.`;
+  return showingChanges ? `${head} Showing what changed since.` : head;
 }
 
 /** Newest first. The frozen props already arrive newest first; this keeps the order whatever the caller sends. */
@@ -320,7 +336,12 @@ export function HistoryTab(props: HistoryTabViewProps): ReactElement {
           title={`v${version.n}`}
           note={noteLine(version)}
           selected={version.id === selectedId}
-          leading={<View testID={`history-dot-${version.id}`} style={[styles.dot, isCurrent ? styles.dotCurrent : styles.dotOld]} />}
+          leading={(
+            <View style={styles.lead}>
+              <View testID={`history-dot-${version.id}`} style={[styles.dot, isCurrent ? styles.dotCurrent : styles.dotOld]} />
+              <Avatar name={version.who} kind="person" size={18} testID={`history-avatar-${version.id}`} />
+            </View>
+          )}
           trailing={over && (can.compare || can.restore)
             ? (
               <View style={styles.acts}>
@@ -398,6 +419,41 @@ export function HistoryTab(props: HistoryTabViewProps): ReactElement {
   );
 }
 
+export interface VersionBannerProps {
+  version: HistoryVersion;
+  /** The page shows what changed since this version. Null when the page has no text to compare. */
+  showingChanges: boolean | null;
+  /** The current version has no Restore. */
+  canRestore: boolean;
+  onToggleChanges?: () => void;
+  onRestore?: (version: HistoryVersion) => void;
+  onBack?: () => void;
+  testID?: string;
+}
+
+/** Viewing vN: a bar over the page with Hide changes (or Show changes), Restore this version and Back to current. */
+export function VersionBanner(props: VersionBannerProps): ReactElement {
+  const { version, showingChanges, canRestore } = props;
+  return (
+    <View style={styles.banner} testID={props.testID ?? "version-banner"} role="status" aria-label={bannerLine(version, showingChanges === true)}>
+      <MenuIcon icon={ICON_RESTORE} color="var(--accent)" size={15} />
+      <Text style={styles.bannerText} numberOfLines={2} testID="version-banner-line">{bannerLine(version, showingChanges === true)}</Text>
+      {showingChanges === null ? null : <BannerButton label={showingChanges ? "Hide changes" : "Show changes"} testID="version-changes" onPress={() => props.onToggleChanges?.()} />}
+      {canRestore ? <BannerButton label="Restore this version" testID="version-restore" onPress={() => props.onRestore?.(version)} /> : null}
+      <BannerButton label="Back to current" testID="version-back" onPress={() => props.onBack?.()} />
+    </View>
+  );
+}
+
+function BannerButton({ label, onPress, testID }: { label: string; onPress: () => void; testID: string }): ReactElement {
+  const [over, setOver] = useState(false);
+  return (
+    <Pressable role="button" aria-label={label} testID={testID} onPress={onPress} onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)} style={[styles.bannerBtn, over && styles.bannerBtnOver]}>
+      <Text style={styles.bannerBtnText}>{label}</Text>
+    </Pressable>
+  );
+}
+
 function IconButton({ label, icon, onPress, testID }: { label: string; icon: string; onPress: () => void; testID: string }): ReactElement {
   const [over, setOver] = useState(false);
   return (
@@ -440,7 +496,8 @@ const styles = StyleSheet.create({
   list: { flexGrow: 0, flexShrink: 1 },
   listBody: { padding: 8, gap: 2 },
   rowBox: { width: "100%" },
-  dot: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
+  lead: { flexDirection: "row", alignItems: "center", gap: 8, marginRight: 8 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
   dotCurrent: { backgroundColor: "var(--ok)" as string },
   dotOld: { borderWidth: 1.5, borderColor: "var(--ink-4)" as string },
   meta: { flexDirection: "row", alignItems: "center", gap: 7 },
@@ -463,5 +520,10 @@ const styles = StyleSheet.create({
   confirmBtns: { flexDirection: "row", gap: 8, justifyContent: "flex-end" },
   done: { color: "var(--ok)" as string, fontSize: 12, marginHorizontal: 14, marginTop: 8 },
   retention: { color: "var(--ink-3)" as string, fontSize: 12, lineHeight: 17, marginHorizontal: 14, marginTop: 10, marginBottom: 16 },
+  banner: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: "var(--accent-wash)" as string },
+  bannerText: { flex: 1, minWidth: 180, color: "var(--ink)" as string, fontSize: 12.5, lineHeight: 18, marginLeft: 4 },
+  bannerBtn: { height: 26, paddingHorizontal: 9, borderRadius: 6, justifyContent: "center" },
+  bannerBtnOver: { backgroundColor: "var(--hover)" as string },
+  bannerBtnText: { color: "var(--accent)" as string, fontSize: 12.5, fontWeight: "500" },
   empty: { color: "var(--ink-3)" as string, fontSize: 12.5, padding: 16 },
 });

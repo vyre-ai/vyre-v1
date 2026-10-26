@@ -418,7 +418,9 @@ test("request changes: unsent comments go to the agent thread once, the changese
   assert.equal(c1.comment["changesetId"], cs);
   assert.deepEqual([c1.comment["by"], c1.comment["resolved"], c1.comment["mentions"]], ["per_maya", false, ["agt_intake"]]);
   assert.deepEqual(k.calls.map((c) => c.cap), ["chat.post"], "an @ agent answers in the thread");
-  assert.deepEqual(k.calls[0]?.input, { threadId: "thr_1", body: "plan.txt: Why was this changed?", mentions: [{ kind: "agent", id: "agt_intake" }] });
+  const { idempotencyKey: commentKey, ...commentPost } = k.calls[0]?.input as Record<string, unknown>;
+  assert.match(String(commentKey), /^changesets\.comment:/);
+  assert.deepEqual(commentPost, { threadId: "thr_1", body: "plan.txt: Why was this changed?", mentions: [{ kind: "agent", id: "agt_intake" }] });
   await handlers["changesets.comments.add"](ctx, { changesetId: cs, anchor: { kind: "file", path: "plan.txt" }, text: "Keep the old heading." });
   assert.equal((await handlers["changesets.comments.list"](ctx, { changesetId: cs })).comments.length, 2);
   assert.ok(eventsOf(k.events, "file.comment_added").length === 2);
@@ -426,7 +428,9 @@ test("request changes: unsent comments go to the agent thread once, the changese
 
   const sent = await handlers["changesets.request_changes"](ctx, { changesetId: cs, note: "Two things." });
   assert.equal(sent.sent, 1, "the comment the agent already got is not sent again");
-  assert.deepEqual(k.calls.at(-1)?.input, { threadId: "thr_1", body: "Two things.\nplan.txt: Keep the old heading." });
+  const { idempotencyKey: requestKey, ...requestPost } = k.calls.at(-1)?.input as Record<string, unknown>;
+  assert.match(String(requestKey), new RegExp(`^changesets\\.request_changes:${cs}:`));
+  assert.deepEqual(requestPost, { threadId: "thr_1", body: "Two things.\nplan.txt: Keep the old heading." });
   assert.equal((await handlers["changesets.get"](ctx, { changesetId: cs })).changeset["state"], "changes_requested");
   assert.deepEqual(eventsOf(k.events, "changeset.changes_requested").map((e) => (e as { comments: number }).comments), [1]);
   await handlers["files.write"](agent, { fileId: plan, content: { text: lines(10, { 2: "LINE 2 again" }) } });
@@ -507,7 +511,8 @@ test("approve with push: commit then push through git; a failed push leaves the 
   assert.deepEqual([res.approved, res.commit], [true, "abc1234"]);
   const gitCalls = ok.k.calls.filter((c) => c.cap.startsWith("git."));
   assert.deepEqual(gitCalls.map((c) => c.cap), ["git.commit", "git.push"]);
-  assert.deepEqual(gitCalls[0]?.input, { folderId: ok.docs, message: "Update plan" });
+  assert.deepEqual(gitCalls[0]?.input, { idempotencyKey: `cs-commit:${cs}`, folderId: ok.docs, message: "Update plan" });
+  assert.deepEqual(gitCalls[1]?.input, { idempotencyKey: `cs-push:${cs}`, folderId: ok.docs }, "the push carries its own key, one per changeset");
   assert.deepEqual(eventsOf(ok.k.events, "changeset.approved").map((e) => (e as { commit?: string }).commit), ["abc1234"]);
 
   const bad = await setup({ "git.commit": { sha: "def5678" }, "git.push": new Error("remote down") });
@@ -528,7 +533,8 @@ test("review with an outside agent: an actor with Use on the folder, never Edit"
   const res = await handlers["changesets.review_externally"](ctx, { changesetId: w.changesetId! });
   assert.deepEqual(res, { actorId: "act_rev", expiresAt: 1_760_000_999_000 });
   assert.deepEqual(k.calls.map((c) => c.cap), ["access.actors.create", "access.share"]);
-  assert.deepEqual(k.calls[1]?.input, { resource: { type: "folder", id: docs }, subject: { kind: "actor", id: "act_rev" }, level: "use" });
+  assert.deepEqual(k.calls[0]?.input, { idempotencyKey: `changesets.review_externally:${w.changesetId}`, name: `Reviewer for ${w.changesetId}`, provider: "outside" });
+  assert.deepEqual(k.calls[1]?.input, { idempotencyKey: `changesets.review:${w.changesetId}:act_rev`, resource: { type: "folder", id: docs }, subject: { kind: "actor", id: "act_rev" }, level: "use" });
   assert.deepEqual(eventsOf(k.events, "changeset.sent_for_review"), [{ changesetId: w.changesetId, actorId: "act_rev" }]);
   const known = await handlers["changesets.review_externally"](ctx, { changesetId: w.changesetId!, actorId: "act_codex" });
   assert.equal(known.actorId, "act_codex");

@@ -21,6 +21,10 @@ export interface ShellRuntime extends Omit<HomeData, "nav"> {
   readonly aiConnected: boolean;
   /** A Personal Space draws Today only when a calendar is connected on this computer. */
   calendarConnected: boolean;
+  /** The modules the server defers whole (ruling 60); a place of one hides itself. Empty until the server says. */
+  readonly deferredModules: ReadonlySet<string>;
+  /** True when the server defers this capability (it answers "Not in this version yet"). */
+  isDeferred(cap: string): boolean;
   open(target: ShellTarget): void;
   openUrl(url: string): void;
 }

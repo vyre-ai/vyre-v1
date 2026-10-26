@@ -2,8 +2,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
-import { codeOf, DEVICE, harness, KEYS } from "../fixtures/db.ts";
+import { codeOf, DEVICE, harness, KEYS } from "./wire.ts";
 import { SEED_PERSON } from "../fixtures/seed.ts";
+import { registry } from "../../../generated/registry.ts";
 import { provisionAccount, sessionOfToken, sha } from "../projections.ts";
 
 const P = SEED_PERSON;
@@ -167,4 +168,34 @@ test("invites.accept_create_account (ruling 23): creates the person, stores keys
   assert.ok(!JSON.stringify(h.events).includes("a long enough password"));
   await assert.rejects(handlers["invites.accept_create_account"](ctx, { ...input, displayName: "Again" }), (e) => codeOf(e) === "validation.duplicate");
   assert.equal((await handlers["identity.sign_in"](h.anon, { username: "omar", password: input.password, ...DEVICE })).status, "ok");
+});
+
+test("a recovery code is burned after five wrong tries, whoever made them: the right proof then fails too", async () => {
+  const h = await world();
+  const { ctx } = await signedIn(h);
+  await handlers["identity.keys_put"](ctx, { keys: KEYS, reason: "first_device" });
+  const wrap = "cmVjb3ZlcnktY2lwaGVydGV4dA==";
+  await handlers["identity.recovery_save"](ctx, { personKeyByRecovery: wrap });
+  const fresh = { ...KEYS, personKeyByPassword: "cmUtd3JhcHBlZC1ieS1uZXc=", personKeyByRecovery: wrap };
+  for (let i = 0; i < 5; i++) {
+    await assert.rejects(handlers["identity.recovery_restore"](h.anon, { username: P.username, recoveryProof: `wrong-${i}`, newPassword: NEW_PASSWORD, keys: fresh, ...DEVICE }), (e) => codeOf(e) === "auth.invalid_code");
+  }
+  assert.equal((await handlers["identity.reset_preview"](ctx, { personId: P.personId })).hasRecoveryCode, false, "the code is gone");
+  await assert.rejects(handlers["identity.recovery_restore"](h.anon, { username: P.username, recoveryProof: sha(wrap), newPassword: NEW_PASSWORD, keys: fresh, ...DEVICE }), (e) => codeOf(e) === "auth.invalid_code", "the right proof no longer works");
+});
+
+test("recovery_restore emits only the events its manifest declares, and a wrong proof is a signin.failed", async () => {
+  const h = await world();
+  const { ctx } = await signedIn(h);
+  await handlers["identity.keys_put"](ctx, { keys: KEYS, reason: "first_device" });
+  const wrap = "cmVjb3ZlcnktY2lwaGVydGV4dA==";
+  await handlers["identity.recovery_save"](ctx, { personKeyByRecovery: wrap });
+  const fresh = { ...KEYS, personKeyByPassword: "cmUtd3JhcHBlZC1ieS1uZXc=", personKeyByRecovery: wrap };
+  const declared = new Set(registry.capabilities.filter((c) => c.name === "identity.recovery_restore").flatMap((c) => c.emits as string[]));
+  const before = h.events.length;
+  await assert.rejects(handlers["identity.recovery_restore"](h.anon, { username: P.username, recoveryProof: "wrong", newPassword: NEW_PASSWORD, keys: fresh, ...DEVICE }), (e) => codeOf(e) === "auth.invalid_code");
+  assert.deepEqual(h.events.slice(before).filter((e) => !declared.has(e.name)).map((e) => e.name), [], "a failed restore emits nothing undeclared");
+  assert.deepEqual(h.events.slice(before).filter((e) => e.name === "signin.failed").map((e) => e.payload), [{ username: P.username, reason: "bad_code" }], "a failed restore stays visible to the audit log");
+  await handlers["identity.recovery_restore"](h.anon, { username: P.username, recoveryProof: sha(wrap), newPassword: NEW_PASSWORD, keys: fresh, ...DEVICE });
+  assert.deepEqual(h.events.slice(before).filter((e) => !declared.has(e.name)).map((e) => e.name), [], "a restore emits nothing undeclared");
 });

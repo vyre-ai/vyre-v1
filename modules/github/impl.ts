@@ -3,8 +3,10 @@
 // verifyWebhook is what the host's /hooks/github route calls first: it refuses a body GitHub did not sign and returns the input of github.receive_webhook.
 import type { Handler } from "../../host/src/invoke.ts";
 import * as h from "./handlers/index.ts";
+import { setGithubHost } from "./projections.ts";
+import type { SeamSetters } from "../../host/src/seams/index.ts";
 
-export { setGithubHost } from "./projections.ts";
+export { setGithubHost };
 export type { GithubHost } from "./projections.ts";
 export { parseDelivery, signatureMatches, signatureOf, verifyWebhook } from "./handlers/index.ts";
 
@@ -40,3 +42,6 @@ export const handlers: Record<string, Handler> = {
 };
 
 export const projections = { inline: {}, consumers: {} };
+
+/** Where the host registers its half at boot (ruling 31). */
+export const hostSeams: SeamSetters = { setGithubHost };

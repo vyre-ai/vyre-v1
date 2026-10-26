@@ -18,17 +18,21 @@
 //   sign_out      { site }                    -> { ok }
 //   tool          { tool, args, timeoutMs }   -> the tool's output, plus optional { used, frame, caption } (handlers/tools/common.ts has the whole contract; a refusal is a JSON
 //                                                {code, message} on stderr with a non-zero exit)
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Handler } from "../../host/src/invoke.ts";
 import { tarFiles } from "../../sandbox/src/tar.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
 import { handlers as table } from "./handlers/index.ts";
+import { createFillService, fillHttp } from "./handlers/fill.ts";
+import type { FillSource, FillUse } from "./handlers/fill.ts";
+import { bindFill } from "./projections.ts";
 import { ToolError } from "./handlers/tools/common.ts";
 import type { ToolAnswer, ToolCode, ToolHost } from "./handlers/tools/common.ts";
 import type { ComputerHost, HostKind, Probe, RecordResult, SessionInfo } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 
-export { bindHost, bindKit, bindTeam, boundHost, redeemTicket, rememberSecrets, forgetSecrets, addStep, ensure } from "./projections.ts";
+export { bindFill, bindHost, bindKit, bindTeam, boundHost, redeemTicket, rememberSecrets, forgetSecrets, addStep, ensure } from "./projections.ts";
 export type { ComputerHost, CompCtx, Probe, RecordResult, SessionInfo } from "./projections.ts";
 export { sleepIdle, awaken } from "./handlers/lifecycle.ts";
 export { maskEvents, maskHar } from "./handlers/record.ts";
@@ -214,7 +218,7 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       if (typeof s.diskBytes === "number") p.diskBytes = s.diskBytes;
       return p;
     },
-    async configure(a) { await ctl(a.computerId, "configure", { tabLimit: a.tabLimit }); },
+    async configure(a) { await ctl(a.computerId, "configure", { tabLimit: a.tabLimit, ...(a.fillUrl !== undefined && a.fillToken !== undefined ? { fillUrl: a.fillUrl, fillToken: a.fillToken } : {}) }); },
     async takeover(a) { await ctl(a.computerId, "takeover", { personId: a.personId }); },
     async giveBack(computerId) { await ctl(computerId, "give_back"); },
     async screenshot(computerId) {
@@ -281,3 +285,14 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
   };
   return host;
 }
+
+/** What the host hands the module for the Vault channel of agent computers (host/src/seams/computers.ts): the Vault source, a use log, the address agentd posts to and where to mount the route. */
+export interface ComputersFillSeam { source: FillSource; log(use: FillUse): void | Promise<void>; url(): string; mount(handler: (req: IncomingMessage, res: ServerResponse) => void): void; now?: () => number }
+
+export function setComputersFill(h: ComputersFillSeam | null): void {
+  if (!h) { bindFill(null); return; }
+  const service = createFillService({ source: h.source, log: h.log, ...(h.now ? { now: h.now } : {}) });
+  h.mount(fillHttp(service));
+  bindFill({ issue: (x) => service.issue(x), url: h.url });
+}
+export const hostSeams = { setComputersFill };

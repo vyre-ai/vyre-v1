@@ -3786,6 +3786,7 @@ export type CampaignsAudienceSetOut = {
 export type CampaignsCreateIn = {
   name: string;
   kind: "one_time" | "sequence" | "triggered";
+  folderId?: string;
   idempotencyKey: string;
 };
 export type CampaignsCreateOut = {
@@ -7426,6 +7427,7 @@ export type EmailBuilderAskDiffOut = {
 export type EmailBuilderCreateIn = {
   name: string;
   mode: "blocks" | "html" | "plain";
+  folderId?: string;
   idempotencyKey: string;
 };
 export type EmailBuilderCreateOut = {
@@ -12024,6 +12026,46 @@ export type IdentityChangePasswordIn = {
 export type IdentityChangePasswordOut = {
   ok: boolean;
 };
+export type IdentityClaimOwnerIn = {
+  code: string;
+  spaceId: string;
+  username: string;
+  displayName?: string;
+  password: string;
+  deviceName: string;
+  deviceClass: "desktop" | "phone" | "web" | "extension" | "daemon";
+  keys: {
+    personKeyByPassword: string;
+    personKeyByRecovery?: string;
+    publicKey: string;
+    privateKeyWrapped: string;
+    spaceKeys: Array<{
+        epoch: number;
+        wrapped: string;
+      }>;
+  };
+};
+export type IdentityClaimOwnerOut = {
+  status: "ok" | "second_factor_required";
+  challengeId?: string;
+  session?: {
+    sessionId: string;
+    deviceId: string;
+    token: string;
+    expiresAt: number;
+    epoch: number;
+  };
+  keys?: {
+    personKeyByPassword: string;
+    personKeyByRecovery?: string;
+    publicKey: string;
+    privateKeyWrapped: string;
+    spaceKeys: Array<{
+        epoch: number;
+        wrapped: string;
+      }>;
+  };
+};
 export type IdentityGithubLinkIn = {
   code: string;
 };
@@ -12373,6 +12415,7 @@ export type IdentityWhoamiOut = {
   deviceId?: string;
   epoch: number;
   spaceId: string;
+  deferred?: Array<string>;
 };
 export type ImportCommitIn = {
   importId: string;
@@ -20239,6 +20282,7 @@ export type SitesCreateIn = {
   kind: "site" | "app" | "api" | "worker" | "artifact";
   repoUrl?: string;
   templateKit?: string;
+  folderId?: string;
   idempotencyKey: string;
 };
 export type SitesCreateOut = {
@@ -26973,6 +27017,7 @@ export interface CapMap {
   "hubspot.push_object": { in: HubspotPushObjectIn; out: HubspotPushObjectOut };
   "hubspot.test_connection": { in: HubspotTestConnectionIn; out: HubspotTestConnectionOut };
   "identity.change_password": { in: IdentityChangePasswordIn; out: IdentityChangePasswordOut };
+  "identity.claim_owner": { in: IdentityClaimOwnerIn; out: IdentityClaimOwnerOut };
   "identity.github_link": { in: IdentityGithubLinkIn; out: IdentityGithubLinkOut };
   "identity.github_sign_in": { in: IdentityGithubSignInIn; out: IdentityGithubSignInOut };
   "identity.github_unlink": { in: IdentityGithubUnlinkIn; out: IdentityGithubUnlinkOut };
@@ -28176,6 +28221,10 @@ export type CallVoicemailLeftPayload = {
 export type CampaignCompletedPayload = {
   campaignId: string;
 };
+export type CampaignCreatedPayload = {
+  campaignId: string;
+  name: string;
+};
 export type CampaignLaunchedPayload = {
   campaignId: string;
   audienceCount: number;
@@ -28581,6 +28630,10 @@ export type DropboxSignWebhookReceivedPayload = {
   envelopeId: string;
   status: string;
 };
+export type EmailCreatedPayload = {
+  emailId: string;
+  folderId?: string;
+};
 export type EmailBlockSavedPayload = {
   blockId: string;
   shared: boolean;
@@ -28748,6 +28801,11 @@ export type FollowRemovedPayload = {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
+};
+export type FormCreatedPayload = {
+  formId: string;
+  name: string;
+  kind: string;
 };
 export type FormLinkCreatedPayload = {
   formId: string;
@@ -31104,6 +31162,7 @@ export interface EventMap {
   "call.transferred": CallTransferredPayload;
   "call.voicemail_left": CallVoicemailLeftPayload;
   "campaign.completed": CampaignCompletedPayload;
+  "campaign.created": CampaignCreatedPayload;
   "campaign.launched": CampaignLaunchedPayload;
   "campaign.paused": CampaignPausedPayload;
   "campaign.replied": CampaignRepliedPayload;
@@ -31185,6 +31244,7 @@ export interface EventMap {
   "document.template_marked": DocumentTemplateMarkedPayload;
   "docusign.webhook_received": DocusignWebhookReceivedPayload;
   "dropbox_sign.webhook_received": DropboxSignWebhookReceivedPayload;
+  "email.created": EmailCreatedPayload;
   "email_block.saved": EmailBlockSavedPayload;
   "email_template.saved": EmailTemplateSavedPayload;
   "email_template.test_sent": EmailTemplateTestSentPayload;
@@ -31220,6 +31280,7 @@ export interface EventMap {
   "folder.shared": FolderSharedPayload;
   "follow.added": FollowAddedPayload;
   "follow.removed": FollowRemovedPayload;
+  "form.created": FormCreatedPayload;
   "form.link_created": FormLinkCreatedPayload;
   "form.published": FormPublishedPayload;
   "form.submitted": FormSubmittedPayload;

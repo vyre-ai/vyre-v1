@@ -16,6 +16,7 @@ import { preview, withMode } from "./lead.ts";
 import type {
   AgentMode, DriverEvent, EngineAgent, EngineEvent, EngineSession, IncomingMessage, OpenSession, OpenThread, Placement, PreviewResult,
   QueueItem, ReceiveResult, SpendRow, StoredMessage, ToolResult, TurnRow,
+  AccountQuery, ResolvedAccount,
 } from "./types.ts";
 import type { RoutePolicy, RouteMention } from "../../../lib/route.ts";
 
@@ -40,6 +41,15 @@ export interface EngineOptions {
   /** 'host:<space>' or 'device:<id>'. */
   holder: string;
   openSession: OpenSession;
+  /**
+   * Which account pays for a turn (engine.account.resolve). Asked before every turn; its answer replaces the engine's own starter/steerer choice for the payer and goes into the
+   * session spec. Null means no usable account: no session is opened, the turn fails with `no_account`, and `onNoAccount` raises the Unblock.
+   */
+  resolveAccount?: (q: AccountQuery) => Promise<ResolvedAccount | null>;
+  /** No account could be found for a turn: raise the Unblock task for the starter; when it is answered the host calls wake() to run the turn again. */
+  onNoAccount?: (info: { threadId: string; turnId: string; agentId: string; asker: string }) => Promise<void> | void;
+  /** A turn ended (completed, failed or cancelled): meter its usage. Not called for a turn parked on a held call until it ends. */
+  onTurnEnd?: (turn: Readonly<TurnRow>, account: ResolvedAccount | null) => Promise<void> | void;
   queue?: QueueStore;
   leases?: LeaseStore;
   messages?: MessageStore;
@@ -245,7 +255,10 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     // A wake that continues a parked turn runs on the account that was paying, and answers the held call.
     const wait = item.kind === "wake" ? waits.forWake(st.thread.id, item.qseq) : null;
     const payer = payerOf(st, item);
-    const asker = wait?.asker ?? payer.asker;
+    // The account that pays comes from engine.account.resolve when the host wires it; without it the engine keeps its own starter/steerer choice (unit tests).
+    let resolveFailed = false;
+    const account = opts.resolveAccount ? await opts.resolveAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: wait?.asker ?? payer.asker }).catch(() => { resolveFailed = true; return null; }) : undefined;
+    const asker = wait?.asker ?? (account ? account.payer : payer.asker);
     const reason = wait ? ("starter" as const) : payer.reason;
     const turn: TurnRow = {
       id: nextId("t"), threadId: st.thread.id, agentId: item.agentId, asker, payerReason: reason, model: agent?.model ?? null, state: "running",
@@ -276,7 +289,13 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     };
     try {
       if (!agent) throw Object.assign(new Error("agent is not in this thread"), { code: "unknown_agent" });
-      const session = await opts.openSession({ threadId: st.thread.id, agent, asker });
+      if (account === null && resolveFailed) throw Object.assign(new Error("the account could not be resolved just now"), { code: "account_unavailable" });   // a resolver that is down is not "no key": no Unblock
+      if (account === null) {
+        // Nobody has a usable key for this turn: no session, an Unblock for the starter, and the turn ends as failed (no_account) until they add one.
+        try { await opts.onNoAccount?.({ threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker }); } catch { /* the Unblock is best effort; the turn still ends as no_account */ }
+        throw Object.assign(new Error("no account can pay for this turn"), { code: "no_account" });
+      }
+      const session = await opts.openSession({ threadId: st.thread.id, agent, asker, turnId: turn.id, traceId: turn.traceId, ...(account ? { account } : {}) });
       run.session = session;
       if (run.cancelled) await session.cancel();
       const input = {
@@ -363,6 +382,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     else turn.state = "completed";
     queue.setState(st.thread.id, item.qseq, turn.state === "cancelled" ? "cancelled" : "done");
     recordSpend(turn);
+    try { await opts.onTurnEnd?.(turn, account ?? null); } catch { /* metering must never fail the turn */ }
     if (turn.state === "completed") emit({ type: "turn.completed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId });
     else if (turn.state === "cancelled") emit({ type: "turn.cancelled", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId });
     else emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error" });
