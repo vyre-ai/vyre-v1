@@ -92,6 +92,8 @@ export interface InvokeDeps {
   validateEvent?(name: string, payload: unknown): string[];
   /** kernel authorize bound to the Space's access snapshot */
   authorize(req: AuthReq): KernelDecision;
+  /** Is this person (or the person an agent acts for) a member or guest of the Space: any role or any grant. Needed by capabilities at level 'member' (ruling 69); without it they fall back to view on the Space. */
+  membership?(principal: string, actingFor?: string): boolean;
   handler(cap: string, v: number): Handler | undefined;
   commit(batch: CommitBatch): Promise<EventEnvelope[]>;
   /** deny and hold audit rows (an allow row rides in the commit) */
@@ -159,6 +161,9 @@ export function personalMatrix(o: { kind: () => "personal" | "team"; caps: Itera
 }
 
 export type Invoke = (cap: string, input: unknown, seed: CtxSeed) => Promise<InvokeResult>;
+
+/** The decision for a capability that needs membership only: allowed, with no scope (the handler narrows). */
+const memberAllow = (decisionId: string): KernelDecision => ({ effect: "allow", reason: "ok", steps: [], scope: undefined, obligations: [], decisionId });
 
 export function createInvoke(deps: InvokeDeps): Invoke {
   const now = deps.now ?? Date.now;
@@ -230,12 +235,14 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         throw e;
       }
       approved = seed.approval !== undefined && deps.gate !== undefined && deps.gate.verify(seed.approval, { cap: c, input, seed });
+      const memberOnly = c.level === "member";
       const req: AuthReq = {
         principal: seed.principal.id, actingFor: seed.actingFor,
-        action: { perm: c.permission, level: c.level, destructive: DESTRUCTIVE.test(c.name) },
+        action: { perm: c.permission, level: c.level === "member" ? "view" : c.level, destructive: DESTRUCTIVE.test(c.name) },
         resource, provider: seed.provider, cap: c.name, input, spendMicros: deps.spend?.(seed.principal.id), approved, now: t,
       };
-      const d = deps.authorize(req);
+      // level 'member' (ruling 69): any role or grant in the Space is enough, so a person whose only grant is one folder can sync that folder; the handler filters rows per resource. A stranger is refused as before.
+      const d = memberOnly && deps.membership ? (deps.membership(seed.principal.id, seed.actingFor) ? memberAllow(mintId("dec", t)) : deps.authorize(req)) : deps.authorize(req);
       kd = d;
       const audit = (cls: AuditRow["class"], reason: string): AuditRow => ({
         class: cls, cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: d.decisionId, reason,
