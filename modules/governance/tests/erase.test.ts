@@ -32,6 +32,9 @@ function pat(h: Harness): void {
 const find = (h: Harness) => g.eraseFind(h.ctx, { subject: { email: EMAIL, name: "Pat Lee" } });
 const apply = (h: Harness, findingId: string, include: string[], o: Json = {}) => g.eraseApply(h.ctx, { findingId, include, idempotencyKey: `k-${findingId}`, ...o } as Parameters<typeof g.eraseApply>[1]);
 
+/** Only the host replays tombstones, as itself. */
+const reapply = (h: ReturnType<typeof harness>) => { h.actAs("service", "svc_host"); return g.tombstonesReapply(h.ctx); };
+
 test("find: everything about one contact across records, files, chats, inbox, mail, calls and memory, with counts and a few titles, kept 24 hours", async () => {
   const h = harness();
   pat(h);
@@ -128,7 +131,7 @@ test("a restore brings erased data back; replaying the tombstones erases it agai
   h.addFile("fil_pat00002", { name: "Pat Lee engagement.pdf" });
   h.world.erasedFacts.length = 0;
   h.world.purged.length = 0;
-  const r = out(await g.tombstonesReapply(h.ctx));
+  const r = out(await reapply(h));
   assert.deepEqual(contractErrors("governance.tombstones.reapply", "out", r), []);
   assert.equal(r.count, 6);
   assert.equal(h.world.records.get(PAT)?.gone, true);
@@ -137,9 +140,9 @@ test("a restore brings erased data back; replaying the tombstones erases it agai
   assert.deepEqual(h.named("tombstones.reapplied").map((e) => e.payload), [{ count: 6 }]);
   assert.deepEqual(eventErrors("tombstones.reapplied", h.named("tombstones.reapplied")[0]?.payload), []);
   // a second replay, with everything already gone, is quiet and the same
-  assert.equal(out(await g.tombstonesReapply(h.ctx)).count, 6);
+  assert.equal(out(await reapply(h)).count, 6);
   // and a Space with no tombstones replays nothing
-  assert.equal(out(await g.tombstonesReapply(harness().ctx)).count, 0);
+  assert.equal(out(await reapply(harness())).count, 0);
   assert.equal(h.rows(`SELECT * FROM governance_tombstone`).length, 6, "tombstones stay: the next restore needs them too");
 });
 
@@ -149,7 +152,7 @@ test("a replay stops on a real failure instead of opening a Space that still hol
   await apply(h, String((out(await find(h))).findingId), ["records"]);
   h.world.records.get(PAT)!.gone = false;
   h.script("records.delete", () => { throw h.err("internal.unavailable", "records down"); });
-  assert.equal(await refusedWith(g.tombstonesReapply(h.ctx)), "internal.unavailable");
+  assert.equal(await refusedWith(reapply(h)), "internal.unavailable");
   assert.equal(h.named("tombstones.reapplied").length, 0);
 });
 
@@ -238,4 +241,19 @@ test("a contact nobody has written to has no inbox thread, and the find still fi
   assert.deepEqual(contractErrors("governance.erase.apply", "out", done), []);
   assert.equal(h.world.records.get(PAT)?.gone, true);
   assert.equal(await refusedWith((async () => { h.script("inbox.thread", () => { throw h.err("permission.no_grant", "no"); }); return find(h); })()), "permission.no_grant", "any other refusal still stops the find");
+});
+
+test("tombstones.reapply is the host's call: a person, the owner included, is refused, and a crafted list erases nothing", async () => {
+  const h = harness();
+  pat(h);
+  const crafted = [{ id: "tmb_crafted01", kind: "records", subjectType: "contact", subjectId: PAT, at: 1, by: "usr_olivia" }];
+  for (const [kind, id] of [["person", OWNER], ["person", ADMIN]] as const) {
+    h.actAs(kind, id);
+    assert.equal(await refusedWith(g.tombstonesReapply(h.ctx, { tombstones: crafted })), "permission.role_lacks_permission");
+  }
+  assert.equal(h.world.records.get(PAT)?.gone, false, "nothing was erased");
+  assert.equal(h.rows(`SELECT * FROM governance_tombstone`).length, 0, "and nothing was recorded");
+  h.actAs("service", "svc_host");
+  assert.equal(out(await g.tombstonesReapply(h.ctx, { tombstones: crafted })).count, 1);
+  assert.equal(h.world.records.get(PAT)?.gone, true);
 });

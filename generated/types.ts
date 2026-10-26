@@ -11848,7 +11848,17 @@ export type GovernanceTombstonesListOut = {
   next?: string;
   total?: number;
 };
-export type GovernanceTombstonesReapplyIn = Record<string, unknown>;
+export type GovernanceTombstonesReapplyIn = {
+  tombstones?: Array<{
+      id: string;
+      kind: string;
+      subjectType: string;
+      subjectId: string;
+      at: number;
+      by: string;
+      findingId?: string;
+    }>;
+};
 export type GovernanceTombstonesReapplyOut = {
   count: number;
 };

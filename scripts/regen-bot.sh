@@ -10,6 +10,8 @@ cd "$(dirname "$0")/.."
 
 : "${BRANCH:?BRANCH is required}"
 DRY_RUN="${DRY_RUN:-0}"
+# The paths whose change makes the bot rerun the contracts gate and the affected tests even when generated/ was already current.
+TRIGGER_PATHS='^(manifests/|host/modules\.json|package\.json|.*/package\.json|tools/gen/|lib/snapshot\.ts|scripts/shots/prototype/vyre-v1\.html|scripts/shots/gen-prototype-seed\.mjs|\.github/workflows/regen\.yml|scripts/regen-bot\.sh)'
 
 MAIN=0
 case "$BRANCH" in
@@ -31,23 +33,32 @@ status() { # state description
   '
 }
 
-echo "== regenerate =="
-node tools/gen/src/cli.ts
-echo "== snapshots =="
-# docs/frozen/snapshots: one small file per manifest (lib/snapshot.ts). Written here so a worker never records a hash by hand and two PRs on different manifests never conflict.
-node tools/gen/src/cli.ts --snapshots
-
-echo "== lockfile =="
-# npm never runs on the workers' Macs, so the lockfile is refreshed here whenever a package.json changed.
-npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-
-echo "== prototype seed =="
-# The prototype seed (apps/app/src/fixtures/prototype-seed.generated.json) is built from the prototype HTML by a pure-node script (about 10 s, no install). Same pattern as the lockfile.
-if [ -f scripts/shots/gen-prototype-seed.mjs ]; then node scripts/shots/gen-prototype-seed.mjs --write; fi
-SEED=apps/app/src/fixtures/prototype-seed.generated.json
-
 SNAP=docs/frozen/snapshots
-if [ -n "$(git status --porcelain -- generated $SNAP package-lock.json $SEED)" ]; then
+SEED=apps/app/src/fixtures/prototype-seed.generated.json
+MAX_ATTEMPTS=5
+committed=0
+attempt=0
+while :; do
+  attempt=$((attempt + 1))
+  echo "== regenerate (attempt $attempt on $(git rev-parse --short HEAD)) =="
+  node tools/gen/src/cli.ts
+  echo "== snapshots =="
+  # docs/frozen/snapshots: one small file per manifest (lib/snapshot.ts). Written here so a worker never records a hash by hand and two PRs on different manifests never conflict.
+  node tools/gen/src/cli.ts --snapshots
+
+  echo "== lockfile =="
+  # npm never runs on the workers' Macs, so the lockfile is refreshed here whenever a package.json changed.
+  npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+  echo "== prototype seed =="
+  # The prototype seed (apps/app/src/fixtures/prototype-seed.generated.json) is built from the prototype HTML by a pure-node script (about 10 s, no install). Same pattern as the lockfile.
+  if [ -f scripts/shots/gen-prototype-seed.mjs ]; then node scripts/shots/gen-prototype-seed.mjs --write; fi
+
+  # Runs on every build/** push, whatever paths changed: a test-only push on top of a manifest change must still find generated/ current, so staleness is judged by regenerating, not by paths.
+  if [ -z "$(git status --porcelain -- generated $SNAP package-lock.json $SEED)" ]; then
+    echo "regen: generated/ already matches the manifests, nothing to commit"
+    break
+  fi
   git config user.name "Irfad Imtiaz"
   git config user.email "130136633+irfad7@users.noreply.github.com"
   gen_changed="$(git status --porcelain -- generated $SNAP package-lock.json)"
@@ -56,19 +67,35 @@ if [ -n "$(git status --porcelain -- generated $SNAP package-lock.json $SEED)" ]
   [ -n "$seed_changed" ] && { git add -A -- $SEED; git commit -q -m "chore(gen): prototype seed"; }
   if [ "$DRY_RUN" = "1" ]; then
     echo "dry run: committed locally, not pushing"
-  elif ! git push origin "HEAD:refs/heads/${BRANCH}"; then
-    # The worker pushed again while this ran. That push starts a fresh regen run on the newer head, so stop here.
-    # On main the same happens when another merge landed first (its own run rebuilds) or when main refuses a bot push: say so loudly, the next merge's run tries again.
-    echo "regen: push rejected (branch moved or protected); the newer push triggers its own regen run"
+    break
+  fi
+  if git push origin "HEAD:refs/heads/${BRANCH}"; then
+    committed=1
+    echo "regen: committed generated files ($(git rev-parse --short HEAD))"
+    # A push made with GITHUB_TOKEN starts no workflow, so the required check would never attach to this head. A dispatch made with the same token is allowed to start one.
+    if [ "$MAIN" != "1" ]; then
+      if gh workflow run check.yml --ref "$BRANCH"; then echo "regen: dispatched check.yml on $BRANCH"; else echo "regen: could not dispatch check.yml on $BRANCH (the required check will be missing on the bot's head)"; fi
+    fi
+    break
+  fi
+  # The push was rejected: someone pushed to the branch while the bot ran. On main (behind a merge queue the bot cannot push to) the next merge's run tries again. On a build branch the bot's commit is
+  # thrown away and the whole regeneration is redone on the new head, so the bot's commit is never lost to a race.
+  if [ "$MAIN" = "1" ]; then echo "regen: push rejected on main; the next merge's run rebuilds"; exit 0; fi
+  if [ "$attempt" -ge "$MAX_ATTEMPTS" ]; then echo "regen: the branch moved $MAX_ATTEMPTS times while the bot ran; giving up (the next push starts a new run)"; exit 1; fi
+  echo "regen: push rejected (the branch moved); retrying on the new head"
+  git fetch -q origin "$BRANCH"
+  git reset -q --hard "origin/$BRANCH"
+  sleep "${RETRY_SLEEP:-2}"
+done
+
+# A push that touched none of the contract paths and left nothing stale needs no rerun of the checks: the regular check workflow ran on it.
+if [ "$committed" = "0" ] && [ "$MAIN" != "1" ]; then
+  base="${BEFORE:-}"
+  if [ -z "$base" ] || echo "$base" | grep -Eq '^0+$' || ! git rev-parse --verify -q "$base" >/dev/null; then git fetch -q origin main 2>/dev/null || true; base="$(git merge-base origin/main HEAD 2>/dev/null || echo "")"; fi
+  if [ -n "$base" ] && ! git diff --name-only --no-renames "$base" HEAD 2>/dev/null | grep -Eq "$TRIGGER_PATHS"; then
+    echo "regen: no contract path changed and nothing is stale: nothing to rerun"
     exit 0
   fi
-  echo "regen: committed generated files ($(git rev-parse --short HEAD))"
-  # A push made with GITHUB_TOKEN starts no workflow, so the required check would never attach to this head. A dispatch made with the same token is allowed to start one.
-  if [ "$MAIN" != "1" ] && [ "$DRY_RUN" != "1" ]; then
-    if gh workflow run check.yml --ref "$BRANCH"; then echo "regen: dispatched check.yml on $BRANCH"; else echo "regen: could not dispatch check.yml on $BRANCH (the required check will be missing on the bot's head)"; fi
-  fi
-else
-  echo "regen: generated/ already matches the manifests, nothing to commit"
 fi
 
 if [ "$MAIN" = "1" ]; then echo "regen: main is rebuilt, no checks to rerun here"; exit 0; fi

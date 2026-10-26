@@ -4,7 +4,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
-import { RecordsDataProvider, RecordsSidebar, RecordsStateProvider, SidebarLoading, compact, effectiveType, reduce, sortedViews, typeGroups, INITIAL_STATE } from "../sidebar/index.ts";
+import { SidebarContent } from "../../../shell/sidebar/index.ts";
+import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
+import { RecordsDataProvider, RecordsSidebar, RecordsSidebarSlot, RecordsStateProvider, SidebarLoading, compact, effectiveType, reduce, sortedViews, typeGroups, INITIAL_STATE } from "../sidebar/index.ts";
 import type { RecordsState } from "../sidebar/index.ts";
 import {
   FLING_OVERSCAN, GUTTER, PLAIN, ROW_H, TableLoading, TableView, cellText, chosen, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, isEdited,
@@ -287,4 +289,33 @@ test("the face rules are an LRU: 450 new faces keep 400 at most, a touched face 
   assert.deepEqual(again.use("d").evicted, ["a", "b"], "two oldest together when full");
   assert.deepEqual(again.use("d").evicted, [], "a known face evicts nothing");
   assert.equal(again.size, 2);
+});
+
+// ---- the shared place sidebar slot (P-L9d_22)
+
+const slotApi: SidebarSlotApi = { query: "", collapsed: false, setCollapsed: () => undefined, hasSidebar: true, compact: true, openBody: () => undefined, back: () => undefined, view: "list", title: "Records" };
+/** What the place registers in the shell's slot, and the content its render prop draws for a search text (the slot's content is portalled, so it is read from the element). */
+const inSlot = (query: string, initial: Partial<RecordsState> = {}): { title: string; placeholder: string | undefined; out: string } => {
+  const el = RecordsSidebarSlot({}) as ReactElement<{ title: string; searchPlaceholder?: string; children: (q: string, slot: SidebarSlotApi) => ReactElement }>;
+  assert.equal(el.type, SidebarContent, "the Records sidebar goes into the shared SidebarContent, not a frame of its own");
+  return { title: el.props.title, placeholder: el.props.searchPlaceholder, out: wrap(createSampleRecords(northwind), el.props.children(query, slotApi), initial) };
+};
+
+test("slot: the sidebar registers as Records with the Search records field and keeps every row, count, section and Manage entry", () => {
+  const { title, placeholder, out } = inSlot("");
+  assert.equal(title, "Records");
+  assert.equal(placeholder, "Search records");
+  for (const label of ["Clients", "Companies", "Active clients", "Record types", "Schema map"]) assert.ok(has(out, `>${label}<`), label);
+  assert.ok(has(out, 'data-testid="count-clients"') && has(out, 'data-testid="sec-manage"') && has(out, 'data-testid="records-sidebar"'));
+});
+
+test("slot: the search field narrows types, saved views and Manage, and opens a folded section it matches in", () => {
+  const some = inSlot("compan").out;
+  assert.ok(has(some, ">Companies<") && !has(some, ">Clients<") && !has(some, ">Schema map<") && !has(some, 'data-testid="sec-manage"'));
+  assert.ok(has(inSlot("schema").out, ">Schema map<") && !has(inSlot("schema").out, ">Companies<"));
+  assert.ok(has(inSlot("active").out, ">Active clients<") && has(inSlot("active").out, ">Saved views<"));
+  assert.ok(!has(inSlot("zzzz").out, 'data-testid="row-nav:type:clients"') && !has(inSlot("zzzz").out, 'data-testid="sec-manage"'));
+  const folded = inSlot("schema", { closed: ["manage"] }).out;
+  assert.ok(has(folded, ">Schema map<"), "a folded Manage opens for a search that matches in it");
+  assert.ok(!has(inSlot("", { closed: ["manage"] }).out, ">Schema map<"), "with no search a folded section stays folded");
 });
