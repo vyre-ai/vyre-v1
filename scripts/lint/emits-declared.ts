@@ -15,15 +15,36 @@ type Cap = { name: string; module: string; emits?: string[] };
 
 const lineOf = (source: string, index: number): number => source.slice(0, index).split("\n").length;
 
-/** Text of the function body that starts at `from` (an inline arrow or function expression, or a block). */
-function inlineBody(source: string, from: number): { text: string; start: number } | null {
+/**
+ * Where a function's body block opens, searching from `from` (just after the name, or at the start of an inline value). The parameter list is skipped as a unit, so a `{` in a parameter
+ * type or a destructured parameter is not taken for the body; after it, the body is the first `{` that follows `)`, `>` (an arrow or a generic return type) or a type name. -1 when
+ * the value is an expression with no block, or is not a function.
+ */
+function bodyOpen(source: string, from: number): number {
   let i = from;
-  while (i < source.length && i - from < 400) {
-    if (source[i] === "{") { const end = matchDelim(source, i, "{", "}"); return { text: source.slice(i, end), start: i }; }
-    if (source[i] === "," || source[i] === ";") break;
-    i++;
+  const limit = Math.min(source.length, from + 600);
+  while (i < limit && source[i] !== "(" && source[i] !== "{" && source[i] !== "=" && source[i] !== ";" && source[i] !== ",") i++;
+  if (source[i] === "(") { i = matchDelim(source, i, "(", ")"); }
+  else if (source[i] === "=" && source[i + 1] !== ">") { i++; while (i < limit && /\s/.test(source[i]!)) i++; if (source[i] === "(") i = matchDelim(source, i, "(", ")"); }
+  for (; i < limit; i++) {
+    const c = source[i];
+    if (c === ";" || c === ",") return -1;
+    if (c === "{") {
+      let k = i - 1;
+      while (k >= from && /\s/.test(source[k]!)) k--;
+      const prev = source[k] ?? "";
+      if (prev === ":" || prev === "<" || prev === "|" || prev === "&" || prev === ",") continue;   // an object type in a return annotation
+      return i;
+    }
   }
-  return null;
+  return -1;
+}
+
+/** Text of the function body that starts at `from` (an inline arrow or function expression). */
+function inlineBody(source: string, from: number): { text: string; start: number } | null {
+  const open = bodyOpen(source, from);
+  if (open < 0) return null;
+  return { text: source.slice(open, matchDelim(source, open, "{", "}")), start: open };
 }
 
 type Fn = { file: string; source: string; text: string; start: number };
@@ -34,12 +55,9 @@ export type Resolver = (id: string, file: string) => Fn | null;
 function functionIn(file: string, source: string, id: string): Fn | null {
   const m = new RegExp(`(?:\\bfunction\\s+${id}\\b|\\b(?:const|let)\\s+${id}\\s*(?::[^=]*)?=)`).exec(source);
   if (!m) return null;
-  const open = source.indexOf("{", m.index + m[0].length);
+  const open = bodyOpen(source, m.index + m[0].length);
   if (open < 0) return null;
-  const head = source.slice(m.index + m[0].length, open);
-  if (/[;]/.test(head)) return null;            // a value, not a function body
-  const end = matchDelim(source, open, "{", "}");
-  return { file, source, text: source.slice(open, end), start: open };
+  return { file, source, text: source.slice(open, matchDelim(source, open, "{", "}")), start: open };
 }
 
 const EMIT = /\b(?:ctx\.)?emit\(\s*(["'`])([\w.-]+)\1/g;
