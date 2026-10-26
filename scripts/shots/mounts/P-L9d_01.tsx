@@ -2,7 +2,7 @@
 // ?type=clients|companies|...  ?view=vw_active (a saved view)  ?rows=100000 (the long table the table100k budget and the scroll probe run over)
 // ?menu=filter|sort|group|fields|colour opens that header menu on load  ?group=status  ?sort=value  ?find=ri
 // On a phone width the sidebar is a drawer, so only the table shows. Every control works against the sample replica.
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { RecordsDataProvider, RecordsSidebar, RecordsStateProvider } from "../../../apps/app/src/places/records/sidebar/index.ts";
@@ -14,8 +14,7 @@ export const title = "Records";
 
 const MENUS = ["filter", "sort", "group", "fields", "colour"] as const;
 
-export default function Mount(): ReactNode {
-  const q = useMemo(() => new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""), []);
+function Page({ q }: { q: URLSearchParams }): ReactNode {
   const bulk = Math.min(200_000, Number(q.get("rows") ?? 0) || 0);
   const space = q.get("space") === "harbor" ? protoHarborSpace : protoNorthwindSpace;
   const sample = useMemo(() => createSampleRecords(space, { bulk }), [space, bulk]);
@@ -45,4 +44,12 @@ export default function Mount(): ReactNode {
       </RecordsStateProvider>
     </RecordsDataProvider>
   );
+}
+
+// The page reads its query after it is live (rule 25): read while rendering, the static export's pre-rendered page (the default type, no rows) was swapped for the real one after hydrate, and
+// that swap was the whole layout shift the scroll probe saw on the 100,000-row target.
+export default function Mount(): ReactNode {
+  const [q, setQ] = useState<URLSearchParams | null>(null);
+  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  return q ? <Page q={q} /> : null;
 }
