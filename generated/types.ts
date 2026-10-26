@@ -28245,6 +28245,10 @@ export type BookingCreatedPayload = {
   formId: string;
   recordId: string;
 };
+export type CalendarCreatedPayload = {
+  calendarId: string;
+  personal: boolean;
+};
 export type CalendarSyncedPayload = {
   calendarId: string;
   upserted: number;
@@ -31263,6 +31267,7 @@ export interface EventMap {
   "block.waiting": BlockWaitingPayload;
   "booking.cancelled": BookingCancelledPayload;
   "booking.created": BookingCreatedPayload;
+  "calendar.created": CalendarCreatedPayload;
   "calendar.synced": CalendarSyncedPayload;
   "calendar_event.created": CalendarEventCreatedPayload;
   "calendar_event.deleted": CalendarEventDeletedPayload;

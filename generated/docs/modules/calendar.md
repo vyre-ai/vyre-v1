@@ -26,8 +26,9 @@ Requires: nothing.
 - [calendar.update_calendar](../capabilities/calendar.update_calendar.md): Rename a calendar or change its colour
 - [calendar.update_event](../capabilities/calendar.update_event.md): Change, move or resize an event
 
-## Events (6)
+## Events (7)
 
+- [calendar.created](../events/calendar.created.md): A calendar was made in Vyre; it is a resource owned by the person who made it
 - [calendar.synced](../events/calendar.synced.md): A calendar finished a sync pass
 - [calendar_event.created](../events/calendar_event.created.md): An event was created in Vyre or arrived from a provider
 - [calendar_event.deleted](../events/calendar_event.deleted.md): An event was deleted (Undo restores it)

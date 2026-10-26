@@ -2,7 +2,7 @@
   "module": "calendar",
   "capabilities": {
     "calendar.availability@1": "5033567176638de283346d7657e5703301726176d2b56b625670b7769774842f",
-    "calendar.create_calendar@1": "eb033ab1693fb1da3cbd541df79a5e66c81273c40a5baf4b33400e007a832728",
+    "calendar.create_calendar@1": "8802e7037430b01b5bceca37aec18d87b133482005dfa2145fc3441ebeae8d5f",
     "calendar.create_event@1": "d32f9d31079525ddd9dd567fad316c35dbb1cbf0b17985068af88a3dee24b69e",
     "calendar.delete_calendar@1": "436a7d3d816888649c34288bf6f228efa4caf1d083391c3323e27076d7c8cb76",
     "calendar.delete_event@1": "1330f9ca30527415a2941222ef0759d385af9e0d6ca0431688b97a57e171903f",
@@ -22,6 +22,7 @@
     "calendar.update_event@1": "72117baeb67ce34cf3e1fb84ac80d8330227be19068df2c81ecba26343a8e388"
   },
   "events": {
+    "calendar.created": "7194de910417138806638ae390475a0dd49cd0dffa7063526f440de497eb919f",
     "calendar.synced": "22bed12f81c21f039a491eb285dcf55988f9c87e62e1e3588966aad0ca66b498",
     "calendar_event.created": "1137efc0c179ee65973aca31fe1729f08e1cc786efaf9c6d81113291676fa3d1",
     "calendar_event.deleted": "e4b254dec6b8e873ba058ec602d60999cfd4dcd9c5b9163db38363cf28ac66d0",
