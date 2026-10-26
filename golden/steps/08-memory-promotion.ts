@@ -56,16 +56,16 @@ export async function runMemoryApproval(live: readonly string[]): Promise<{ even
   const trail = new Trail();
   try {
     const noah = s.signedIn("usr_noah"), sana = s.signedIn("usr_sana"), mia = s.signedIn("usr_mia");
-    // The core seed's agt_helper is a kernel resource with no row in the agents module, so it has no folder to edit. Mia makes the agent through agents.create, which gives it its Agents folder.
-    const helper = await trail.step("Mia makes Helper and owns it", async () => {
-      const out = expectStatus(await s.call("agents.create", mia, { idempotencyKey: "golden-8b-helper", name: "Helper", role: "Golden flow helper" }), 200, "agents.create");
+    // The core seed's agt_helper is a kernel resource with no row in the agents module, so it has no folder to edit. Mia makes a uniquely named agent through agents.create.
+    const helper = await trail.step("Mia makes Golden Helper and owns it", async () => {
+      const out = expectStatus(await s.call("agents.create", mia, { idempotencyKey: "golden-8b-helper", name: "Golden Helper", role: "Golden flow helper" }), 200, "agents.create");
       return out.agent.agentId as string;
     });
     const fact = await trail.step("Noah proposes and accepts a fact", async () => {
       const out = expectStatus(await s.call("memory.propose_fact", noah, { idempotencyKey: "golden-8b-fact", layer: "person", agentId: helper!, text: TEXT, sourceKind: "manual", sourceRef: "golden-8b" }), 200, "memory.propose_fact");
       if (!out.merged) expectStatus(await s.call("memory.fact.accept", noah, { factId: out.fact.factId }), 200, "memory.fact.accept");
       return out.fact.factId as string;
-    }, ["Mia makes Helper and owns it"]);
+    }, ["Mia makes Golden Helper and owns it"]);
     const promo = await trail.step("Noah asks to promote it to Helper's memory and a task waits", async () => {
       const out = expectStatus(await s.call("memory.promote", noah, { idempotencyKey: "golden-8b-promote", factId: fact!, toLayer: "agent", agentId: helper! }), 200, "memory.promote");
       assert.equal(out.promoted, false);

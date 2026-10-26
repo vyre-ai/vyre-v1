@@ -97,12 +97,43 @@ async function agentsRoot(ctx: AgentsCtx): Promise<string> {
   return root.folderId;
 }
 
+const LEVEL_RANK: Record<string, number> = { view: 0, use: 1, edit: 2, manage: 3 };
+
+/**
+ * Ruling 99: an agent holds Edit on its own Agents/<name> (not Manage, so it cannot share its home out) and its owner holds Manage there. This is applied ONCE per agent: when it is made, or the
+ * first pass that sees an agent made before the ruling. A marker (agents.home_grants.v1:<agentId>) records that it was done, and an agent with the marker is never touched again, so a person who
+ * lowers or removes one of these grants on purpose is not overruled by the boot pass. Within that one application a grant already held at the level or higher is left as it is. A failure writes no
+ * marker, so the next pass tries again. Returns how many grants it wrote.
+ */
+export async function ensureHomeGrants(ctx: AgentsCtx, agentId: string, ownerId: string, folderId: string): Promise<number> {
+  const marker = `agents.home_grants.v1:${agentId}`;
+  if (meta(ctx.db, marker) !== undefined) return 0;
+  const resource = { type: "folder", id: folderId };
+  const have = await tolerant<{ shares?: Array<{ grant: { subject: { kind: string; id: string }; level: string } }> }>(ctx, "access.shares_of", { resource }, {});
+  const holds = (kind: string, id: string, level: string): boolean =>
+    (have.shares ?? []).some((x) => x.grant.subject.kind === kind && x.grant.subject.id === id && (LEVEL_RANK[x.grant.level] ?? -1) >= (LEVEL_RANK[level] ?? 99));
+  let wrote = 0;
+  if (!holds("agent", agentId, "edit")) {
+    const idempotencyKey = `agent-home:${agentId}:agent`;
+    await call(ctx, "access.share", { resource, subject: { kind: "agent", id: agentId }, level: "edit", source: `agent:${agentId}`, idempotencyKey }, { idempotencyKey });
+    wrote += 1;
+  }
+  if (!holds("person", ownerId, "manage")) {
+    const idempotencyKey = `agent-home:${agentId}:owner:${ownerId}`;
+    await call(ctx, "access.share", { resource, subject: { kind: "person", id: ownerId }, level: "manage", source: `agent:${agentId}`, idempotencyKey }, { idempotencyKey });
+    wrote += 1;
+  }
+  setMeta(ctx.db, marker, String(ctx.now()));
+  return wrote;
+}
+
 export interface TreeResult { folderId: string; tomlFileId: string; agentMdFileId: string }
 
 /** Agents/<name> with the decided tree, its two files, the Vyre guide and whatever the Agent template adds. */
 async function createTree(ctx: AgentsCtx, agentId: string, name: string, tomlText: string, agentMd: string): Promise<TreeResult> {
   const root = await agentsRoot(ctx);
-  const home = await makeFolder(ctx, root, name, `agents:${agentId}:folder`);
+  // the home folder carries the agent as its subject (system_key agent:<id>): that is how Files knows AGENT.md and agent.toml in it are the agent's own
+  const home = await makeFolder(ctx, root, name, `agents:${agentId}:folder`, { kind: "agent", id: agentId });
   const ids = new Map<string, string>([["", home.folderId]]);
   const template = await readTemplate(ctx);
   const folders = [...new Set([...TREE_FOLDERS, ...template.items.filter((i) => i.kind === "folder").map((i) => i.path)])]
@@ -149,19 +180,12 @@ export async function create(ctx: AgentsCtx, input: {
   const starter = template.items.find((i) => i.kind === "file" && i.path === "AGENT.md")?.text;
   const agentMd = starter !== undefined ? starter.replaceAll("{{name}}", name).replaceAll("{{role}}", input.role?.trim() ?? "") : AGENT_MD_DEFAULT(name, input.role);
   const tree = await createTree(ctx, id, name, tomlText, agentMd);
-  // ruling 88: the owner manages the folder from the start, by a grant of their own whoever made it (the asker, when they are the owner, gets the same Manage share), so the owner can approve memory into the agent and edit its files
-  {
-    const grant = call(ctx, "access.share", { resource: { type: "folder", id: tree.folderId }, subject: { kind: "person", id: owner }, level: "manage", source: `agent-owner:${id}`, idempotencyKey: `agent-owner:${id}:${owner}` });
-    // someone else's agent must carry the grant or the call fails; for the asker's own agent the grant only makes explicit what making the folder already gave them
-    if (owner !== askerOf(ctx)) await grant;
-    else await grant.catch((e: unknown) => ctx.log.warn("agent folder grant for the owner was not made", { agentId: id, error: e instanceof Error ? e.message : String(e) }));
-  }
   const rec: AgentRec = {
     id, name, face: input.face?.trim() || slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: input.computer === true,
     templateVersion: await templateVersion(ctx, template), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
   };
   insertAgent(ctx.db, rec);
-  ctx.emit("agent.created", id, { agentId: id, name, ownerId: owner, templateVersion: rec.templateVersion });
+  ctx.emit("agent.created", id, { agentId: id, name, ownerId: owner, folderId: tree.folderId, templateVersion: rec.templateVersion });
   return { agent: agentOut(rec, now) };
 }
 
@@ -456,3 +480,100 @@ export function onTurn(ctx: AgentsCtx, kind: "started" | "ended", event: TurnEve
   else ctx.db.run("UPDATE agents_agent SET working = CASE WHEN working > 0 THEN working - 1 ELSE 0 END, lastActiveAt = ? WHERE id = ?", now, event.payload.agentId);
 }
 
+
+// ---- the boot check ------------------------------------------------------------------------------------------------------------------------------------------
+
+interface FileGot { file?: { fileId: string; folderId: string; name: string; deletedAt?: number } }
+
+/**
+ * An agent folder is never without its two files. For every live agent, AGENT.md and agent.toml must be in Agents/<name> under those names; a missing one is put back from the agent record:
+ * one in Trash is restored, one that was moved or renamed is moved back, one that is gone is made again (agent.toml from the last good text the record keeps, AGENT.md from the name and role line).
+ * Files itself refuses to delete, move or rename them (files.* guard); this catches what happened before the guard or underneath it. Answers what it put back, as "<agent>/<file>".
+ */
+export async function restoreAgentFiles(ctx: AgentsCtx): Promise<string[]> {
+  ensure(ctx.db);
+  const put: string[] = [];
+  await adoptAgentPrincipals(ctx, put);
+  for (let a of allAgents(ctx.db)) {
+    if (a.folderId === undefined) {
+      // a record with no home: make Agents/<name> with the decided tree and both files, and point the record at them
+      try {
+        const tree = await createTree(ctx, a.id, a.name, a.tomlText, AGENT_MD_DEFAULT(a.name, a.config.description));
+        ctx.db.run("UPDATE agents_agent SET folderId = ?, tomlFileId = ?, agentMdFileId = ?, updatedAt = ? WHERE id = ?", tree.folderId, tree.tomlFileId, tree.agentMdFileId, ctx.now(), a.id);
+        put.push(`${a.name}/agent.toml`, `${a.name}/AGENT.md`);
+        ctx.log.warn("agents: an agent had no folder and has been given one", { agent: a.id });
+        a = { ...a, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId };
+      } catch (e) {
+        ctx.log.warn("agents: an agent without a folder could not be given one", { agent: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+        continue;
+      }
+    }
+    if (a.folderId === undefined) continue;
+    const folderId = a.folderId;
+    try {
+      if ((await ensureHomeGrants(ctx, a.id, a.ownerId, folderId)) > 0) put.push(`${a.name}/grants`);
+    } catch (e) {
+      ctx.log.warn("agents: the grants on an agent's folder could not be written", { agent: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+    }
+    const wanted: Array<{ name: "agent.toml" | "AGENT.md"; id: string | undefined; column: "tomlFileId" | "agentMdFileId"; text: () => string }> = [
+      { name: "agent.toml", id: a.tomlFileId, column: "tomlFileId", text: () => a.tomlText },
+      { name: "AGENT.md", id: a.agentMdFileId, column: "agentMdFileId", text: () => AGENT_MD_DEFAULT(a.name, a.config.description) },
+    ];
+    for (const w of wanted) {
+      try {
+        const got = w.id === undefined ? null : await tolerant<FileGot | null>(ctx, "files.get", { fileId: w.id }, null);
+        const f = got?.file;
+        if (f && f.deletedAt === undefined && f.folderId === folderId && f.name === w.name) continue;
+        let id = w.id;
+        if (f && f.deletedAt !== undefined) await call(ctx, "files.restore", { fileId: f.fileId, toFolderId: folderId });
+        else if (f) await call(ctx, "files.move", { fileId: f.fileId, toFolderId: folderId, name: w.name });
+        else {
+          const made = await makeFile(ctx, folderId, w.name, w.text(), `agents:${a.id}:restore:${w.name}:${ctx.now()}`);
+          id = made.fileId;
+          ctx.db.run(`UPDATE agents_agent SET ${w.column} = ?, updatedAt = ? WHERE id = ?`, id, ctx.now(), a.id);
+        }
+        put.push(`${a.name}/${w.name}`);
+        ctx.log.warn("agents: an agent file was missing and has been put back", { agent: a.id, file: w.name });
+      } catch (e) {
+        ctx.log.warn("agents: an agent file could not be put back", { agent: a.id, file: w.name, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+      }
+    }
+  }
+  return put;
+}
+
+/**
+ * An agent of the Space (a principal of kind agent) that access knows but this module has no record for, such as one the seed wrote straight to the log, gets its record, its Agents/<name> folder with
+ * the decided tree and both files. Its name and owner come from the principal. An owner that is not a person, or a name another agent already has, leaves it alone and says so in the log.
+ * Outside agents are kind actor, not agent, and are never adopted.
+ */
+async function adoptAgentPrincipals(ctx: AgentsCtx, put: string[]): Promise<void> {
+  const listed = await tolerant<{ principals?: Array<{ id: string; kind: string; name: string; owner?: string; status: string }> }>(ctx, "access.principals.list", { kind: "agent", limit: 200 }, {});
+  for (const p of listed.principals ?? []) {
+    // Only the Space's own agents (kind agent, id agt_...). An outside agent (Claude Code, Codex over MCP) registers as an outside actor (kind actor) and never gets a Vyre agent record or home;
+    // the kind is checked here as well as in the query so a list that ignored the filter could not adopt one.
+    if (p.kind !== "agent" || !p.id.startsWith("agt_")) continue;
+    if (p.status === "removed" || agentBy(ctx.db, p.id)) continue;
+    const name = p.name.trim();
+    const owner = p.owner;
+    if (name === "" || agentByName(ctx.db, name) || owner === undefined || !owner.startsWith("usr_")) {
+      ctx.log.warn("agents: an agent principal has no record and could not be adopted", { agent: p.id });
+      continue;
+    }
+    try {
+      const config = newConfig({ name });
+      const tomlText = tomlFor(writeConfig({}, config));
+      const tree = await createTree(ctx, p.id, name, tomlText, AGENT_MD_DEFAULT(name, undefined));
+      const now = ctx.now();
+      insertAgent(ctx.db, {
+        id: p.id, name, face: slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: false,
+        templateVersion: await templateVersion(ctx), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
+      });
+      await ensureHomeGrants(ctx, p.id, owner, tree.folderId);
+      put.push(`${name}/agent.toml`, `${name}/AGENT.md`);
+      ctx.log.warn("agents: an agent principal had no record, folder or files and has been given them", { agent: p.id });
+    } catch (e) {
+      ctx.log.warn("agents: an agent principal could not be adopted", { agent: p.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+    }
+  }
+}
