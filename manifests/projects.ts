@@ -103,6 +103,7 @@ export default defineManifest({
     ev('project.chat_filed', 'A private chat was filed under a project (it stays private)', { p: { projectId: id.project, threadId: id.thread }, subject: ['project', '/projectId'] }),
     ev('project.task_thread_opened', 'A task got its thread in the project channel', { p: { projectId: id.project, taskId: id.task, threadId: id.thread }, subject: ['project', '/projectId'] }),
     ev('project.shared_out', 'A read-only link to the project Overview was made', { p: { projectId: id.project, expiresAt: t.opt(t.ts()) }, subject: ['project', '/projectId'], replay: 'stub' }),
+    ev('project.unshared_out', 'A read-only link to the project Overview was revoked', { p: { projectId: id.project }, subject: ['project', '/projectId'], replay: 'stub' }),
   ],
   capabilities: [
     create('projects.create', 'Make a project: the record, exactly one channel and one folder (Projects/<name>), and an empty plan', {
@@ -184,9 +185,21 @@ export default defineManifest({
     write('projects.file_chat', 'File a private chat under the project; it stays private and the agent gets the project memory and folder', {
       in: { projectId: id.project, threadId: id.thread }, out: { ok: t.bool() }, on: ['project', '/projectId'], emits: ['project.chat_filed'], tool: 'records',
     }),
-    outward('projects.share_out', 'Make a read-only link to the project Overview for a client', {
-      in: { projectId: id.project, expiresAt: t.opt(t.ts()) }, out: { url: t.str(), expiresAt: t.opt(t.ts()) },
+    outward('projects.share_out', 'Make a read-only link to the project Overview for a client; it expires in 30 days unless expiresAt or expiresInDays says otherwise', {
+      in: { projectId: id.project, expiresAt: t.opt(t.ts()), expiresInDays: t.opt(t.int({ minimum: 1, maximum: 365 })) }, out: { url: t.str(), expiresAt: t.opt(t.ts()) },
       on: ['project', '/projectId'], perm: 'records.share_external', level: 'manage', gate: { act: 'send', when: "actor.kind != 'person'" }, emits: ['project.shared_out'], tool: 'records',
+    }),
+    write('projects.unshare_out', 'Revoke a read-only link to the project Overview; the link answers not found at once', {
+      in: { projectId: id.project, url: t.str({ examples: ['/share/project/a1b2c3'] }) }, out: { revoked: t.bool() },
+      on: ['project', '/projectId'], perm: 'records.share_external', level: 'manage', audit: 'always', emits: ['project.unshared_out'], tool: 'records',
+    }),
+    read('projects.shared_view', 'System: what a shared link shows a client (title, status, goal, status update, next milestones; no people, threads or files). Only the host calls it, for /share/project/<token>', {
+      in: { token: t.str({ examples: ['a1b2c3'] }) },
+      out: {
+        title: t.str(), status: t.str(), goal: t.opt(t.str()), statusUpdate: t.opt(t.obj({ text: t.str(), at: t.ts() })),
+        milestones: t.arr(t.obj({ title: t.str(), due: t.opt(t.ts()), status: t.str() })), expiresAt: t.opt(t.ts()),
+      },
+      errors: ['validation.not_found'],
     }),
   ],
   screens: [

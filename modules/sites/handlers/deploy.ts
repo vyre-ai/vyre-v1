@@ -869,7 +869,17 @@ async function sitesStagingPasswordSet(ctx: Ctx, input: unknown): Promise<{ ok: 
 async function sitesServiceIdentity(ctx: Ctx, input: unknown): Promise<{ principal: string; grants: { resource: string; level: string }[] }> {
   const o = rec(ctx, input);
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
-  const grants = many(ctx, "SELECT * FROM sites_grant WHERE site_id = ?", site.id).sort((a, b) => str(a.resource).localeCompare(str(b.resource)));
+  const stored = many(ctx, "SELECT * FROM sites_grant WHERE site_id = ?", site.id).sort((a, b) => str(a.resource).localeCompare(str(b.resource)));
+  // sites_grant is what the owner could do when the site was made. A site never holds more than its owner holds now: each grant is checked against the owner's access at this call, so a revoke, a demotion or
+  // an offboarding of the owner takes the site's access away on the next ask (P-SEC_10). A check that cannot be made leaves the site with nothing.
+  const grants: Row[] = [];
+  for (const g of stored) {
+    const [type, ...rest] = str(g.resource).split("/");
+    try {
+      const answer = (await ctx.call("access.check", { principal: { kind: "person", id: str(site.owner) }, action: { level: str(g.level) }, resource: { type, id: rest.join("/") } })) as { decision?: { effect?: string } } | null;
+      if (answer?.decision?.effect === "allow") grants.push(g);
+    } catch { /* fail closed: no answer, no grant */ }
+  }
   return { principal: str(site.service_principal), grants: grants.map((g) => ({ resource: str(g.resource), level: str(g.level) })) };
 }
 

@@ -10,6 +10,7 @@ import {
   DEFAULT_WAIT_MS, HARD_STEP_ROWS, allSteps, allWaits, clean, clearWait, countRuns, countStepRows, emitRun, engineHealth, findRun, findStep, idemKeyFor, isActive,
   isTerminalStep, latestSteps, listRuns, manageRun, newRunId, newSpanId, newThreadId, page, patchExtra, raise, readExtra, readTrigger, runOut, saveRun, saveStep, saveWait, seeRun, stepOut, touch,
 } from "../projections.ts";
+import { isSystemCall, isTrustedService } from "../../../lib/trust.ts";
 import type { Db, ResourceRef, Run, RunKind, RunStatus, RunsCtx, StepRow, StepState, WaitReason, WaitRow } from "../projections.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -57,6 +58,11 @@ function newRun(ctx: RunsCtx, i: { kind: RunKind; name?: string | undefined; own
 }
 
 export async function start(ctx: RunsCtx, input: In): Promise<unknown> {
+  // A person (or an agent) who starts a Run directly starts it for themselves or for the person they act for; the Run's owner decides who may see and manage it. Routines, connectors, journeys and the other modules
+  // that start Runs for someone else call from inside the host, which is a system call (P-SEC_10).
+  if (!isSystemCall(ctx) && !isTrustedService(ctx.principal) && input.owner !== ctx.principal.id && input.owner !== ctx.actingFor) {
+    raise(ctx, "permission.role_lacks_permission", "A Run is started for yourself or for the person you act for.", { reason: "owner_not_caller" });
+  }
   const key = input.idempotencyKey as string | undefined;
   if (key) {
     const have = (ctx.db.all("SELECT run_id FROM runs_idem WHERE idem_key = ?", key) as { run_id: string }[])[0];
