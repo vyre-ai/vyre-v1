@@ -6,11 +6,11 @@ import { checkSlow, MAX_ENTRIES } from "./slow-check.ts";
 const entry = (i: number) => ({ file: `x/f${i}.test.ts`, capSec: 60, owner: "L1", reason: "100k row snapshot", heavy: i % 2 === 0 });
 const list = (n: number) => Array.from({ length: n }, (_, i) => entry(i));
 
-test("twenty entries pass, the twenty-first fails", () => {
+test("twenty-two entries pass, the twenty-third fails", () => {
   assert.deepEqual(checkSlow(list(MAX_ENTRIES)), []);
   const p = checkSlow(list(MAX_ENTRIES + 1));
   assert.equal(p.length, 1);
-  assert.match(p[0], /21 entries, the cap is 20/);
+  assert.match(p[0], /23 entries, the cap is 22/);
 });
 test("capSec over 120, missing owner or reason, duplicates and non-test files fail", () => {
   assert.match(checkSlow([{ ...entry(1), capSec: 121 }])[0], /capSec/);

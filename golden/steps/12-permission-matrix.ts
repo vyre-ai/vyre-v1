@@ -13,7 +13,8 @@ const CHANNEL = { type: "channel", id: "chn_general" } as const;
 
 /** Why this flow is a todo today (ruling 53). */
 export const GAPS: Gap[] = [
-  { packet: "CONTRACT-CHANGE", lane: "L7", what: "access.request needs level view on the resource being asked for, so a person who cannot see it gets 403 instead of asking" },
+  { packet: "P-CC_42 (PR 554)", lane: "L7", what: "folders.create answers 500: it emits grant.created, which its manifest does not declare" },
+  { packet: "P-CC_38 (PR 489)", lane: "L7", what: "access.request is refused 403 for a person who cannot see the thing being asked for" },
 ];
 
 export async function runMatrix(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
