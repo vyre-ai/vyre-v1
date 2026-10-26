@@ -4,6 +4,7 @@
 // cannot be told apart from the change alone. A mark carries the seq of the change that set it and the state before it: a pull from cursor C reads a mark newer than C as unacknowledged and uses the
 // state before it. The same request therefore always gets the same answer, and a response that never arrived does not leave the device without a row the server believes it has.
 import type { Tx } from "../../../../kernel/src/store/projection.ts";
+import type { NewEvent } from "../../../../kernel/src/log/types.ts";
 import { DEFAULT_PULL_LIMIT, MAX_PULL_LIMIT } from "../../protocol.ts";
 import type { Change, FieldVal, Hide, PullReq, PullRes } from "../../protocol.ts";
 import type { Catalog } from "./catalog.ts";
@@ -22,6 +23,8 @@ export interface PullDeps {
   phoneCeiling(): number;
   /** True when the person starred or follows the row (a phone keeps those whatever their age). */
   keep(person: string, entity: string, id: string): boolean;
+  /** Append one event to the log (the sync.changes projection folds it in the same transaction). Without it a pull cannot ask for a rescan when access changed. */
+  append?(ev: NewEvent): { seq: number };
 }
 
 interface ChangeRec { seq: number; entity: string; id: string; op: "upsert" | "patch" | "delete" | "rescan"; fields: string }
@@ -37,6 +40,15 @@ function ensureDeviceEpoch(db: Tx): void {
   if (ready.has(db)) return;
   db.exec(DEVICE_EPOCH_DDL);
   ready.add(db);
+}
+
+/** The access stamp each device's held rows were last checked under (ScopeCache.stamp). Made on first use, like the epoch table. */
+const STAMP_DDL = "CREATE TABLE IF NOT EXISTS sync_scope_stamp (person TEXT NOT NULL, device TEXT NOT NULL, stamp TEXT NOT NULL, PRIMARY KEY (person, device)) WITHOUT ROWID";
+const stampReady = new WeakSet<object>();
+function ensureStamp(db: Tx): void {
+  if (stampReady.has(db)) return;
+  db.exec(STAMP_DDL);
+  stampReady.add(db);
 }
 
 export function deviceRevoked(db: Tx, person: string, device: string): boolean {
@@ -120,6 +132,46 @@ function settle(list: Emission[]): { changes: Change[]; hide: Hide[] } {
   return { changes, hide };
 }
 
+/**
+ * Access can change without any row changing: a grant revoked or narrowed, a share expiring, a label raised, a share given. The change feed says nothing then, so whenever the access state a device
+ * was last checked under has changed (ScopeCache.stamp), the rows it holds that the person can no longer see, and the rows it does not hold that the person can now see, are asked for again with a
+ * `sync.row_rescan` event each (the same event reindexScope writes). The scan that follows then hides the first kind and sends the second, and because the events are in the log, a pull whose
+ * response never arrived is answered the same way. The event names the row and nothing else, and is private to the server (no reader of the log sees it); who is told what is still decided
+ * per person by the scan. The stamp is stored once the events are written. Runs before the scan, outside its transaction.
+ */
+function rescanChanged(d: PullDeps, who: Who, viewer: Viewer, window: Window, cursor: number): void {
+  const db = d.db;
+  ensureStamp(db);
+  const stamp = d.cache.stamp(who.person, d.now());
+  const had = db.get<{ stamp: string }>("SELECT stamp FROM sync_scope_stamp WHERE person = ? AND device = ?", who.person, who.device)?.stamp;
+  if (had === stamp || !d.append) return;
+  if (had === undefined) {
+    // a device the server has not checked yet holds nothing it has not been sent by the feed: record the stamp and let the scan do the work
+    db.run("INSERT INTO sync_scope_stamp (person, device, stamp) VALUES (?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET stamp = excluded.stamp", who.person, who.device, stamp);
+    return;
+  }
+  const sees = (row: RowRec): boolean => {
+    const cfg = d.catalog.get(row.entity);
+    const mode = cfg.profile[who.deviceClass];
+    return mode !== "none" && viewer.visible(viewer.scope(cfg), row, JSON.parse(row.fields) as Cells) && window.holds(cfg, mode, row);
+  };
+  const ask = (entity: string, id: string): void => {
+    d.append!({ type: "sync.row_rescan", sv: 1, trace_id: "0".repeat(32), actor: "svc_host", vis: "private", payload: { entity, id } });
+  };
+  // `eff` is what the device is taken to hold at this cursor (a mark newer than the cursor is not acknowledged yet)
+  const held = db.all<RowRec>(
+    `SELECT r.entity, r.id, r.owner_id, r.label, r.deleted, r.enc, r.vis, r.seq, r.updated_at, r.fields FROM sync_rows r
+       JOIN sync_seen_rows s ON s.person = ? AND s.device = ? AND s.entity = r.entity AND s.id = r.id
+      WHERE r.deleted = 0 AND (CASE WHEN s.at_seq > ? THEN s.prev_vis ELSE s.vis END) = 1`, who.person, who.device, cursor);
+  const missing = db.all<RowRec>(
+    `SELECT r.entity, r.id, r.owner_id, r.label, r.deleted, r.enc, r.vis, r.seq, r.updated_at, r.fields FROM sync_rows r
+       LEFT JOIN sync_seen_rows s ON s.person = ? AND s.device = ? AND s.entity = r.entity AND s.id = r.id
+      WHERE r.deleted = 0 AND (s.id IS NULL OR (CASE WHEN s.at_seq > ? THEN s.prev_vis ELSE s.vis END) = 0)`, who.person, who.device, cursor);
+  for (const row of held) if (!sees(row)) ask(row.entity, row.id);
+  for (const row of missing) if (sees(row)) ask(row.entity, row.id);
+  db.run("INSERT INTO sync_scope_stamp (person, device, stamp) VALUES (?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET stamp = excluded.stamp", who.person, who.device, stamp);
+}
+
 export function pullChanges(d: PullDeps, who: Who, req: PullReq): PullRes {
   const db = d.db;
   const epoch = deviceEpochOf(db, who.person, who.device);
@@ -136,12 +188,13 @@ export function pullChanges(d: PullDeps, who: Who, req: PullReq): PullRes {
     if (!want.length) return { epoch, changes: [], hide: [], next: cursor, more: false, serverHlc };
     where.push(`entity IN (${want.map(() => "?").join(", ")})`); args.push(...want);
   } else if (excluded.length) { where.push(`entity NOT IN (${excluded.map(() => "?").join(", ")})`); args.push(...excluded); }
-  const scanLimit = limit * 4;
-  const scan = db.all<ChangeRec>(`SELECT seq, entity, id, op, fields FROM sync_changes WHERE ${where.join(" AND ")} ORDER BY seq LIMIT ${scanLimit}`, ...args);
-
   const now = d.now();
   const viewer = new Viewer({ cache: d.cache, who, now, phoneCeiling: d.phoneCeiling() });
   const window = new Window(db, now, (entity, id) => d.keep(who.person, entity, id));
+  rescanChanged(d, who, viewer, window, cursor);
+  const scanLimit = limit * 4;
+  const scan = db.all<ChangeRec>(`SELECT seq, entity, id, op, fields FROM sync_changes WHERE ${where.join(" AND ")} ORDER BY seq LIMIT ${scanLimit}`, ...args);
+
   const seen = new Seen(db, who, cursor);
   const rows = new Map<string, { row: RowRec; cells: Cells } | null>();
   const load = (entity: string, id: string): { row: RowRec; cells: Cells } | null => {
@@ -208,6 +261,6 @@ export function pullChanges(d: PullDeps, who: Who, req: PullReq): PullRes {
   const exhausted = !stopped && scan.length < scanLimit;
   const head = headSeq(db);
   const next = exhausted ? Math.max(cursor, head) : last;
-  const more = !exhausted && (!stopped || last < head);
+  const more = (!exhausted && (!stopped || last < head));
   return { epoch, ...settle(out), next, more, serverHlc };
 }
