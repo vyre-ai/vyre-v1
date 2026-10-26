@@ -17,8 +17,8 @@ const DAY = 86_400_000;
 
 export type Variant = "northwind" | "harbor";
 
-interface FolderSeed { id: string; name: string; parent: string | null; section: "personal" | "shared" | "space"; shared?: boolean; knowledge?: boolean; git?: boolean; subject?: { kind: "agent" | "project"; id?: string } }
-interface FileSeed { id: string; name: string; folder: string; kind: FileKind; size: number; ago: number; by: string; source?: string; shared?: boolean; knowledge?: boolean; starred?: boolean; conflict?: boolean }
+interface FolderSeed { id: string; name: string; parent: string | null; section: "personal" | "shared" | "space"; shared?: boolean; knowledge?: boolean; git?: boolean; rootKey?: string; subject?: { kind: "agent" | "project"; id?: string } }
+interface FileSeed { id: string; name: string; folder: string; kind: FileKind; size: number; ago: number; by: string; source?: string; shared?: boolean; knowledge?: boolean; starred?: boolean; conflict?: boolean; mime?: string }
 
 interface ChangesetSeed { id: string; folder: string; by: string; files: number }
 
@@ -72,7 +72,7 @@ export const harbor: SampleSpace = {
 };
 
 const fileRow = (s: FileSeed): FileRow & Row => ({
-  id: s.id, fileId: s.id, folderId: s.folder, name: s.name, kind: s.kind, mime: "application/octet-stream", size: s.size, version: 1, label: 1, ownerId: s.by,
+  id: s.id, fileId: s.id, folderId: s.folder, name: s.name, kind: s.kind, mime: s.mime ?? "application/octet-stream", size: s.size, version: 1, label: 1, ownerId: s.by,
   createdAt: SAMPLE_NOW - s.ago - DAY, updatedAt: SAMPLE_NOW - s.ago, updatedBy: s.by, ...(s.source ? { source: { mountId: "mnt_1", provider: s.source } } : {}), thumb: s.kind === "image", holds: 0,
   ...(s.starred === true ? { starred: true } : {}), ...(s.conflict === true ? { conflict: true } : {}),
   ...({ shared: s.shared === true, knowledge: s.knowledge === true } as Record<string, unknown>),
@@ -80,19 +80,19 @@ const fileRow = (s: FileSeed): FileRow & Row => ({
 
 /** The folders Files registers for itself (ruling 65), as the prototype's Space has them: one per agent, one per project, with a subfolder or two. Added with `subjects: true`. */
 const SUBJECT_FOLDERS: FolderSeed[] = [
-  F("fld_agents", "Agents", null, "space", { subject: { kind: "agent" } }),
+  F("fld_agents", "Agents", null, "space", { rootKey: "agents", subject: { kind: "agent" } }),
   F("fld_ag_assistant", "Assistant", "fld_agents", "space", { subject: { kind: "agent", id: "agt_assistant" } }),
   F("fld_ag_billing", "Billing", "fld_agents", "space", { subject: { kind: "agent", id: "agt_billing" } }),
   F("fld_ag_docs", "Docs", "fld_agents", "space", { subject: { kind: "agent", id: "agt_docs" } }),
   F("fld_ag_intake", "Intake", "fld_agents", "space", { subject: { kind: "agent", id: "agt_intake" } }),
   F("fld_ag_research", "Research", "fld_agents", "space", { subject: { kind: "agent", id: "agt_research" } }),
   F("fld_ag_scout", "Scout", "fld_agents", "space", { subject: { kind: "agent", id: "agt_scout" } }),
-  F("fld_projects", "Projects", null, "space", { subject: { kind: "project" } }),
+  F("fld_projects", "Projects", null, "space", { rootKey: "projects", subject: { kind: "project" } }),
   F("fld_pj_launch", "Northwind launch", "fld_projects", "space", { subject: { kind: "project", id: "pj_launch" } }),
   F("fld_pj_rivera", "Rivera matter", "fld_projects", "space", { subject: { kind: "project", id: "pj_rivera" } }),
   F("fld_pj_rivera_docs", "Contracts", "fld_pj_rivera", "space"),
-  F("fld_people", "People", null, "space"),
-  F("fld_channels", "Channels", null, "space"),
+  F("fld_people", "People", null, "space", { rootKey: "people" }),
+  F("fld_channels", "Channels", null, "space", { rootKey: "channels" }),
 ];
 /** What the person starred, and the picture with two edits (the prototype's site photo), in the rich sample (`subjects: true`). */
 const STARRED = new Set(["fil_deck", "fil_rivera"]);
@@ -105,7 +105,7 @@ const SUBJECT_FILES: FileSeed[] = [
   f("fil_pj_prep", "consult-prep.md", "fld_pj_rivera", "markdown", 188, 2.5 * HOUR, "agt_intake"),
   f("fil_pj_chk", "engagement-checklist.csv", "fld_pj_rivera", "spreadsheet", 900, 16 * HOUR, "usr_lena"),
   f("fil_pj_id", "id-scan.png", "fld_pj_rivera", "image", 408_000, 17 * HOUR, "usr_maya"),
-  f("fil_pj_onb", "Rivera onboarding plan", "fld_pj_rivera", "document", 2_000, 2.4 * HOUR, "agt_intake"),
+  f("fil_pj_onb", "Rivera onboarding plan", "fld_pj_rivera", "document", 2_000, 2.4 * HOUR, "agt_intake", { mime: "application/vnd.vyre.plan+json" }),
   f("fil_pj_letter", "rivera-engagement-letter.docx", "fld_pj_rivera", "document", 37_000, 1.2 * HOUR, "agt_docs", { starred: true }),
   f("fil_pj_scan", "site-photo.png", "fld_pj_rivera", "image", 598_000, 0.8 * HOUR, "usr_maya", { conflict: true }),
   f("fil_pj_plan", "Launch plan.docx", "fld_pj_launch", "document", 41_000, 2 * DAY, "usr_omar"),
@@ -196,7 +196,7 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
       { key: "recent", title: "Recent", kind: "virtual" as const, count: allFiles().filter(live).length },
       { key: "shared", title: "Shared with me", kind: "virtual" as const, count: allFiles().filter((x) => live(x) && x.shared === true).length },
       { key: "trash", title: "Trash", kind: "virtual" as const, count: allFiles().filter((x) => !live(x)).length },
-      ...allFolders().filter((x) => x.parent === null).map((x) => ({ key: x.id, title: x.name, kind: "folder" as const, folderId: x.id, count: folderRow(x).fileCount, ...(x.subject ? { subject: x.subject } : {}) })),
+      ...allFolders().filter((x) => x.parent === null).map((x) => ({ key: x.rootKey ?? x.id, title: x.name, kind: "folder" as const, folderId: x.id, count: folderRow(x).fileCount, ...(x.subject ? { subject: x.subject } : {}) })),
     ],
   }));
 

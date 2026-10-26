@@ -60,21 +60,32 @@ export interface Line {
   starred?: boolean;
   /** Two edits of this file wait for a choice (the Conflict tag). */
   conflict?: boolean;
+  mime?: string;
 }
 
 export function fileLine(f: FileRow): Line {
-  return { key: `file:${f.fileId}`, type: "file", id: f.fileId, name: f.name, kind: f.kind, size: f.size, updatedAt: f.updatedAt, updatedBy: f.updatedBy, thumb: f.thumb, source: f.source?.provider ?? null, items: 0, folderId: f.folderId, ...(f.starred === true ? { starred: true } : {}), ...(f.conflict === true ? { conflict: true } : {}) };
+  return { key: `file:${f.fileId}`, type: "file", id: f.fileId, name: f.name, kind: f.kind, size: f.size, updatedAt: f.updatedAt, updatedBy: f.updatedBy, thumb: f.thumb, source: f.source?.provider ?? null, items: 0, folderId: f.folderId, mime: f.mime, ...(f.starred === true ? { starred: true } : {}), ...(f.conflict === true ? { conflict: true } : {}) };
 }
 
 export function folderLine(f: FolderRow): Line {
   return { key: `folder:${f.folderId}`, type: "folder", id: f.folderId, name: f.name, kind: "folder", size: 0, updatedAt: 0, updatedBy: null, thumb: false, source: f.source?.provider ?? null, items: f.fileCount + f.folderCount, folderId: f.parentId ?? null };
 }
 
+/** A Plan is a Vyre page document of blocks (a task plan). The contract has no Plan kind, so it is told by its type: `application/vnd.vyre.plan+json`. */
+export const PLAN_MIME = "application/vnd.vyre.plan+json";
+export const isPlan = (mime: string | undefined): boolean => mime === PLAN_MIME;
+
+/** What the Kind column says for a file: Plan for a Plan, the kind otherwise. */
+export function kindText(kind: FileKind | "folder", mime?: string): string {
+  return isPlan(mime) ? "Plan" : KIND_LABEL[kind];
+}
+
 const EXT_LABEL: Readonly<Record<string, string>> = { pdf: "PDF", md: "MD", markdown: "MD", csv: "CSV", docx: "DOCX", doc: "DOCX", xlsx: "XLSX", pptx: "PPTX", txt: "TXT", json: "JSON", zip: "ZIP" };
 
 /** The short label on a file's type tile (PDF, MD, CSV, DOCX), from its extension; pictures, folders and files with no known extension get an icon instead (null). */
-export function tileLabel(name: string, kind: FileKind | "folder"): string | null {
+export function tileLabel(name: string, kind: FileKind | "folder", mime?: string): string | null {
   if (kind === "folder" || kind === "image") return null;
+  if (isPlan(mime)) return "PLAN";
   const dot = name.lastIndexOf(".");
   return dot < 0 ? null : EXT_LABEL[name.slice(dot + 1).toLowerCase()] ?? null;
 }
@@ -314,10 +325,13 @@ export function rootRank(roots: TreeRoots): Map<string, number> {
   return out;
 }
 
-/** The folder ids the sidebar leaves out of the Space list: Knowledge has its own section (Memory, Graph). */
-export function skippedRoots(roots: TreeRoots): Set<string> {
+/** The roots Files registers for the Space (ruling 65, spec 3.5). Personal and Knowledge are not Space roots (Knowledge has its own section), and any other top folder is not listed under Space. */
+export const SPACE_ROOT_KEYS: ReadonlySet<string> = new Set(["agents", "projects", "people", "channels", "shared_knowledge", "agent_template", "deployments", "github"]);
+
+/** The folder ids of the Space's registered roots: the only top folders the sidebar lists under Space. */
+export function spaceRoots(roots: TreeRoots): Set<string> {
   const out = new Set<string>();
-  for (const r of roots) if (r.kind === "folder" && r.key === "knowledge" && r.folderId !== undefined) out.add(r.folderId);
+  for (const r of roots) if (r.kind === "folder" && SPACE_ROOT_KEYS.has(r.key) && r.folderId !== undefined) out.add(r.folderId);
   return out;
 }
 

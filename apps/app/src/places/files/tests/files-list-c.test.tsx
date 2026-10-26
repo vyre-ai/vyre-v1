@@ -9,7 +9,7 @@ import { FilesList, StagedBanner, approveStaged, lineMenuEntries, moreMenuEntrie
 import { KindBadge, LineMarks, RowCells, ThumbTile, TypeTile } from "../FileList.tsx";
 import { createSampleFiles } from "../list/sample.ts";
 import type { SampleFiles } from "../list/sample.ts";
-import { FilesDataProvider, FilesStateProvider, FilesTree, INITIAL_STATE, emptyText, fileLine, hasAgentFace, openByDefault, orderFolders, reduce, rootRank, skippedRoots, sourceOf, tileLabel } from "../tree/index.ts";
+import { FilesDataProvider, FilesStateProvider, FilesTree, INITIAL_STATE, emptyText, fileLine, hasAgentFace, isPlan, kindText, openByDefault, orderFolders, reduce, rootRank, sourceOf, spaceRoots, tileLabel } from "../tree/index.ts";
 import type { FileRow, FilesState, FolderRow, TreeRoots, Where } from "../tree/index.ts";
 import { isItem } from "../../../../../../ui/src/Menu/props.ts";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/props.ts";
@@ -150,12 +150,12 @@ test("the Space's root folders Files registers (Agents, Projects, People, Channe
   for (const id of ["fld_pj_rivera", "fld_pj_launch"]) assert.ok(has(out, `data-testid="row-folder-${id}"`), `${id}: Projects opens to its projects`);
   assert.ok(has(out, 'data-testid="face-Docs"') && has(out, 'data-avatar="agent"'), "the agent's face, shared Avatar");
   assert.ok(!has(out, 'data-testid="face-Rivera matter"') && !has(out, 'data-testid="face-Agents"'), "a project, and the Agents folder itself, have the folder icon, not a face");
-  assert.ok(has(out, 'data-testid="folder-count-fld_ag_docs"'), "a folder shows its count");
+  assert.ok(has(out, 'data-testid="folder-count-fld_pj_launch"') && !has(out, 'data-testid="folder-count-fld_ag_docs"'), "a folder shows its count, an agent's folder shows no count");
   assert.ok(has(out, 'data-testid="folder-toggle-fld_agents"') && has(out, 'data-testid="folder-toggle-fld_pj_rivera"') && !has(out, 'data-testid="folder-toggle-fld_ag_docs"'), "only a folder with subfolders opens");
   assert.ok(!has(out, ">Contracts<"), "a closed project keeps its subfolders out");
-  assert.ok(has(out, 'data-testid="row-folder-fld_sales"'), "the other Space folders are in the same list");
-  const order = ["row-folder-all", "row-folder-fld_agents", "row-folder-fld_projects", "row-folder-fld_people", "row-folder-fld_channels", "row-folder-fld_billing"].map((t) => pos(out, `data-testid="${t}"`));
-  assert.deepEqual([...order].sort((a, b) => a - b), order, "All files, then the registered roots in the order files.tree lists them, then the rest");
+  assert.ok(!has(out, 'data-testid="row-folder-fld_sales"') && !has(out, 'data-testid="row-folder-fld_daily"') && !has(out, 'data-testid="row-folder-fld_maya"'), "only the registered Space roots are listed: no Personal, shared or old sample folders");
+  const order = ["row-folder-all", "row-folder-fld_agents", "row-folder-fld_projects", "row-folder-fld_people", "row-folder-fld_channels"].map((t) => pos(out, `data-testid="${t}"`));
+  assert.deepEqual([...order].sort((a, b) => a - b), order, "All files, then the registered roots in the order files.tree lists them");
   assert.ok(order.every((n) => n >= 0));
   const loc = [">Memory<", ">Space<", ">Agents<", ">Projects<"].map((t) => pos(out, t));
   assert.deepEqual([...loc].sort((a, b) => a - b), loc);
@@ -182,7 +182,7 @@ test("the root folders are read in the order files.tree lists them; Knowledge ke
   ];
   const rank = rootRank(roots);
   assert.deepEqual([...rank.entries()], [["fa", 1], ["fp", 2], ["fk", 3]]);
-  assert.deepEqual([...skippedRoots(roots)], ["fk"]);
+  assert.deepEqual([...spaceRoots(roots)].sort(), ["fa", "fp"], "Knowledge is not a Space root; Personal and unregistered top folders are not either");
   const ord = orderFolders([{ folderId: "zz", name: "Zed" }, { folderId: "fp", name: "Projects" }, { folderId: "aa", name: "Alpha" }, { folderId: "fa", name: "Agents" }], rank);
   assert.deepEqual(ord.map((f) => f.folderId), ["fa", "fp", "aa", "zz"]);
   const fr = (o: Partial<FolderRow>): FolderRow => ({ folderId: "f", name: "n", path: "n", fileCount: 0, folderCount: 0, scope: "space", label: 1, git: false, reviewChanges: false, ...o });
@@ -238,8 +238,8 @@ test("the sidebar is the shared slot's content: Knowledge and Space open and clo
   const out = tree(subjects());
   for (const id of ["files-head-know", "files-head-space", "files-new-space", "files-space", "row-folder-all", "row-folder-fld_agents", "row-folder-fld_projects"]) assert.ok(has(out, `data-testid="${id}"`), id);
   assert.ok(has(out, 'aria-label="Space, open"') && has(out, 'aria-label="Knowledge, open"'));
-  const order = ["row-folder-all", "row-folder-fld_agents", "row-folder-fld_projects", "row-folder-fld_billing"].map((t) => pos(out, `data-testid="${t}"`));
-  assert.deepEqual([...order].sort((a, b) => a - b), order, "All files, Agents, Projects, then the Space's other folders");
+  const order = ["row-folder-all", "row-folder-fld_agents", "row-folder-fld_projects", "row-folder-fld_people"].map((t) => pos(out, `data-testid="${t}"`));
+  assert.deepEqual([...order].sort((a, b) => a - b), order, "All files, Agents, Projects, People");
   assert.ok(!has(out, "Search files") && !has(out, 'data-testid="place-sidebar"'), "the title and the search field are the shell's, not drawn here");
 });
 
@@ -251,7 +251,7 @@ test("the search field filters the sidebar rows", () => {
   const agent = tree2(s, "docs");
   assert.ok(has(agent, 'data-testid="face-Docs"') && has(agent, 'data-avatar="agent"'), "an agent folder keeps its face in a search");
   assert.ok(has(tree2(s, "zzzz"), 'data-testid="files-tree-empty"'), "nothing matches says so");
-  assert.ok(has(tree2(s, ""), ">Daily<"), "an empty search keeps every row");
+  assert.ok(has(tree2(s, ""), ">Recent<") && has(tree2(s, ""), ">Agents<"), "an empty search keeps every row");
 });
 
 test("the more menu carries the Trash, with its count only when it holds something", () => {
@@ -289,7 +289,7 @@ test("each file leads with a type tile: PDF, MD, CSV, DOCX on a tint, an icon fo
 test("an empty folder shows no count, and the Scout, Billing and Intake agents are in the Agents folder", () => {
   const out = tree(subjects());
   assert.ok(!has(out, 'data-testid="folder-count-fld_people"') && !has(out, 'data-testid="folder-count-fld_ag_assistant"'), "no 0");
-  assert.ok(has(out, 'data-testid="folder-count-fld_ag_docs"'));
+  assert.ok(has(out, 'data-testid="folder-count-fld_pj_launch"'));
   for (const id of ["fld_ag_scout", "fld_ag_billing", "fld_ag_intake"]) assert.ok(has(out, `data-testid="row-folder-${id}"`), id);
   assert.ok(has(out, 'data-testid="face-Scout"'));
 });
@@ -304,4 +304,21 @@ test("a picture with a thumbnail leads with its preview, the one the viewer show
   assert.ok(has(one, 'data-testid="thumb-image"'));
   const none = wrap(s, {}, <ThumbTile fileId="fil_pj_intake" label="PDF" icon="doc" />);
   assert.ok(!has(none, 'data-testid="thumb-image"') && has(none, ">PDF<"), "no previewUrl, the tile");
+});
+
+test("Plan files lead with the PLAN page tile and say Plan in the Kind column", () => {
+  const plan = "application/vnd.vyre.plan+json";
+  assert.ok(isPlan(plan) && !isPlan("application/pdf") && !isPlan(undefined));
+  assert.equal(tileLabel("Rivera onboarding plan", "document", plan), "PLAN");
+  assert.equal(kindText("document", plan), "Plan");
+  assert.equal(kindText("document"), "Document");
+  const out = list(subjects(), folder("fld_pj_rivera"));
+  assert.ok(has(out, ">PLAN<") && has(out, ">Plan<"), "the tile and the Kind");
+  assert.ok(has(out, 'data-testid="type-page"'), "a small page, not a pill");
+});
+
+test("an agent's folder shows the attention dot when a change set of its own waits, and never a count", () => {
+  const out = tree(subjects());
+  assert.ok(has(out, 'data-testid="folder-attention-fld_ag_docs"') && has(out, 'aria-label="Waiting for you"'), "Docs staged writes that wait for review");
+  assert.ok(!has(out, 'data-testid="folder-attention-fld_ag_research"') && !has(out, 'data-testid="folder-count-fld_ag_research"'), "Research has nothing waiting, and no count");
 });

@@ -50,15 +50,17 @@ function Face({ name, agent }: { name: string; agent: boolean }): ReactElement {
 }
 
 /** A hue per file type, so the tiles read at a glance on every skin (translucent ground, the hue as ink). */
-const TILE_HUE: Readonly<Record<string, number>> = { PDF: 5, MD: 215, CSV: 145, XLSX: 145, DOCX: 215, PPTX: 25, TXT: 220, JSON: 190, ZIP: 40 };
+const TILE_HUE: Readonly<Record<string, number>> = { PDF: 5, MD: 215, CSV: 145, XLSX: 145, DOCX: 215, PPTX: 25, TXT: 220, JSON: 190, ZIP: 40, PLAN: 270 };
 
-/** The leading tile of a line: a folder or picture icon, or the file type's short label (PDF, MD, CSV, DOCX) on a tinted ground. Sits in the shared Row's leading slot. */
+/** The leading tile of a line: a folder or picture icon, or a small page with the file type on it (PDF, MD, CSV, DOCX, PLAN), tinted by type. Sits in the shared Row's leading slot. */
 export function TypeTile({ label, icon, folder }: { label: string | null; icon: IconName; folder: boolean }): ReactElement {
-  if (label === null) return <View style={styles.tile} testID="type-tile"><Glyph name={icon} size={18} color={folder ? "var(--accent)" : "var(--ink-3)"} /></View>;
+  if (label === null) return <View style={styles.typeTile} testID="type-tile"><Glyph name={icon} size={18} color={folder ? "var(--accent)" : "var(--ink-3)"} /></View>;
   const h = TILE_HUE[label] ?? 220;
   return (
-    <View style={[styles.tile, { backgroundColor: `hsla(${h}, 65%, 52%, 0.14)` as string }]} testID="type-tile">
-      <Text style={[styles.tileText, { color: `hsl(${h}, 55%, 40%)` as string }]} testID="type-tile-label">{label}</Text>
+    <View style={styles.typeTile} testID="type-tile">
+      <View style={[styles.page, { borderColor: `hsla(${h}, 45%, 50%, 0.45)` as string }]} testID="type-page">
+        <Text numberOfLines={1} style={[styles.pageText, { color: `hsl(${h}, 55%, 42%)` as string }]} testID="type-tile-label">{label}</Text>
+      </View>
     </View>
   );
 }
@@ -69,7 +71,7 @@ export function ThumbTile({ fileId, label, icon }: { fileId: string; label: stri
   const url = q.status === "ready" ? q.data.previewUrl : undefined;
   if (url === undefined) return <TypeTile label={label} icon={icon} folder={false} />;
   return (
-    <View style={styles.tile} testID="type-tile">
+    <View style={styles.typeTile} testID="type-tile">
       <Image source={{ uri: url }} accessibilityLabel="Preview" testID="thumb-image" resizeMode="cover" style={styles.thumbImg} />
     </View>
   );
@@ -197,9 +199,10 @@ const styles = StyleSheet.create({
   kind: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 },
   kindText: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 0 },
   src: { fontSize: 11.5, color: "var(--ink-3)" as string, flexShrink: 1 },
-  tile: { width: 30, minWidth: 30, height: 30, flexShrink: 0, overflow: "hidden", borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string, marginRight: 10 },
+  typeTile: { width: 30, minWidth: 30, height: 30, flexShrink: 0, overflow: "hidden", borderRadius: 8, alignItems: "center", justifyContent: "center", marginRight: 10 },
   thumbImg: { width: 30, height: 30 },
-  tileText: { fontSize: 8, fontWeight: "700", letterSpacing: 0 },
+  page: { width: 22, height: 26, borderRadius: 3, borderWidth: 1, backgroundColor: "var(--win)" as string, alignItems: "center", justifyContent: "flex-end", paddingBottom: 3, overflow: "hidden" },
+  pageText: { fontSize: 6.5, fontWeight: "700", letterSpacing: 0 },
   marks: { flexDirection: "row", alignItems: "center", gap: 6 },
   warn: { height: 18, paddingHorizontal: 6, borderRadius: 5, justifyContent: "center", backgroundColor: "color-mix(in srgb, var(--warn) 16%, transparent)" as string },
   warnText: { fontSize: 11, fontWeight: "500", color: "var(--warn)" as string },

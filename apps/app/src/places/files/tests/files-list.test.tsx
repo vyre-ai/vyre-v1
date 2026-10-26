@@ -36,18 +36,18 @@ test("screen: the sidebar lists Recent, Starred and Shared with me, then Knowled
   const order = ["Recent", "Starred", "Shared with me", "Knowledge", "Memory", "Graph", "Space"].map((t) => at(out, `>${t}<`));
   assert.deepEqual([...order].sort((a, b) => a - b), order, "the virtual rows, Knowledge, then Space");
   assert.ok(!has(out, ">Trash<") && !has(out, ">Personal<"), "no Trash row and no Personal section any more");
-  for (const label of ["Daily", "Money", "Maya's reports", "Sales", "Billing", "Intake"]) assert.ok(has(out, `>${label.replace("'", "&#x27;")}<`), label);
+  for (const label of ["Daily", "Money", "Maya's reports", "Sales", "Billing", "Intake"]) assert.ok(!has(out, `>${label.replace("'", "&#x27;")}<`), `${label} is not a Space root, so it is not listed under Space (it is in the All files list)`);
   assert.ok(!has(out, ">Proposals<"), "a closed folder keeps its children out of the list");
-  assert.ok(has(out, 'data-testid="row-nav:recent"') && has(out, 'data-testid="row-nav:recent-trailing"') && has(out, 'data-testid="row-folder-fld_sales"'), "every row is a ui/Row with slots");
+  assert.ok(has(out, 'data-testid="row-nav:recent"') && has(out, 'data-testid="row-nav:recent-trailing"') && has(out, 'data-testid="row-folder-all"'), "every row is a ui/Row with slots");
   assert.ok(has(out, 'data-testid="count-recent"') && has(out, ">14<"), "Recent counts the live files");
   assert.ok(has(out, 'data-testid="count-shared"'), "Shared with me counts what was granted");
   assert.ok(!has(out, 'data-testid="count-trash"'), "an empty Trash shows no count");
-  assert.ok(has(out, 'data-testid="folder-count-fld_sales"'));
+  assert.ok(has(out, 'data-testid="files-space"'), "Space holds All files and the registered roots");
 });
 
 test("the tree selects what the list shows", () => {
   assert.ok(has(tree({ where: { kind: "recent" } }), "background-color:var(--sel)"));
-  assert.ok(has(tree(folder("fld_sales")), "background-color:var(--sel)"));
+  assert.ok(has(wrap(createSampleFiles(undefined, { subjects: true }), folder("fld_ag_docs"), <FilesTree />), "background-color:var(--sel)"));
   assert.equal(tree().split("background-color:var(--sel)").length - 1, 1, "at the root only All files is selected");
   assert.deepEqual(reduce(INITIAL_STATE, { type: "go", where: { kind: "shared" } }).where, { kind: "shared" });
   assert.deepEqual(crumbs([{ id: "a", name: "A", parentId: null }, { id: "b", name: "B", parentId: "a" }], "b").map((c) => c.name), ["A", "B"]);

@@ -12,7 +12,7 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { each, matchRows } from "../../../shell/sidebar/model.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import { useFilesData, useLive, useOptionalFilesData, useSource } from "./data.tsx";
-import { dropMoves, hasAgentFace, openByDefault, orderFolders, parsePayload, rootRank, sameWhere, skippedRoots } from "./model.ts";
+import { dropMoves, hasAgentFace, openByDefault, orderFolders, parsePayload, rootRank, sameWhere, spaceRoots } from "./model.ts";
 import type { FolderRow, TreeRoots, Where } from "./model.ts";
 import { Glyph } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
@@ -68,7 +68,10 @@ interface RowCtx {
   handlers: FolderHandlers;
   onDrop(payload: string, target: string | null, scope: FolderScope): void;
   rank: ReadonlyMap<string, number>;
-  skip: ReadonlySet<string>;
+  /** The Space's registered roots: the only top folders listed under Space. */
+  allow: ReadonlySet<string>;
+  /** Agents with a change set waiting for review: their folder shows the attention dot. */
+  waiting: ReadonlySet<string>;
 }
 
 const nodeOf = (f: FolderRow): FolderNode => ({
@@ -102,7 +105,7 @@ function FolderLine({ f, depth, c, flat = false }: { f: FolderRow; depth: number
     <View>
       <SlotRow
         id={`folder-${fid}`} title={f.name} selected={fid === c.folderId} over={c.over === fid}
-        leadWidth={depth * DEPTH_PX + 18 + 7 + (face ? 18 : 16) + 6} lead={lead} trail={f.fileCount > 0 ? <Text style={styles.count} testID={`folder-count-${fid}`}>{f.fileCount}</Text> : undefined}
+        leadWidth={depth * DEPTH_PX + 18 + 7 + (face ? 18 : 16) + 6} lead={lead} trail={face ? (c.waiting.has(f.subject?.id ?? "") ? <View style={styles.attn} accessibilityLabel="Waiting for you" testID={`folder-attention-${fid}`} /> : undefined) : f.fileCount > 0 ? <Text style={styles.count} testID={`folder-count-${fid}`}>{f.fileCount}</Text> : undefined}
         onPress={() => c.goFolder(fid)} dom={drop}
         onMenu={(x, y) => c.menu.show(folderMenu(node, isOpen, kids > 0, c.handlers), x, y, "context", { label: `Folder ${f.name}` })}
       />
@@ -117,7 +120,7 @@ const SEARCH_DEPTH = 3;
 function Kids({ parent, depth, c, query }: { parent: string | null; depth: number; c: RowCtx; query: string }): ReactElement | null {
   const src = useSource({ cap: "files.list", input: parent === null ? {} : { folder: parent } });
   if (src.status !== "ready") return null;
-  const folders = orderFolders((src.data.folders ?? []).filter((f) => !c.skip.has(f.folderId)), parent === null ? c.rank : new Map());
+  const folders = orderFolders((src.data.folders ?? []).filter((f) => parent !== null || c.allow.has(f.folderId)), parent === null ? c.rank : new Map());
   if (query === "") return <View testID={parent === null ? "files-folders" : undefined}>{each(folders, (f) => <FolderLine key={f.folderId} f={f} depth={depth} c={c} />)}</View>;
   return (
     <View>
@@ -137,6 +140,8 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
   const menu = useMenu();
   const roots = useLive("files.tree", {});
   const stars = useLive("stars.list", { type: "file" });
+  const open = useLive("changesets.list", { state: "open" });
+  const waiting = new Set<string>(open.status === "ready" ? open.data.changesets.map((x) => x.by) : []);
   const [shut, setShut] = useState<Record<string, boolean>>({});
   const [openF, setOpenF] = useState<Record<string, boolean>>({});
   const [over, setOver] = useState<string | null>(null);
@@ -156,7 +161,7 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
     for (const m of dropMoves(parsePayload(payload), target, () => null)) void data.call(m.cap, m.input);
   };
   const c: RowCtx = {
-    openF, setOpenF, over, setOver, folderId, goFolder, menu, onDrop, rank: rootRank(rootRows), skip: skippedRoots(rootRows),
+    openF, setOpenF, over, setOver, folderId, goFolder, menu, onDrop, rank: rootRank(rootRows), allow: spaceRoots(rootRows), waiting,
     handlers: {
       onSelect: goFolder,
       onToggle: (id, open) => setOpenF((o) => ({ ...o, [id]: open })),
@@ -223,6 +228,7 @@ const styles = StyleSheet.create({
   glyph: { width: 20, alignItems: "center", justifyContent: "center", marginRight: 6 },
   trail: { flexDirection: "row", alignItems: "center", gap: 6 },
   count: { fontSize: 11.5, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
+  attn: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--danger)" as string, marginRight: 4 },
   subLead: { flexDirection: "row", alignItems: "center", gap: 7 },
   chev: { width: 18, height: 22, alignItems: "center", justifyContent: "center", borderRadius: 5 },
   chevOver: { backgroundColor: "var(--press)" as string },
