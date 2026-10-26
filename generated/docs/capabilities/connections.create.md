@@ -10,7 +10,7 @@ Plug an account into a connector; secrets are named Vault items, never values
 | Permission | connectors.manage |
 | Grant level | edit |
 | Risk | medium |
-| Resource | connector (create under /connector) |
+| Resource | connection (create under /connector) |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |

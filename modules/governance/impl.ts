@@ -30,6 +30,9 @@ export const periodic = {
   "governance.seed_ticks": { everyMs: 60_000, run: (ctx: unknown) => h.seedTicks(ctx as Parameters<typeof h.seedTicks>[0]) },
 };
 
+/** The host binds the event log behind erase (host/src/daemon): erase then reaches the append-only log, and a restore replays it. */
+export const hostSeams = { setEventsCompact: h.setEventsCompact };
+
 export const projections = { inline: {}, consumers: {} };
 
 /**

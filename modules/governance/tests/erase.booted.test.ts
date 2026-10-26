@@ -18,6 +18,7 @@ import { loadConfig } from "../../../host/src/daemon/config.ts";
 import { startDaemon } from "../../../host/src/daemon/daemon.ts";
 import type { Daemon } from "../../../host/src/daemon/daemon.ts";
 import type { Handler } from "../../../host/src/invoke.ts";
+import { fail } from "../../../host/src/routes/errors.ts";
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 const DAY = 86_400_000;
@@ -53,7 +54,7 @@ interface World { chatIds: string[]; hits: { id: string; kind: string; title: st
 
 async function boot(world: World): Promise<Daemon> {
   const dir = seededDir();
-  const notFound = Object.assign(new Error("gone"), { error: { code: "validation.not_found" } });
+  const notFound = fail("validation.not_found", "0".repeat(32));   // a host error: any other throw is internal.unexpected
   const h = (fn: (ctx: unknown, input: Record<string, unknown>) => unknown): Handler => ((ctx: unknown, input: unknown) => fn(ctx, input as Record<string, unknown>)) as unknown as Handler;
   return startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),

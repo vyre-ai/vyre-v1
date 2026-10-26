@@ -51059,7 +51059,7 @@
       "resource": {
         "create": true,
         "parent": "/connector",
-        "type": "connector"
+        "type": "connection"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -58042,7 +58042,7 @@
       "resource": {
         "create": true,
         "parent": "/intoFolderId",
-        "type": "folder"
+        "type": "file"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -67084,7 +67084,7 @@
       "resource": {
         "create": true,
         "parent": "/toFolderId",
-        "type": "folder"
+        "type": "file"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -93840,9 +93840,7 @@
       },
       "permission": "journeys.manage",
       "resource": {
-        "create": true,
-        "parent": "/subjectType",
-        "type": "record_type"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -95539,9 +95537,7 @@
       },
       "permission": "kits.publish",
       "resource": {
-        "create": true,
-        "parent": "/brief",
-        "type": "kit"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -118912,7 +118908,8 @@
         "permission.above_clearance",
         "permission.needs_team",
         "permission.no_grant",
-        "validation.bad_input"
+        "validation.bad_input",
+        "validation.not_found"
       ],
       "examples": [
         {
@@ -118966,7 +118963,7 @@
         ],
         "type": "object"
       },
-      "level": "edit",
+      "level": "manage",
       "module": "portal",
       "name": "portal.file_link",
       "output": {
@@ -118991,8 +118988,7 @@
       },
       "permission": null,
       "resource": {
-        "create": true,
-        "parent": "/fileId",
+        "id": "/fileId",
         "type": "file"
       },
       "risk": "medium",
@@ -120425,7 +120421,7 @@
       "resource": {
         "create": true,
         "parent": "/type",
-        "type": "record_type"
+        "type": "record"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -136195,7 +136191,7 @@
       "resource": {
         "create": true,
         "parent": "/folderId",
-        "type": "folder"
+        "type": "file"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -138318,7 +138314,8 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
-        "validation.bad_input"
+        "validation.bad_input",
+        "validation.not_found"
       ],
       "examples": [
         {
@@ -138388,9 +138385,8 @@
       },
       "permission": null,
       "resource": {
-        "create": true,
-        "parent": "/siteId",
-        "type": "record_type"
+        "id": "/siteId",
+        "type": "site"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -138938,9 +138934,7 @@
       },
       "permission": "connectors.manage",
       "resource": {
-        "create": true,
-        "parent": "/connector",
-        "type": "connector"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -154300,9 +154294,7 @@
       },
       "permission": "kits.publish",
       "resource": {
-        "create": true,
-        "parent": "/ref",
-        "type": "kit"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",

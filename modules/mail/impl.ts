@@ -214,3 +214,22 @@ setDefaultImapSession(createLiveImapFactory());
 
 /** Where the host registers the IMAP secret resolver at boot (ruling 31): the loader reads this export. */
 export const hostSeams: import("../../host/src/seams/index.ts").SeamSetters = { setImapSecretResolver };
+
+/**
+ * Host calls for the removal wizard (members.owned, host/src/seams/people.ts): what a person owns here and what happens to it (P-L7_21). The host runs them with this module's ctx, so no other module
+ * reads these tables. `owned_by` answers { <kind>: { count, sample, ids } }; `reassign_owned` applies one wizard action to one kind and answers how many things it touched.
+ */
+type OwnedRow = Record<string, unknown>;
+const ownedRows = (ctx: { db: { all(sql: string, ...a: unknown[]): unknown[] } }, sql: string, ...a: unknown[]): OwnedRow[] => { try { return ctx.db.all(sql, ...a) as OwnedRow[]; } catch { return []; } };
+const ownedKept = (r: OwnedRow[], type: string, title: string) => ({ count: r.length, sample: r.slice(0, 5).map((x) => ({ type, id: String(x["id"]), title: String(x[title] ?? x["id"]) })), ids: r.slice(0, 500).map((x) => String(x["id"])) });
+export const hostCalls = {
+  "mail.owned_by": (ctx: { db: { all(sql: string, ...a: unknown[]): unknown[] } }, i: { person: string }) => ({
+    mailbox_connections: ownedKept(ownedRows(ctx, `SELECT "id", COALESCE("title", "address") AS "title" FROM mail_mailbox WHERE "ownerId" = ? AND "deleted_at" IS NULL AND "state" <> 'disconnected'`, i.person), "mailbox", "title"),
+  }),
+  "mail.reassign_owned": (ctx: { now(): number; db: { run(sql: string, ...a: unknown[]): { changes: number } } }, i: { person: string; kind: string; action: string }): number => {
+    if (i.kind !== "mailbox_connections" || i.action !== "revoke") return 0;   // the connection ends; mail already filed to records stays
+    try {
+      return ctx.db.run(`UPDATE mail_mailbox SET "state" = 'disconnected', "paused" = 1, "connectionId" = NULL, "updated_at" = ? WHERE "ownerId" = ? AND "deleted_at" IS NULL AND "state" <> 'disconnected'`, ctx.now(), i.person).changes;
+    } catch { return 0; }
+  },
+};

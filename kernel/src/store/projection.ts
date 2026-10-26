@@ -7,6 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import type { StatementSync } from "node:sqlite";
 import { LogError } from "../log/errors.ts";
 import { LogStore } from "../log/store.ts";
+import { isErased } from "../events/compact.ts";
 import type { NewEvent, StoredEvent } from "../log/types.ts";
 
 export type EventName = string;
@@ -132,6 +133,8 @@ export class ProjectionHost {
 
   private fold(p: InlineProjection, events: StoredEvent[]): void {
     for (const raw of events) {
+      // An erased event (events.compact) has no payload left to fold. The subject it was about is purged, so replaying must not bring it back: it is a no-op for every projection.
+      if (isErased(raw)) continue;
       const e = this.upcast(p, raw);
       const h = p.on[e.type];
       if (!h) continue;

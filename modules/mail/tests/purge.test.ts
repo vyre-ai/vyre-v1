@@ -46,7 +46,7 @@ test("erase removes the message, its body, links, attachment blobs and inbox ent
   assert.equal(h.rows(`SELECT * FROM mail_seen WHERE "providerId" = ?`, "prov-gone").length, 1, "the marker stays so a sync does not bring the message back");
   assert.deepEqual(blobsDeleted, ["blb_att00001"]);
   assert.deepEqual(erasedEntries, [goneId]);
-  assert.ok(!JSON.stringify([h.rows(`SELECT * FROM mail_message`), h.rows(`SELECT * FROM mail_body`), h.emitted]).includes("divorce"), "the words are gone and the event carries ids only");
+  assert.ok(!JSON.stringify([h.rows(`SELECT * FROM mail_message`), h.rows(`SELECT * FROM mail_body`), h.named("mail.message_erased")]).includes("divorce"), "the words are gone and the event carries ids only");
   assert.deepEqual(h.named("mail.message_erased").map((e) => e.payload), [{ messageId: goneId }]);
   assert.deepEqual(await messageErase(h.ctx, { messageId: goneId, idempotencyKey: "k2" }), { erased: false });
   assert.equal(h.named("mail.message_erased").length, 1);

@@ -10,7 +10,7 @@ Copy a file into a folder
 | Permission | files.write |
 | Grant level | edit |
 | Risk | medium |
-| Resource | folder (create under /toFolderId) |
+| Resource | file (create under /toFolderId) |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |
