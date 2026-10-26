@@ -27,7 +27,7 @@ function Row({ r, title, note, selected, person, badge, names, onOpen, onMenu }:
     <View testID={`list-${r.id}`} style={l.cell} {...(trig as object)}>
       <UiRow
         id={`rec-${r.id}`} title={title} note={note} selected={selected}
-        leading={typeof person === "string" && person !== "" ? <Avatar name={names(person)} seedId={person} kind="person" size={24} testID={`face-${names(person)}`} /> : <Avatar name={title} seedId={r.id} kind="person" size={24} testID={`face-${title}`} />}
+        leading={<View style={l.face}>typeof person === "string" && person !== "" ? <Avatar name={names(person)} seedId={person} kind="person" size={24} testID={`face-${names(person)}`} /> : <Avatar name={title} seedId={r.id} kind="person" size={24} testID={`face-${title}`} /></View>}
         {...(badge && typeof bv === "string" && bv !== "" ? { trailing: <Tag field={badge} value={bv} /> } : {})}
         onPress={onOpen}
       />
@@ -83,6 +83,7 @@ export function ListView({ ctx }: { ctx: ViewCtx }): ReactElement {
 const l = StyleSheet.create({
   main: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string },
   sheet: { flex: 1, minHeight: 0, paddingHorizontal: 10, paddingTop: 6 },
+  face: { marginRight: 8, marginLeft: 2 },
   cell: { height: 44, justifyContent: "center" },
   foot: { height: 32, justifyContent: "center", paddingHorizontal: 18, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   footText: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
