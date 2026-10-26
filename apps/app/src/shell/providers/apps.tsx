@@ -11,7 +11,7 @@ const SCREEN: Readonly<Record<string, string>> = { sites: "apps.site-editor", fo
 
 export function appsData(rt: ShellRuntime): AppsData {
   return {
-    screens: rt.screens, call: rt.call, clock: () => ({ now: rt.clock().now }), team: rt.space.kind === "team", deferred: (rt as ShellRuntime & { deferredModules?: readonly string[] }).deferredModules ?? [],
+    screens: rt.screens, call: rt.call, clock: () => ({ now: rt.clock().now }), team: rt.space.kind === "team", deferred: [...rt.deferredModules],
     nav: {
       open: (group, id) => rt.open({ screen: SCREEN[group] ?? "apps.forms", subject: { type: group === "sites" ? "site" : group === "forms" ? "form" : group === "campaigns" ? "campaign" : "template", id } }),
       create: (group, kind) => rt.open({ screen: SCREEN[group] ?? "apps.forms", args: { create: true, ...(kind ? { kind } : {}) } }),

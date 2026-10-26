@@ -9,6 +9,9 @@ import Apps, { AppsLoading } from "../src/places/apps/shell/AppsPlace.tsx";
 import { GROUPS, actionsFor, domainRow, formRow, heldOf, matches, openKitBuilder, runAction, templateRow } from "../src/places/apps/shell/index.ts";
 import type { AppRow, AppsStart } from "../src/places/apps/shell/index.ts";
 import { createSampleApps } from "../src/places/apps/shell/sample.ts";
+import AppsPlace, { appsData } from "../src/shell/providers/apps.tsx";
+import { ShellRuntimeProvider } from "../src/shell/providers/runtime.tsx";
+import { sampleRuntime } from "../src/shell/providers/misc-test-runtime.tsx";
 import type { SampleApps } from "../src/places/apps/shell/sample.ts";
 
 const size = (width: number): void => Dimensions.set({ window: { width, height: 800, scale: 1, fontScale: 1 }, screen: { width, height: 800, scale: 1, fontScale: 1 } });
@@ -163,4 +166,31 @@ test("no copy in the Apps place uses an em dash", () => {
   const s = createSampleApps();
   const all = [html(s), html(s, { group: "campaigns" }), html(s, { group: "templates" }), html(createSampleApps({ team: false }))].join("\n");
   assert.ok(!has(all, String.fromCharCode(0x2014)));
+});
+
+const placeIn = (deferred: readonly string[], kind: "team" | "personal" = "team"): string => {
+  const s = createSampleApps({ deferred: [] });
+  const rt = { ...sampleRuntime({ screens: s.data.screens, call: s.data.call }), deferredModules: new Set(deferred) as ReadonlySet<string>, space: { id: "northwind", kind, name: "Northwind" } };
+  return renderToStaticMarkup(<ShellRuntimeProvider value={rt}><AppsPlace place="apps" /></ShellRuntimeProvider>).replaceAll("<!-- -->", "");
+};
+
+test("in the real app, Sites is hidden when the server defers the module and shows when it does not", () => {
+  const hidden = placeIn(["sites"]);
+  assert.ok(has(hidden, 'data-testid="apps-group-forms"') && !has(hidden, 'data-testid="apps-group-sites"'), "the runtime's deferred set hides the group");
+  assert.ok(!has(hidden, 'aria-label="New site"') && !has(hidden, "Booking widget"), "and nothing of it is listed");
+  const shown = placeIn([]);
+  assert.ok(has(shown, 'data-testid="apps-group-sites"') && has(shown, "Booking widget"), "it comes back by itself when the module is not deferred");
+  const s = createSampleApps();
+  const rt = { ...sampleRuntime({ screens: s.data.screens, call: s.data.call }), deferredModules: new Set(["sites"]) as ReadonlySet<string> };
+  assert.deepEqual(appsData(rt).deferred, ["sites"]);
+});
+
+test("in the real app, a Personal Space gets the Team Space line, and a click out goes through the shell's door", () => {
+  assert.ok(has(placeIn([], "personal"), 'data-testid="apps-needs-team"'));
+  const s = createSampleApps();
+  const opened: string[] = [];
+  const d = appsData(sampleRuntime({ screens: s.data.screens, call: s.data.call, opened }));
+  d.nav.joinTeam();
+  d.nav.openTask("tsk_1");
+  assert.deepEqual(opened, ["settings.page", '{"type":"task","id":"tsk_1"}']);
 });
