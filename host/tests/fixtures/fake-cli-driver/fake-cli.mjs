@@ -68,7 +68,7 @@ async function mcpOpen() {
     let session;
     const headers = { "content-type": "application/json", accept: "application/json, text/event-stream", ...Object.fromEntries(Object.entries(cfg.headers ?? {}).map(([k, v]) => [k.toLowerCase(), expand(v)])) };
     const post = async (body) => {
-      const r = await fetch(cfg.url, { method: "POST", headers: { ...headers, ...(session ? { "mcp-session-id": session } : {}) }, body: JSON.stringify(body) });
+      const r = await fetch(cfg.url, { method: "POST", headers: { ...headers, ...(session ? { "mcp-session-id": session } : {}) }, body: JSON.stringify(body), signal: AbortSignal.timeout(20_000) });
       const sid = r.headers.get("mcp-session-id");
       if (sid) session = sid;
       const text = await r.text();
