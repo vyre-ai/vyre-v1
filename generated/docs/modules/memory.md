@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (31)
+## Capabilities (32)
 
 - [memory.capture](../capabilities/memory.capture.md): Capture at chat end: a cheap-model pass proposes facts to the person layer; channel facts go to the project layer, Automation facts to proposed/
 - [memory.counts](../capabilities/memory.counts.md): Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own
@@ -26,6 +26,7 @@ Requires: nothing.
 - [memory.layout.save](../capabilities/memory.layout.save.md): Save node positions for a graph
 - [memory.maintain](../capabilities/memory.maintain.md): Nightly job: merge accepted facts, close old versions, rewrite MAP.md (under 200 lines) for each agent
 - [memory.map.get](../capabilities/memory.map.get.md): The MAP.md block of an agent as the nightly job last wrote it (agent layer only, never personal memory); absent before the first night
+- [memory.notes.erase](../capabilities/memory.notes.erase.md): Erase one memory note for good, with its graph node and links (governance erase)
 - [memory.notes.list](../capabilities/memory.notes.list.md): List memory notes of an agent, project or the Space, including proposed/ and recipes/
 - [memory.pointer](../capabilities/memory.pointer.md): Pointer block for a message: up to about 5 lines from a local lookup, no model call, deduplicated against the thread
 - [memory.promote](../capabilities/memory.promote.md): Promote a fact to the agent, a project or the Space layer; a task for the right approver carries the name and time, no admin needed when the person can edit the target
@@ -38,7 +39,7 @@ Requires: nothing.
 - [memory.search](../capabilities/memory.search.md): Search notes and current facts the asker may read; BM25, vectors and recency; snippets carry the source link
 - [memory.versions](../capabilities/memory.versions.md): List versions of a shared memory note (One History)
 
-## Events (14)
+## Events (15)
 
 - [memory.captured](../events/memory.captured.md): Capture ran for a thread
 - [memory.erased](../events/memory.erased.md): Facts were erased from history (who and when only)
@@ -54,3 +55,4 @@ Requires: nothing.
 - [memory.promotion_requested](../events/memory.promotion_requested.md): A promotion to a shared layer was requested
 - [memory.promotion_undone](../events/memory.promotion_undone.md): A promotion was undone
 - [memory.removed](../events/memory.removed.md): Facts were removed from answers (kept in history)
+- [note.erased](../events/note.erased.md): A memory note was erased for good (ids only)
