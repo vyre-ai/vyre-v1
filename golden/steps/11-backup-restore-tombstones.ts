@@ -16,10 +16,7 @@ const CONTACT = {
 };
 
 /** Why this flow is a todo today (ruling 53). */
-export const GAPS: Gap[] = [
-  { packet: "P-L7_15 (L7)", lane: "L7", what: "governance.erase.find answers 404 'There is no conversation with that person yet' when inbox.thread has nothing for the contact; a missing conversation must read as an empty one" },
-  { packet: "P-L7b_18 (L7b)", lane: "L7b", what: "the restore steps are not reached yet; backup.list now lists the run" },
-];
+export const GAPS: Gap[] = [];
 
 export async function runRestore(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const s = await bootFlowSpace(live);
