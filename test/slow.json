@@ -54,5 +54,7 @@
   {"file": "perf/server/server.test.ts", "capSec": 120, "owner": "L11", "reason": "server probes against the speed budgets; full scale (VYRE_PERF_FULL=1) in the hourly perf run on v1-perf (ruling 46)", "perf": true},
   {"file": "fixtures/seed/small/small.seed.perf.test.ts", "capSec": 120, "owner": "L2", "reason": "the speed test split out of its functional file; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
   {"file": "testkit/tests/createTestSpace.perf.test.ts", "capSec": 120, "owner": "L2", "reason": "the speed test split out of its functional file; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
-  {"file": "scripts/shard.perf.test.ts", "capSec": 120, "owner": "L11", "reason": "the speed test split out of its functional file; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true}
+  {"file": "scripts/shard.perf.test.ts", "capSec": 120, "owner": "L11", "reason": "the speed test split out of its functional file; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
+  {"file": "apps/chrome/tests/ext-core.popup-shot.test.ts", "capSec": 120, "owner": "L10", "reason": "drives a real Chrome popup, both skins, with screenshots; ran in a fast shard next to other files on a shared 2-core hosted runner and hit the 30 s cap; heavy: the chrome-real job (pinned Chromium) runs it, self-hosted shards skip it where there is no Chrome", "heavy": true},
+  {"file": "apps/app/src/shell/cmdk/cmdk.perf.test.tsx", "capSec": 120, "owner": "L9", "reason": "the speed test split out of cmdk.test.tsx; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true}
 ]

@@ -15,7 +15,7 @@ const NOTE = { op: "type.create", type: "note_item", def: { title: "Note", plura
 const TRACE = "4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a";
 const opFor = (n: number, device: string, recordId: string, value: string, base: number) => ({
   opId: `0192f3a0-7b1c-7000-8000-00000000000${n}`, traceId: TRACE, hlc: `00000000000${n}-0000-${device}`, cap: "records.update", v: 1, entity: "record", id: recordId,
-  input: { type: "note_item", recordId, fields: { status: value }, idempotencyKey: `golden-4-op-${n}` }, baseSeq: { record: base },
+  input: { type: "note_item", recordId, patch: { status: value }, idempotencyKey: `golden-4-op-${n}` }, baseSeq: { record: base },
 });
 
 export async function runConflict(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {

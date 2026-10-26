@@ -7,6 +7,7 @@ import * as pr from "./handlers/providers.ts";
 import { Filler, setFiller, setKeyPort } from "./handlers/crypto.ts";
 import type { KeyPort } from "./handlers/crypto.ts";
 import { deferredHandlers } from "../../host/src/routes/deferred.ts";
+import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
 
 export { setFiller, setKeyPort, Filler } from "./handlers/index.ts";
@@ -60,4 +61,22 @@ export const hostSeams: SeamSetters = {
   setVaultKeyPort: (port: KeyPort | null) => setKeyPort(port),
   setVaultFillerKey: (key: Uint8Array | null) => setFiller(key ? new Filler(key) : null),
   configureVault: u.configureVault,
+};
+
+/**
+ * Host calls for the removal wizard (members.owned, host/src/seams/people.ts): what a person owns here and what happens to it. The host runs them with this module's ctx, so no other module reads these tables.
+ * `owned_by` answers { <kind>: { count, sample } }; `reassign_owned` applies one wizard action to one kind and answers how many things it touched.
+ */
+type Row = Record<string, unknown>;
+const rows = (ctx: Ctx, sql: string, ...a: unknown[]): Row[] => { try { return ctx.db.all(sql, ...a) as Row[]; } catch { return []; } };
+const kept = (r: Row[], type: string, title: string) => ({ count: r.length, sample: r.slice(0, 5).map((x) => ({ type, id: String(x["id"]), title: String(x[title] ?? x["id"]) })), ids: r.slice(0, 500).map((x) => String(x["id"])) });
+export const hostCalls = {
+  "vault.owned_by": (ctx: Ctx, i: { person: string }) => ({
+    vault_mine: kept(rows(ctx, `SELECT "id", "name" FROM vault_meta WHERE "owner" = ? AND "scope" = 'mine' AND "deleted_at" IS NULL`, i.person), "vault_item", "name"),
+  }),
+  /** Mine items are exportable by their owner for 30 days after removal and stay sealed under the owner's own key meanwhile (export keeps them); delete puts them in the trash. */
+  "vault.reassign_owned": (ctx: Ctx, i: { person: string; kind: string; action: string }): number => {
+    if (i.kind !== "vault_mine" || i.action !== "delete") return 0;
+    try { return ctx.db.run(`UPDATE vault_meta SET "deleted_at" = ?, "updated_at" = ? WHERE "owner" = ? AND "scope" = 'mine' AND "deleted_at" IS NULL`, ctx.now(), ctx.now(), i.person).changes; } catch { return 0; }
+  },
 };
