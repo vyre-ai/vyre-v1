@@ -172,6 +172,7 @@ export function harness() {
     principal: { kind: "person", id: OWNER },
     trace: { traceId: TRACE },
     depth: 1,
+    authorize: () => ({ effect: "allow" }),
     now: () => clock,
     db: memoryDb(),
     emit(name, subject, payload) {

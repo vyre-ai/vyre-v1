@@ -21,19 +21,29 @@ test("a direct call from a member who does not manage policy is refused and remo
 
 test("a direct call with no authorizer at all is refused (it fails closed)", async () => {
   const h = harness();
-  h.ctx.depth = 0;
-  await assert.rejects(g.jobsTick(h.ctx, { kind: "trash" }));
+  delete (h.ctx as { authorize?: unknown }).authorize;
+  for (const depth of [0, 1]) { h.ctx.depth = depth; await assert.rejects(g.jobsTick(h.ctx, { kind: "trash" })); }
 });
 
-test("the host's own call, a nested call, and the scheduled call of someone who manages policy run", async () => {
+test("a nested call made for a member who does not manage policy is refused too", async () => {
+  const h = harness();
+  h.addFile("fil_old00001", { deletedAt: 1 });
+  h.ctx.depth = 1;
+  h.ctx.authorize = () => ({ effect: "deny" });
+  await assert.rejects(g.jobsTick(h.ctx, { kind: "trash" }), (e: unknown) => (e as { error?: { code?: string } }).error?.code === "permission.role_lacks_permission");
+  assert.ok(h.world.files.has("fil_old00001"));
+});
+
+test("the host's own call, and the call of someone who manages policy at any depth, run", async () => {
   const h = harness();
   h.actAs("service", "svc_host");
   h.ctx.depth = 0;
   assert.deepEqual(await g.jobsTick(h.ctx, { kind: "trash" }), { removed: 0, skippedOnHold: 0 });
   h.actAs("person", "usr_olivia");
-  h.ctx.depth = 1;
-  assert.deepEqual(await g.jobsTick(h.ctx, { kind: "trash" }), { removed: 0, skippedOnHold: 0 });
-  h.ctx.depth = 0;
-  direct(h, true);
-  assert.deepEqual(await g.jobsTick(h.ctx, { kind: "trash" }), { removed: 0, skippedOnHold: 0 });
+  for (const depth of [0, 1]) {
+    h.ctx.depth = depth;
+    direct(h, true);
+    h.ctx.depth = depth;
+    assert.deepEqual(await g.jobsTick(h.ctx, { kind: "trash" }), { removed: 0, skippedOnHold: 0 });
+  }
 });
