@@ -33892,9 +33892,7 @@
         "scope": "space"
       },
       "resource": {
-        "create": true,
-        "parent": "/slug",
-        "type": "record"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -58832,7 +58830,9 @@
     },
     {
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "email.created"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -58912,7 +58912,7 @@
       "resource": {
         "create": true,
         "parent": "/folderId",
-        "type": "folder"
+        "type": "email"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -70815,7 +70815,8 @@
     {
       "effects": "write",
       "emits": [
-        "folder.created"
+        "folder.created",
+        "grant.created"
       ],
       "errors": [
         "internal.unexpected",
@@ -72689,9 +72690,7 @@
         "scope": "space"
       },
       "resource": {
-        "create": true,
-        "parent": "/slug",
-        "type": "record"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -88642,7 +88641,8 @@
       "emits": [
         "password.reset",
         "keys.stored",
-        "signin.succeeded"
+        "signin.succeeded",
+        "signin.failed"
       ],
       "errors": [
         "auth.invalid_code",
@@ -89946,6 +89946,9 @@
           "input": {},
           "name": "example",
           "output": {
+            "deferred": [
+              "example"
+            ],
             "deviceId": "dev_a1b2c3",
             "epoch": 1,
             "groups": [
@@ -89973,6 +89976,12 @@
       "name": "identity.whoami",
       "output": {
         "properties": {
+          "deferred": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "deviceId": {
             "examples": [
               "dev_a1b2c3"
@@ -174275,6 +174284,40 @@
         "type": "entity"
       },
       "summary": "A Dropbox Sign webhook arrived and was verified",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "email-builder-api",
+      "name": "email.created",
+      "payload": {
+        "properties": {
+          "emailId": {
+            "examples": [
+              "eml_a1b2c3"
+            ],
+            "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          },
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "emailId"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/emailId",
+        "type": "email"
+      },
+      "summary": "An email design was created, in a folder or at the top of the Space",
       "sv": 1,
       "vis": "space"
     },

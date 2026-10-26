@@ -16,7 +16,7 @@ function runtime(): { rt: ShellRuntime; opened: ShellTarget[] } {
   const principals: LiveQuery<Principal[]> = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "ready", data: [me] }) };
   const rt: ShellRuntime = {
     screens: s.data.screens, call: s.data.call, connection: s.data.connection, principals, recordTitle: () => undefined, me, clock: s.data.clock,
-    space: { id: "northwind", kind: "team", name: "Northwind" }, assistant: { id: "agt_assistant", name: "Assistant" }, aiConnected: true, calendarConnected: true,
+    space: { id: "northwind", kind: "team", name: "Northwind" }, assistant: { id: "agt_assistant", name: "Assistant" }, aiConnected: true, deferredModules: new Set<string>(), isDeferred: () => false, calendarConnected: true,
     open: (t) => void opened.push(t), openUrl: () => undefined,
   };
   return { rt, opened };
