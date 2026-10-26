@@ -4412,6 +4412,13 @@ export type ChannelsCreateOut = {
     createdAt: number;
   };
 };
+export type ChannelsEraseIn = {
+  channelId: string;
+  idempotencyKey: string;
+};
+export type ChannelsEraseOut = {
+  erased: boolean;
+};
 export type ChannelsGetIn = {
   channelId: string;
 };
@@ -5402,6 +5409,17 @@ export type ChatTranscriptGetOut = {
       toolName?: string;
       at: number;
     }>;
+};
+export type ChatTranscriptPurgeIn = {
+  before: number;
+  limit?: number;
+  skipThreadIds?: Array<string>;
+  idempotencyKey: string;
+};
+export type ChatTranscriptPurgeOut = {
+  removed: number;
+  more: boolean;
+  skippedOnHold?: number;
 };
 export type ChatTranscriptReadIn = {
   threadId: string;
@@ -7627,6 +7645,7 @@ export type EngineAccountResolveOut = {
   payer: string | null;
   reason: "starter" | "steerer" | "step_key" | "backup_key" | "none";
   allowed: boolean;
+  itemId?: string;
 };
 export type EngineAccountsListIn = Record<string, unknown>;
 export type EngineAccountsListOut = {
@@ -8231,6 +8250,7 @@ export type EngineTurnRecordUsageIn = {
   tokensIn: number;
   tokensOut: number;
   costMicros: number;
+  itemId?: string;
 };
 export type EngineTurnRecordUsageOut = {
   overLimit?: "run" | "day" | "month" | "turns" | "time";
@@ -8358,6 +8378,7 @@ export type EngineUsageQueryIn = {
   to?: number;
   personId?: string;
   agentId?: string;
+  itemId?: string;
 };
 export type EngineUsageQueryOut = {
   rows: Array<{
@@ -8729,6 +8750,8 @@ export type FilesCopyOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
 };
 export type FilesCreateIn = {
@@ -8764,6 +8787,8 @@ export type FilesCreateOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
   changesetId?: string;
 };
@@ -8821,6 +8846,10 @@ export type FilesFolderCreateIn = {
   parentId: string;
   name: string;
   reviewChanges?: boolean;
+  subject?: {
+    kind: "agent" | "project";
+    id: string;
+  };
   idempotencyKey: string;
 };
 export type FilesFolderCreateOut = {
@@ -8839,6 +8868,10 @@ export type FilesFolderCreateOut = {
     };
     git: boolean;
     reviewChanges: boolean;
+    subject?: {
+      kind: "agent" | "project" | "space";
+      id?: string;
+    };
   };
 };
 export type FilesFolderDeleteIn = {
@@ -8866,6 +8899,10 @@ export type FilesFolderGetOut = {
     };
     git: boolean;
     reviewChanges: boolean;
+    subject?: {
+      kind: "agent" | "project" | "space";
+      id?: string;
+    };
   };
 };
 export type FilesFolderMoveIn = {
@@ -8888,6 +8925,10 @@ export type FilesFolderMoveOut = {
     };
     git: boolean;
     reviewChanges: boolean;
+    subject?: {
+      kind: "agent" | "project" | "space";
+      id?: string;
+    };
   };
 };
 export type FilesFolderRenameIn = {
@@ -8910,6 +8951,10 @@ export type FilesFolderRenameOut = {
     };
     git: boolean;
     reviewChanges: boolean;
+    subject?: {
+      kind: "agent" | "project" | "space";
+      id?: string;
+    };
   };
 };
 export type FilesFolderRestoreIn = {
@@ -8931,6 +8976,10 @@ export type FilesFolderRestoreOut = {
     };
     git: boolean;
     reviewChanges: boolean;
+    subject?: {
+      kind: "agent" | "project" | "space";
+      id?: string;
+    };
   };
 };
 export type FilesFolderSearchIn = {
@@ -8954,6 +9003,10 @@ export type FilesFolderSearchOut = {
       };
       git: boolean;
       reviewChanges: boolean;
+      subject?: {
+        kind: "agent" | "project" | "space";
+        id?: string;
+      };
     }>;
 };
 export type FilesFolderSettingsIn = {
@@ -8977,6 +9030,10 @@ export type FilesFolderSettingsOut = {
     };
     git: boolean;
     reviewChanges: boolean;
+    subject?: {
+      kind: "agent" | "project" | "space";
+      id?: string;
+    };
   };
 };
 export type FilesGetIn = {
@@ -9003,6 +9060,8 @@ export type FilesGetOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
 };
 export type FilesHealthIn = Record<string, unknown>;
@@ -9036,6 +9095,8 @@ export type FilesKnowledgeOut = {
       deletedAt?: number;
       thumb: boolean;
       holds: number;
+      starred?: boolean;
+      conflict?: boolean;
     }>;
   folders: Array<{
       folderId: string;
@@ -9052,6 +9113,10 @@ export type FilesKnowledgeOut = {
       };
       git: boolean;
       reviewChanges: boolean;
+      subject?: {
+        kind: "agent" | "project" | "space";
+        id?: string;
+      };
     }>;
   views: Array<{
       key: "memory" | "graph";
@@ -9115,6 +9180,8 @@ export type FilesListOut = {
       deletedAt?: number;
       thumb: boolean;
       holds: number;
+      starred?: boolean;
+      conflict?: boolean;
     }>;
   folders: Array<{
       folderId: string;
@@ -9131,6 +9198,10 @@ export type FilesListOut = {
       };
       git: boolean;
       reviewChanges: boolean;
+      subject?: {
+        kind: "agent" | "project" | "space";
+        id?: string;
+      };
     }>;
   next?: string;
   total?: number;
@@ -9185,6 +9256,8 @@ export type FilesMoveOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
   changesetId?: string;
 };
@@ -9243,6 +9316,8 @@ export type FilesRecentOut = {
       deletedAt?: number;
       thumb: boolean;
       holds: number;
+      starred?: boolean;
+      conflict?: boolean;
     }>;
 };
 export type FilesRenameIn = {
@@ -9270,6 +9345,8 @@ export type FilesRenameOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
   changesetId?: string;
 };
@@ -9306,6 +9383,8 @@ export type FilesRestoreOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
 };
 export type FilesRestoreVersionIn = {
@@ -9333,6 +9412,8 @@ export type FilesRestoreVersionOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
   versionId: string;
 };
@@ -9424,6 +9505,8 @@ export type FilesSharedWithMeOut = {
       deletedAt?: number;
       thumb: boolean;
       holds: number;
+      starred?: boolean;
+      conflict?: boolean;
     }>;
   folders: Array<{
       folderId: string;
@@ -9440,9 +9523,42 @@ export type FilesSharedWithMeOut = {
       };
       git: boolean;
       reviewChanges: boolean;
+      subject?: {
+        kind: "agent" | "project" | "space";
+        id?: string;
+      };
     }>;
   next?: string;
   total?: number;
+};
+export type FilesStarIn = {
+  fileId: string;
+  starred: boolean;
+};
+export type FilesStarOut = {
+  file: {
+    fileId: string;
+    folderId: string;
+    name: string;
+    kind: "text" | "markdown" | "document" | "spreadsheet" | "presentation" | "pdf" | "image" | "video" | "audio" | "code" | "archive" | "google_native" | "other";
+    mime: string;
+    size: number;
+    version: number;
+    label: number;
+    ownerId: string;
+    createdAt: number;
+    updatedAt: number;
+    updatedBy: string;
+    source?: {
+      mountId: string;
+      provider: string;
+    };
+    deletedAt?: number;
+    thumb: boolean;
+    holds: number;
+    starred?: boolean;
+    conflict?: boolean;
+  };
 };
 export type FilesTrashEmptyIn = {
   olderThanDays?: number;
@@ -9475,6 +9591,8 @@ export type FilesTrashListOut = {
       deletedAt?: number;
       thumb: boolean;
       holds: number;
+      starred?: boolean;
+      conflict?: boolean;
     }>;
   folders: Array<{
       folderId: string;
@@ -9491,6 +9609,10 @@ export type FilesTrashListOut = {
       };
       git: boolean;
       reviewChanges: boolean;
+      subject?: {
+        kind: "agent" | "project" | "space";
+        id?: string;
+      };
     }>;
   next?: string;
   total?: number;
@@ -9503,6 +9625,10 @@ export type FilesTreeOut = {
       kind: "folder" | "virtual";
       folderId?: string;
       count: number;
+      subject?: {
+        kind: "agent" | "project" | "space";
+        id?: string;
+      };
     }>;
 };
 export type FilesUploadUrlIn = {
@@ -9526,6 +9652,17 @@ export type FilesVersionsOut = {
       reason?: string;
       name?: string;
     }>;
+};
+export type FilesVersionsPurgeIn = {
+  before: number;
+  limit?: number;
+  skipFileIds?: Array<string>;
+  idempotencyKey: string;
+};
+export type FilesVersionsPurgeOut = {
+  removed: number;
+  more: boolean;
+  skippedOnHold?: number;
 };
 export type FilesViewerDataIn = {
   fileId: string;
@@ -9552,6 +9689,8 @@ export type FilesViewerDataOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
   text?: string;
   pages?: number;
@@ -9602,6 +9741,8 @@ export type FilesWriteOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
   versionId?: string;
   changesetId?: string;
@@ -12668,6 +12809,13 @@ export type InboxFollowingOut = {
   next?: string;
   total?: number;
 };
+export type InboxItemEraseIn = {
+  refId: string;
+  idempotencyKey: string;
+};
+export type InboxItemEraseOut = {
+  erased: boolean;
+};
 export type InboxLinkMessageIn = {
   channel: "email" | "sms" | "call";
   ref: {
@@ -13823,6 +13971,16 @@ export type LogsExportIn = {
 export type LogsExportOut = {
   fileId: string;
 };
+export type LogsPurgeIn = {
+  before: number;
+  limit?: number;
+  idempotencyKey: string;
+};
+export type LogsPurgeOut = {
+  removed: number;
+  more: boolean;
+  skippedOnHold?: number;
+};
 export type LogsQueryIn = {
   person?: string;
   agent?: string;
@@ -14399,6 +14557,13 @@ export type MailMailboxUpdateOut = {
     state: "pending" | "syncing" | "paused" | "error" | "disconnected";
     lastSyncAt?: number;
   };
+};
+export type MailMessageEraseIn = {
+  messageId: string;
+  idempotencyKey: string;
+};
+export type MailMessageEraseOut = {
+  erased: boolean;
 };
 export type MailMessageGetIn = {
   messageId: string;
@@ -15864,6 +16029,13 @@ export type MemoryMapGetOut = {
     lines: number;
     updatedAt: number;
   };
+};
+export type MemoryNotesEraseIn = {
+  noteId: string;
+  idempotencyKey: string;
+};
+export type MemoryNotesEraseOut = {
+  erased: boolean;
 };
 export type MemoryNotesListIn = {
   agentId?: string;
@@ -18088,6 +18260,24 @@ export type RecordsPagePrefsSetOut = {
   folded: Array<string>;
   keepVisible: Array<string>;
 };
+export type RecordsPurgeIn = {
+  type: string;
+  recordId: string;
+  idempotencyKey: string;
+};
+export type RecordsPurgeOut = {
+  erased: boolean;
+};
+export type RecordsPurgeTrashedIn = {
+  before: number;
+  limit?: number;
+  idempotencyKey: string;
+};
+export type RecordsPurgeTrashedOut = {
+  removed: number;
+  more: boolean;
+  skippedOnHold?: number;
+};
 export type RecordsQueryIn = {
   type: string;
   filter?: unknown;
@@ -18803,6 +18993,13 @@ export type RunsCountIn = {
 export type RunsCountOut = {
   count: number;
 };
+export type RunsEraseIn = {
+  runId: string;
+  idempotencyKey: string;
+};
+export type RunsEraseOut = {
+  erased: boolean;
+};
 export type RunsFinishIn = {
   runId: string;
   status: "succeeded" | "failed" | "stopped";
@@ -18971,6 +19168,16 @@ export type RunsPreviewUndoOut = {
       summary: string;
       reason: "changed_since" | "not_undoable" | "sent" | "deployed";
     }>;
+};
+export type RunsPurgeIn = {
+  before: number;
+  limit?: number;
+  idempotencyKey: string;
+};
+export type RunsPurgeOut = {
+  removed: number;
+  more: boolean;
+  skippedOnHold?: number;
 };
 export type RunsRecordKeyIn = {
   runId: string;
@@ -20201,6 +20408,8 @@ export type SheetsCreateOut = {
     deletedAt?: number;
     thumb: boolean;
     holds: number;
+    starred?: boolean;
+    conflict?: boolean;
   };
 };
 export type SheetsDeleteRowIn = {
@@ -23274,6 +23483,13 @@ export type TelephonyCallAttachSummaryOut = {
     consentLogged: boolean;
   };
 };
+export type TelephonyCallEraseIn = {
+  callId: string;
+  idempotencyKey: string;
+};
+export type TelephonyCallEraseOut = {
+  erased: boolean;
+};
 export type TelephonyCallGetIn = {
   callId: string;
 };
@@ -23970,6 +24186,13 @@ export type TelephonySendSmsOut = {
   status: "queued" | "sent" | "held" | "suppressed";
   taskId?: string;
 };
+export type TelephonySmsEraseIn = {
+  smsId: string;
+  idempotencyKey: string;
+};
+export type TelephonySmsEraseOut = {
+  erased: boolean;
+};
 export type TelephonySmsListIn = {
   numberId?: string;
   contactId?: string;
@@ -24427,6 +24650,13 @@ export type ThreadsCloseOut = {
         threadId: string;
       }>;
   };
+};
+export type ThreadsEraseIn = {
+  threadId: string;
+  idempotencyKey: string;
+};
+export type ThreadsEraseOut = {
+  erased: boolean;
 };
 export type ThreadsGetIn = {
   threadId: string;
@@ -25507,6 +25737,24 @@ export type VaultItemUpdateOut = {
     updatedAt: number;
   };
 };
+export type VaultItemUsageIn = {
+  itemId: string;
+  since?: number;
+};
+export type VaultItemUsageOut = {
+  actors: Array<{
+      actor: {
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      };
+      turns: number;
+      tokens: number;
+    }>;
+  total: {
+    turns: number;
+    tokens: number;
+  };
+};
 export type VaultItemsExportMineIn = {
   expiresIn: "1h" | "1d" | "7d";
   idempotencyKey: string;
@@ -26481,6 +26729,7 @@ export interface CapMap {
   "channels.archive": { in: ChannelsArchiveIn; out: ChannelsArchiveOut };
   "channels.connect_outside_agent": { in: ChannelsConnectOutsideAgentIn; out: ChannelsConnectOutsideAgentOut };
   "channels.create": { in: ChannelsCreateIn; out: ChannelsCreateOut };
+  "channels.erase": { in: ChannelsEraseIn; out: ChannelsEraseOut };
   "channels.get": { in: ChannelsGetIn; out: ChannelsGetOut };
   "channels.join": { in: ChannelsJoinIn; out: ChannelsJoinOut };
   "channels.leave": { in: ChannelsLeaveIn; out: ChannelsLeaveOut };
@@ -26519,6 +26768,7 @@ export interface CapMap {
   "chat.thread": { in: ChatThreadIn; out: ChatThreadOut };
   "chat.transcript.append": { in: ChatTranscriptAppendIn; out: ChatTranscriptAppendOut };
   "chat.transcript.get": { in: ChatTranscriptGetIn; out: ChatTranscriptGetOut };
+  "chat.transcript.purge": { in: ChatTranscriptPurgeIn; out: ChatTranscriptPurgeOut };
   "chat.transcript.read": { in: ChatTranscriptReadIn; out: ChatTranscriptReadOut };
   "chat.transcript.search": { in: ChatTranscriptSearchIn; out: ChatTranscriptSearchOut };
   "chat.transcript.summarize": { in: ChatTranscriptSummarizeIn; out: ChatTranscriptSummarizeOut };
@@ -26806,11 +27056,13 @@ export interface CapMap {
   "files.share": { in: FilesShareIn; out: FilesShareOut };
   "files.share_external": { in: FilesShareExternalIn; out: FilesShareExternalOut };
   "files.shared_with_me": { in: FilesSharedWithMeIn; out: FilesSharedWithMeOut };
+  "files.star": { in: FilesStarIn; out: FilesStarOut };
   "files.trash.empty": { in: FilesTrashEmptyIn; out: FilesTrashEmptyOut };
   "files.trash.list": { in: FilesTrashListIn; out: FilesTrashListOut };
   "files.tree": { in: FilesTreeIn; out: FilesTreeOut };
   "files.upload_url": { in: FilesUploadUrlIn; out: FilesUploadUrlOut };
   "files.versions": { in: FilesVersionsIn; out: FilesVersionsOut };
+  "files.versions_purge": { in: FilesVersionsPurgeIn; out: FilesVersionsPurgeOut };
   "files.viewer_data": { in: FilesViewerDataIn; out: FilesViewerDataOut };
   "files.write": { in: FilesWriteIn; out: FilesWriteOut };
   "folders.create": { in: FoldersCreateIn; out: FoldersCreateOut };
@@ -27036,6 +27288,7 @@ export interface CapMap {
   "inbox.counts": { in: InboxCountsIn; out: InboxCountsOut };
   "inbox.follow_set": { in: InboxFollowSetIn; out: InboxFollowSetOut };
   "inbox.following": { in: InboxFollowingIn; out: InboxFollowingOut };
+  "inbox.item.erase": { in: InboxItemEraseIn; out: InboxItemEraseOut };
   "inbox.link_message": { in: InboxLinkMessageIn; out: InboxLinkMessageOut };
   "inbox.list_by_contact": { in: InboxListByContactIn; out: InboxListByContactOut };
   "inbox.list_by_thread": { in: InboxListByThreadIn; out: InboxListByThreadOut };
@@ -27083,6 +27336,7 @@ export interface CapMap {
   "kits.versions": { in: KitsVersionsIn; out: KitsVersionsOut };
   "logs.client_upload": { in: LogsClientUploadIn; out: LogsClientUploadOut };
   "logs.export": { in: LogsExportIn; out: LogsExportOut };
+  "logs.purge": { in: LogsPurgeIn; out: LogsPurgeOut };
   "logs.query": { in: LogsQueryIn; out: LogsQueryOut };
   "logs.replay_get": { in: LogsReplayGetIn; out: LogsReplayGetOut };
   "logs.replay_start": { in: LogsReplayStartIn; out: LogsReplayStartOut };
@@ -27113,6 +27367,7 @@ export interface CapMap {
   "mail.mailbox.resume": { in: MailMailboxResumeIn; out: MailMailboxResumeOut };
   "mail.mailbox.set_privacy": { in: MailMailboxSetPrivacyIn; out: MailMailboxSetPrivacyOut };
   "mail.mailbox.update": { in: MailMailboxUpdateIn; out: MailMailboxUpdateOut };
+  "mail.message.erase": { in: MailMessageEraseIn; out: MailMessageEraseOut };
   "mail.message.get": { in: MailMessageGetIn; out: MailMessageGetOut };
   "mail.message.list": { in: MailMessageListIn; out: MailMessageListOut };
   "mail.message.search": { in: MailMessageSearchIn; out: MailMessageSearchOut };
@@ -27201,6 +27456,7 @@ export interface CapMap {
   "memory.layout.save": { in: MemoryLayoutSaveIn; out: MemoryLayoutSaveOut };
   "memory.maintain": { in: MemoryMaintainIn; out: MemoryMaintainOut };
   "memory.map.get": { in: MemoryMapGetIn; out: MemoryMapGetOut };
+  "memory.notes.erase": { in: MemoryNotesEraseIn; out: MemoryNotesEraseOut };
   "memory.notes.list": { in: MemoryNotesListIn; out: MemoryNotesListOut };
   "memory.pointer": { in: MemoryPointerIn; out: MemoryPointerOut };
   "memory.promote": { in: MemoryPromoteIn; out: MemoryPromoteOut };
@@ -27362,6 +27618,8 @@ export interface CapMap {
   "records.merge": { in: RecordsMergeIn; out: RecordsMergeOut };
   "records.page_prefs.get": { in: RecordsPagePrefsGetIn; out: RecordsPagePrefsGetOut };
   "records.page_prefs.set": { in: RecordsPagePrefsSetIn; out: RecordsPagePrefsSetOut };
+  "records.purge": { in: RecordsPurgeIn; out: RecordsPurgeOut };
+  "records.purge_trashed": { in: RecordsPurgeTrashedIn; out: RecordsPurgeTrashedOut };
   "records.query": { in: RecordsQueryIn; out: RecordsQueryOut };
   "records.relate": { in: RecordsRelateIn; out: RecordsRelateOut };
   "records.relations_map": { in: RecordsRelationsMapIn; out: RecordsRelationsMapOut };
@@ -27404,11 +27662,13 @@ export interface CapMap {
   "runbooks.set_target": { in: RunbooksSetTargetIn; out: RunbooksSetTargetOut };
   "runbooks.targets": { in: RunbooksTargetsIn; out: RunbooksTargetsOut };
   "runs.count": { in: RunsCountIn; out: RunsCountOut };
+  "runs.erase": { in: RunsEraseIn; out: RunsEraseOut };
   "runs.finish": { in: RunsFinishIn; out: RunsFinishOut };
   "runs.get": { in: RunsGetIn; out: RunsGetOut };
   "runs.list": { in: RunsListIn; out: RunsListOut };
   "runs.mark_waiting": { in: RunsMarkWaitingIn; out: RunsMarkWaitingOut };
   "runs.preview_undo": { in: RunsPreviewUndoIn; out: RunsPreviewUndoOut };
+  "runs.purge": { in: RunsPurgeIn; out: RunsPurgeOut };
   "runs.record_key": { in: RunsRecordKeyIn; out: RunsRecordKeyOut };
   "runs.record_step": { in: RunsRecordStepIn; out: RunsRecordStepOut };
   "runs.replay": { in: RunsReplayIn; out: RunsReplayOut };
@@ -27623,6 +27883,7 @@ export interface CapMap {
   "tasks.working_notes.set": { in: TasksWorkingNotesSetIn; out: TasksWorkingNotesSetOut };
   "telephony.answer": { in: TelephonyAnswerIn; out: TelephonyAnswerOut };
   "telephony.call.attach_summary": { in: TelephonyCallAttachSummaryIn; out: TelephonyCallAttachSummaryOut };
+  "telephony.call.erase": { in: TelephonyCallEraseIn; out: TelephonyCallEraseOut };
   "telephony.call.get": { in: TelephonyCallGetIn; out: TelephonyCallGetOut };
   "telephony.call.list": { in: TelephonyCallListIn; out: TelephonyCallListOut };
   "telephony.call.log_task": { in: TelephonyCallLogTaskIn; out: TelephonyCallLogTaskOut };
@@ -27650,6 +27911,7 @@ export interface CapMap {
   "telephony.registration.save": { in: TelephonyRegistrationSaveIn; out: TelephonyRegistrationSaveOut };
   "telephony.registration.submit": { in: TelephonyRegistrationSubmitIn; out: TelephonyRegistrationSubmitOut };
   "telephony.send_sms": { in: TelephonySendSmsIn; out: TelephonySendSmsOut };
+  "telephony.sms.erase": { in: TelephonySmsEraseIn; out: TelephonySmsEraseOut };
   "telephony.sms.list": { in: TelephonySmsListIn; out: TelephonySmsListOut };
   "telephony.transfer": { in: TelephonyTransferIn; out: TelephonyTransferOut };
   "telephony.voice_token": { in: TelephonyVoiceTokenIn; out: TelephonyVoiceTokenOut };
@@ -27676,6 +27938,7 @@ export interface CapMap {
   "terminal.status": { in: TerminalStatusIn; out: TerminalStatusOut };
   "threads.add_agent": { in: ThreadsAddAgentIn; out: ThreadsAddAgentOut };
   "threads.close": { in: ThreadsCloseIn; out: ThreadsCloseOut };
+  "threads.erase": { in: ThreadsEraseIn; out: ThreadsEraseOut };
   "threads.get": { in: ThreadsGetIn; out: ThreadsGetOut };
   "threads.list": { in: ThreadsListIn; out: ThreadsListOut };
   "threads.make_channel": { in: ThreadsMakeChannelIn; out: ThreadsMakeChannelOut };
@@ -27738,6 +28001,7 @@ export interface CapMap {
   "vault.item.restore": { in: VaultItemRestoreIn; out: VaultItemRestoreOut };
   "vault.item.reveal": { in: VaultItemRevealIn; out: VaultItemRevealOut };
   "vault.item.update": { in: VaultItemUpdateIn; out: VaultItemUpdateOut };
+  "vault.item.usage": { in: VaultItemUsageIn; out: VaultItemUsageOut };
   "vault.items.export_mine": { in: VaultItemsExportMineIn; out: VaultItemsExportMineOut };
   "vault.items.list": { in: VaultItemsListIn; out: VaultItemsListOut };
   "vault.items.match": { in: VaultItemsMatchIn; out: VaultItemsMatchOut };
@@ -28148,6 +28412,9 @@ export type CallEndedPayload = {
   durationSec: number;
   contactId?: string;
 };
+export type CallErasedPayload = {
+  callId: string;
+};
 export type CallMissedPayload = {
   callId: string;
   numberId: string;
@@ -28285,6 +28552,9 @@ export type ChannelCreatedPayload = {
   name: string;
   visibility: string;
   recordId?: string;
+};
+export type ChannelErasedPayload = {
+  channelId: string;
 };
 export type ChannelMemberAddedPayload = {
   channelId?: string;
@@ -28719,12 +28989,20 @@ export type FileSharedExternalPayload = {
   linkId: string;
   expiresAt?: number;
 };
+export type FileStarredPayload = {
+  fileId: string;
+  by: string;
+  starred: boolean;
+};
 export type FileVersionAddedPayload = {
   fileId: string;
   versionId: string;
   n: number;
   by: string;
   reason?: string;
+};
+export type FileVersionsPurgedPayload = {
+  removed: number;
 };
 export type FolderCreatedPayload = {
   folderId: string;
@@ -29048,6 +29326,10 @@ export type InboundRouteSavedPayload = {
   localPart: string;
   mailboxId: string;
 };
+export type InboxItemErasedPayload = {
+  refId: string;
+  removed: number;
+};
 export type IncidentAssignedPayload = {
   incidentId: string;
   ownerId: string;
@@ -29187,6 +29469,12 @@ export type KitUpdatedPayload = {
 export type LogAccessedPayload = {
   by: string;
   filter: Record<string, unknown>;
+};
+export type LogsPurgedPayload = {
+  removed: number;
+};
+export type MailMessageErasedPayload = {
+  messageId: string;
 };
 export type MailReceivedPayload = {
   messageId: string;
@@ -29565,6 +29853,9 @@ export type NetworkServerAddedPayload = {
 export type NetworkServerRemovedPayload = {
   serverId: string;
 };
+export type NoteErasedPayload = {
+  noteId: string;
+};
 export type NotificationCappedPayload = {
   person: string;
   agentId: string;
@@ -29878,6 +30169,10 @@ export type RecordMergedPayload = {
   mergedId: string;
   type: string;
 };
+export type RecordPurgedPayload = {
+  type: string;
+  recordId: string;
+};
 export type RecordRestoredPayload = {
   recordId: string;
   type: string;
@@ -29908,6 +30203,9 @@ export type RecordValueReviewedPayload = {
   field: string;
   decision: "accepted" | "rejected";
   by: string;
+};
+export type RecordsTrashPurgedPayload = {
+  removed: number;
 };
 export type RecoverySavedPayload = {
   personId: string;
@@ -29975,6 +30273,9 @@ export type ReviewMarkedPayload = {
   turnId: string;
   verdict: string;
   by: string;
+};
+export type RunErasedPayload = {
+  runId: string;
 };
 export type RunFailedPayload = {
   runId: string;
@@ -30067,6 +30368,9 @@ export type RunbookTargetSetPayload = {
     kind: "server" | "computer";
     computerId?: string;
   };
+};
+export type RunsPurgedPayload = {
+  removed: number;
 };
 export type SandboxDeniedPayload = {
   kitId: string;
@@ -30287,6 +30591,9 @@ export type SiteTableCreatedPayload = {
 export type SiteTablePromotedPayload = {
   siteId: string;
   type: string;
+};
+export type SmsErasedPayload = {
+  smsId: string;
 };
 export type SmsReceivedPayload = {
   smsId: string;
@@ -30704,6 +31011,9 @@ export type TerminalRulesChangedPayload = {
 export type ThreadClosedPayload = {
   threadId: string;
 };
+export type ThreadErasedPayload = {
+  threadId: string;
+};
 export type ThreadPlanModeChangedPayload = {
   threadId: string;
   planMode: boolean;
@@ -30766,6 +31076,9 @@ export type TokenRevokedPayload = {
 };
 export type TombstonesReappliedPayload = {
   count: number;
+};
+export type TranscriptsPurgedPayload = {
+  removed: number;
 };
 export type TurnBlockPayload = {
   turnId: string;
@@ -31131,6 +31444,7 @@ export interface EventMap {
   "calendar_event.restored": CalendarEventRestoredPayload;
   "calendar_event.updated": CalendarEventUpdatedPayload;
   "call.ended": CallEndedPayload;
+  "call.erased": CallErasedPayload;
   "call.missed": CallMissedPayload;
   "call.recording_changed": CallRecordingChangedPayload;
   "call.recording_ready": CallRecordingReadyPayload;
@@ -31157,6 +31471,7 @@ export interface EventMap {
   "channel.agent_watch_changed": ChannelAgentWatchChangedPayload;
   "channel.archived": ChannelArchivedPayload;
   "channel.created": ChannelCreatedPayload;
+  "channel.erased": ChannelErasedPayload;
   "channel.member_added": ChannelMemberAddedPayload;
   "channel.member_removed": ChannelMemberRemovedPayload;
   "channel.unarchived": ChannelUnarchivedPayload;
@@ -31247,7 +31562,9 @@ export interface EventMap {
   "file.renamed": FileRenamedPayload;
   "file.restored": FileRestoredPayload;
   "file.shared_external": FileSharedExternalPayload;
+  "file.starred": FileStarredPayload;
   "file.version_added": FileVersionAddedPayload;
+  "file_versions.purged": FileVersionsPurgedPayload;
   "folder.created": FolderCreatedPayload;
   "folder.deleted": FolderDeletedPayload;
   "folder.mounted": FolderMountedPayload;
@@ -31301,6 +31618,7 @@ export interface EventMap {
   "import.started": ImportStartedPayload;
   "inbound_route.removed": InboundRouteRemovedPayload;
   "inbound_route.saved": InboundRouteSavedPayload;
+  "inbox.item_erased": InboxItemErasedPayload;
   "incident.assigned": IncidentAssignedPayload;
   "incident.opened": IncidentOpenedPayload;
   "incident.resolved": IncidentResolvedPayload;
@@ -31325,6 +31643,8 @@ export interface EventMap {
   "kit.rolled_back": KitRolledBackPayload;
   "kit.updated": KitUpdatedPayload;
   "log.accessed": LogAccessedPayload;
+  "logs.purged": LogsPurgedPayload;
+  "mail.message_erased": MailMessageErasedPayload;
   "mail.received": MailReceivedPayload;
   "mail_draft.discarded": MailDraftDiscardedPayload;
   "mail_draft.saved": MailDraftSavedPayload;
@@ -31398,6 +31718,7 @@ export interface EventMap {
   "network.domain_changed": NetworkDomainChangedPayload;
   "network.server_added": NetworkServerAddedPayload;
   "network.server_removed": NetworkServerRemovedPayload;
+  "note.erased": NoteErasedPayload;
   "notification.capped": NotificationCappedPayload;
   "notification.delegate_changed": NotificationDelegateChangedPayload;
   "notification.delivered": NotificationDeliveredPayload;
@@ -31458,10 +31779,12 @@ export interface EventMap {
   "record.held": RecordHeldPayload;
   "record.hold_released": RecordHoldReleasedPayload;
   "record.merged": RecordMergedPayload;
+  "record.purged": RecordPurgedPayload;
   "record.restored": RecordRestoredPayload;
   "record.updated": RecordUpdatedPayload;
   "record.value_proposed": RecordValueProposedPayload;
   "record.value_reviewed": RecordValueReviewedPayload;
+  "records.trash_purged": RecordsTrashPurgedPayload;
   "recovery.saved": RecoverySavedPayload;
   "refund.created": RefundCreatedPayload;
   "registration.status_changed": RegistrationStatusChangedPayload;
@@ -31476,6 +31799,7 @@ export interface EventMap {
   "resend.inbound_received": ResendInboundReceivedPayload;
   "retention.purged": RetentionPurgedPayload;
   "review.marked": ReviewMarkedPayload;
+  "run.erased": RunErasedPayload;
   "run.failed": RunFailedPayload;
   "run.key_fallback": RunKeyFallbackPayload;
   "run.resumed": RunResumedPayload;
@@ -31489,6 +31813,7 @@ export interface EventMap {
   "runbook.run_finished": RunbookRunFinishedPayload;
   "runbook.run_started": RunbookRunStartedPayload;
   "runbook.target_set": RunbookTargetSetPayload;
+  "runs.purged": RunsPurgedPayload;
   "sandbox.denied": SandboxDeniedPayload;
   "schedule.canceled": ScheduleCanceledPayload;
   "schedule.created": ScheduleCreatedPayload;
@@ -31528,6 +31853,7 @@ export interface EventMap {
   "site.rolled_back": SiteRolledBackPayload;
   "site.table_created": SiteTableCreatedPayload;
   "site.table_promoted": SiteTablePromotedPayload;
+  "sms.erased": SmsErasedPayload;
   "sms.received": SmsReceivedPayload;
   "source.created": SourceCreatedPayload;
   "source.deduped": SourceDedupedPayload;
@@ -31601,6 +31927,7 @@ export interface EventMap {
   "terminal.renamed": TerminalRenamedPayload;
   "terminal.rules_changed": TerminalRulesChangedPayload;
   "thread.closed": ThreadClosedPayload;
+  "thread.erased": ThreadErasedPayload;
   "thread.plan_mode_changed": ThreadPlanModeChangedPayload;
   "thread.promoted": ThreadPromotedPayload;
   "thread.reopened": ThreadReopenedPayload;
@@ -31612,6 +31939,7 @@ export interface EventMap {
   "token.revealed": TokenRevealedPayload;
   "token.revoked": TokenRevokedPayload;
   "tombstones.reapplied": TombstonesReappliedPayload;
+  "transcripts.purged": TranscriptsPurgedPayload;
   "turn.block": TurnBlockPayload;
   "turn.cancelled": TurnCancelledPayload;
   "turn.completed": TurnCompletedPayload;

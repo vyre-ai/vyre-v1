@@ -20,7 +20,10 @@ import { createCtxSeal } from "../ctx/seal.ts";
 import { ScheduleQueue } from "../ctx/schedule.ts";
 import type { ScheduledCall } from "../ctx/schedule.ts";
 import { createBlobStore } from "../ctx/blobs.ts";
+import { scopedDb } from "../ctx/db.ts";
 import { createBlobRoute } from "../routes/blobs.ts";
+import { createFormsPageRoute } from "../routes/forms-page.ts";
+import type { PublicFormView } from "../routes/forms-page.ts";
 import { deferredCaps, deferredModules } from "../routes/deferred.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
 import { createGateway, indexRoutes } from "../gateway.ts";
@@ -42,6 +45,7 @@ import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts"
 import { createGateHook, moduleWhens } from "./gate-hook.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { createComputersFillHost, createFillRoute } from "../seams/computers.ts";
+import { createComputersHost } from "../seams/computers-host.ts";
 import { createEngineHost } from "../seams/engine.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
 import { applyPendingRestore, createBackupHost } from "../seams/backup.ts";
@@ -62,7 +66,7 @@ import { createPushPort, wireSeams } from "../seams/index.ts";
 import { createUpdatesHost } from "../seams/updates.ts";
 import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
 import { createLiveHub } from "../ws.ts";
-import type { LiveHub } from "../ws.ts";
+import type { LiveHub, SyncHubPort } from "../ws.ts";
 import { bootstrapSpace, mintOwner } from "./bootstrap.ts";
 import { createAccess, isAccessEvent, isMemberOrGuest, toAccessEvent, touchesAccess } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
@@ -162,6 +166,8 @@ export interface DaemonOptions {
   sealKey?: { key: Uint8Array | string; keyId: string };
   /** replace the default session (the local admin token) */
   session?: GatewayDeps["session"];
+  /** Sync's live hub (createSyncLiveHub) for the live socket: sockets then speak the sync protocol (full hello_ok, filtered ev batches). `onHub` receives the host hub, which is the port for sync's setLiveHub (purge, purgeDevice). */
+  liveSync?: { hub: SyncHubPort; onHub?(hub: LiveHub): void };
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   /** intervals in ms; tests shorten them */
@@ -252,6 +258,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let claim: { url: string; expiresAt: number } | null = null;
   let gateway: ReturnType<typeof createGateway> | null = null;
   let blobRoute: ReturnType<typeof createBlobRoute> | null = null;
+  let formsPageRoute: ReturnType<typeof createFormsPageRoute> | null = null;
   // GET /exports/<id>?token= (P-L7_16): the vault module checks the token; until it is configured every pull is refused
   let pullVaultExport: (exportId: string, token: string) => string = () => { throw new Error("the Vault is not live on this server"); };
   const exportRoute = createVaultExportRoute({ pull: (id, t) => pullVaultExport(id, t) });
@@ -403,8 +410,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // The Gate hook, only once the Gate module is live (a stub answers with examples, which must never decide a send). Its questions and parked calls run as the Space itself.
       const gate = loaded.serving.get("gate") === "live"
         ? withGateNesting(createGateHook({
-          call: async (cap, input) => {
-            const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: owner() }, origin: "gate" });
+          call: async (cap, input, trace) => {
+            const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: owner() }, origin: "gate", ...(trace ? { trace } : {}) });
             if (r.status === "held") throw fail("internal.unavailable", r.traceId, { message: "Approvals are not available right now." });
             return r.output;
           },
@@ -516,7 +523,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       // the drivers that need the daemon's own state (the Space log, the access snapshot, the pipeline); the registry in seams/ builds the rest from the Vault
       const spaceLog = log;
-      peopleExtras = createPeopleExtras({ access: () => access.snap, db: db!, call: (n, i, as) => hookRunner.call(n, i, as), keyring, github: o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env) });
+      peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, call: (n, i, as) => hookRunner.call(n, i, as), keyring, github: o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env) });
       // `trace`: a call the host makes on behalf of a caller keeps that caller's trace (only the principal changes), so the events it writes stay in the caller's trace
       const system = (cap: string, input: unknown, trace?: { traceId: string; spanId: string }): Promise<unknown> =>
         invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook", ...(trace ? { trace } : {}) }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));
@@ -580,6 +587,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           mint: (sessionId: string) => issueSessionToken(db!, sessionId, now),
           end: (sessionId: string) => { db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", now(), sessionId); },
         }),
+        setComputerHost: () => createComputersHost({ dataDir: paths.root }),
         // the Vault channel of agent computers (P-L2_21): agentd posts one #Handle.field at a time to /computers/fill with its own token; without a Vault the channel is not offered
         setComputersFill: (d) => d.vault ? createComputersFillHost({
           space: spaceId, invoke, vault: d.vault, now,
@@ -671,7 +679,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         if (!t) return null;
         if (sameToken(t, token)) return { space: spaceId, principal: { kind: "person", id: owner() }, device: ADMIN_DEVICE };
         const s = sessions.resolve(t);
-        return s ? { space: s.space, principal: { kind: "person", id: s.person }, device: s.device } : null;
+        // a session is only as good as the membership behind it: a suspended, removed or unknown person's live token stops working at once, and a fresh sign-in is needed after reactivation (suspend ends the person's devices)
+        if (!s || access.snap.principal(s.person)?.status !== "active") return null;
+        return { space: s.space, principal: { kind: "person", id: s.person }, device: s.device };
       };
       const session: GatewayDeps["session"] = o.session ?? ((headers) => identify(bearer(headers["authorization"])));
       ownerOfSpace = () => cfg.owner ?? access.owner() ?? null;
@@ -691,6 +701,34 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         session: async (h) => { const s = await session(h); return s ? { space: s.space, principal: s.principal, ...(s.actingFor ? { actingFor: s.actingFor } : {}) } : null; },
         allow: (c, r) => !staleFor(c.principal.id) && authorize(access.snap, { principal: c.principal.id, ...(c.actingFor ? { actingFor: c.actingFor } : {}), action: { perm: null, level: "view" }, resource: { type: r.type, id: r.id } }).effect === "allow",
       });
+      // GET /f/<slug> and /book/<slug> (P-L8_19): the public form pages. A visitor is an act_anon actor; the forms module answers for a published form of the right kind, and an upload goes to the form's Files folder
+      {
+        const formsNs = loaded.moduleExports.get("forms");
+        const viewOf = formsNs?.["publicFormView"] as ((ctx: unknown, slug: string, page: "form" | "booking") => PublicFormView) | undefined;
+        const linkOf = formsNs?.["linkView"] as ((ctx: unknown, slug: string, token: string) => Promise<{ fields: { field: string; step?: number }[]; partial?: { answers: Record<string, unknown>; step?: number } }>) | undefined;
+        const reserveUpload = formsNs?.["reserveUpload"] as ((ctx: unknown, slug: string) => { formId: string; folderId: string }) | undefined;
+        const recordUpload = formsNs?.["recordUpload"] as ((ctx: unknown, f: { slug: string; fileId: string; name: string; mime: string; size: number; token?: string | undefined }) => Promise<string>) | undefined;
+        const formCtx = (principal: { kind: string; id: string }): unknown => ({
+          space: spaceId, principal, origin: "api", depth: 0, now, db: scopedDb("forms", db!, "0".repeat(32)),
+          trace: { traceId: "0".repeat(32), spanId: "0".repeat(16) }, log: { debug() {}, info() {}, warn() {}, error() {} },
+        });
+        if (viewOf) {
+          formsPageRoute = createFormsPageRoute({
+            // a visitor has no session, so the pipeline could not authorize them: the host runs the three public capabilities as itself and the module is told which visitor (forms.visitorOf)
+            call: (cap, input) => invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook" }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)))),
+            read: async (slug, page, caller) => { try { return viewOf(formCtx(caller), slug, page); } catch { return null; } },
+            ...(linkOf ? { link: async (slug, token, caller) => { try { return await linkOf(formCtx(caller), slug, token); } catch { return null; } } } : {}),
+            // the file is stored as the host (system), never as the visitor or the forms module; the forms module keeps the binding of the upload to this form and this visitor and issues the id the page gets back
+            ...(reserveUpload && recordUpload ? { upload: async (slug: string, file: { name: string; type: string; bytes: Uint8Array; folderId: string }, caller: { kind: string; id: string }, token?: string) => {
+              const ctx = formCtx(caller);
+              reserveUpload(ctx, slug);
+              const out = await system("files.create", { folderId: file.folderId, name: file.name, mime: file.type, content: { base64: Buffer.from(file.bytes).toString("base64") } }) as { file: { fileId: string } };
+              return recordUpload(ctx, { slug, fileId: out.file.fileId, name: file.name, mime: file.type, size: file.bytes.length, token });
+            } } : {}),
+            now,
+          });
+        }
+      }
       routeIndex = indexRoutes([...routes, ...(o.extra?.routes ?? [])]);   // a duplicate route is a boot error, not a first-request error
       capIndex = indexCapabilities(caps);
 
@@ -701,6 +739,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         invoke, sink,
         eventsSince: (_s, cursor) => (recent.length && recent[0]!.seq <= cursor + 1 ? recent.filter((e) => e.seq > cursor) : []),
         head: () => headSeq,
+        ...(o.liveSync ? { sync: o.liveSync.hub } : {}),
       });
       hubFactory = mkHub;
     } else {
@@ -801,13 +840,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const gatewayUnit = async (): Promise<RunningUnit> => {
     const h = hubFactory ? hubFactory() : createLiveHub({ session: () => null });
     hub = h;
+    o.liveSync?.onHub?.(h);
     const server = h.server;
     server.removeAllListeners("request");
     const listener = requestListener({
       health, coerce,
       gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),
     });
-    server.on("request", (req, res) => { if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || exportRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return; listener(req, res); });
+    server.on("request", (req, res) => { if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || exportRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return; listener(req, res); });
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error): void => reject(err);
       server.once("error", onError);

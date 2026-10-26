@@ -8,6 +8,7 @@ import { g24dHandlers } from "./g24d.ts";
 import { g26Handlers } from "./g26.ts";
 import { post } from "./post.ts";
 import { guardPrivate } from "./private.ts";
+import { channelErase, threadErase, transcriptPurge } from "./purge.ts";
 import { answerBlock, approvePlan, channelsCreate, connectOutsideAgent, makeChannel, start, thread } from "./thread.ts";
 
 /** The Ask pane capabilities of P-L2_11. */
@@ -26,6 +27,9 @@ export const handlers = {
   "threads.make_channel": makeChannel,
   "channels.create": channelsCreate,
   "channels.connect_outside_agent": connectOutsideAgent,
+  "threads.erase": threadErase,
+  "channels.erase": channelErase,
+  "chat.transcript.purge": transcriptPurge,
   ...askHandlers,
   ...g24aHandlers,
   ...g24bHandlers,

@@ -1,15 +1,15 @@
 // forms: the public submit, submissions, survey results, First/Latest source and Source rules (spec 2.11, 3.6; ARCH 7.6).
 // /f/<slug> reaches forms.submit on the public listener. The gateway authenticates the call as service principal svc_form_<id>; the write goes through
 // records.create / records.update as that principal, so every value is counted as coming from the link holder.
-// Order of checks: form open, principal, rate limit, consent, captcha, link, answers, duplicate, then the write. A refused call writes nothing.
+// Order of checks: form open, principal, rate limit, consent, captcha, link, answers (conditional logic), uploads (upload_policy), duplicate, then the write. A refused call writes nothing.
 // A single-use link is consumed before the write and released if the write fails, so one link can never make two records.
-// @reads ../migrations/0001_forms.sql
+// @reads ../migrations/0001_forms.sql ../migrations/0002_forms_uploads.sql
 
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import type { Attribution, Row } from "../projections.ts";
+import type { Attribution, FormKind, Row } from "../projections.ts";
 import {
   attributionOf, cleanAttribution, DEFAULT_RATE_LIMIT, fail, fieldsOf, flag, formsConfig, isRec, many, matchRuleOf, mustForm, nid, num, optStr,
-  pageOf, parseJson, publishedBySlug, rateLimit, rec, recordAttribution, reqStr, sha256hex, sourceRules, str,
+  isNull, one, pageOf, parseJson, publishedBySlug, rateLimit, rec, recordAttribution, reqStr, sha256hex, sourceRules, str,
 } from "../projections.ts";
 import { answerableFields, consumeLink, releaseLink, resolveLink } from "./links.ts";
 
@@ -44,7 +44,83 @@ function cleanAnswer(ctx: Ctx, key: string, v: unknown): Answer {
 
 const isEmptyAnswer = (v: unknown): boolean => v === null || v === undefined || (typeof v === "string" && v.trim() === "") || (Array.isArray(v) && v.length === 0);
 
-/** Check the answers against the form: unknown questions are refused, read-only (Show) questions are ignored, email-like fields are tidied. */
+// ---- conditional logic -----------------------------------------------------------------------------------------
+// forms.design_set stores `logic` as { rules: [{ when, show?, hide?, require? }] }. `when` is { field, op, value? } or { all: [...] } / { any: [...] } / { not: ... }; ops are
+// eq, ne, in, contains, empty, not_empty, gt, gte, lt, lte. A question named in any rule's `show` starts hidden and appears while a rule that shows it matches; a matching `hide` rule
+// hides it again; a matching `require` rule makes it required while it is visible. The public page runs the same rules in the browser; this is the one that counts.
+
+export interface LogicRule { when: unknown; show?: string[]; hide?: string[]; require?: string[] }
+
+const LOGIC_PASSES = 8;
+const nameList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+
+function rulesOf(logic: unknown): LogicRule[] {
+  const list = isRec(logic) && Array.isArray(logic.rules) ? logic.rules : [];
+  return list.filter(isRec).map((r) => {
+    const rule: LogicRule = { when: r.when };
+    const show = nameList(r.show), hide = nameList(r.hide), require = nameList(r.require);
+    if (show.length > 0) rule.show = show;
+    if (hide.length > 0) rule.hide = hide;
+    if (require.length > 0) rule.require = require;
+    return rule;
+  });
+}
+
+const textOf = (v: unknown): string => (Array.isArray(v) ? v.join(",") : v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
+
+function holds(cond: unknown, answers: Record<string, unknown>): boolean {
+  if (!isRec(cond)) return false;
+  if (Array.isArray(cond.all)) return cond.all.every((c) => holds(c, answers));
+  if (Array.isArray(cond.any)) return cond.any.some((c) => holds(c, answers));
+  if ("not" in cond) return !holds(cond.not, answers);
+  const have = answers[str(cond.field)];
+  const want = cond.value;
+  switch (cond.op) {
+    case "empty": return isEmptyAnswer(have);
+    case "not_empty": return !isEmptyAnswer(have);
+    case "eq": return Array.isArray(have) ? have.includes(textOf(want)) : textOf(have) === textOf(want);
+    case "ne": return Array.isArray(have) ? !have.includes(textOf(want)) : textOf(have) !== textOf(want);
+    case "in": return Array.isArray(want) && want.map(textOf).includes(textOf(have));
+    case "contains": return textOf(have).toLowerCase().includes(textOf(want).toLowerCase());
+    case "gt": case "gte": case "lt": case "lte": {
+      const a = Number(have), b = Number(want);
+      if (isEmptyAnswer(have) || !Number.isFinite(a) || !Number.isFinite(b)) return false;
+      return cond.op === "gt" ? a > b : cond.op === "gte" ? a >= b : cond.op === "lt" ? a < b : a <= b;
+    }
+    default: return false;
+  }
+}
+
+/** Which questions are hidden and which are required for these answers. A hidden question's answer does not feed a rule, so the rules are settled in a few passes. */
+export function logicState(logic: unknown, answers: Record<string, unknown>): { hidden: Set<string>; required: Set<string> } {
+  const rules = rulesOf(logic);
+  const startsHidden = new Set(rules.flatMap((r) => r.show ?? []));
+  let hidden = new Set(startsHidden);
+  let required = new Set<string>();
+  for (let pass = 0; pass < LOGIC_PASSES; pass++) {
+    const seen: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(answers)) if (!hidden.has(k)) seen[k] = v;
+    const next = new Set(startsHidden);
+    const need = new Set<string>();
+    for (const r of rules) {
+      if (!holds(r.when, seen)) continue;
+      for (const f of r.show ?? []) next.delete(f);
+    }
+    for (const r of rules) {
+      if (!holds(r.when, seen)) continue;
+      for (const f of r.hide ?? []) next.add(f);
+      for (const f of r.require ?? []) need.add(f);
+    }
+    const same = next.size === hidden.size && [...next].every((f) => hidden.has(f));
+    hidden = next;
+    required = need;
+    if (same) break;
+  }
+  for (const f of hidden) required.delete(f);
+  return { hidden, required };
+}
+
+/** Check the answers against the form: unknown questions are refused, read-only (Show) questions are ignored, email-like fields are tidied, questions the logic hides are dropped and the ones it requires must be filled. */
 export function checkAnswers(ctx: Ctx, form: Row, link: Row | null, raw: Record<string, unknown>): Record<string, Answer> {
   const allowed = answerableFields(ctx, form, link);
   const modes = new Map(fieldsOf(ctx, str(form.id)).map((f) => [str(f.field), str(f.mode)]));
@@ -60,7 +136,106 @@ export function checkAnswers(ctx: Ctx, form: Row, link: Row | null, raw: Record<
     }
     out[key] = a;
   }
+  const logic = parseJson(form.logic);
+  if (logic !== undefined) {
+    const { hidden, required } = logicState(logic, out);
+    for (const key of hidden) delete out[key];
+    for (const key of required) {
+      if (allowed.has(key) && isEmptyAnswer(out[key])) fail(ctx, "validation.bad_input", "This question needs an answer.", { field: `answers.${key}` });
+    }
+  }
   return out;
+}
+
+// ---- upload policy ---------------------------------------------------------------------------------------------
+// forms.update stores `upload_policy` as { fields?: string[], folderId?: string, maxBytes?: number, types?: string[] }. `types` hold MIME types ("application/pdf"), MIME families ("image/*") or
+// extensions (".pdf"); `maxBytes` is the most one file may be. The policy covers every answer that is a file ({ fileId }), whatever the question; `fields` names the questions the public
+// page draws as a file chooser. The size and type checked are the ones the upload route measured and recorded (forms_upload), not what the browser claimed, and a file answer is an upload id the form itself issued, never a Space file id.
+
+export interface UploadPolicy { fields: string[]; maxBytes?: number; types: string[]; /** the Files folder public uploads land in; without it the page offers no file chooser */ folderId?: string }
+
+export function uploadPolicyOf(form: Row): UploadPolicy | undefined {
+  const p = parseJson(form.upload_policy);
+  if (!isRec(p)) return undefined;
+  const out: UploadPolicy = { fields: nameList(p.fields), types: nameList(p.types).map((t) => t.trim().toLowerCase()).filter((t) => t.length > 0) };
+  if (typeof p.folderId === "string" && p.folderId.length > 0) out.folderId = p.folderId;
+  if (typeof p.maxBytes === "number" && Number.isFinite(p.maxBytes) && p.maxBytes >= 0) out.maxBytes = p.maxBytes;
+  return out;
+}
+
+/** Does this stored file fit the allowed types? No types listed means any. */
+export function typeAllowed(types: readonly string[], mime: string, name: string): boolean {
+  if (types.length === 0) return true;
+  const m = mime.toLowerCase();
+  const n = name.toLowerCase();
+  return types.some((t) => (t.startsWith(".") ? n.endsWith(t) : t.endsWith("/*") ? m.startsWith(t.slice(0, -1)) : m === t));
+}
+
+const UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;
+/** Uploads one form accepts in a day from every visitor together; the upload route also limits each source address per minute. */
+const UPLOADS_PER_FORM_PER_DAY = 200;
+
+/** The upload route asks before it stores a byte: is this form taking uploads, and is today's cap spent? Throws the refusal; nothing is written. */
+export function reserveUpload(ctx: Ctx, slug: string): { formId: string; folderId: string } {
+  const form = publishedBySlug(ctx, slug, ["public", "one_use", "survey"]);
+  const folderId = uploadPolicyOf(form)?.folderId;
+  if (folderId === undefined) fail(ctx, "validation.not_found", "That form is not open.");
+  const since = ctx.now() - UPLOAD_TTL_MS;
+  if (many(ctx, "SELECT * FROM forms_upload WHERE form_id = ?", str(form.id)).filter((u) => num(u.created_at) > since).length >= UPLOADS_PER_FORM_PER_DAY) {
+    fail(ctx, "rate_limit.exceeded", "This form has taken all the files it accepts today. Try again tomorrow.", { retryAfterSeconds: 3600 });
+  }
+  return { formId: str(form.id), folderId };
+}
+
+/**
+ * The upload route stored a file in the form's folder as the host; this records it against the form and the visitor (ctx.principal: the act_anon_* actor) and returns the id the page puts
+ * in its answer. The visitor never sees the Space file id, and forms.submit takes nothing else.
+ */
+export async function recordUpload(ctx: Ctx, f: { slug: string; fileId: string; name: string; mime: string; size: number; token?: string | undefined }): Promise<string> {
+  const form = publishedBySlug(ctx, f.slug, ["public", "one_use", "survey"]);
+  const id = nid(ctx, "upl");
+  ctx.db.run(
+    "INSERT INTO forms_upload (id, form_id, actor, token_hash, file_id, name, mime, size, created_at, used_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    id, str(form.id), ctx.principal.id, f.token !== undefined && f.token.length > 0 ? await sha256hex(f.token) : null, f.fileId, f.name, f.mime, f.size, ctx.now(), null,
+  );
+  return id;
+}
+
+/**
+ * Turn each file answer ({ fileId: <upload id> }) into the file it stands for. An upload counts only if this form took it from this visitor (and the same signed link), it is unused and under a
+ * day old, and it fits the form's policy. A Space file id the visitor makes up is not an upload id and is refused. Returns the answers with the Space file ids, and the upload ids to mark used.
+ */
+export function checkUploads(ctx: Ctx, form: Row, answers: Record<string, Answer>, tokenHash: string | null, visitor: string): { answers: Record<string, Answer>; used: string[] } {
+  const policy = uploadPolicyOf(form);
+  const out: Record<string, Answer> = { ...answers };
+  const used: string[] = [];
+  for (const [key, a] of Object.entries(answers)) {
+    if (a === null || typeof a !== "object" || Array.isArray(a)) continue;
+    const field = `answers.${key}`;
+    const bad = (): never => fail(ctx, "validation.bad_input", "That file could not be found. Choose it again.", { field });
+    const row = one(ctx, "SELECT * FROM forms_upload WHERE id = ?", a.fileId);
+    if (!row || row.form_id !== form.id || row.actor !== visitor || !isNull(row.used_at) || num(row.created_at) <= ctx.now() - UPLOAD_TTL_MS) return bad();
+    if ((isNull(row.token_hash) ? null : str(row.token_hash)) !== tokenHash || used.includes(a.fileId) || !policy) return bad();
+    if (policy.maxBytes !== undefined && num(row.size) > policy.maxBytes) {
+      fail(ctx, "validation.too_large", `That file is over the ${Math.floor(policy.maxBytes / 1024)} KB limit.`, { field, maxBytes: policy.maxBytes });
+    }
+    if (!typeAllowed(policy.types, str(row.mime), str(row.name))) fail(ctx, "validation.bad_input", "That kind of file is not accepted here.", { field, types: policy.types });
+    out[key] = { fileId: str(row.file_id) };
+    used.push(a.fileId);
+  }
+  return { answers: out, used };
+}
+
+/** The host's own principal: the public routes call forms.submit as the host for a signed-out visitor, who has no session the pipeline could authorize. */
+const HOST_PRINCIPAL = "svc_host";
+const VISITOR_ID = /^act_(anon|pending)_[0-9a-f]{16}$/;
+
+/**
+ * Who the submitter is. Normally the caller. When the host made the call for a signed-out visitor it names that visitor (act_anon_*, built from the socket address by the route, which clears
+ * any `visitor` the client sent); from any other principal the field is ignored, so no gateway caller can borrow another visitor's uploads.
+ */
+export function visitorOf(ctx: Ctx, o: Record<string, unknown>): string {
+  return ctx.principal.id === HOST_PRINCIPAL && typeof o.visitor === "string" && VISITOR_ID.test(o.visitor) ? o.visitor : ctx.principal.id;
 }
 
 export function principalOk(ctx: Ctx, form: Row): void {
@@ -177,7 +352,8 @@ async function submit(ctx: Ctx, input: unknown): Promise<{ recordId: string; tha
   if (token !== undefined) link = await resolveLink(ctx, form, token);
   else if (form.kind === "one_use") fail(ctx, "auth.invalid_code", "This form opens only from the link that was sent to you.");
 
-  const answers = checkAnswers(ctx, form, link, rawAnswers);
+  const checked = checkAnswers(ctx, form, link, rawAnswers);
+  const { answers, used } = checkUploads(ctx, form, checked, token !== undefined ? await sha256hex(token) : null, visitorOf(ctx, o));
   const attribution = cleanAttribution(ctx, o.attribution, consent);
 
   const digest = await digestOf(form, link, answers);
@@ -195,6 +371,7 @@ async function submit(ctx: Ctx, input: unknown): Promise<{ recordId: string; tha
     throw e;
   }
 
+  for (const u of used) ctx.db.run("UPDATE forms_upload SET used_at = ? WHERE id = ?", now, u);
   ctx.db.run(
     "INSERT INTO forms_submission (id, form_id, record_id, at, matched, principal, link_id, consent, digest, answers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     nid(ctx, "sub"), formId, written.recordId, now, written.matched ? 1 : 0, formPrincipal(formId), link ? str(link.id) : null, consent ? 1 : 0, digest,
@@ -211,6 +388,66 @@ async function submit(ctx: Ctx, input: unknown): Promise<{ recordId: string; tha
     if (t.length > 0) out.thankYou = t;
   }
   return out;
+}
+
+// ---- the public page's view of a form --------------------------------------------------------------------------
+
+export interface PublicFormView {
+  slug: string;
+  kind: FormKind;
+  name: string;
+  /** the questions a visitor sees, in order: Ask, plus Hide ones that a link or the page address fills (prefillKey) */
+  fields: { field: string; hidden: boolean; prefillKey?: string; step: number }[];
+  theme?: Record<string, unknown>;
+  css?: string;
+  consentText?: string;
+  captcha: boolean;
+  logic?: { rules: LogicRule[] };
+  thankYou?: { text?: string; redirect?: string };
+  upload?: UploadPolicy;
+  /** booking pages: the meeting length the visitor is picking a slot for */
+  lengthMinutes?: number;
+}
+
+/**
+ * What GET /f/<slug> and GET /book/<slug> draw. A closed, draft, deleted or wrong-kind form is not found, like every public read. `page` is which address was asked:
+ * /f/ serves public, one-use and survey forms, /book/ serves booking pages.
+ */
+export function publicFormView(ctx: Ctx, slug: string, page: "form" | "booking"): PublicFormView {
+  const form = publishedBySlug(ctx, slug, page === "booking" ? ["booking"] : ["public", "one_use", "survey"]);
+  const view: PublicFormView = {
+    slug: str(form.slug),
+    kind: str(form.kind) as FormKind,
+    name: str(form.name),
+    fields: fieldsOf(ctx, str(form.id))
+      .filter((f) => f.mode === "ask" || (f.mode === "hide" && !isNull(f.prefill_key)))
+      .map((f) => {
+        const row: PublicFormView["fields"][number] = { field: str(f.field), hidden: f.mode === "hide", step: isNull(f.step) ? 0 : num(f.step) };
+        if (!isNull(f.prefill_key)) row.prefillKey = str(f.prefill_key);
+        return row;
+      }),
+    captcha: flag(form.captcha),
+  };
+  const theme = parseJson(form.theme);
+  if (isRec(theme)) view.theme = theme;
+  if (typeof form.css === "string" && form.css.length > 0) view.css = form.css;
+  if (str(form.consent_text).trim().length > 0) view.consentText = str(form.consent_text);
+  const logic = rulesOf(parseJson(form.logic));
+  if (logic.length > 0) view.logic = { rules: logic };
+  const thanks = parseJson(form.thank_you);
+  if (isRec(thanks)) {
+    const t: NonNullable<PublicFormView["thankYou"]> = {};
+    if (typeof thanks.text === "string" && thanks.text.length > 0) t.text = thanks.text;
+    if (typeof thanks.redirect === "string" && thanks.redirect.length > 0) t.redirect = thanks.redirect;
+    if (t.text !== undefined || t.redirect !== undefined) view.thankYou = t;
+  }
+  const upload = uploadPolicyOf(form);
+  if (upload) view.upload = upload;
+  if (page === "booking") {
+    const bp = one(ctx, "SELECT * FROM forms_booking_page WHERE form_id = ?", str(form.id));
+    if (bp) view.lengthMinutes = num(bp.length_minutes);
+  }
+  return view;
 }
 
 async function submissions(ctx: Ctx, input: unknown): Promise<{ rows: { recordId: string; at: number; matched: boolean }[]; next?: string; total: number }> {
