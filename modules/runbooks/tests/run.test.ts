@@ -170,7 +170,7 @@ test("a run uses the saved Runs on target, an explicit one overrides it, and wit
   await handlers["runbooks.set_target"](w.ctx, { fileId, target: { kind: "computer", computerId: "cmt_7" } });
   const saved = await handlers["runbooks.run"](w.ctx, { fileId, all: true });
   const open = w.calls.find((c) => c.cap === "terminal.open");
-  assert.deepEqual(open?.input, { host: "agent_computer", computerId: "cmt_7", name: "Runbook deploy.md" });
+  assert.deepEqual(open?.input, { idempotencyKey: `runbooks.run:${saved.runId}:open`, host: "agent_computer", computerId: "cmt_7", name: "Runbook deploy.md" });
   assert.deepEqual((await handlers["runbooks.runs.get"](w.ctx, { runId: saved.runId })).run.target, { kind: "computer", computerId: "cmt_7" });
 
   const explicit = await handlers["runbooks.run"](w.ctx, { fileId, all: true, target: SERVER });

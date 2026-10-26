@@ -14,6 +14,7 @@ import { LogStore } from "../../../kernel/src/log/store.ts";
 import type { NewEvent } from "../../../kernel/src/log/types.ts";
 import type { Daemon } from "../../../host/src/daemon/daemon.ts";
 import { fillAccessTables } from "../core/access.ts";
+import { fillIdentityTables } from "../core/identity.ts";
 import { CORE_SPACE, PEOPLE, bootCore, cacheDir, registryHash, templateKey } from "../core/index.ts";
 import { SMALL_SOURCES, SMALL_LIVE, startSeeded } from "../small/build.ts";
 
@@ -107,7 +108,9 @@ async function build(into: string, sizes: PerfSizes): Promise<void> {
     const events = (log.prepare("SELECT event, payload FROM events ORDER BY seq").all() as { event: string; payload: Uint8Array }[]).map((r) => ({ type: (JSON.parse(r.event) as { type: string }).type, payload: r.payload }));
     log.close();
     const mod = new DatabaseSync(path.join(into, "modules.db"));
-    fillAccessTables({ run: (sql, ...args) => mod.prepare(sql).run(...(args as never[])) }, events);
+    const target = { run: (sql: string, ...args: unknown[]) => mod.prepare(sql).run(...(args as never[])) };
+    fillAccessTables(target, events);
+    fillIdentityTables(target, CORE_SPACE, events);
     mod.close();
   }
   fs.writeFileSync(path.join(into, "perf.json"), JSON.stringify({ gaps, sizes }));

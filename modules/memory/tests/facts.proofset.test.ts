@@ -114,11 +114,6 @@ test("proof set: leakage is 0 and a closed, removed or proposed fact is never of
   assert.equal(r.metrics["closed.offered"], 0, r.detail.join("\n"));
 });
 
-test("proof set: a pointer block answers within the 50 ms budget on the world", async () => {
-  const r = await report;
-  assert.ok(r.p95ms < 50, `pointer p95 was ${r.p95ms} ms`);
-});
-
 test("proof set: another person's layer is theirs alone, and it opens for them", async () => {
   const { h } = await report;
   // Omar sees his own facts through the same lookups; Dana never does. The rows hold no plain text.

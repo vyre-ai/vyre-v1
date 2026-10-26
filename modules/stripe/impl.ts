@@ -3,8 +3,10 @@
 // verifyWebhook is what the host's /hooks/stripe route calls first: it refuses a body Stripe did not sign and returns the input of stripe.receive_webhook.
 import type { Handler } from "../../host/src/invoke.ts";
 import * as h from "./handlers/index.ts";
+import { setStripeHost } from "./projections.ts";
+import type { SeamSetters } from "../../host/src/seams/index.ts";
 
-export { setStripeHost } from "./projections.ts";
+export { setStripeHost };
 export type { StripeHost } from "./projections.ts";
 export { parseWebhook, signatureMatches, signatureOf, verifyWebhook } from "./handlers/index.ts";
 
@@ -31,3 +33,6 @@ export const handlers: Record<string, Handler> = {
 };
 
 export const projections = { inline: {}, consumers: {} };
+
+/** Where the host registers its half at boot (ruling 31). */
+export const hostSeams: SeamSetters = { setStripeHost };

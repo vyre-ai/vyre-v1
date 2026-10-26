@@ -1,7 +1,7 @@
 // The title bar (spec 3.0): "Vyre · <Space> · <Place>" in the middle, a tiny confirmation replaces it for a moment (with Undo when the action can be taken back),
 // the sync chip on the right ("Synced", "Sending 2 changes", "Offline, 3 changes waiting"; click opens Waiting and Conflicts), Search (Cmd-K) and the skin dropdown.
 import { useState } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
 import { ShellIcon } from "../rail/icons.tsx";
@@ -23,6 +23,8 @@ export interface TitleBarProps {
   onSkin: (id: string) => void;
   /** A phone-width window keeps icons and drops labels. */
   compact?: boolean;
+  /** The running call as a pill beside the title (the Inbox's CallTitlePill); nothing when there is no call. */
+  call?: ReactNode;
 }
 
 export function TitleBar(props: TitleBarProps): ReactElement {
@@ -44,6 +46,7 @@ export function TitleBar(props: TitleBarProps): ReactElement {
           </View>
         )}
       </View>
+      {props.call ? <View testID="title-call" style={styles.call}>{props.call}</View> : null}
       <Chip
         testID="title-sync"
         label={sync.text}
@@ -114,6 +117,7 @@ function Chip({ testID, label, hideLabel = false, hint, lead, tail, title, onPre
 }
 
 const styles = StyleSheet.create({
+  call: { marginRight: 8, justifyContent: "center" },
   bar: { height: TITLE_BAR_HEIGHT, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 14, paddingRight: 10, backgroundColor: "var(--rail)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   mid: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-3)" as string },

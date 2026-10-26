@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { routes } from "../../generated/routes.ts";
-import { bootCore } from "../../fixtures/seed/core/index.ts";
+import { bootSmall } from "../../fixtures/seed/small/build.ts";
 import { fakePlatform } from "../../host/src/platform/index.ts";
 import type { FetchFn } from "../../host/src/platform/probes.ts";
 import { loadConfig } from "../../host/src/daemon/config.ts";
@@ -34,13 +34,9 @@ export function codeRootWithLive(live: readonly string[]): string {
   return root;
 }
 
-function seededDir(): string {
-  const core = bootCore();
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-golden-"));
-  core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
-  fs.copyFileSync(core.file, path.join(dir, "events.db"));
-  core.close();
-  return dir;
+/** A private data directory holding the small seed: the core Space grown to 500 contacts and 12 agents, with the access and identity modules' own tables filled from it, so the live modules know the seeded people and folders. */
+async function seededDir(): Promise<string> {
+  return (await bootSmall()).dir;
 }
 
 /** The path of a capability, from the generated route table. */
@@ -65,8 +61,8 @@ export interface FlowSpace {
 }
 
 /** Boots a daemon on the `core` seed with `live` flipped in a temporary code root. Rejects with the host's own refusal text when the boot is refused. */
-export async function bootFlowSpace(live: readonly string[]): Promise<FlowSpace> {
-  const dir = seededDir();
+export async function bootFlowSpace(live: readonly string[], opts: { engineCli?: unknown; vault?: { secret(handle: string): Promise<string>; signRs256(): Promise<string> } } = {}): Promise<FlowSpace> {
+  const dir = await seededDir();
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     codeRoot: codeRootWithLive(live),
@@ -79,6 +75,8 @@ export async function bootFlowSpace(live: readonly string[]): Promise<FlowSpace>
       },
     }),
     fetch: caddyFetch,
+    ...(opts.engineCli !== undefined ? { engineCli: opts.engineCli } : {}),
+    ...(opts.vault ? { vault: opts.vault } : {}),
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, tick: 3_600_000, hooks: 3_600_000 },
   });
   const trace = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -106,7 +104,7 @@ export async function bootFlowSpace(live: readonly string[]): Promise<FlowSpace>
       return { status: res.status, body: parsed, trace: res.headers.get("x-vyre-trace") };
     },
     signedIn(person, device = `dev_${person.slice(4)}1`) {
-      const now = Date.now(), session = `ses_${person.slice(4)}1`;
+      const now = Date.now(), session = `ses_${device.slice(4)}`;
       d.db!.run(`INSERT OR IGNORE INTO devices_device (id, person, name, class, epoch, lastSeenAt, location, revokedAt, version, updated_at, deleted_at) VALUES (?, ?, ?, 'desktop', 0, ?, NULL, NULL, 0, ?, NULL)`, device, person, `${person} laptop`, now, now);
       d.db!.run(`INSERT OR IGNORE INTO devices_session (id, person, kind, principal_kind, device_id, started_at, last_seen_at, location, revoked_at) VALUES (?, ?, 'device', 'person', ?, ?, ?, NULL, NULL)`, session, person, device, now, now);
       return issueSessionToken(d.db!, session);
@@ -161,4 +159,27 @@ export const todoOf = (gaps: readonly Gap[]): string | false => (gaps.length ? g
 /** The steps that must be ok whatever the gaps are (they are real, passing proof). */
 export function okSteps(trail: Trail): string[] {
   return trail.lines.filter((l) => l.startsWith("ok    ")).map((l) => l.slice(6));
+}
+
+/** Boots with `live`; when the host refuses because a module has no handlers, records that as a failed step and boots again without the refused modules, so the rest of the flow still shows its own gaps. */
+export async function bootTolerant(trail: Trail, live: readonly string[], opts: Parameters<typeof bootFlowSpace>[1] = {}): Promise<{ s: FlowSpace | undefined; dropped: string[] }> {
+  let want = [...live];
+  const dropped: string[] = [];
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const s = await bootFlowSpace(want, opts);
+      if (dropped.length === 0) trail.lines.push(`ok    the Space boots with ${live.join(", ")} live`);
+      return { s, dropped };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const bad = [...new Set([...msg.matchAll(/module ([a-z0-9-]+) \(live\)/g)].map((m) => m[1]!))].filter((m) => want.includes(m));
+      if (bad.length === 0) { trail.failures.push(`boot: ${msg.slice(0, 300)}`); trail.lines.push(`FAIL  boot: ${msg.slice(0, 300)}`); return { s: undefined, dropped }; }
+      const why = msg.split("\n").filter((l) => bad.some((b) => l.includes(`module ${b} (live)`))).slice(0, 2).join(" ; ");
+      trail.failures.push(`the Space cannot boot with ${bad.join(", ")} live: ${why.slice(0, 300)}`);
+      trail.lines.push(`FAIL  the Space cannot boot with ${bad.join(", ")} live: ${why.slice(0, 300)}`);
+      dropped.push(...bad);
+      want = want.filter((m) => !bad.includes(m));
+    }
+  }
+  return { s: undefined, dropped };
 }

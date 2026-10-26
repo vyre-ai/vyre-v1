@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { handlers } from "../impl.ts";
-import { codeOf, DEVICE, harness, NOW } from "../fixtures/db.ts";
+import { codeOf, DEVICE, harness, NOW } from "./wire.ts";
 import { SEED_PERSON } from "../fixtures/seed.ts";
 import { provisionAccount, sessionOfToken, totpAt, unbase32 } from "../projections.ts";
 

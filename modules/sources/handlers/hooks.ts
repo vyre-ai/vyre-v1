@@ -177,14 +177,14 @@ export function createHooksHandlers(deps: SourcesDeps): HooksHandlers {
       }
       if (recordId === undefined) {
         if (mapping.match.length) {
-          await ctx.call("records.bulk_upsert", { type: src.type, rows: [row], match: mapping.match, runAutomations: o.runAutomations });
+          await ctx.call("records.bulk_upsert", { idempotencyKey: `sources.delivery:${deliveryId}:upsert`, type: src.type, rows: [row], match: mapping.match, runAutomations: o.runAutomations });
           recordId = (await find(ctx, src.type, mapping.match, row, 1))[0]?.id;
         } else {
-          const made = (await ctx.call("records.create", { type: src.type, fields: row })) as { record: { id: string } };
+          const made = (await ctx.call("records.create", { idempotencyKey: `sources.delivery:${deliveryId}:create`, type: src.type, fields: row })) as { record: { id: string } };
           recordId = made.record.id;
         }
       } else if (linkedBy === undefined) {
-        await ctx.call("records.bulk_upsert", { type: src.type, rows: [row], match: mapping.match, runAutomations: o.runAutomations });
+        await ctx.call("records.bulk_upsert", { idempotencyKey: `sources.delivery:${deliveryId}:update`, type: src.type, rows: [row], match: mapping.match, runAutomations: o.runAutomations });
       }
       const recordIds = recordId ? [recordId] : [];
       tx.run("INSERT OR IGNORE INTO source_seen (source, provider_id, seen_at) VALUES (?, ?, ?)", src.key, providerId, now);
@@ -421,7 +421,7 @@ export function createHooksHandlers(deps: SourcesDeps): HooksHandlers {
       };
       if (input.ignore) { settle("ignored", null); return {}; }
       if (input.createNew) {
-        const made = (await ctx.call("records.create", { type: m.type, fields: row })) as { record: { id: string } };
+        const made = (await ctx.call("records.create", { idempotencyKey: `sources.link.resolve:${m.match_id}:create`, type: m.type, fields: row })) as { record: { id: string } };
         settle("created", made.record.id);
         return { recordId: made.record.id };
       }

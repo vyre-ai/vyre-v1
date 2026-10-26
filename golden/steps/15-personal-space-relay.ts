@@ -9,9 +9,9 @@ export const LIVE_FOR_PERSONAL = ["spaces", "devices", "network", "access", "mem
 
 /** Why this flow is a todo today (ruling 53). */
 export const GAPS: Gap[] = [
-  { packet: "P-L1_LIVE", lane: "L1", what: "sync cannot go live: its impl exports 4 of 16 handlers, so a host that boots it is refused; pull, push, snapshot and scope change are unreachable" },
-  { packet: "P-L7_LIVE", lane: "L7", what: "the host has no Personal Space: nothing sets space.kind, spaces.matrix is a 'later' stub, and teamOnly is never enforced (no permission.needs_team anywhere in host/src)" },
-  { packet: "P-L7b_LIVE", lane: "L7b", what: "the daemon starts no relay endpoint and network.endpoints has no relay entry for the connection manager to pin" },
+  { packet: "P-H_19 (PR 479)", lane: "L7", what: "the Space is a team Space: spaces.matrix answers kind team and nothing sets a Personal Space, so teamOnly calls are not refused with permission.needs_team" },
+  { packet: "P-L7b_15 (L7b)", lane: "L7b", what: "network.endpoints lists only direct endpoints, no relay" },
+  { packet: "P-L1_LIVE", lane: "L1", what: "no document update is pushed from the host and pulled by the phone yet (the step is a placeholder until a documents flow exists)" },
 ];
 
 export async function runPersonal(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
@@ -50,7 +50,12 @@ export async function runPersonal(live: readonly string[]): Promise<{ events: Ob
     }, ["the phone pairs with a code from the signed-in device"]);
     await trail.step("a document edited on the host reaches the phone", async () => {
       assert.ok(synced, "needs sync live");
-      throw new Error("not reachable until sync is live: no document update has been pushed or pulled");
+      const doc = "not_golden15";
+      const update = Buffer.from([0, 0]).toString("base64");   // an empty Yjs update: the server appends what an accepted device sends
+      const sent = expectStatus(await space.call("sync.doc.update", admin, { doc, update }), 200, "sync.doc.update");
+      assert.ok(sent.seq >= 1, `update ${short(sent)}`);
+      const opened = expectStatus(await space.call("sync.doc.open", phone!.token, { doc }), 200, "sync.doc.open");
+      assert.ok((opened.updates as string[]).includes(update) || opened.snapshot, `the phone opens the host's update: ${short(opened)}`);
     }, ["the phone's replica scope is set and it pulls"]);
     await trail.step("refusal: the phone cannot revoke the host's other devices", async () => {
       const r = await space.call("devices.revoke", phone!.token, { deviceId: "dev_hostcomputer" });
