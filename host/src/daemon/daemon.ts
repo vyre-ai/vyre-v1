@@ -429,7 +429,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const mod = h ? (capIndex?.get(cap)?.module ?? "") : "";
           // the owner claimed the Space: the link is spent, so the file that held it goes too
           if (h && cap === "identity.claim_owner") return (async (ctx, input) => {
-            const out = await h({ ...ctx, ...peopleExtras?.(mod, ctx) } as typeof ctx, input);
+            // identity opens the owner's device session through devices.register, which only the host may call (P-SEC_08): the same override as every other identity handler
+            const out = await h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown, opts?: unknown) => (name === "devices.register" ? system(name, callInput) : (ctx.call as (n: string, i: unknown, o?: unknown) => unknown)(name, callInput, opts)) } as typeof ctx, input);
             claim = null;
             try { fs.rmSync(path.join(paths.logDir, "claim-link.txt"), { force: true }); } catch { /* already gone */ }
             return out;
