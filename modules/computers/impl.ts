@@ -24,6 +24,7 @@ import { tarFiles } from "../../sandbox/src/tar.ts";
 import { createDockerApi, unixSocketHttp } from "../../sandbox/src/docker.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
 import { handlers as table } from "./handlers/index.ts";
+import { createProfileSeal } from "./handlers/seal.ts";
 import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
 import { bindFill, bindHost } from "./projections.ts";
@@ -63,7 +64,9 @@ export interface DockerHostOptions {
   /** Where the live view is served from, for a ticket. Default: the host's /computers/<id>/stream over MJPEG. */
   streamUrl?: (computerId: string, ticket: string) => { transport: "webrtc" | "mjpeg"; url: string };
   /** The profile disk is sealed under the Space key while the computer sleeps (ARCH 6.6): unseal before the container starts, seal after it stopped. */
-  profile?: { unseal(computerId: string): Promise<void>; seal(computerId: string): Promise<void> };
+  profile?: { unseal(computerId: string): Promise<void>; seal(computerId: string): Promise<void>; discard?(computerId: string): Promise<void> };
+  /** The node key and the folder for sealed profiles (handlers/seal.ts). With it and the raw Engine access `http`, the host builds `profile` itself. */
+  profileSeal?: { key(): Uint8Array; dir: string };
   /** How long start waits for agentd to answer. Default 30 s. */
   startTimeoutMs?: number;
   user?: { uid: number; gid: number };
@@ -156,6 +159,9 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
   const ctlPath = o.ctl ?? AGENTD_CTL;
   const sleep = o.sleep ?? realSleep;
   const nameOf = (computerId: string): string => `${prefix}${computerId.replace(/^cmt_/, "")}`;
+  const profile = o.profile ?? (o.profileSeal && o.http
+    ? createProfileSeal({ http: o.http, key: o.profileSeal.key, dir: o.profileSeal.dir, container: nameOf, volume: (id) => `${nameOf(id)}-profile`, image: o.image ?? DEFAULT_COMPUTER_IMAGE, user: { uid: o.user?.uid ?? 10001, gid: o.user?.gid ?? 10001 } })
+    : undefined);
 
   async function ctl<T>(computerId: string, action: string, body: Record<string, unknown> = {}): Promise<T> {
     const r = await o.api.exec(nameOf(computerId), { cmd: [ctlPath, action, JSON.stringify(body)], env: [], ...(o.user ? { user: `${o.user.uid}:${o.user.gid}` } : {}) });
@@ -178,7 +184,7 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
     },
     async start(a) {
       const name = nameOf(a.computerId);
-      if (o.profile) await o.profile.unseal(a.computerId);
+      if (profile) await profile.unseal(a.computerId);
       await o.api.containerStart(name);
       const deadline = Date.now() + (o.startTimeoutMs ?? 30_000);
       for (;;) {
@@ -198,7 +204,7 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
         try { sessions = (await ctl<{ sessions?: SessionInfo[] }>(a.computerId, "sessions")).sessions; } catch { /* the last list stays */ }
       }
       await o.api.containerStop(name, 10);
-      if (o.profile && a.reason !== "remove") await o.profile.seal(a.computerId);
+      if (profile && a.reason !== "remove") await profile.seal(a.computerId);
       return sessions ? { sessions } : {};
     },
     async remove(computerId) {
@@ -208,6 +214,7 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
         const r = await o.http({ method: "DELETE", path: `/volumes/${name}-profile`, query: { force: "true" } });
         if (r.status !== 204 && r.status !== 404) throw new Error(`the profile volume was not removed (${r.status})`);
       }
+      await profile?.discard?.(computerId);
     },
     async probe(computerId) {
       const running = await o.api.containerRunning(nameOf(computerId));
@@ -303,6 +310,7 @@ export interface ComputersHostConfig {
   image?: string;
   filesRoot?: (agentId: string) => string | null;
   startTimeoutMs?: number;
+  profileSeal?: { key(): Uint8Array; dir: string };
 }
 
 export function setComputerHost(c: ComputersHostConfig | null): void {
@@ -313,6 +321,7 @@ export function setComputerHost(c: ComputersHostConfig | null): void {
     ...(c.image !== undefined ? { image: c.image } : {}),
     ...(c.filesRoot !== undefined ? { filesRoot: c.filesRoot } : {}),
     ...(c.startTimeoutMs !== undefined ? { startTimeoutMs: c.startTimeoutMs } : {}),
+    ...(c.profileSeal !== undefined ? { profileSeal: c.profileSeal } : {}),
   }));
 }
 

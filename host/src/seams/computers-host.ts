@@ -13,6 +13,8 @@ export interface ComputersHostSeam {
   filesRoot(agentId: string): string | null;
   /** How long a wake waits for agentd (Xvfb and Chromium start before it answers). */
   startTimeoutMs?: number;
+  /** The profile disk at rest: the node key and the folder for sealed profiles. A sleeping computer's profile is on the volume only while it runs. */
+  profileSeal: { key(): Uint8Array; dir: string };
 }
 
 export interface ComputersHostDeps {
@@ -23,6 +25,18 @@ export interface ComputersHostDeps {
   startTimeoutMs?: number;
 }
 
+/** The node key for computer profiles: 32 random bytes in the data folder, mode 0600, made on first use and read at each use. It is never logged and never leaves this machine. */
+function profileKey(file: string): Uint8Array {
+  try {
+    const t = fs.readFileSync(file, "utf8").trim();
+    if (/^[0-9a-f]{64}$/.test(t)) return Uint8Array.from(Buffer.from(t, "hex"));
+  } catch { /* first use */ }
+  const k = globalThis.crypto.getRandomValues(new Uint8Array(32));
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(file, `${Buffer.from(k).toString("hex")}\n`, { mode: 0o600 });
+  return k;
+}
+
 const AGENT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 export function createComputersHost(d: ComputersHostDeps): ComputersHostSeam {
@@ -31,6 +45,7 @@ export function createComputersHost(d: ComputersHostDeps): ComputersHostSeam {
     ...(d.socketPath !== undefined ? { socketPath: d.socketPath } : {}),
     image: d.image ?? process.env["VYRE_AGENT_COMPUTER_IMAGE"] ?? "vyre/agent-computer:1",
     startTimeoutMs: d.startTimeoutMs ?? 120_000,
+    profileSeal: { key: () => profileKey(path.join(d.dataDir, "computers-profile.key")), dir: path.join(root, ".sealed") },
     filesRoot(agentId) {
       if (!AGENT_ID.test(agentId)) return null;
       // the parent stays private to the daemon's user; the folder itself is open to the computer's own user (uid 10001), which only the bind mount can reach

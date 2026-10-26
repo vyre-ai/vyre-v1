@@ -99,9 +99,29 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     assert.ok(typeof shot.data.fileId === "string" && shot.data.fileId.length > 0, "the picture is stored as a file");
     assert.ok(shot.data.width > 0 && shot.data.height > 0, `a real frame: ${shot.data.width}x${shot.data.height}`);
 
+    // the profile disk at rest (P-L2_33): a marker in the browser profile is not on the volume or in the sealed file while the computer sleeps, and comes back at wake
+    const MARKER = "PROFILE-MARKER-4f9a21";
+    const put = await docker(["exec", "-u", "10001", box, "sh", "-c", `printf ${MARKER} > /home/agent/.profile-disk/marker.txt`], 30_000);
+    assert.equal(put.code, 0, `the marker was written into the profile: ${put.out}`);
+
     const slept = await call(d, "computers.sleep", { computerId });
     assert.equal(slept.status, 200, JSON.stringify(slept.data));
     assert.equal(slept.data.computer.state, "asleep");
+    const left = await docker(["run", "--rm", "--network", "none", "--entrypoint", "find", "-v", `${box}-profile:/p:ro`, IMAGE, "/p", "-mindepth", "1"], 120_000);
+    assert.equal(left.out.trim(), "", `the profile volume is empty while the computer sleeps: ${left.out}`);
+    const sealedFile = path.join(dir, "computers", ".sealed", `${computerId}.profile`);
+    const blob = fs.readFileSync(sealedFile);
+    assert.ok(blob.length > 0, "the sealed profile is on disk");
+    assert.ok(!blob.includes(MARKER) && !blob.includes("marker.txt"), "the sealed profile holds no plaintext of the profile");
+    assert.equal(fs.statSync(path.join(dir, "computers-profile.key")).mode & 0o077, 0, "the node key is private to the daemon's user");
+    assert.equal(fs.statSync(sealedFile).mode & 0o077, 0, "the sealed profile is private to the daemon's user");
+
+    const again = await call(d, "computers.wake", { computerId });
+    assert.equal(again.status, 200, JSON.stringify(again.data));
+    const back = await docker(["exec", "-u", "10001", box, "cat", "/home/agent/.profile-disk/marker.txt"], 30_000);
+    assert.equal(back.out.trim(), MARKER, "wake puts the profile back");
+    const slept2 = await call(d, "computers.sleep", { computerId });
+    assert.equal(slept2.status, 200, JSON.stringify(slept2.data));
   } finally {
     if (computerId) await call(d, "computers.remove", { computerId }).catch(() => undefined);
     await d.stop();
