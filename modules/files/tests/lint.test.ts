@@ -265,7 +265,7 @@ test("lint: Inherits and Override lines, hard rules, repeated facts", () => {
 });
 
 test("secret scan: keys are found by line and kind, values never come back, vault names pass", () => {
-  const text = ["Plain text.", `aws key ${aws()}`, `token ${ghp()}`, "-----BEGIN RSA PRIVATE KEY-----", "api_key = #Team_Key", "api_key: vault:stripe", 'password = "hunter2hunter2hunter2"', "see https://user:pa55word@example.com/x"].join("\n");
+  const text = ["Plain text.", `aws key ${aws()}`, `token ${ghp()}`, "-----BEGIN RSA PRIVATE KEY-----", "api_key = #Team_Key", "api_key: vault:stripe", 'password = "hunter2hunter2hunter2"', "see https://user:pa55word@example.com/x"].join("\n"); // secret-scan: fake
   const found = scanSecrets(text);
   assert.deepEqual(found.map((f) => [f.line, f.kind]), [[2, "aws_access_key"], [3, "github_token"], [4, "private_key"], [7, "generic_assignment"], [8, "url_credentials"]]);
   const r = lintText("agent_md", text);
