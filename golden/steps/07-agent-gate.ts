@@ -2,6 +2,7 @@
 // person; a wrong approval token releases nothing; the person approves and the send goes out once. A second send is left alone: its hold escalates, then expires and the send is dropped.
 // Same engine setup as the first half (07-agent-reply.ts). The agent's send comes from the CLI calling the mail tool over the loopback MCP session.
 import assert from "node:assert/strict";
+import { DatabaseSync } from "node:sqlite";
 import { bootFlowSpace, expectStatus, short, Trail } from "./02-space.ts";
 import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
@@ -27,7 +28,12 @@ export async function runAgentGate(live: readonly string[], opts: Parameters<typ
         await s.d.hooks?.pump?.();
         const holds = expectStatus(await s.call("gate.holds.list", admin, { states: ["held"] }), 200, "gate.holds.list").holds as Hold[];
         if (holds.length >= n) return holds[n - 1]!;
-        if (Date.now() > end) throw new Error(`no hold ${n} after 40 s: ${short(holds)}`);
+        if (Date.now() > end) {
+          s.d.sink.flush();
+          const logs = new DatabaseSync(s.d.paths.logs, { readOnly: true }).prepare("SELECT level, place, cap, msg, attrs FROM logs WHERE level >= 30 OR msg LIKE '%consumer%' OR msg LIKE '%bridge%' OR msg LIKE '%engine%' ORDER BY id DESC LIMIT 30").all().map((r) => `${r.level} ${r.place ?? ""} ${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 300)}`);
+          const rows = (sql: string): unknown => { try { return s.d.db?.all(sql); } catch (e) { return String(e); } };
+          throw new Error(`no hold ${n} after 40 s: ${short(holds)}; host log ${JSON.stringify(logs)}; diag ${JSON.stringify({ queue: rows("SELECT * FROM engine_thread_queue LIMIT 5"), unblock: rows("SELECT * FROM engine_unblock LIMIT 5") })}`);
+        }
         await new Promise((r) => setTimeout(r, 200));
       }
     };

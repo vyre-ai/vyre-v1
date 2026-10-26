@@ -75,10 +75,6 @@ test("chat live: a person's message to an agent on a booted daemon gets a stream
   const d = await boot(dir);
   try {
     assert.deepEqual(d.seams?.missing, [], "no live module is left without its driver");
-    // STOPGAP, remove when #472 (files live) lands: the Files module is still a stub, so the Agents folder cannot be found by search. Name one for the agents module with the daemon's own
-    // modules.db handle; its file steps are answered by the stub. After #472, merge main, delete these two lines and the test goes through the real Agents folder.
-    d.db!.run("CREATE TABLE IF NOT EXISTS agents_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
-    d.db!.run("INSERT OR REPLACE INTO agents_meta (key, value) VALUES (?, ?)", "agents.root", "fld_root");
     // her Claude account, the way a person connects it (spec 6.4): her client unlocks her person key on this node, the sign-in starts, her client saves the token as a Mine item, Done links it as her provider, and
     // she lets the Space use it (a private chat with no desktop device online runs on the Space, spec 6.3)
     const unlock = await fetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify({ key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64") }) });
