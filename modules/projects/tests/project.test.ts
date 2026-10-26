@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DAY, NOW, DANA, LEO, MAYA, BOT, contractErrors, harness, codeOf, reasonOf } from "../fixtures/harness.ts";
 import { key, mkProject, run } from "../fixtures/seed.ts";
+import { grantOnProject } from "../impl.ts";
 
 async function refused(p: Promise<unknown>, code: string, reason?: string): Promise<void> {
   await assert.rejects(p, (e) => { assert.equal(codeOf(e), code); if (reason) assert.equal(reasonOf(e), reason); return true; });
@@ -67,6 +68,19 @@ test("every neighbour call create makes passes the frozen contract, with a key d
   assert.equal(h.only("records.create")[0]!.input.idempotencyKey, `prj-rec:${k}`);
   assert.equal(h.only("channels.create")[0]!.input.idempotencyKey, `prj-channel:${k}`);
   assert.equal(h.only("files.folder.create")[0]!.input.idempotencyKey, `prj-folder:${k}`);
+});
+
+test("create grants on the folder and channel while it runs, and never on the project itself: that is not a resource until the call commits", async () => {
+  const h = harness();
+  const made = await run(h, "projects.create", { type: "project", title: "Order", idempotencyKey: key() });
+  const shares = h.only("access.share").map((c) => c.input.resource.type).sort();
+  assert.deepEqual(shares, ["channel", "folder"], "no access.share names the project before its commit");
+  assert.equal(h.rows("SELECT * FROM projects_member WHERE projectId = ?", made.projectId).length, 1, "the maker is a member at once");
+  await grantOnProject(h.ctx, made.projectId);
+  assert.deepEqual(h.only("access.share").map((c) => c.input.resource.type).sort(), ["channel", "folder", "project"]);
+  const again = h.world.grants.length;
+  await grantOnProject(h.ctx, made.projectId);
+  assert.equal(h.world.grants.length, again, "running the consumer again writes nothing twice");
 });
 
 test("the same key makes the project once", async () => {

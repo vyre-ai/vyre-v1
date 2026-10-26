@@ -44,11 +44,11 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
       expectStatus(await s.call("journeys.start", admin, { idempotencyKey: "golden-1-start", journeyId: journey!, subjectRecordId: lead! }), 200, "journeys.start");
     }, ["a Journey on leads is designed", "a visitor submits the form with no token"]);
     await trail.step("the project exists with its channel and folder", async () => {
-      const list = expectStatus(await s.call("projects.list", admin, {}), 200, "projects.list").projects as { channel?: unknown; folder?: unknown }[];
+      const list = expectStatus(await s.call("projects.list", admin, {}), 200, "projects.list").projects as { channelId?: unknown; folderId?: unknown }[];
       // a stage that cannot make its project does not stop the Journey, so when the list is empty say what the pipeline logged about projects on this trace
       s.d.sink.flush();
       const logged = s.d.sink.trace(s.trace).logs.filter((l) => /project/i.test(`${l.msg} ${JSON.stringify(l.attrs ?? {})}`)).map((l) => `${l.msg} ${JSON.stringify(l.attrs)}`).join(" | ");
-      const ok = list.some((p) => p.channel && p.folder);
+      const ok = list.some((p) => p.channelId && p.folderId);
       let told = "";
       if (!ok) {
         // the Journey owner is told why in a task; show it here too

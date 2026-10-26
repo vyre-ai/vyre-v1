@@ -22,6 +22,18 @@ function resourcesOf(p: Project): Array<{ type: string; id: string }> {
   return [{ type: "project", id: p.projectId }, ...(p.folderId ? [{ type: "folder", id: p.folderId }] : []), ...(p.channelId ? [{ type: "channel", id: p.channelId }] : [])];
 }
 
+/**
+ * The grants on the project itself for the people it started with. A new project becomes a resource in access only when the call that made it commits, so projects.create grants on its folder
+ * and channel (which exist already) and the host runs this for `project.created` right after the commit. Same keys as applyRole's, so a replay writes nothing twice.
+ */
+export async function grantOnProject(ctx: ProjectsCtx, projectId: string): Promise<void> {
+  const p = projectBy(ctx.db, projectId);
+  if (!p) return;
+  for (const m of membersOf(ctx.db, projectId)) {
+    await call(ctx, "access.share", { resource: { type: "project", id: projectId }, subject: subjectOf(m), level: LEVEL_OF[m.role], source: sourceTag(projectId) }, { idempotencyKey: `prj-share:${projectId}:${m.principal}:${m.role}:project` });
+  }
+}
+
 /** Tasks for counts; a project still opens when Tasks does not answer. */
 async function tasksOrNone(ctx: ProjectsCtx, p: Project): Promise<TaskView[]> {
   try { return await loadTasks(ctx, p); } catch (e) {
@@ -33,12 +45,14 @@ async function tasksOrNone(ctx: ProjectsCtx, p: Project): Promise<TaskView[]> {
 // ---- people ----
 
 /** Give a principal a role: the previous grants of that source go, the new ones are written on the project, its folder and its channel. */
-async function applyRole(ctx: ProjectsCtx, p: Project, principal: string, role: Role, announce = true): Promise<{ member: Member; previous?: Role }> {
+async function applyRole(ctx: ProjectsCtx, p: Project, principal: string, role: Role, announce = true, deferProject = false): Promise<{ member: Member; previous?: Role }> {
   const kind = kindOfPrincipal(principal);
   if (!kind) raise(ctx, "validation.bad_input", "A person, an agent or a group holds a project role.", { principal });
   const before = memberOf(ctx.db, p.projectId, principal);
   const member: Member = { principal, role, kind, since: before?.since ?? ctx.now() };
   for (const r of resourcesOf(p)) {
+    // a project that is being made is not a resource yet: it becomes one when this call commits, so the grants on it follow (grantOnProject)
+    if (deferProject && r.type === "project") continue;
     if (before) await call(ctx, "access.unshare", { resource: r, subject: subjectOf(member), source: sourceTag(p.projectId) });
     await call(ctx, "access.share", { resource: r, subject: subjectOf(member), level: LEVEL_OF[role], source: sourceTag(p.projectId) }, { idempotencyKey: `prj-share:${p.projectId}:${principal}:${role}:${r.type}` });
   }
@@ -154,7 +168,7 @@ async function makeProject(ctx: ProjectsCtx, o: Plan): Promise<Made> {
   replaceStages(ctx.db, projectId, o.stages.map((s, order) => ({ key: s.key, title: s.title, order })));
   await writeRecord(ctx, p, { channel: channelId, folder: folderId });
   emitP(ctx, "project.created", projectId, { recordId, type: o.type, channelId, folderId, source: o.source });
-  for (const [principal, role] of members) await applyRole(ctx, p, principal, role, false);
+  for (const [principal, role] of members) await applyRole(ctx, p, principal, role, false, true);
   return { projectId, recordId, channelId, folderId };
 }
 
