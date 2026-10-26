@@ -98,7 +98,7 @@ test("a booted daemon serves a published form to a signed-out visitor, hides a d
 
     // a visitor cannot attach a file that already exists in the Space: a file answer must be an upload id this form issued to this visitor
     const stolen = await call(d, "/f/submit", { slug: open.slug, idempotencyKey: "forms-page-submit-2", answers: { email: "thief@x.example", resume: { fileId: "fil_internal_secret" } } }, null);
-    assert.equal(stolen.status, 400, JSON.stringify(stolen));
+    assert.equal(stolen.status, 422, JSON.stringify(stolen));
     assert.equal(stolen.error?.code, "validation.bad_input");
   } finally { await d.stop(); }
 });
