@@ -7,7 +7,7 @@
 // DECISION: files.lint amber and red line limits are settings; amber 150 is chosen, red 200 is from the spec.
 // DECISION: changesets.approve declares the push_protected act with when input.push; the Gate narrows it to protected branches using the folder git settings.
 import { block, create, defineManifest, entity, ev, health, list, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
-import { id, label, level, pageIn, pageOut, subjectRef, versionRow } from './_common.ts';
+import { id, label, level, pageIn, pageOut, purgeOut, subjectRef, versionRow } from './_common.ts';
 
 const fileKind = t.enm('text', 'markdown', 'document', 'spreadsheet', 'presentation', 'pdf', 'image', 'video', 'audio', 'code', 'archive', 'google_native', 'other');
 const section = t.opt(t.enm('personal', 'shared', 'space'));
@@ -106,6 +106,8 @@ export default defineManifest({
     }),
   ],
   events: [
+    // ---- erase and purge (P-CC_39): governance removes data through these; each hard-deletes inside its own store
+    ev('file_versions.purged', 'Old file versions were removed by retention (a count)', { p: { removed: t.int({ minimum: 0 }) }, subject: ['entity', '/removed'], retention: 'audit' }),
     ev('file.created', 'A file was created', { p: { fileId: id.file, folderId: id.folder, name: t.str(), kind: fileKind, by: t.str() }, subject: ['file', '/fileId'], label: 'subject', trigger: { title: 'A file is created', fields: ['/folderId', '/kind'] } }),
     ev('file.version_added', 'A file got a new version', { p: { fileId: id.file, versionId: id.version, n: t.int(), by: t.str(), reason: t.opt(t.str()) }, subject: ['file', '/fileId'], label: 'subject', retention: 'file_versions', trigger: { title: 'A file changes', fields: ['/fileId'] } }),
     ev('file.renamed', 'A file was renamed', { p: { fileId: id.file, from: t.str(), to: t.str() }, subject: ['file', '/fileId'], label: 'subject' }),
@@ -143,6 +145,8 @@ export default defineManifest({
     ev('sheet.row_deleted', 'A row was removed from a sheet', { p: { fileId: id.file, sheet: t.str(), rowId, runId: t.opt(id.run) }, subject: ['file', '/fileId'], label: 'subject' }),
   ],
   capabilities: [
+    // ---- erase and purge (P-CC_39)
+    write('files.versions.purge', 'Remove file versions older than a time except each file's newest, skipping files under a hold (retention)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { before: t.ts(), limit: t.opt(t.int({ minimum: 1, maximum: 5000 })) }, out: purgeOut, emits: ['file_versions.purged'], audit: 'always', risk: 'high' }),
     // ---- tree and listing
     read('files.tree', 'The roots of the file tree: Agents, Projects, People, Channels, shared knowledge, Agent template, Deployments, GitHub, plus Recent, Shared with me, Trash and Knowledge', {
       out: { roots: t.arr(t.obj({ key: t.str(), title: t.str(), kind: t.enm('folder', 'virtual'), folderId: t.opt(id.folder), count: t.int({ minimum: 0 }) })) }, tool: 'files', label: 'filter',

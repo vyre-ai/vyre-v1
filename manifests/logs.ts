@@ -1,6 +1,6 @@
 // logs (lane L7b): structured logs and traces, the trace view, client log upload, replay sandbox (spec 4.18, ARCH 4.9, 4.10, 7.14).
 import { defineManifest, ev, read, t, write } from '../packages/contracts/src/index.ts';
-import { id, pageIn, pageOut } from './_common.ts';
+import { id, pageIn, pageOut, purgeOut } from './_common.ts';
 
 const level = t.enm('debug', 'info', 'warn', 'error');
 const logRow = t.obj({
@@ -19,12 +19,16 @@ export default defineManifest({
   title: 'Logs and traces',
   owner: 'L7b',
   events: [
+    // ---- erase and purge (P-CC_39): governance removes data through these; each hard-deletes inside its own store
+    ev('logs.purged', 'Log rows past their retention were removed (a count)', { p: { removed: t.int({ minimum: 0 }) }, subject: ['entity', '/removed'], retention: 'audit' }),
     ev('log.accessed', 'Someone read logs (reading logs is itself audited)', { p: { by: t.str(), filter: t.rec() }, subject: ['entity', '/by'], vis: 'owner' }),
     ev('client_log.uploaded', 'A device uploaded its ring-buffer log on reconnect', { p: { device: id.device, sizeBytes: t.int() }, subject: ['entity', '/device'], vis: 'owner' }),
     ev('replay.started', 'A replay sandbox started on a copy of the Space', { p: { replayId: t.id('rpl'), atSeq: t.int(), runId: t.opt(id.run) }, subject: ['entity', '/replayId'], vis: 'owner' }),
     ev('replay.finished', 'A replay sandbox finished; outward calls were recorded, never executed', { p: { replayId: t.id('rpl'), recordedOutward: t.int() }, subject: ['entity', '/replayId'], vis: 'owner' }),
   ],
   capabilities: [
+    // ---- erase and purge (P-CC_39)
+    write('logs.purge', 'Remove log rows older than a time, a batch at a time (retention)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { before: t.ts(), limit: t.opt(t.int({ minimum: 1, maximum: 5000 })) }, out: purgeOut, emits: ['logs.purged'], audit: 'always', risk: 'high' }),
     read('logs.query', 'Search logs by person, agent, place, record, run or trace (ids and metadata only)', { in: { ...filter, ...pageIn }, out: { rows: t.arr(logRow), ...pageOut }, perm: 'server.logs', audit: 'always', tool: 'engineer', cli: 'vyre logs' }),
     read('logs.tail', 'Live tail of logs (stream opens over the live connection)', { in: filter, out: { streamId: t.str() }, perm: 'server.logs', audit: 'always', tool: 'engineer' }),
     read('logs.trace', 'Trace view: logs, spans and events joined by one trace id', { in: { traceId: id.trace }, out: { logs: t.arr(logRow), spans: t.arr(span), events: t.arr(t.obj({ seq: t.int(), type: t.str(), at: t.ts(), actor: t.str(), entity: t.opt(t.str()) })) }, perm: 'server.logs', audit: 'always', tool: 'engineer' }),
