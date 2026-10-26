@@ -1,6 +1,4 @@
 // One handler per access capability. Share and folders are handlers/share.ts (P-L7_02); requests, reviews and proposals are request.ts, review.ts and propose.ts.
-import type { AccessCtx } from "../projections.ts";
-import { raise } from "../projections.ts";
 import {
   foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, lists, share, sharesOf, unshare,
 } from "./share.ts";
