@@ -31,7 +31,7 @@ function sharedLines(v: PeekedLinkView): string {
   return items.length === 0 ? "<p>Nothing has been shared with you yet.</p>" : `<ul>${items.map((i) => `<li>${i}</li>`).join("")}</ul>`;
 }
 
-export function pageFor(v: PeekedLinkView, token: string, nonce: string): string {
+export function pageFor(v: PeekedLinkView, nonce: string): string {
   const password = v.method === "password";
   const heading = v.purpose === "invite" ? "You are invited" : v.purpose === "reset" ? "Choose a new password" : "Sign in";
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>${esc(heading)}</title>
@@ -96,7 +96,7 @@ export function createPortalLinkRoute(deps: PortalLinkRouteDeps): { handle(req: 
       deps.peek(siteId, token).then((v) => {
         if (!v) { notFound(res); return; }
         const nonce = Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(16))).toString("base64");
-        const body = pageFor(v, token, nonce);
+        const body = pageFor(v, nonce);
         res.writeHead(200, {
           "content-type": "text/html; charset=utf-8", "content-length": Buffer.byteLength(body),
           "content-security-policy": `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'`,
