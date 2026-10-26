@@ -42,10 +42,10 @@ export function Glyph({ name, size = 15, color = "var(--ink-3)", fill = false }:
 }
 
 /** A person is a round marble seeded by the name (a square-cornered pixel face when `round` is off): the shared Avatar. */
-export function Face({ name, size = 36, round = true }: { name: string; size?: number; round?: boolean }): ReactElement {
+export function Face({ name, seedId, size = 36, round = true }: { name: string; seedId?: string | undefined; size?: number; round?: boolean }): ReactElement {
   return (
     <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0 }}>
-      <Avatar name={name} kind={round ? "person" : "agent"} size={size} />
+      <Avatar name={name} seedId={seedId} kind={round ? "person" : "agent"} size={size} />
     </View>
   );
 }

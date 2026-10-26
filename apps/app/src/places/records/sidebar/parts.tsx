@@ -63,11 +63,11 @@ export function Glyph({ name, size = 15, color = "var(--ink-3)", width }: { name
   );
 }
 
-/** A person is a round marble seeded by the name: the shared Avatar. */
-export function Face({ name, size = 20 }: { name: string; size?: number }): ReactElement {
+/** A person is a round marble seeded by the id (the name when no id is passed): the shared Avatar. */
+export function Face({ name, seedId, size = 20 }: { name: string; seedId?: string | undefined; size?: number }): ReactElement {
   return (
     <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0 }}>
-      <Avatar name={name} kind="person" size={size} />
+      <Avatar name={name} seedId={seedId} kind="person" size={size} />
     </View>
   );
 }

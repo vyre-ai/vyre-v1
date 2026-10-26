@@ -66,6 +66,7 @@ export function createSampleData(opts: SampleOptions = {}): { data: CmdKData; ca
   const local = opts.local ?? LOCAL_HITS;
   const server = opts.server ?? SERVER_HITS;
   const data: CmdKData = {
+    spaceName: () => "Northwind",
     scope: () => opts.scope ?? "space",
     online: () => opts.online ?? true,
     local: (text, types) => local.filter((h) => (!types || types.includes(h.kind)) && (text === "" || has(h, text))),

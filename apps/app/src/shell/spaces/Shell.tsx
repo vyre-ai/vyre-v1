@@ -7,6 +7,10 @@ import { Platform, StyleSheet, View, useWindowDimensions } from "react-native";
 import { reportProblem } from "../../../../../ui/src/Menu/index.tsx";
 import { NeedsTeamSpace } from "../../../../../ui/src/NeedsTeamSpace/index.tsx";
 import { States } from "../../../../../ui/src/States/index.tsx";
+import type { PhoneDeviceLike } from "../../../../../ui/src/Softphone/index.tsx";
+import { InboxDataProvider } from "../../places/inbox/sidebar/index.ts";
+import type { InboxData } from "../../places/inbox/sidebar/index.ts";
+import { CallTitlePill, InboxPhoneDock } from "../../places/inbox/softphone/index.ts";
 import { Rail } from "../rail/Rail.tsx";
 import { SidebarBack, SidebarExpand, SidebarSlot, SidebarSlotProvider, useSidebarSlot } from "../sidebar/index.ts";
 import type { SidebarStorage } from "../sidebar/index.ts";
@@ -19,6 +23,8 @@ import type { ShellHub, ShellTheme } from "./hub.ts";
 import { shellKey } from "./keys.ts";
 import type { SpaceKind } from "./model.ts";
 import { SpaceSkeleton } from "./Skeleton.tsx";
+import { watchPurge } from "./purge.ts";
+import type { ShellPurge } from "./purge.ts";
 import { SpaceTile } from "./SpaceSwitcher.tsx";
 import type { SpaceAction } from "./SpaceSwitcher.tsx";
 
@@ -47,6 +53,10 @@ export interface ShellProps {
   onPrefetchPlace?: (place: PlaceId) => void;
   /** Who and where, for remembering a collapsed sidebar on this device. Without it the choice lasts for the session. */
   sidebar?: { deviceId: string; personId: string; storage: SidebarStorage | null };
+  /** The phone: the voice device and the Inbox's data. The softphone dock wraps the whole shell, so a call outlives the place that was open when it started, and the running call is a pill in the title bar. */
+  phone?: { device: PhoneDeviceLike; data: InboxData };
+  /** The purge client and the connection's purge signals: a purged device wipes itself and tells the server with devices.purge_ack. */
+  purge?: ShellPurge;
 }
 
 /** The body beside the sidebar. On a computer the sidebar sits left of the place. On the phone a place with a sidebar opens on its list; choosing an item shows the body with Back. */
@@ -88,6 +98,8 @@ export function Shell(props: ShellProps): ReactElement {
   const compact = width > 0 && width < COMPACT_BELOW;
   const [skin, setSkin] = useState<string>(() => theme?.current().skin ?? "system");
 
+  const purge = props.purge;
+  useEffect(() => (purge === undefined ? undefined : watchPurge(purge, (e) => hub.flash(`Couldn't remove this device's data: ${e instanceof Error ? e.message : "try again"}`))), [purge, hub]);
   useEffect(() => (theme === undefined ? undefined : theme.subscribe((t) => setSkin(t.skin))), [theme]);
   useEffect(() => { if (theme !== undefined) setSkin(theme.current().skin); }, [theme, state.epoch]);
 
@@ -162,8 +174,7 @@ export function Shell(props: ShellProps): ReactElement {
     );
   }
 
-  return (
-    <HubProvider hub={hub}>
+  const frame = (
       <View testID="shell" style={styles.root} accessibilityLabel={`Vyre, ${session.def.name}`}>
         <TitleBar
           title={titleText(session.def.name, state.place, state.away)}
@@ -179,6 +190,7 @@ export function Shell(props: ShellProps): ReactElement {
             hub.flash("Skin saved for this Space");
           }}
           compact={compact}
+          call={<CallTitlePill />}
         />
         <View style={styles.body}>
           <Rail
@@ -199,6 +211,10 @@ export function Shell(props: ShellProps): ReactElement {
           </View>
         </View>
       </View>
+  );
+  return (
+    <HubProvider hub={hub}>
+      {props.phone ? <InboxDataProvider value={props.phone.data}><InboxPhoneDock device={props.phone.device}>{frame}</InboxPhoneDock></InboxDataProvider> : frame}
     </HubProvider>
   );
 }

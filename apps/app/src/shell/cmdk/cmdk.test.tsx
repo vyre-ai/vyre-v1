@@ -243,7 +243,8 @@ test("the sheet renders the search field, a filter menu button, quiet group head
   for (const h of ["Chats", "Records", "Files", "Automations"]) assert.ok(html.includes(`>${h}<`), `group ${h}`);
   assert.match(html, /data-testid="row-hit-file:fi_refpolicy"/, "a server-only hit is a shared Row");
   assert.match(html, /data-testid="row-hit-record:rec_reflog"/);
-  assert.equal((html.match(/background-color:var\(--sel\)/g) ?? []).length, 1, "exactly one row carries the quiet selection wash");
+  assert.equal((html.match(/background-color:var\(--accent\)/g) ?? []).length, 1, "exactly one row carries the accent fill (ruling 82: the palette keeps the prototype's accent-filled selected row)");
+  assert.equal((html.match(/aria-selected="true"/g) ?? []).length, 1, "and it is the one the option role marks selected");
   assert.match(html, /to move/);
   assert.match(html, /new tab/);
   assert.ok(!/border-radius:999px|pill/i.test(html), "no pill chips");

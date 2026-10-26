@@ -15,7 +15,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { BlockHost } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import { Face } from "../needsyou/parts.tsx";
 import { ConversationDataProvider, useConversationData, useOnline, useOptionalConversationData, useScreenQuery } from "./data.tsx";
-import type { ConversationData } from "./data.tsx";
+import type { ConversationData, ConversationNav } from "./data.tsx";
 import * as act from "./actions.ts";
 import { MessageView } from "./MessageView.tsx";
 import type { MessageActions } from "./MessageView.tsx";
@@ -54,6 +54,12 @@ export function ConversationLoading(): ReactElement {
       <View style={st.skComposer} />
     </View>
   );
+}
+
+/** The channel menu's "Connect an Outside Agent": only on a channel, and only where the shell has the sheet for it (P-L9b_23). */
+export function connectEntries(thread: Pick<Thread, "kind" | "channelId" | "threadId">, nav: ConversationNav): MenuEntry[] {
+  const open = nav.openConnectOutsideAgent;
+  return thread.kind === "channel" && open ? [{ label: "Connect an Outside Agent", onSelect: () => open(thread.channelId ?? thread.threadId) }] : [];
 }
 
 function ConversationView(): ReactElement {
@@ -210,6 +216,7 @@ function ConversationView(): ReactElement {
     const items: MenuEntry[] = [
       { label: "Plan Mode", checked: thread.planMode, onSelect: () => void act.setPlanMode(data, !thread.planMode).then(() => say(thread.planMode ? "Plan mode is off" : "Plan mode is on: the agent plans and changes nothing until you approve"), fail("Could not change plan mode.")) },
       ...(lead ? [{ label: `Open ${nameOf(lead.agentId)}'s Page`, onSelect: () => data.nav.openAgent(lead.agentId) } as MenuEntry] : []),
+      ...connectEntries(thread, data.nav),
       ...(isWorking ? [{ separator: true } as MenuEntry, { label: "Stop All", danger: true, onSelect: () => void act.stopAll(data).then(() => say("Everything stopped. The steps so far are kept."), fail("Could not stop.")) } as MenuEntry] : []),
     ];
     menu.show(items, x, y, "other", { label: "Chat" });
@@ -313,11 +320,12 @@ function ConversationView(): ReactElement {
       {activeId ? <ScrollToMessage key={`${activeId}:${matchAt}`} id={activeId} /> : null}
       {cursor !== null ? <OlderPage key={cursor} before={cursor} onPage={(page) => { setOlder((cur) => mergePages(cur, page.messages)); setOlderMore(page.hasMore); setShown((n) => n + WINDOW); setCursor(null); }} /> : null}
 
+      {data.waitingLine ?? null}
       {q ? <Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>{q}</Text> : null}
       {line ? <View testID="conversation-line" accessibilityLiveRegion="polite" style={st.lineBox}><Text style={st.lineText}>{line}</Text></View> : null}
       {personMention ? (
         <View testID="channel-offer" style={st.offer}>
-          <Face name={nameOf(personMention.id)} kind="person" size={18} />
+          <Face name={nameOf(personMention.id)} seedId={personMention.id} kind="person" size={18} />
           <Text style={st.offerText}>{`${nameOf(personMention.id)} is not in this chat. A chat never gains people.`}</Text>
           <TextButton label={`Start a channel with ${nameOf(personMention.id).split(" ")[0]}`} testID="channel-start" onPress={() => void act.startChannel(data, personMention.id, data.newKey()).then(() => say("Channel started, linked back to this chat."), fail("Could not start the channel."))} />
         </View>

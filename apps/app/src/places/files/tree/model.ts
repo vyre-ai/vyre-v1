@@ -10,7 +10,7 @@ export type TreeRoots = CapMap["files.tree"]["out"]["roots"];
 export const SCREENS = { tree: "files.tree", list: "files.list" } as const;
 
 /** Where the list is. */
-export type Where = { kind: "folder"; id: string | null } | { kind: "recent" } | { kind: "shared" } | { kind: "trash" } | { kind: "knowledge" };
+export type Where = { kind: "folder"; id: string | null } | { kind: "recent" } | { kind: "starred" } | { kind: "shared" } | { kind: "trash" } | { kind: "knowledge" };
 export type SortKey = "name" | "updated" | "by" | "size" | "kind";
 export type ViewMode = "list" | "grid";
 
@@ -26,9 +26,15 @@ export interface FilesState {
   quickLook: string | null;
   /** The list as rows with columns, or as a grid of tiles (P-L9e_01b). */
   view: ViewMode;
+  /** Names that start with a dot (.vyre, .index) stay out of the list unless this is on. */
+  showHidden: boolean;
+  /** Where the list was before, newest last: the back arrow walks it. */
+  back: readonly Where[];
+  /** Where Back came from, newest last: the forward arrow walks it. */
+  forward: readonly Where[];
 }
 
-export const INITIAL_STATE: FilesState = { where: { kind: "folder", id: null }, selection: [], anchor: null, sort: "name", dir: "asc", quickLook: null, view: "list" };
+export const INITIAL_STATE: FilesState = { where: { kind: "folder", id: null }, selection: [], anchor: null, sort: "name", dir: "asc", quickLook: null, view: "list", showHidden: false, back: [], forward: [] };
 
 export const SORT_LABEL: Record<SortKey, string> = { name: "Name", updated: "Date modified", by: "Made by", size: "Size", kind: "Kind" };
 export const SORTS: readonly SortKey[] = ["name", "updated", "by", "size", "kind"];
@@ -50,14 +56,27 @@ export interface Line {
   /** What the line holds, for a folder. */
   items: number;
   folderId: string | null;
+  /** The person starred this file (files.star). */
+  starred?: boolean;
+  /** Two edits of this file wait for a choice (the Conflict tag). */
+  conflict?: boolean;
 }
 
 export function fileLine(f: FileRow): Line {
-  return { key: `file:${f.fileId}`, type: "file", id: f.fileId, name: f.name, kind: f.kind, size: f.size, updatedAt: f.updatedAt, updatedBy: f.updatedBy, thumb: f.thumb, source: f.source?.provider ?? null, items: 0, folderId: f.folderId };
+  return { key: `file:${f.fileId}`, type: "file", id: f.fileId, name: f.name, kind: f.kind, size: f.size, updatedAt: f.updatedAt, updatedBy: f.updatedBy, thumb: f.thumb, source: f.source?.provider ?? null, items: 0, folderId: f.folderId, ...(f.starred === true ? { starred: true } : {}), ...(f.conflict === true ? { conflict: true } : {}) };
 }
 
 export function folderLine(f: FolderRow): Line {
   return { key: `folder:${f.folderId}`, type: "folder", id: f.folderId, name: f.name, kind: "folder", size: 0, updatedAt: 0, updatedBy: null, thumb: false, source: f.source?.provider ?? null, items: f.fileCount + f.folderCount, folderId: f.parentId ?? null };
+}
+
+const EXT_LABEL: Readonly<Record<string, string>> = { pdf: "PDF", md: "MD", markdown: "MD", csv: "CSV", docx: "DOCX", doc: "DOCX", xlsx: "XLSX", pptx: "PPTX", txt: "TXT", json: "JSON", zip: "ZIP" };
+
+/** The short label on a file's type tile (PDF, MD, CSV, DOCX), from its extension; pictures, folders and files with no known extension get an icon instead (null). */
+export function tileLabel(name: string, kind: FileKind | "folder"): string | null {
+  if (kind === "folder" || kind === "image") return null;
+  const dot = name.lastIndexOf(".");
+  return dot < 0 ? null : EXT_LABEL[name.slice(dot + 1).toLowerCase()] ?? null;
 }
 
 const KIND_LABEL: Record<FileKind | "folder", string> = {
@@ -211,11 +230,25 @@ export type Action =
   | { type: "sort"; key: SortKey }
   | { type: "dir"; dir: "asc" | "desc" }
   | { type: "quicklook"; key: string | null }
-  | { type: "view"; view: ViewMode };
+  | { type: "view"; view: ViewMode }
+  | { type: "hidden"; on: boolean }
+  | { type: "back" }
+  | { type: "forward" };
 
 export function reduce(s: FilesState, a: Action): FilesState {
   switch (a.type) {
-    case "go": return { ...s, where: a.where, selection: [], anchor: null, quickLook: null };
+    case "go": return sameWhere(s.where, a.where)
+      ? { ...s, where: a.where, selection: [], anchor: null, quickLook: null }
+      : { ...s, where: a.where, selection: [], anchor: null, quickLook: null, back: [...s.back, s.where].slice(-50), forward: [] };
+    case "hidden": return { ...s, showHidden: a.on };
+    case "back": {
+      const prev = s.back[s.back.length - 1];
+      return prev === undefined ? s : { ...s, where: prev, selection: [], anchor: null, quickLook: null, back: s.back.slice(0, -1), forward: [...s.forward, s.where] };
+    }
+    case "forward": {
+      const next = s.forward[s.forward.length - 1];
+      return next === undefined ? s : { ...s, where: next, selection: [], anchor: null, quickLook: null, back: [...s.back, s.where], forward: s.forward.slice(0, -1) };
+    }
     case "click": return clickSelect(s, a.order, a.key, a.mods);
     case "arrow": return arrowSelect(s, a.order, a.dir, a.shift);
     case "all": return selectAll(s, a.order);
@@ -232,13 +265,15 @@ export function sameWhere(a: Where, b: Where): boolean {
   return a.kind === b.kind && (a.kind !== "folder" || (b.kind === "folder" && a.id === b.id));
 }
 
-export const WHERE_LABEL: Record<Exclude<Where["kind"], "folder">, string> = { recent: "Recent", shared: "Shared with me", trash: "Trash", knowledge: "Knowledge" };
+export const WHERE_LABEL: Record<Exclude<Where["kind"], "folder">, string> = { recent: "Recent", starred: "Starred", shared: "Shared with me", trash: "Trash", knowledge: "Knowledge" };
 
 /** The capability and input that list a place. */
 export function sourceOf(where: Where): { cap: "files.list" | "files.recent" | "files.shared_with_me" | "files.knowledge" | "files.trash.list"; input: Record<string, unknown> } {
   switch (where.kind) {
     case "folder": return { cap: "files.list", input: where.id === null ? {} : { folder: where.id } };
     case "recent": return { cap: "files.recent", input: { limit: 50 } };
+    // Starred reads the starred flag on the files the copy holds; the list keeps the flagged ones
+    case "starred": return { cap: "files.recent", input: { limit: 500 } };
     case "shared": return { cap: "files.shared_with_me", input: {} };
     case "trash": return { cap: "files.trash.list", input: {} };
     case "knowledge": return { cap: "files.knowledge", input: {} };
@@ -261,8 +296,51 @@ export function emptyText(where: Where): string {
   switch (where.kind) {
     case "folder": return "This folder is empty.";
     case "recent": return "Nothing opened recently.";
+    case "starred": return "Nothing starred yet.";
     case "shared": return "Nothing has been shared with you yet.";
     case "trash": return "The Trash is empty.";
     case "knowledge": return "No notes in Knowledge yet.";
   }
+}
+
+// ---------------------------------------------------------------- the Space's root folders (ruling 65)
+
+export type TreeRoot = TreeRoots[number];
+
+/** Files registers its root folders itself (Agents, Projects, People, Channels, Shared knowledge, ...) and files.tree lists them in order. The sidebar shows them in that order. */
+export function rootRank(roots: TreeRoots): Map<string, number> {
+  const out = new Map<string, number>();
+  roots.forEach((r, i) => { if (r.kind === "folder" && r.folderId !== undefined) out.set(r.folderId, i); });
+  return out;
+}
+
+/** The roots Files registers for the Space (ruling 65, spec 3.5). Personal and Knowledge are not Space roots (Knowledge has its own section), and any other top folder is not listed under Space. */
+export const SPACE_ROOT_KEYS: ReadonlySet<string> = new Set(["agents", "projects", "people", "channels", "shared_knowledge", "agent_template", "deployments", "github"]);
+
+/** The folder ids of the Space's registered roots: the only top folders the sidebar lists under Space. */
+export function spaceRoots(roots: TreeRoots): Set<string> {
+  const out = new Set<string>();
+  for (const r of roots) if (r.kind === "folder" && SPACE_ROOT_KEYS.has(r.key) && r.folderId !== undefined) out.add(r.folderId);
+  return out;
+}
+
+/** An agent's own folder (subject agent with an id) shows the agent's face; the Agents folder itself and every other folder show the folder icon. */
+export function hasAgentFace(f: FolderRow): boolean {
+  return f.subject?.kind === "agent" && f.subject.id !== undefined;
+}
+
+/** Folders in the order the sidebar lists them: registered roots in files.tree order, everything else by name. */
+export function orderFolders<T extends { folderId: string; name: string }>(folders: readonly T[], rank: ReadonlyMap<string, number>): T[] {
+  return folders.slice().sort((a, b) => {
+    const ra = rank.get(a.folderId), rb = rank.get(b.folderId);
+    if (ra !== undefined && rb !== undefined) return ra - rb;
+    if (ra !== undefined) return -1;
+    if (rb !== undefined) return 1;
+    return a.name.localeCompare(b.name, "en", { sensitivity: "base" });
+  });
+}
+
+/** Agents and Projects open when the sidebar first draws, as the prototype's do (an agent's or project's own folder, with an id, starts closed). */
+export function openByDefault(f: FolderRow): boolean {
+  return f.parentId === undefined && f.subject !== undefined && f.subject.kind !== "space" && f.subject.id === undefined;
 }

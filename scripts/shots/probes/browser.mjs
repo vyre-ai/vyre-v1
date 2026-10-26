@@ -12,6 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { median } from "./open.mjs";
+import { traceEnabled, startMountTrace, finishMountTrace } from "./mount-trace.mjs";
 
 export const DEFAULT_RUNS = 6;
 export const MIN_RUNS = 3;
@@ -31,7 +32,8 @@ export function budgetFor(kind, table, size = "desktop") {
   if (!row || typeof row.p95 !== "number") throw new Error(`perf/budgets.json has no p95 row for ${kind}`);
   // The phone row of a budget (the "also" entry on a mid phone) is the limit for the phone size: startup is 1 s on desktop and 1.5 s on a phone (V1-SPEC).
   const phone = size === "phone" ? (row.also ?? []).find((a) => /phone/.test(a.machine ?? "") && typeof a.p95 === "number") : undefined;
-  if (phone) return { limit: phone.p95, worstLimit: phone.p95, sense: MIN_SENSE.has(kind) ? "min" : "max", unit: row.unit };
+  // ruling 94: a phone row is the desktop row times the CPU throttle (navigate at 4x: p50 200, p95 400); a phone row with only a p95 (startup) uses it for both
+  if (phone) return { limit: typeof phone.p50 === "number" ? phone.p50 : phone.p95, worstLimit: phone.p95, sense: MIN_SENSE.has(kind) ? "min" : "max", unit: row.unit };
   return { limit: typeof row.p50 === "number" ? row.p50 : row.p95, worstLimit: row.p95, sense: MIN_SENSE.has(kind) ? "min" : "max", unit: row.unit };
 }
 
@@ -97,10 +99,13 @@ export async function readMount(browser, { url, selector, viewport, scheme, thro
   try {
     const page = await ctx.newPage();
     if (throttle > 1) { const cdp = await ctx.newCDPSession(page); await cdp.send("Emulation.setCPUThrottlingRate", { rate: throttle }); }
+    if (traceEnabled()) await startMountTrace(browser, page);
     await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
     await page.waitForSelector(selector, { timeout: timeoutMs });
     await page.waitForFunction((ks) => { const p = window.__probes; return !!p && (p.ready === true || ks.every((k) => typeof p[k] === "number")); }, kinds, { timeout: timeoutMs });
-    return await page.evaluate(() => ({ ...window.__probes }));
+    const got = await page.evaluate(() => ({ ...window.__probes }));
+    if (traceEnabled()) await finishMountTrace(browser, url);
+    return got;
   } catch { return null; } finally { await ctx.close(); }
 }
 

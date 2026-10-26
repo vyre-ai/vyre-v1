@@ -41,6 +41,7 @@ export function harness(o: HarnessOptions = {}) {
     principal: o.principal ?? { kind: "person", id: "usr_dana" },
     ...(o.actingFor === undefined ? {} : { actingFor: o.actingFor }),
     trace: { traceId: TRACE },
+    depth: 1,   // a call another capability made: the system halves refuse a direct call (P-SEC_10)
     now: () => clock.t,
     db,
     emit(name, subject, payload) { emitted.push({ name, subject, payload: payload as Record<string, unknown> }); return null; },

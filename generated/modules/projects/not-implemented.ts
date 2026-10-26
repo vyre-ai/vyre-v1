@@ -23,8 +23,10 @@ export const handlers: Handlers<HandlerCtx> = {
   "projects.post_update": async (ctx) => { throw new VyreErr(notImplemented("projects.post_update", ctx.trace)); },
   "projects.reschedule": async (ctx) => { throw new VyreErr(notImplemented("projects.reschedule", ctx.trace)); },
   "projects.share_out": async (ctx) => { throw new VyreErr(notImplemented("projects.share_out", ctx.trace)); },
+  "projects.shared_view": async (ctx) => { throw new VyreErr(notImplemented("projects.shared_view", ctx.trace)); },
   "projects.stages.set": async (ctx) => { throw new VyreErr(notImplemented("projects.stages.set", ctx.trace)); },
   "projects.templates.list": async (ctx) => { throw new VyreErr(notImplemented("projects.templates.list", ctx.trace)); },
   "projects.unlink_tasks": async (ctx) => { throw new VyreErr(notImplemented("projects.unlink_tasks", ctx.trace)); },
   "projects.unpin_file": async (ctx) => { throw new VyreErr(notImplemented("projects.unpin_file", ctx.trace)); },
+  "projects.unshare_out": async (ctx) => { throw new VyreErr(notImplemented("projects.unshare_out", ctx.trace)); },
 };
