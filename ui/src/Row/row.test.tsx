@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Row, ROW_HEIGHT, ROW_HEIGHT_WITH_NOTE, ROW_HEIGHT_TALL, rowHeight } from "./index.tsx";
+import { Row, ROW_CSS, ROW_HEIGHT, ROW_HEIGHT_WITH_NOTE, ROW_HEIGHT_TALL, LEADING_GAP, PHONE_MAX_WIDTH, PHONE_TAP, rowHeight } from "./index.tsx";
 
 test("a selected row paints the selection token on the row itself, full width", () => {
   const html = renderToStaticMarkup(<Row id="a" title="Weekly sync" selected />);
@@ -115,4 +115,20 @@ test("on the web a row is plain elements, and domProps put a list's own attribut
   assert.match(html, /height:28px/, "and the row keeps its height and selection token");
   assert.match(html, /background-color:var\(--sel\)/);
   assert.ok(!html.includes("r-flexDirection") && !html.includes("css-"), "no React Native view classes");
+});
+
+test("the leading slot has an 8 px gap before the text, the prototype's .row gap, for every list", () => {
+  assert.equal(LEADING_GAP, 8);
+  assert.match(ROW_CSS, /\.vr-l\{[^}]*margin-right:8px\}/, "a face or glyph never touches the title");
+  assert.match(ROW_CSS, /\.vr-r\{[^}]*margin-left:8px\}/, "the trailing slot keeps its own 8 px");
+  const html = renderToStaticMarkup(<Row id="g" title="Rivera intake" leading={<i>L</i>} />);
+  assert.ok(html.includes('class="vr-l"'), "the leading slot is the element the gap is on");
+});
+
+test("on a phone width every row is at least 44 px high; desktop heights are unchanged", () => {
+  assert.equal(PHONE_TAP, 44);
+  assert.equal(PHONE_MAX_WIDTH, 600);
+  assert.match(ROW_CSS, /@media \(max-width:599px\)\{\.vyre-row\{min-height:44px\}\}/);
+  assert.equal(rowHeight(), 28, "the desktop height stays 28");
+  assert.match(renderToStaticMarkup(<Row title="One" />), /height:28px/);
 });

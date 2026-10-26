@@ -4,9 +4,10 @@
 
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { Platform, ScrollView, View } from "react-native";
+import { Platform, ScrollView, View, useWindowDimensions } from "react-native";
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import type { VirtualListProps, VirtualWindow } from "./props.ts";
+import { PHONE_MAX_WIDTH, PHONE_TAP } from "../Row/index.tsx";
 
 export type { VirtualListProps, VirtualWindow, RowHeight } from "./props.ts";
 
@@ -48,7 +49,10 @@ export function VirtualList<T>(props: VirtualListProps<T>) {
   return <NativeList {...props} />;
 }
 
-function WindowedList<T>({ data, renderItem, rowHeight, window: controlled, keyOf, onEndReached }: VirtualListProps<T>) {
+function WindowedList<T>({ data, renderItem, rowHeight: wanted, window: controlled, keyOf, onEndReached }: VirtualListProps<T>) {
+  // On a phone width a fixed row is at least the 44 px tap height, the same floor ui/Row paints, so a 28 px list does not overlap its own rows.
+  const width = useWindowDimensions().width;
+  const rowHeight = typeof wanted === "number" && width > 0 && width < PHONE_MAX_WIDTH ? Math.max(wanted, PHONE_TAP) : wanted;
   const [viewport, setViewport] = useState(DEFAULT_VIEWPORT);
   const [scrolled, setScrolled] = useState<VirtualWindow | null>(null);
   const scrollTop = useRef(0);

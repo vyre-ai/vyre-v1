@@ -11,6 +11,7 @@ import { createSidebarApi } from "./actions.ts";
 import { NEW_CHAT_MS, groupRecent, matchesQuery, rowOf } from "./model.ts";
 import type { ChatRow, RecentOut } from "./model.ts";
 import { createSampleSidebar, harbor, northwind, personal } from "./sample.ts";
+import { SECTION_TYPE } from "./parts.tsx";
 import type { SampleSidebar } from "./sample.ts";
 
 const html = (s: SampleSidebar): string => renderToStaticMarkup(<ChatsSidebar data={s.data} window={{ start: 0, end: 500 }} />).replaceAll("<!-- -->", "");
@@ -149,4 +150,25 @@ test("the slot's search field narrows Needs you, Agents, Channels and Chats; a w
   assert.ok(!none.includes("Rivera intake") && !none.includes("rivera-matter") && !none.includes('data-testid="head-needs"'));
   assert.equal(registered(s, "  ").out, registered(s, "").out, "blank text is no search");
   assert.ok(matchesQuery("pric comp", "Competitor pricing") && !matchesQuery("pric zzz", "Competitor pricing") && matchesQuery("", "x"));
+});
+
+// ---- polish (P-L9b_29)
+
+test("the Needs you fold chevron sits with the label, where every section head puts its chevron, and the count stays at the right", () => {
+  const out = html(createSampleSidebar());
+  const row = at(out, 'data-testid="row-needs-parent"');
+  const marks = at(out, 'data-testid="row-needs-parent-marks"');
+  assert.ok(marks > row && at(out, 'data-testid="toggle-needs"') > marks, "the toggle is in the title marks, after the label");
+  assert.ok(at(out, 'data-testid="row-needs-parent-trailing"') > at(out, 'data-testid="toggle-needs"') && at(out, 'data-testid="count-needs"') > at(out, 'data-testid="row-needs-parent-trailing"'), "the count is the trailing slot");
+});
+
+test("one type for every section header: Agents and Channels, and the Starred, Today, Yesterday, Earlier and Projects groups", () => {
+  assert.deepEqual(SECTION_TYPE, { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" });
+  const out = html(createSampleSidebar());
+  for (const id of ["group-Starred", "group-Today", "group-Yesterday", "group-Projects", "head-faces", "head-channels"]) assert.ok(out.includes(`data-testid="${id}"`), id);
+});
+
+test("the sample channels carry the prototype's neutral names", () => {
+  const out = html(createSampleSidebar());
+  assert.ok(out.includes("rivera-matter") && out.includes("pruitt-matter"));
 });

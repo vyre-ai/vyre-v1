@@ -102,6 +102,9 @@ export function EmptyLine({ text }: { text: string }): ReactElement {
   return <View testID="recent-empty" style={s.empty}><Text style={s.emptyText}>{text}</Text></View>;
 }
 
+/** The one type of every section header in the sidebar (Agents, Channels, Chats, and the Starred, Today, Projects groups): the prototype's .sec. */
+export const SECTION_TYPE = { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string } as const;
+
 export const s = StyleSheet.create({
   pulse: { position: "absolute", left: -3, top: -3, borderWidth: 1.5, borderColor: "var(--accent)" as string, opacity: 0.55 },
   presence: { position: "absolute", right: -2, bottom: -2, width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string, borderWidth: 1.5, borderColor: "var(--side)" as string },
@@ -113,11 +116,12 @@ export const s = StyleSheet.create({
   toolOver: { backgroundColor: "var(--press)" as string },
   head: { height: 28, flexDirection: "row", alignItems: "center", paddingHorizontal: 8, marginTop: 0 },
   headLabel: { flexDirection: "row", alignItems: "center", gap: 4, height: 22 },
-  headText: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
+  headText: { ...SECTION_TYPE },
   grow: { flex: 1, minWidth: 0 },
   tools: { flexDirection: "row", alignItems: "center", gap: 2 },
   group: { height: 28, justifyContent: "center", paddingHorizontal: 8 },
-  groupText: { fontSize: 11, fontWeight: "500", color: "var(--ink-4)" as string },
+  // the same type as headText: Starred, Today and Projects read like Agents and Channels
+  groupText: { ...SECTION_TYPE },
   empty: { height: 28, justifyContent: "center", paddingHorizontal: 8 },
   emptyText: { fontSize: 12.5, color: "var(--ink-3)" as string },
 });

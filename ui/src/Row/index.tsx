@@ -14,6 +14,12 @@ export const ROW_HEIGHT = 28;
 export const ROW_HEIGHT_WITH_NOTE = 44;
 export const ROW_HEIGHT_TALL = 62;
 
+/** Under this window width a row is at least PHONE_TAP high (the finger target); desktop is unchanged. Lists with fixed row heights floor to it too (ui/VirtualList). */
+export const PHONE_MAX_WIDTH = 600;
+export const PHONE_TAP = 44;
+/** The gap between a row's leading element (face, glyph) and its text, as the prototype's .row gap. */
+export const LEADING_GAP = 8;
+
 export function rowHeight(note?: string, tall = false): number {
   if (tall) return ROW_HEIGHT_TALL;
   return note ? ROW_HEIGHT_WITH_NOTE : ROW_HEIGHT;
@@ -22,6 +28,19 @@ export function rowHeight(note?: string, tall = false): number {
 // On the web a row is plain elements, not React Native views: a list scrolls by mounting a few rows a frame, and what one row costs is what a scroll costs (the Records table and the Files list
 // were over the frame budget on the views alone). The styles come from one stylesheet set once; only what changes per row (height, hover and selection tokens) is inline. Every list gets this, and
 // the test ids, heights, tokens and keys are the ones the views drew. Off the web the Pressable below draws the row.
+export const ROW_CSS = ".vyre-row{display:flex;flex-direction:row;align-items:center;flex-shrink:0;position:relative;box-sizing:border-box;width:100%;padding:0 8px;border-radius:6px;cursor:pointer;outline-offset:-2px}"
+  + ".vyre-row:hover{background-color:var(--hover)}"
+  + `.vr-l{flex:none;display:flex;flex-direction:row;align-items:center;justify-content:center;margin-right:${LEADING_GAP}px}`
+  + ".vr-r{flex:none;display:flex;flex-direction:row;align-items:center;margin-left:8px}"
+  + ".vr-x{flex:1 1 0%;min-width:0;display:flex;flex-direction:column;justify-content:center}"
+  + ".vr-t{color:var(--ink);font-size:13px;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+  + ".vr-tl{display:flex;flex-direction:row;align-items:baseline;min-width:0;gap:6px}.vr-tl>.vr-t{flex:none;max-width:70%}"
+  + ".vr-s{flex:0 1 auto;min-width:0;color:var(--ink-3);font-size:12px;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+  + ".vr-m{flex:none;display:flex;flex-direction:row;align-items:center;gap:4px}"
+  + ".vr-n{color:var(--ink-3);font-size:11.5px;line-height:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+  + ".vr-n2{color:var(--ink-3);font-size:11.5px;line-height:16px;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}"
+  + `@media (max-width:${PHONE_MAX_WIDTH - 1}px){.vyre-row{min-height:${PHONE_TAP}px}}`;
+
 let cssDone = false;
 function ensureRowCss(): void {
   if (cssDone) return;
@@ -30,17 +49,7 @@ function ensureRowCss(): void {
   if (!d.getElementById("vyre-ui-row")) {
     const el = d.createElement("style");
     el.id = "vyre-ui-row";
-    el.textContent = ".vyre-row{display:flex;flex-direction:row;align-items:center;flex-shrink:0;position:relative;box-sizing:border-box;width:100%;padding:0 8px;border-radius:6px;cursor:pointer;outline-offset:-2px}"
-      + ".vyre-row:hover{background-color:var(--hover)}"
-      + ".vr-l{flex:none;display:flex;flex-direction:row;align-items:center;justify-content:center}"
-      + ".vr-r{flex:none;display:flex;flex-direction:row;align-items:center;margin-left:8px}"
-      + ".vr-x{flex:1 1 0%;min-width:0;display:flex;flex-direction:column;justify-content:center}"
-      + ".vr-t{color:var(--ink);font-size:13px;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
-      + ".vr-tl{display:flex;flex-direction:row;align-items:baseline;min-width:0;gap:6px}.vr-tl>.vr-t{flex:none;max-width:70%}"
-      + ".vr-s{flex:0 1 auto;min-width:0;color:var(--ink-3);font-size:12px;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
-      + ".vr-m{flex:none;display:flex;flex-direction:row;align-items:center;gap:4px}"
-      + ".vr-n{color:var(--ink-3);font-size:11.5px;line-height:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
-      + ".vr-n2{color:var(--ink-3);font-size:11.5px;line-height:16px;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}";
+    el.textContent = ROW_CSS;
     d.head.appendChild(el);
   }
   cssDone = true;
@@ -124,7 +133,7 @@ const SELECTED = { backgroundColor: "var(--sel)" };
 
 const styles = StyleSheet.create({
   row: { width: "100%", flexDirection: "row", alignItems: "center", paddingHorizontal: 8, borderRadius: 6 },
-  leading: { flexShrink: 0, flexDirection: "row", alignItems: "center", justifyContent: "center" },
+  leading: { flexShrink: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", marginRight: LEADING_GAP },
   trailing: { flexShrink: 0, flexDirection: "row", alignItems: "center", marginLeft: 8 },
   text: { flex: 1, minWidth: 0, justifyContent: "center" },
   title: { color: "var(--ink)" as string, fontSize: 13, lineHeight: 18 },
