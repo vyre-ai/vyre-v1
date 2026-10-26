@@ -74,6 +74,7 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     nav.go(placeOfHit(hit), hashOfHit(hit));
   };
   return {
+    spaceName: () => rt.space.name,
     scope: () => (online() ? "space" : "device"),
     online,
     local: (text, types) => replicaHits(rt).filter((h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text))),

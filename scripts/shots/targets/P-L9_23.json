@@ -5,7 +5,7 @@
       "route": "/m/P-L9_23?part=cmdk",
       "proto": "files,{skin}",
       "waitFor": "[data-testid='cmdk-list'] [data-testid^='row-']",
-      "note": "Cmd-K as the real shell opens it: empty query, Recent first, quiet group heads, the hint footer. The prototype side presses its Search button, so it shows its own palette open (no hash needed). Paper and graphite, 1280 and 390 wide.",
+      "note": "Cmd-K over the whole shell, as the real shell opens it: empty query, Recent first, one-line rows (title, grey meta, kind at the right), the highlighted row in the accent with white text, a plain-text hint footer (the owner bans keycap glyphs, so the footer differs from the prototype on purpose). The prototype side presses its Search button. Paper and graphite, 1280 and 390 wide.",
       "protoClick": "#searchBtn, #srchBtn"
     },
     {
@@ -13,8 +13,8 @@
       "route": "/m/P-L9_23?part=newtab",
       "proto": "files,{skin}",
       "waitFor": "[data-testid='cmdk-list'] [data-testid^='row-']",
-      "note": "The new-tab page: the same search inline in the tab body, no veil. The prototype side presses the tab strip's plus, so it shows its own new-tab launcher. Paper and graphite, 1280 and 390 wide.",
-      "protoClick": "[data-vplus]"
+      "note": "The new-tab page over the whole shell: a \"+\" tab selected, the same search inline in its body. The prototype side presses the plus in its tab strip (#tabs) so its own new-tab launcher shows. Paper and graphite, 1280 and 390 wide.",
+      "protoClick": "#tabs [data-vplus]"
     }
   ]
 }
