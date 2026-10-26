@@ -86,7 +86,7 @@ test("ceiling, label rank and admit follow the profile rules", () => {
   assert.deepEqual(fieldsAboveCeiling(sample, "phone", "confidential"), ["secret"]);
   const plan = loadCatalog().get("client_plan");
   assert.ok(plan);
-  assert.ok(fieldsAboveCeiling(plan, "phone", "confidential").includes("taxId"));
+  assert.ok(fieldsAboveCeiling(plan, "phone", "confidential").includes("tax_id"));
   assert.equal(loadCatalog().get("file_version")?.profile.phone, "none");
   assert.equal(loadCatalog().get("message")?.window.days, 90);
 
@@ -147,11 +147,11 @@ test("phone profile never mirrors Restricted rows", async () => {
     assert.equal(phone.write({ entity: "contact", id: "rec_follow", fields: { name: "Cy", owner: "prs_other" }, hlc: hlc(12), actor: ACTOR, origin: "mirror", follows: true }).applied, true);
     assert.equal(phone.write({ entity: "contact", id: "rec_star", fields: { name: "Di", owner: "prs_other" }, hlc: hlc(13), actor: ACTOR, origin: "mirror", starred: true }).applied, true);
 
-    const kept = phone.write({ entity: "client_plan", id: "rec_plan", fields: { client: "Ada", taxId: "99-9999999" }, hlc: hlc(14), actor: ACTOR, origin: "mirror", starred: true });
+    const kept = phone.write({ entity: "client_plan", id: "rec_plan", fields: { client: "Ada", tax_id: "99-9999999" }, hlc: hlc(14), actor: ACTOR, origin: "mirror", starred: true });
     assert.equal(kept.applied, true);
     assert.equal(phone.read("client_plan", "rec_plan")?.client, "Ada");
-    assert.equal(phone.read("client_plan", "rec_plan")?.taxId ?? null, null);
-    assert.equal(phone.write({ entity: "client_plan", id: "rec_only", fields: { taxId: "99-9999999" }, hlc: hlc(15), actor: ACTOR, origin: "mirror", starred: true }).reason, "above_label");
+    assert.equal(phone.read("client_plan", "rec_plan")?.tax_id ?? null, null);
+    assert.equal(phone.write({ entity: "client_plan", id: "rec_only", fields: { tax_id: "99-9999999" }, hlc: hlc(15), actor: ACTOR, origin: "mirror", starred: true }).reason, "above_label");
     assert.equal(phone.read("client_plan", "rec_only"), null);
     assert.equal(phone.write({ entity: "client_plan", id: "rec_rest", fields: { client: "Ada", label: 3 }, hlc: hlc(16), actor: ACTOR, origin: "mirror", starred: true }).reason, "restricted");
     assert.equal(phone.read("client_plan", "rec_rest"), null);
@@ -184,16 +184,16 @@ test("desktop and web mirror up to Confidential and still drop Restricted", asyn
     assert.equal(desktop.write({ entity: "contact", id: "rec_other", fields: { name: "Bea", owner: "prs_other" }, hlc: hlc(2), actor: ACTOR, origin: "mirror" }).applied, true);
 
     const kept = desktop.write({
-      entity: "client_plan", id: "rec_c", fields: { client: "Ada", label: 2, taxId: "secret" }, label: "confidential", hlc: hlc(3), actor: ACTOR, origin: "mirror",
+      entity: "client_plan", id: "rec_c", fields: { client: "Ada", label: 2, tax_id: "secret" }, label: "confidential", hlc: hlc(3), actor: ACTOR, origin: "mirror",
     });
     assert.equal(kept.applied, true);
     const row = desktop.read("client_plan", "rec_c");
     assert.equal(row?.client, "Ada");
     assert.equal(num(row?.label), 2);
-    assert.equal(row?.taxId ?? null, null);
+    assert.equal(row?.tax_id ?? null, null);
     assert.equal(desktop.write({ entity: "client_plan", id: "rec_r", fields: { client: "Ada", label: 3 }, hlc: hlc(4), actor: ACTOR, origin: "mirror" }).reason, "restricted");
     assert.equal(desktop.read("client_plan", "rec_r"), null);
-    assert.equal(desktop.write({ entity: "client_plan", id: "rec_only", fields: { taxId: "secret" }, hlc: hlc(5), actor: ACTOR, origin: "mirror" }).reason, "above_label");
+    assert.equal(desktop.write({ entity: "client_plan", id: "rec_only", fields: { tax_id: "secret" }, hlc: hlc(5), actor: ACTOR, origin: "mirror" }).reason, "above_label");
 
     assert.equal(desktop.write({ entity: "file_version", id: "ver_old", fields: { name: "old.txt", at: NOW - 31 * DAY }, hlc: hlc(6), actor: ACTOR, origin: "mirror" }).reason, "outside_window");
     assert.equal(desktop.read("file_version", "ver_old"), null);

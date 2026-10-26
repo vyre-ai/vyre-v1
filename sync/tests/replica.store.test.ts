@@ -487,7 +487,7 @@ test("catalog, replica DDL and sql helpers load from the generated files", () =>
   assert.equal(message.profile.phone, "window");
   assert.equal(message.window.days, 90);
   assert.equal(catalog.get("file_version")?.profile.phone, "none");
-  assert.ok(catalog.get("client_plan")?.fieldLabels.taxId === 3);
+  assert.ok(catalog.get("client_plan")?.fieldLabels.tax_id === 3);
 
   const ddl = loadReplicaSql();
   assert.equal(ddl.path, resolveReplicaSql());
