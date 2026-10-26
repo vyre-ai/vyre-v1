@@ -33,7 +33,8 @@ jobs:
           if git merge-base --is-ancestor "$SHA" origin/main; then echo "lineage: $SHA is on main"; else node scripts/release/cli.ts lineage "$SHA" "$TAG"; fi
   package:
     needs: guard
-    runs-on: [self-hosted, linux, v1]
+    # the multi-arch image build needs docker buildx and qemu: one host serves the `buildx` label (vyre-ci-7)
+    runs-on: [self-hosted, linux, v1, buildx]
     timeout-minutes: 20
     permissions: { contents: read, packages: write }
     env:
