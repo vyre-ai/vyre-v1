@@ -8,6 +8,8 @@ import { reportProblem } from "../../../../../ui/src/Menu/index.tsx";
 import { NeedsTeamSpace } from "../../../../../ui/src/NeedsTeamSpace/index.tsx";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import { Rail } from "../rail/Rail.tsx";
+import { SidebarBack, SidebarExpand, SidebarSlot, SidebarSlotProvider, useSidebarSlot } from "../sidebar/index.ts";
+import type { SidebarStorage } from "../sidebar/index.ts";
 import type { KitDef, PlaceId } from "../rail/kits.ts";
 import { MainTabs, useTabs } from "../tabs/MainTabs.tsx";
 import { TitleBar } from "../titlebar/TitleBar.tsx";
@@ -41,6 +43,27 @@ export interface ShellProps {
   onOpenWaiting?: () => void;
   /** Sign out, Add a Space and the like leave the shell; it tells you. */
   onSpaceAction?: (action: SpaceAction) => void;
+  /** Called when a person points at or focuses a place in the rail or a tab: the session reads that place's first queries ahead of the click. */
+  onPrefetchPlace?: (place: PlaceId) => void;
+  /** Who and where, for remembering a collapsed sidebar on this device. Without it the choice lasts for the session. */
+  sidebar?: { deviceId: string; personId: string; storage: SidebarStorage | null };
+}
+
+/** The body beside the sidebar. On a computer the sidebar sits left of the place. On the phone a place with a sidebar opens on its list; choosing an item shows the body with Back. */
+function Stage({ children }: { children: ReactNode }): ReactElement {
+  const slot = useSidebarSlot();
+  const showList = slot.compact && slot.view === "list";
+  return (
+    <View style={styles.stageRow}>
+      <SidebarSlot />
+      {/* the place stays mounted while the phone shows its list, because its sidebar content is drawn from inside the place */}
+      <View style={[styles.stageCol, showList && styles.hidden]}>
+        <SidebarBack />
+        <SidebarExpand />
+        <View style={styles.stage}>{children}</View>
+      </View>
+    </View>
+  );
 }
 
 /** What a Personal Space cannot do (spec 2.1 matrix), by place. */
@@ -117,6 +140,7 @@ export function Shell(props: ShellProps): ReactElement {
     epoch: state.epoch,
     kit: session.kit,
   };
+  // The place frame is keyed by epoch, Space and place only: an item change (ctx.hash) updates the place in place, so its sidebar scroll, pane and composer keep their state.
   const activeTab = tabs.tabs.find((t) => t.key === tabs.active);
 
   let stage: ReactNode;
@@ -132,7 +156,7 @@ export function Shell(props: ShellProps): ReactElement {
   } else {
     const blocked = session.def.kind === "personal" ? teamOnly(state.place) : null;
     stage = (
-      <PlaceFrame hub={hub} epoch={state.epoch} key={`${state.epoch}:${ctx.spaceId}:${state.place}:${state.hash}`}>
+      <PlaceFrame hub={hub} epoch={state.epoch} key={`${state.epoch}:${ctx.spaceId}:${state.place}`}>
         {blocked !== null ? <NeedsTeamSpace what={blocked} density={compact ? "compact" : "regular"} onAction={() => props.onSpaceAction?.("add")} /> : props.renderPlace(ctx)}
       </PlaceFrame>
     );
@@ -161,11 +185,17 @@ export function Shell(props: ShellProps): ReactElement {
             groups={hub.rail()}
             active={state.place}
             onSelect={(place) => hub.go(place)}
+            {...(props.onPrefetchPlace === undefined ? {} : { onPrefetch: props.onPrefetchPlace })}
             header={<SpaceTile spaces={hub.spaces()} openId={state.openId} away={state.away} onSwitch={switchBy} onAction={act} />}
           />
           <View style={styles.main}>
             <MainTabs controller={session.tabs} onNavigate={(tab) => hub.showTab(tab)} onNewTab={() => hub.newTab()} onGoToPlace={(place) => hub.go(place)} />
-            <View style={styles.stage}>{stage}</View>
+            <SidebarSlotProvider
+              deviceId={props.sidebar?.deviceId ?? "device"} personId={props.sidebar?.personId ?? "me"} spaceId={ctx.spaceId} place={state.place}
+              epoch={state.epoch} compact={compact} storage={props.sidebar?.storage ?? null}
+            >
+              <Stage>{stage}</Stage>
+            </SidebarSlotProvider>
           </View>
         </View>
       </View>
@@ -177,6 +207,9 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "var(--win)" as string },
   body: { flex: 1, flexDirection: "row", minHeight: 0 },
   main: { flex: 1, minWidth: 0 },
+  stageRow: { flex: 1, flexDirection: "row", minHeight: 0 },
+  stageCol: { flex: 1, minWidth: 0, minHeight: 0 },
+  hidden: { display: "none" },
   stage: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   place: { flex: 1, minHeight: 0 },
 });
