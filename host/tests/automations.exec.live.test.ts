@@ -14,6 +14,7 @@ import type { Daemon, DaemonOptions } from "../src/daemon/daemon.ts";
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 const OWNER = "tok-usr_olivia";
+const NOAH = "tok-usr_noah";
 
 function seededDir(): string {
   const core = bootCore();
@@ -35,18 +36,22 @@ const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> 
     },
   }),
   fetch: caddyFetch,
-  session: (h) => (/^Bearer tok-usr_olivia$/.test(String(h["authorization"] ?? "")) ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "exec-live" } : null),
+  session: (h) => {
+    const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+    const who = t === OWNER ? "usr_olivia" : t === NOAH ? "usr_noah" : null;
+    return who === null ? null : { space: "spc_core", principal: { kind: "person", id: who }, device: "exec-live" };
+  },
   intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
   ...extra,
 });
 
-const call = async (d: Daemon, p: string, body: unknown): Promise<{ status: number; data: Record<string, unknown>; text: string }> => {
-  const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) });
+const call = async (d: Daemon, p: string, body: unknown, token = OWNER): Promise<{ status: number; data: Record<string, unknown>; text: string }> => {
+  const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) });
   const text = await r.text();
   return { status: r.status, data: ((JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {}), text };
 };
-const ok = async (d: Daemon, p: string, body: unknown): Promise<Record<string, unknown>> => {
-  const r = await call(d, p, body);
+const ok = async (d: Daemon, p: string, body: unknown, token = OWNER): Promise<Record<string, unknown>> => {
+  const r = await call(d, p, body, token);
   assert.equal(r.status, 200, `${p}: ${r.text}`);
   return r.data;
 };
@@ -61,14 +66,14 @@ async function until<T>(what: string, ms: number, look: () => Promise<T | undefi
 }
 
 /** An Automation that runs by hand with these steps; returns its id. */
-async function automation(d: Daemon, name: string, nodes: unknown[]): Promise<string> {
-  const made = await ok(d, "/v1/automations/create", { idempotencyKey: `exec-${name}`, name });
+async function automation(d: Daemon, name: string, nodes: unknown[], token = OWNER): Promise<string> {
+  const made = await ok(d, "/v1/automations/create", { idempotencyKey: `exec-${name}`, name }, token);
   const id = String((made["automation"] as { id?: string } | undefined)?.id ?? made["automationId"]);
   assert.match(id, /^aut_/, `automation.create: ${JSON.stringify(made)}`);
-  await ok(d, "/v1/automations/update", { automationId: id, definition: { triggers: [{ key: "manual" }], nodes } });
+  await ok(d, "/v1/automations/update", { automationId: id, definition: { triggers: [{ key: "manual" }], nodes } }, token);
   return id;
 }
-const runOf = async (d: Daemon, id: string, key: string): Promise<string> => String((await ok(d, "/v1/automations/run", { automationId: id, idempotencyKey: key }))["runId"]);
+const runOf = async (d: Daemon, id: string, key: string, token = OWNER): Promise<string> => String((await ok(d, "/v1/automations/run", { automationId: id, idempotencyKey: key }, token))["runId"]);
 const statusOf = async (d: Daemon, runId: string): Promise<string> => String(((await ok(d, "/v1/runs/get", { runId }))["run"] as { status?: string } | undefined)?.status);
 const hasNote = async (d: Daemon, title: string): Promise<boolean> =>
   ((await ok(d, "/v1/records/query", { type: "note_board" }))["rows"] as { fields: { title?: string } }[]).some((r) => r.fields.title === title);
@@ -111,5 +116,21 @@ test("a Run the last server left queued is driven to its end when the next one s
     await until("the recovered run to succeed", 20_000, async () => ((await statusOf(d, runId)) === "succeeded" ? true : undefined));
     assert.equal(await hasNote(d, "Made after a restart"), true);
     assert.equal(((await ok(d, "/v1/runs/steps", { runId }))["steps"] as unknown[]).length >= 1, true, "the step log shows what ran");
+  } finally { await d.stop(); }
+});
+
+test("a step is authorized when it runs: a person suspended while their Run waits has the Run fail by name, and nothing after the wait runs", async () => {
+  const d = await boot(seededDir());
+  try {
+    const id = await automation(d, "noah-note", [{ id: "pause", key: "wait", input: { forDuration: "2s" } }, mk("after", "Made by a suspended person")], NOAH);
+    const runId = await runOf(d, id, "run-noah", NOAH);
+    await until("the run to wait", 10_000, async () => ((await statusOf(d, runId)) === "waiting" ? true : undefined));
+    await ok(d, "/v1/members/suspend", { personId: "usr_noah", reason: "test" });
+    const run = await until("the run to fail", 20_000, async () => {
+      const r = (await ok(d, "/v1/runs/get", { runId }))["run"] as { status?: string; errorCode?: string; error?: { code?: string } };
+      return r.status === "failed" ? r : r.status === "succeeded" ? assert.fail("the run went on as a suspended person") : undefined;
+    });
+    assert.match(String(run.errorCode ?? run.error?.code), /permission\.(suspended|not_a_member)/, "the failure names why");
+    assert.equal(await hasNote(d, "Made by a suspended person"), false, "the step after the wait never ran");
   } finally { await d.stop(); }
 });

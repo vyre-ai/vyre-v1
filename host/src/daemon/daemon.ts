@@ -370,6 +370,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         warn: (msg, attrs) => sink.log({ space: space!, level: 30, msg, place: "hooks", ...(attrs ? { attrs } : {}) }),
       });
       hooks = hookRunner;
+      const runsHost = createRunsHost({ call: (n, i, as) => hookRunner.call(n, i, as), log: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "runs", attrs }) });
+      closers.push(() => runsHost.settle(5_000));
       const acceptors = new Set([...loaded.moduleExports].flatMap(([id, ns]) => (ns["hostCalls"] && typeof ns["hostCalls"] === "object" && `${id}.accept_webhook` in (ns["hostCalls"] as object) ? [id] : [])));
       webhooks = { has: (c) => acceptors.has(c), accept: (c, a) => hookRunner.call(`${c}.accept_webhook`, a) };
       // the async projections the live modules export (P-H_07): the events module's webhooks_out turns subscribed events into signed deliveries
@@ -583,7 +585,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           blobs: { put: async (bytes, type) => (await blobs.forModule("backup").put(bytes, type)).id }, secrets: () => [token],
         }),
         // the Run executor: the plan and the step runner for a Run come from the Automation and steps-core through their host calls (P-L6_24)
-        setRunsHost: () => createRunsHost({ call: (n, i, as) => hookRunner.call(n, i, as) }),
+        setRunsHost: () => runsHost,
         setEventsDispatch: () => system,
         // erase reaches the append-only log (P-CC_41): governance asks the log worker to tombstone payloads, and a restore replays the seqs it kept
         setEventsCompact: () => {
@@ -657,7 +659,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       // Runs the last server left queued or running are driven again from their step log (P-L6_24). Started, not awaited: boot does not wait for a Run, and shutdown waits for it.
       if (loaded.serving.get("runs") === "live") {
-        const recovering = hookRunner.call("runs.recover", {}).catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "runs.recover_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
+        const recovering = runsHost.recover().catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "runs.recover_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
         closers.push(() => recovering);
       }
 

@@ -16,8 +16,55 @@ export type HostCall = (name: string, input: unknown, as?: { principal: { kind: 
 
 const STEPS = new Map((registry.steps as unknown as { key: string; effects: "read" | "write" | "outward"; sample?: unknown }[]).map((s) => [s.key, s] as const));
 
-export function createRunsHost(d: { call: HostCall }) {
+/** How many Runs one server drives at once; the rest wait their turn. */
+export const MAX_DRIVES = 8;
+const DENIED = new Set(["not_a_member", "suspended", "revoked"]);
+
+/** A step that ran as a person who is no longer let in (removed, suspended) fails the Run by name, so the Run's owner and the Space see why instead of a bare "unauthenticated". */
+function refusal(e: unknown): unknown {
+  const err = (e as { error?: { code?: string; details?: { reason?: string } } } | null)?.error;
+  const reason = err?.details?.reason;
+  if (reason === undefined || !DENIED.has(reason)) return e;
+  const code = reason === "suspended" ? "permission.suspended" : "permission.not_a_member";
+  return { error: { code, message: reason === "suspended" ? "The person this run acts as is suspended, so the run stopped." : "The person this run acts as is no longer a member of this Space, so the run stopped.", retryable: false } };
+}
+
+export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: string, attrs: Record<string, unknown>) => void }) {
+  const max = d.max ?? MAX_DRIVES;
+  const waiting: string[] = [];
+  const known = new Set<string>();      // queued or being driven
+  const again = new Set<string>();      // asked for again while being driven: driven once more when this one ends
+  const inflight = new Set<Promise<void>>();
+  let active = 0;
+  const pump = (): void => {
+    while (active < max && waiting.length > 0) {
+      const id = waiting.shift()!;
+      active += 1;
+      const p: Promise<void> = d.call("runs.drive_run", { runId: id })
+        .then(() => undefined, (e: unknown) => d.log?.("runs.drive_failed", { runId: id, error: e instanceof Error ? e.message : String((e as { error?: { message?: string } })?.error?.message ?? e) }))
+        .then(() => {
+          active -= 1; inflight.delete(p); known.delete(id);
+          if (again.delete(id)) enqueue(id); else pump();
+        });
+      inflight.add(p);
+    }
+  };
+  function enqueue(runId: string): void {
+    if (known.has(runId)) { again.add(runId); return; }
+    known.add(runId); waiting.push(runId); pump();
+  }
   return {
+    enqueue,
+    /** The Runs the last server left queued or running are driven again. */
+    async recover(): Promise<number> {
+      const ids = (await d.call("runs.interrupted", {})) as string[];
+      for (const id of ids) enqueue(id);
+      return ids.length;
+    },
+    /** Shutdown: wait for the drives in flight, but not for ever (a step log makes a half-done Run recoverable). */
+    async settle(ms: number): Promise<void> {
+      await Promise.race([Promise.allSettled([...inflight]), new Promise((r) => setTimeout(r, ms))]);
+    },
     async resolve(run: { id: string }): Promise<{ plan: PlanStep[]; exec: (step: PlanStep, call: never) => Promise<StepResult> } | undefined> {
       const p = (await d.call("automations.run_plan", { runId: run.id })) as Plan | null;
       if (!p || p.definition.nodes.length === 0) return undefined;
@@ -39,7 +86,9 @@ export function createRunsHost(d: { call: HostCall }) {
           // a step that names no next step goes where the definition says; one that names nothing at all goes to the next node in the list
           if (r.next === undefined && !r.wait && node.next && node.next.length > 0) return { ...r, next: node.next[0]! };
           return r;
-        } catch (e) {
+        } catch (raw) {
+          const e = refusal(raw);
+          if (e !== raw) throw e;   // a person who is no longer let in fails the Run whatever the step's own error rule says
           const mode = node.onError?.mode;
           const message = (e as { error?: { message?: string }; message?: string })?.error?.message ?? (e as Error).message ?? "The step failed.";
           if (mode === "continue") return { output: { error: message } };
