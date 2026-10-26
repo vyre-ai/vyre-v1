@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
   matchText: { fontSize: 11.5, fontWeight: "500", color: "var(--accent)" as string },
   bannerSlot: { height: 62, paddingHorizontal: 0, justifyContent: "flex-start" },
   banner: { height: 56, flexDirection: "row", alignItems: "center", paddingLeft: 8, paddingRight: 12, borderRadius: 6 },
-  bannerOver: { backgroundColor: "color-mix(in srgb, var(--accent) 16%, transparent)" as string },
+  bannerOver: { backgroundImage: "linear-gradient(color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--accent) 16%, transparent))" as unknown as undefined },
   bannerText: { flex: 1, minWidth: 0 },
   bannerName: { fontSize: 13, lineHeight: 18, fontWeight: "600", color: "var(--ink)" as string },
   bannerNote: { fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string },

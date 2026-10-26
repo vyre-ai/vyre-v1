@@ -12,6 +12,7 @@ import { appliesNoRawContextMenu, checkNoRawContextMenu } from "./no-raw-context
 import { appliesListSections, checkListSections } from "./list-sections.ts";
 import { appliesNoContentInLogs, checkNoContentInLogs } from "./no-content-in-logs.ts";
 import { appliesNoEmDashOrSectionSign, checkNoEmDashOrSectionSign } from "./no-em-dash-or-section-sign.ts";
+import { appliesNoColorMix, checkNoColorMix } from "./no-color-mix.ts";
 
 export const BUDGET_MS = 10_000;
 
@@ -30,6 +31,7 @@ export const rules: Rule[] = [
   { id: "list-sections", applies: appliesListSections, check: checkListSections },
   { id: "no-content-in-logs", applies: appliesNoContentInLogs, check: checkNoContentInLogs },
   { id: "no-em-dash-or-section-sign", applies: appliesNoEmDashOrSectionSign, check: checkNoEmDashOrSectionSign },
+  { id: "no-color-mix", applies: appliesNoColorMix, check: checkNoColorMix },
 ];
 
 /** Rules run only on `changed`. Files absent from that list are ignored. */

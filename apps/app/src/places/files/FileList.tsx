@@ -218,7 +218,7 @@ export function GridRow({ children }: { children: ReactNode }): ReactElement {
 }
 
 // Plain objects (not StyleSheet ids), as in ui/Row, so the painted token is visible in the element's inline style.
-const WARN_HOVER = { backgroundColor: "color-mix(in srgb, var(--warn) 28%, transparent)" };
+const WARN_HOVER = { backgroundImage: "linear-gradient(color-mix(in srgb, var(--warn) 28%, transparent), color-mix(in srgb, var(--warn) 28%, transparent))" as unknown as undefined };
 const HOVER = { backgroundColor: "var(--hover)" };
 const SORTED = { color: "var(--ink)" };
 const TILE_SEL = { backgroundColor: "var(--accent-wash)", boxShadow: "inset 0 0 0 1.5px var(--accent-line)" };
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   page: { width: 22, height: 26, borderRadius: 3, borderWidth: 1, backgroundColor: "var(--win)" as string, alignItems: "center", justifyContent: "flex-end", paddingBottom: 3, overflow: "hidden" },
   pageText: { fontSize: 6.5, fontWeight: "700", letterSpacing: 0 },
   marks: { flexDirection: "row", alignItems: "center", gap: 6 },
-  warn: { height: 18, paddingHorizontal: 6, borderRadius: 5, justifyContent: "center", backgroundColor: "color-mix(in srgb, var(--warn) 16%, transparent)" as string },
+  warn: { height: 18, paddingHorizontal: 6, borderRadius: 5, justifyContent: "center", backgroundImage: "linear-gradient(color-mix(in srgb, var(--warn) 16%, transparent), color-mix(in srgb, var(--warn) 16%, transparent))" as unknown as undefined },
   warnText: { fontSize: 11, fontWeight: "500", color: "var(--warn)" as string },
   face: { width: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },
   faceText: { fontSize: 9, fontWeight: "600", color: "var(--ink-2)" as string },

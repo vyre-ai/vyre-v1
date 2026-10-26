@@ -372,7 +372,8 @@ export function AskButton(props: AskButtonProps): ReactElement | null {
 
   if (current === null) return null;
   const label = mainLabel(current, context);
-  const wash = "color-mix(in srgb, var(--accent) 16%, transparent)" as string;
+  // react-native-web drops a color-mix() backgroundColor: the hover wash is a one-colour gradient layer
+  const wash = "linear-gradient(color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--accent) 16%, transparent))" as unknown as undefined;
 
   return (
     <View ref={wrap} style={styles.host} testID={testID}>
@@ -387,7 +388,7 @@ export function AskButton(props: AskButtonProps): ReactElement | null {
           onHoverOut={() => setMainOver(false)}
           onFocus={() => setFocus("main")}
           onBlur={() => setFocus(null)}
-          style={[styles.main, compact && styles.mainCompact, mainOver && { backgroundColor: wash }, focus === "main" && styles.focus]}
+          style={[styles.main, compact && styles.mainCompact, mainOver && { backgroundImage: wash }, focus === "main" && styles.focus]}
           {...menuTrigger(openMenu)}
           {...webProps({ title: `${label}  ⌘J` })}
         >
@@ -405,7 +406,7 @@ export function AskButton(props: AskButtonProps): ReactElement | null {
           onHoverOut={() => setChevOver(false)}
           onFocus={() => setFocus("chev")}
           onBlur={() => setFocus(null)}
-          style={[styles.chev, chevOver && { backgroundColor: wash }, focus === "chev" && styles.focus]}
+          style={[styles.chev, chevOver && { backgroundImage: wash }, focus === "chev" && styles.focus]}
           {...menuTrigger(openMenu)}
           {...webProps({ title: "Change agent" })}
         >
@@ -439,7 +440,7 @@ const styles = StyleSheet.create({
   split: { flexDirection: "row", height: 30, borderRadius: 8, backgroundColor: "var(--accent-wash)" as string, overflow: "hidden" },
   main: { flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 5, paddingRight: 11 },
   mainCompact: { paddingRight: 5 },
-  chev: { alignItems: "center", justifyContent: "center", paddingHorizontal: 7, borderLeftWidth: 1, borderLeftColor: "color-mix(in srgb, var(--accent) 25%, transparent)" as string },
+  chev: { alignItems: "center", justifyContent: "center", paddingHorizontal: 7, borderLeftWidth: 1, borderLeftColor: "var(--accent-line)" as string },
   ask: { color: "var(--accent)" as string, fontSize: 12.5, fontWeight: "600", lineHeight: 16 },
   focus: { outlineWidth: 2, outlineStyle: "solid", outlineColor: "var(--accent-line)" as string, outlineOffset: -2 },
   assistantTile: { backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string },

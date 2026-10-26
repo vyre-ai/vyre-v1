@@ -181,7 +181,7 @@ const st = StyleSheet.create({
   name: { flexShrink: 1, fontSize: 22, lineHeight: 28, fontWeight: "600", color: "var(--ink)" as string },
   status: { flexDirection: "row", alignItems: "center", gap: 6, height: 22, paddingHorizontal: 8, borderRadius: 11, backgroundColor: "var(--sunk)" as string },
   statusLive: { backgroundColor: "var(--accent-wash)" as string },
-  statusPaused: { backgroundColor: "color-mix(in srgb, var(--warn) 14%, transparent)" as string },
+  statusPaused: { backgroundImage: "linear-gradient(color-mix(in srgb, var(--warn) 14%, transparent), color-mix(in srgb, var(--warn) 14%, transparent))" as unknown as undefined },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ink-4)" as string },
   dotLive: { backgroundColor: "var(--ok)" as string },
   dotPaused: { backgroundColor: "var(--warn)" as string },

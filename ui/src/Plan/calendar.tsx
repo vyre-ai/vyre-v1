@@ -15,6 +15,7 @@ function bar(c: PlanCtx, sg: CalSeg): ReactElement {
       gridColumn: `${sg.col + 1} / span ${sg.len}`, gridRow: sg.lane + 1, display: "flex", alignItems: "center", gap: 4, margin: "1px 2px", padding: "0 5px", height: 22, minWidth: 0, fontSize: 12, cursor: "grab", boxSizing: "border-box", touchAction: "none",
       borderRadius: `${sg.contLeft ? 0 : 6}px ${sg.contRight ? 0 : 6}px ${sg.contRight ? 0 : 6}px ${sg.contLeft ? 0 : 6}px`,
       background: it.milestone ? "transparent" : paint.bg, border: it.milestone ? "none" : `1px solid ${isLate(it, c.today) ? "var(--danger)" : on ? "var(--accent)" : paint.line}`,
+      // color-mix-ok: h("div") style, a real DOM node of the Plan view
       boxShadow: on ? "0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent)" : "none",
     },
   }, it.milestone ? icon(ICON.diamond, { color: it.status === "done" ? "var(--ok)" : "var(--ink-2)" }) : h(FaceButton, { it, size: 14, ctx: c }), h(NameField, { it, ctx: c, style: { minWidth: 0 } }));
@@ -26,6 +27,7 @@ export function calendarView(c: PlanCtx, height: number): ReactElement {
   const wk: ReactNode[] = [];
   for (const w of weeks) {
     const cells: ReactNode[] = [];
+    // color-mix-ok: h("div") style, a real DOM node of the Plan view
     for (const d of w.days) cells.push(h("div", { key: d.day, style: { padding: "4px 6px", borderRight: "1px solid var(--line)", background: d.today ? "color-mix(in srgb, var(--accent) 8%, transparent)" : d.weekend ? "color-mix(in srgb, var(--sunk) 60%, transparent)" : "transparent", opacity: d.other ? 0.5 : 1 } },
       h("span", { style: { fontSize: 11.5, fontVariantNumeric: "tabular-nums", color: d.today ? "var(--accent)" : "var(--ink-3)", fontWeight: d.today ? 700 : 500 } }, d.label)));
     const evs: ReactNode[] = [];

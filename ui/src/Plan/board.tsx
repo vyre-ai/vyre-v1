@@ -12,6 +12,7 @@ function card(c: PlanCtx, it: Item): ReactElement {
     key: it.id, role: "button", "aria-pressed": on, draggable: true, tabIndex: -1, "data-testid": `plan-card-${it.id}`,
     onClick: (e: EventLike) => c.select(it.id, e.metaKey || e.ctrlKey, e.shiftKey), onDoubleClick: () => c.open(it.id), ...menuTrigger((x: number, y: number) => c.menu(it.id, x, y)),
     onDragStart: (e: EventLike) => { if (!c.sel.has(it.id)) c.only(it.id); c.cardDragStart(it.id); if (e.dataTransfer) { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", it.id); } },
+    // color-mix-ok: h("div") style, a real DOM node of the Plan view
     style: { display: "flex", flexDirection: "column", gap: 6, padding: "8px 10px", borderRadius: 9, background: "var(--win)", border: `1px solid ${on ? "var(--accent)" : "var(--line)"}`, opacity: it.status === "done" && !on ? 0.75 : 1, boxShadow: on ? "0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent)" : "none", cursor: "grab" },
   },
   h("div", { style: { display: "flex", alignItems: "center", gap: 8, fontSize: 13 } },

@@ -45,6 +45,7 @@ export function timelineView(c: PlanCtx, height: number): ReactElement {
           h("span", { style: { display: "inline-flex", transform: col ? "rotate(-90deg)" : "none" }, dangerouslySetInnerHTML: { __html: ICON.chev } }), st.name),
         h("span", { style: { marginLeft: "auto", fontSize: 11.5, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" } }, `${dn}/${tn}`),
         c.canAdd ? h("button", { type: "button", "aria-label": `Add a task to ${st.name}`, title: "Add a task", "data-testid": `plan-add-${st.id}`, onClick: () => c.add(st.id), style: { border: 0, background: "none", cursor: "pointer", color: "var(--ink-3)", padding: 2, display: "inline-flex" }, dangerouslySetInnerHTML: { __html: ICON.plus } }) : null));
+      // color-mix-ok: h("div") style, a real DOM node of the Plan view
       bars.push(h("div", { key: `sb-${st.id}`, style: { position: "absolute", top: r.y, height: r.h, left: 0, right: 0, background: "color-mix(in srgb, var(--sunk) 55%, transparent)" } }));
       if (st.all.length > 0) {
         const s = Math.min(...st.all.map((x) => x.s)), e = Math.max(...st.all.map((x) => x.e));
@@ -82,6 +83,7 @@ export function timelineView(c: PlanCtx, height: number): ReactElement {
       title: `${it.title} · ${it.who ? `${it.who.name} · ` : ""}${it.s === it.e ? fmtDay(it.s) : `${fmtDay(it.s)} to ${fmtDay(it.e)}`}`,
       onPointerDown: (e: EventLike) => { const t = e.target; c.down(e, it.id, t.closest("[data-h=s]") ? "rs" : t.closest("[data-h=e]") ? "re" : "mv"); },
       onDoubleClick: () => c.open(it.id), ...menuProps(it),
+      // color-mix-ok: h("div") style, a real DOM node of the Plan view
       style: { position: "absolute", left: LABEL_W + x + 1, top: r.y + 7, width: w - 2, height: 22, boxSizing: "border-box", borderRadius: 7, background: paint.bg, border: `1px solid ${late ? "var(--danger)" : on || target ? "var(--accent)" : paint.line}`, boxShadow: target ? "0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent)" : on ? "0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent)" : c.moving.has(it.id) ? "0 4px 10px rgba(0,0,0,.18)" : "none", display: "flex", alignItems: "center", gap: 4, padding: "0 4px", cursor: "grab", touchAction: "none" },
     },
     h("i", { "data-h": "s", style: HANDLE_L }),
@@ -97,6 +99,7 @@ export function timelineView(c: PlanCtx, height: number): ReactElement {
   const segs: { d: number; m: number }[] = [];
   for (let d = d0; d <= d1; d++) {
     const x = (d - d0) * dw;
+    // color-mix-ok: h("div") style, a real DOM node of the Plan view
     if (isWeekend(d)) grid.push(h("i", { key: `we-${d}`, style: { position: "absolute", left: LABEL_W + x, width: dw, top: 0, bottom: 0, background: "color-mix(in srgb, var(--sunk) 60%, transparent)" } }));
     if (dayOfMonth(d) === 1) grid.push(h("i", { key: `vl-${d}`, style: { position: "absolute", left: LABEL_W + x, top: 0, bottom: 0, width: 1, background: "var(--line)" } }));
     if (d === d0 || dayOfMonth(d) === 1) segs.push({ d, m: monthOf(d) });

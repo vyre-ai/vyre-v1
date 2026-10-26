@@ -375,7 +375,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
             <View key={d} style={[s.ccol, d === today && s.ccolToday]} testID={`col:${d}`} {...({ onPointerDown: startCreate(d), onDoubleClick: (e: PointerLike) => { const r = e.currentTarget?.getBoundingClientRect?.(); if (r) withDraft(clickCreate(d, e.clientY - r.top)); } } as object)}
               {...menuTrigger((x, y) => menu.show(dayMenuEntries({ newHere: () => withDraft(clickCreate(d, 9 * HH)), goDay: () => { dispatch({ type: "mode", mode: "day" }); dispatch({ type: "go", day: d }); } }), x, y))}>
               {each(dayStripes(d), (st) => (
-                <View key={st.top} testID={`stripe:${d}:${st.top}`} accessibilityLabel={`${whoLabel(st.who, names)} busy`} pointerEvents="none" style={[s.busy, { top: st.top, height: st.height, backgroundColor: `color-mix(in srgb, var(--ink) ${st.alpha}%, transparent)` }]} />
+                <View key={st.top} testID={`stripe:${d}:${st.top}`} accessibilityLabel={`${whoLabel(st.who, names)} busy`} pointerEvents="none" style={[s.busy, { top: st.top, height: st.height, backgroundImage: tint("var(--ink)", st.alpha) as unknown as undefined }]} />
               ))}
               {each(laid, (l) => renderEvent(l.e, d, l))}
               {d === today ? <View pointerEvents="none" style={[s.now, { top: offsetToY(clockNow.now - d) }]} testID="cal-now" /> : null}

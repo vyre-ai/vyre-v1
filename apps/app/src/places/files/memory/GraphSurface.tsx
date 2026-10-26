@@ -243,6 +243,7 @@ function kindsLegend(p: SurfaceProps): ReactElement {
     KIND_LABEL[k],
     createElement("span", { style: { marginLeft: "auto", paddingLeft: 14, color: "var(--ink-4)", fontVariantNumeric: "tabular-nums" } }, String(count.get(k) ?? 0))));
   }
+  // color-mix-ok: createElement div style, a real DOM node
   return createElement("div", { key: "legend", "data-testid": "graph-legend", role: "group", "aria-label": "Kinds", style: { position: "absolute", left: 16, bottom: 16, display: "flex", flexDirection: "column", gap: 1, padding: "8px 10px", borderRadius: 12, background: "color-mix(in srgb, var(--raised) 86%, transparent)", backdropFilter: "blur(10px)", boxShadow: "var(--sh-1), inset 0 0 0 1px var(--line)", minWidth: 150 } }, ...rows);
 }
 

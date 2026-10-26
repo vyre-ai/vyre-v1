@@ -35,13 +35,15 @@ export function QuietButton({ label, icon, onPress, tone = "plain", disabled = f
   const [over, setOver] = useState(false);
   const filled = tone === "filled";
   const fg = filled ? "var(--win)" : tone === "accent" ? "var(--accent)" : tone === "danger" ? "var(--danger)" : over ? "var(--ink)" : "var(--ink-2)";
-  const wash = tone === "accent" ? "var(--accent-wash)" : tone === "danger" ? "color-mix(in srgb, var(--danger) 12%, transparent)" : "var(--hover)";
+  // react-native-web drops a color-mix() backgroundColor, so the danger wash is a one-colour gradient layer
+  const dangerLayer = "linear-gradient(color-mix(in srgb, var(--danger) 12%, transparent), color-mix(in srgb, var(--danger) 12%, transparent))";
+  const wash = tone === "danger" ? { backgroundImage: dangerLayer as unknown as undefined } : { backgroundColor: (tone === "accent" ? "var(--accent-wash)" : "var(--hover)") as string };
   return (
     <Pressable
       accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} testID={testID} disabled={disabled} onPress={onPress}
       onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
       {...webOnly({ dataSet: { tone }, ...(title ? { title } : {}) })}
-      style={[s.qb, filled && { backgroundColor: "var(--ink)" as string, paddingHorizontal: 12, borderRadius: 7 }, over && !disabled && !filled && { backgroundColor: wash as string }, disabled && { opacity: 0.4 }, pointer]}
+      style={[s.qb, filled && { backgroundColor: "var(--ink)" as string, paddingHorizontal: 12, borderRadius: 7 }, over && !disabled && !filled && wash, disabled && { opacity: 0.4 }, pointer]}
     >
       {icon ? <Glyph name={icon} size={13} color={fg} /> : null}
       <Text style={[s.qbText, { color: fg as string }]} numberOfLines={1}>{label}</Text>
