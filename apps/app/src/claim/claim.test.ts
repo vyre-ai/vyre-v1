@@ -3,32 +3,35 @@ import assert from "node:assert/strict";
 import { ClaimError, claimOwner } from "./claim.ts";
 import type { ClaimDeps } from "./claim.ts";
 import { CapError } from "../shell/session/caps.ts";
-import { FAILURE_LINE, claimToken, failureOf, fingerprintOf, isDeadLink, problemOf } from "./logic.ts";
+import { FAILURE_LINE, claimToken, failureOf, fingerprintOf, spaceIdOf, isDeadLink, problemOf } from "./logic.ts";
 
 const bundle = { personKeyByPassword: "pw", personKeyByRecovery: "rc", publicKey: "pk", privateKeyWrapped: "sk" };
 
-function deps(over: Partial<ClaimDeps> = {}): { d: ClaimDeps; calls: { cap: string; input: Record<string, unknown> }[]; held: Uint8Array[]; wiped: Uint8Array[] } {
+function deps(over: Partial<ClaimDeps> = {}): { d: ClaimDeps; calls: { cap: string; input: Record<string, unknown> }[]; held: Uint8Array[]; wiped: Uint8Array[]; seen: string[] } {
   const calls: { cap: string; input: Record<string, unknown> }[] = [];
   const held: Uint8Array[] = [];
   const wiped: Uint8Array[] = [];
+  const seen: string[] = [];
   const d: ClaimDeps = {
     call: async (cap, input) => { calls.push({ cap, input: input as Record<string, unknown> }); return { status: "ok", session: { token: "vst_owner" }, principal: { id: "usr_owner" } }; },
-    makeBundle: async () => ({ ...bundle, personKey: new Uint8Array(32).fill(9) }),
+    makeBundle: async (_pw, _rc, spaceId) => { seen.push(spaceId); return { ...bundle, personKey: new Uint8Array(32).fill(9) }; },
     holdKey: async (_t, key) => { held.push(new Uint8Array(key)); return true; },
     wipe: (b) => { wiped.push(b); b.fill(0); },
     ...over,
   };
-  return { d, calls, held, wiped };
+  return { d, calls, held, wiped, seen };
 }
-const input = { token: "tok_abcdefgh", name: " Irfad Imtiaz ", username: "irfad", password: "correct horse", recoveryCode: "ABCD-EFGH-JKMN-PQRS", deviceName: "Web browser" };
+const input = { token: "tok_abcdefgh", spaceId: "spc_core", name: " Irfad Imtiaz ", username: "irfad", password: "correct horse", recoveryCode: "ABCD-EFGH-JKMN-PQRS", deviceName: "Web browser" };
 
 test("claim: the bundle is made on this device and only its wrapped halves are sent", async () => {
-  const { d, calls } = deps();
+  const { d, calls, seen } = deps();
   const out = await claimOwner(d, input);
+  assert.deepEqual(seen, ["spc_core"], "the Space key is made for the Space id from the link");
   assert.deepEqual(out, { token: "vst_owner", personId: "usr_owner" });
   assert.equal(calls[0]!.cap, "identity.claim_owner");
   const sent = calls[0]!.input;
   assert.equal(sent["code"], "tok_abcdefgh");
+  assert.equal(sent["spaceId"], "spc_core");
   assert.ok(!("token" in sent), "the field is code");
   assert.equal(sent["displayName"], "Irfad Imtiaz");
   assert.deepEqual(sent["keys"], { ...bundle, spaceKeys: [] });
@@ -67,6 +70,7 @@ test("claim logic: a spent or expired link has no form; other failures keep the 
   assert.equal(failureOf(null, true), "unreachable");
   assert.equal(isDeadLink("used"), true);
   assert.equal(isDeadLink("expired"), true);
+  assert.equal(isDeadLink("invalid"), true);
   assert.equal(isDeadLink("taken"), false);
   assert.equal(FAILURE_LINE.used, "This link was already used.");
 });
@@ -91,4 +95,11 @@ test("claim logic: the fingerprint in the link is grouped in fours for comparing
   assert.equal(fingerprintOf("#fp=ABCD1234ef567890"), "abcd 1234 ef56 7890");
   assert.equal(fingerprintOf("#other=1"), null);
   assert.equal(fingerprintOf(""), null);
+});
+
+test("claim logic: the Space id comes from the link fragment next to the fingerprint", () => {
+  assert.equal(spaceIdOf("#fp=abcd1234&s=spc_core"), "spc_core");
+  assert.equal(spaceIdOf("#s=spc_core&fp=abcd1234"), "spc_core");
+  assert.equal(spaceIdOf("#fp=abcd1234"), null);
+  assert.equal(spaceIdOf("#s=x"), null);
 });

@@ -6,12 +6,12 @@ import type { CapCall } from "../shell/session/caps.ts";
 import { failureOf } from "./logic.ts";
 import type { ClaimFailure } from "./logic.ts";
 
-export interface ClaimInput { token: string; name: string; username: string; password: string; recoveryCode: string; deviceName: string }
+export interface ClaimInput { token: string; /** The Space id from the claim link (#s=); the first Space key is sealed for it and the same id is sent. */ spaceId: string; name: string; username: string; password: string; recoveryCode: string; deviceName: string }
 
 export interface ClaimDeps {
   /** An anonymous capability caller on the Space's address. */
   call: CapCall;
-  makeBundle(password: string, recoveryCode: string): Promise<MadeBundle>;
+  makeBundle(password: string, recoveryCode: string, spaceId: string): Promise<MadeBundle>;
   /** Gives the unwrapped person key to this computer's own daemon (false when the Space is not on this computer). */
   holdKey(token: string, key: Uint8Array): Promise<boolean>;
   wipe(b: Uint8Array): void;
@@ -31,14 +31,14 @@ export class ClaimError extends Error {
 type ClaimOut = { status?: string; session?: { token: string }; principal?: { id: string } };
 
 export async function claimOwner(deps: ClaimDeps, i: ClaimInput): Promise<Claimed> {
-  const made = await deps.makeBundle(i.password, i.recoveryCode);
+  const made = await deps.makeBundle(i.password, i.recoveryCode, i.spaceId);
   // identity.claim_owner wants the wrapped halves only, plus the wrapped Space key epochs (spaceKeys) when makeBundle supplies them.
   const spaceKeys = (made as { spaceKeys?: { epoch: number; wrapped: string }[] }).spaceKeys ?? [];
   const keys = { personKeyByPassword: made.personKeyByPassword, personKeyByRecovery: made.personKeyByRecovery, publicKey: made.publicKey, privateKeyWrapped: made.privateKeyWrapped, spaceKeys };
   try {
     let out: ClaimOut;
     try {
-      out = (await deps.call("identity.claim_owner", { code: i.token, displayName: i.name.trim(), username: i.username, password: i.password, deviceName: i.deviceName, deviceClass: "web", keys })) as ClaimOut;
+      out = (await deps.call("identity.claim_owner", { code: i.token, spaceId: i.spaceId, displayName: i.name.trim(), username: i.username, password: i.password, deviceName: i.deviceName, deviceClass: "web", keys })) as ClaimOut;
     } catch (e) {
       if (e instanceof CapError) throw new ClaimError(failureOf(e.code, false), e.message);
       throw new ClaimError("unreachable", "The Space did not answer.");

@@ -24,7 +24,7 @@ export function claimToken(pathname: string): string | null {
   return m?.[1] ?? null;
 }
 
-export type ClaimFailure = "used" | "expired" | "taken" | "weak" | "unreachable" | "other";
+export type ClaimFailure = "used" | "expired" | "invalid" | "taken" | "weak" | "unreachable" | "other";
 
 /** What a refused or failed claim means. A spent or expired link has no form, so the code decides which screen shows. */
 export function failureOf(code: string | null, network: boolean): ClaimFailure {
@@ -39,6 +39,7 @@ export function failureOf(code: string | null, network: boolean): ClaimFailure {
 
 export const FAILURE_LINE: Readonly<Record<ClaimFailure, string>> = {
   used: "This link was already used.",
+  invalid: "This link is not valid.",
   expired: "This link has expired.",
   taken: "That username is taken. Choose another.",
   weak: "Choose a stronger password.",
@@ -47,10 +48,16 @@ export const FAILURE_LINE: Readonly<Record<ClaimFailure, string>> = {
 };
 
 /** Failures that end the flow: the link cannot be used again, so no form is shown. */
-export const isDeadLink = (f: ClaimFailure): boolean => f === "used" || f === "expired";
+export const isDeadLink = (f: ClaimFailure): boolean => f === "used" || f === "expired" || f === "invalid";
 
 /** The Space fingerprint in the claim link (`#fp=<hex>`), grouped in fours for comparing against what the owner was shown, or null. */
 export function fingerprintOf(hash: string): string | null {
   const m = /(?:^|[#&])fp=([0-9a-fA-F]{8,128})(?:&|$)/.exec(hash);
   return m?.[1] ? (m[1].toLowerCase().match(/.{1,4}/g) ?? []).join(" ") : null;
+}
+
+/** The Space id in the claim link (`#fp=<hex>&s=<spaceId>`), which the client needs to make the Space key, or null. */
+export function spaceIdOf(hash: string): string | null {
+  const m = /(?:^|[#&])s=([A-Za-z0-9_-]{3,64})(?:&|$)/.exec(hash);
+  return m?.[1] ?? null;
 }

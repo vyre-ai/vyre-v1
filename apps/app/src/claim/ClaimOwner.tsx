@@ -53,7 +53,7 @@ function Dead({ failure, onSignIn }: { failure: ClaimFailure; onSignIn?: () => v
   return (
     <Step id="dead">
       <AppIcon kind="clock" />
-      <Title title={FAILURE_LINE[failure]} sub={failure === "expired" ? "Ask whoever set up this Space for a new link." : "If this was you, sign in. Otherwise ask whoever set up this Space."} />
+      <Title title={FAILURE_LINE[failure]} sub={failure === "expired" ? "Ask whoever set up this Space for a new link." : failure === "invalid" ? "Open the link exactly as the server printed it." : "If this was you, sign in. Otherwise ask whoever set up this Space."} />
       {onSignIn ? <View style={{ alignItems: "center", marginTop: 24 }}><Button large testID="claim-sign-in" label="Sign in" onPress={onSignIn} /></View> : null}
     </Step>
   );

@@ -9,7 +9,7 @@ import { createCapCaller } from "../shell/session/caps.ts";
 import { openRealSession } from "../shell/session/session.ts";
 import { spaceAddress, writeStored } from "../shell/session/stored.ts";
 import { claimOwner } from "./claim.ts";
-import { fingerprintOf } from "./logic.ts";
+import { fingerprintOf, spaceIdOf } from "./logic.ts";
 import { ClaimOwner } from "./ClaimOwner.tsx";
 
 const hostOf = (baseUrl: string): string => baseUrl.replace(/^https?:\/\//, "").split(":")[0] ?? baseUrl;
@@ -19,15 +19,19 @@ export function ClaimRoute({ token, onDone, onSignIn }: { token: string; onDone(
   const call = useMemo(() => (baseUrl ? createCapCaller({ baseUrl, token: () => null }) : null), [baseUrl]);
 
   if (!call || !baseUrl) return null;
+  const hash = (globalThis as { location?: { hash?: string } }).location?.hash ?? "";
+  const spaceId = spaceIdOf(hash);
+  // A link without the Space id (#s=) is not the link the server printed.
+  if (!spaceId) return <ClaimOwner space={hostOf(baseUrl)} newCode={makeRecoveryCode} onClaim={async () => undefined} dead="invalid" onSignIn={onSignIn} />;
   const claim = async (v: { name: string; username: string; password: string; recoveryCode: string }): Promise<void> => {
     const claimed = await claimOwner(
       { call, makeBundle, holdKey: (t, key) => holdKeyOnOwnNode(baseUrl, t, key), wipe },
-      { token, name: v.name, username: v.username, password: v.password, recoveryCode: v.recoveryCode, deviceName: "Web browser" },
+      { token, spaceId, name: v.name, username: v.username, password: v.password, recoveryCode: v.recoveryCode, deviceName: "Web browser" },
     );
     const real = await openRealSession({ baseUrl, token: claimed.token });
     writeStored({ baseUrl, token: claimed.token, def: real.def, personId: real.me.id });
     real.close();
     onDone();
   };
-  return <ClaimOwner space={hostOf(baseUrl)} newCode={makeRecoveryCode} onClaim={claim} onSignIn={onSignIn} fingerprint={fingerprintOf((globalThis as { location?: { hash?: string } }).location?.hash ?? "")} />;
+  return <ClaimOwner space={hostOf(baseUrl)} newCode={makeRecoveryCode} onClaim={claim} onSignIn={onSignIn} fingerprint={fingerprintOf(hash)} />;
 }
