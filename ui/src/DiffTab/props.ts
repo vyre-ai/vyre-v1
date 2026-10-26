@@ -38,6 +38,8 @@ export interface DiffComment {
   id: string;
   hunkId: string;
   author: string;
+  /** The author's id: the face is seeded by it (the name is the fallback). */
+  authorId?: string;
   body: string;
   /** People and agents mentioned. A mentioned agent answers in the thread. */
   mentions: readonly string[];
