@@ -38,6 +38,16 @@ import { fileExportsImporter, fileImporter, fileSeamImporter, loadHost, readModu
 import type { RegistryLike } from "../loader.ts";
 import { LogSink } from "../logsink/index.ts";
 import { nodePlatform } from "../platform/index.ts";
+
+export function createAgentHomeCaller(a: { db: { all(sql: string, ...args: unknown[]): unknown[] }; spaceId: string; invoke: Invoke }) {
+  return async (agentId: string, cap: string, input: unknown): Promise<unknown> => {
+    const owner = a.db.all("SELECT ownerId FROM agents_agent WHERE id = ? AND deletedAt IS NULL", agentId)[0] as { ownerId?: string } | undefined;
+    if (!owner?.ownerId) throw new Error("agent has no active owner");
+    const r = await a.invoke(cap, input, { space: a.spaceId, principal: { kind: "agent", id: agentId }, actingFor: owner.ownerId, origin: "computers" });
+    if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
+    return r.output;
+  };
+}
 import type { FetchLike } from "../ctx/http.ts";
 import type { Platform } from "../platform/index.ts";
 import * as probes from "../platform/probes.ts";
@@ -130,8 +140,6 @@ function sealKeyFile(file: string): string {
 }
 
 export interface DaemonOptions {
-  /** Test-only observer for the agent home mirror's invoke seed. */
-  computerMirrorObserver?: (agentId: string, ownerId: string | undefined) => void;
   /** GitHub sign-in (default: VYRE_GH_OAUTH_CLIENT_ID and VYRE_GH_OAUTH_CLIENT_SECRET from the environment; null: not set up) */
   githubOAuth?: GithubOAuth | null;
   config: DaemonConfig;
@@ -622,13 +630,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setComputerHost: () => createComputersHost({
           dataDir: paths.root,
           // the home mirror runs as the agent: the same pipeline as any call, so access, review rules and the scrubber apply
-          callAs: async (agentId, cap, input) => {
-            const owner = db!.all("SELECT ownerId FROM agents_agent WHERE id = ? AND deletedAt IS NULL", agentId)[0] as { ownerId?: string } | undefined;
-            o.computerMirrorObserver?.(agentId, owner?.ownerId);
-            const r = await invoke(cap, input, { space: spaceId, principal: { kind: "agent", id: agentId }, ...(owner?.ownerId ? { actingFor: owner.ownerId } : {}), origin: "computers" });
-            if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
-            return r.output;
-          },
+          callAs: createAgentHomeCaller({ db: db!, spaceId, invoke }),
           // large files go to the Files module in process: the slot's one-time token from files.upload_url is the only authority, and no session or bearer is involved
           putBytes: async (url, bytes) => {
             const u = new URL(url, "http://vyred");
