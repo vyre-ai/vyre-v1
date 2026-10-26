@@ -49,7 +49,7 @@
     {
       "id": "conflicts",
       "owner": "L1",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "connectors",
@@ -279,7 +279,7 @@
     {
       "id": "search",
       "owner": "L1",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "settings",
@@ -314,7 +314,7 @@
     {
       "id": "sync",
       "owner": "L1",
-      "status": "stub"
+      "status": "live"
     },
     {
       "id": "tasks",
