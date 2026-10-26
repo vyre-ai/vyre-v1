@@ -99,7 +99,9 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
         if (!node) throw new Error(`The plan has no step ${step.id}.`);
         const c = call as unknown as Call;
         try {
-          const r = (await d.call("steps-core.run_step", { node, nodes, call: { ...c, trigger: p.link.payload, vars: {} }, run: { id: run.id, automation: p.link.automationId } }, { principal: p.link.principal })) as StepResult;
+          const r = (await d.call("steps-core.run_step", { node, nodes, call: { ...c, trigger: p.link.payload, vars: {} }, run: { id: run.id, automation: p.link.automationId } }, { principal: p.link.principal })) as StepResult & { stepError?: { code?: string; message?: string; retryable?: boolean } };
+          // the step failed by its own rule: it comes back as data (steps-core.run_step), and fails here as the engine reads failures, by its code and message
+          if (r.stepError) throw Object.assign(new Error(r.stepError.message ?? "The step failed."), { error: r.stepError });
           // a step that names no next step goes where the definition says; one that names nothing at all goes to the next node in the list
           if (r.next === undefined && !r.wait && node.next && node.next.length > 0) return { ...r, next: node.next[0]! };
           return r;

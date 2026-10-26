@@ -24,7 +24,7 @@ const CHAIN_CAP = 200;
  * in v1: it fails the step by name (run.lane_wait) instead of leaving the Run parked on something the engine cannot resume.
  */
 export const hostCalls = {
-  "steps-core.run_step": (ctx: Ctx, i: { node: StepNode; call: StepCall; run: { id: string; label?: string; automation?: string }; nodes?: StepNode[] }) => {
+  "steps-core.run_step": async (ctx: Ctx, i: { node: StepNode; call: StepCall; run: { id: string; label?: string; automation?: string }; nodes?: StepNode[] }) => {
     const byId = new Map((i.nodes ?? []).map((n) => [n.id, n] as const));
     const chain = async (start: string, call: StepCall): Promise<unknown> => {
       const outputs: Record<string, unknown> = { ...call.outputs };
@@ -50,6 +50,14 @@ export const hostCalls = {
         ...(body !== undefined ? { body: (item: unknown, index: number) => chain(body, { ...call, item, index, key: `${call.key}/item:${index}` }) } : {}),
       };
     };
-    return runStep(env(i.call, i.node), i.node, i.call);
+    try {
+      return await runStep(env(i.call, i.node), i.node, i.call);
+    } catch (e) {
+      // A step's own failure (run.branch_failed, run.lane_wait, a Stop with outcome failed...) answers as data. Thrown out of a host call it would become internal.unexpected: the pipeline keeps the
+      // code of a shaped error from the catalogue and nothing else, and these codes belong to the Run engine, which reads them from the step's error.
+      const err = (e as { error?: { code?: unknown; message?: unknown } } | null)?.error;
+      if (err && typeof err.code === "string") return { stepError: err };
+      throw e;
+    }
   },
 };
