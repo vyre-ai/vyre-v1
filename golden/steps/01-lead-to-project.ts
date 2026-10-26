@@ -8,7 +8,7 @@ import type { Observed } from "../harness/index.ts";
 export const LIVE_FOR_LEAD = ["forms", "contacts-link", "journeys", "records", "schema", "projects", "chat", "files", "devices", "access", "spaces"];
 export const GAPS: Gap[] = [
   { packet: "chat live (no open PR)", lane: "L2", what: "the chat module has no handlers, so a host that boots it live is refused" },
-  { packet: "journeys (L6)", lane: "L6", what: "journeys.create answers 422 "field stage options must be an object" with the default stages, so no Journey can be made" },
+  { packet: "journeys (L6)", lane: "L6", what: "journeys.create answers 422 'field stage options must be an object' with the default stages, so no Journey can be made" },
 ];
 
 const LEAD = { op: "type.create", type: "lead", def: { title: "Lead", plural: "Leads", icon: "user", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "email", type: "text", title: "Email" }] } };
