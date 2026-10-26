@@ -82,7 +82,7 @@ export default defineManifest({
     // ---- erase and purge (P-CC_39)
     write('threads.erase', 'Erase one chat thread for good: messages, blocks, pins, reactions, attachment links, transcript rows, summaries and search entries (governance erase)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { threadId: id.thread }, out: { erased: t.bool() }, emits: ['thread.erased'], audit: 'always', risk: 'high' }),
     write('channels.erase', 'Erase one channel for good with all its messages (governance erase)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { channelId: id.channel }, out: { erased: t.bool() }, emits: ['channel.erased'], audit: 'always', risk: 'high' }),
-    write('chat.transcript.purge', 'Remove transcript rows older than a time, a batch at a time, skipping threads under a hold (retention)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { before: t.ts(), limit: t.opt(t.int({ minimum: 1, maximum: 5000 })) }, out: purgeOut, emits: ['transcripts.purged'], audit: 'always', risk: 'high' }),
+    write('chat.transcript.purge', 'Remove messages and blocks older than a time from chats and channels, a batch at a time; threads listed in skipThreadIds (held ones) are left whole (retention)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { before: t.ts(), limit: t.opt(t.int({ minimum: 1, maximum: 5000 })), skipThreadIds: t.opt(t.arr(id.thread)) }, out: purgeOut, emits: ['transcripts.purged'], audit: 'always', risk: 'high' }),
     // ---- threads and chats
     create('chat.start', 'Start a chat or an Ask pane with one or more agents, or a direct message with one person (a third person means a channel)', {
       in: {

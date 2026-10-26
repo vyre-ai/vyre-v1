@@ -10,11 +10,12 @@ import type { Harness } from "../fixtures/harness.ts";
 
 const mine = registry.capabilities.filter((c) => c.module === "chat");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
+const PURGE = ["threads.erase", "channels.erase", "chat.transcript.purge"];
 const OURS = ["chat.post", "chat.start", "chat.thread", "chat.answer_block", "chat.approve_plan", "threads.make_channel", "channels.create", "channels.connect_outside_agent"];
 
 test("the handler table holds exactly the eight capabilities of this packet, all frozen chat capabilities", () => {
-  assert.equal(mine.length, 62);
-  assert.deepEqual(Object.keys(h).sort(), [...OURS].sort());
+  assert.equal(mine.length, 65);
+  assert.deepEqual(Object.keys(h).sort(), [...OURS, ...PURGE].sort());   // the erase and purge handlers of P-CC_39 are in the table too; their tests are tests/purge.test.ts
   for (const name of OURS) assert.ok(mine.some((c) => c.name === name), name);
 });
 
