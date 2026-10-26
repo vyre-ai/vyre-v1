@@ -4110,6 +4110,7 @@ export type ChangesetsDiffIn = {
   changesetId: string;
   path: string;
   mode?: "unified" | "split" | "words" | "paragraph";
+  context?: "hunks" | "full";
 };
 export type ChangesetsDiffOut = {
   kind: "text" | "paragraph" | "image" | "binary";
@@ -4177,6 +4178,7 @@ export type ChangesetsGetOut = {
   };
   files: Array<{
       path: string;
+      fileId?: string;
       status: "added" | "modified" | "deleted" | "renamed";
       added: number;
       removed: number;
