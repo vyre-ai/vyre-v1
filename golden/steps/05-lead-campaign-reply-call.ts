@@ -92,6 +92,8 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
   if (!s) return { events: [], trail, net };
   try {
     const admin = s.d.token;
+    // Mia drafts and launches; the Gate does not let a person approve what they asked for, so the owner approves
+    const mia = s.signedIn("usr_mia");
 
     await trail.step("the contact type exists", async () => {
       const r = await s.call("schema.apply", admin, { idempotencyKey: "golden-5-type", ops: [CONTACT] });
@@ -113,18 +115,18 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
     }, ["a sending domain is added and verifies"]);
 
     const campaign = await trail.step("a campaign is drafted for the lead", async () => {
-      const c = expectStatus(await s.call("campaigns.create", admin, { idempotencyKey: "golden-5-campaign", name: "Spring outreach", kind: "one_time" }), 200, "campaigns.create").campaign;
+      const c = expectStatus(await s.call("campaigns.create", mia, { idempotencyKey: "golden-5-campaign", name: "Spring outreach", kind: "one_time" }), 200, "campaigns.create").campaign;
       const campaignId = (c.campaignId ?? c.id) as string;
-      expectStatus(await s.call("campaigns.steps_set", admin, {
+      expectStatus(await s.call("campaigns.steps_set", mia, {
         campaignId, steps: [{ key: "hello", type: "email", config: { mailboxId: mailbox!, subject: "Hello {{name}}", text: "Hi {{name}}, can we talk?" } }],
       }), 200, "campaigns.steps_set");
-      const aud = expectStatus(await s.call("campaigns.audience_set", admin, { campaignId, type: "contact", filter: { field: "email", op: "eq", value: LEAD.email } }), 200, "campaigns.audience_set");
+      const aud = expectStatus(await s.call("campaigns.audience_set", mia, { campaignId, type: "contact", filter: { field: "email", op: "eq", value: LEAD.email } }), 200, "campaigns.audience_set");
       assert.equal(aud.count, 1, `the audience is the lead: ${short(aud)}`);
       return campaignId;
     }, ["a lead is made", "a shared mailbox sends from that domain"]);
 
     const held = await trail.step("launching is held by the Gate for approval", async () => {
-      const r = await s.call("campaigns.launch", admin, { idempotencyKey: "golden-5-launch", campaignId: campaign! });
+      const r = await s.call("campaigns.launch", mia, { idempotencyKey: "golden-5-launch", campaignId: campaign! });
       expectStatus(r, 202, "campaigns.launch");
       assert.equal(r.body?.data?.status, "held", `the launch is held: ${short(r.body)}`);
       assert.ok(r.body?.data?.taskId, `a task waits for the approver: ${short(r.body)}`);
