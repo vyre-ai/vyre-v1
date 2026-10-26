@@ -6,7 +6,6 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "identity.change_password": Handler<"identity.change_password", X>;
-  "identity.claim_owner": Handler<"identity.claim_owner", X>;
   "identity.github_link": Handler<"identity.github_link", X>;
   "identity.github_sign_in": Handler<"identity.github_sign_in", X>;
   "identity.github_unlink": Handler<"identity.github_unlink", X>;
