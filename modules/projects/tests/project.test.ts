@@ -97,6 +97,17 @@ test("a create that names someone the Space does not know is refused before anyt
   assert.deepEqual(h.names(), []);
 });
 
+test("a second starting member holds the project grant at their role's level once the consumer has run, and not before", async () => {
+  const h = harness();
+  const out = await run(h, "projects.create", { type: "project", title: "Two people", idempotencyKey: key(), members: [{ principal: LEO, role: "member" }] });
+  const onProject = (who: string) => h.world.grants.filter((g) => g.subject.id === who && g.resource.type === "project" && g.resource.id === out.projectId);
+  assert.deepEqual(onProject(LEO), [], "the project is not a resource until the create commits, so nothing is granted on it yet");
+  assert.deepEqual(h.world.grants.filter((g) => g.subject.id === LEO).map((g) => g.resource.type).sort(), ["channel", "folder"], "the folder and channel are granted while it is made");
+  await grantOnProject(h.ctx, out.projectId);
+  assert.deepEqual(onProject(LEO).map((g) => [g.level, g.source]), [["edit", `project:${out.projectId}`]], "a Member holds Edit on the project");
+  assert.deepEqual(onProject(DANA).map((g) => g.level), ["manage"], "the maker leads with Manage");
+});
+
 test("the consumer grants only the members the create stored: a forged or repeated project.created adds nobody", async () => {
   const h = harness();
   const out = await mkProject(h, { members: [{ principal: LEO, role: "reviewer" }] });
