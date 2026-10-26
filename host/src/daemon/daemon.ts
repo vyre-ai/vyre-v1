@@ -451,6 +451,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           blobs: { put: async (bytes, type) => (await blobs.forModule("backup").put(bytes, type)).id }, secrets: () => [token],
         }),
         setEventsDispatch: () => system,
+        // erase reaches the append-only log (P-CC_41): governance asks the log worker to tombstone payloads, and a restore replays the seqs it kept
+        setEventsCompact: () => ({ compact: (subject: Parameters<typeof spaceLog.compact>[0]) => spaceLog.compact(subject), compactSeqs: (seqs: readonly number[]) => spaceLog.compactSeqs(seqs) }),
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
         setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
         // the import module reads an Airtable or Notion key from the Vault by handle, for one call

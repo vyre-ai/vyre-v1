@@ -8,7 +8,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { LogStore } from "../src/log/index.ts";
 import type { NewEvent } from "../src/log/index.ts";
-import { compact, isErased, subjectKey } from "../src/events/compact.ts";
+import { compact, compactSeqs, isErased, subjectKey } from "../src/events/compact.ts";
 
 const TRACE = "0123456789abcdef0123456789abcdef";
 const EMAIL = "harlow.dana@example.test";
@@ -87,4 +87,30 @@ test("a subject that names nothing is refused, and an identifier is also found w
   const out = await compact(w.store, { identifiers: ['"Zoe Quill"'] }, { db: w.db });
   assert.equal(out.erased.length, 1);
   assert.equal(bytesOf(w.file).includes("Quill"), false);
+});
+
+test("the tombstone key holds ids and hashes, never the erased text; compactSeqs replays by seq", async () => {
+  const w = world();
+  const subject = { person: "usr_dana", identifiers: [EMAIL, NAME] };
+  const first = await compact(w.store, subject, { db: w.db });
+  assert.equal(subjectKey(subject).includes("example.test"), false);
+  assert.equal(subjectKey(subject).includes("Harlow"), false);
+  assert.equal(bytesOf(w.file).includes(EMAIL), false, "the tombstones row in events.db does not hold the email");
+  // a restore brings an older copy of the file back: replay the seqs the tombstone remembered and the payloads leave again
+  const copy = world();
+  assert.ok(bytesOf(copy.file).includes(EMAIL));
+  const replay = await compactSeqs(copy.store, first.erased, { db: copy.db });
+  assert.deepEqual(replay.erased, first.erased);
+  assert.equal(bytesOf(copy.file).includes(EMAIL), false);
+  assert.deepEqual((await compactSeqs(copy.store, [...first.erased, 999], { db: copy.db })).erased, [], "a second replay, and a seq that is not there, change nothing");
+});
+
+test("an entity is found by its id in other events' payloads, and by entity type when one is given", async () => {
+  const w = world();
+  w.store.appendBatch([ev({ type: "sync.row", payload: { entity: "record", id: "rec_dana", fields: { name: { v: NAME } } } })]);
+  const out = await compact(w.store, { entities: [{ id: "rec_dana" }] }, { db: w.db });
+  assert.ok(out.erased.includes(8), "the sync.row event that carries the id in its payload goes too");
+  const typed = world();
+  const none = await compact(typed.store, { entities: [{ type: "thread", id: "rec_dana" }] }, { db: typed.db });
+  assert.ok(!none.erased.includes(1), "a different entity type does not match the record events by envelope");
 });

@@ -7,6 +7,7 @@
 //   the file         freed pages keep their bytes unless SQLite is told otherwise, so with a database handle the call runs under PRAGMA secure_delete, checkpoints the WAL and vacuums.
 //   once             an event already erased is counted and skipped; running it again changes nothing; one tombstones row (kind "events") per subject is what a restore replays.
 import type { DatabaseSync } from "node:sqlite";
+import { sha256Hex } from "../log/hash.ts";
 import type { ReadQuery, StoredEvent } from "../log/index.ts";
 
 /** The log as compaction needs it: LogStore, or LogClient (its methods answer through a worker, so they may return promises). */
@@ -16,8 +17,8 @@ export interface CompactPort {
 }
 
 export interface CompactSubject {
-  /** Entities that were purged: every event about them goes. */
-  entities?: ReadonlyArray<{ type: string; id: string }>;
+  /** Entities that were purged: every event about them goes, and every event whose payload carries their id. `type` is the envelope's entity name; leave it out to match on the id alone (ids carry their own prefix). */
+  entities?: ReadonlyArray<{ type?: string; id: string }>;
   /** A person (usr_ id, or any actor id): what they wrote, what was written for them, and events about them as an entity. */
   person?: string;
   /** Text that names the subject in payloads: id, email, phone, name. Matched as plain substrings of the payload text. */
@@ -48,17 +49,21 @@ export function isErased(e: Pick<StoredEvent, "payload">): boolean {
   return decode.decode(e.payload) === TOMBSTONE;
 }
 
-/** The key the tombstone row and a restore use for this subject. */
+/**
+ * The key the tombstones row uses for this subject. It lives in events.db, so it must not hold the text it erased: ids are kept (they are not personal text), identifiers appear only as a short hash.
+ */
 export function subjectKey(s: CompactSubject): string {
   const parts: string[] = [];
   if (s.person) parts.push(`person:${s.person}`);
-  for (const e of s.entities ?? []) parts.push(`${e.type}:${e.id}`);
-  for (const i of s.identifiers ?? []) parts.push(`text:${i}`);
+  for (const e of s.entities ?? []) parts.push(`${e.type ?? "*"}:${e.id}`);
+  for (const i of s.identifiers ?? []) parts.push(`text:${sha256Hex(i).slice(0, 16)}`);
   return parts.sort().join("|");
 }
 
 function matcher(s: CompactSubject): (e: StoredEvent) => boolean {
-  const entities = new Set((s.entities ?? []).map((x) => `${x.type}\u0000${x.id}`));
+  const entities = s.entities ?? [];
+  // an entity named without a type is found by its id wherever a payload carries it; with a type, only by the envelope
+  const entityIds = entities.filter((x) => x.type === undefined).map((x) => x.id).filter((x) => x.length > 0);
   // payloads are canonical JSON, where quotes, backslashes and non-ASCII may be escaped: look for both spellings of each identifier
   const needles = (s.identifiers ?? []).filter((x) => x.length > 0).flatMap((x) => {
     const escaped = JSON.stringify(x).slice(1, -1);
@@ -66,11 +71,11 @@ function matcher(s: CompactSubject): (e: StoredEvent) => boolean {
   });
   const person = s.person;
   return (e) => {
-    if (e.entity !== undefined && e.entity_id !== undefined && entities.has(`${e.entity}\u0000${e.entity_id}`)) return true;
+    if (e.entity_id !== undefined && entities.some((x) => x.id === e.entity_id && (x.type === undefined || x.type === e.entity))) return true;
     if (person !== undefined && (e.actor === person || e.on_behalf === person || e.entity_id === person)) return true;
-    if (needles.length > 0) {
+    if (needles.length > 0 || entityIds.length > 0) {
       const text = decode.decode(e.payload);
-      if (needles.some((n) => text.includes(n))) return true;
+      if (needles.some((n) => text.includes(n)) || entityIds.some((id) => text.includes(id))) return true;
     }
     return false;
   };
@@ -96,6 +101,27 @@ export async function compact(port: CompactPort, subject: CompactSubject, o: Com
   }
   if (o.db) {
     o.db.prepare("INSERT OR IGNORE INTO tombstones (kind, subject, at) VALUES (?, ?, ?)").run("events", key, (o.now ?? Date.now)());
+    o.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    if (o.vacuum !== false) o.db.exec("VACUUM");
+    o.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  }
+  return { erased, already };
+}
+
+/**
+ * Erase these events by seq (what a restore replays: the tombstone kept the seqs, never the text). A seq that is not there, or already erased, is skipped. The file is scrubbed the same way.
+ */
+export async function compactSeqs(port: CompactPort & { get?(seq: number): StoredEvent | null | Promise<StoredEvent | null> }, seqs: readonly number[], o: CompactOptions = {}): Promise<CompactResult> {
+  if (o.db) o.db.exec("PRAGMA secure_delete = ON");
+  const erased: number[] = [];
+  let already = 0;
+  for (const seq of [...new Set(seqs)].sort((a, b) => a - b)) {
+    const e = port.get ? await port.get(seq) : (await port.read({ after: seq - 1, limit: 1 }))[0];
+    if (!e || e.seq !== seq) continue;
+    if (isErased(e)) { already++; continue; }
+    if (await port.erase(seq)) erased.push(seq);
+  }
+  if (o.db) {
     o.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     if (o.vacuum !== false) o.db.exec("VACUUM");
     o.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
