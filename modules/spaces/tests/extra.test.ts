@@ -102,8 +102,8 @@ test("the Personal matrix: a Team Space has everything, a Personal Space shows o
 
 test("export is the Space-wide export of the backup module and answers with its run", async () => {
   const w = ready();
-  assert.deepEqual(await call("spaces.export", w.ctx, {}), { runId: "run_export1" });
-  assert.deepEqual(w.calls, [{ cap: "backup.export_start", input: {} }]);
+  assert.deepEqual(await call("spaces.export", w.ctx, { idempotencyKey: "idem_1" }), { runId: "run_export1" });
+  assert.deepEqual(w.calls, [{ cap: "backup.export_start", input: { idempotencyKey: "spaces.export:idem_1" } }]);
 });
 
 test("a member can leave: devices purge and the person stops being served", async () => {

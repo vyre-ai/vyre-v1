@@ -3,6 +3,7 @@
 // telephony and meetings. mail.ingest, telephony and meetings call inbox.link_message for every stored item.
 import type { Handler } from "../../host/src/invoke.ts";
 import * as h from "./handlers/index.ts";
+import { matchClosingTask, matchNewClosingTask, recipientsSearchWithMembers } from "./handlers/recipients-members.ts";
 
 export const handlers: Record<string, Handler> = {
   "inbox.list_by_contact": (ctx, i) => h.listByContact(ctx, i),
@@ -11,16 +12,17 @@ export const handlers: Record<string, Handler> = {
   "inbox.unmatched": (ctx, i) => h.unmatched(ctx, i),
   "inbox.needs_match": (ctx, i) => h.needsMatch(ctx, i),
   "inbox.match_suggestions": (ctx, i) => h.matchSuggestions(ctx, i),
-  "inbox.match": (ctx, i) => h.match(ctx, i),
+  "inbox.match": (ctx, i) => matchClosingTask(ctx, i),
   "inbox.unmatch": (ctx, i) => h.unmatch(ctx, i),
-  "inbox.match_new": (ctx, i) => h.matchNew(ctx, i),
+  "inbox.match_new": (ctx, i) => matchNewClosingTask(ctx, i),
   "inbox.link_message": (ctx, i) => h.linkMessage(ctx, i),
   "inbox.counts": (ctx) => h.counts(ctx),
   "inbox.mark_read": (ctx, i) => h.markRead(ctx, i),
   "inbox.follow_set": (ctx, i) => h.followSet(ctx, i),
   "inbox.following": (ctx, i) => h.following(ctx, i),
   "inbox.send_options": (ctx, i) => h.sendOptions(ctx, i),
-  "inbox.recipients_search": (ctx, i) => h.recipientsSearch(ctx, i),
+  "inbox.recipients_search": (ctx, i) => recipientsSearchWithMembers(ctx, i),
+  "inbox.item.erase": (ctx, i) => h.itemErase(ctx, i),
 };
 
 export const projections = { inline: {}, consumers: {} };

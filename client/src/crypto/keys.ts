@@ -10,6 +10,10 @@
 // 32-byte output); a blob sealed under personKey carries a random salt that is not used, so one parser reads every blob. Each blob binds its purpose as GCM additional data, so a recovery blob cannot be
 // presented as a password blob, nor a wrapped private key as a person key. Passwords and recovery codes are normalised to NFKC so the same secret typed on two platforms derives the same key.
 //
+// The Space key (ruling 72) is made on the client when a Space is claimed and sealed to the owner's X25519 public key, so the server stores it and never sees it: version (1) | ephemeral public key (32) |
+// HKDF salt (16) | nonce (12) | AES-256-GCM ciphertext+tag. The AES key is HKDF-SHA256 of the X25519 shared secret, and the Space and the epoch are bound twice, as the HKDF info and as the GCM additional
+// data ("vyre/space-key/v1|<spaceId>|<epoch>"), so a sealed key does not open for another Space or epoch.
+//
 // Argon2id is hash-wasm (WASM, one implementation in every browser and in Node); AES-GCM and X25519 are WebCrypto. No secret is logged, stored or put in an error message.
 import { argon2id } from "hash-wasm";
 
@@ -42,11 +46,15 @@ const randomBytes: Rand = (n) => globalThis.crypto.getRandomValues(new Uint8Arra
 
 /** The flat bundle a sign-up sends and a sign-in receives (base64 strings), without personKey. */
 export interface KeyBundle { personKeyByPassword: string; personKeyByRecovery: string; publicKey: string; privateKeyWrapped: string }
-export interface MadeBundle extends KeyBundle { personKey: Uint8Array }
+/** A Space key sealed to a public key: the epoch it belongs to and the blob (base64). */
+export interface SealedSpaceKey { epoch: number; wrapped: string }
+export interface MadeBundle extends KeyBundle { personKey: Uint8Array; spaceKeys?: SealedSpaceKey[] }
 export interface OpenedBundle { personKey: Uint8Array; privateKey: Uint8Array }
 
 /** Test seams: a cheaper Argon2id, and fixed salt, nonce and randomness for known-answer vectors. Production code passes none. */
-export interface Options { argon?: ArgonParams; rand?: Rand; salt?: Uint8Array; nonce?: Uint8Array }
+export interface Options { argon?: ArgonParams; rand?: Rand; salt?: Uint8Array; nonce?: Uint8Array; spaceId?: string }
+/** Test seams for the Space key: fixed randomness, and a fixed ephemeral X25519 private key (PKCS8). */
+export interface SpaceOptions { rand?: Rand; ephemeral?: Uint8Array }
 
 // ---- encoding
 
@@ -181,8 +189,9 @@ export async function makeBundle(password: string, recoveryCode: string, o: Opti
     const personKeyByPassword = await sealWithSecret(password, personKey, "password", o);
     const personKeyByRecovery = await sealWithSecret(recoveryCode, personKey, "recovery", fresh(o));
     const privateKeyWrapped = await seal(personKey, pair.privateKey, "private", rand(SALT_BYTES), rand(NONCE_BYTES));
+    const spaceKeys = o.spaceId ? [await makeSpaceKey(toBase64(pair.publicKey), o.spaceId, o.rand ? { rand: o.rand } : {})] : undefined;
     return {
-      personKey, personKeyByPassword: toBase64(personKeyByPassword), personKeyByRecovery: toBase64(personKeyByRecovery),
+      personKey, ...(spaceKeys ? { spaceKeys } : {}), personKeyByPassword: toBase64(personKeyByPassword), personKeyByRecovery: toBase64(personKeyByRecovery),
       publicKey: toBase64(pair.publicKey), privateKeyWrapped: toBase64(privateKeyWrapped),
     };
   } finally { wipe(pair.privateKey); }
@@ -218,4 +227,73 @@ export async function rewrap(oldPassword: string, newPassword: string, bundle: K
     const next = await sealWithSecret(newPassword, opened.personKey, "password", fresh(o));
     return { ...bundle, personKeyByPassword: toBase64(next) };
   } finally { wipe(opened.personKey); wipe(opened.privateKey); }
+}
+
+// ---- the Space key (ruling 72)
+
+export const SPACE_KEY_VERSION = 1;
+const X25519_BYTES = 32;
+const spaceTag = (spaceId: string, epoch: number): string => `vyre/space-key/v1|${spaceId}|${epoch}`;
+const utf8 = (v: string): Uint8Array => new TextEncoder().encode(v);
+
+async function spaceAes(shared: Uint8Array, salt: Uint8Array, spaceId: string, epoch: number, usage: "encrypt" | "decrypt"): Promise<CryptoKey> {
+  const subtle = globalThis.crypto.subtle;
+  const ikm = await subtle.importKey("raw", shared as BufferSource, "HKDF", false, ["deriveKey"]);
+  return subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt: salt as BufferSource, info: utf8(spaceTag(spaceId, epoch)) as BufferSource }, ikm, { name: "AES-GCM", length: 256 }, false, [usage]);
+}
+
+const badSpaceKey = (): KeyError => new KeyError("bad_blob", "That key data is not valid.");
+
+/**
+ * A new Space key (32 random bytes, epoch 0) sealed to the owner's X25519 public key (base64, the `publicKey` of the bundle). The key exists in the clear only in this function; the server gets the
+ * sealed blob. Only the owner's private key opens it, and only for this Space and this epoch.
+ */
+export async function makeSpaceKey(publicKey: string, spaceId: string, o: SpaceOptions = {}): Promise<SealedSpaceKey> {
+  await assertSupported();
+  if (typeof spaceId !== "string" || spaceId === "") throw badSpaceKey();
+  const rand = o.rand ?? randomBytes;
+  const subtle = globalThis.crypto.subtle;
+  const recipient = fromBase64(publicKey);
+  if (recipient.length !== X25519_BYTES) throw badSpaceKey();
+  const spaceKey = rand(KEY_BYTES);
+  let shared: Uint8Array | null = null;
+  try {
+    const theirs = await subtle.importKey("raw", recipient as BufferSource, { name: "X25519" }, false, []);
+    let ephPublic: Uint8Array, ephPrivate: CryptoKey;
+    if (o.ephemeral) {
+      ephPublic = await publicOf(o.ephemeral);
+      ephPrivate = await subtle.importKey("pkcs8", o.ephemeral as BufferSource, { name: "X25519" }, false, ["deriveBits"]);
+    } else {
+      const pair = (await subtle.generateKey({ name: "X25519" }, true, ["deriveBits"])) as CryptoKeyPair;
+      ephPublic = new Uint8Array(await subtle.exportKey("raw", pair.publicKey));
+      ephPrivate = pair.privateKey;
+    }
+    shared = new Uint8Array(await subtle.deriveBits({ name: "X25519", public: theirs }, ephPrivate, 256));
+    const salt = rand(SALT_BYTES), nonce = rand(NONCE_BYTES);
+    const aes = await spaceAes(shared, salt, spaceId, 0, "encrypt");
+    const ct = new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv: nonce as BufferSource, additionalData: utf8(spaceTag(spaceId, 0)) as BufferSource }, aes, spaceKey as BufferSource));
+    return { epoch: 0, wrapped: toBase64(concat(Uint8Array.of(SPACE_KEY_VERSION), ephPublic, salt, nonce, ct)) };
+  } catch (e) {
+    if (e instanceof KeyError) throw e;
+    throw new KeyError("unavailable", "This device cannot make keys.");
+  } finally { wipe(spaceKey); if (shared) wipe(shared); }
+}
+
+/** Open a sealed Space key with the owner's private key (PKCS8, as `openBundle` returns it). A wrong key, Space or epoch, or a changed byte, is `bad_secret`. The caller wipes the result when done. */
+export async function openSpaceKey(privateKey: Uint8Array, sealed: SealedSpaceKey, spaceId: string): Promise<Uint8Array> {
+  await assertSupported();
+  const blob = fromBase64(sealed.wrapped);
+  const head = 1 + X25519_BYTES + SALT_BYTES + NONCE_BYTES;
+  if (blob.length < head + KEY_BYTES + TAG_BYTES || !Number.isInteger(sealed.epoch) || sealed.epoch < 0) throw badSpaceKey();
+  if (blob[0] !== SPACE_KEY_VERSION) throw new KeyError("unsupported_version", "That key data is from a newer version of Vyre.");
+  const ephPublic = blob.subarray(1, 1 + X25519_BYTES), salt = blob.subarray(1 + X25519_BYTES, 1 + X25519_BYTES + SALT_BYTES), nonce = blob.subarray(1 + X25519_BYTES + SALT_BYTES, head), ct = blob.subarray(head);
+  const subtle = globalThis.crypto.subtle;
+  let shared: Uint8Array | null = null;
+  try {
+    const theirs = await subtle.importKey("raw", ephPublic as BufferSource, { name: "X25519" }, false, []);
+    const mine = await subtle.importKey("pkcs8", privateKey as BufferSource, { name: "X25519" }, false, ["deriveBits"]);
+    shared = new Uint8Array(await subtle.deriveBits({ name: "X25519", public: theirs }, mine, 256));
+    const aes = await spaceAes(shared, salt, spaceId, sealed.epoch, "decrypt");
+    return new Uint8Array(await subtle.decrypt({ name: "AES-GCM", iv: nonce as BufferSource, additionalData: utf8(spaceTag(spaceId, sealed.epoch)) as BufferSource }, aes, ct as BufferSource));
+  } catch { throw new KeyError("bad_secret", "That key does not open this Space's key."); } finally { if (shared) wipe(shared); }
 }

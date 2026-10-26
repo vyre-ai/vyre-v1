@@ -91,11 +91,12 @@ Events:
 
 ### logs
 
-Capabilities to implement: 10. Events to emit: 4. Contract tests that must go green: `generated/tests/logs/`.
+Capabilities to implement: 11. Events to emit: 5. Contract tests that must go green: `generated/tests/logs/`.
 
 Capabilities:
 - logs.client_upload (write, grant only, level edit)
 - logs.export (read, server.logs, level view)
+- logs.purge (write, policy.manage, level manage)
 - logs.query (read, server.logs, level view)
 - logs.replay_get (read, server.logs, level view)
 - logs.replay_start (write, server.logs, level manage)
@@ -108,6 +109,7 @@ Capabilities:
 Events:
 - client_log.uploaded
 - log.accessed
+- logs.purged
 - replay.finished
 - replay.started
 

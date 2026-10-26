@@ -12,7 +12,7 @@ export default defineManifest({
       field('name', 'text', 'Name', { required: true }),
       field('email', 'email', 'Email'), field('phone', 'phone', 'Phone'),
       field('stage', 'status', 'Stage', { options: { stages: [{ key: 'new', title: 'New' }, { key: 'consult', title: 'Consult' }, { key: 'retained', title: 'Retained' }, { key: 'lost', title: 'Lost' }] } }),
-      field('practiceArea', 'choice', 'Practice area'),
+      field('practice_area', 'choice', 'Practice area'),
       field('owner', 'person', 'Owner'),
     ], { statusField: 'stage', ownerField: 'owner', attribution: true, group: 'Intake', label: 'confidential' }),
     rtype('matter', 'Matter', 'Matters', 'briefcase', [

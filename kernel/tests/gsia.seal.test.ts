@@ -99,7 +99,9 @@ test("kernel seal: a MAC is good for its purpose and data only, and a short key 
   assert.equal(k.verify("grants.event", "data", m), true);
   assert.equal(k.verify("chain.token", "data", m), false);
   assert.equal(k.verify("grants.event", "data2", m), false);
-  assert.equal(k.verify("grants.event", "data", m.slice(0, -2) + "AA"), false);
+  // Tamper with a character that is certain to change: the first one. Replacing the last two with "AA" left the MAC unchanged whenever it already ended in "AA" (about 1 key in 256), which failed a release.
+  const tampered = (m[0] === "A" ? "B" : "A") + m.slice(1);
+  assert.equal(k.verify("grants.event", "data", tampered), false);
   assert.throws(() => k.mac("Bad Purpose", "x"), /bad purpose/);
   assert.throws(() => createKernelSeal("short"), /16 bytes/);
   assert.equal(sameMac("abc", "abc"), true);

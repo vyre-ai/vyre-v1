@@ -10,7 +10,7 @@ Create a site with its root folder under Deployments/
 | Permission | sites.deploy |
 | Grant level | edit |
 | Risk | medium |
-| Resource | site (create under /name) |
+| Resource | site (create under /folderId) |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |
@@ -29,6 +29,7 @@ type In = {
   kind: "site" | "app" | "api" | "worker" | "artifact";
   repoUrl?: string;
   templateKit?: string;
+  folderId?: string;
   idempotencyKey: string;
 };
 ```
@@ -65,6 +66,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "folderId": "fld_a1b2c3",
     "idempotencyKey": "idem_1",
     "kind": "site",
     "name": "example",

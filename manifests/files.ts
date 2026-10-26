@@ -7,7 +7,7 @@
 // DECISION: files.lint amber and red line limits are settings; amber 150 is chosen, red 200 is from the spec.
 // DECISION: changesets.approve declares the push_protected act with when input.push; the Gate narrows it to protected branches using the folder git settings.
 import { block, create, defineManifest, entity, ev, health, list, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
-import { id, label, level, pageIn, pageOut, subjectRef, versionRow } from './_common.ts';
+import { id, label, level, pageIn, pageOut, purgeOut, subjectRef, versionRow } from './_common.ts';
 
 const fileKind = t.enm('text', 'markdown', 'document', 'spreadsheet', 'presentation', 'pdf', 'image', 'video', 'audio', 'code', 'archive', 'google_native', 'other');
 const section = t.opt(t.enm('personal', 'shared', 'space'));
@@ -19,12 +19,18 @@ const fileRow = t.obj({
   fileId: id.file, folderId: id.folder, name: t.str(), kind: fileKind, mime: t.str(), size: t.int({ minimum: 0 }), version: t.int({ minimum: 1 }),
   label: t.int({ minimum: 0, maximum: 3 }), ownerId: t.str(), createdAt: t.ts(), updatedAt: t.ts(), updatedBy: t.str(),
   source: t.opt(t.obj({ mountId: id.mount, provider: t.str() })), deletedAt: t.opt(t.ts()), thumb: t.bool(), holds: t.int({ minimum: 0 }),
+  starred: t.opt(t.bool()),   // the caller's own star
+  conflict: t.opt(t.bool()),  // a staged change to this file collided with a newer version and waits for a reviewer
 });
+
+// What a folder belongs to: an agent's or a project's tree, or the Space. The id is that of the agent or project when the folder (or the one above it) was made for one.
+const folderSubject = t.obj({ kind: t.enm('agent', 'project', 'space'), id: t.opt(t.str({ examples: ['agt_a1b2c3'] })) });
 
 const folderRow = t.obj({
   folderId: id.folder, parentId: t.opt(id.folder), name: t.str(), path: t.str({ examples: ['Projects/Probate GTM'] }),
   fileCount: t.int({ minimum: 0 }), folderCount: t.int({ minimum: 0 }), scope: t.enm('personal', 'space'), label: t.int({ minimum: 0, maximum: 3 }),
   source: t.opt(t.obj({ mountId: id.mount, provider: t.str() })), git: t.bool(), reviewChanges: t.bool(),
+  subject: t.opt(folderSubject),
 });
 
 const content = t.obj({ text: t.opt(t.str()), base64: t.opt(t.str()), blobId: t.opt(id.blob) }, { description: 'Exactly one of text, base64 (small files) or blobId (from files.upload_url)' });
@@ -106,6 +112,8 @@ export default defineManifest({
     }),
   ],
   events: [
+    // ---- erase and purge (P-CC_39): governance removes data through these; each hard-deletes inside its own store
+    ev('file_versions.purged', 'Old file versions were removed by retention (a count)', { p: { removed: t.int({ minimum: 0 }) }, subject: ['entity', '/removed'], retention: 'audit' }),
     ev('file.created', 'A file was created', { p: { fileId: id.file, folderId: id.folder, name: t.str(), kind: fileKind, by: t.str() }, subject: ['file', '/fileId'], label: 'subject', trigger: { title: 'A file is created', fields: ['/folderId', '/kind'] } }),
     ev('file.version_added', 'A file got a new version', { p: { fileId: id.file, versionId: id.version, n: t.int(), by: t.str(), reason: t.opt(t.str()) }, subject: ['file', '/fileId'], label: 'subject', retention: 'file_versions', trigger: { title: 'A file changes', fields: ['/fileId'] } }),
     ev('file.renamed', 'A file was renamed', { p: { fileId: id.file, from: t.str(), to: t.str() }, subject: ['file', '/fileId'], label: 'subject' }),
@@ -113,6 +121,7 @@ export default defineManifest({
     ev('file.deleted', 'A file moved to Trash', { p: { fileId: id.file, folderId: id.folder }, subject: ['file', '/fileId'], label: 'subject', retention: 'trash' }),
     ev('file.restored', 'A file came back from Trash', { p: { fileId: id.file, folderId: id.folder }, subject: ['file', '/fileId'], label: 'subject' }),
     ev('file.purged', 'A file was deleted for good', { p: { fileId: id.file }, subject: ['file', '/fileId'] }),
+    ev('file.starred', 'A person starred a file or took the star off', { p: { fileId: id.file, by: t.str(), starred: t.bool() }, subject: ['file', '/fileId'], vis: 'owner' }),
     ev('file.conflict_kept', 'Two saves collided on a binary file; the newest is current and the other is kept as a labelled version', { p: { fileId: id.file, keptVersionId: id.version, currentVersionId: id.version }, subject: ['file', '/fileId'], label: 'subject' }),
     ev('file.shared_external', 'A link outside the Space was made for a file', { p: { fileId: id.file, linkId, expiresAt: t.opt(t.ts()) }, subject: ['file', '/fileId'], label: 'subject', replay: 'stub' }),
     ev('file.external_revoked', 'An outside link was revoked', { p: { fileId: id.file, linkId }, subject: ['file', '/fileId'] }),
@@ -143,13 +152,18 @@ export default defineManifest({
     ev('sheet.row_deleted', 'A row was removed from a sheet', { p: { fileId: id.file, sheet: t.str(), rowId, runId: t.opt(id.run) }, subject: ['file', '/fileId'], label: 'subject' }),
   ],
   capabilities: [
+    // ---- erase and purge (P-CC_39)
+    write('files.versions_purge', 'Remove file versions older than a time except the newest of each file and any named version; files listed in skipFileIds (held ones) are left whole (retention)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { before: t.ts(), limit: t.opt(t.int({ minimum: 1, maximum: 5000 })), skipFileIds: t.opt(t.arr(id.file)) }, out: purgeOut, emits: ['file_versions.purged'], audit: 'always', risk: 'high' }),
     // ---- tree and listing
     read('files.tree', 'The roots of the file tree: Agents, Projects, People, Channels, shared knowledge, Agent template, Deployments, GitHub, plus Recent, Shared with me, Trash and Knowledge', {
-      out: { roots: t.arr(t.obj({ key: t.str(), title: t.str(), kind: t.enm('folder', 'virtual'), folderId: t.opt(id.folder), count: t.int({ minimum: 0 }) })) }, tool: 'files', label: 'filter',
+      out: { roots: t.arr(t.obj({ key: t.str(), title: t.str(), kind: t.enm('folder', 'virtual'), folderId: t.opt(id.folder), count: t.int({ minimum: 0 }), subject: t.opt(folderSubject) })) }, tool: 'files', label: 'filter',
     }),
     read('files.list', 'List files and folders in a folder or a section (Personal, Shared with me, Space)', {
       in: { section, folder: t.opt(id.folder), kind: t.opt(fileKind), sort: t.opt(t.enm('name', 'updated', 'size', 'kind')), dir: t.opt(t.enm('asc', 'desc')), ...pageIn },
       out: { files: t.arr(fileRow), folders: t.arr(folderRow), ...pageOut }, tool: 'files', label: 'filter', cli: 'vyre files ls',
+    }),
+    write('files.star', 'Star a file or take the star off; a star is mine alone', {
+      in: { fileId: id.file, starred: t.bool() }, out: { file: fileRow }, on: ['file', '/fileId'], level: 'view', emits: ['file.starred'], tool: 'files', offline: 'queue',
     }),
     read('files.recent', 'Recently opened or changed files', { in: { limit: t.opt(t.int({ minimum: 1, maximum: 200 })) }, out: { files: t.arr(fileRow) }, tool: 'files', label: 'filter' }),
     // DECISION (ruling 24): the sidebar's Shared with me and Knowledge sections get their own lists. Both are views over the same file and folder resources; nothing is stored twice.
@@ -218,7 +232,7 @@ export default defineManifest({
       in: { fileId: id.file, toFolderId: id.folder, name: t.opt(t.str()) }, out: { file: fileRow, changesetId: t.opt(id.changeset) }, on: ['file', '/fileId'], perm: 'files.write', emits: ['file.moved', 'file.renamed', 'changeset.opened', 'changeset.updated'], tool: 'files', offline: 'queue', errors: ['validation.duplicate'],
     }),
     create('files.copy', 'Copy a file into a folder', {
-      in: { fileId: id.file, toFolderId: id.folder, name: t.opt(t.str()) }, out: { file: fileRow }, make: ['folder', '/toFolderId'], perm: 'files.write', emits: ['file.created', 'file.version_added'], tool: 'files',
+      in: { fileId: id.file, toFolderId: id.folder, name: t.opt(t.str()) }, out: { file: fileRow }, make: ['file', '/toFolderId'], perm: 'files.write', emits: ['file.created', 'file.version_added'], tool: 'files',
     }),
     write('files.delete', 'Move a file to Trash', {
       in: { fileId: id.file }, out: { deleted: t.bool(), changesetId: t.opt(id.changeset) }, on: ['file', '/fileId'], perm: 'files.delete', gate: { act: 'delete', when: "actor.kind != 'person'" },
@@ -283,7 +297,7 @@ export default defineManifest({
     }),
     // ---- file-tree folders
     create('files.folder.create', 'Create a folder', {
-      in: { parentId: id.folder, name: t.str(), reviewChanges: t.opt(t.bool()) }, out: { folder: folderRow }, make: ['folder', '/parentId'], perm: 'files.write', emits: ['folder.created'], tool: 'files', offline: 'queue', errors: ['validation.duplicate'],
+      in: { parentId: id.folder, name: t.str(), reviewChanges: t.opt(t.bool()), subject: t.opt(t.obj({ kind: t.enm('agent', 'project'), id: t.str({ examples: ['agt_a1b2c3'] }) })) }, out: { folder: folderRow }, make: ['folder', '/parentId'], perm: 'files.write', emits: ['folder.created'], tool: 'files', offline: 'queue', errors: ['validation.duplicate'],
     }),
     write('files.folder.rename', 'Rename a folder', { in: { folderId: id.folder, name: t.str() }, out: { folder: folderRow }, on: ['folder', '/folderId'], perm: 'files.write', emits: ['folder.renamed'], tool: 'files', errors: ['validation.duplicate'] }),
     write('files.folder.move', 'Move a folder under another folder (its sharing follows the new parent)', {
@@ -362,7 +376,7 @@ export default defineManifest({
     }),
     create('sheets.create', 'Create a CSV or XLSX table file with a header row', {
       in: { folderId: id.folder, name: t.str(), format: t.enm('csv', 'xlsx'), columns: t.arr(t.str(), { minItems: 1 }), sheet: t.opt(t.str()) },
-      out: { file: fileRow }, make: ['folder', '/folderId'], perm: 'files.write', emits: ['file.created', 'file.version_added'], tool: 'files',
+      out: { file: fileRow }, make: ['file', '/folderId'], perm: 'files.write', emits: ['file.created', 'file.version_added'], tool: 'files',
     }),
     write('sheets.add_sheet', 'Add a sheet (tab) to a workbook', {
       in: { fileId: id.file, sheet: t.str(), columns: t.arr(t.str()) }, out: { ok: t.bool() }, on: ['file', '/fileId'], perm: 'files.write', emits: ['file.version_added'], tool: 'files', errors: ['validation.duplicate'],

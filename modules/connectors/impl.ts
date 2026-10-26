@@ -57,7 +57,7 @@ export function setSyncEngine(e: SyncEngine | null): void { engine = e; if (shar
 function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {
     const cc: ConnectorsCtx = {
-      trace: ctx.trace, emit: (n, s, p) => ctx.emit(n, s, p), call: (c, i) => ctx.call(c, i), http: (u, i) => ctx.http(u, i),
+      trace: ctx.trace, emit: (n, s, p, o) => ctx.emit(n, s, p, o), call: (c, i) => ctx.call(c, i), http: (u, i) => ctx.http(u, i),
       ...(ctx.log ? { log: ctx.log } : {}), ...(ctx.principal ? { actor: ctx.principal.id } : {}),
     };
     return (live().handlers[name] as (c: ConnectorsCtx, i: unknown) => Promise<unknown>)(cc, input);

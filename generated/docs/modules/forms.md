@@ -30,10 +30,11 @@ Requires: nothing.
 - [source_rules.list](../capabilities/source_rules.list.md): List Source rules that map clicks to channels
 - [source_rules.set](../capabilities/source_rules.set.md): Replace the Source rules
 
-## Events (5)
+## Events (6)
 
 - [booking.cancelled](../events/booking.cancelled.md): A booking was cancelled
 - [booking.created](../events/booking.created.md): A booking was made; a record and a meeting were created or updated
+- [form.created](../events/form.created.md): A form was created as a draft
 - [form.link_created](../events/form.link_created.md): A one-use or signed record link was made
 - [form.published](../events/form.published.md): A form went live
 - [form.submitted](../events/form.submitted.md): A form was submitted; the record was written with source link holder

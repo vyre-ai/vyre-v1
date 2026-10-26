@@ -19,6 +19,7 @@ export const ICON = {
   project: ["M5 2.5h6A2.5 2.5 0 0113.5 5v6a2.5 2.5 0 01-2.5 2.5H5A2.5 2.5 0 012.5 11V5A2.5 2.5 0 015 2.5z", "M5.5 6h5M5.5 8.5h5M5.5 11h2.5"],
   more: ["M3.5 8h.01", "M8 8h.01", "M12.5 8h.01"],
   arrow: ["M3 8h10M9 4l4 4-4 4"],
+  panel: ["M2.5 4A1.5 1.5 0 014 2.5h8A1.5 1.5 0 0113.5 4v8a1.5 1.5 0 01-1.5 1.5H4A1.5 1.5 0 012.5 12z", "M6.5 2.5v11"],
 } as const;
 export type IconName = keyof typeof ICON;
 

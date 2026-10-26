@@ -42,8 +42,8 @@ test("find: everything about one contact across records, files, chats, inbox, ma
   assert.deepEqual(groups(f).map((x) => [x.kind, x.count, x.onHold]), [["records", 1, 0], ["files", 2, 0], ["chats", 2, 0], ["inbox", 1, 0], ["mail", 2, 0], ["calls", 1, 0], ["memory", 4, 0], ["runs", 0, 0]], "a fact found twice counts once; a note counts");
   assert.deepEqual((group(f, "records").samples as Json[])[0], { type: "contact", id: PAT, title: "Pat Lee" });
   assert.deepEqual((group(f, "files").samples as Json[]).map((s) => s.id).sort(), ["fil_pat00001", "fil_pat00002"]);
-  assert.deepEqual(h.rows(`SELECT * FROM gov_finding`).length, 1);
-  assert.ok(!JSON.stringify(h.rows(`SELECT * FROM gov_finding`)).includes("(not shown)"), "the finding keeps ids, not words");
+  assert.deepEqual(h.rows(`SELECT * FROM governance_finding`).length, 1);
+  assert.ok(!JSON.stringify(h.rows(`SELECT * FROM governance_finding`)).includes("(not shown)"), "the finding keeps ids, not words");
   // asking by record id, phone or name alone finds the same contact
   h.world.sureByTerm.set("+14155550177", { type: "contact", id: PAT });
   assert.equal(group(await g.eraseFind(h.ctx, { subject: { recordId: PAT } }), "records").count, 1);
@@ -55,7 +55,7 @@ test("find: everything about one contact across records, files, chats, inbox, ma
   // findings older than a day are dropped the next time anyone looks
   h.advance(2 * DAY);
   await g.eraseFind(h.ctx, { subject: { recordId: PAT } });
-  assert.equal(h.rows(`SELECT * FROM gov_finding`).length, 1);
+  assert.equal(h.rows(`SELECT * FROM governance_finding`).length, 1);
 });
 
 test("find counts what is on hold, by the person, a file, a folder above it, a record and a chat, and never names it", async () => {
@@ -91,10 +91,10 @@ test("erase: records, files and memory facts go, one tombstone each, the audit e
   assert.deepEqual(h.named("erase.started").map((e) => e.payload), [{ findingId: f.findingId, by: OWNER, overrodeHold: false }]);
   assert.deepEqual(h.named("erase.completed").map((e) => e.payload), [{ findingId: f.findingId, tombstones: 6 }]);
   for (const e of [...h.named("erase.started"), ...h.named("erase.completed")]) assert.deepEqual(eventErrors(e.name, e.payload), []);
-  const trail = JSON.stringify([h.emitted, h.rows(`SELECT * FROM gov_erase`), h.rows(`SELECT * FROM gov_tombstone`)]);
+  const trail = JSON.stringify([h.emitted, h.rows(`SELECT * FROM governance_erase`), h.rows(`SELECT * FROM governance_tombstone`)]);
   assert.ok(!trail.includes("Pat Lee") && !trail.includes(EMAIL), "the trail has ids, never names or addresses");
   const run = h.world.runs.get(String(done.runId));
-  assert.deepEqual([run?.status, run?.summary], ["succeeded", "6 erased; no eraser yet for chats (2), mail (2), which the next backup rotation purges"]);
+  assert.deepEqual([run?.status, run?.summary], ["succeeded", "6 erased; no eraser yet for memory (1), chats (2), mail (2), which the next backup rotation purges; 1 record moved to Trash, not hard-deleted yet"]);
 
   const past = out(await g.eraseList(h.ctx, {}));
   assert.deepEqual(contractErrors("governance.erase.list", "out", past), []);
@@ -103,7 +103,7 @@ test("erase: records, files and memory facts go, one tombstone each, the audit e
   // the same finding again: the same Run, nothing erased twice
   assert.equal(out(await apply(h, String(f.findingId), ["records"])).runId, done.runId);
   assert.equal(h.named("erase.started").length, 1);
-  assert.equal(h.rows(`SELECT * FROM gov_tombstone`).length, 6);
+  assert.equal(h.rows(`SELECT * FROM governance_tombstone`).length, 6);
 });
 
 test("erase only what was chosen: a kind left out stays, and a kind with nothing found is not an error", async () => {
@@ -113,7 +113,7 @@ test("erase only what was chosen: a kind left out stays, and a kind with nothing
   await apply(h, String(f.findingId), ["files", "runs"]);
   assert.equal(h.world.records.get(PAT)?.gone, false);
   assert.deepEqual(h.world.erasedFacts, []);
-  assert.equal(h.rows(`SELECT * FROM gov_tombstone`).length, 2);
+  assert.equal(h.rows(`SELECT * FROM governance_tombstone`).length, 2);
   assert.equal(h.world.runs.get(String([...h.world.runs.keys()][0]))?.summary, "2 erased");
 });
 
@@ -140,7 +140,7 @@ test("a restore brings erased data back; replaying the tombstones erases it agai
   assert.equal(out(await g.tombstonesReapply(h.ctx)).count, 6);
   // and a Space with no tombstones replays nothing
   assert.equal(out(await g.tombstonesReapply(harness().ctx)).count, 0);
-  assert.equal(h.rows(`SELECT * FROM gov_tombstone`).length, 6, "tombstones stay: the next restore needs them too");
+  assert.equal(h.rows(`SELECT * FROM governance_tombstone`).length, 6, "tombstones stay: the next restore needs them too");
 });
 
 test("a replay stops on a real failure instead of opening a Space that still holds erased data", async () => {
@@ -162,7 +162,7 @@ test("a hold stops an erase: the refusal counts what is held, nothing is erased,
   assert.equal(await refusedWith(apply(h, String(f.findingId), ["records", "files"])), "permission.on_hold");
   assert.equal(h.world.records.get(PAT)?.gone, false, "not even the part that was not held");
   assert.equal(h.world.files.size, 2);
-  assert.equal(h.rows(`SELECT * FROM gov_tombstone`).length, 0);
+  assert.equal(h.rows(`SELECT * FROM governance_tombstone`).length, 0);
   assert.equal(h.named("erase.started").length, 0);
   assert.equal(JSON.stringify(h.emitted).length, trail);
   try { await apply(h, String(f.findingId), ["files"]); } catch (e) { assert.deepEqual((e as { error: { details?: unknown } }).error.details, { held: 1 }); assert.ok(!JSON.stringify(e).includes("Subpoena") && !JSON.stringify(e).includes("fil_pat00002")); }
@@ -184,7 +184,7 @@ test("overriding a hold needs a reason and the Owner (an Admin is refused); the 
   const done = out(await apply(h, f, ["records", "files"], { overrideHold: { reason: "Client asked in writing" } }));
   assert.equal(h.world.records.get(PAT)?.gone, true);
   assert.deepEqual(h.named("erase.started")[0]?.payload, { findingId: f, by: OWNER, overrodeHold: true });
-  assert.equal(h.rows(`SELECT * FROM gov_hold`).length, 1, "the hold is still there");
+  assert.equal(h.rows(`SELECT * FROM governance_hold`).length, 1, "the hold is still there");
   assert.ok(done.runId);
   // a reason where nothing is held is accepted and changes nothing
   const h2 = harness();
@@ -207,7 +207,7 @@ test("erase refuses what it must: unknown, old or empty findings, bad kinds, a m
   assert.equal(await refusedWith(apply(h, f, ["memory"])), "internal.unavailable");
   const run = [...h.world.runs.values()].find((r) => r.status === "failed");
   assert.equal((run?.error as Json).code, "internal.unavailable");
-  assert.equal(h.rows(`SELECT * FROM gov_erase`).length, 0, "an erase that did not finish is not recorded as done, so it can be run again");
+  assert.equal(h.rows(`SELECT * FROM governance_erase`).length, 0, "an erase that did not finish is not recorded as done, so it can be run again");
   h.advance(2 * DAY);
   assert.equal(await refusedWith(apply(h, f, ["records"])), "validation.precondition_failed", "older than 24 hours");
   assert.equal(h.world.records.get(PAT)?.gone, false);
@@ -220,6 +220,22 @@ test("the export of what governance keeps holds no secrets, names or values: ids
   await g.retentionSet(h.ctx, { kind: "trash", value: "7d" });
   const f = String(out(await find(h)).findingId);
   await apply(h, f, ["records", "files", "memory"], { overrideHold: { reason: "Client asked" } });
-  const everything = JSON.stringify(h.rows(`SELECT * FROM gov_state`)) + JSON.stringify(h.rows(`SELECT * FROM gov_tombstone`)) + JSON.stringify(h.rows(`SELECT * FROM gov_erase`)) + JSON.stringify(h.rows(`SELECT * FROM gov_finding`));
+  const everything = JSON.stringify(h.rows(`SELECT * FROM governance_state`)) + JSON.stringify(h.rows(`SELECT * FROM governance_tombstone`)) + JSON.stringify(h.rows(`SELECT * FROM governance_erase`)) + JSON.stringify(h.rows(`SELECT * FROM governance_finding`));
   for (const secret of ["Pat Lee", EMAIL, "(not shown)", "Client asked", "intake.docx"]) assert.ok(!everything.includes(secret), secret);
+});
+
+test("a contact nobody has written to has no inbox thread, and the find still finds the record and erases it", async () => {
+  const h = harness();
+  h.addRecord(PAT);
+  h.world.sureByTerm.set(EMAIL, { type: "contact", id: PAT });
+  h.script("inbox.thread", () => { throw h.err("validation.not_found", "There is no conversation with that person yet."); });
+  h.script("memory.find_by_subject", () => { throw h.err("validation.not_found", "Nothing remembered about that subject."); });
+  h.script("search.query", () => { throw h.err("validation.not_found", "Nothing found."); });
+  const f = out(await find(h));
+  assert.deepEqual(contractErrors("governance.erase.find", "out", f), []);
+  assert.deepEqual(groups(f).map((x) => [x.kind, x.count]), [["records", 1], ["files", 0], ["chats", 0], ["inbox", 0], ["mail", 0], ["calls", 0], ["memory", 0], ["runs", 0]]);
+  const done = out(await apply(h, String(f.findingId), ["records", "inbox", "mail", "calls", "memory"]));
+  assert.deepEqual(contractErrors("governance.erase.apply", "out", done), []);
+  assert.equal(h.world.records.get(PAT)?.gone, true);
+  assert.equal(await refusedWith((async () => { h.script("inbox.thread", () => { throw h.err("permission.no_grant", "no"); }); return find(h); })()), "permission.no_grant", "any other refusal still stops the find");
 });

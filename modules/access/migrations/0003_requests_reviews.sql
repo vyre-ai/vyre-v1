@@ -41,3 +41,16 @@ CREATE TABLE IF NOT EXISTS "access_review_items" (
   "decided_at" INTEGER,
   PRIMARY KEY ("review_id", "grant_id")
 );
+
+-- A drafted change proposed by someone who can only view the object (access.propose_change, P-L7_21): the change as given, and the Review tasks it made. Nothing is written to the object.
+CREATE TABLE IF NOT EXISTS "access_proposals" (
+  "id" TEXT PRIMARY KEY,
+  "proposer" TEXT NOT NULL,
+  "resource_type" TEXT NOT NULL,
+  "resource_id" TEXT NOT NULL,
+  "change_json" TEXT NOT NULL,
+  "note" TEXT,
+  "idem_key" TEXT NOT NULL,
+  "task_ids_json" TEXT NOT NULL,
+  "at" INTEGER NOT NULL
+);
