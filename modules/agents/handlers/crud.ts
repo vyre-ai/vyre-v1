@@ -180,14 +180,6 @@ export async function create(ctx: AgentsCtx, input: {
   const starter = template.items.find((i) => i.kind === "file" && i.path === "AGENT.md")?.text;
   const agentMd = starter !== undefined ? starter.replaceAll("{{name}}", name).replaceAll("{{role}}", input.role?.trim() ?? "") : AGENT_MD_DEFAULT(name, input.role);
   const tree = await createTree(ctx, id, name, tomlText, agentMd);
-  // ruling 88: the owner manages the folder from the start, by a grant of their own whoever made it (the asker, when they are the owner, gets the same Manage share), so the owner can approve memory into the agent and edit its files
-  {
-    const idempotencyKey = `agent-owner:${id}:${owner}`;
-    const grant = call(ctx, "access.share", { resource: { type: "folder", id: tree.folderId }, subject: { kind: "person", id: owner }, level: "manage", source: `agent-owner:${id}`, idempotencyKey }, { idempotencyKey });
-    // someone else's agent must carry the grant or the call fails; for the asker's own agent the grant only makes explicit what making the folder already gave them
-    if (owner !== askerOf(ctx)) await grant;
-    else await grant.catch((e: unknown) => ctx.log.warn("agent folder grant for the owner was not made", { agentId: id, error: e instanceof Error ? e.message : String(e) }));
-  }
   const rec: AgentRec = {
     id, name, face: input.face?.trim() || slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: input.computer === true,
     templateVersion: await templateVersion(ctx, template), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
