@@ -217,9 +217,9 @@ test("a plan has no View and Edit switch: its blocks edit in place (editing prop
 test("the markup bar's Ask carries the agent's avatar when the agent is named, and none when it is not", () => {
   const marked = { boxes: [{ id: "b1", x: 0.1, y: 0.1, w: 0.2, h: 0.2, text: "Look here" }] } as const;
   const named = renderToStaticMarkup(<Viewer fileId="f" title="Offer.png" kind="image" agentName="Research" {...marked} />).replaceAll("<!-- -->", "");
-  const ask = named.slice(named.indexOf('data-testid="vw-ask-markup"'), named.indexOf('data-testid="vw-ask-markup"') + 1500);
-  assert.ok(ask.includes("Ask Research") && ask.includes("<svg"), "a face beside the name");
+  const ask = /data-testid="vw-ask-markup"[\s\S]*?Ask Research/.exec(named)?.[0] ?? "";
+  assert.ok(ask.includes('data-avatar="agent"'), "a face before the name, inside the button");
   const bare = renderToStaticMarkup(<Viewer fileId="f" title="Offer.png" kind="image" {...marked} />).replaceAll("<!-- -->", "");
-  const ask2 = bare.slice(bare.indexOf('data-testid="vw-ask-markup"'), bare.indexOf('data-testid="vw-ask-markup"') + 600);
-  assert.ok(ask2.includes("Ask the agent") && !ask2.includes("<svg"), "no face when no agent is named");
+  const ask2 = /data-testid="vw-ask-markup"[\s\S]*?Ask the agent/.exec(bare)?.[0] ?? "";
+  assert.ok(ask2.length > 0 && !ask2.includes('data-avatar="agent"'), "no face when no agent is named");
 });

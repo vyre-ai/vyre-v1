@@ -112,7 +112,7 @@ test("an edit in place saves against the version it started from and returns the
   const edited = blocks.map((b) => (b.tag === "h1" ? { ...b, text: "Consult fee (2026)" } : b));
   const next = await saveText(s.data, "f_note", edited, data.file.kind, data.file.version);
   assert.equal(next, data.file.version + 1);
-  assert.match((await read<ViewerData>(s, "files.viewer_data", { fileId: "f_note" })).text ?? "", /^# Consult fee \(2026\)/);
+  assert.match((await read<ViewerData>(s, "files.viewer_data", { fileId: "f_note" })).text ?? "", /\n# Consult fee \(2026\)\n/);
   await assert.rejects(() => saveText(s.data, "f_note", edited, data.file.kind, data.file.version), /Someone else saved this file first/);
   assert.equal(blocksToText(textToBlocks(data.text ?? "", "markdown"), "markdown"), data.text, "reading then writing changes nothing");
 });
