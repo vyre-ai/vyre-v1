@@ -29,6 +29,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "identity.totp_remove": async () => ({"ok":true} as unknown) as never,
   "identity.username_available": async () => ({"available":true} as unknown) as never,
   "identity.verify_second_factor": async () => ({"challengeId":"chl_a1b2c3","keys":{"personKeyByPassword":"d3JhcHBlZA==","personKeyByRecovery":"d3JhcHBlZA==","privateKeyWrapped":"d3JhcHBlZA==","publicKey":"cHVibGlj","spaceKeys":[{"epoch":1,"wrapped":"d3JhcHBlZA=="}]},"session":{"deviceId":"dev_a1b2c3","epoch":1,"expiresAt":1760000000000,"sessionId":"ses_a1b2c3","token":"example"},"status":"ok"} as unknown) as never,
-  "identity.whoami": async () => ({"deviceId":"dev_a1b2c3","epoch":1,"groups":["grp_a1b2c3"],"name":"example","principal":{"id":"usr_a1b2c3","kind":"person"},"roles":["rol_a1b2c3"],"spaceId":"spc_a1b2c3"} as unknown) as never,
+  "identity.whoami": async () => ({"deferred":["example"],"deviceId":"dev_a1b2c3","epoch":1,"groups":["grp_a1b2c3"],"name":"example","principal":{"id":"usr_a1b2c3","kind":"person"},"roles":["rol_a1b2c3"],"spaceId":"spc_a1b2c3"} as unknown) as never,
   "invites.accept_create_account": async () => ({"challengeId":"chl_a1b2c3","keys":{"personKeyByPassword":"d3JhcHBlZA==","personKeyByRecovery":"d3JhcHBlZA==","privateKeyWrapped":"d3JhcHBlZA==","publicKey":"cHVibGlj","spaceKeys":[{"epoch":1,"wrapped":"d3JhcHBlZA=="}]},"session":{"deviceId":"dev_a1b2c3","epoch":1,"expiresAt":1760000000000,"sessionId":"ses_a1b2c3","token":"example"},"status":"ok"} as unknown) as never,
 };
