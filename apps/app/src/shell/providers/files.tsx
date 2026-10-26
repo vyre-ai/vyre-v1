@@ -1,5 +1,6 @@
-// The Files place in the shell (spec 3.5): the folder tree beside the list of the open folder, Recent, Shared with me, Trash or Knowledge. Where the list is, the selection and Quick Look are
-// the place's own state. On a phone width the tree is a drawer, so only the list shows. Before the Space's runtime exists the place draws its loading frames.
+// The Files place in the shell (spec 3.5): the list of the open folder, Recent, Starred, Shared with me, Trash or Knowledge, with the Files sidebar in the shared place sidebar slot (P-L9_22).
+// Where the list is, the selection and Quick Look are the place's own state. On a phone the sidebar is the list and the body opens when a row is chosen. Before the Space's runtime exists
+// the place draws its loading frames.
 import { useMemo } from "react";
 import type { ReactElement } from "react";
 import { View, useWindowDimensions } from "react-native";
@@ -8,6 +9,7 @@ import { FilesDataProvider, FilesStateProvider, FilesTree, TreeLoading } from ".
 import { ReviewDataProvider } from "../../places/files/review/index.ts";
 import { filesData } from "./files-data.ts";
 import { reviewData } from "./files-review.ts";
+import { SidebarContent } from "../sidebar/index.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 
 const TREE_W = 240;
@@ -31,7 +33,7 @@ export default function FilesPlace(_props: { place: string }): ReactElement {
       <ReviewDataProvider value={review}>
         <FilesStateProvider>
           <View testID="files-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-            {phone ? null : <View style={{ width: TREE_W }}><FilesTree /></View>}
+            <SidebarContent title="Files" searchPlaceholder="Search files">{(query, slot) => <FilesTree query={query} slot={slot} />}</SidebarContent>
             <FilesList />
           </View>
         </FilesStateProvider>
