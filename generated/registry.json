@@ -22930,7 +22930,7 @@
         ],
         "type": "object"
       },
-      "level": "member",
+      "level": "view",
       "module": "access",
       "name": "access.request",
       "output": {

@@ -779,7 +779,7 @@ export const routes: Route[] = [
     "module": "access",
     "effects": "write",
     "permission": null,
-    "level": "member",
+    "level": "view",
     "resource": {
       "type": "space"
     },
