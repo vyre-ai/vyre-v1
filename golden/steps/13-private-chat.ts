@@ -7,9 +7,7 @@ import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_PRIVATE = ["chat", "identity", "vault", "devices", "access", "spaces"];
-export const GAPS: Gap[] = [
-  { packet: "lead (flow definition)", lane: "L11", what: "golden/flows/13 expects channel.created and keys.stored; a private chat with an agent emits thread.started and message.received, so the event sequence cannot match" },
-];
+export const GAPS: Gap[] = [];
 const SECRET_TEXT = "the quarterly numbers are worse than we said";
 
 export async function runPrivate(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
