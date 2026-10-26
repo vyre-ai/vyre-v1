@@ -274,7 +274,8 @@ test("a second daemon on the same data directory is refused, and a new Space nee
   const d = await startDaemon({ config: loadConfig(["--data-dir", dir, "--port", "0", "--space", "spc_fresh"], {}, "1"), platform: machine(dir), fetch: caddyFetch, intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000 } });
   try {
     assert.equal(d.space, "spc_fresh");
-    assert.equal((await d.log!.currentHead()).seq, 0, "a new Space starts with an empty log");
+    // ruling 71: the host makes the Space once, with these six events and nothing else
+    assert.deepEqual((await d.log!.read({ limit: 20 })).map((e) => e.type), ["space.created", "principal.created", "principal.role_set", "resource.created", "grant.created", "group.member_added"], "a new Space starts with its bootstrap events");
     assert.equal(fs.existsSync(path.join(dir, "events.db")), true);
     // the pid file names another live process, so a second start is refused
     fs.writeFileSync(d.paths.info, JSON.stringify({ ...readInfo(d.paths)!, pid: process.ppid }));

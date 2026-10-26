@@ -144,6 +144,19 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
   const page = await ctx.newPage();
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  // What the app asked the Space and what it answered: a step that times out shows these, so a failure names its cause (a refused call, a console error, the text on screen).
+  const seen: string[] = [];
+  page.on("console", (m) => { if (m.type() === "error") seen.push(`console.error ${m.text().slice(0, 200)}`); });
+  page.on("response", (r) => {
+    const u = new URL(r.url());
+    if (u.pathname.startsWith("/v1/") || u.pathname.startsWith("/sync/")) {
+      void r.text().then((b) => { if (r.status() >= 400) seen.push(`${r.status()} ${r.request().method()} ${u.pathname} ${b.slice(0, 200)}`); }).catch(() => undefined);
+    }
+  });
+  const dump = async (label: string): Promise<void> => {
+    const text = await page.locator("body").innerText({ timeout: 2000 }).catch(() => "(no body)");
+    console.log(`real-app e2e ${label}: on screen: ${text.replace(/\s+/g, " ").slice(0, 400)}\n  calls: ${seen.slice(-8).join(" | ") || "(no failed calls)"}`);
+  };
   const todo: string[] = [];
   try {
     await t.test("1 the app opens on sign-in when nobody is signed in", async () => {
@@ -161,37 +174,49 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       await page.getByTestId("shell").waitFor({ timeout: 15_000 });
     });
 
+    const step = async (label: string, body: () => Promise<void>): Promise<void> => {
+      try { await body(); } catch (e) { await dump(label); throw e; }
+    };
+
     await t.test("3 Home shows real data from the Space", async (s) => {
       const gap = todoFor("sign in", live) ?? todoFor("home", live);
       if (gap) { todo.push(gap); s.todo(gap); return; }
-      await page.getByTestId("rail-home").or(page.getByTestId("rail-home-selected")).first().click();
-      await page.getByTestId("s-needs").or(page.getByTestId("home-place")).first().waitFor({ timeout: 15_000 });
+      await step("home", async () => {
+        await page.getByTestId("rail-home").or(page.getByTestId("rail-home-selected")).first().click();
+        await page.getByTestId("s-needs").or(page.getByTestId("home-place")).first().waitFor({ timeout: 15_000 });
+      });
     });
 
     await t.test("4 Chats: a message sent from the composer appears in the conversation", async (s) => {
       const gap = todoFor("sign in", live) ?? todoFor("chats", live);
       if (gap) { todo.push(gap); s.todo(gap); return; }
-      await page.getByTestId("rail-chats").or(page.getByTestId("rail-chats-selected")).first().click();
-      const field = page.getByTestId("composer-field");
-      await field.waitFor({ timeout: 15_000 });
-      const text = `real app check ${Date.now()}`;
-      await field.fill(text);
-      await field.press("Enter");
-      await page.getByText(text).first().waitFor({ timeout: 15_000 });
+      await step("chats", async () => {
+        await page.getByTestId("rail-chats").or(page.getByTestId("rail-chats-selected")).first().click();
+        const field = page.getByTestId("composer-field");
+        await field.waitFor({ timeout: 15_000 });
+        const text = `real app check ${Date.now()}`;
+        await field.fill(text);
+        await field.press("Enter");
+        await page.getByText(text).first().waitFor({ timeout: 15_000 });
+      });
     });
 
     await t.test("5 Records: a table opens with its rows", async (s) => {
       const gap = todoFor("sign in", live) ?? todoFor("records", live);
       if (gap) { todo.push(gap); s.todo(gap); return; }
-      await page.getByTestId("rail-records").or(page.getByTestId("rail-records-selected")).first().click();
-      await page.locator('[data-testid^="rec-"]').first().waitFor({ timeout: 15_000 });
+      await step("records", async () => {
+        await page.getByTestId("rail-records").or(page.getByTestId("rail-records-selected")).first().click();
+        await page.locator('[data-testid^="rec-"]').first().waitFor({ timeout: 15_000 });
+      });
     });
 
     await t.test("6 Files: the list shows files and one opens", async (s) => {
       const gap = todoFor("sign in", live) ?? todoFor("files", live);
       if (gap) { todo.push(gap); s.todo(gap); return; }
-      await page.getByTestId("rail-files").or(page.getByTestId("rail-files-selected")).first().click();
-      await page.getByTestId("files-list").waitFor({ timeout: 15_000 });
+      await step("files", async () => {
+        await page.getByTestId("rail-files").or(page.getByTestId("rail-files-selected")).first().click();
+        await page.getByTestId("files-list").waitFor({ timeout: 15_000 });
+      });
     });
 
     assert.deepEqual(errors, [], "the page threw no errors");

@@ -37,9 +37,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "record",
-      "create": true,
-      "parent": "/slug"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -75,9 +73,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "record",
-      "create": true,
-      "parent": "/slug"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -7626,7 +7622,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "folder",
+      "type": "email",
       "create": true,
       "parent": "/folderId"
     },
@@ -13255,6 +13251,24 @@ export const routes: Route[] = [
     "method": "POST",
     "path": "/v1/identity/change_password",
     "cap": "identity.change_password",
+    "v": 1,
+    "module": "identity",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/identity/claim_owner",
+    "cap": "identity.claim_owner",
     "v": 1,
     "module": "identity",
     "effects": "write",

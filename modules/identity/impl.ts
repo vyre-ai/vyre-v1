@@ -1,6 +1,8 @@
 // Identity module (lane L7a). The manifest stays `stub` until the lead regenerates the registry with status live (needs gen, which only CI runs).
 import { handlers } from "./handlers/index.ts";
+import { claimIssue } from "./handlers/claim.ts";
 import { configureSessionTokens, sessionOfToken } from "./projections.ts";
+import type { IdentityCtx } from "./projections.ts";
 
 export { handlers, sessionOfToken };
 /** The host hands identity its session-token seam (mint a gateway token for a devices session, end a session at the gateway) through this setter at boot. */
@@ -14,6 +16,8 @@ export const codecs = {};
  * DECISION: the fingerprint is a placeholder (see host/src/seams/spaceadmin.ts).
  */
 export const hostCalls = {
+  /** ruling 71: a fresh one-time claim link for an owner who has no account yet (null once they have one) */
+  "identity.claim_issue": (ctx: unknown, i: { personId: string }): { code: string; expiresAt: number } | null => claimIssue(ctx as IdentityCtx, i),
   "identity.ensure_space": (ctx: { space: string; db: { run(sql: string, ...a: unknown[]): unknown } }, i: { name: string; github: boolean }): void => {
     ctx.db.run(`CREATE TABLE IF NOT EXISTS "identity_space" ("id" TEXT PRIMARY KEY, "name" TEXT NOT NULL, "logo_file_id" TEXT, "fingerprint" TEXT NOT NULL, "github" INTEGER NOT NULL DEFAULT 0, "second_factor_required" INTEGER NOT NULL DEFAULT 0, "sso_json" TEXT NOT NULL DEFAULT '[]')`);
     let h = 0x811c9dc5;
