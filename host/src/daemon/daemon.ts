@@ -828,7 +828,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (issued) {
         const base = cfg.address ? (/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`) : `http://${cfg.host}:${boundPort}`;
         const fp = String((db?.all("SELECT fingerprint FROM identity_space WHERE id = ?", space)[0] as { fingerprint?: string } | undefined)?.fingerprint ?? "").replace(/\s/g, "");
-        claim = { url: `${base.replace(/\/$/, "")}/claim/${issued.code}${fp ? `#fp=${fp}` : ""}`, expiresAt: issued.expiresAt };
+        claim = { url: `${base.replace(/\/$/, "")}/claim/${issued.code}#${fp ? `fp=${fp}&` : ""}s=${encodeURIComponent(space ?? "")}`, expiresAt: issued.expiresAt };
         fs.writeFileSync(path.join(paths.logDir, "claim-link.txt"), `${claim.url}\n`, { mode: 0o600 });
         // the link is a credential: it goes to the console and the 0600 file only, never to the shared log stream, the log export or the support bundle
         sink.log({ space: space ?? "-", level: 20, msg: "claim link issued, see logs/claim-link.txt", place: "boot", attrs: { expiresAt: issued.expiresAt } });

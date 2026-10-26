@@ -53,8 +53,11 @@ test("a fresh install: claim link, claim, sign in, work, invite a member who joi
     assert.ok(!logText().includes(code), "no log line holds the claim code");
     assert.equal(fs.statSync(path.join(d.paths.logDir, "claim-link.txt")).mode & 0o077, 0, "the link file is private to the owner of the process");
 
-    assert.notEqual((await post(null, "/v1/identity/claim_owner", { code: "clm_not-the-code", username: "olivia", password: PASSWORD, ...device("Mac"), keys: KEYS })).status, 200, "a wrong code is refused");
-    const claimed = await post(null, "/v1/identity/claim_owner", { code, username: "olivia", displayName: "Olivia", password: PASSWORD, ...device("Olivia's Mac"), keys: KEYS });
+    assert.match(d.claim.url, /#fp=[0-9a-f]+&s=spc_fresh$/, "the fragment carries the fingerprint and the Space id");
+    const otherSpace = await post(null, "/v1/identity/claim_owner", { code, spaceId: "spc_other", username: "olivia", password: PASSWORD, ...device("Mac"), keys: KEYS });
+    assert.equal(otherSpace.status, 422, "a link for a different Space is refused");
+    assert.notEqual((await post(null, "/v1/identity/claim_owner", { code: "clm_not-the-code", spaceId: "spc_fresh", username: "olivia", password: PASSWORD, ...device("Mac"), keys: KEYS })).status, 200, "a wrong code is refused");
+    const claimed = await post(null, "/v1/identity/claim_owner", { code, spaceId: "spc_fresh", username: "olivia", displayName: "Olivia", password: PASSWORD, ...device("Olivia's Mac"), keys: KEYS });
     assert.equal(claimed.status, 200, JSON.stringify(claimed.body));
     assert.ok(!fs.existsSync(path.join(d.paths.logDir, "claim-link.txt")), "the claim spent, the file that held the link is gone");
     const signedIn = await post(null, "/v1/identity/sign_in", { username: "olivia", password: PASSWORD, ...device("Olivia's laptop") });
@@ -86,7 +89,7 @@ test("a fresh install: claim link, claim, sign in, work, invite a member who joi
     assert.equal((await post(maya, "/v1/schema/apply", { idempotencyKey: "fresh-maya-type", ops: [COMPANY] })).status, 403, "and is not an owner");
 
     // the link works once
-    const again = await post(null, "/v1/identity/claim_owner", { code, username: "intruder", password: PASSWORD, ...device("Elsewhere"), keys: KEYS });
+    const again = await post(null, "/v1/identity/claim_owner", { code, spaceId: "spc_fresh", username: "intruder", password: PASSWORD, ...device("Elsewhere"), keys: KEYS });
     assert.notEqual(again.status, 200, "a second claim is refused");
 
     // a restart keeps the Space, the owner and the member, and prints no new link
@@ -97,7 +100,7 @@ test("a fresh install: claim link, claim, sign in, work, invite a member who joi
     assert.equal(afterRestart.status, 200, JSON.stringify(afterRestart.body));
     assert.ok(JSON.stringify(afterRestart.body.data).includes("Acme") && JSON.stringify(afterRestart.body.data).includes("Maya Ltd"));
     assert.equal((await post(maya, "/v1/records/create", { idempotencyKey: "fresh-maya-2", type: "rt_company", fields: { name: "Maya again" } })).status, 200, "the member still acts");
-    assert.notEqual((await post(null, "/v1/identity/claim_owner", { code, username: "intruder", password: PASSWORD, ...device("Elsewhere"), keys: KEYS })).status, 200, "the old link stays spent");
+    assert.notEqual((await post(null, "/v1/identity/claim_owner", { code, spaceId: "spc_fresh", username: "intruder", password: PASSWORD, ...device("Elsewhere"), keys: KEYS })).status, 200, "the old link stays spent");
   } finally { await d.stop(); }
 });
 
@@ -124,7 +127,7 @@ test("an unclaimed Space gets a new link at every start and only the newest work
     assert.ok(d.claim && d.claim.url !== oldLink);
     const claim = async (url: string): Promise<number> => (await fetch(`${d.url}/v1/identity/claim_owner`, {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ code: decodeURIComponent(new URL(url).pathname.split("/").pop() ?? ""), username: "owner", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop", keys: KEYS }),
+      body: JSON.stringify({ code: decodeURIComponent(new URL(url).pathname.split("/").pop() ?? ""), spaceId: "spc_fresh2", username: "owner", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop", keys: KEYS }),
     })).status;
     assert.notEqual(await claim(oldLink), 200, "the older link stopped working");
     assert.equal(await claim(d.claim.url), 200, "the newest link works");

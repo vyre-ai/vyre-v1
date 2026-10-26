@@ -8,13 +8,14 @@ import {
 
 /** Anonymous caller. Everything that can be refused is checked before the code is spent, so a mistyped username leaves the link usable. */
 export async function claimOwner(
-  ctx: IdentityCtx, input: Device & { code: string; username: string; displayName?: string; password: string; keys: KeyBundle },
+  ctx: IdentityCtx, input: Device & { code: string; spaceId: string; username: string; displayName?: string; password: string; keys: KeyBundle },
 ): Promise<SignInOut> {
   const tid = ctx.trace.traceId;
   const code = input.code.trim();
   const row = ctx.db.all(`SELECT person_id, expires_at, used_at FROM identity_codes WHERE code_hash = ?`, sha(`claim:${code}`))[0] as { person_id: string; expires_at: number; used_at: number | null } | undefined;
   if (!row || row.used_at !== null) { await burnVerify(input.password); raise(tid, "auth.invalid_code"); }
   if (row.expires_at <= ctx.now()) raise(tid, "auth.expired");
+  if (input.spaceId !== ctx.space) raise(tid, "validation.bad_input", "that link is for a different Space");
   const username = input.username.trim().toLowerCase();
   if (!USERNAME.test(username)) raise(tid, "validation.bad_input", "username is 2 to 32 letters, digits, dot, dash or underscore");
   if (accountByName(ctx, username)) raise(tid, "validation.duplicate", "that username is taken");
