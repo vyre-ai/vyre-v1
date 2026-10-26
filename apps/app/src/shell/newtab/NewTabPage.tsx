@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../ui/src/Avatar/index.tsx";
 import { MenuIcon } from "../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
+import type { RowProps } from "../../../../../ui/src/Row/props.ts";
 import { CmdKBody, KIND_LABEL, Tile, useCmdK, useCmdKState } from "../cmdk/CmdK.tsx";
 import type { Hit } from "../cmdk/model.ts";
 import type { Platform as KeyPlatform } from "../keyboard/map.ts";
@@ -49,6 +50,7 @@ export function NewTabPage({ data, platform = "mac" }: { data: NewTabData; platf
           <View testID="newtab-sections">
             <Heading>Start</Heading>
             <View style={styles.wrap}>
+              {/* ui-rows-lint: not a list (six Start tiles in a wrapping grid) */}
               {START.map((s) => (
                 <Tap key={s.kind} label={s.label} onPress={() => data.start(s.kind)} style={styles.tile}>
                   {s.kind === "chat" ? <Avatar name="Assistant" kind="agent" size={20} /> : <MenuIcon icon={START_ICON[s.kind]} color="var(--ink-2)" size={18} />}
@@ -58,6 +60,7 @@ export function NewTabPage({ data, platform = "mac" }: { data: NewTabData; platf
             </View>
             <Heading>Chat with</Heading>
             <View style={styles.wrap}>
+              {/* ui-rows-lint: not a list (faces in a wrapping grid) */}
               {data.faces().map((h) => (
                 <Tap key={`${h.kind}:${h.id}`} label={`${h.kind === "person" ? "Message" : "Chat with"} ${h.title}`} onPress={() => data.open(h, { newTab: false })} style={styles.face}>
                   <Avatar name={h.title} kind={h.kind === "person" ? "person" : "agent"} size={28} />
@@ -66,9 +69,10 @@ export function NewTabPage({ data, platform = "mac" }: { data: NewTabData; platf
               ))}
             </View>
             {data.recent().length ? <Heading>Recent</Heading> : null}
-            {data.recent().map((h) => <HitRow key={`r-${h.kind}:${h.id}`} hit={h} data={data} />)}
+            {data.recent().map((h) => <Row key={`r-${h.kind}:${h.id}`} {...hitRow(h, data)} />)}
             {data.recordTypes().length ? <Heading>Record types</Heading> : null}
             <View style={styles.wrap}>
+              {/* ui-rows-lint: not a list (record type chips in a wrapping row) */}
               {data.recordTypes().map((t) => (
                 <Tap key={t} label={`Open ${t}`} onPress={() => data.openType(t)} style={styles.type}>
                   <MenuIcon icon={TYPE_ICON} color="var(--ink-3)" size={15} />
@@ -77,7 +81,7 @@ export function NewTabPage({ data, platform = "mac" }: { data: NewTabData; platf
               ))}
             </View>
             {data.folders().length ? <Heading>Folders</Heading> : null}
-            {data.folders().map((h) => <HitRow key={`f-${h.id}`} hit={h} data={data} />)}
+            {data.folders().map((h) => <Row key={`f-${h.id}`} {...hitRow(h, data)} />)}
           </View>
         )}
       </View>
@@ -85,9 +89,10 @@ export function NewTabPage({ data, platform = "mac" }: { data: NewTabData; platf
   );
 }
 
-function HitRow({ hit, data }: { hit: Hit; data: NewTabData }): ReactElement {
+/** The shared Row's props for one hit: the title, the grey meta after it, the kind at the right. */
+function hitRow(hit: Hit, data: NewTabData): RowProps {
   const meta = hit.snippet ?? hit.path;
-  return <Row id={`nt-${hit.kind}-${hit.id}`} title={hit.title} {...(meta ? { titleSuffix: meta } : {})} leading={<Tile hit={hit} />} trailing={<Text style={styles.kind}>{KIND_LABEL.get(hit.kind) ?? ""}</Text>} onPress={() => data.open(hit, { newTab: false })} />;
+  return { id: `nt-${hit.kind}-${hit.id}`, title: hit.title, ...(meta ? { titleSuffix: meta } : {}), leading: <Tile hit={hit} />, trailing: <Text style={styles.kind}>{KIND_LABEL.get(hit.kind) ?? ""}</Text>, onPress: () => data.open(hit, { newTab: false }) };
 }
 
 const styles = StyleSheet.create({
