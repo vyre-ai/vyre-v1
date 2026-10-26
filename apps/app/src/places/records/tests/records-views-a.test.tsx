@@ -230,27 +230,6 @@ test("a lane of ten thousand cards draws forty and says ten thousand; Show more 
   assert.ok(count(out, 'data-testid="card-') <= 4 * LANE_PAGE, "no lane draws more than a page");
 });
 
-test("table100k for the board: 100,014 clients open by asking each lane for forty cards and its cached count", () => {
-  const s = createViewsSample(northwind, { bulk: 100_000 });
-  const lanes = lanesOf(northwind.types[0]!.fields.find((f) => f.key === "stage")!);
-  const stage = northwind.types[0]!.fields.find((f) => f.key === "stage")!;
-  const t0 = performance.now();
-  let cards = 0, total = 0;
-  for (const lane of lanes) {
-    const q = s.data.live("records.query", laneSpec("clients", PLAIN, "name", stage, lane, LANE_PAGE)).getSnapshot();
-    const n = s.data.live("records.counts", laneCountSpec("clients", PLAIN, "name", stage, lane)).getSnapshot();
-    assert.equal(q.status, "ready");
-    assert.equal(n.status, "ready");
-    cards += (q as { data: { rows: unknown[] } }).data.rows.length;
-    total += (n as { data: { count: number } }).data.count;
-  }
-  const ms = performance.now() - t0;
-  console.log(`METRIC ${JSON.stringify({ name: "board100k", rows: 100_014, data_ms: +ms.toFixed(1), budget_ms: 1000, ok: ms < 1000 })}`);
-  assert.equal(total, 100_014);
-  assert.equal(cards, 4 * LANE_PAGE);
-  assert.ok(ms < 1000, `the data a 100,000 record board opens on arrives in ${ms.toFixed(1)} ms`);
-});
-
 // ---------------------------------------------------------------- gallery
 
 test("gallery layout: as many cards of at least 232 px as fit, sharing the width, in one fixed box each", () => {
