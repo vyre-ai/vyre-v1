@@ -69,6 +69,8 @@ export default defineManifest({
     write('governance.tombstones.reapply', 'System: replay every tombstone after a restore, before the Space opens for traffic; `tombstones` are the ones the Space held before the restore, which the restored database does not have', {
       ...V, in: { tombstones: t.opt(t.arr(t.obj({ id: t.str(), kind: t.str(), subjectType: t.str(), subjectId: t.str(), at: t.ts(), by: t.str(), findingId: t.opt(t.str()) }))) },
       out: { count: t.int({ minimum: 0 }) }, emits: ['tombstones.reapplied'], audit: 'always',
+      // never holds (the condition is never true): the replay is the host's own, and the erase it repeats was approved when it was made. The act is declared so that the deletes it makes inherit it as settled.
+      gate: { act: 'delete', when: 'actor.kind != actor.kind' },
     }),
 
     read('governance.jobs_health', 'Health probe: retention jobs ran on schedule', { ...V, in: {}, out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int({ minimum: 0 })) } }),
