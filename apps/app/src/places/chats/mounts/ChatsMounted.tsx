@@ -5,7 +5,7 @@
 // and `call`), never from sample data. A link from another place arrives as `hash` and becomes the first thing shown.
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -20,9 +20,7 @@ import { Conversation, ConversationLoading } from "../conversation/Conversation.
 import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { NeedsYou } from "../needsyou/NeedsYou.tsx";
 import { AGENT_PANE_W, AgentPane } from "../AgentPane.tsx";
-import { Icon } from "../rightpane/parts.tsx";
-import { Tool } from "../sidebar/parts.tsx";
-import { ChatsSidebar } from "../sidebar/ChatsSidebar.tsx";
+import { ChatsSidebarSlot } from "../sidebar/ChatsSidebar.tsx";
 import { TerminalList } from "../terminal/TerminalList.tsx";
 import { TerminalRules } from "../terminal/TerminalRules.tsx";
 import { TerminalTab } from "../terminal/TerminalTab.tsx";
@@ -44,7 +42,7 @@ type RecordingOut = CapMap["computers.recording.get"]["out"];
 export const SIDEBAR_W = 264;
 export const PANE_W = 340;
 export const TERMINAL_W = 480;
-/** Under this width the sidebar is a screen of its own and every page fills the window. */
+/** Under this width the agent's pane and the terminal fill the window (the sidebar is the shell's slot, which has its own phone view). */
 export const WIDE = 640;
 const LINE_MS = 4000;
 /** The terminal glyph of the tab (the same drawing ui/Terminal uses). */
@@ -65,7 +63,6 @@ export interface ChatsMountedProps {
 export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedProps): ReactElement {
   const [shown, setShown] = useState<Shown>(() => initial ?? (hash === "" ? START : fromHash(hash)));
   const [line, setLine] = useState<string | null>(null);
-  const [sideHidden, setSideHidden] = useState(false);
   const [counter] = useState<CaptureCounter>(createCapture);
 
   const live = useSyncExternalStore(rt.principals.subscribe, rt.principals.getSnapshot, rt.principals.getSnapshot);
@@ -84,11 +81,9 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const route = shown.route;
   const width = useWindowDimensions().width;
   const narrow = width > 0 && width < WIDE;
-  // On a phone the list is the screen until something is opened; an open page has a way back to it.
-  const listOnly = narrow && route.view === "chat" && route.threadId === null;
 
-  /* ---------- the sidebar ---------- */
-  const side = useMemo(() => wireSidebar(rt, go, () => setSideHidden((v) => !v)), [rt, go]);
+  /* ---------- the sidebar: registered in the shell's shared place sidebar slot (collapse, search and the phone list are the slot's) ---------- */
+  const side = useMemo(() => wireSidebar(rt, go), [rt, go]);
 
   /* ---------- the open chat ---------- */
   const recent = useLive<RecentOut>(rt.screens, "chats.sidebar", "recent", { filter: "all" });
@@ -145,20 +140,12 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
     right = <View style={st.pane}><AgentPane data={paneCtx} open onToggle={go.togglePane} {...(window ? { window } : {})} /></View>;
   }
 
-  const showMain = !listOnly && !(narrow && right !== null);
+  const showMain = !(narrow && right !== null);
   return (
     <View testID="chats-place" style={st.row}>
-      {sideHidden && !narrow ? (
-        <View testID="sidebar-collapsed" style={st.collapsed}><Tool icon="panel" label="Show the sidebar" onPress={() => setSideHidden(false)} testID="sidebar-show" /></View>
-      ) : null}
-      {(!narrow || listOnly) && !(sideHidden && !narrow) ? <View style={narrow ? st.sideFull : st.side}><ChatsSidebar data={side} {...(window ? { window } : {})} /></View> : null}
+      <ChatsSidebarSlot data={side} {...(window ? { window } : {})} />
       {showMain ? (
         <View testID="chats-main" style={st.main}>
-          {narrow ? (
-            <Pressable accessibilityRole="button" accessibilityLabel="Back to the list" testID="chats-back" onPress={() => go.chat("")} style={({ hovered }: { hovered?: boolean }) => [st.back, hovered === true && st.backOver]}>
-              <Icon name="back" size={14} color="var(--ink-2)" /><Text style={st.backText}>Chats</Text>
-            </Pressable>
-          ) : null}
           <View style={st.fill}>{main}</View>
         </View>
       ) : null}
@@ -236,15 +223,9 @@ function RecordingLayer({ rt, go, nameOf, list, counter, recordingId }: {
 
 const st = StyleSheet.create({
   row: { flex: 1, flexDirection: "row", minHeight: 0, backgroundColor: "var(--win)" as string },
-  side: { width: SIDEBAR_W, minHeight: 0 },
   main: { flex: 1, minWidth: 0, minHeight: 0 },
   pane: { width: AGENT_PANE_W, minHeight: 0 },
-  collapsed: { width: 40, paddingTop: 10, alignItems: "center", borderRightWidth: 1, borderRightColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
-  sideFull: { flex: 1, minHeight: 0 },
   fill: { flex: 1, minHeight: 0 },
-  back: { height: 36, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
-  backOver: { backgroundColor: "var(--hover)" as string },
-  backText: { fontSize: 13, color: "var(--ink-2)" as string },
   terminal: { width: TERMINAL_W, minHeight: 0 },
   terminalFull: { flex: 1, minWidth: 0, minHeight: 0 },
   toast: { position: "absolute", left: 16, bottom: 16, maxWidth: 420, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)" as string },
