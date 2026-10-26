@@ -6,7 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as v from "../handlers/index.ts";
 import * as g from "../handlers/g20.ts";
-import { exportPull } from "../handlers/use.ts";
+import { exportEnv, exportPull } from "../handlers/use.ts";
 import { AGENT, MAYA, ROB, SECRET, contractErrors, harness, refusedWith } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -322,4 +322,20 @@ test("export_mine refuses anyone but the person, a locked key, a Space limit and
   assert.equal(await refusedWith(g.exportMine(h3.ctx, { expiresIn: "1d" })), "validation.precondition_failed", "the Space policy limits pull links");
   assert.equal(out(await g.exportMine(h3.ctx, { expiresIn: "1h" })).exportId !== undefined, true);
   assert.ok(!h3.everything().includes(SECRET));
+});
+
+test("the Space policy caps every export link: export_env obeys the same maximum as export_mine", async () => {
+  const h = harness();
+  const shared = await folder(h, "shared");
+  await put(h, shared, "Team", login("team", "team-secret"));
+  const policy = (max: string) => g.policySet(h.ctx, { policy: { exportRoles: ["owner"], pullExpiryMax: max, blockRestrictedExport: true, revealNeedsReason: false } });
+  assert.equal(await refusedWith(exportEnv(h.ctx, { folderId: shared, expiresIn: "7d" })), "validation.precondition_failed", "no policy: the default maximum is 1 day");
+  await policy("7d");
+  assert.equal(out(await exportEnv(h.ctx, { folderId: shared, expiresIn: "7d" })).expiresAt, h.ctx.now() + 7 * DAY, "the policy raises the cap, the old settings key does not decide");
+  await policy("1d");
+  assert.equal(await refusedWith(exportEnv(h.ctx, { folderId: shared, expiresIn: "7d" })), "validation.precondition_failed", "policy max 1 day refuses a 7 day link");
+  assert.equal(out(await exportEnv(h.ctx, { folderId: shared, expiresIn: "1d" })).expiresAt, h.ctx.now() + DAY);
+  await policy("1h");
+  assert.equal(await refusedWith(exportEnv(h.ctx, { folderId: shared, expiresIn: "1d" })), "validation.precondition_failed");
+  assert.equal(out(await exportEnv(h.ctx, { folderId: shared, expiresIn: "1h" })).expiresAt, h.ctx.now() + 3_600_000);
 });
