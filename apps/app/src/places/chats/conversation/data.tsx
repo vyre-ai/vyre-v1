@@ -15,8 +15,10 @@ export interface ConversationNav {
   openThread(threadId: string): void;
   /** Shows or hides the pane on the right (Computer, Threads, Files, Memory, Routines). */
   togglePane(): void;
-  /** A card's file, record or diff opens beside the chat. */
+  /** A card's file, record or diff opens beside the chat. A "computer" card or the Computer chip passes the agent's id. */
   openBeside(kind: string, id: string): void;
+  /** The channel menu's "Connect an outside agent": the sheet for this channel (P-L9b_23). Left out where the shell has no such sheet. */
+  openConnectOutsideAgent?(channelId: string): void;
 }
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
@@ -44,6 +46,8 @@ export interface ConversationData {
   copy(text: string): void;
   /** A line the app shows for a moment ("Copied"). */
   toast(text: string): void;
+  /** A line above the composer for work that waits in the background ("Waiting on: build 42"); the shell draws it from the thread's runs (P-L9b_23). */
+  waitingLine?: ReactElement;
 }
 
 const Ctx = createContext<ConversationData | null>(null);
