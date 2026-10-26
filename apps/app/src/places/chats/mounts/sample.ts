@@ -20,9 +20,9 @@ export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const at = (h: number, m: number, s = 0): number => Date.UTC(2025, 9, 24, h, m, s);
 
 export const COMPUTER = "cmp_intake";
-export const TERMINAL = "ter_rivera";
-export const SERVER_TERMINAL = "ter_server";
-export const CHANNEL = "ch_rivera";
+export const TERMINAL = "trm_rivera";
+export const SERVER_TERMINAL = "trm_server";
+export const CHANNEL = "chn_rivera";
 export const RECORDING = "rec_1";
 export const HELPER = "h1";
 
@@ -87,10 +87,10 @@ export function createMountSample(o: { conversation?: ConversationVariant; who?:
   replica.put("terminals", [
     { id: TERMINAL, ...term(TERMINAL, "Rivera dev server", "agent_computer", "Intake's computer") },
     { id: SERVER_TERMINAL, ...term(SERVER_TERMINAL, "Space server", "space_server", "Space server", { cwd: "/srv/vyre", createdAt: at(8, 30), lastActiveAt: at(9, 20), state: "idle" }) },
-    { id: "ter_old", ...term("ter_old", "Invoice export", "device", "irfad-macbook", { state: "exited", exitCode: 0, lastActiveAt: at(7, 45), createdAt: at(7, 40) }) },
+    { id: "trm_old", ...term("trm_old", "Invoice export", "device", "irfad-macbook", { state: "exited", exitCode: 0, lastActiveAt: at(7, 45), createdAt: at(7, 40) }) },
   ]);
   replica.put("stars", [{ id: TERMINAL, resource: { type: "terminal", id: TERMINAL }, title: "Rivera dev server", at: at(9, 15) }]);
-  replica.put("rules", [{ id: "mine", allow: ["git status", "git diff", "ls"], ask: ["git push", "npm install"], deny: ["rm -rf", "sudo"], folders: ["~/rivera", "~/Work"] }]);
+  replica.put("rules", [{ id: "mine", allow: ["git status", "git diff", "ls"], ask: ["git push", "npm install"], deny: ["rm -rf", "sudo"], folders: ["fld_rivera", "fld_work"] }]);
   replica.put("computers", [{ id: COMPUTER, computerId: COMPUTER, agentId: "agt_intake", state: "working", caption: "Looking up Elena Rivera", tabs: 2, tabLimit: 10, host: "server", recording: false, lastActiveAt: at(9, 59) }]);
   replica.put("channels", [{
     id: CHANNEL, channelId: CHANNEL, mainThreadId: "t_rivera", name: "rivera-matter", topic: "Everything for the Rivera matter", visibility: "invite", archived: false,
@@ -131,7 +131,7 @@ export function createMountSample(o: { conversation?: ConversationVariant; who?:
   });
   const bufferOf = (id: string): string => buffers.get(id) ?? "";
   const mk = (host: Terminal["host"], input: { agentId?: string; computerId?: string; name?: string }): { terminal: Terminal } => {
-    const id = `ter_new${++seq}`;
+    const id = `trm_new${++seq}`;
     const t = term(id, input.name ?? (host === "space_server" ? "Space server" : host === "device" ? "This computer" : "Intake's computer"), host, host === "space_server" ? "Space server" : host === "device" ? "irfad-macbook" : "Intake's computer", {
       ...(host === "agent_computer" ? { agentId: input.agentId ?? "agt_intake", computerId: input.computerId ?? COMPUTER } : {}), createdAt: SAMPLE_NOW, lastActiveAt: SAMPLE_NOW, named: false,
     });

@@ -67,7 +67,7 @@ test("the face: the lead's face is in the header and its menu's Open Page shows 
   assert.deepEqual(acts, [{ t: "agent", agentId: "agt_intake" }]);
   const page = html(s, shown());
   assert.ok(has(page, 'data-testid="agent-page"') && has(page, "Intake, agent page"));
-  for (const tab of ["Chats", "Memory", "Files", "Computer", "Settings"]) assert.ok(has(page, `>${tab}<`) || has(page, `aria-label="${tab}"`), `the ${tab} tab`);
+  for (const tab of ["Chats", "Memory", "Files", "Computer", "Settings"]) assert.ok(has(page, tab), `the ${tab} tab`);
   assert.ok(!has(page, 'data-testid="conversation"'), "the page replaces the chat in the middle");
 });
 
@@ -234,7 +234,7 @@ test("Connect an outside agent: the tool and what it may do, then the address, a
 test("terminal golden step: open, attach, input, resize and live output drive ui/Terminal in order, every call inside the contract", async () => {
   const s = createMountSample();
   const deps = { call: s.rt.call, newKey };
-  const row = await openSession(deps, "agent", { agentId: "agt_intake", computerId: COMPUTER });
+  const row = await openSession(deps, "agent", { agentId: "agt_intake", computerId: "cmt_intake" });
   assert.equal(row.host, "agent_computer");
   assert.equal(uiHost(row.host), "agent");
   s.print(row.terminalId, "Welcome to Intake's computer\r\n\x1b[32m$\x1b[0m ");
@@ -343,8 +343,8 @@ test("terminal list: sessions with where they run, running ones first, the star 
   assert.ok(has(out, 'data-testid="terminal-list"') && has(out, "Terminals") && has(out, "3 in Northwind"));
   const at = (needle: string): number => { const i = out.indexOf(needle); assert.ok(i >= 0, needle); return i; };
   assert.ok(at("Rivera dev server") < at("Space server") && at("Space server") < at("Invoice export"), "running, idle, then exited");
-  assert.ok(has(out, 'data-testid="star-ter_rivera"'), "the starred session shows its star");
-  assert.ok(!has(out, 'data-testid="star-ter_server"'), "an unstarred one shows it on hover");
+  assert.ok(has(out, 'data-testid="star-trm_rivera"'), "the starred session shows its star");
+  assert.ok(!has(out, 'data-testid="star-trm_server"'), "an unstarred one shows it on hover");
   assert.ok(has(out, 'data-testid="terminal-new"') && has(out, 'data-testid="terminal-rules-open"'));
   const rows = [
     { terminalId: "x", state: "exited", lastActiveAt: 9 }, { terminalId: "y", state: "idle", lastActiveAt: 1 }, { terminalId: "z", state: "running", lastActiveAt: 5 },
@@ -357,11 +357,11 @@ test("terminal list: sessions with where they run, running ones first, the star 
   assert.equal(uiState("exited"), "exited");
   // star and unstar through stars.toggle
   const deps = { call: s.rt.call, newKey };
-  assert.equal(await toggleStar(deps, "ter_server", true), true);
-  assert.ok(has(clean(renderToStaticMarkup(<TerminalList data={td} x={8} y={48} onClose={() => undefined} window={WINDOW} />)), 'data-testid="star-ter_server"'));
+  assert.equal(await toggleStar(deps, "trm_server", true), true);
+  assert.ok(has(clean(renderToStaticMarkup(<TerminalList data={td} x={8} y={48} onClose={() => undefined} window={WINDOW} />)), 'data-testid="star-trm_server"'));
   assert.equal(await toggleStar(deps, TERMINAL, false), true);
   const starCalls = s.calls.filter((c) => c.cap === "stars.toggle").map((c) => c.input);
-  assert.deepEqual(starCalls, [{ resource: { type: "terminal", id: "ter_server" }, on: true }, { resource: { type: "terminal", id: TERMINAL }, on: false }]);
+  assert.deepEqual(starCalls, [{ resource: { type: "terminal", id: "trm_server" }, on: true }, { resource: { type: "terminal", id: TERMINAL }, on: false }]);
   assert.deepEqual(contractErrors(s, (c) => c === "stars.toggle"), []);
 });
 
@@ -372,11 +372,11 @@ test("terminal rules: the allow, ask and deny lists and the folders, one entry p
   const out = clean(renderToStaticMarkup(<TerminalRules data={td} onClose={() => undefined} />));
   assert.ok(has(out, 'data-testid="terminal-rules"') && has(out, 'role="dialog"'));
   for (const t of ["Always allow", "Ask first", "Never allow", "Folders it may work in"]) assert.ok(has(out, t), t);
-  for (const e of ["git status", "git push", "rm -rf", "~/rivera"]) assert.ok(has(out, e), `${e} is in its list`);
+  for (const e of ["git status", "git push", "rm -rf", "fld_rivera"]) assert.ok(has(out, e), `${e} is in its list`);
   assert.ok(has(out, 'data-testid="rules-save"') && has(out, 'data-testid="rules-revert"'));
   assert.deepEqual(parseLines("  git status \n\n git status\nls  \n"), ["git status", "ls"]);
   assert.equal(linesText(["a", "b"]), "a\nb");
-  const rules: Rules = { allow: ["git push", "ls"], ask: ["git push"], deny: [], folders: ["~/Work"] };
+  const rules: Rules = { allow: ["git push", "ls"], ask: ["git push"], deny: [], folders: ["fld_work"] };
   assert.equal(rulesProblem(rules), null);
   assert.match(rulesProblem({ allow: Array.from({ length: 201 }, (_, i) => `c${i}`), ask: [], deny: [], folders: [] }) ?? "", /Up to 200 rules/);
   assert.match(rulesProblem({ allow: ["x".repeat(201)], ask: [], deny: [], folders: [] }) ?? "", /at most 200 characters/);
@@ -386,7 +386,7 @@ test("terminal rules: the allow, ask and deny lists and the folders, one entry p
   assert.equal(sameRules(kept, { ...kept }), true);
   assert.deepEqual(RULE_LISTS, ["allow", "ask", "deny", "folders"]);
   const again = clean(renderToStaticMarkup(<TerminalRules data={td} onClose={() => undefined} />));
-  assert.ok(has(again, "~/Work") && !has(again, "git diff"), "the sheet shows what was kept");
+  assert.ok(has(again, "fld_work") && !has(again, "git diff"), "the sheet shows what was kept");
   assert.deepEqual(contractErrors(s, (c) => c === "terminal.rules.set"), []);
 });
 

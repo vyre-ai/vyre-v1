@@ -110,7 +110,7 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const helperId = route.view === "helper" ? route.threadId : "";
   const helper = useMemo(() => helperData(rt, go, helperId, nameOf), [rt, go, helperId, nameOf]);
   const agentId = route.view === "agent" ? route.agentId : "";
-  const agentQ = useLive<AgentOut>(rt.screens, "chats.agent-page", "agent", { agentId });
+  const agentQ = useLive<AgentOut>(rt.screens, "chats.agent-page", "agent", { agentId: agentId !== "" ? agentId : leadId });
   const agentRow = agentQ.status === "ready" && agentId !== "" ? agentQ.data.agent : null;
   const agentComputer = computerOf(agentId);
   const agentPage = useMemo(

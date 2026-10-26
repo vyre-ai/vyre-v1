@@ -78,9 +78,9 @@ export const RULE_NOTE: Readonly<Record<RuleList, string>> = {
   allow: "Commands that start with one of these run without asking.",
   ask: "These wait for your yes before they run.",
   deny: "These never run, whatever asks. A rule here wins over the others.",
-  folders: "A command only runs inside one of these.",
+  folders: "A command only runs inside one of these. One folder id from Files per line.",
 };
-export const RULE_EXAMPLE: Readonly<Record<RuleList, string>> = { allow: "git status", ask: "git push", deny: "rm -rf", folders: "~/Work" };
+export const RULE_EXAMPLE: Readonly<Record<RuleList, string>> = { allow: "git status", ask: "git push", deny: "rm -rf", folders: "fld_a1b2c3" };
 
 export const MAX_RULES = 200;
 export const MAX_RULE_CHARS = 200;
@@ -106,6 +106,8 @@ export function rulesProblem(r: Rules): string | null {
   const total = RULE_LISTS.reduce((n, k) => n + r[k].length, 0);
   if (total > MAX_RULES) return `Up to ${MAX_RULES} rules in all. You have ${total}.`;
   for (const k of RULE_LISTS) for (const e of r[k]) if (e.length > MAX_RULE_CHARS) return `A rule is at most ${MAX_RULE_CHARS} characters.`;
+  const bad = r.folders.find((f) => !/^fld_[a-z0-9]+$/.test(f));
+  if (bad !== undefined) return `"${bad}" is not a folder id. Folder ids look like fld_a1b2c3.`;
   return null;
 }
 
