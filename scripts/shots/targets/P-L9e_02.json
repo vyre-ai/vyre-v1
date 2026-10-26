@@ -1,0 +1,7 @@
+{
+  "targets": [
+    { "id": "P-L9e_02-image", "route": "/m/P-L9e_02?file=image", "proto": "files,viewer-img,{skin}", "waitFor": "[data-testid='vw-image']", "note": "Offer.png opened from Files through the real capabilities: its saved pin from files.comments.list, its stroke from files.markup.get, Draw and Comment in the bar. The prototype side is its image viewer." },
+    { "id": "P-L9e_02-md", "route": "/m/P-L9e_02?file=md", "proto": "files,viewer-md,{skin}", "waitFor": "[data-testid='vw-doc']", "note": "A markdown note read from files.viewer_data with its comment on a passage. The prototype side is its note viewer." },
+    { "id": "P-L9e_02-csv", "route": "/m/P-L9e_02?file=csv", "proto": "files,viewer-csv,{skin}", "waitFor": "[data-testid='vw-sheet']", "note": "A CSV as a sheet. The prototype side is its CSV viewer." }
+  ]
+}
