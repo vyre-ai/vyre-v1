@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ensureChromium } from "./ensure-deps.mjs";
 import { parseArgs, SKINS, SIZES } from "./lib.mjs";
-import { bootSpace, edge, liveModules, ownerSession, todoFor } from "../../apps/app/tests/real-app-harness.test.ts";
+import { bootFreshSpace, claimOnEdge, edge, liveModules, ownerSession, todoFor } from "../../apps/app/tests/real-app-harness.test.ts";
 
 export const PLACES = [
   { id: "home", rail: "rail-home", drew: "[data-testid='s-needs'], [data-testid='home-place']", needs: ["sign in", "home"] },
@@ -48,19 +48,64 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   fs.rmSync(out, { recursive: true, force: true });
   fs.mkdirSync(out, { recursive: true });
   const live = liveModules();
-  const space = await bootSpace();
+  const space = await bootFreshSpace();
   const web = await edge(dist, space.url);
   const { chromium } = await import("playwright-core");
   const browser = await chromium.launch({ args: ["--no-sandbox"] });
   const rows = [];
+  let session = null;
   try {
+    // The owner claim screens (ruling 71) before anything is signed in: the details and the recovery code, per skin and size. Reaching them does not spend the link.
+    if (space.claim) {
+      for (const skin of skins) for (const [sizeName, vp] of sizes) {
+        const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
+        const page = await ctx.newPage();
+        const link = claimOnEdge(space.claim, web.origin);
+        await page.goto(`${link.replace("#", `?skin=${skin}#`)}`, { waitUntil: "load", timeout: 60000 });
+        const dir = path.join(out, "P-APP_03-real-claim");
+        fs.mkdirSync(dir, { recursive: true });
+        const details = await page.getByTestId("claim-name").waitFor({ timeout: 15000 }).then(() => true, () => false);
+        await page.waitForTimeout(500);
+        await page.screenshot({ path: path.join(dir, `${skin}-${sizeName}-details.png`) });
+        rows.push(rowFor({ place: "claim details", skin, sizeName, vp, file: `${skin}-${sizeName}-details.png`, drew: details, gaps: [] }).replace("P-APP_03-real-claim details", "P-APP_03-real-claim"));
+        if (details) {
+          await page.getByTestId("claim-name").fill("Olivia Owner");
+          await page.getByTestId("claim-username").fill("olivia");
+          await page.getByTestId("claim-password").fill("correct horse battery 9");
+          await page.getByTestId("claim-confirm").fill("correct horse battery 9");
+          await page.getByTestId("claim-next").click();
+          const rec = await page.getByTestId("claim-code").waitFor({ timeout: 15000 }).then(() => true, () => false);
+          await page.waitForTimeout(500);
+          await page.screenshot({ path: path.join(dir, `${skin}-${sizeName}-recovery.png`) });
+          rows.push(rowFor({ place: "claim recovery", skin, sizeName, vp, file: `${skin}-${sizeName}-recovery.png`, drew: rec, gaps: [] }).replace("P-APP_03-real-claim recovery", "P-APP_03-real-claim"));
+        }
+        await ctx.close();
+      }
+      // Claim for real once, as the owner would, to get the signed-in session the place shots use.
+      const ctx = await browser.newContext({ viewport: SIZES.desktop, deviceScaleFactor: 1 });
+      const page = await ctx.newPage();
+      await page.goto(claimOnEdge(space.claim, web.origin), { waitUntil: "load", timeout: 60000 });
+      try {
+        await page.getByTestId("claim-name").fill("Olivia Owner");
+        await page.getByTestId("claim-username").fill("olivia");
+        await page.getByTestId("claim-password").fill("correct horse battery 9");
+        await page.getByTestId("claim-confirm").fill("correct horse battery 9");
+        await page.getByTestId("claim-next").click();
+        await page.getByTestId("claim-saved").click();
+        await page.getByTestId("claim-create").click();
+        await page.getByTestId("shell").waitFor({ timeout: 30000 });
+        session = await page.evaluate(() => localStorage.getItem("vyre.session.v1"));
+      } catch (e) { console.log(`claim for the place shots failed: ${e instanceof Error ? e.message : String(e)}`); }
+      await ctx.close();
+    }
+    if (!session) console.log("no claimed session: the place shots use the owner bootstrap session, which the Space does not know as a person");
     for (const skin of skins) for (const [sizeName, vp] of sizes) {
       const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
       const page = await ctx.newPage();
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
       await page.goto(`${web.origin}/home?skin=${skin}`, { waitUntil: "load", timeout: 60000 });
-      await page.evaluate((v) => localStorage.setItem("vyre.session.v1", JSON.stringify(v)), ownerSession(space, web.origin));
+      await page.evaluate((v) => localStorage.setItem("vyre.session.v1", v), session ?? JSON.stringify(ownerSession(space, web.origin)));
       await page.goto(`${web.origin}/home?skin=${skin}`, { waitUntil: "load", timeout: 60000 });
       await page.getByTestId("shell").or(page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30000 }).catch(() => {});
       for (const p of PLACES) {
