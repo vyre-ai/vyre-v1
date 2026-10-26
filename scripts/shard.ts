@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { SlowEntry } from "./slow-check.ts";
+import { withPatternSlow } from "./lib/slow-list.mjs";
 
 export const MAX_SHARDS = 24;
 export const TARGET_SEC = 25;
@@ -43,9 +44,9 @@ function medianSec(files: string[], timings: Timings): number {
 }
 
 /** Greedy longest-first placement of the fast files into ceil(files/40) shards (max 24); the slow files are listed here and grouped into jobs by toMatrix. */
-export function shardFiles(files: string[], timings: Timings, slow: SlowEntry[], opts: { max?: number; target?: number } = {}): Shards {
-  const slowBy = new Map(slow.map((s) => [s.file, s]));
+export function shardFiles(files: string[], timings: Timings, slow: SlowEntry[], opts: { max?: number; target?: number; read?: (file: string) => string } = {}): Shards {
   const uniq = [...new Set(files)].sort();
+  const slowBy = new Map((withPatternSlow(uniq, slow, opts.read) as SlowEntry[]).map((s) => [s.file, s]));
   const slowJobs = uniq.filter((f) => slowBy.has(f)).map((file) => ({ file, capSec: slowBy.get(file)!.capSec, perf: slowBy.get(file)!.perf === true, heavy: slowBy.get(file)!.heavy === true }));
   const fastFiles = uniq.filter((f) => !slowBy.has(f));
   const median = medianSec(fastFiles, timings);
@@ -63,7 +64,7 @@ export function shardFiles(files: string[], timings: Timings, slow: SlowEntry[],
 }
 
 /** The select job's output: plain jobs, not matrix-expanded workflows. */
-export function toMatrix(s: Shards): { include: { name: string; files: string; slow: boolean; runner: "hosted" | "v1" | "v1-perf" }[] } {
+export function toMatrix(s: Shards): { include: { name: string; files: string; slow: boolean; runner: "v1" | "v1-perf" }[] } {
   const perf = s.slow.filter((j) => j.perf);
   // A *.heavy.test file (it boots Docker containers or a daemon with its own wait of seconds) gets a job to itself: next to seven other files running in parallel it starved and failed its
   // "did not start in 12 s" wait (images/vyred/smoke.heavy.test.ts on slow-1, #661). It stays on the v1 runners.
@@ -78,7 +79,7 @@ export function toMatrix(s: Shards): { include: { name: string; files: string; s
   }
   return {
     include: [
-      ...s.fast.map((b, i) => ({ name: `fast-${i + 1}`, files: b.files.join(" "), slow: false, runner: "hosted" as const })),
+      ...s.fast.map((b, i) => ({ name: `fast-${i + 1}`, files: b.files.join(" "), slow: false, runner: "v1" as const })),
       ...groups.map((g, i) => ({ name: `slow-${i + 1}`, files: g.files.sort().join(" "), slow: true, runner: "v1" as const })),
       ...heavy.map((j, i) => ({ name: `heavy-${i + 1}`, files: j.file, slow: true, runner: "v1" as const })),
       ...perf.map((j, i) => ({ name: `perf-${i + 1}`, files: j.file, slow: true, runner: "v1-perf" as const })),

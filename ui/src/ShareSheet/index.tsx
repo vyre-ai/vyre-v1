@@ -159,9 +159,9 @@ const webProps = (props: Record<string, unknown>): Record<string, unknown> => (P
 const CARD_SHADOW = { boxShadow: "var(--sh-pop)" } as unknown as ViewStyle;
 const CHEVRON = '<svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>';
 
-function Tile({ name, kind, size = 22 }: { name: string; kind: ShareSubjectKind; size?: number }): ReactElement {
+function Tile({ name, kind, size = 22, seedId }: { name: string; kind: ShareSubjectKind; size?: number; seedId?: string | undefined }): ReactElement {
   if (kind === "link") return <LinkTile size={size} />;
-  return <Avatar name={name} kind={kind === "group" || kind === "role" ? "group" : kind === "agent" ? "agent" : "person"} size={size} />;
+  return <Avatar name={name} {...(seedId !== undefined ? { seedId } : {})} kind={kind === "group" || kind === "role" ? "group" : kind === "agent" ? "agent" : "person"} size={size} />;
 }
 
 /** The link row's tile: an arrow on the neutral tile. */
@@ -242,7 +242,7 @@ export function ShareSheet(props: ShareSheetViewProps): ReactElement {
         title={row.name}
         note={rowSub(row, props.folderName)}
         leadWidth={32}
-        lead={<Tile name={row.name} kind={row.subjectKind} />}
+        lead={<Tile name={row.name} seedId={row.subjectId} kind={row.subjectKind} />}
         trail={trail}
         onMenu={(x, y) => rowMenu(row, x, y)}
       />
@@ -296,7 +296,7 @@ export function ShareSheet(props: ShareSheetViewProps): ReactElement {
           title={props.ownerName}
           note="Person"
           leadWidth={32}
-          lead={<Tile name={props.ownerName} kind="person" />}
+          lead={<Tile name={props.ownerName} seedId={props.ownerId} kind="person" />}
           trail={<Text style={styles.owner}>Owner</Text>}
         />
         {directNodes}
