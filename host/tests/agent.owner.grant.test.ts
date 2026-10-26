@@ -82,15 +82,20 @@ test("the owner of a new agent reaches its folder from the start; after a reassi
     assert.equal(mine.status, 200, JSON.stringify(mine.body));
     assert.ok((await sharesOf("agent", mine.body.data.agent.agentId)).includes(`owner:${member.id}`), "and a member's own agent is theirs");
 
-    // a plain member's Space-wide Edit does not reach the agent's memory (ruling 88): their promotion waits, and the agent's owner (a Guest with no Space grant, only the folder's Manage) approves it
-    const fact = await post(member.token, "/v1/memory/propose_fact", { idempotencyKey: "gf10-fact", layer: "person", agentId: agent.id, text: "Scout Two answers in plain language.", sourceKind: "manual", sourceRef: "gf10" });
+    // a plain member's Space-wide Edit does not reach an agent's memory (ruling 88): their promotion waits and the agent's owner approves it. That owner is a Member (the memory
+    // capabilities need Space-level Edit to be called at all); what makes the folder editable for them is owning the agent, not the Space grant.
+    const owner2 = await joinAs("secondowner", "rol_member");
+    const made2 = await post(owner, "/v1/agents/create", { name: "Scout Three", ownerId: owner2.id, idempotencyKey: "gf10-agent-2" });
+    assert.equal(made2.status, 200, JSON.stringify(made2.body));
+    const agent2 = made2.body.data.agent.agentId as string;
+    const fact = await post(member.token, "/v1/memory/propose_fact", { idempotencyKey: "gf10-fact", layer: "person", agentId: agent2, text: "Scout Three answers in plain language.", sourceKind: "manual", sourceRef: "gf10" });
     assert.equal(fact.status, 200, JSON.stringify(fact.body));
     if (!fact.body.data.merged) assert.equal((await post(member.token, "/v1/memory/fact/accept", { factId: fact.body.data.fact.factId })).status, 200);
-    const promoted = await post(member.token, "/v1/memory/promote", { idempotencyKey: "gf10-promote", factId: fact.body.data.fact.factId, toLayer: "agent", agentId: agent.id });
+    const promoted = await post(member.token, "/v1/memory/promote", { idempotencyKey: "gf10-promote", factId: fact.body.data.fact.factId, toLayer: "agent", agentId: agent2 });
     assert.equal(promoted.status, 200, JSON.stringify(promoted.body));
     assert.equal(promoted.body.data.promoted, false, "a plain member cannot edit an agent's memory");
-    const approvedBy = await post(first.token, "/v1/memory/promotion/approve", { promotionId: promoted.body.data.promotionId });
-    assert.equal(approvedBy.status, 200, `the owner approves: ${JSON.stringify(approvedBy.body)}`);
+    const approvedBy = await post(owner2.token, "/v1/memory/promotion/approve", { promotionId: promoted.body.data.promotionId });
+    assert.equal(approvedBy.status, 200, `the agent's owner approves: ${JSON.stringify(approvedBy.body)}`);
 
     // the grant is in force, not just recorded: the named owner reads and edits the agent's folder, someone else with no Space-wide grant does not
     const folderGet = (token: string) => post(token, "/v1/files/folder/get", { folderId: agent.folderId });
