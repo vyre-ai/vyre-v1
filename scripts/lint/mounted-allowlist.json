@@ -1,0 +1,7 @@
+{
+  "_comment": "Gaps accepted by scripts/lint/screens-mounted.ts while the place packets land. It only shrinks. Filled from the first report run (P-CI_70).",
+  "screens": [],
+  "probeScreens": [],
+  "openTargets": [],
+  "components": []
+}
