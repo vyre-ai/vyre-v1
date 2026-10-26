@@ -577,6 +577,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           drivers: hostDrivers, owners: loaded.seamOwners,
         });
         closers.push(() => seams?.unwire());
+        // Ruling 73: portal invitations work without Sites. The Space's default portal is the site "sit_default"; the host registers it as a resource once (the same event id after a reboot, so the log
+        // refuses the duplicate), and the portal module does not ask Sites about it.
+        if (loaded.moduleExports.has("portal")) {
+          const r = await spaceLog.appendResult({
+            id: "evt_res_sit_default", type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: "sit_default",
+            payload: { id: "sit_default", type: "site", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 },
+          });
+          if (!r.ok) throw new Error(`could not register the default portal: ${r.message}`);
+          if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
+        }
         const gaps = seams.missing;
         for (const m of gaps) sink.log({ space: spaceId, level: 30, msg: "seam.no_driver", place: "boot", attrs: { setter: m.setter, ...(m.module ? { module: m.module } : {}), reason: m.reason } });
         // health lists only what is missing: a Space with every driver set has no row, so the eight host probes stay the eight

@@ -16,18 +16,12 @@ import type { Daemon } from "../src/daemon/daemon.ts";
 
 const OWNER_TOKEN = "tok-usr_olivia";
 const TEMP_TOKEN = "tok-usr_tess";
-const SITE = "sit_main";
+const SITE = "sit_default";   // the Space's default portal (ruling 73): no Sites site, no sites.get
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 
-/** The seeded Space plus one site resource: sites is deferred, so nothing else would make the account's parent. */
 function seededDir(): string {
   const core = bootCore();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-portal-live-"));
-  const r = core.store.appendBatch([{
-    id: "evt_test_site", type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_seed", vis: "space", entity: "resource", entity_id: SITE,
-    payload: { id: SITE, type: "site", parent_id: core.space, label: 0, owner_id: "usr_olivia", holds: 0 },
-  }]);
-  assert.ok(r.every((x) => x.ok), "the site resource was added to the seed");
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
   fs.copyFileSync(core.file, path.join(dir, "events.db"));
   core.close();
@@ -36,7 +30,7 @@ function seededDir(): string {
 
 interface Sent { mailboxId: string; route: string; to: { address: string }[]; subject: string; text: string }
 
-/** Mail is live, so the service mailbox is a real one (created below through the gateway). Only mail.send and sites.get are replaced: a real send needs a DNS-verified sending domain and a provider key. */
+/** Mail is live, so the service mailbox is a real one (created below through the gateway). Only mail.send is replaced: a real send needs a DNS-verified sending domain and a provider key. */
 let lastDir = "";
 function boot(dir: string, sent: Sent[]): Promise<Daemon> {
   lastDir = dir;
@@ -53,8 +47,6 @@ function boot(dir: string, sent: Sent[]): Promise<Daemon> {
     fetch: caddyFetch,
     extra: {
       handlers: {
-        // portal.account_create checks the site with sites.get, and sites is deferred (ruling 60): until Sites is real, no portal invitation can be made on a server. The test stands in for that one call.
-        "sites.get": async () => ({ site: { id: SITE } }),
         "mail.send": async (_ctx: unknown, input: unknown) => { sent.push(input as Sent); return { messageId: "eml_1", status: "queued", suppressed: [] }; },
       },
     },

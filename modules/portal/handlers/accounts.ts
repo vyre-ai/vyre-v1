@@ -11,6 +11,9 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { mintUuid } from "../../../lib/ids.ts";
 
+/** The Space's default portal: the site id portal accounts use when the Space has no Sites site (ruling 73). The host registers it as a resource at boot. */
+export const DEFAULT_PORTAL_SITE = "sit_default";
+
 export type AccountMethod = "magic_link" | "password";
 export type AccountState = "invited" | "active" | "disabled";
 export type LinkPurpose = "invite" | "sign_in" | "reset";
@@ -368,7 +371,8 @@ async function accountCreate(ctx: Ctx, input: unknown): Promise<{ account: Accou
   const method = reqStr(ctx, o, "method");
   if (method !== "magic_link" && method !== "password") fail(ctx, "validation.bad_input", "Choose magic_link or password.", { field: "method" });
   const cfg = config(ctx);
-  await ctx.call("sites.get", { siteId });
+  // Ruling 73: the Space's default portal needs no Sites; any other site must exist.
+  if (siteId !== DEFAULT_PORTAL_SITE) await ctx.call("sites.get", { siteId });
   if (one(ctx, "SELECT * FROM portal_account WHERE site_id = ? AND email = ?", siteId, email)) fail(ctx, "validation.duplicate", "That email already has an account on this site.");
   const now = ctx.now();
   const id = nid(ctx, "pac");
