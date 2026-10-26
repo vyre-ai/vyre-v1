@@ -106,6 +106,22 @@ test("create: the service identity never holds more than its owner", async () =>
   ]);
 });
 
+test("the service identity follows the owner: a grant the owner no longer holds is not handed out, and a check that cannot be made hands out nothing (P-SEC_10)", async () => {
+  const w = harness();
+  const site = await newSite(w);
+  const ask = () => run<{ grants: { resource: string; level: string }[] }>(w.ctx, "sites.service_identity", { siteId: site.siteId });
+  assert.equal((await ask()).grants.length, 2);
+  w.hidden.add(`folder/fld_site1`);   // the owner's access to the folder was revoked after the site was made
+  assert.deepEqual((await ask()).grants, [{ resource: `site/${site.siteId}`, level: "edit" }]);
+  w.levelFor.set("site", "view");   // and the owner was demoted on the site itself
+  assert.deepEqual((await ask()).grants, [{ resource: `site/${site.siteId}`, level: "edit" }].filter(() => false));
+  const failing = harness();
+  const other = await newSite(failing);
+  const real = failing.ctx.call.bind(failing.ctx);
+  failing.ctx.call = async (cap, input) => { if (cap === "access.check") throw new Error("access is down"); return real(cap, input); };
+  assert.deepEqual((await run<{ grants: unknown[] }>(failing.ctx, "sites.service_identity", { siteId: other.siteId })).grants, []);
+});
+
 test("create: rejects bad names, kinds and repo addresses; a taken folder name gets a suffix", async () => {
   const w = harness();
   assert.equal(await code(run(w.ctx, "sites.create", { name: "   ", kind: "site" })), "validation.bad_input");
