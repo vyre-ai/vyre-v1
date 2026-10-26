@@ -213,10 +213,11 @@ export function hueOf(key: string): number {
 
 const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
-export function dateText(v: unknown, withTime = false): string {
+export function dateText(v: unknown, withTime = false, now: number = Date.now()): string {
   const d = typeof v === "number" ? new Date(v) : typeof v === "string" ? new Date(v) : null;
   if (!d || Number.isNaN(d.getTime())) return "";
-  const base = `${MONTH[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+  // this year's dates are short, as the prototype writes them ("23 Oct"); another year's keep the year ("Oct 24, 2025")
+  const base = d.getUTCFullYear() === new Date(now).getUTCFullYear() ? `${d.getUTCDate()} ${MONTH[d.getUTCMonth()]}` : `${MONTH[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
   if (!withTime) return base;
   const h = d.getUTCHours(), m = d.getUTCMinutes();
   return `${base}, ${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;

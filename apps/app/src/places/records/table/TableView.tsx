@@ -191,7 +191,8 @@ function ensureRowCss(): void {
     + ".vrt-c{box-sizing:border-box;flex:none;padding:0 10px;font-size:13px;color:var(--ink);white-space:nowrap}"
     + ".vrt-b{box-sizing:border-box;display:flex;align-items:center;flex:none;height:100%;padding:0 10px;min-width:0}.vrt-e{justify-content:flex-end}"
     + ".vrt-chip{box-sizing:border-box;display:inline-block;height:20px;line-height:20px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap}"
-    + ".vrt-p{display:flex;align-items:center;gap:7px;min-width:0;font-size:13px;color:var(--ink);white-space:nowrap}.vrt-st{font-size:12px;color:var(--warn);letter-spacing:1px;white-space:nowrap}"
+    + ".vrt-p{display:flex;align-items:center;gap:7px;min-width:0;font-size:13px;color:var(--ink);white-space:nowrap}.vrt-st{font-size:12px;color:var(--warn);letter-spacing:1px;white-space:nowrap}.vrt-so{color:var(--ink-4)}"
+    + ".vrt-chip::before{content:\"\";display:inline-block;width:6px;height:6px;border-radius:3px;margin-right:5px;vertical-align:middle;position:relative;top:-1px;background:hsl(var(--h) 65% 52%)}"
     + ".vrt-n{font-variant-numeric:tabular-nums;text-align:right}.vrt-s{color:var(--ink-3);letter-spacing:1px}"
     + ".vrt-g{width:" + GUTTER + "px;height:100%;display:flex;align-items:center;box-sizing:border-box;padding-left:10px;flex:none;font-size:11.5px;color:var(--ink-4);font-variant-numeric:tabular-nums}";
   d.head.appendChild(el);
@@ -222,16 +223,20 @@ function dot(name: string): ReactElement {
 
 function webCell(field: FieldDef, row: RecordRow, names: (id: string) => string, width: number): ReactElement | null {
   const v = row.fields[field.key];
+  // a rating is always five stars: the ones it has filled, the rest outlined (a row with no rating has five outlines)
+  if (field.type === "rating") {
+    const n = typeof v === "number" ? Math.max(0, Math.min(5, v)) : 0;
+    return createElement("span", { className: "vrt-st", "aria-label": `${n} of 5` }, "\u2605".repeat(n), n < 5 ? createElement("span", { className: "vrt-so" }, "\u2606".repeat(5 - n)) : null);
+  }
   if (v === undefined || v === null || v === "") return null;
   // one element per chip, per name, per star run: the cut to the column is made here in text, so no box has to clip
   if ((field.type === "choice" || field.type === "status") && typeof v === "string") {
     const opt = optionsOf(field).find((o) => o.key === v);
     const hue = opt?.color && /^\d+$/.test(opt.color) ? Number(opt.color) : hueOf(v);
-    return createElement("span", { className: "vrt-chip", style: { backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)`, color: `color-mix(in srgb, hsl(${hue}, 65%, 50%) 60%, var(--ink))` } }, fit(opt?.title ?? v, width - 16, 6.2));
+    return createElement("span", { className: "vrt-chip", style: { "--h": hue, backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)`, color: `color-mix(in srgb, hsl(${hue}, 65%, 50%) 60%, var(--ink))` } }, fit(opt?.title ?? v, width - 27, 6.2));
   }
   if (field.type === "checkbox") return v === true ? <Glyph name="check" size={14} color="var(--ink-2)" width={1.8} /> : null;
   if (field.type === "person") return createElement("span", { className: "vrt-p" }, dot(names(String(v))), fit(names(String(v)), width - 25));
-  if (field.type === "rating" && typeof v === "number") return createElement("span", { className: "vrt-st", "aria-label": `${v} of 5` }, "\u2605".repeat(Math.max(0, Math.min(5, v))));
   return createElement("span", { className: isNumeric(field) ? "vrt-c vrt-n" : "vrt-c" }, fit(cellText(field, v, names), width));
 }
 

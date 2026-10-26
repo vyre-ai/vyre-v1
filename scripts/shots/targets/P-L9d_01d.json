@@ -1,0 +1,35 @@
+{
+  "targets": [
+    {
+      "id": "P-L9d_01d-table",
+      "route": "/m/P-L9d_01d",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='records-count']",
+      "note": "Records over the prototype's Northwind Space: the Starred group with its faces and tiles, five stars a row with the missing ones outlined, a leading dot on each status and channel chip, this year's dates as 23 Oct."
+    },
+    {
+      "id": "P-L9d_01d-filter-menu",
+      "route": "/m/P-L9d_01d?menu=filter",
+      "proto": "records,{skin}",
+      "protoClick": "[data-act='filter']",
+      "waitFor": "[data-testid='menu']",
+      "note": "The Filter menu opened in both: the prototype's own menu, pressed open."
+    },
+    {
+      "id": "P-L9d_01d-fields-menu",
+      "route": "/m/P-L9d_01d?menu=fields",
+      "proto": "records,{skin}",
+      "protoClick": "[data-act='fields']",
+      "waitFor": "[data-testid='menu']",
+      "note": "The Fields menu opened in both."
+    },
+    {
+      "id": "P-L9d_01d-kind-menu",
+      "route": "/m/P-L9d_01d?menu=kind",
+      "proto": "records,{skin}",
+      "protoClick": "[data-act='modemenu']",
+      "waitFor": "[data-testid='menu']",
+      "note": "The Table/Board menu opened in both."
+    }
+  ]
+}
