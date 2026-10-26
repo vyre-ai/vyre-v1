@@ -5,6 +5,7 @@ import { createFakeReplica, createScreenHooks } from "../../../../../../client/s
 import type { FakeReplica, Row } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { validateInput } from "../../../../../../generated/validators.ts";
 import { fixtureFor } from "../../../fixtures/index.ts";
 import type { FixtureChannel } from "../../../fixtures/index.ts";
 import type { Agent, Channel, NeedsItem, RecentItem, RecentOut } from "./model.ts";
@@ -112,6 +113,8 @@ const agentRow = (a: SampleSpace["agents"][number], i: number): Row => ({
 export interface SampleSidebar {
   data: ChatsSidebarData;
   replica: FakeReplica;
+  /** inputs a read was sent that the generated validators refuse, as "cap: reason" (the sample answers such a read with nothing, as the real handler answers 422) */
+  rejected: string[];
   /** every capability the sidebar called, in order */
   calls: { cap: string; input: unknown }[];
   /** what the nav handlers were asked to open */
@@ -127,6 +130,14 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
   const replica = createFakeReplica(space.id);
   const calls: { cap: string; input: unknown }[] = [];
   const opened: string[] = [];
+  const rejected: string[] = [];
+  /** The real handler refuses an input the contract does not allow; the sample does the same, so a shot cannot hide a 422. */
+  const accepts = (cap: string, input: unknown): boolean => {
+    const errs = validateInput(cap, 1, input);
+    for (const e of errs) rejected.push(`${cap}: ${e}`);
+    return errs.length === 0;
+  };
+  const refuse = (cap: string, input: unknown): void => { if (!accepts(cap, input)) throw new Error(`${cap}: bad_input`); };
   const failing = new Set<string>();
   const listeners = new Set<() => void>();
   let online = o.online ?? true;
@@ -141,7 +152,8 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
   const dayOf = (ts: number): number => Math.floor(ts / DAY);
   const item = (x: SampleThread): RecentItem => ({ threadId: x.threadId, kind: "chat", title: x.title, agents: x.agents, unread: x.unread, working: x.working, starred: x.starred, lastAt: x.lastAt });
 
-  replica.resolve("chat.recent", () => {
+  replica.resolve("chat.recent", (_t, input) => {
+    refuse("chat.recent", input);
     // the order the Space lists its chats in (the prototype shows them as seeded), not re-sorted
     const all = threads();
     const today = dayOf(SAMPLE_NOW);
@@ -153,18 +165,19 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     out.nextUnread = all.filter((x) => x.unread > 0).sort((a, b) => a.lastAt - b.lastAt)[0]?.threadId ?? null;
     return out;
   });
-  replica.resolve("channels.list", () => ({
+  replica.resolve("channels.list", (_t, input) => { refuse("channels.list", input); return {
     channels: (replica.rows("channels") as unknown as SampleSpace["channels"]).map((c): Channel => ({
       channelId: c.channelId, mainThreadId: `th_${c.channelId}`, name: c.name, visibility: c.visibility, archived: false, members: [], agents: [], unread: c.unread, createdAt: at(10, 1, 9),
       ...(c.project ? { recordId: `rec_${c.channelId}` } : {}),
     })),
-  }));
+  }; });
   replica.resolve("agents.list", (_t, input) => {
+    refuse("agents.list", input);
     const all = replica.rows("agents") as unknown as (Agent & { starred: boolean })[];
-    const rows = input.section === "starred" ? all.filter((a) => a.starred) : all;
-    return { agents: rows.map(({ starred: _s, ...a }) => a as Agent) };
+    return { agents: all.map(({ starred: _s, ...a }) => a as Agent) };
   });
   replica.resolve("tasks.needs_you", (_t, input) => {
+    refuse("tasks.needs_you", input);
     const rows = replica.rows("needs") as unknown as SampleSpace["needs"];
     const items = rows.map((n): NeedsItem => ({
       reason: "ready",
@@ -224,7 +237,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
   };
   return {
-    data, replica, calls, opened,
+    data, replica, calls, opened, rejected,
     setOnline(v) { online = v; for (const l of [...listeners]) l(); },
     failNext(cap) { failing.add(cap); },
     get startDelayMs() { return startDelayMs; },
