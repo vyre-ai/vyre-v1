@@ -91,7 +91,7 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   /* ---------- the open chat ---------- */
   const recent = useLive<RecentOut>(rt.screens, "chats.sidebar", "recent", { filter: "all" });
   const threadId = route.view === "chat" ? (route.threadId ?? newestThread(recent.status === "ready" ? recent.data : undefined)) : null;
-  const thread = useLive<ThreadOut>(rt.screens, "chats.conversation", "thread", { threadId: threadId ?? "" });
+  const thread = useLive<ThreadOut>(rt.screens, "chats.conversation", "thread", threadId === null ? null : { threadId });
   const lead = thread.status === "ready" && threadId !== null ? (thread.data.thread.agents.find((a) => a.mode === "lead") ?? thread.data.thread.agents[0]) : undefined;
   const leadId = lead?.agentId ?? rt.assistant.id;
   const computers = useLive<ComputersOut>(rt.screens, "console.agent-computers", "computers", {});
@@ -110,7 +110,7 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const helperId = route.view === "helper" ? route.threadId : "";
   const helper = useMemo(() => helperData(rt, go, helperId, nameOf), [rt, go, helperId, nameOf]);
   const agentId = route.view === "agent" ? route.agentId : "";
-  const agentQ = useLive<AgentOut>(rt.screens, "chats.agent-page", "agent", { agentId: agentId !== "" ? agentId : leadId });
+  const agentQ = useLive<AgentOut>(rt.screens, "chats.agent-page", "agent", agentId !== "" ? { agentId } : null);
   const agentRow = agentQ.status === "ready" && agentId !== "" ? agentQ.data.agent : null;
   const agentComputer = computerOf(agentId);
   const agentPage = useMemo(

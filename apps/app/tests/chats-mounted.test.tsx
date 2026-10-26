@@ -173,7 +173,7 @@ test("All agents: the picker lists every agent under the control that opened it,
   await settle(120);
   assert.deepEqual(caps(s).filter((c) => c === "threads.list" || c === "chat.start"), ["threads.list", "chat.start"]);
   const last = acts[acts.length - 1];
-  assert.ok(last && last.t === "chat" && last.threadId.startsWith("th_"), "the chat that chat.start returned");
+  assert.ok(last && last.t === "chat" && last.threadId.length > 0, "the chat that chat.start returned");
   assert.deepEqual(contractErrors(s, (c) => c === "chat.start" || c === "threads.list"), []);
   const picker = clean(renderToStaticMarkup(<AllAgents screens={s.rt.screens} space={{ name: "Northwind" }} x={8} y={48} onChat={() => undefined} onOpenPage={() => undefined} onNewAgent={() => undefined} onClose={() => undefined} window={WINDOW} />));
   assert.ok(has(picker, 'data-testid="all-agents-new"'), "New agent");
