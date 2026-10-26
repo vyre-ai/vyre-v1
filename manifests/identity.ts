@@ -52,21 +52,21 @@ export default defineManifest({
     read('identity.username_available', 'Check a username is free (join page)', { ...V, caller: 'anonymous', rate: { n: 30, perSeconds: 60, scope: 'space' }, in: { username: t.str({ pattern: '^[a-z0-9_.-]{2,32}$', examples: ['maya'] }) }, out: { available: t.bool() } }),
     write('identity.sign_in', 'Sign in with Space, username and password; asks for the second factor when one is set', {
       ...V, caller: 'anonymous', in: { username: t.str(), password: t.str(), ...deviceIn, totp: t.opt(t.str({ pattern: '^[0-9]{6}$', examples: ['123456'] })) }, out: signInOut,
-      emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.bad_credentials', 'auth.second_factor_required', 'auth.invalid_code'],
+      emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'principal' }, errors: ['auth.bad_credentials', 'auth.second_factor_required', 'auth.invalid_code'],
     }),
     write('identity.verify_second_factor', 'Finish a sign-in with the second factor code', {
       ...V, caller: 'anonymous', in: { challengeId: t.id('chl'), code: t.str({ examples: ['123456'] }), ...deviceIn }, out: signInOut,
-      emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.invalid_code', 'auth.expired'],
+      emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'principal' }, errors: ['auth.invalid_code', 'auth.expired'],
     }),
     write('identity.github_sign_in', 'Sign in with GitHub once the Space is named', {
-      ...V, caller: 'anonymous', in: { code: t.str(), ...deviceIn }, out: signInOut, emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.bad_credentials', 'auth.invalid_code'],
+      ...V, caller: 'anonymous', in: { code: t.str(), ...deviceIn }, out: signInOut, emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'principal' }, errors: ['auth.bad_credentials', 'auth.invalid_code'],
     }),
     write('identity.sso_sign_in', 'Finish an OIDC sign-in (Google, Microsoft, Okta) with the provider code; reserved until SSO config lands in members', {
-      ...V, caller: 'anonymous', in: { provider: t.str({ examples: ['google'] }), code: t.str(), state: t.str(), ...deviceIn }, out: signInOut, emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.bad_credentials', 'auth.invalid_code'],
+      ...V, caller: 'anonymous', in: { provider: t.str({ examples: ['google'] }), code: t.str(), state: t.str(), ...deviceIn }, out: signInOut, emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'principal' }, errors: ['auth.bad_credentials', 'auth.invalid_code'],
     }),
     write('identity.sign_out', 'End this session; the device keeps nothing it should not', { ...V, in: { sessionId: t.opt(id.session) }, out: ok, offline: 'online', tool: 'meta' }),
     read('identity.whoami', 'Who the caller is here: person, roles, clearance, device, epoch', {
-      ...V, out: { principal: principalRef, name: t.str(), roles: t.arr(id.role), groups: t.arr(id.group), deviceId: t.opt(id.device), epoch: t.int({ minimum: 0 }), spaceId: id.space }, tool: 'meta',
+      ...V, out: { principal: principalRef, name: t.str(), roles: t.arr(id.role), groups: t.arr(id.group), deviceId: t.opt(id.device), epoch: t.int({ minimum: 0 }), spaceId: id.space, deferred: t.opt(t.arr(t.str())) }, tool: 'meta',
     }),
 
     // ---- pairing (one stack for the app, the extension and the daemon)
@@ -74,7 +74,7 @@ export default defineManifest({
       ...V, idem: 'key', in: { purpose: t.enm('app', 'extension', 'daemon') }, out: { code: t.str({ examples: ['K7P2-9QXA'] }), expiresAt: t.ts() }, offline: 'online', audit: 'sensitive',
     }),
     write('identity.pair_redeem', 'Trade a pair code or invite code for a session on a new device', {
-      ...V, caller: 'anonymous', in: { code: t.str(), ...deviceIn }, out: signInOut, emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.invalid_code', 'auth.expired'],
+      ...V, caller: 'anonymous', in: { code: t.str(), ...deviceIn }, out: signInOut, emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 5, perSeconds: 60, scope: 'principal' }, errors: ['auth.invalid_code', 'auth.expired'],
     }),
 
     // ---- key wrapping storage
@@ -85,20 +85,26 @@ export default defineManifest({
 
     // ---- password, recovery, reset
     write('identity.change_password', 'Change my own password; keys are re-wrapped on the device first', {
-      ...V, in: { currentPassword: t.str(), newPassword: t.str(), keys: keyBundle }, out: ok, emits: ['password.changed', 'keys.stored'], audit: 'sensitive', offline: 'online', errors: ['auth.bad_credentials'],
+      ...V, in: { currentPassword: t.str(), newPassword: t.str(), keys: keyBundle }, out: ok, emits: ['password.changed', 'keys.stored', 'signin.failed'], audit: 'sensitive', offline: 'online', errors: ['auth.bad_credentials'],
     }),
     write('identity.recovery_save', 'Save a recovery code so a reset keeps Mine vault items, private chats and personal memory', {
       ...V, in: { personKeyByRecovery: wrapped }, out: ok, emits: ['recovery.saved', 'keys.stored'], audit: 'sensitive', offline: 'online',
     }),
     write('identity.recovery_restore', 'Set a new password with a recovery code (keys unwrapped by the code, re-wrapped by the password)', {
       ...V, caller: 'anonymous', in: { username: t.str(), recoveryProof: t.str(), newPassword: t.str(), keys: keyBundle, ...deviceIn }, out: signInOut,
-      emits: ['password.reset', 'keys.stored', 'signin.succeeded'], audit: 'always', offline: 'online', rate: { n: 5, perSeconds: 300, scope: 'space' }, errors: ['auth.invalid_code'],
+      emits: ['password.reset', 'keys.stored', 'signin.succeeded', 'signin.failed'], audit: 'always', offline: 'online', rate: { n: 5, perSeconds: 300, scope: 'principal' }, errors: ['auth.invalid_code'],
     }),
     // Ruling 23: the pre-auth half of joining by invite. The person does not exist yet, so the caller is anonymous (no principal), rate limited
     // per Space and audited. It lives in this manifest because the invites module list is frozen; members.accept stays for a caller already holding a pending join session.
     write('invites.accept_create_account', 'Join by invite with no account yet: creates the person, sets the password, stores the wrapped keys and joins the Space with the invite\'s role and groups', {
       ...V, caller: 'anonymous', in: { code: t.str(), username: t.str({ pattern: '^[a-z0-9_.-]{2,32}$', examples: ['maya'] }), displayName: t.opt(t.str()), password: t.str(), ...deviceIn, keys: keyBundle }, out: signInOut,
-      emits: ['member.joined', 'principal.created', 'keys.stored', 'signin.succeeded'], audit: 'always', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.invalid_code', 'auth.expired', 'validation.duplicate'],
+      emits: ['member.joined', 'principal.created', 'keys.stored', 'signin.succeeded'], audit: 'always', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'principal' }, errors: ['auth.invalid_code', 'auth.expired', 'validation.duplicate'],
+    }),
+    // Ruling 71: the first owner of a fresh Space. The host makes the Space and the owner's principal at first start and prints a one-time claim link; the owner's client builds the key
+    // bundle from the password they pick (the server never sees the personKey) and calls this once. The code is stored hashed, works once and lasts 24 hours.
+    write('identity.claim_owner', 'Claim a fresh Space as its owner with the one-time link: pick a username and password, store the wrapped keys, and sign in', {
+      ...V, caller: 'anonymous', in: { code: t.str(), spaceId: t.str({ description: 'The Space id from the claim link (#s=); the first Space key is sealed to it and a different Space is refused', examples: ['spc_a1b2c3'] }), username: t.str({ pattern: '^[a-z0-9_.-]{2,32}$', examples: ['olivia'] }), displayName: t.opt(t.str()), password: t.str(), ...deviceIn, keys: keyBundle }, out: signInOut,
+      emits: ['keys.stored', 'signin.succeeded'], audit: 'always', offline: 'online', rate: { n: 5, perSeconds: 300, scope: 'principal' }, errors: ['auth.invalid_code', 'auth.expired', 'validation.duplicate'],
     }),
     read('identity.reset_preview', 'Admin: what a password reset would lose for this person (Mine items, private chats, personal memory) and whether a recovery code exists', {
       ...V, in: { personId: id.user }, out: { hasRecoveryCode: t.bool(), losses: t.arr(t.obj({ kind: t.enm('vault_mine', 'private_chats', 'personal_memory'), count: t.int({ minimum: 0 }) })) }, perm: 'access.manage', tool: 'engineer', team: true,
@@ -107,7 +113,7 @@ export default defineManifest({
       ...V, idem: 'key', in: { personId: id.user }, out: { resetCode: t.str(), expiresAt: t.ts() }, perm: 'access.manage', audit: 'always', risk: 'high', tool: 'engineer', team: true,
     }),
     write('identity.reset_complete', 'The person sets a new password from the reset link and makes fresh keys', {
-      ...V, caller: 'anonymous', rate: { n: 30, perSeconds: 60, scope: 'space' }, in: { resetCode: t.str(), newPassword: t.str(), keys: keyBundle, ...deviceIn }, out: signInOut, emits: ['password.reset', 'keys.stored', 'signin.succeeded'], audit: 'always', offline: 'online', errors: ['auth.invalid_code', 'auth.expired'], team: true,
+      ...V, caller: 'anonymous', rate: { n: 30, perSeconds: 60, scope: 'principal' }, in: { resetCode: t.str(), newPassword: t.str(), keys: keyBundle, ...deviceIn }, out: signInOut, emits: ['password.reset', 'keys.stored', 'signin.succeeded'], audit: 'always', offline: 'online', errors: ['auth.invalid_code', 'auth.expired'], team: true,
     }),
 
     // ---- second factor (the Space floor is in members)
@@ -115,7 +121,7 @@ export default defineManifest({
       ...V, in: {}, out: { setupUri: t.str({ description: 'otpauth URI, shown once', examples: ['otpauth://totp/Vyre:maya?secret=ABC'] }), enrolmentId: t.id('enr') }, offline: 'online', audit: 'sensitive', tool: 'meta',
     }),
     write('identity.totp_confirm', 'Confirm a TOTP enrolment with the first code', { ...V, in: { enrolmentId: t.id('enr'), code: t.str({ examples: ['123456'] }) }, out: ok, emits: ['factor.enrolled'], offline: 'online', audit: 'sensitive', errors: ['auth.invalid_code'], tool: 'meta' }),
-    write('identity.totp_remove', 'Remove my TOTP factor (refused when the Space requires a second factor)', { ...V, in: { password: t.str() }, out: ok, emits: ['factor.removed'], offline: 'online', audit: 'sensitive', errors: ['auth.bad_credentials', 'validation.precondition_failed'], tool: 'meta' }),
+    write('identity.totp_remove', 'Remove my TOTP factor (refused when the Space requires a second factor)', { ...V, in: { password: t.str() }, out: ok, emits: ['factor.removed', 'signin.failed'], offline: 'online', audit: 'sensitive', errors: ['auth.bad_credentials', 'validation.precondition_failed'], tool: 'meta' }),
     write('identity.passkey_register', 'Add a passkey as a second factor (ships later)', { ...V, in: { attestation: t.json(), name: t.str() }, out: ok, emits: ['factor.enrolled'], offline: 'online', audit: 'sensitive', since: '1.1.0', tool: 'meta' }),
     write('identity.passkey_remove', 'Remove a passkey (ships later)', { ...V, in: { name: t.str() }, out: ok, emits: ['factor.removed'], offline: 'online', audit: 'sensitive', since: '1.1.0', tool: 'meta' }),
 

@@ -4,10 +4,11 @@ Lane L5. Kind module. Version 0.1.0.
 
 Requires: mail.
 
-## Capabilities (32)
+## Capabilities (34)
 
 - [telephony.answer](../capabilities/telephony.answer.md): Answer a ringing call
 - [telephony.call.attach_summary](../capabilities/telephony.call.attach_summary.md): Attach a transcript and summary to a call (an Automation AI step or an agent writes it)
+- [telephony.call.erase](../capabilities/telephony.call.erase.md): Erase one call for good: its transcript, summary and recording file (governance erase)
 - [telephony.call.get](../capabilities/telephony.call.get.md): Read one call with transcript, summary and recording
 - [telephony.call.list](../capabilities/telephony.call.list.md): List calls and voicemails (the Calls only view)
 - [telephony.call.log_task](../capabilities/telephony.call.log_task.md): Log a task from a call
@@ -35,13 +36,15 @@ Requires: mail.
 - [telephony.registration.save](../capabilities/telephony.registration.save.md): Save the registration draft step by step
 - [telephony.registration.submit](../capabilities/telephony.registration.submit.md): Submit the Space's brand and campaign registration to Twilio
 - [telephony.send_sms](../capabilities/telephony.send_sms.md): Send a text through the single send API: suppression, SMS consent, send window, caps, Gate for agents and automations
+- [telephony.sms.erase](../capabilities/telephony.sms.erase.md): Erase one text message for good (governance erase)
 - [telephony.sms.list](../capabilities/telephony.sms.list.md): List texts for a number or contact
 - [telephony.transfer](../capabilities/telephony.transfer.md): Transfer a call to a teammate or an agent (warm or cold)
 - [telephony.voice_token](../capabilities/telephony.voice_token.md): Mint a short-lived Voice SDK token for the softphone (TwiML app per Space)
 
-## Events (16)
+## Events (18)
 
 - [call.ended](../events/call.ended.md): A call ended
+- [call.erased](../events/call.erased.md): A call record was erased for good with its transcript, summary and recording (ids only)
 - [call.missed](../events/call.missed.md): An incoming call was not answered
 - [call.recording_changed](../events/call.recording_changed.md): Recording started or stopped, with the consent that was logged
 - [call.recording_ready](../events/call.recording_ready.md): A call recording was saved to Files
@@ -56,4 +59,5 @@ Requires: mail.
 - [number.route_changed](../events/number.route_changed.md): A number route, hours or recording policy changed
 - [registration.status_changed](../events/registration.status_changed.md): The texting registration changed status
 - [registration.submitted](../events/registration.submitted.md): The US texting registration was submitted
+- [sms.erased](../events/sms.erased.md): A text message was erased for good (ids only)
 - [sms.received](../events/sms.received.md): A text arrived on a number

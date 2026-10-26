@@ -8,7 +8,7 @@ Ask the Manage holders of a resource (or the admins, for a permission) for acces
 | Version | 1 (since 1.0.0) |
 | Effects | write |
 | Permission | grant only |
-| Grant level | view |
+| Grant level | member |
 | Risk | medium |
 | Resource | space |
 | Gate | none |
@@ -62,6 +62,7 @@ type Out = {
 - permission.guest_cannot_request
 - permission.needs_team
 - permission.no_grant
+- rate_limit.exceeded
 - validation.bad_input
 - validation.duplicate
 

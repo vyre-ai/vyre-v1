@@ -10,7 +10,7 @@ Make a project: the record, exactly one channel and one folder (Projects/<name>)
 | Permission | records.create |
 | Grant level | edit |
 | Risk | medium |
-| Resource | record_type (create under /type) |
+| Resource | record (create under /type) |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |

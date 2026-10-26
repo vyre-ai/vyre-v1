@@ -8,7 +8,7 @@ test("a selected row paints the selection token on the row itself, full width", 
   const html = renderToStaticMarkup(<Row id="a" title="Weekly sync" selected />);
   assert.match(html, /data-testid="row-a"/);
   assert.match(html, /background-color:var\(--sel\)/);
-  assert.match(html, /r-width-/, "the row carries a width style");
+  assert.match(html, /width:100%/, "the row carries a width style");
   assert.doesNotMatch(html, /margin-(left|right|inline)/i, "no horizontal margin that would inset the paint");
 });
 
@@ -70,4 +70,49 @@ test("emphasis makes the title semibold, with or without a suffix; without it th
   assert.match(on, /font-weight:600/);
   assert.match(withSuffix, /font-weight:600/);
   assert.ok(!off.includes("font-weight:600"));
+});
+
+test("noteLead draws an accent lead-in before the note, only with a note; rows without it are unchanged", () => {
+  const html = renderToStaticMarkup(<Row id="a" title="Rivera letter" note="Two edits left" noteLead="Draft ready" />);
+  assert.ok(html.includes('data-testid="row-a-notelead"') && html.includes("Draft ready") && html.includes("Two edits left"));
+  assert.ok(html.includes("Draft ready</span> \u00b7 ") || html.includes("\u00b7"), "a middle dot between the lead-in and the note, as the prototype writes it");
+  assert.ok(html.indexOf("Draft ready") < html.indexOf("Two edits left"), "the lead-in comes first");
+  assert.match(html, /color:var\(--accent\)/);
+  assert.ok(!renderToStaticMarkup(<Row id="a" title="Rivera letter" noteLead="Draft ready" />).includes("notelead"), "no note, no lead-in");
+  const plain = renderToStaticMarkup(<Row id="a" title="Rivera letter" note="Two edits left" />);
+  assert.ok(!plain.includes("notelead") && plain.includes("Two edits left"));
+  assert.equal(rowHeight("x"), ROW_HEIGHT_WITH_NOTE, "heights are unchanged");
+});
+
+test("titleMarks draw after the title and the suffix on the title line; rows without them are unchanged", () => {
+  const html = renderToStaticMarkup(<Row id="a" title="Maya Chen" titleSuffix="Northwind" titleMarks={<span data-mark="star">S</span>} />);
+  assert.ok(html.includes('data-testid="row-a-marks"') && html.includes('data-mark="star"'));
+  assert.ok(html.indexOf("Maya Chen") < html.indexOf("Northwind") && html.indexOf("Northwind") < html.indexOf('data-mark="star"'), "title, then suffix, then marks");
+  const only = renderToStaticMarkup(<Row id="a" title="Maya Chen" titleMarks={<span data-mark="dnd">D</span>} />);
+  assert.ok(only.includes('data-testid="row-a-marks"') && !only.includes("-suffix") && only.indexOf("Maya Chen") < only.indexOf('data-mark="dnd"'), "marks work without a suffix");
+  const plain = renderToStaticMarkup(<Row id="a" title="Maya Chen" />);
+  assert.ok(!plain.includes("-marks"));
+  assert.equal(rowHeight(), ROW_HEIGHT, "heights are unchanged");
+});
+
+test("noteLeadTone picks the lead-in colour: accent by default, warning on request; the note keeps its own colour", () => {
+  const accent = renderToStaticMarkup(<Row id="a" title="Rivera" note="Maya Chen at Northwind" noteLead="Draft ready" />);
+  const warn = renderToStaticMarkup(<Row id="a" title="Rivera" note="Maya Chen at Northwind" noteLead="Unsure match" noteLeadTone="warning" />);
+  const explicit = renderToStaticMarkup(<Row id="a" title="Rivera" note="n" noteLead="Draft ready" noteLeadTone="accent" />);
+  assert.match(accent, /color:var\(--accent\)/);
+  assert.ok(!accent.includes("var(--warn)"), "the default is not the warning colour");
+  assert.match(warn, /color:var\(--warn\)/);
+  assert.ok(!warn.includes("color:var(--accent)"), "warning replaces the accent");
+  assert.match(explicit, /color:var\(--accent\)/);
+  assert.ok(warn.includes("Unsure match") && warn.includes("Maya Chen at Northwind"));
+});
+
+test("on the web a row is plain elements, and domProps put a list's own attributes on the row's element", () => {
+  const html = renderToStaticMarkup(<Row id="a" title="Brief.docx" selected domProps={{ draggable: true, "data-fkey": "file:1", style: { margin: "5px 6px" } }} />);
+  assert.match(html, /^<div role="button"[^>]*data-testid="row-a"/, "one div, the row itself, with its role");
+  assert.ok(html.includes('data-fkey="file:1"') && html.includes('draggable="true"'), "the list's attributes");
+  assert.match(html, /margin:5px 6px/, "its style joins the row's");
+  assert.match(html, /height:28px/, "and the row keeps its height and selection token");
+  assert.match(html, /background-color:var\(--sel\)/);
+  assert.ok(!html.includes("r-flexDirection") && !html.includes("css-"), "no React Native view classes");
 });

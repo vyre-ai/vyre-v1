@@ -17,9 +17,7 @@ const CONTACT = {
 
 /** Why this flow is a todo today (ruling 53). */
 export const GAPS: Gap[] = [
-  { packet: "P-L11_04", lane: "L11", what: "no authorization resource exists for the built-in contact record type, so records.create answers 404 permission.not_found even for the owner (the seed has rt_contact, the module uses contact)" },
-  { packet: "P-L7b_LIVE", lane: "L7b", what: "backup.* answer 503: configureBackup is never called by the host, so there is no Space source, export sink or S3 driver" },
-  { packet: "P-L7_LIVE", lane: "L7", what: "governance migrations create gov_* tables; a live module may only use governance_*, so erase and tombstones answer 403" },
+  { packet: "P-GF_11", lane: "L7b", what: "after the restart the staged restore is applied (the contact is back, 200) but nothing replays the tombstones: host/src/seams/backup.ts applyPendingRestore moves the database files and deletes the stage including tombstones.json, and the daemon never calls governance.tombstones.reapply once the Space opens, so no tombstones.reapplied and an erased contact returns (spec 2.26, ARCH 7.10)" },
 ];
 
 export async function runRestore(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
@@ -40,7 +38,7 @@ export async function runRestore(live: readonly string[]): Promise<{ events: Obs
       expectStatus(await s.call("backup.config_set", admin, { target: { kind: "local", path: target }, schedule: "0 3 * * *", enabled: true }), 200, "backup.config_set");
     });
     const backupId = await trail.step("a backup runs", async () => {
-      const out = expectStatus(await s.call("backup.run", admin, {}), 200, "backup.run");
+      const out = expectStatus(await s.call("backup.run", admin, { idempotencyKey: "golden-11-run" }), 200, "backup.run");
       assert.ok(out.backupId, `backup.run answers a backup id: ${short(out)}`);
       return out.backupId as string;
     }, ["backups go to a local target", "a contact is created"]);
@@ -55,7 +53,7 @@ export async function runRestore(live: readonly string[]): Promise<{ events: Obs
       return out.findingId as string;
     }, ["a contact is created"]);
     await trail.step("the contact is erased and a tombstone is written", async () => {
-      expectStatus(await s.call("governance.erase.apply", admin, { findingId: finding! }), 200, "governance.erase.apply");
+      expectStatus(await s.call("governance.erase.apply", admin, { idempotencyKey: "golden-11-erase", findingId: finding!, include: ["records"] }), 200, "governance.erase.apply");
       const r = await s.call("records.get", admin, { type: "contact", recordId: rec! });
       assert.equal(r.status, 404, `records.get after the erase: ${r.status}`);
       const t = expectStatus(await s.call("governance.tombstones.list", admin, {}), 200, "governance.tombstones.list").tombstones as unknown[];
@@ -76,11 +74,18 @@ export async function runRestore(live: readonly string[]): Promise<{ events: Obs
         out = expectStatus(await s.call("tasks.act", admin, { taskId: out.taskId, action: "approve" }), 200, "tasks.act");
       } else expectStatus(r, 200, "backup.restore");
     }, ["the restore preview counts the tombstone"]);
-    await trail.step("the erased contact did not come back", async () => {
-      const r = await s.call("records.get", admin, { type: "contact", recordId: rec! });
-      assert.equal(r.status, 404, `records.get after the restore: ${r.status} ${short(r.body?.error ?? r.body)}`);
+    let before: Awaited<ReturnType<typeof s.events>> = [];
+    await trail.step("the daemon restarts on the same data directory and applies the staged restore", async () => {
+      before = await s.events();
+      await s.restart();
     }, ["the admin restores; the Gate holds it and a person approves"]);
-    return { events: await s.events(), trail };
+    await trail.step("the erased contact did not come back", async () => {
+      const r = await s.call("records.get", s.d.token, { type: "contact", recordId: rec! });
+      assert.equal(r.status, 404, `records.get after the restore: ${r.status} ${short(r.body?.error ?? r.body)}`);
+    }, ["the daemon restarts on the same data directory and applies the staged restore"]);
+    // The restore replaced the log with the backup's, so the events of this flow before the restart are the ones read just before it; the tombstone replay runs on its own trace at the restart.
+    const reapplied = (await s.events(false)).filter((e) => e.type === "tombstones.reapplied");
+    return { events: [...before, ...reapplied], trail };
   } finally { await s.stop(); }
 }
 

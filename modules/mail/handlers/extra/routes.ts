@@ -78,7 +78,7 @@ export async function routeSet(
     let providerRouteId: string | null = null;
     if (provider === "mailgun") {
       const made = (await ctx.call("mailgun.routes.create", {
-        expression: mailgunExpression(localPart, str(domain, "name")), description: `Vyre inbound route for ${localPart}@${str(domain, "name")}`,
+        idempotencyKey: `${input.idempotencyKey}:mailgun.routes.create`, expression: mailgunExpression(localPart, str(domain, "name")), description: `Vyre inbound route for ${localPart}@${str(domain, "name")}`,
       })) as { route?: { routeId?: unknown } } | null;
       providerRouteId = typeof made?.route?.routeId === "string" ? made.route.routeId : null;
       if (!providerRouteId) throw fail("provider.bad_response", ctx.trace.traceId, { message: "Mailgun did not return the route." });
@@ -108,7 +108,7 @@ export async function routeRemove(ctx: MailCtx, input: { routeId: string; domain
   const providerRoute = ext ? str(ext, "providerRouteId") : "";
   if (providerRoute) {
     try {
-      await ctx.call("mailgun.routes.delete", { routeId: providerRoute });
+      await ctx.call("mailgun.routes.delete", { idempotencyKey: `mail.routes.remove:${input.routeId}`, routeId: providerRoute });
     } catch (e) {
       const c = ((e as { error?: { code?: unknown } } | null)?.error?.code) ?? "";
       if (c !== "validation.not_found") throw e;

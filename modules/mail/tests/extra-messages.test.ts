@@ -278,8 +278,14 @@ test("save puts the attachment in Files, making the Mail attachments folder on f
   const out = await attachmentSave(h.ctx, { messageId: id, attachmentId: "att_1", idempotencyKey: key() });
   assert.deepEqual(contractErrors("mail.attachment.save", "out", out), []);
   assert.equal(out.fileId, "fil_1");
-  assert.deepEqual(h.calls("files.folder.create").map((c) => c.input), [{ parentId: "fld_personal", name: "Mail attachments" }]);
-  assert.deepEqual(h.calls("files.create").map((c) => c.input), [{ folderId: "fld_mailatt", name: "report.pdf", mime: "application/pdf", content: { blobId: "blb_r1" } }]);
+  // the calls carry the idempotency key the capabilities require: one per trace, so a retry of the same save is the same call
+  const keyed = (calls: { input: unknown }[], prefix: string): unknown[] => calls.map((c) => {
+    const { idempotencyKey, ...rest } = c.input as { idempotencyKey?: unknown };
+    assert.match(String(idempotencyKey), new RegExp(`^${prefix}:`), `${prefix} key`);
+    return rest;
+  });
+  assert.deepEqual(keyed(h.calls("files.folder.create"), "mail-saved"), [{ parentId: "fld_personal", name: "Mail attachments" }]);
+  assert.deepEqual(keyed(h.calls("files.create"), "mail-save"), [{ folderId: "fld_mailatt", name: "report.pdf", mime: "application/pdf", content: { blobId: "blb_r1" } }]);
   const detail = await messageGet(h.ctx, { messageId: id });
   assert.deepEqual(detail.attachments.map((a) => [a.attachmentId, a.fileId]), [["att_1", "fil_1"], ["att_2", undefined]]);
 });

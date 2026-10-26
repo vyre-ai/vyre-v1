@@ -129,11 +129,11 @@ async function makeProject(ctx: ProjectsCtx, o: Plan): Promise<Made> {
   if (!folderId) {
     const root = await projectsRoot(ctx);
     try {
-      folderId = (await call<{ folder: FolderOut }>(ctx, "files.folder.create", { parentId: root, name: o.title }, { idempotencyKey: `prj-folder:${o.key}` })).folder.folderId;
+      folderId = (await call<{ folder: FolderOut }>(ctx, "files.folder.create", { parentId: root, name: o.title, idempotencyKey: `prj-folder:${o.key}` }, { idempotencyKey: `prj-folder:${o.key}` })).folder.folderId;
     } catch (e) {
       if (codeOf(e) !== "validation.duplicate") throw e;
       // two projects may share a name; the folder takes the end of the record id to stay apart
-      folderId = (await call<{ folder: FolderOut }>(ctx, "files.folder.create", { parentId: root, name: `${o.title} ${recordId.slice(-4)}` }, { idempotencyKey: `prj-folder2:${o.key}` })).folder.folderId;
+      folderId = (await call<{ folder: FolderOut }>(ctx, "files.folder.create", { parentId: root, name: `${o.title} ${recordId.slice(-4)}`, idempotencyKey: `prj-folder2:${o.key}` }, { idempotencyKey: `prj-folder2:${o.key}` })).folder.folderId;
     }
   }
   let channelId = o.channel?.channelId;

@@ -315,7 +315,7 @@ export class FakeSqlDb implements RawDb {
 export const NOW = 1_760_000_000_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
 export const SPACE = "spc_test";
-const OWN = /\b(access_requests|access_reviews|access_review_items)\b/;
+const OWN = /\b(access_requests|access_reviews|access_review_items|access_proposals)\b/;
 
 /** The store's tables on MemoryDb, the request and review tables on the SQL engine. */
 export class SplitDb implements Db {

@@ -3,7 +3,7 @@ import type { ResourceBinding } from '../packages/contracts/src/types.ts';
 
 export interface Route {
   method: string; path: string; cap: string; v: number; module: string;
-  effects: 'read' | 'write' | 'outward'; permission: string | null; level: 'view' | 'use' | 'edit' | 'manage';
+  effects: 'read' | 'write' | 'outward'; permission: string | null; level: 'view' | 'use' | 'edit' | 'manage' | 'member';
   resource: ResourceBinding; idempotency: 'key' | 'natural' | 'none'; risk: 'low' | 'medium' | 'high';
   offline: 'patch' | 'queue' | 'online' | null; teamOnly: boolean; gate: string | null;
 }
@@ -37,9 +37,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "record",
-      "create": true,
-      "parent": "/slug"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -75,9 +73,7 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "record",
-      "create": true,
-      "parent": "/slug"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -165,7 +161,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -183,7 +179,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -201,7 +197,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "write",
     "permission": null,
-    "level": "edit",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -219,7 +215,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -237,7 +233,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -779,10 +775,9 @@ export const routes: Route[] = [
     "module": "access",
     "effects": "write",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
-      "type": "dynamic",
-      "ref": "/resource"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -3184,7 +3179,7 @@ export const routes: Route[] = [
     "resource": {
       "type": "campaign",
       "create": true,
-      "parent": "/name"
+      "parent": "/folderId"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -3783,6 +3778,24 @@ export const routes: Route[] = [
     "idempotency": "key",
     "risk": "medium",
     "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/channels/erase",
+    "cap": "channels.erase",
+    "v": 1,
+    "module": "chat",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
     "teamOnly": false,
     "gate": null
   },
@@ -4498,6 +4511,24 @@ export const routes: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/chat/transcript/purge",
+    "cap": "chat.transcript.purge",
+    "v": 1,
+    "module": "chat",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -5918,7 +5949,7 @@ export const routes: Route[] = [
     "permission": "connectors.manage",
     "level": "edit",
     "resource": {
-      "type": "connector",
+      "type": "connection",
       "create": true,
       "parent": "/connector"
     },
@@ -7353,7 +7384,7 @@ export const routes: Route[] = [
     "permission": "files.write",
     "level": "edit",
     "resource": {
-      "type": "folder",
+      "type": "file",
       "create": true,
       "parent": "/intoFolderId"
     },
@@ -7627,9 +7658,9 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "folder",
+      "type": "email",
       "create": true,
-      "parent": "/name"
+      "parent": "/folderId"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -9159,7 +9190,7 @@ export const routes: Route[] = [
     "permission": "files.write",
     "level": "edit",
     "resource": {
-      "type": "folder",
+      "type": "file",
       "create": true,
       "parent": "/toFolderId"
     },
@@ -9793,6 +9824,25 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/files/star",
+    "cap": "files.star",
+    "v": 1,
+    "module": "files",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "file",
+      "id": "/fileId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/files/trash/empty",
     "cap": "files.trash.empty",
     "v": 1,
@@ -9878,6 +9928,24 @@ export const routes: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/files/versions_purge",
+    "cap": "files.versions_purge",
+    "v": 1,
+    "module": "files",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -13272,6 +13340,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/identity/claim_owner",
+    "cap": "identity.claim_owner",
+    "v": 1,
+    "module": "identity",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/identity/github_link",
     "cap": "identity.github_link",
     "v": 1,
@@ -13979,6 +14065,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/inbox/item/erase",
+    "cap": "inbox.item.erase",
+    "v": 1,
+    "module": "inbox",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/inbox/link_message",
     "cap": "inbox.link_message",
     "v": 1,
@@ -14286,9 +14390,7 @@ export const routes: Route[] = [
     "permission": "journeys.manage",
     "level": "edit",
     "resource": {
-      "type": "record_type",
-      "create": true,
-      "parent": "/subjectType"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -14543,9 +14645,7 @@ export const routes: Route[] = [
     "permission": "kits.publish",
     "level": "edit",
     "resource": {
-      "type": "kit",
-      "create": true,
-      "parent": "/brief"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -14849,6 +14949,24 @@ export const routes: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/logs/purge",
+    "cap": "logs.purge",
+    "v": 1,
+    "module": "logs",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -15402,6 +15520,24 @@ export const routes: Route[] = [
     },
     "idempotency": "natural",
     "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mail/message/erase",
+    "cap": "mail.message.erase",
+    "v": 1,
+    "module": "mail",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -17006,6 +17142,24 @@ export const routes: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/notes/erase",
+    "cap": "memory.notes.erase",
+    "v": 1,
+    "module": "memory",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -18954,11 +19108,10 @@ export const routes: Route[] = [
     "module": "portal",
     "effects": "write",
     "permission": null,
-    "level": "edit",
+    "level": "manage",
     "resource": {
       "type": "file",
-      "create": true,
-      "parent": "/fileId"
+      "id": "/fileId"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -19183,7 +19336,7 @@ export const routes: Route[] = [
     "permission": "records.create",
     "level": "edit",
     "resource": {
-      "type": "record_type",
+      "type": "record",
       "create": true,
       "parent": "/type"
     },
@@ -19985,6 +20138,42 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/records/purge",
+    "cap": "records.purge",
+    "v": 1,
+    "module": "records",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/records/purge_trashed",
+    "cap": "records.purge_trashed",
+    "v": 1,
+    "module": "records",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/records/query",
     "cap": "records.query",
     "v": 1,
@@ -20741,6 +20930,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/runs/erase",
+    "cap": "runs.erase",
+    "v": 1,
+    "module": "runs",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/runs/finish",
     "cap": "runs.finish",
     "v": 1,
@@ -20829,6 +21036,24 @@ export const routes: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/runs/purge",
+    "cap": "runs.purge",
+    "v": 1,
+    "module": "runs",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -22175,7 +22400,7 @@ export const routes: Route[] = [
     "permission": "files.write",
     "level": "edit",
     "resource": {
-      "type": "folder",
+      "type": "file",
       "create": true,
       "parent": "/folderId"
     },
@@ -22311,7 +22536,7 @@ export const routes: Route[] = [
     "resource": {
       "type": "site",
       "create": true,
-      "parent": "/name"
+      "parent": "/folderId"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -22651,9 +22876,8 @@ export const routes: Route[] = [
     "permission": null,
     "level": "edit",
     "resource": {
-      "type": "record_type",
-      "create": true,
-      "parent": "/siteId"
+      "type": "site",
+      "id": "/siteId"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -22764,9 +22988,7 @@ export const routes: Route[] = [
     "permission": "connectors.manage",
     "level": "edit",
     "resource": {
-      "type": "connector",
-      "create": true,
-      "parent": "/connector"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -23719,7 +23941,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "write",
     "permission": null,
-    "level": "edit",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -23737,7 +23959,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "write",
     "permission": null,
-    "level": "edit",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -23755,7 +23977,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -23773,7 +23995,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "write",
     "permission": null,
-    "level": "edit",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -23791,7 +24013,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -23809,7 +24031,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -23863,7 +24085,7 @@ export const routes: Route[] = [
     "module": "sync",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -24681,6 +24903,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/telephony/call/erase",
+    "cap": "telephony.call.erase",
+    "v": 1,
+    "module": "telephony",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/telephony/call/get",
     "cap": "telephony.call.get",
     "v": 1,
@@ -25175,6 +25415,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/telephony/sms/erase",
+    "cap": "telephony.sms.erase",
+    "v": 1,
+    "module": "telephony",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/telephony/sms/list",
     "cap": "telephony.sms.list",
     "v": 1,
@@ -25309,9 +25567,7 @@ export const routes: Route[] = [
     "permission": "kits.publish",
     "level": "edit",
     "resource": {
-      "type": "kit",
-      "create": true,
-      "parent": "/ref"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -25650,6 +25906,24 @@ export const routes: Route[] = [
     },
     "idempotency": "natural",
     "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/threads/erase",
+    "cap": "threads.erase",
+    "v": 1,
+    "module": "chat",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -26794,6 +27068,25 @@ export const routes: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/vault/item/usage",
+    "cap": "vault.item.usage",
+    "v": 1,
+    "module": "vault",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "vault_item",
+      "id": "/itemId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
     "teamOnly": false,
     "gate": null
   },
