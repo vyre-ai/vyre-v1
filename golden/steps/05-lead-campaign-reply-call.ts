@@ -193,6 +193,13 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
       assert.ok(out.callId, `a call is placed: ${short(out)}`);
       assert.ok(net.requests.includes("POST api.twilio.com/2010-04-01/Accounts/fake-Twilio_Account/Calls.json"), `Twilio was asked to place the call: ${short(net.requests)}`);
     }, ["the Twilio number is brought in", "a lead is made"]);
+    await trail.step("the lead picks up and Twilio reports it", async () => {
+      // the host route that checks Twilio's signature is not wired in the daemon yet, so the verified delivery is handed to the module the way that route would
+      expectStatus(await s.call("twilio.receive_webhook", admin, {
+        kind: "status", dedupeKey: "status:CAfake1:in-progress", sid: "CAfake1", params: { CallSid: "CAfake1", CallStatus: "in-progress" },
+      }), 200, "twilio.receive_webhook");
+      await s.d.hooks?.pump();
+    }, ["a person calls the lead"]);
     return { events: await s.events(), trail, net };
   } finally { await s.stop(); }
 }
