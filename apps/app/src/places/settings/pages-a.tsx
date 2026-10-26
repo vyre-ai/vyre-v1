@@ -45,7 +45,7 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
   return (
     <>
       <View style={s.card} testID="profile-card">
-        <View style={s.photo} accessibilityLabel="Your photo"><Avatar name={who} kind="person" size={72} /></View>
+        <View style={s.photo} accessibilityLabel="Your photo"><Avatar name={who} seedId={data.me.id} kind="person" size={72} /></View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text accessibilityRole="header" numberOfLines={1} style={s.who}>{who}</Text>
           <Text numberOfLines={1} style={s.line} testID="profile-line">{line}</Text>

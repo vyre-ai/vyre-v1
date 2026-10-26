@@ -1,8 +1,8 @@
 // An agent's instruction file as the prototype shows it (vyre-v1.html, AGENT.md): the file header (name, where it lives, who saved it and when, the version check, View and Edit, find, info, history, Ask), then the lint chips,
 // the agent's suggestion card, and the file itself, rendered in View and as text in Edit. History opens in the shared ui/SidePane; picking an older version shows the shared version banner over the page with what changed since.
 // The Ask control is the shared ui/AskButton over every agent of the Space. Find and History call the shell's hooks when it has them (data.nav) and work in the page when it has not.
-import { useMemo, useState } from "react";
-import type { ReactElement } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { AskButton } from "../../../../../../ui/src/AskButton/index.tsx";
 import type { Density } from "../../../../../../ui/src/DiffTab/index.tsx";
@@ -20,7 +20,7 @@ import { applySuggestion, historyVersions, latestVersion, shortDay } from "./mod
 import { Btn, IconBtn, Note, Segmented, TextField, anchorOf } from "./parts.tsx";
 import { SuggestionCard } from "./SuggestionCard.tsx";
 
-export interface AgentFilePageProps extends Omit<AgentFileEditorProps, "above" | "mode"> {
+export interface AgentFilePageProps extends Omit<AgentFileEditorProps, "above" | "mode" | "onReviewPane"> {
   /** "Agents/Intake". */
   path: string;
   agentId: string;
@@ -50,7 +50,17 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
   const [changes, setChanges] = useState(true);
   const [applied, setApplied] = useState<string | null>(null);
   const [line, setLine] = useState<{ text: string; kind: "ok" | "error" } | null>(null);
+  const [reviewNode, setReviewNode] = useState<ReactNode | null>(null);
+  const hadReview = useRef(false);
   const { element: menu, show } = useMenu();
+  // agent.toml has no View: its own Text and Form switch on the lint bar is how it is read and edited (vyre-v1.html).
+  const isToml = file.name.endsWith(".toml");
+  // The diff before a save sits in the History pane, over the versions, never under the file; it opens the pane when a review starts.
+  const onReviewPane = useCallback((node: ReactNode | null): void => {
+    setReviewNode(node);
+    if (node !== null && !hadReview.current) setPane(true);
+    hadReview.current = node !== null;
+  }, []);
 
   const rows = versions.status === "ready" ? versions.data.versions : [];
   const top = latestVersion(rows);
@@ -109,7 +119,7 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
           <Glyph name="check" size={13} color="var(--ok)" width={1.8} />
           <Text style={st.verText}>{`v${version}`}</Text>
         </View>
-        <Segmented options={[{ id: "view", label: "View" }, { id: "edit", label: "Edit" }]} value={mode} onChange={setMode} label="View or edit" testID="agent-file-mode" />
+        {isToml ? null : <Segmented options={[{ id: "view", label: "View" }, { id: "edit", label: "Edit" }]} value={mode} onChange={setMode} label="View or edit" testID="agent-file-mode" />}
         <IconBtn label="Find in file" onPress={toggleFind} testID="agent-file-find"><Glyph name="search" size={15} color={finding ? "var(--accent)" : "var(--ink-2)"} /></IconBtn>
         <IconBtn label="Info" onPress={() => setInfo(!info)} testID="agent-file-info"><Glyph name="info" size={15} color={info ? "var(--accent)" : "var(--ink-2)"} /></IconBtn>
         <IconBtn label="History" onPress={toggleHistory} testID="agent-file-history"><Glyph name="history" size={15} color={pane ? "var(--accent)" : "var(--ink-2)"} /></IconBtn>
@@ -143,14 +153,25 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
           {...file}
           saved={text}
           version={version}
-          mode={mode}
+          mode={isToml ? "edit" : mode}
+          onReviewPane={onReviewPane}
           above={<SuggestionCard agentId={agentId} file={file.name} onApplied={setApplied} {...(file.density ? { density: file.density } : {})} />}
         />
       )}
     </View>
   );
 
-  const history = <HistoryPanel fileId={file.fileId} density="compact" selectedId={viewing} onSelect={(id) => setViewing(id === top?.versionId ? null : id)} />;
+  const history = (
+    <View>
+      {reviewNode ? (
+        <View testID="agent-file-review">
+          <Text accessibilityRole="header" aria-level={3} style={st.paneHead}>Changes to save</Text>
+          {reviewNode}
+        </View>
+      ) : null}
+      <HistoryPanel fileId={file.fileId} density="compact" selectedId={viewing} onSelect={(id) => setViewing(id === top?.versionId ? null : id)} />
+    </View>
+  );
   return (
     <View style={[st.wrap, compact && st.wrapCompact]} testID="agent-file-page">
       {main}
@@ -178,6 +199,7 @@ const st = StyleSheet.create({
   wrapCompact: { flexDirection: "column", alignItems: "stretch" },
   under: { borderTopWidth: 1, borderTopColor: "var(--line)", paddingTop: 4 },
   underHead: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 6 },
+  paneHead: { fontSize: 12, fontWeight: "600", color: "var(--ink-3)" as string, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6 },
   underTitle: { flex: 1, fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   tile: { width: 30, height: 30, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string, marginRight: 4 },
   tileText: { fontSize: 9.5, fontWeight: "700", color: "var(--ink-3)" as string, letterSpacing: 0.3 },

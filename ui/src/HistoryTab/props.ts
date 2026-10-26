@@ -17,6 +17,8 @@ export interface HistoryVersion {
   id: string;
   n: number;
   who: string;
+  /** The id of who made it: the face is seeded by it (the name is the fallback). */
+  whoId?: string;
   why: string;
   /** ISO time. The row shows who and why beside it. */
   at: string;

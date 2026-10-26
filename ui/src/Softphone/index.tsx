@@ -452,8 +452,8 @@ function Glyph({ name, size = 16, color }: { name: keyof typeof IC; size?: numbe
 
 type Hover = { hovered?: boolean };
 
-function Tile({ name, size = 26, unknown = false }: { name: string; size?: number; unknown?: boolean }): ReactElement {
-  if (!unknown) return <Avatar name={name} kind="person" size={size} />;
+function Tile({ name, size = 26, unknown = false, seedId }: { name: string; size?: number; unknown?: boolean; seedId?: string | undefined }): ReactElement {
+  if (!unknown) return <Avatar name={name} {...(seedId !== undefined ? { seedId } : {})} kind="person" size={size} />;
   return (
     <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: "var(--sel-strong)" as string, alignItems: "center", justifyContent: "center" }}>
       <Glyph name="user" size={Math.round(size * 0.5)} color="var(--ink-3)" />
@@ -497,6 +497,8 @@ export interface SoftphoneSuggestion {
   name: string;
   number: string;
   company?: string;
+  /** The contact's id: the face is seeded by it. */
+  id?: string;
 }
 
 export interface SoftphoneViewProps extends SoftphoneProps {
@@ -554,7 +556,7 @@ function Dialer(p: SoftphoneViewProps): ReactElement {
   for (const s of (p.suggestions ?? []).slice(0, 3)) {
     sugNodes.push(
       <Pressable key={s.number} accessibilityRole="button" accessibilityLabel={`Call ${s.name}, ${s.number}`} onPress={() => go(s.number)} testID={`softphone-suggest-${s.number}`} style={({ hovered }: Hover) => [styles.sugRow, hovered === true && styles.ibHover]}>
-        <Tile name={s.name} size={22} />
+        <Tile name={s.name} seedId={s.id} size={22} />
         <Text style={styles.sugName} numberOfLines={1}>{s.name}</Text>
         <Text style={styles.sugNum}>{s.number}</Text>
       </Pressable>,
@@ -628,7 +630,7 @@ function Incoming(p: SoftphoneViewProps & { via: string }): ReactElement {
       {...webProps({ role: "alertdialog", onKeyDown: (e: { key: string; preventDefault?: () => void }) => { if (e.key === "Enter") { e.preventDefault?.(); p.onAnswer?.(); } else if (e.key === "Escape") { e.preventDefault?.(); p.onDecline?.(); } } })}
     >
       <View style={styles.inTop}>
-        <Tile name={known ? (c?.name ?? "?") : "?"} size={38} unknown={!known} />
+        <Tile name={known ? (c?.name ?? "?") : "?"} seedId={c?.id} size={38} unknown={!known} />
         <View style={styles.who}>
           <Text style={styles.inName} numberOfLines={1}>{known ? c?.name : "Unknown caller"}</Text>
           <Text style={styles.sub} numberOfLines={1}>{`${c?.company ? `${c.company} · ` : ""}${c?.number ?? ""}`}</Text>
@@ -664,7 +666,7 @@ export function CallBar(p: SoftphoneViewProps): ReactElement {
   }
   return (
     <View accessibilityLabel={p.connecting === true ? "Calling" : "In call"} accessibilityRole="toolbar" testID="softphone-bar" style={[styles.bar, p.density === "compact" && styles.barCompact]}>
-      <Tile name={name} size={26} unknown={c?.name === undefined} />
+      <Tile name={name} seedId={c?.id} size={26} unknown={c?.name === undefined} />
       <View style={styles.who}>
         <Text style={styles.barName} numberOfLines={1}>{name}</Text>
         <View style={styles.tmRow}>
@@ -782,7 +784,7 @@ function Ended(p: SoftphoneViewProps): ReactElement {
   return (
     <View accessibilityLabel="Call ended" testID="softphone-ended" style={[styles.card, POP_SHADOW]} {...webProps({ role: "status" })}>
       <View style={styles.dhead}>
-        <Tile name={name} size={26} unknown={c?.name === undefined} />
+        <Tile name={name} seedId={c?.id} size={26} unknown={c?.name === undefined} />
         <View style={styles.who}>
           <Text style={styles.barName} numberOfLines={1}>{`Call ended · ${formatClock(secs)}`}</Text>
           <Text style={styles.tm}>{ready ? (p.endedNote ?? `Saved to ${name}'s conversation`) : "Saving your notes"}</Text>
