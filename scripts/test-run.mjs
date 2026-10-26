@@ -37,7 +37,7 @@ else if (arg("--affected")) {
   files = r.all ? [...tracked].filter((f) => TEST.test(f)) : r.files;
 } else files = [...tracked].filter((f) => TEST.test(f));
 files = files.filter((f) => TEST.test(f) && tracked.has(f)).sort();
-for (const e of withPatternSlow(files, slow)) slowBy.set(e.file, e);   // slow by pattern (golden steps) as well as by list
+for (const e of withPatternSlow(files, slow, read)) slowBy.set(e.file, e);   // slow by pattern (golden steps) as well as by list
 files = files.filter((f) => (arg("--slow") ? slowBy.has(f) : !slowBy.has(f)));
 
 // Perf files (test/slow.json "perf": true) run only where speed is measured: skipped in every other shard, one line each.
