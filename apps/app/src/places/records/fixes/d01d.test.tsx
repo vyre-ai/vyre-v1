@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import { createFakeReplica, liveQuery } from "../../../../../../client/src/index.ts";
-import { RecordsDataProvider, RecordsStateProvider } from "../sidebar/index.ts";
+import { RecordsDataProvider, RecordsSidebar, RecordsStateProvider } from "../sidebar/index.ts";
 import { RecordViews } from "../views-a/index.ts";
 import { createViewsSample } from "../views-a/sample.ts";
 import { dateText } from "../table/index.ts";
@@ -67,4 +67,14 @@ test("no stars, no group; a folded group keeps its header and drops its rows", (
   assert.equal(starred({ stars: [] }), "");
   const folded = starred(STARS, true);
   assert.ok(has(folded, ">Starred<") && !has(folded, "Elena Rivera"));
+});
+
+test("the sidebar draws the Starred group between the record types and the saved views, and leaves it out when the runtime has no stars", () => {
+  const replica = createFakeReplica("t");
+  replica.resolve("stars.list", () => STARS);
+  const withStars = render(<RecordsSidebar starred={<StarredGroup query={liveQuery(replica, "stars.list", {})} typeOf={typeOf} onOpen={() => undefined} />} />);
+  assert.ok(withStars.indexOf('data-testid="sec-starred"') > withStars.indexOf("Booking widget") && withStars.indexOf('data-testid="sec-starred"') < withStars.indexOf('data-testid="sec-views"'), "after Sites, before Saved views");
+  const plain = render(<RecordsSidebar />);
+  assert.ok(!has(plain, 'data-testid="records-starred"'), "the sample runtime answers no stars, so no group");
+  assert.ok(has(plain, 'data-testid="sec-views"') && has(plain, 'data-testid="sec-manage"'));
 });
