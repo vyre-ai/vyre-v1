@@ -6,7 +6,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { bootCore } from "../../fixtures/seed/core/index.ts";
-import { createDeferred } from "../../client/src/runtime/deferred.ts";
 import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
@@ -51,10 +50,10 @@ test("whoami lists the deferred capabilities, so the client can hide Sites", asy
     assert.ok(deferred.includes("sites.create"), `sites.create is deferred: ${JSON.stringify(deferred).slice(0, 200)}`);
     assert.ok(deferred.includes("vault.import"), "an action of a live module is listed too");
     assert.ok(!deferred.includes("files.read"), "a real capability is not listed");
-    // the client turns the list into places to hide: Sites whole, Vault not
-    const set = createDeferred(deferred, body.data?.deferredModules);
-    assert.equal(set.isModuleDeferred("sites"), true);
-    assert.equal(set.isModuleDeferred("vault"), false);
+    // a place is deferred whole when every one of its capabilities is: Sites yes, Vault (one deferred action) no. The client turns these lists into rt.deferredModules (client/src/runtime/deferred.test.ts).
+    const modules = body.data?.deferredModules ?? [];
+    assert.ok(modules.includes("sites"), `sites is a deferred module: ${JSON.stringify(modules)}`);
+    assert.ok(!modules.includes("vault"), "vault has real capabilities, so it is not deferred whole");
     // no token, no list
     assert.equal((await post(null, "/v1/identity/whoami")).status, 401);
   } finally { await d.stop(); }
