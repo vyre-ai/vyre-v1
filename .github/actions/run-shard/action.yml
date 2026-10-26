@@ -25,4 +25,5 @@ runs:
         SLOW: ${{ inputs.slow }}
         VYRE_PERF_RUN: ${{ inputs.runner == 'v1-perf' && '1' || '' }}   # perf files run only on the pinned perf host (test-run skips them elsewhere)
       run: |
-        if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --files $FILES; else NC=""; [ "$RUNNER_ENVIRONMENT" = "github-hosted" ] && NC="--no-cache"; node scripts/test-run.mjs --files $FILES $NC; fi   # a hosted VM never reads a shared pass cache
+        # Two files at a time: every runner of a host (eight, on eight cores) runs a shard at once, and four booted daemons per shard starved each other past the 30 s watchdog (dryrun.9, #676).
+        if [ "$SLOW" = "true" ]; then node scripts/test-run.ts --slow --jobs 2 --files $FILES; else NC=""; [ "$RUNNER_ENVIRONMENT" = "github-hosted" ] && NC="--no-cache"; node scripts/test-run.mjs --jobs 2 --files $FILES $NC; fi   # a hosted VM never reads a shared pass cache

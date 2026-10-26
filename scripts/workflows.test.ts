@@ -96,8 +96,8 @@ test("no npm install, docker pull or curl outside prewarm", () => {
 
 test("check, main and release run their shards through the one run-shard action: test-run.mjs for fast files, test-run.ts for the slow list, so the three cannot drift", () => {
   const action = fs.readFileSync(path.join(dir, "../actions/run-shard/action.yml"), "utf8");
-  assert.match(action, /test-run\.mjs --files/);
-  assert.match(action, /test-run\.ts --slow --files/);
+  assert.match(action, /test-run\.mjs --jobs 2 --files/);
+  assert.match(action, /test-run\.ts --slow --jobs 2 --files/);
   for (const n of ["check", "main", "release"]) { const t = wf(n).text; assert.match(t, /uses: \.\/\.github\/actions\/run-shard/); assert.match(t, /ci-select\.ts/); }
   assert.doesNotMatch(wf("release").text, /--max \d/, "release uses the same shard plan as check: no --max");
   // The org is out of GitHub Actions minutes (25 Oct): a hosted job dies with 0 steps, so none of the three workflows may name a GitHub-hosted runner, in a runs-on or in the matrix choice.

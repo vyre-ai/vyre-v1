@@ -8,10 +8,11 @@ import { runFile } from "./test-run.ts";
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "trun-perf-"));
 const fixture = path.join(dir, "slowish.test.mjs");
-fs.writeFileSync(fixture, `import test from "node:test";
-test("fast one", () => {});
-test("takes a while", async () => { await new Promise((r) => setTimeout(r, 1600)); });
-`);
+fs.writeFileSync(fixture, [
+  'import test from "node:test";',
+  'test("fast one", () => {});',
+  'test("takes a while", async () => { await new Promise((r) => setTimeout(r, 1600)); });',
+].join("\n") + "\n");
 
 test("the watchdog stops a file that runs past a 1 s cap within 2.5 s", async () => {
   const r = await runFile(fixture, { cwd: dir, capMs: 1000 });
