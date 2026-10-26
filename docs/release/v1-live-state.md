@@ -13,11 +13,12 @@
 ## Current state — 27 October 2026 PKT
 
 - **Merged:** PR #517 fixed the real-app Mail/Automations React #185 navigation loop. Full CI and production-export screenshot capture passed.
-- **PR #717:** atomic agent-home grants. Current head `e43bc88c`; the red run exposed a missing `folderId` contract declaration, now fixed. A fresh CI run must pass before merge, followed by fresh spec plus quality review.
+- **PR #717:** atomic agent-home grants. Regeneration advanced the remote branch without the worker's `folderId` manifest fix; the resulting run stopped at ownership/contract drift. The lane is reconciling the worker and regen commits by normal merge, then must pass fresh CI followed by fresh spec plus quality review.
 - **PR #715:** Files mirror branch includes the merged #517 changes. Its earlier `l2-heavy` failure depends on #717; re-run and enqueue only after #717 lands.
 - **PR #719:** replaces desktop CI placeholder with blocking macOS and Windows package builds, ad-hoc Mac signing proof, shell smoke, and artifacts. Run `40417003122` is still active; its ordinary PR suite currently sees the same agent-owner test family, which must be resolved through #717, not suppressed.
 - **Session discovery branch:** `build/P-L10_session-import`, native Codex and Claude metadata discovery is green in run `40417505140`. It uses immutable-only Codex SQLite and native bridge discovery for both providers.
-- **Session import capability:** active implementation lane. It must add typed `sessions.import` and `sessions.continue` capability/schema/projection support; existing Project/Chat capabilities cannot safely create immutable provenance-marked imported transcripts. Required behavior is defined in the release contract.
+- **Session import capability:** PR #720 has landed the typed `sessions.import` and `sessions.continue` slice, including consent, immutable provenance, mapping/fallback, incremental conflict records, and linked live continuation. Its generated contract reconciliation is at `ad6c3fb0`; full CI and independent review remain required.
+- **Session discovery security remediation:** `a06d81e9` percent-encodes immutable SQLite paths and redacts Git remote userinfo before metadata crosses the bridge. Check and security workflows are in progress.
 - **Release infrastructure:** buildx runners and the isolated release signing runner are online. No runner-label mutation is needed. Apple Developer identity is unavailable; RC uses ad-hoc Mac signing and must state its Gatekeeper behavior.
 
 ## Primary evidence locations
