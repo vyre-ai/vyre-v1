@@ -582,7 +582,7 @@ async function documentsFill(ctx: Ctx, input: unknown): Promise<{ file: { fileId
     name = `${n === 1 ? stem : `${stem} ${n}`}.${ext}`;
     try {
       created = (await ctx.call("files.create", {
-        folderId: intoFolderId, name, content: { base64: Buffer.from(out).toString("base64") }, mime: format === "pdf" ? "application/pdf" : DOCX_MIME, kind: format === "pdf" ? "pdf" : "document",
+        idempotencyKey: `doc-fill:${ctx.trace.traceId}:${n}`, folderId: intoFolderId, name, content: { base64: Buffer.from(out).toString("base64") }, mime: format === "pdf" ? "application/pdf" : DOCX_MIME, kind: format === "pdf" ? "pdf" : "document",
       })) as { file?: { fileId?: unknown; name?: unknown } };
     } catch (e) {
       if (e instanceof VyreErr && e.error.code === "validation.duplicate") continue;

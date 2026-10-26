@@ -605,9 +605,9 @@ async function approve(ctx: Ctx, input: unknown): Promise<{ approved: boolean; v
   let pushPending = false;
   if (push) {
     try {
-      const made = (await ctx.call("git.commit", { folderId: String(cs.folder_id), message: message ?? "Approved changeset" })) as { sha?: string };
+      const made = (await ctx.call("git.commit", { idempotencyKey: `cs-commit:${String(cs.id)}`, folderId: String(cs.folder_id), message: message ?? "Approved changeset" })) as { sha?: string };
       commit = made.sha;
-      await ctx.call("git.push", { folderId: String(cs.folder_id) });
+      await ctx.call("git.push", { idempotencyKey: `cs-push:${String(cs.id)}`, folderId: String(cs.folder_id) });
     } catch {
       pushPending = true; // approved and committed to the tree; the push waits for a retry or for its own Gate approval
     }

@@ -199,12 +199,12 @@ function dropItems(ctx: Ctx, rows: Row[], gone: readonly Row[]): void {
 // ---- the files module ---------------------------------------------------------------------------------------
 
 async function filesCreateFolder(ctx: Ctx, parentId: string, name: string, reviewChanges?: boolean): Promise<string> {
-  const r = obj(await ctx.call("files.folder.create", { parentId, name, ...(reviewChanges !== undefined ? { reviewChanges } : {}) }));
+  const r = obj(await ctx.call("files.folder.create", { idempotencyKey: `mnt_${mintUuid(ctx.now())}`, parentId, name, ...(reviewChanges !== undefined ? { reviewChanges } : {}) }));
   return str(obj(r["folder"])["folderId"]);
 }
 
 async function filesCreate(ctx: Ctx, folderId: string, name: string, blobId: string, mime?: string, kind?: string): Promise<{ fileId: string; version: number }> {
-  const r = obj(await ctx.call("files.create", { folderId, name, content: { blobId }, ...(mime !== undefined ? { mime } : {}), ...(kind !== undefined ? { kind } : {}) }));
+  const r = obj(await ctx.call("files.create", { idempotencyKey: `mnt_${mintUuid(ctx.now())}`, folderId, name, content: { blobId }, ...(mime !== undefined ? { mime } : {}), ...(kind !== undefined ? { kind } : {}) }));
   const file = obj(r["file"]);
   return { fileId: str(file["fileId"]), version: num(file["version"]) };
 }
