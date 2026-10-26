@@ -19,7 +19,7 @@ Create a local calendar (for example a private Personal one)
 | HTTP | POST /v1/calendar/create_calendar |
 | MCP tool | calendar_create_calendar (inbox) |
 | CLI | none |
-| Emits | none |
+| Emits | calendar.created |
 
 ## Input
 

@@ -34379,7 +34379,9 @@
     },
     {
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "calendar.created"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -172355,6 +172357,38 @@
       "trigger": {
         "title": "A booking is made"
       },
+      "vis": "space"
+    },
+    {
+      "label": "subject",
+      "module": "calendar",
+      "name": "calendar.created",
+      "payload": {
+        "properties": {
+          "calendarId": {
+            "examples": [
+              "cld_a1b2c3"
+            ],
+            "pattern": "^cld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "personal": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "calendarId",
+          "personal"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/calendarId",
+        "type": "calendar"
+      },
+      "summary": "A calendar was made in Vyre; it is a resource owned by the person who made it",
+      "sv": 1,
       "vis": "space"
     },
     {
