@@ -17,9 +17,9 @@ export const GAPS: Gap[] = [
 export async function runPersonal(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const trail = new Trail();
   let s = undefined as FlowSpace | undefined;
-  await trail.step("a Space boots with sync live", async () => { s = await bootFlowSpace([...live, "sync"]); });
+  await trail.step("a Space boots with sync live", async () => { s = await bootFlowSpace([...live, "sync"], { spaceKind: "personal" }); });
   if (!s) {
-    await trail.step("the same Space boots with sync as a stub, to check what else is wired", async () => { s = await bootFlowSpace(live); });
+    await trail.step("the same Space boots with sync as a stub, to check what else is wired", async () => { s = await bootFlowSpace(live, { spaceKind: "personal" }); });
     if (!s) return { events: [], trail };
   }
   const synced = trail.lines.some((l) => l.startsWith("ok    a Space boots with sync live"));
