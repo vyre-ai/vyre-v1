@@ -115,10 +115,15 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
     }, ["a sending domain is added and verifies"]);
 
     const campaign = await trail.step("a campaign is drafted for the lead", async () => {
-      const c = expectStatus(await s.call("campaigns.create", adam, { idempotencyKey: "golden-5-campaign", name: "Spring outreach", kind: "one_time" }), 200, "campaigns.create").campaign;
+      const c = expectStatus(await s.call("campaigns.create", adam, { idempotencyKey: "golden-5-campaign", name: "Spring outreach", kind: "sequence" }), 200, "campaigns.create").campaign;
       const campaignId = (c.campaignId ?? c.id) as string;
       expectStatus(await s.call("campaigns.steps_set", adam, {
-        campaignId, steps: [{ key: "hello", type: "email", config: { mailboxId: mailbox!, subject: "Hello {{name}}", text: "Hi {{name}}, can we talk?" } }],
+        // a sequence: after the first email the lead waits two days, so the campaign is still running when the reply comes in
+        campaignId, steps: [
+          { key: "hello", type: "email", config: { mailboxId: mailbox!, subject: "Hello {{name}}", text: "Hi {{name}}, can we talk?" } },
+          { key: "pause", type: "wait", config: { days: 2 } },
+          { key: "nudge", type: "email", config: { mailboxId: mailbox!, subject: "Following up, {{name}}", text: "Did you see my note?" } },
+        ],
       }), 200, "campaigns.steps_set");
       const aud = expectStatus(await s.call("campaigns.audience_set", adam, { campaignId, type: "contact", filter: { field: "email", op: "eq", value: LEAD.email } }), 200, "campaigns.audience_set");
       assert.equal(aud.count, 1, `the audience is the lead: ${short(aud)}`);
@@ -164,6 +169,8 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
     await trail.step("the campaign announces the reply", async () => {
       expectStatus(await s.call("campaigns.resume", admin, { campaignId: campaign! }), 200, "campaigns.resume");
       const replies = expectStatus(await s.call("campaigns.replies", admin, { campaignId: campaign! }), 200, "campaigns.replies").replies as unknown[];
+      const got = expectStatus(await s.call("mail.message.get", admin, { messageId: reply! }), 200, "mail.message.get").message;
+      assert.equal(got.campaignId, campaign, `the reply carries the campaign: ${short(got)}`);
       assert.ok(replies.length >= 1, `the campaign lists the reply ${reply!}: ${short(replies)}`);
     }, ["the lead replies and the reply is matched to the lead and the campaign"]);
 
