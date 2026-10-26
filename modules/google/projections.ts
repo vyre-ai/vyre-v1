@@ -4,6 +4,7 @@
 // The service account key never reaches module code (ARCH 8: secrets are resolved by name at the last moment). Whatever needs the key or the
 // Space's bytes goes through GoogleHost, which the host registers once at boot with setGoogleHost: minting a delegated token, the member
 // email map, the key's non-secret identity, file bytes, blob storage and the two binary transfers ctx.http (text only) cannot carry.
+import { isTrustedService } from "../../lib/trust.ts";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { fail } from "../../host/src/routes/errors.ts";
@@ -190,13 +191,13 @@ export function query(q: Query | undefined): string {
 export function subjectFor(ctx: GoogleCtx, c: Pick<Call, "connectionId" | "as" | "open">): string {
   const cfg = config(ctx);
   const admin = strOrNull(cfg, "adminEmail");
-  const person = ctx.principal.kind === "service" ? null : (ctx.actingFor ?? ctx.principal.id);
+  const person = isTrustedService(ctx.principal) ? null : (ctx.actingFor ?? ctx.principal.id);
   const own = person ? strOrNull(first(ctx.db.all(`SELECT email FROM google_member WHERE "userId" = ? AND mapped = ?`, person, 1)), "email") : null;
   const target = c.as ? normalizeEmail(c.as) : own;
   if (!target) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "You are not mapped to a Google Workspace user." });
   // Acting as someone else takes an admin or a service. The delegation's own probes (setup, probe, health) may always act as the admin address.
   const probingAdmin = c.open === true && target === admin;
-  if (c.as && target !== own && ctx.principal.kind !== "service" && !probingAdmin) {
+  if (c.as && target !== own && !isTrustedService(ctx.principal) && !probingAdmin) {
     if (ctx.authorize({ perm: "connectors.manage", level: "manage" }, { type: "connection", id: c.connectionId }).effect !== "allow") {
       throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only an admin can act as another member." });
     }

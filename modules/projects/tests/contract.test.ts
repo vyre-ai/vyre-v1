@@ -11,8 +11,8 @@ import { mkChain, mkProject, run } from "../fixtures/seed.ts";
 
 const mine = registry.capabilities.filter((c) => c.module === "projects");
 
-test("the handler table covers exactly the 22 capabilities of the projects manifest", () => {
-  assert.equal(mine.length, 22);
+test("the handler table covers exactly the 24 capabilities of the projects manifest", () => {
+  assert.equal(mine.length, 24);
   assert.deepEqual(Object.keys(handlers).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof handlers[c.name], "function", c.name);
 });
@@ -85,6 +85,11 @@ const scenarios: Scenario[] = [
   { cap: "projects.file_chat", setup: withProject, run: (hn, p) => run(hn, "projects.file_chat", { projectId: p.projectId, threadId: "thr_missing" }), expect: "validation.not_found" },
   { cap: "projects.share_out", setup: withProject, run: (hn, p) => run(hn, "projects.share_out", { projectId: p.projectId, expiresAt: NOW + DAY }) },
   { cap: "projects.share_out", setup: withProject, run: (hn, p) => run(hn, "projects.share_out", { projectId: p.projectId, expiresAt: NOW - DAY }), expect: "validation.bad_input" },
+  { cap: "projects.share_out", setup: withProject, run: (hn, p) => run(hn, "projects.share_out", { projectId: p.projectId, expiresInDays: 7 }) },
+  { cap: "projects.unshare_out", setup: async (hn) => { const p = await withProject(hn); const l = await run(hn, "projects.share_out", { projectId: p.projectId }); hn.clear(); return { p, url: l.url as string }; }, run: (hn, s) => run(hn, "projects.unshare_out", { projectId: s.p.projectId, url: s.url }) },
+  { cap: "projects.unshare_out", setup: withProject, run: (hn, p) => run(hn, "projects.unshare_out", { projectId: p.projectId, url: "/elsewhere/x" }), expect: "validation.bad_input" },
+  { cap: "projects.shared_view", setup: async (hn) => { const p = await withProject(hn); const l = await run(hn, "projects.share_out", { projectId: p.projectId }); hn.clear(); return { token: (l.url as string).slice("/share/project/".length) }; }, run: (hn, s) => run(hn, "projects.shared_view", { token: s.token }, hn.as({ kind: "service", id: "svc_host" })) },
+  { cap: "projects.shared_view", run: (hn) => run(hn, "projects.shared_view", { token: "0".repeat(36) }, hn.as({ kind: "service", id: "svc_host" })), expect: "validation.not_found" },
 ];
 
 test("every path through every capability: answers match the schema, errors are declared, events are declared and match their schemas", async () => {

@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_24-agent-pane",
+      "route": "/m/P-L9b_24?screen=pane",
+      "proto": "chat,at:demo-agent-computer,{skin}",
+      "waitFor": "[data-testid='chats-right-pane']",
+      "note": "The agent pane at desktop width: Computer, Threads, Files, Memory with its count and Routines in the tab strip, no More."
+    },
+    {
+      "id": "P-L9b_24-agent-pane-asleep",
+      "route": "/m/P-L9b_24?screen=pane&asleep=1",
+      "proto": "chat,at:demo-agent-computer,{skin}",
+      "waitFor": "[data-testid='step-thumb']",
+      "note": "The Computer tab of a sleeping computer: its last frame with a Wake button, and the last session's steps each with a frame thumbnail, the tool and the time into the session."
+    }
+  ]
+}

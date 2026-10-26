@@ -22,8 +22,10 @@ export const handlers: Handlers<HandlerCtx> = {
   "projects.post_update": async () => ({"postedAt":1760000000000} as unknown) as never,
   "projects.reschedule": async () => ({"due":1760000000000,"proposalId":"csc_a1b2c3","start":1760000000000,"taskId":"tsk_a1b2c3"} as unknown) as never,
   "projects.share_out": async () => ({"expiresAt":1760000000000,"url":"example"} as unknown) as never,
+  "projects.shared_view": async () => ({"expiresAt":1760000000000,"goal":"example","milestones":[{"due":1760000000000,"status":"example","title":"example"}],"status":"example","statusUpdate":{"at":1760000000000,"text":"example"},"title":"example"} as unknown) as never,
   "projects.stages.set": async () => ({"stages":[{"key":"draft","order":1,"title":"example"}]} as unknown) as never,
   "projects.templates.list": async () => ({"templates":[{"key":"example","source":"builtin","stages":["example"],"title":"example","type":"contact"}]} as unknown) as never,
   "projects.unlink_tasks": async () => ({"ok":true} as unknown) as never,
   "projects.unpin_file": async () => ({"ok":true} as unknown) as never,
+  "projects.unshare_out": async () => ({"revoked":true} as unknown) as never,
 };

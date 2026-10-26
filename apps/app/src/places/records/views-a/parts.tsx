@@ -25,7 +25,7 @@ export function Value({ field, row, names }: { field: FieldDef; row: RecordRow; 
   if (v === undefined || v === null || v === "") return null;
   if ((field.type === "choice" || field.type === "status") && typeof v === "string") return <Tag field={field} value={v} />;
   if (field.type === "checkbox") return v === true ? <View style={p.inline}><Glyph name="check" size={12} color="var(--ink-2)" width={1.8} /><Text style={p.plain}>{field.title}</Text></View> : null;
-  if (field.type === "person") return <View style={p.inline}><Face name={names(String(v))} size={16} /><Text numberOfLines={1} style={p.plain}>{names(String(v)).split(" ")[0]}</Text></View>;
+  if (field.type === "person") return <View style={p.inline}><Face name={names(String(v))} seedId={String(v)} size={16} /><Text numberOfLines={1} style={p.plain}>{names(String(v)).split(" ")[0]}</Text></View>;
   if (field.type === "rating" && typeof v === "number") return <Text style={p.stars} accessibilityLabel={`${v} of 5`}>{"★".repeat(Math.max(0, Math.min(5, v)))}</Text>;
   return <Text numberOfLines={1} style={[p.plain, isNumeric(field) && p.num]}>{cellText(field, v, names)}</Text>;
 }
