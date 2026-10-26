@@ -169,15 +169,15 @@ test("scheduler start runs immediate jobs once without waiting for a long interv
 test("scheduler start waits for an immediate async job to finish", async () => {
   let release!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
-  let finished = false;
+  let settled = false;
   const s = new Scheduler({ tickMs: 86_400_000 });
-  s.add({ name: "gated", schedule: { everyMs: 86_400_000, immediate: true }, run: async () => { await gate; finished = true; } });
-  const started = s.start();
+  s.add({ name: "gated", schedule: { everyMs: 86_400_000, immediate: true }, run: async () => { await gate; } });
+  const started = Promise.resolve(s.start()).then(() => { settled = true; });
   await Promise.resolve();
-  assert.equal(finished, false);
+  assert.equal(settled, false);
   release();
   await started;
-  assert.equal(finished, true);
+  assert.equal(settled, true);
   await s.stop();
 });
 
