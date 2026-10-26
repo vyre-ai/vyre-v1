@@ -204,7 +204,8 @@ export function createMountSample(o: { conversation?: ConversationVariant; who?:
   hooks["chats.helper-chat"] = help.data.screens;
   const screens: ScreenHooks = { query: (id, name, state) => (hooks[id] ?? own).query(id, name, state) };
 
-  const principals: LiveQuery<Principal[]> = { subscribe: () => () => undefined, getSnapshot: (): QueryState<Principal[]> => ({ status: "ready", data: PEOPLE }) };
+  const everyone: QueryState<Principal[]> = { status: "ready", data: PEOPLE };
+  const principals: LiveQuery<Principal[]> = { subscribe: () => () => undefined, getSnapshot: () => everyone };
   const me = who === "owner" ? PEOPLE[1]! : PEOPLE[0]!;
   const rt: ShellRuntime = {
     screens,
