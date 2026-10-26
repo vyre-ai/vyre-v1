@@ -100,8 +100,9 @@ test("a failed run counts beside its Group, and the Group's count is its rows", 
 
 test("the Journeys tab lists Journeys with their stages and what is in flight", () => {
   const out = html(createSampleAutomations(northwind), { initialTab: "journeys" });
-  assert.ok(has(out, "Client onboarding") && has(out, "5 stages, 4 in flight"));
-  assert.ok(has(out, "Matter intake") && has(out, "4 stages, 7 in flight"));
+  assert.ok(has(out, "Client onboarding") && has(out, 'data-testid="journey-count-jrn_onboard"') && has(out, ">4<"), "the count of what is in flight is the badge");
+  assert.ok(has(out, "Matter intake") && has(out, 'data-testid="journey-count-jrn_matter"') && has(out, ">7<"));
+  assert.equal(journeyNote({ id: "j", name: "n", subjectType: "x", recordType: "y", version: 1, stages: 5, inFlight: 4, updatedAt: 0 }), "5 stages, 4 in flight");
   assert.ok(!has(out, "New lead follow-up"), "the Automations list is not shown");
   assert.equal(journeyNote({ id: "j", name: "n", subjectType: "x", recordType: "y", version: 1, stages: 1, inFlight: 0, updatedAt: 0 }), "1 stage");
   assert.match(out.match(/<[^>]*data-testid="subtab-journeys"[^>]*>/)![0], /aria-selected="true"/);

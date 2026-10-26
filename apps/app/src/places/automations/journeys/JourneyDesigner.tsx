@@ -16,8 +16,8 @@ import { Glyph } from "../config/glyphs.tsx";
 import { useJourney, useDesign } from "./data.ts";
 import { FieldsTab } from "./FieldsTab.tsx";
 import { JourneySettings } from "./JourneySettings.tsx";
-import { SLOTS, initials, addAutomation, addStage, addTask, canDeleteStage, countOf, dueWords, moveStage, moveTask, plural, removeAutomation, removeStage, removeTask, totalOver, totalRecords, updateTask } from "./model.ts";
-import type { Journey, Ref, Stage, StageCounts, Task } from "./model.ts";
+import { SLOTS, TASK_STATES, initials, addAutomation, addStage, addTask, canDeleteStage, countOf, dueWords, moveStage, moveTask, plural, removeAutomation, removeStage, removeTask, totalOver, totalRecords, updateTask } from "./model.ts";
+import type { Journey, Ref, Stage, StageCounts, Task, TaskState } from "./model.ts";
 
 export interface Selection { stage: string; task?: string }
 export type DesignerTab = "stages" | "fields" | "settings";
@@ -55,6 +55,22 @@ function Body({ journey: j, counts, versions, tab, setTab, sel, choose, canDesig
   const { element, show } = useMenu();
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set(initialFolded));
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [stateOver, setStateOver] = useState<Readonly<Record<string, TaskState>>>({});
+  const [leaveOver, setLeaveOver] = useState<Readonly<Record<string, readonly string[]>>>({});
+  const baseStates = extras.taskStates?.(j.id);
+  const stateOf = (taskKey: string): TaskState => stateOver[taskKey] ?? baseStates?.[taskKey] ?? "To do";
+  const baseLeaving = extras.leaving?.(j.id);
+  const leavingOf = (g: Stage): readonly string[] => leaveOver[g.key] ?? baseLeaving?.[g.key] ?? [];
+  const setLeaving = (g: Stage, next: readonly string[], text: string): void => {
+    const prev = leavingOf(g);
+    const apply = (to: readonly string[]) => async (): Promise<void> => { setLeaveOver((cur) => ({ ...cur, [g.key]: to })); extras.setLeaving?.(j.id, g.key, to); };
+    void d.saved.run(text, apply(next), apply(prev));
+  };
+  const setState = (t: Task, state: TaskState): void => {
+    const prev = stateOf(t.key);
+    const apply = (to: TaskState) => async (): Promise<void> => { setStateOver((cur) => ({ ...cur, [t.key]: to })); extras.setTaskState?.(j.id, t.key, to); };
+    void d.saved.run(`${t.title}: ${state}`, apply(state), apply(prev));
+  };
   const total = totalRecords(counts), over = totalOver(counts);
   const fieldsOf = extras.recordFields?.(j.recordType);
   const fieldCount = (fieldsOf?.inherited.length ?? 0) + (fieldsOf?.own.length ?? 0);
@@ -77,6 +93,9 @@ function Body({ journey: j, counts, versions, tab, setTab, sel, choose, canDesig
   };
   const taskMenu = (g: Stage, t: Task, x: number, y: number): void => {
     const items: MenuEntry[] = [{ label: "Open", onSelect: () => choose({ stage: g.key, task: t.key }) }];
+    if (extras.setTaskState) {
+      items.push({ separator: true }, { head: "Status" }, ...each(TASK_STATES, (st) => ({ label: st, checked: stateOf(t.key) === st, onSelect: () => setState(t, st) })));
+    }
     if (canDesign) {
       items.push(
         { separator: true },
@@ -89,15 +108,18 @@ function Body({ journey: j, counts, versions, tab, setTab, sel, choose, canDesig
     }
     show(items, x, y, "context", { label: t.title });
   };
-  const automationMenu = (g: Stage, id: string, x: number, y: number): void => {
+  const automationMenu = (g: Stage, id: string, x: number, y: number, when: "enter" | "leave" = "enter"): void => {
+    const remove = (): void => (when === "enter" ? edit(removeAutomation(stages, g.key, id), `${data.name(id)} no longer runs on ${g.title}`) : setLeaving(g, leavingOf(g).filter((a) => a !== id), `${data.name(id)} no longer runs when a record leaves ${g.title}`));
     show([
       { label: "Open the Automation", onSelect: () => (extras.openAutomation ?? data.nav.openAutomation)(id) },
-      ...(canDesign ? [{ separator: true } as MenuEntry, { label: "Remove from This Stage", danger: true, onSelect: () => edit(removeAutomation(stages, g.key, id), `${data.name(id)} no longer runs on ${g.title}`) } as MenuEntry] : []),
+      ...(canDesign ? [{ separator: true } as MenuEntry, { label: "Remove from This Stage", danger: true, onSelect: remove } as MenuEntry] : []),
     ], x, y, "context", { label: data.name(id) });
   };
-  const addAutomationMenu = (g: Stage, x: number, y: number): void => {
+  const addAutomationMenu = (g: Stage, x: number, y: number, when: "enter" | "leave" = "enter"): void => {
     const rows = extras.directory.automations;
-    show(rows.length ? each(rows.filter((a) => !g.automations.includes(a.id)), (a) => ({ label: a.name, onSelect: () => edit(addAutomation(stages, g.key, a.id), `${a.name} runs when a record enters ${g.title}`) })) : [{ head: "No Automations to add" }], x, y, "other", { label: "Add an Automation" });
+    const taken = when === "enter" ? g.automations : leavingOf(g);
+    const add = (a: { id: string; name: string }): void => (when === "enter" ? edit(addAutomation(stages, g.key, a.id), `${a.name} runs when a record enters ${g.title}`) : setLeaving(g, [...taken, a.id], `${a.name} runs when a record leaves ${g.title}`));
+    show(rows.length ? each(rows.filter((a) => !taken.includes(a.id)), (a) => ({ label: a.name, onSelect: () => add(a) })) : [{ head: "No Automations to add" }], x, y, "other", { label: "Add an Automation" });
   };
 
   const stageBlocks = each(stages, (g, i) => {
@@ -132,7 +154,7 @@ function Body({ journey: j, counts, versions, tab, setTab, sel, choose, canDesig
         {closed ? null : (
           <View style={s.stageBody}>
             <Text accessibilityRole="header" style={s.sl}>Tasks</Text>
-            {each(g.tasks, (t) => <TaskRow key={t.key} g={g} t={t} selected={sel?.task === t.key} onOpen={() => choose({ stage: g.key, task: t.key })} onMenu={(x, y) => taskMenu(g, t, x, y)} name={data.name} />)}
+            {each(g.tasks, (t) => <TaskRow key={t.key} g={g} t={t} state={stateOf(t.key)} selected={sel?.task === t.key} onOpen={() => choose({ stage: g.key, task: t.key })} onMenu={(x, y) => taskMenu(g, t, x, y)} name={data.name} />)}
             {canDesign ? <AddLine label="Add a task" testID={`add-task-${g.key}`} onPress={() => { const next = addTask(stages, g.key, "New task", me); edit(next, "Added a task"); const k = next.find((x) => x.key === g.key)?.tasks.slice(-1)[0]?.key; if (k) choose({ stage: g.key, task: k }); }} /> : g.tasks.length === 0 ? <Text style={s.none}>None</Text> : null}
             <Text accessibilityRole="header" style={s.sl}>On entering</Text>
             {each(g.automations, (id) => (
@@ -145,6 +167,17 @@ function Body({ journey: j, counts, versions, tab, setTab, sel, choose, canDesig
               </View>
             ))}
             {canDesign ? <AddLine label="Add an automation" testID={`add-auto-${g.key}`} onPress={(x, y) => addAutomationMenu(g, x, y)} /> : g.automations.length === 0 ? <Text style={s.none}>None</Text> : null}
+            <Text accessibilityRole="header" style={s.sl}>On leaving</Text>
+            {each(leavingOf(g), (id) => (
+              <View key={id} {...menuTrigger((x, y) => automationMenu(g, id, x, y, "leave"))} {...webOnly({ dataSet: { row: `leave:${g.key}:${id}` } })}>
+                <Row
+                  id={`leave-${g.key}-${id}`} title={data.name(id)} onPress={() => (extras.openAutomation ?? data.nav.openAutomation)(id)}
+                  leading={<View style={s.autoMark}><Glyph name="bolt" size={13} color="var(--accent)" /></View>}
+                  trailing={canDesign ? <IconButton icon="more" label={`More for ${data.name(id)}`} size={22} onPress={(e) => { const p = pointOf(e); automationMenu(g, id, p.x, p.y, "leave"); }} /> : undefined}
+                />
+              </View>
+            ))}
+            {canDesign ? <AddLine label="Add an automation" testID={`add-leave-${g.key}`} onPress={(x, y) => addAutomationMenu(g, x, y, "leave")} /> : leavingOf(g).length === 0 ? <Text style={s.none}>None</Text> : null}
           </View>
         )}
       </View>
@@ -211,15 +244,16 @@ function Body({ journey: j, counts, versions, tab, setTab, sel, choose, canDesig
   );
 }
 
-function TaskRow({ g, t, selected, onOpen, onMenu, name }: { g: Stage; t: Task; selected: boolean; onOpen(): void; onMenu(x: number, y: number): void; name(id: string): string }): ReactElement {
+function TaskRow({ g, t, state, selected, onOpen, onMenu, name }: { g: Stage; t: Task; state: TaskState; selected: boolean; onOpen(): void; onMenu(x: number, y: number): void; name(id: string): string }): ReactElement {
   const seats = SLOTS.flatMap(({ key }) => (t[key] ? [t[key] as Ref] : []));
   return (
     <View {...menuTrigger((x, y) => onMenu(x, y))} {...webOnly({ dataSet: { row: `task:${g.key}:${t.key}` } })}>
       <Row
         id={`task-${t.key}`} title={t.title} selected={selected} onPress={onOpen}
-        leading={<View accessibilityLabel={t.required ? "Required" : "Optional"} style={[s.check, !t.required && s.checkOpt]} {...webOnly({ title: t.required ? "Required" : "Optional" })} />}
+        leading={<View testID={`check-${t.key}`} accessibilityLabel={state === "Done" ? "Done" : t.required ? "Required" : "Optional"} style={[s.check, !t.required && s.checkOpt, state === "Done" && s.checkDone]} {...webOnly({ title: state === "Done" ? "Done" : t.required ? "Required" : "Optional" })} />}
         trailing={
           <View style={s.tr}>
+            {state !== "To do" ? <Text testID={`state-${t.key}`} style={s.state}>{state}</Text> : null}
             <View style={s.seats} testID={`seats-${t.key}`}>
               {each(seats, (r, i) => (
                 <View key={`${r.kind}:${r.id}:${i}`} style={s.seat}>
@@ -290,6 +324,8 @@ const s = StyleSheet.create({
   sl: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string, paddingHorizontal: 8, paddingTop: 10, paddingBottom: 4 },
   check: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: "var(--ink-3)" as string, marginRight: 8 },
   checkOpt: { borderStyle: "dashed" },
+  checkDone: { backgroundColor: "var(--ok)" as string, borderColor: "var(--ok)" as string },
+  state: { fontSize: 12, color: "var(--ink-3)" as string },
   seats: { flexDirection: "row", alignItems: "center", gap: 4 },
   seat: { flexDirection: "row", alignItems: "center", gap: 4 },
   due: { fontSize: 12, color: "var(--ink-3)" as string, minWidth: 32, textAlign: "right" },
