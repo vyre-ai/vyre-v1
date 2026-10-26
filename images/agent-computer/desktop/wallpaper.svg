@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2560" height="1600" viewBox="0 0 2560 1600">
+  <defs>
+    <radialGradient id="a" cx="0.18" cy="0.08" r="0.9" gradientTransform="translate(0 0)">
+      <stop offset="0" stop-color="#3a3d7a"/>
+      <stop offset="0.38" stop-color="#1d1f3f"/>
+      <stop offset="1" stop-color="#0c0d16"/>
+    </radialGradient>
+    <radialGradient id="b" cx="0.85" cy="0.95" r="0.6">
+      <stop offset="0" stop-color="#786eff" stop-opacity="0.28"/>
+      <stop offset="0.7" stop-color="#786eff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="2560" height="1600" fill="url(#a)"/>
+  <rect width="2560" height="1600" fill="url(#b)"/>
+  <g transform="translate(150 150)" fill="none" stroke="#e8ecf8" stroke-opacity="0.92" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"><path d="M0 0 L55 130 L110 0"/></g>
+  <text x="205" y="350" text-anchor="middle" font-family="Liberation Sans, sans-serif" font-size="44" letter-spacing="10" fill="#e8ecf8" fill-opacity="0.9">VYRE</text>
+</svg>

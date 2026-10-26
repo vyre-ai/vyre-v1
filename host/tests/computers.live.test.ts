@@ -64,7 +64,13 @@ async function call(d: Daemon, cap: string, input: unknown, token: string = d.to
 }
 
 test("computers live: an agent's computer on a booted daemon is asleep until woken, shows a screen frame, and sleeps again", { skip }, async () => {
-  const built = await docker(["build", "-t", IMAGE, "images/agent-computer"], 1_200_000);
+  // Vyre for Chrome ships in the image (owner rule): the extension is copied into a copy of the build context, as the release build does (the runners have no buildx)
+  const ctxDir = tmp("vyre-agentcomp-ctx-");
+  fs.cpSync(path.join(CODE_ROOT, "images/agent-computer"), ctxDir, { recursive: true });
+  fs.cpSync(path.join(CODE_ROOT, "apps/chrome/manifest.json"), path.join(ctxDir, "vyre-chrome/manifest.json"));
+  fs.cpSync(path.join(CODE_ROOT, "apps/chrome/src"), path.join(ctxDir, "vyre-chrome/src"), { recursive: true });
+  const built = await docker(["build", "-t", IMAGE, ctxDir], 1_200_000);
+  fs.rmSync(ctxDir, { recursive: true, force: true });
   assert.equal(built.code, 0, `building ${IMAGE} failed: ${built.out.slice(-1500)}`);
   process.env["VYRE_AGENT_COMPUTER_IMAGE"] = IMAGE;
   const dir = seededDir();
@@ -98,6 +104,47 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     assert.equal(shot.status, 200, JSON.stringify(shot.data));
     assert.ok(typeof shot.data.fileId === "string" && shot.data.fileId.length > 0, "the picture is stored as a file");
     assert.ok(shot.data.width > 0 && shot.data.height > 0, `a real frame: ${shot.data.width}x${shot.data.height}`);
+
+    // the desktop around the browser: the window manager and the dock run, and the dock holds Chrome, Terminal and Files and nothing else
+    const box = `vyre-comp-${computerId.replace(/^cmt_/, "")}`;
+    let procs = "";
+    for (let i = 0; i < 40 && !(/openbox/.test(procs) && /tint2/.test(procs)); i++) {
+      procs = (await docker(["exec", box, "ps", "-eo", "comm"], 30_000)).out;
+      if (!(/openbox/.test(procs) && /tint2/.test(procs))) await new Promise<void>((r) => setTimeout(r, 500));
+    }
+    assert.match(procs, /openbox/, `the window manager runs: ${procs}`);
+    assert.match(procs, /tint2/, `the dock runs: ${procs}`);
+    const rc = (await docker(["exec", box, "cat", "/home/agent/.config/vyre-desktop/tint2rc"], 30_000)).out;
+    assert.deepEqual([...rc.matchAll(/launcher_item_app = .*\/(\w+)\.desktop/g)].map((m) => m[1]), ["chrome", "terminal", "files"], "the dock is Chrome, Terminal and Files only");
+    const files = (await docker(["exec", box, "cat", "/home/agent/.config/vyre-desktop/files.desktop"], 30_000)).out;
+    assert.match(files, /pcmanfm .*\/home\/agent\/Vyre/, "Files opens the agent's own Vyre Files folder");
+    // Chromium runs sandboxed: no --no-sandbox flag, and its child processes live in their own user namespace (the sandbox is active, not just allowed)
+    const args = (await docker(["exec", box, "ps", "-eo", "args"], 30_000)).out;
+    const chromium = args.split("\n").filter((l) => /chromium/.test(l));
+    assert.ok(chromium.length > 0, "Chromium runs");
+    assert.ok(!chromium.some((l) => /--no-sandbox/.test(l)), `Chromium has no --no-sandbox flag: ${chromium.slice(0, 2).join(" | ")}`);
+    const ns = (await docker(["exec", box, "sh", "-c", "own=$(readlink /proc/1/ns/user); n=0; for p in $(pgrep -f -- --type=); do l=$(readlink /proc/$p/ns/user 2>/dev/null); [ -n \"$l\" ] && [ \"$l\" != \"$own\" ] && n=$((n+1)); done; echo sandboxed=$n"], 30_000)).out;
+    const inNs = Number(/sandboxed=(\d+)/.exec(ns)?.[1] ?? "0");
+    assert.ok(inNs > 0, `Chromium's child processes run in their own user namespace: ${ns}`);
+    // Vyre for Chrome is loaded (its service worker runs) and pinned to the toolbar by policy
+    const status = await docker(["exec", "-u", "10001", box, "/opt/agentd/ctl", "status", "{}"], 30_000);
+    const ext = (JSON.parse(status.out.trim().split("\n").find((l) => l.startsWith("{")) ?? "{}") as { extension?: { configured?: boolean; workers?: number } }).extension;
+    assert.equal(ext?.configured, true, `the extension is in the image: ${status.out}`);
+    assert.ok((ext?.workers ?? 0) >= 1, `the extension's worker runs: ${status.out}`);
+    const policy = (await docker(["exec", box, "cat", "/etc/chromium/policies/managed/vyre.json"], 30_000)).out;
+    assert.match(policy, /"toolbar_pin":"force_pinned"/, "the extension is pinned to the toolbar");
+    assert.match(policy, /"BrowserSignin":0/, "the browser never offers to sign in");
+    assert.match(policy, /"SyncDisabled":true/, "the browser never syncs");
+    // a real frame of the desktop, kept for the lead to look at (the wallpaper, the browser and the dock)
+    const shotDir = process.env["VYRE_SHOT_DIR"];
+    if (shotDir) {
+      await new Promise<void>((r) => setTimeout(r, 3_000));
+      const frame = await docker(["exec", "-u", "10001", box, "/opt/agentd/ctl", "screenshot", "{}"], 60_000);
+      const png = (JSON.parse(frame.out.trim().split("\n").find((l) => l.startsWith("{")) ?? "{}") as { png?: string }).png;
+      assert.ok(png, "agentd answered a picture");
+      fs.mkdirSync(shotDir, { recursive: true });
+      fs.writeFileSync(path.join(shotDir, "P-L2_31-computer-desktop.png"), Buffer.from(png!, "base64"));
+    }
 
     // the profile disk at rest (P-L2_33): a marker in the browser profile is not on the volume or in the sealed file while the computer sleeps, and comes back at wake
     const MARKER = "PROFILE-MARKER-4f9a21";

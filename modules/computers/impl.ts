@@ -18,6 +18,7 @@
 //   sign_out      { site }                    -> { ok }
 //   tool          { tool, args, timeoutMs }   -> the tool's output, plus optional { used, frame, caption } (handlers/tools/common.ts has the whole contract; a refusal is a JSON
 //                                                {code, message} on stderr with a non-zero exit)
+import { readFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Handler } from "../../host/src/invoke.ts";
 import { tarFiles } from "../../sandbox/src/tar.ts";
@@ -42,6 +43,13 @@ export { maskEvents, maskHar } from "./handlers/record.ts";
 // ---- the Docker host -----------------------------------------------------------------------------------------------------------------------------------
 
 export const DEFAULT_COMPUTER_IMAGE = "vyre/agent-computer:1";
+/** Docker's default seccomp profile plus the namespace calls Chromium's own sandbox needs (images/agent-computer/seccomp.json). Sent inline, since the Engine API takes the profile itself. */
+let seccomp: string | null = null;
+export function computerSeccomp(): string {
+  seccomp ??= JSON.stringify(JSON.parse(readFileSync(new URL("../../images/agent-computer/seccomp.json", import.meta.url), "utf8")));
+  return seccomp;
+}
+
 export const AGENTD_CTL = "/opt/agentd/ctl";
 /** Where the agent's Files folder is bound inside the computer (one copy, no sync). */
 export const FILES_GUEST = "/home/agent/Vyre";
@@ -98,7 +106,7 @@ export function computerContainerConfig(name: string, computerId: string, agentI
       Tmpfs: { "/tmp": `rw,nosuid,nodev,noexec,size=1g,uid=${uid},gid=${gid},mode=1777`, "/dev/shm": "rw,nosuid,nodev,noexec,size=1g" },
       CapDrop: ["ALL"],
       CapAdd: [],
-      SecurityOpt: ["no-new-privileges:true"],
+      SecurityOpt: ["no-new-privileges:true", `seccomp=${computerSeccomp()}`],
       Privileged: false,
       NetworkMode: "bridge",
       PidMode: "",
@@ -127,6 +135,8 @@ export function reviewComputerConfig(c: ContainerConfig): string[] {
   if (!h.CapDrop.includes("ALL")) bad.push("capabilities are not all dropped");
   if (h.CapAdd.length > 0) bad.push("capabilities added");
   if (!h.SecurityOpt.includes("no-new-privileges:true")) bad.push("new privileges allowed");
+  if (!h.SecurityOpt.some((x) => x.startsWith("seccomp=") && x !== "seccomp=unconfined")) bad.push("no seccomp profile");
+  if (h.SecurityOpt.some((x) => x.endsWith("=unconfined"))) bad.push("a security profile is switched off");
   if (h.Devices.length > 0) bad.push("devices");
   if (h.PidMode !== "") bad.push("host pid namespace");
   if (h.IpcMode !== "private") bad.push("shared ipc namespace");

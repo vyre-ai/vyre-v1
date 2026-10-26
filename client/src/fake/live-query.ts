@@ -4,7 +4,7 @@ import type { CapMap } from "../../../generated/types.ts";
 import type { ScreenIndexEntry } from "../../../generated/screens.ts";
 import type { FakeReplica } from "./replica.ts";
 
-export type QueryState<T> = { status: "loading" } | { status: "ready"; data: T };
+export type QueryState<T> = { status: "loading"; error?: { message: string; code?: string; traceId?: string } } | { status: "ready"; data: T };
 export interface LiveQuery<T> { subscribe(listener: () => void): () => void; getSnapshot(): QueryState<T> }
 
 /** A live query for one capability and input over a replica. */

@@ -71,7 +71,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   const arg = (n: string) => process.argv.includes(n), val = (n: string) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : undefined; };
   const slow: SlowEntry[] = JSON.parse(fs.readFileSync(path.join(repo, "test/slow.json"), "utf8"));
   const files = process.argv.slice(process.argv.indexOf("--files") + 1).filter((a) => !a.startsWith("--") && a !== val("--jobs"));
-  const slowAll = withPatternSlow(files, slow) as SlowEntry[];   // slow by pattern (golden steps) as well as by list
+  const slowAll = withPatternSlow(files, slow, (f) => fs.readFileSync(path.join(repo, f), "utf8")) as SlowEntry[];   // slow by pattern (golden steps) as well as by list
   const sp = splitPerf(files.filter((f) => (arg("--slow") ? slowAll.some((s) => s.file === f) : !slowAll.some((s) => s.file === f))), slow, process.env);
   for (const f of sp.skipped) console.log(`skip (perf) ${f}`);   // speed numbers count only on the perf host (ruling 46)
   const picked = sp.run;
