@@ -1,18 +1,19 @@
 // Golden flow 15: a note is a record with a long-text field, records.create puts its row in the sync feed, and sync.doc.open / sync.doc.update work on it by the record's id, from two devices.
 // The host (laptop) creates the note and writes into it, the phone opens it and sees the update, writes its own edit back, and the laptop sees that. A person with no access is refused.
-// Path mapping: host/tests because it boots the daemon.
+// @reads /modules/sync/migrations/0001_pull.sql
+// Path mapping: sits with the sync tests because it needs yjs, which host/ may not import.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import * as Y from "yjs";
-import { bootCore } from "../../fixtures/seed/core/index.ts";
-import { fakePlatform } from "../src/platform/index.ts";
-import type { FetchFn } from "../src/platform/probes.ts";
-import { loadConfig } from "../src/daemon/config.ts";
-import { startDaemon } from "../src/daemon/daemon.ts";
-import { fromB64, toB64 } from "../../modules/sync/docs/b64.ts";
+import { bootCore } from "../../../fixtures/seed/core/index.ts";
+import { fakePlatform } from "../../../host/src/platform/index.ts";
+import type { FetchFn } from "../../../host/src/platform/probes.ts";
+import { loadConfig } from "../../../host/src/daemon/config.ts";
+import { startDaemon } from "../../../host/src/daemon/daemon.ts";
+import { fromB64, toB64 } from "../docs/b64.ts";
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 
@@ -65,7 +66,7 @@ test("a note created on the host is opened on the phone, which sees the update a
   };
   try {
     // the laptop makes the note: a record of the seeded Note type, so its row reaches the sync feed
-    const made = await ok(LAPTOP, "/v1/records/create", { idempotencyKey: "doc-live-note", type: "rt_note_board", fields: { title: "Plan" } });
+    const made = await ok(LAPTOP, "/v1/records/create", { idempotencyKey: "doc-live-note", type: "note_board", fields: { title: "Plan" } });
     const doc = (made["record"] as { id: string }).id;
     assert.match(doc, /^rec_/, "records.create made the note");
 
