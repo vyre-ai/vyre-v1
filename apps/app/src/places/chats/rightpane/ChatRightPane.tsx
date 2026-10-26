@@ -44,9 +44,9 @@ export interface ChatRightPaneProps {
 
 export const NOTICE_MS = 8000;
 /** A pane tab has no close slot, so the strip's tab extra (TAB_EXTRA, 45 with the 18 px slot and its 7 px gap) is 20 here. */
-export const PANE_TAB_EXTRA = 20;
+export const PANE_TAB_EXTRA = 26;
 /** The width a wide screen gives the pane: room for Computer, Threads, Files, Memory with its count and Routines, so More shows only when the window is narrow. */
-export const WIDE_PANE_W = 460;
+export const WIDE_PANE_W = 500;
 /** Below this window width the pane fills it (a phone shows it as a screen of its own); above, it is a resizable column. */
 export const NARROW = 640;
 
