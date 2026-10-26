@@ -4,7 +4,7 @@ name: shots
 # The artifact `shots` holds <target>/<skin>-<size>-side-by-side.png and index.md. Dispatch `lockfile` to produce package-lock.json (never npm on the Mac).
 on:
   push:
-    branches-ignore: [main]
+    branches-ignore: [main, "gh-readonly-queue/**"]
     paths: ["scripts/shots/**", "ui/**", "apps/app/**", "client/**", "budgets.json", ".github/workflows/shots.yml"]
   workflow_dispatch:
     inputs:
@@ -64,6 +64,9 @@ jobs:
           if [ -f scripts/shots/real-app.mjs ] && [ -d scripts/shots/app/dist ]; then
             node scripts/shots/real-app.mjs --dist scripts/shots/app/dist --out shots-out/real-app
           else echo "real-app capture: script or export dir not present, skipped"; fi
+      - name: The export carries the daemon's registry hash (EXPO_PUBLIC_VYRE_REGISTRY_HASH)
+        run: |
+          if [ -d scripts/shots/app/dist ]; then node scripts/shots/registry-hash-in-bundle.mjs scripts/shots/app/dist; else echo "registry hash check: no export dir, skipped"; fi
       - name: No prototype seed in the production web bundle (P-UI_06b)
         run: |
           # skipped until scripts/shots/no-seed-in-bundle.mjs is on the branch (it lands with P-UI_06b)

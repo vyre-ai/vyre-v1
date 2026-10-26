@@ -3,8 +3,10 @@
 // acceptHook is what the host's /hooks/twilio/* route calls first: it refuses a request Twilio did not sign and hands the rest to twilio.receive_webhook.
 import type { Handler } from "../../host/src/invoke.ts";
 import * as h from "./handlers/index.ts";
+import { setTwilioHost } from "./projections.ts";
+import type { SeamSetters } from "../../host/src/seams/index.ts";
 
-export { setTwilioHost } from "./projections.ts";
+export { setTwilioHost };
 export type { TwilioHost } from "./projections.ts";
 export { acceptHook, hookInput, signatureMatches, signatureOf, voiceTwiml } from "./handlers/index.ts";
 
@@ -33,3 +35,6 @@ export const handlers: Record<string, Handler> = {
 };
 
 export const projections = { inline: {}, consumers: {} };
+
+/** Where the host registers its half at boot (ruling 31). */
+export const hostSeams: SeamSetters = { setTwilioHost };

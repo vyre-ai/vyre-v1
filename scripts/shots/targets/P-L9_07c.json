@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_07c-history-diff",
+      "route": "/m/P-L9_07c?part=history",
+      "proto": "files,at:versions,{skin}",
+      "waitFor": "[data-testid='version-banner']",
+      "note": "The Files version screen at v4: the Viewing banner with Hide changes, Restore this version and Back to current, the version diff with its unchanged line and the dots, and the History pane with author faces. The prototype image is the same Files screen opened at at:versions."
+    },
+    {
+      "id": "P-L9_07c-object-page",
+      "route": "/m/P-L9_07c?part=object",
+      "proto": "console,at:people~omar,{skin}",
+      "waitFor": "[data-testid='object-header']",
+      "note": "Omar's page: face, rows that open something with a chevron, the AI account row with its menu, and the Owns list with agent faces and chevrons. The prototype image is the Console People page for Omar Haddad; its Console sidebar and top bar belong to the Console place and are not on this page."
+    }
+  ]
+}

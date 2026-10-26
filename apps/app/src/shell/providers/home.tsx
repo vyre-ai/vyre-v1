@@ -3,9 +3,7 @@
 // A Personal Space draws only the personal variant: checklist, Today, Starred and the Ask box. Needs you and My work need a team to ask and assign, so they are not on the page.
 import { useMemo } from "react";
 import type { ReactElement } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Home, { HomeLoading } from "../../places/home/index.tsx";
-import { HomeDataProvider, HomeLineProvider, SelectionProvider, dateLine, firstName, greeting, useSelection } from "../../places/home/sections-a/index.ts";
 import type { HomeData, HomeNav } from "../../places/home/sections-a/index.ts";
 import { homeBSlots } from "../../places/home/sections-b/index.ts";
 import type { GoTarget, HomeBExtras } from "../../places/home/sections-b/index.ts";
@@ -57,23 +55,6 @@ export function homeExtras(rt: ShellRuntime): HomeBExtras {
   };
 }
 
-function PersonalPage({ top, bottom, data }: { top: ReactElement; bottom: ReactElement; data: HomeData }): ReactElement {
-  const sel = useSelection();
-  const c = data.clock();
-  return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" testID="home-place">
-      <Pressable accessible={false} onPress={() => sel.select(null)} style={styles.col}>
-        <View style={styles.hh} accessibilityRole="header">
-          <Text accessibilityRole="header" aria-level={1} style={styles.h1}>{`${greeting(c)}, ${firstName(data.me.name)}`}</Text>
-          <Text style={styles.hdate} testID="home-date">{dateLine(c)}</Text>
-        </View>
-        {top}
-        {bottom}
-      </Pressable>
-    </ScrollView>
-  );
-}
-
 /** The Home place the shell mounts. Before the Space's runtime exists it draws the loading frame, the size of the page. */
 export default function HomePlace(): ReactElement {
   const rt = useOptionalShellRuntime();
@@ -84,23 +65,5 @@ export default function HomePlace(): ReactElement {
     return { data, top: slots.top as ReactElement, bottom: slots.bottom as ReactElement, personal: rt.space.kind === "personal" };
   }, [rt]);
   if (!parts) return <HomeLoading />;
-  if (!parts.personal) return <Home data={parts.data} top={parts.top} bottom={parts.bottom} />;
-  return (
-    <HomeDataProvider value={parts.data}>
-      <HomeLineProvider>
-        <SelectionProvider>
-          <PersonalPage top={parts.top} bottom={parts.bottom} data={parts.data} />
-        </SelectionProvider>
-      </HomeLineProvider>
-    </HomeDataProvider>
-  );
+  return <Home data={parts.data} top={parts.top} bottom={parts.bottom} personal={parts.personal} />;
 }
-
-const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: "var(--win)" as string },
-  scrollContent: { flexGrow: 1 },
-  col: { width: "100%", maxWidth: 780, alignSelf: "center", paddingTop: 34, paddingHorizontal: 28, paddingBottom: 40 },
-  hh: { marginBottom: 24 },
-  h1: { margin: 0, fontSize: 28, lineHeight: 34, fontWeight: "600", letterSpacing: -0.6, color: "var(--ink)" as string },
-  hdate: { marginTop: 5, fontSize: 14, lineHeight: 20, color: "var(--ink-2)" as string },
-});
