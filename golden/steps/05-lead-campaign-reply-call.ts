@@ -167,6 +167,8 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
       return out.messageId as string;
     }, ["a person approves and the campaign mails the lead"]);
     await trail.step("the campaign announces the reply", async () => {
+      // the campaigns consumer reads mail.received from the log on the projection pump, which the test daemon runs on demand (its timers are an hour long)
+      await s.d.projections?.pump();
       expectStatus(await s.call("campaigns.resume", admin, { campaignId: campaign! }), 200, "campaigns.resume");
       const replies = expectStatus(await s.call("campaigns.replies", admin, { campaignId: campaign! }), 200, "campaigns.replies").replies as unknown[];
       const inbox = expectStatus(await s.call("mail.message.list", admin, { mailboxId: mailbox!, contactId: lead! }), 200, "mail.message.list").messages as { id: string; campaignId?: string; direction: string }[];
