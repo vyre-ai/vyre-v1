@@ -494,11 +494,12 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
       const q = url.searchParams;
       input = { slug: q.get("slug") ?? "", tz: q.get("tz") ?? "", from: Number(q.get("from")), to: Number(q.get("to")) };
     } else {
+      if (Number(req.headers["content-length"] ?? "0") > BODY_CAP) return reply(res, "validation.too_large", 413, "That is too large to send.", { connection: "close" });
       const chunks: Buffer[] = [];
       let size = 0;
       for await (const c of req) {
         size += (c as Buffer).length;
-        if (size > BODY_CAP) { req.destroy(); return reply(res, "validation.too_large", 413, "That is too large to send."); }
+        if (size > BODY_CAP) { reply(res, "validation.too_large", 413, "That is too large to send.", { connection: "close" }); req.destroy(); return; }
         chunks.push(c as Buffer);
       }
       try {
@@ -543,7 +544,7 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
     let size = 0;
     for await (const c of req) {
       size += (c as Buffer).length;
-      if (size > cap) { req.destroy(); return reply(res, "validation.too_large", 413, `That file is over the ${Math.floor(cap / 1024)} KB limit.`); }
+      if (size > cap) { reply(res, "validation.too_large", 413, `That file is over the ${Math.floor(cap / 1024)} KB limit.`, { connection: "close" }); req.destroy(); return; }
       chunks.push(c as Buffer);
     }
     if (size === 0) return reply(res, "validation.bad_input", 400, "That file is empty.");
