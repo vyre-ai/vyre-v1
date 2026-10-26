@@ -19,8 +19,7 @@
       "route": "/m/P-L9_36?place=records",
       "proto": "records,{skin}",
       "waitFor": "[data-testid='records-head']",
-      "note": "Phone: the Records place as a list of a name with one line each, a header with Find, New and a more menu holding filter, sort and fields, and the bottom bar. The prototype side is its Records place.",
-      "dump": "[data-testid='row-rec-clients_0-leading'], [data-testid^='row-rec-'][data-testid$='-leading']"
+      "note": "Phone: the Records place as a list of a name with one line each, a header with Find, New and a more menu holding filter, sort and fields, and the bottom bar. The prototype side is its Records place."
     }
   ]
 }
