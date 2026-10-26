@@ -58,3 +58,16 @@ export function bump(root: string, to: string, files: readonly string[] = VERSIO
   if (left.length > 0) throw new Error(`after the bump: ${left.join("; ")}`);
   return { from, to };
 }
+
+/** The version a release tag names: `v1.2.3` or `v1.2.3-rc.1` gives the text after the v; anything else is null. */
+export function tagVersion(tag: string): string | null {
+  const v = tag.replace(/^refs\/tags\//, "");
+  if (!v.startsWith("v")) return null;
+  try { releaseCounter(v); return v.slice(1); } catch { return null; }
+}
+
+/** Which update channel a version goes to: a release is stable, a beta or an rc goes to beta (the rolling `channel-beta` release). A nightly build is tagged `v1.2.3-nightly.N` is not a release version and is refused here. */
+export function channelOfVersion(version: string): "stable" | "beta" {
+  releaseCounter(version);
+  return version.includes("-") ? "beta" : "stable";
+}
