@@ -86,13 +86,12 @@ test("sessions.import scopes identical provider source keys to the personal owne
   ]);
 });
 
-test("sessions.import defaults to a personal destination and requires explicit confirmed choice for a Team Space", async () => {
+test("sessions.import is Personal-only in v1 and defers Team routing", async () => {
   const h = harness();
   await sessionsImport(h.ctx, payload);
   assert.equal(h.rows("SELECT destinationScope FROM import_conversation")[0]?.destinationScope, "personal");
   await assert.rejects(sessionsImport(h.ctx, { ...payload, sourceKey: "codex:team-refused", destination: { kind: "team" } }), (e) => codeOf(e) === "validation.precondition_failed");
-  await sessionsImport(h.ctx, { ...payload, sourceKey: "codex:team-confirmed", destination: { kind: "team", spaceId: "spc_importtest", confirmedAt: 1_760_000_000_002 } });
-  assert.equal(h.rows("SELECT destinationScope FROM import_conversation WHERE sourceKey = ?", "codex:team-confirmed")[0]?.destinationScope, "team");
+  await assert.rejects(sessionsImport(h.ctx, { ...payload, sourceKey: "codex:team-confirmed", destination: { kind: "team", spaceId: "spc_importtest", confirmedAt: 1_760_000_000_002 } }), (e) => codeOf(e) === "validation.precondition_failed");
 });
 
 test("sessions.import resolves Personal and confirmed Team destinations before writes, even from a Team ambient Space", async () => {

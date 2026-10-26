@@ -30,13 +30,8 @@ function checked(ctx: ImportCtx, input: In): { provider: Provider; sourceKey: st
   if (input.provider !== "codex" && input.provider !== "claude_code") raise(ctx, "validation.bad_input", "That session provider is not supported.");
   if (typeof input.sourceKey !== "string" || input.sourceKey.trim() === "") raise(ctx, "validation.bad_input", "A source key is required.");
   if (!Array.isArray(input.sessions)) raise(ctx, "validation.bad_input", "Sessions must be an array.");
-  const scope: Scope = input.destination?.kind === undefined || input.destination?.kind === "personal" ? "personal" : input.destination?.kind === "team" ? "team" : raise(ctx, "validation.bad_input", "Choose Personal or Team as the import destination.");
-  if (scope === "team" && (input.destination?.confirmedAt === undefined || input.destination.confirmedAt < input.consent.confirmedAt)) {
-    raise(ctx, "validation.precondition_failed", "Confirm the Team Space destination before importing local history there.");
-  }
-  if (scope === "team" && (typeof input.destination?.spaceId !== "string" || input.destination.spaceId === "")) {
-    raise(ctx, "validation.bad_input", "Choose the Team Space that will receive this import.");
-  }
+  if (input.destination?.kind === "team") raise(ctx, "validation.precondition_failed", "Team session imports require the v1.1 cross-Space router.");
+  const scope: Scope = "personal";
   for (const s of input.sessions) {
     if (!s || typeof s.sourceSessionId !== "string" || !Array.isArray(s.messages)) raise(ctx, "validation.bad_input", "A session payload is malformed.");
     for (const m of s.messages) {
@@ -49,15 +44,8 @@ function checked(ctx: ImportCtx, input: In): { provider: Provider; sourceKey: st
 }
 
 async function resolved(ctx: ImportCtx, owner: string, raw: In, scope: Scope): Promise<ResolvedDestination> {
-  if (!ctx.sessionDestination) raise(ctx, "internal.unexpected", "The destination Space router is not available right now.");
-  const request = scope === "team"
-    ? { kind: "team" as const, spaceId: String(raw.destination.spaceId) }
-    : { kind: "personal" as const };
-  const target = await ctx.sessionDestination.resolve(owner, request);
-  if (target.kind !== scope || typeof target.spaceId !== "string" || target.spaceId === "") {
-    raise(ctx, "validation.precondition_failed", "That destination Space is not authorized for this import.");
-  }
-  return { scope, spaceId: target.spaceId };
+  void owner; void raw;
+  return { scope, spaceId: ctx.space };
 }
 
 async function destination(ctx: ImportCtx, owner: string, targetSpaceId: string, scope: Scope, session: SourceSession): Promise<{ destination: Destination; identityKey?: string }> {

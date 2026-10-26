@@ -370,9 +370,6 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       const reg = registry as unknown as RegistryLike;
       const loaded = await loadHost({ registry: reg, modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")), routes, importer: fileImporter(codeRoot), seamImporter: fileSeamImporter(codeRoot), exportsImporter: fileExportsImporter(codeRoot), db, ...(o.http ? { fetch: o.http } : {}) });
-      if (o.requireSessionDestination && loaded.serving.get("import") === "live" && !o.sessionDestination) {
-        throw new Error("sessions.import is live but no platform sessionDestination provider was supplied; start this Space through the desktop/platform composition layer.");
-      }
       const registryCaps = registry.capabilities as unknown as CapabilityDef[];
       // consumers and periodic jobs the live modules export (ruling 32): each runs through the invoke pipeline as a host-only capability that may emit what its module's capabilities emit
       // the Vault the connector seams read from: the vault module's own port once it is live and configured, else a refusal

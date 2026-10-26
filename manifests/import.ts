@@ -15,8 +15,8 @@ const importedSession = t.obj({
   sourceSessionId: t.str(), title: t.opt(t.str()), startedAt: t.ts(),
   repo: t.opt(t.obj({ remote: t.opt(t.str()), root: t.opt(t.str()) })), messages: t.arr(importedMessage),
 });
-const sessionDestination = t.obj({ kind: t.enm('personal', 'team'), spaceId: t.opt(id.space), confirmedAt: t.opt(t.ts()) });
-const importedConversation = t.obj({ conversationId: t.id('isc'), provider: sessionProvider, destination: t.obj({ kind: t.enm('project', 'imported_sessions'), projectId: t.opt(id.project), scope: t.enm('personal', 'team'), spaceId: id.space }) });
+const sessionDestination = t.obj({ kind: t.enm('personal') });
+const importedConversation = t.obj({ conversationId: t.id('isc'), provider: sessionProvider, destination: t.obj({ kind: t.enm('project', 'imported_sessions'), projectId: t.opt(id.project), scope: t.enm('personal'), spaceId: id.space }) });
 
 const column = t.obj({ name: t.str(), inferred: t.str({ description: 'Field type key the column looks like', examples: ['email'] }), sample: t.arr(t.str()), distinct: t.int({ minimum: 0 }), empty: t.int({ minimum: 0 }) });
 const table = t.obj({ name: t.str(), rowCount: t.int({ minimum: 0 }), columns: t.arr(column) });
@@ -48,7 +48,7 @@ export default defineManifest({
       subject: ['entity', '/importId'], trigger: { title: 'An import finishes', fields: ['/type', '/source'] },
     }),
     ev('import.failed', 'An import stopped on an error; rows already written stay and the Run can be undone', { p: { importId, runId: id.run, type: id.recordType, error: t.str() }, subject: ['entity', '/importId'], notify: 'run.failed' }),
-    ev('sessions.imported', 'A local Codex or Claude Code session was copied into an immutable provenance-marked archive', { p: { conversationId: t.id('isc'), provider: sessionProvider, sourceKey: t.str(), projectId: t.opt(id.project), scope: t.enm('personal', 'team'), spaceId: id.space, messages: t.int() }, subject: ['entity', '/conversationId'] }),
+    ev('sessions.imported', 'A local Codex or Claude Code session was copied into an immutable provenance-marked archive', { p: { conversationId: t.id('isc'), provider: sessionProvider, sourceKey: t.str(), projectId: t.opt(id.project), scope: t.enm('personal'), spaceId: id.space, messages: t.int() }, subject: ['entity', '/conversationId'] }),
     ev('sessions.continued', 'An imported archival session was continued in a separate live Vyre chat', { p: { conversationId: t.id('isc'), threadId: id.thread }, subject: ['entity', '/conversationId'] }),
   ],
   capabilities: [
@@ -106,7 +106,7 @@ export default defineManifest({
       out: { imported: t.int(), updated: t.int(), sessions: t.arr(importedConversation) }, perm: 'chats.private', idem: 'key', audit: 'always', emits: ['sessions.imported'], tool: 'chats', errors: ['validation.precondition_failed', 'validation.bad_input'],
     }),
     write('sessions.continue', 'Start a separate live Vyre chat linked to an immutable imported conversation; it never writes back to the local provider store', {
-      in: { conversationId: t.id('isc'), destinationSpaceId: id.space, destinationScope: t.enm('personal', 'team'), agentId: id.agent, first: t.opt(t.str()) }, out: { threadId: id.thread, linkedFrom: t.id('isc') }, perm: 'chats.private', emits: ['sessions.continued'], tool: 'chats', errors: ['validation.not_found', 'validation.bad_input'],
+      in: { conversationId: t.id('isc'), destinationSpaceId: id.space, destinationScope: t.enm('personal'), agentId: id.agent, first: t.opt(t.str()) }, out: { threadId: id.thread, linkedFrom: t.id('isc') }, perm: 'chats.private', emits: ['sessions.continued'], tool: 'chats', errors: ['validation.not_found', 'validation.bad_input'],
     }),
   ],
   screens: [
