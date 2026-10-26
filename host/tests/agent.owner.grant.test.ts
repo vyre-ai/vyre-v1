@@ -1,4 +1,4 @@
-// P-GF_10 (ruling 88): the owner of an agent made through agents.create manages the agent's folder from the start, so they can approve memory into it; when the removal wizard reassigns the agent
+// P-GF_10 (ruling 88): the owner of an agent made through agents.create manages the agent's folder (and the agent) from the start, which memory approval asks of them (edit on the folder); when the removal wizard reassigns the agent
 // the folder's ownership follows, and the previous owner keeps nothing on it. The people here hold the Guest role (no Space-wide grant), so folder access can only come from the agent's own grant.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -16,7 +16,7 @@ const KEYS = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVi
 const PASSWORD = "correct horse battery staple 9";
 type Json = { data?: any; error?: { code?: string } };   // eslint-disable-line @typescript-eslint/no-explicit-any
 
-test("the owner of a new agent can approve memory into it; after a reassign the new owner can and the old owner has nothing", async () => {
+test("the owner of a new agent reaches its folder from the start; after a reassign the new owner does and the old owner has nothing", async () => {
   const core = bootCore();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-agent-owner-"));
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
@@ -80,18 +80,10 @@ test("the owner of a new agent can approve memory into it; after a reassign the 
     assert.equal(mine.status, 200, JSON.stringify(mine.body));
     assert.ok((await sharesOf("agent", mine.body.data.agent.agentId)).includes(`owner:${member.id}`), "and a member's own agent is theirs");
 
-    const promote = async (key: string, text: string): Promise<string> => {
-      const fact = await post(asker.token, "/v1/memory/propose_fact", { idempotencyKey: `gf10-fact-${key}`, layer: "person", agentId: agent.id, text, sourceKind: "manual", sourceRef: `gf10-${key}` });
-      assert.equal(fact.status, 200, JSON.stringify(fact.body));
-      if (!fact.body.data.merged) assert.equal((await post(asker.token, "/v1/memory/fact/accept", { factId: fact.body.data.fact.factId })).status, 200);
-      const p = await post(asker.token, "/v1/memory/promote", { idempotencyKey: `gf10-promote-${key}`, factId: fact.body.data.fact.factId, toLayer: "agent", agentId: agent.id });
-      assert.equal(p.status, 200, JSON.stringify(p.body));
-      assert.equal(p.body.data.promoted, false, "the asker cannot edit the agent's memory, so a task waits for its owner");
-      return p.body.data.promotionId as string;
-    };
-    const one = await promote("one", "Scout Two answers in plain language.");
-    const approved = await post(first.token, "/v1/memory/promotion/approve", { promotionId: one });
-    assert.equal(approved.status, 200, `the agent's owner approves: ${JSON.stringify(approved.body)}`);
+    // the grant is in force, not just recorded: the named owner reads and edits the agent's folder, someone else with no Space-wide grant does not
+    const folderGet = (token: string) => post(token, "/v1/files/folder/get", { folderId: agent.folderId });
+    assert.equal((await folderGet(first.token)).status, 200, "the agent's owner reaches its folder");
+    assert.notEqual((await folderGet(asker.token)).status, 200, "a person with no grant on it does not");
 
     // the owner moves: the wizard reassigns the agent and the folder goes with it
     const removed = await post(owner, "/v1/members/remove", { personId: first.id, plan: [{ kind: "agents", action: "reassign", to: heir.id }] });
@@ -102,7 +94,7 @@ test("the owner of a new agent can approve memory into it; after a reassign the 
       assert.ok(!who.some((w) => w.endsWith(`:${first.id}`)), `and the previous owner holds nothing on the ${type}`);
     }
 
-    const two = await promote("two", "Scout Two signs off with the date.");
-    assert.equal((await post(heir.token, "/v1/memory/promotion/approve", { promotionId: two })).status, 200, "the new owner approves");
+    assert.equal((await folderGet(heir.token)).status, 200, "the new owner reaches the folder");
+    assert.notEqual((await folderGet(asker.token)).status, 200, "and the asker still does not");
   } finally { await d.stop(); }
 });
