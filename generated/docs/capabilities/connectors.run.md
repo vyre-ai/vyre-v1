@@ -19,7 +19,7 @@ Run one connector action against the live app, sandboxed to the connector domain
 | HTTP | POST /v1/connectors/run |
 | MCP tool | connectors_run (engineer) |
 | CLI | vyre connector run |
-| Emits | none |
+| Emits | connection.needs_reconnect |
 
 ## Input
 

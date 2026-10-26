@@ -73,6 +73,7 @@ export function openSync(o: SyncOpts): SyncHandle {
     hlc: () => { last = tickHlc("srv", clock(), last); return formatHlc(last); },
     phoneCeiling: () => LABEL_RANKS[o.phoneCeiling?.() ?? "confidential"],
     keep: o.keep ?? (() => false),
+    append: (ev) => host.append(ev),
   };
   return {
     host, store: opened.store, handlers: createPullHandlers(deps), deps, catalog,
