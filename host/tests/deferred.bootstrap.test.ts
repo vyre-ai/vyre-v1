@@ -39,10 +39,13 @@ test("whoami lists the deferred capabilities, so the client can hide Sites", asy
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
   try {
+    // the seeded core Space has people in access but no identity accounts (those come with the small seed), and whoami reads the caller's account
+    d.db!.run("INSERT INTO identity_accounts (person_id, username, name, verifier, totp_secret, totp_last_step, github_id, github_login, keys_json, recovery_hash, fails, locked_until, epoch, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "usr_olivia", "olivia", "Olivia", "unused", null, 0, null, null, null, null, 0, 0, 0, 1_790_000_000_000);
     const post = (token: string | null, p: string) =>
       fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: "{}" });
     const res = await post(OWNER_TOKEN, "/v1/identity/whoami");
-    assert.equal(res.status, 200);
+    assert.equal(res.status, 200, await res.clone().text());
     const body = (await res.json()) as { data?: { deferred?: string[]; deferredModules?: string[] } };
     const deferred = body.data?.deferred ?? [];
     assert.ok(deferred.includes("sites.create"), `sites.create is deferred: ${JSON.stringify(deferred).slice(0, 200)}`);
