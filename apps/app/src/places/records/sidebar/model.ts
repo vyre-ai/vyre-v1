@@ -10,7 +10,7 @@ export const DEFAULT_GROUP = "Records";
 export const SITES_GROUP = "Sites";
 
 export interface TypeGroup { key: string; label: string; items: TypeItem[] }
-export interface TypeItem { key: string; label: string; icon: string; count: number; synced: boolean; system: boolean }
+export interface TypeItem { key: string; label: string; icon: string; count: number; synced: boolean; syncedFrom?: string; system: boolean }
 
 /** A site table belongs to its site: the scope names it ("site:northwind"). */
 export function isSiteTable(t: TypeRow): boolean {
@@ -33,7 +33,7 @@ export function typeGroups(types: readonly TypeRow[]): TypeGroup[] {
   for (const t of types) {
     const site = isSiteTable(t);
     put(site ? SITES_GROUP : t.group ?? DEFAULT_GROUP, {
-      key: t.key, label: site && t.scope ? `${siteName(t.scope)} › ${t.plural}` : t.plural, icon: t.icon, count: t.rowCount, synced: t.syncedFrom !== undefined, system: t.system,
+      key: t.key, label: site && t.scope ? `${siteName(t.scope)} › ${t.plural}` : t.plural, icon: t.icon, count: t.rowCount, synced: t.syncedFrom !== undefined, ...(t.syncedFrom !== undefined ? { syncedFrom: t.syncedFrom } : {}), system: t.system,
     });
   }
   const order = [...groups.values()];
@@ -46,8 +46,9 @@ export function sortedViews(views: readonly ViewRow[], me: string | null): ViewR
   return views.slice().sort((a, b) => Number(b.ownerId === me) - Number(a.ownerId === me) || a.title.localeCompare(b.title));
 }
 
+/** A count in the sidebar: whole numbers up to 10,000 ("1,240", as the prototype draws them), then 12k and 2.5M. */
 export function compact(n: number): string {
-  return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M` : n >= 10_000 ? `${Math.round(n / 1000)}k` : n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k` : String(n);
+  return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M` : n >= 10_000 ? `${Math.round(n / 1000)}k` : n.toLocaleString("en-US");
 }
 
 // ---------------------------------------------------------------- state
