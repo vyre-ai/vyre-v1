@@ -5,7 +5,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export type Flow = { n: number; name: string; title: string; needs: string[]; events: string[] };
+/** `external`: events a provider's callback causes (a signed webhook). The callback arrives with no trace id of ours, so these events start their own trace and are left out of the one-trace check. */
+export type Flow = { n: number; name: string; title: string; needs: string[]; events: string[]; external?: string[] };
 export type Observed = { type: string; traceId: string };
 export type ModuleStatus = { id: string; status: "stub" | "live" };
 export type Status = "pass" | "fail" | "pending";
@@ -43,7 +44,7 @@ export function blockers(flow: Flow, modules: ModuleStatus[]): string[] {
 }
 
 /** The declared events must appear in the observed events in that order (other events may sit between them). Returns problems. */
-export function checkSequence(expected: string[], observed: Observed[]): string[] {
+export function checkSequence(expected: string[], observed: Observed[], external: readonly string[] = []): string[] {
   const problems: string[] = [];
   let at = 0;
   for (const name of expected) {
@@ -51,7 +52,7 @@ export function checkSequence(expected: string[], observed: Observed[]): string[
     if (i < 0) { problems.push(`missing event ${name} after position ${at}`); break; }
     at = i + 1;
   }
-  const ids = new Set(observed.map((o) => o.traceId));
+  const ids = new Set(observed.filter((o) => !external.includes(o.type)).map((o) => o.traceId));
   if (ids.size > 1) problems.push(`events carry ${ids.size} trace ids, expected one`);
   if (observed.some((o) => !o.traceId)) problems.push("an event has no trace id");
   return problems;
@@ -65,7 +66,7 @@ export async function evaluate(flow: Flow, modules: ModuleStatus[], loadSteps: L
   const run = await loadSteps(flow);
   if (!run) return { ...base, status: "fail", blockers: [], reasons: ["no steps file in golden/steps"], line: `FAIL ${flowId(flow)}: no steps file in golden/steps` };
   let reasons: string[];
-  try { reasons = checkSequence(flow.events, await run()); } catch (e) { reasons = [`steps threw: ${(e as Error).message}`]; }
+  try { reasons = checkSequence(flow.events, await run(), flow.external); } catch (e) { reasons = [`steps threw: ${(e as Error).message}`]; }
   return { ...base, status: reasons.length ? "fail" : "pass", blockers: [], reasons, line: reasons.length ? `FAIL ${flowId(flow)}: ${reasons.join("; ")}` : `ok   ${flowId(flow)}` };
 }
 

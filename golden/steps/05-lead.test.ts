@@ -18,5 +18,5 @@ test("golden 5: the steps that are wired already pass", async () => {
 test("golden 5: lead-campaign-reply-call", { todo: todoOf(GAPS) }, async () => {
   const { events, trail } = await run();
   assert.deepEqual(trail.failures, [], `\n${trail.report()}`);
-  assert.deepEqual(checkSequence(flow.events, events), [], `events: ${events.map((e) => e.type).join(", ")}`);
+  assert.deepEqual(checkSequence(flow.events, events, flow.external), [], `events: ${events.map((e) => e.type).join(", ")}`);
 });

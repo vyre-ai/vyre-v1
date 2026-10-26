@@ -7,4 +7,6 @@ export default defineFlow({
   title: "Lead to campaign to reply to call",
   needs: ["campaigns", "gate", "mail", "telephony", "contacts-link"],
   events: ["gate.requested", "campaign.launched", "campaign.replied", "call.started"],
+  // Twilio's signed status callback starts its own trace
+  external: ["call.started"],
 });
