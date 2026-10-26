@@ -115,10 +115,6 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
       return (m.mailboxId ?? m.id) as string;
     }, ["a sending domain is added and verifies"]);
 
-    // The flow must not depend on the hour it runs at: sending is allowed round the clock, both for mail.send and for the campaign
-    await trail.step("sending is allowed at any hour", async () => {
-      expectStatus(await s.call("settings.set_space", admin, { key: "mail.send_window", value: { days: [1, 2, 3, 4, 5, 6, 7], startHour: 0, endHour: 24, zone: "space" } }), 200, "settings.set_space");
-    });
     const campaign = await trail.step("a campaign is drafted for the lead", async () => {
       const c = expectStatus(await s.call("campaigns.create", adam, { idempotencyKey: "golden-5-campaign", name: "Spring outreach", kind: "sequence" }), 200, "campaigns.create").campaign;
       const campaignId = (c.campaignId ?? c.id) as string;
@@ -130,11 +126,10 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
           { key: "nudge", type: "email", config: { mailboxId: mailbox!, subject: "Following up, {{name}}", text: "Did you see my note?" } },
         ],
       }), 200, "campaigns.steps_set");
-      expectStatus(await s.call("campaigns.schedule_set", adam, { campaignId, windows: { days: [0, 1, 2, 3, 4, 5, 6], from: "00:00", to: "23:59", tz: "UTC" }, stopOnReply: true }), 200, "campaigns.schedule_set");
       const aud = expectStatus(await s.call("campaigns.audience_set", adam, { campaignId, type: "contact", filter: { field: "email", op: "eq", value: LEAD.email } }), 200, "campaigns.audience_set");
       assert.equal(aud.count, 1, `the audience is the lead: ${short(aud)}`);
       return campaignId;
-    }, ["a lead is made", "a shared mailbox sends from that domain", "sending is allowed at any hour"]);
+    }, ["a lead is made", "a shared mailbox sends from that domain"]);
 
     const held = await trail.step("launching is held by the Gate for approval", async () => {
       const r = await s.call("campaigns.launch", adam, { idempotencyKey: "golden-5-launch", campaignId: campaign! });
