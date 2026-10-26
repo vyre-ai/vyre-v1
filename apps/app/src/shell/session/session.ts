@@ -36,6 +36,10 @@ export interface OpenSessionOptions {
   /** The live socket's dialer and clock, injectable for tests. */
   dial?: Dial;
   scheduler?: Scheduler;
+  /** The sync epoch this device agreed with the server last time (stored with the session); absent on a fresh sign-in. */
+  syncEpoch?: number;
+  /** The device adopted the server's sync epoch: keep it for the next hello. */
+  onSyncEpoch?(epoch: number): void;
   /** The contract hash this build was made with (sent in hello); defaults to the one baked in at export. */
   registryHash?: string;
   /** Re-read period while the live link is down. */
@@ -152,7 +156,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     baseUrl: o.baseUrl,
     token: () => token,
     deviceId: who.deviceId ?? "web",
-    epoch: who.epoch,
+    ...(o.syncEpoch !== undefined ? { epoch: o.syncEpoch } : {}),
+    ...(o.onSyncEpoch ? { onEpoch: o.onSyncEpoch } : {}),
     registryHash: o.registryHash ?? BUILD_REGISTRY_HASH,
     onChange: refresh,
     onStatus: (s) => { live = s; if (s === "live") everLive = true; tell(); },

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import type { ScreenIndexEntry } from "../../../../../generated/screens.ts";
 import { CapError, createCapCaller, indexByCap, queryString } from "./caps.ts";
 import type { RouteRow } from "./caps.ts";
+import { memoryLink } from "../../../../../client/src/connection/memory.ts";
 import { fakeServer, settle } from "../../../../../client/src/connection/testing.ts";
 import { createLiveLink, socketBase, socketPath } from "./live.ts";
 import { createRemoteScreenHooks, stableJson } from "./remote-hooks.ts";
@@ -355,4 +356,57 @@ test("hooks: prefetch reads a live query once with nobody watching, and the firs
   await wait();
   assert.equal(reads, 1, "watching a warmed query does not read it again");
   hooks.close();
+});
+
+/** A server with its own sync epoch: a hello with a lower epoch is answered purge (what sync's decideMode does), anything else live. Records each hello's epoch. */
+function epochServer(serverEpoch: number): { dial: Parameters<typeof createLiveLink>[0]["dial"]; hellos: number[] } {
+  const hellos: number[] = [];
+  const dial: NonNullable<Parameters<typeof createLiveLink>[0]["dial"]> = async () => {
+    const link = memoryLink();
+    link.server.onFrame((f) => {
+      const h = (f as { t?: string; hello?: { epoch: number } });
+      if (h.t === "hello" && h.hello) {
+        hellos.push(h.hello.epoch);
+        link.server.send({ t: "hello_ok", ok: { serverVersion: "t", epoch: serverEpoch, serverHlc: "000000000001-0000-srv", mode: h.hello.epoch < serverEpoch ? "purge" : "live", head: 0, entityVersions: {} } });
+      }
+    });
+    return link.client;
+  };
+  return { dial, hellos };
+}
+
+test("live: a fresh sign-in is never purged for a stale epoch: it adopts the server's sync epoch, says hello again and reaches live", async () => {
+  const srv = epochServer(7);
+  let purged = 0;
+  const adopted: number[] = [];
+  const link = createLiveLink({ baseUrl: "https://s.test", token: () => "t", deviceId: "dev_new", registryHash: "h", onChange: () => undefined, onPurge: () => { purged++; }, onEpoch: (e) => adopted.push(e), dial: srv.dial });
+  link.start();
+  await settle(30);
+  assert.equal(purged, 0, "no wipe, no sign-out for a device that has nothing local");
+  assert.deepEqual(adopted, [7]);
+  assert.deepEqual(srv.hellos, [0, 7], "hello with no epoch, then again with the server's");
+  assert.equal(link.status(), "live");
+  link.stop();
+});
+
+test("live: a device that agreed an epoch before and is now behind it (revoked, bumped) is still purged", async () => {
+  const srv = epochServer(9);
+  let purged: number[] = [];
+  const link = createLiveLink({ baseUrl: "https://s.test", token: () => "t", deviceId: "dev_old", epoch: 4, registryHash: "h", onChange: () => undefined, onPurge: (e) => { purged = [...purged, e]; }, onEpoch: () => { throw new Error("a known device never adopts"); }, dial: srv.dial });
+  link.start();
+  await settle(30);
+  assert.deepEqual(purged, [9]);
+  assert.deepEqual(srv.hellos, [4], "no second hello");
+  link.stop();
+});
+
+test("live: a device that agreed the current epoch reaches live with no purge", async () => {
+  const srv = epochServer(5);
+  let purged = 0;
+  const link = createLiveLink({ baseUrl: "https://s.test", token: () => "t", deviceId: "d", epoch: 5, registryHash: "h", onChange: () => undefined, onPurge: () => { purged++; }, dial: srv.dial });
+  link.start();
+  await settle(30);
+  assert.equal(purged, 0);
+  assert.equal(link.status(), "live");
+  link.stop();
 });

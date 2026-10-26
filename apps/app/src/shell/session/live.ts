@@ -11,9 +11,16 @@ export interface LiveLinkOptions {
   /** The Space's address (http or https); the socket address is derived from it. */
   baseUrl: string;
   token(): string | null;
-  /** This device and its epoch, from identity.whoami. */
+  /** This device, from identity.whoami. */
   deviceId: string;
-  epoch: number;
+  /**
+   * The sync epoch this device last agreed with the server (kept in the stored session), or undefined on a fresh sign-in. It is NOT identity.whoami's epoch: that counts the key epochs,
+   * the server's purge test counts sync epochs. A fresh device has nothing local to wipe, so its first purge answer is the server telling it the current epoch: it adopts that and says hello
+   * again. A device that has agreed before is purged for real when its epoch is behind (a revoke, a bump), as before.
+   */
+  epoch?: number;
+  /** The epoch this device adopted from the server; the session keeps it for the next hello. */
+  onEpoch?(epoch: number): void;
   /** The contract hash this build was made with; the server answers update_required when it is too old. */
   registryHash: string;
   appVersion?: string;
@@ -86,22 +93,36 @@ export function createLiveLink(o: LiveLinkOptions): LiveLink {
   let status: LiveStatus = "offline";
   let cursor = 0;
   let conn: Connection | null = null;
+  let epoch = o.epoch ?? 0;
+  let trusted = o.epoch !== undefined;
   const set = (s: LiveStatus): void => { if (s !== status) { status = s; o.onStatus?.(s); } };
 
-  return {
+  const link: LiveLink = {
     start() {
       if (conn) return;
       conn = createConnection({
         space: o.baseUrl,
         endpoints: [endpoint("direct", socketBase(o.baseUrl))],
         dial: o.dial ?? webSocketDial(o.token),
-        hello: () => ({ deviceId: o.deviceId, deviceClass: "web", appVersion: o.appVersion ?? "0.0.0", registryHash: o.registryHash, epoch: o.epoch, replica: { entities: {} } }),
+        hello: () => ({ deviceId: o.deviceId, deviceClass: "web", appVersion: o.appVersion ?? "0.0.0", registryHash: o.registryHash, epoch, replica: { entities: {} } }),
         cursor: { get: () => cursor, set: (n) => { cursor = n; } },
         apply: (batch) => { o.onChange(batch.seq); },
         ...(o.scheduler ? { scheduler: o.scheduler } : {}),
         on: {
           status: (s) => set(toLive(s)),
-          purge: (epoch) => { o.onPurge?.(epoch); },
+          purge: (e) => {
+            if (!trusted) {
+              // a fresh device: nothing here to wipe, so adopt the server's epoch and say hello again
+              trusted = true;
+              epoch = e;
+              o.onEpoch?.(e);
+              const old = conn;
+              conn = null;
+              queueMicrotask(() => { old?.stop(); restart(); });
+              return;
+            }
+            o.onPurge?.(e);
+          },
         },
       });
       conn.start();
@@ -113,4 +134,6 @@ export function createLiveLink(o: LiveLinkOptions): LiveLink {
     },
     status: () => status,
   };
+  const restart = (): void => link.start();
+  return link;
 }

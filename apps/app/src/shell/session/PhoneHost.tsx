@@ -12,7 +12,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import type { PlaceHash } from "../hash/context.tsx";
 import type { PlaceId } from "../rail/kits.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
-import { entryFor, placeOf } from "./phone.ts";
+import { entryFor, placeOf } from "./mobile-map.ts";
 import type { RealSession } from "./session.ts";
 
 const NEVER: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "loading" }) };
