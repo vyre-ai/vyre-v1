@@ -100,7 +100,7 @@ test("l4 live: a booted daemon has no L4 module not set up, and a read and a wri
 
     // mounts: a folder on a device is mounted into a new folder, and the list shows it
     const mountInto = (await ok("/v1/files/folder/create", { idempotencyKey: "l4-live-mount-folder", parentId: projects.folderId, name: "Device" }))["folder"] as { folderId: string };
-    const added = await ok("/v1/mounts/add", { into: mountInto.folderId, source: { kind: "local", deviceId: "dev_l4live", localPath: "/Users/olivia/Matters" } });
+    const added = await ok("/v1/mounts/add", { idempotencyKey: "l4-live-mount", into: mountInto.folderId, source: { kind: "local", deviceId: "dev_l4live", localPath: "/Users/olivia/Matters" } });
     assert.match(String(added["mountId"]), /^mnt_/, "mounts.add made a mount");
     const listed = (await ok("/v1/mounts/list", {}))["mounts"] as { mountId: string }[];
     assert.ok(listed.some((m) => m.mountId === added["mountId"]), "mounts.list shows the new mount");
@@ -114,4 +114,29 @@ test("l4 live: a booted daemon has no L4 module not set up, and a read and a wri
     assert.equal(refused.status, 403, "a temp person cannot create folders");
     assert.equal(((await refused.json()) as { error?: { code?: string } }).error?.code, "permission.role_lacks_permission");
   } finally { console.log("l4 live: stopping"); await d.stop(); console.log("l4 live: stopped; open resources:", JSON.stringify(process.getActiveResourcesInfo().filter((r) => r !== "TTYWrap" && r !== "FSReqCallback"))); }
+});
+
+test("l4 live: a fresh daemon whose first files call is files.folder.search finds the Agents root", async () => {
+  const dir = seededDir();
+  const d = await startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux", hostname: "l4-live", free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    session: (h) => (/^Bearer tok-usr_olivia$/.test(String(h["authorization"] ?? "")) ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "l4-live" } : null),
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
+  });
+  try {
+    const r = await fetch(`${d.url}/v1/files/folder/search`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` }, body: JSON.stringify({ q: "Agents" }), signal: AbortSignal.timeout(8_000) });
+    const text = await r.text();
+    assert.equal(r.status, 200, text);
+    const folders = (JSON.parse(text) as { data: { folders: { name: string; path: string }[] } }).data.folders;
+    assert.ok(folders.some((f) => f.path === "Agents"), `the Agents root is found: ${text}`);
+  } finally { await d.stop(); }
 });

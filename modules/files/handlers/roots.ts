@@ -22,9 +22,9 @@ type Row = Record<string, unknown>;
 
 /** Makes the Space roots and the caller's Personal root exist as access resources. Parents first, so a child never names a folder access does not know. */
 export async function registerRoots(ctx: Ctx): Promise<void> {
+  ensureReady(ctx);   // every files capability makes the root rows, whether or not a host is there to register them
   const host = configured;
   if (!host) return;
-  ensureReady(ctx);
   const rows = ctx.db.all(
     "SELECT id, parent_id, root_key, system_key, owner FROM files_folder WHERE (root_key IS NOT NULL OR system_key IS NOT NULL) AND deleted_at IS NULL ORDER BY length(path), path",
   ) as Row[];
