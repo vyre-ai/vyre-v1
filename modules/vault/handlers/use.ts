@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { fail } from "../../../host/src/routes/errors.ts";
 import type { Field } from "./crypto.ts";
 import { currentFiller } from "./crypto.ts";
-import { filler, openFields, reachable, visible } from "./items.ts";
+import { filler, live, openFields, reachable, turnFor, visible } from "./items.ts";
 import {
   atLeast, bad, denied, ensure, first, isId, levelOn, liveFolder, newId, num, obj, parseJson, patchMeta, record, rowsOf, statements, str,
 } from "../projections.ts";
@@ -99,13 +99,13 @@ function ensureExports(ctx: VaultCtx): void {
 
 // ---- finding an item by name, handle or id
 
-function itemBy(ctx: VaultCtx, ref: string): Row {
-  if (isId("vit", ref)) return reachable(ctx, ref, "use");
+function itemBy(ctx: VaultCtx, ref: string, forTurn = false): Row {
+  if (isId("vit", ref)) return reachable(ctx, ref, "use", { forTurn });
   const want = ref.replace(/^#/, "").toLowerCase();
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => visible(ctx, r));
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => visible(ctx, r) || (forTurn && str(r, "scope") === "mine" && live(r) && turnFor(ctx, r)));
   const hit = rows.find((r) => str(r, "handle").replace(/^#/, "").toLowerCase() === want) ?? rows.find((r) => str(r, "name").toLowerCase() === ref.trim().toLowerCase());
   if (!hit) throw fail("validation.not_found", ctx.trace.traceId, { message: "That item is not in this Vault, or you cannot use it." });
-  return reachable(ctx, str(hit, "id"), "use");
+  return reachable(ctx, str(hit, "id"), "use", { forTurn });
 }
 
 const keysOf = (r: Row): string[] => parseJson<string[]>(r["fieldKeys"], []);
@@ -124,7 +124,7 @@ export async function use(ctx: VaultCtx, input: { item: string; fields?: string[
   ensure(ctx);
   if (typeof input.item !== "string" || input.item.trim() === "") bad(ctx, "Name the item to use.");
   if (input.purpose !== undefined && typeof input.purpose !== "string") bad(ctx, "The purpose is text.");
-  const r = itemBy(ctx, input.item);
+  const r = itemBy(ctx, input.item, true);
   const have = keysOf(r);
   const wanted = input.fields ?? have;
   if (!Array.isArray(wanted) || wanted.some((f) => typeof f !== "string" || !FIELD_KEY.test(f))) bad(ctx, "Field keys are not valid.");

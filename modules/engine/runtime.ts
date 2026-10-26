@@ -36,6 +36,8 @@ export interface EngineHostSeam {
   /** The Space data directory. With it and no `sandbox`, the module builds the default sandbox for this platform on the first CLI turn (sandbox-default.ts). */
   dataDir?: string;
   now?: () => number;
+  /** Where the bridge logs a turn that failed or a reply it could not post. */
+  log?: (msg: string, attrs?: Record<string, unknown>) => void;
   /** Run chat.post as an agent (the host builds the call with the agent as principal). With it the chat bridge is attached: the engine's replies become chat posts. */
   postAs?: PostAs;
   /** Runs once the runtime exists and before it is bound (the chat bridge attaches here). */
@@ -66,10 +68,13 @@ export function engineHost(): EngineHostSeam | null { return host; }
 
 async function accountFor(h: EngineHostSeam, q: AccountQuery): Promise<ResolvedAccount | null> {
   const res = (await h.call("engine.account.resolve", { threadId: q.threadId, agentId: q.agentId, askerId: q.askerId, ...(q.stepKey ? { stepKey: q.stepKey } : {}) }, q.askerId)) as ResolveOut;
-  if (!res.allowed || !res.accountRef || !res.payer) return null;
+  if (!res.allowed || !res.accountRef || !res.payer) {
+    h.log?.("no account can pay for this turn", { threadId: q.threadId, agentId: q.agentId, asker: q.askerId, allowed: res.allowed, reason: res.reason, accountRef: res.accountRef ?? null });
+    return null;
+  }
   const list = (await h.call("engine.accounts.list", {}, res.payer)) as { accounts: AccountRow[] };
   const row = list.accounts.find((a) => a.ref === res.accountRef);
-  if (!row) return null;   // the key vanished between the two calls: treat as none, the next turn asks again
+  if (!row) { h.log?.("the account the turn resolved is not in the payer's list", { threadId: q.threadId, accountRef: res.accountRef, payer: res.payer }); return null; }   // the key vanished between the two calls: treat as none, the next turn asks again
   return { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(res.itemId ? { itemId: res.itemId } : {}) };
 }
 
@@ -77,7 +82,7 @@ async function unblock(h: EngineHostSeam, db: Db, info: { threadId: string; turn
   const key = `no-account:${info.threadId}:${info.agentId}:${info.asker}`;
   const made = (await h.call("tasks.create", {
     kind: "unblock", title: "Add a key so your agent can answer", summary: "No API key or sign-in is available to run this conversation. Add one in the Vault and the agent answers.",
-    assigned: { kind: "person", id: info.asker }, source: { kind: "engine", id: info.turnId }, idempotencyKey: key,
+    assigned: { kind: "person", id: info.asker }, source: { kind: "chat", id: info.threadId }, idempotencyKey: key,
   }, info.asker)) as { task?: { id?: string } };
   const taskId = made.task?.id;
   if (taskId) db.run("INSERT OR REPLACE INTO engine_unblock (task_id, thread_id, agent_id, asker, at) VALUES (?, ?, ?, ?, ?)", taskId, info.threadId, info.agentId, info.asker, (h.now ?? Date.now)());
@@ -107,12 +112,15 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   closeOpener = opener ? () => opener.close() : null;
   building ??= (async () => {
     const now = h.now ?? Date.now;
-    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now }) : null;
+    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
     const engine = createTurnEngine({
       holder: h.holder, openSession: bridge ? bridge.tap(openSession) : openSession, now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
       resolveAccount: (q) => accountFor(h, q),
-      onNoAccount: (info) => unblock(h, ctx.db, info),
+      onNoAccount: async (info) => {
+        try { await unblock(h, ctx.db, info); }
+        catch (e) { h.log?.("could not open the Unblock task for a turn with no account", { threadId: info.threadId, asker: info.asker, error: e instanceof Error ? e.message : String(e) }); throw e; }
+      },
       onTurnEnd: (turn, account) => meter(h, turn, account),
       ...(apiTools ? { callTool: apiTools.runner } : {}),
     });

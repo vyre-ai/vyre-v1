@@ -4,6 +4,7 @@
 // daemon's Vault port, and the CLI is the fake CLI of host/tests/fixtures/fake-cli-driver run in the platform's default sandbox (bubblewrap with the network wall on the Linux runner).
 // Runs only with VYRE_HEAVY_DOCKER=1 (the l2-heavy job).
 import test from "node:test";
+import { DatabaseSync } from "node:sqlite";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -60,12 +61,19 @@ async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: n
   return { status: r.status, data: body.data ?? body };
 }
 
-async function waitFor<T>(f: () => Promise<T | null>, ms = 40_000): Promise<T> {
+/** What the host logged at warn level or about the engine, so a reply that never comes says why. */
+function hostLog(d: Daemon): string {
+  d.sink.flush();
+  const rows = new DatabaseSync(d.paths.logs, { readOnly: true }).prepare("SELECT level, place, cap, msg, attrs FROM logs WHERE level >= 30 OR msg LIKE '%consumer%' OR msg LIKE '%bridge%' OR msg LIKE '%engine%' ORDER BY id DESC LIMIT 30").all() as Array<{ level: number; place: string | null; cap: string | null; msg: string; attrs: string | null }>;
+  return JSON.stringify(rows.map((r) => `${r.level} ${r.place ?? ""} ${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 300)}`));
+}
+
+async function waitFor<T>(f: () => Promise<T | null>, ms = 40_000, why?: () => string): Promise<T> {
   const end = Date.now() + ms;
   for (;;) {
     const v = await f();
     if (v !== null) return v;
-    if (Date.now() > end) throw new Error("waitFor: it never happened");
+    if (Date.now() > end) throw new Error(`waitFor: it never happened${why ? `; host log ${why()}` : ""}`);
     await new Promise<void>((r) => setTimeout(r, 200));
   }
 }
@@ -75,6 +83,20 @@ test("chat live: a person's message to an agent on a booted daemon gets a stream
   const d = await boot(dir);
   try {
     assert.deepEqual(d.seams?.missing, [], "no live module is left without its driver");
+    // her Claude account, the way a person connects it (spec 6.4): her client unlocks her person key on this node, the sign-in starts, her client saves the token as a Mine item, Done links it as her provider, and
+    // she lets the Space use it (a private chat with no desktop device online runs on the Space, spec 6.3)
+    const unlock = await fetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify({ key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64") }) });
+    assert.equal(unlock.status, 204, `unlock: ${unlock.status}`);
+    const folder = await call(d, "vault.folders.create", { idempotencyKey: "chat-live-folder", name: "Accounts", scope: "mine" });
+    assert.equal(folder.status, 200, JSON.stringify(folder.data));
+    const flow = await call(d, "providers.subscription_start", { idempotencyKey: "chat-live-flow", providerKey: "claude-code" });
+    assert.equal(flow.status, 200, JSON.stringify(flow.data));
+    const item = await call(d, "vault.item.put", { idempotencyKey: "chat-live-item", folderId: folder.data.folder.id, name: "Olivia_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: KEY, secret: true }] });
+    assert.equal(item.status, 200, JSON.stringify(item.data));
+    const provider = await call(d, "providers.subscription_complete", { flowId: flow.data.flowId });
+    assert.equal(provider.status, 200, JSON.stringify(provider.data));
+    const allowed = await call(d, "providers.set_space_use", { idempotencyKey: "chat-live-spaceuse", providerId: provider.data.provider.id, allow: true });
+    assert.equal(allowed.status, 200, JSON.stringify(allowed.data));
     const made = await call(d, "agents.create", { name: "Intake", role: "You answer intake questions.", idempotencyKey: "chat-live-agent" });
     assert.equal(made.status, 200, JSON.stringify(made.data));
     const agentId = made.data.agent.agentId as string;
@@ -93,7 +115,7 @@ test("chat live: a person's message to an agent on a booted daemon gets a stream
       const r = await call(d, "chat.messages.list", { threadId });
       const m = (r.data.messages as Array<{ author?: { kind?: string }; body?: string }> | undefined)?.find((x) => x.author?.kind === "agent" && (x.body ?? "").includes("Hello from the fake engine."));
       return m ?? null;
-    });
+    }, 40_000, () => hostLog(d));
     assert.ok(reply, "the agent's reply is in the thread the person wrote in");
   } finally { await d.stop(); }
 });
