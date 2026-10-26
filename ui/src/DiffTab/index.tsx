@@ -501,7 +501,7 @@ function Note({ comment, onReply }: { comment: DiffComment; onReply?: () => void
   const when = dot >= 0 ? comment.author.slice(dot + 3) : "";
   return (
     <View style={styles.comment} testID={`diff-note-${comment.id}`}>
-<Avatar name={name} {...(comment.authorId !== undefined ? { seedId: comment.authorId } : {})} kind="person" size={22} />
+      <Avatar name={name} {...(comment.authorId !== undefined ? { seedId: comment.authorId } : {})} kind="person" size={22} />
       <View style={styles.commentBody}>
         <View style={styles.who}>
           <Text style={styles.whoName}>{name}</Text>
