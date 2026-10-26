@@ -1,0 +1,12 @@
+{
+  "targets": [
+    {
+      "id": "P-L9_14c-chats-northwind",
+      "route": "/m/P-L9_14c",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='chats-place']",
+      "note": "The shell on Chats over Northwind: the sidebar (Needs you with its requests, Agents, Channels, Chats), the open chat Rivera intake with its composer, and Intake's pane on Computer. The prototype side is its Chats place in the same skin. Comment and Notes in the prototype's title bar are review tools, not product, so the real bar has none.",
+      "protoSettleMs": 1500
+    }
+  ]
+}

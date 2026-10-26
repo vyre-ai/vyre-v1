@@ -312,6 +312,34 @@ export function ObjectPage(props: ObjectPageViewProps): ReactElement {
   );
 }
 
+const CHEVRON_RIGHT = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.500L10.500 8 6 12.500"/></svg>';
+
+/** The small arrow at the end of a row that opens something. */
+export function ObjectChevron(): ReactElement {
+  return <MenuIcon icon={CHEVRON_RIGHT} color="var(--ink-3)" size={14} />;
+}
+
+/** A titled group on an object page: "Owns 3" over a card of rows. Pass shared Rows as children. */
+export function ObjectSection({ title, count, children, testID }: { title: string; count?: number; children: ReactNode; testID?: string }): ReactElement {
+  return (
+    <View testID={testID ?? `object-section-${title.toLowerCase().replace(/\s+/g, "-")}`} style={sectionStyles.section}>
+      <View style={sectionStyles.head}>
+        <Text style={sectionStyles.title} role="heading" aria-level={2}>{title}</Text>
+        {count === undefined ? null : <Text style={sectionStyles.count}>{count}</Text>}
+      </View>
+      <View style={sectionStyles.card}>{children}</View>
+    </View>
+  );
+}
+
+const sectionStyles = StyleSheet.create({
+  section: { gap: 8 },
+  head: { flexDirection: "row", alignItems: "baseline", gap: 7, paddingHorizontal: 2 },
+  title: { color: "var(--ink)" as string, fontSize: 13.5, fontWeight: "600" },
+  count: { color: "var(--ink-3)" as string, fontSize: 12.5 },
+  card: { borderRadius: 10, boxShadow: "0 0 0 1px var(--line)" as string, backgroundColor: "var(--raised)" as string, padding: 4 },
+});
+
 function HeadButton({ label, onPress, testID, outlined = false, danger = false }: { label: string; onPress: () => void; testID: string; outlined?: boolean; danger?: boolean }): ReactElement {
   const [over, setOver] = useState(false);
   return (

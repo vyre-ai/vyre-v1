@@ -65,7 +65,7 @@ export interface FlowSpace {
 }
 
 /** Boots a daemon on the `core` seed with `live` flipped in a temporary code root. Rejects with the host's own refusal text when the boot is refused. */
-export async function bootFlowSpace(live: readonly string[]): Promise<FlowSpace> {
+export async function bootFlowSpace(live: readonly string[], opts: { engineCli?: unknown } = {}): Promise<FlowSpace> {
   const dir = seededDir();
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
@@ -79,6 +79,7 @@ export async function bootFlowSpace(live: readonly string[]): Promise<FlowSpace>
       },
     }),
     fetch: caddyFetch,
+    ...(opts.engineCli !== undefined ? { engineCli: opts.engineCli } : {}),
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, tick: 3_600_000, hooks: 3_600_000 },
   });
   const trace = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -161,4 +162,27 @@ export const todoOf = (gaps: readonly Gap[]): string | false => (gaps.length ? g
 /** The steps that must be ok whatever the gaps are (they are real, passing proof). */
 export function okSteps(trail: Trail): string[] {
   return trail.lines.filter((l) => l.startsWith("ok    ")).map((l) => l.slice(6));
+}
+
+/** Boots with `live`; when the host refuses because a module has no handlers, records that as a failed step and boots again without the refused modules, so the rest of the flow still shows its own gaps. */
+export async function bootTolerant(trail: Trail, live: readonly string[], opts: { engineCli?: unknown } = {}): Promise<{ s: FlowSpace | undefined; dropped: string[] }> {
+  let want = [...live];
+  const dropped: string[] = [];
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const s = await bootFlowSpace(want, opts);
+      if (dropped.length === 0) trail.lines.push(`ok    the Space boots with ${live.join(", ")} live`);
+      return { s, dropped };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const bad = [...new Set([...msg.matchAll(/module ([a-z0-9-]+) \(live\)/g)].map((m) => m[1]!))].filter((m) => want.includes(m));
+      if (bad.length === 0) { trail.failures.push(`boot: ${msg.slice(0, 300)}`); trail.lines.push(`FAIL  boot: ${msg.slice(0, 300)}`); return { s: undefined, dropped }; }
+      const why = msg.split("\n").filter((l) => bad.some((b) => l.includes(`module ${b} (live)`))).slice(0, 2).join(" ; ");
+      trail.failures.push(`the Space cannot boot with ${bad.join(", ")} live: ${why.slice(0, 300)}`);
+      trail.lines.push(`FAIL  the Space cannot boot with ${bad.join(", ")} live: ${why.slice(0, 300)}`);
+      dropped.push(...bad);
+      want = want.filter((m) => !bad.includes(m));
+    }
+  }
+  return { s: undefined, dropped };
 }

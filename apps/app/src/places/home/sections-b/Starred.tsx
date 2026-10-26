@@ -20,7 +20,7 @@ type StarsOut = CapMap["stars.list"]["out"];
 type StatusOut = CapMap["terminal.status"]["out"];
 export const STARRED_SECTION = 6;
 
-export function Starred(): ReactElement {
+export function Starred(): ReactElement | null {
   const data = useHomeData();
   const extras = useExtras();
   const line = useHomeLine();
@@ -64,6 +64,8 @@ export function Starred(): ReactElement {
     );
   }
 
+  // A Personal Space draws no empty section (the prototype's Personal Home is the checklist, the assistant and what exists).
+  if (isPersonal(extras) && stars.status === "ready" && split.rows.length === 0 && split.blocked.length === 0) return null;
   const more = split.rows.length - STARRED_LIMIT;
   return (
     <Section id="s-starred">
