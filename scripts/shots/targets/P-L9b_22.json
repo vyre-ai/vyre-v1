@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "P-L9b_22-chats-sidebar",
+      "route": "/m/P-L9b_22",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='chats-sidebar']",
+      "note": "The real Chats place in the shell with its sidebar in the shared place sidebar: the Chats title, collapse button and Search chats field from the slot, then Needs you, Agents, Channels and Chats with Rivera intake open. On a phone the sidebar is the list before the chat. The prototype side is its Chats place in the same skin."
+    },
+    {
+      "id": "P-L9b_22-chats-needs",
+      "route": "/m/P-L9b_22?screen=needs",
+      "proto": "chat,needs,{skin}",
+      "waitFor": "[data-testid='needs-you']",
+      "note": "The Needs you page opened from the sidebar's Needs you row, beside the shared place sidebar."
+    }
+  ]
+}

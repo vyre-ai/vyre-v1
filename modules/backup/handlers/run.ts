@@ -50,7 +50,7 @@ export interface SpaceSource {
    * Put a snapshot back and replay `tombstones` over it before anything reads it. "scratch" restores into a throwaway directory and only checks the chain;
    * "live" replaces the Space's data and opens it for traffic once the tombstones are applied.
    */
-  restore(snapshot: SpaceSnapshot, tombstones: Tombstone[], mode: "scratch" | "live"): Promise<ApplyResult>;
+  restore(snapshot: SpaceSnapshot, tombstones: Tombstone[], mode: "scratch" | "live", traceId?: string): Promise<ApplyResult>;
   /** What the owner may take with them: records, files, shared chats. The host never includes private chats or personal memory; this module enforces that again. */
   exportEntries(): Promise<SnapshotEntry[]>;
   /** The person who owns the Space, from the access layer; only they may take a full export. A source that cannot say refuses every export (fail closed). */

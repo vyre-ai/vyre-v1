@@ -140,7 +140,11 @@ function infoHandlers() {
 
 export const handlers = {
   "sync.pull": async (ctx: SessionCtx, input: PullReq) => {
-    const res = await live().handlers["sync.pull"](toPullCtx(ctx), input);
+    const res = await live().handlers["sync.pull"]({
+      ...toPullCtx(ctx),
+      // names the entity and a count, never a row; private, so no reader of the log learns what changed hands
+      ...(ctx.emit ? { scopeChanged: (entity: string, rows: number) => { ctx.emit!("sync.scope_changed", `entity/${entity}`, { entity, personId: ctx.principal.id, rows }, { vis: "private" }); } } : {}),
+    }, input);
     if (ctx.device) noteCursor(live().deps.db, ctx.principal.id, ctx.device, "desktop", (res as { next?: number }).next ?? input.cursor, live().deps.now());
     return res;
   },
@@ -163,7 +167,12 @@ export const handlers = {
       } : {}) })["sync.push"](toPullCtx(ctx), input);
   },
   // admin calls (ARCH 5.7): the devices and access modules invoke them after a revoke, a removal or a label change
-  "sync.epoch.bump": (ctx: SessionCtx, input: BumpInput) => createPurgeHandlers(purgeDepsOf(live(), hub))["sync.epoch.bump"](toPurgeCtx(ctx), input),
+  "sync.epoch.bump": async (ctx: SessionCtx, input: BumpInput) => {
+    const res = await createPurgeHandlers(purgeDepsOf(live(), hub))["sync.epoch.bump"](toPurgeCtx(ctx), input);
+    // the Space log carries the announcement (the sync store keeps its own copy): the person, the epoch and why, never a row
+    ctx.emit?.("sync.epoch_bumped", `entity/${input.personId}`, { personId: input.personId, epoch: res.epoch, reason: input.reason, ...(input.deviceId !== undefined ? { deviceId: input.deviceId } : {}) }, { vis: "owner" });
+    return res;
+  },
   "sync.acl.reindex": (ctx: SessionCtx, input: ReindexInput) => createPurgeHandlers(purgeDepsOf(live(), hub))["sync.acl.reindex"](toPurgeCtx(ctx), input),
   // the device-facing questions about sync itself, and the documents (ARCH 5.2, 5.6)
   "sync.hello": (ctx: SessionCtx, input: never) => infoHandlers()["sync.hello"](ctx, input),

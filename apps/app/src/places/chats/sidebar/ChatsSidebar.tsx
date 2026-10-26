@@ -2,6 +2,9 @@
 // Starred, Today, Yesterday and Earlier with a pulse where an agent works, then Channels with Projects beneath. One flat list in ui/VirtualList, every row a ui/Row with
 // leading and trailing slots (ruling 36). Everything reads from the local copy; a new chat shows as a row at once and the server answers behind it.
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
+import { SidebarContent } from "../../../shell/sidebar/index.ts";
+import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
+import { portalInto } from "../../../shell/sidebar/portal.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -15,7 +18,7 @@ import type { SidebarApi } from "./actions.ts";
 import { ChatsSidebarDataProvider, useOnline, useOptionalSidebarData, useScreenQuery, useSidebarData } from "./data.tsx";
 import type { ChatsSidebarData } from "./data.tsx";
 import {
-  FILTERS, NEW_CHAT_MS, buildEntries, faceForDigit, filterCounts, groupRecent, matchesFilter, needsKind, selectable, stepKey, waitingAgents, whenLabel,
+  FILTERS, NEW_CHAT_MS, buildEntries, faceForDigit, filterCounts, groupRecent, matchesFilter, matchesQuery, needsKind, selectable, stepKey, waitingAgents, whenLabel,
 } from "./model.ts";
 import type { Agent, ChatRow, Entry, Filter, Group, NeedsItem, RecentOut, SectionKey } from "./model.ts";
 import { Badge, EmptyLine, Face, GroupLabel, Glyph, LeadGlyph, SectionHead, Tool, UnreadDot } from "./parts.tsx";
@@ -44,12 +47,22 @@ export function useSidebarApi(onLocal: (row: ChatRow) => void, onSettled: (local
   return useMemo(() => createSidebarApi(data, onLocal, onSettled), [data, onLocal, onSettled]);
 }
 
-/** `window` pins which entries are drawn (tests and screenshots draw them all); the shell leaves it out and the list windows by scroll. */
-export function ChatsSidebar({ data, window }: { data?: ChatsSidebarData; window?: VirtualWindow }): ReactElement {
+/** The Chats sidebar's content, drawn into the shell's shared place sidebar (title, collapse and search field are the slot's). `window` pins which entries are drawn (tests and
+ * screenshots draw them all); the shell leaves it out and the list windows by scroll. `query` is the slot's search field; `slot` lets the phone leave the list for the chat. */
+export function ChatsSidebar({ data, window, query = "", slot }: { data?: ChatsSidebarData; window?: VirtualWindow; query?: string; slot?: SidebarSlotApi | undefined }): ReactElement {
   const ctx = useOptionalSidebarData();
   const value = data ?? ctx;
   if (!value) return <ChatsSidebarLoading />;
-  return <ChatsSidebarDataProvider value={value}><Sidebar {...(window ? { window } : {})} /></ChatsSidebarDataProvider>;
+  return <ChatsSidebarDataProvider value={value}><Sidebar query={query} slot={slot} {...(window ? { window } : {})} /></ChatsSidebarDataProvider>;
+}
+
+/** Put this inside the Chats place: it registers the Chats sidebar in the shell's shared slot, so it collapses, searches and lands on the phone like every place. */
+export function ChatsSidebarSlot({ data, window }: { data?: ChatsSidebarData; window?: VirtualWindow }): ReactElement {
+  return (
+    <SidebarContent title="Chats" searchPlaceholder="Search chats">
+      {(query, slot) => <ChatsSidebar query={query} slot={slot} {...(data ? { data } : {})} {...(window ? { window } : {})} />}
+    </SidebarContent>
+  );
 }
 
 /** The frame before data: rows the size of the real ones, so nothing moves when the data arrives. */
@@ -61,7 +74,7 @@ export function ChatsSidebarLoading(): ReactElement {
   return <View testID="chats-sidebar-loading" accessibilityLabel="Loading" style={st.root}><View style={st.top} />{rows}</View>;
 }
 
-function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
+function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: string; slot: SidebarSlotApi | undefined }): ReactElement {
   const data = useSidebarData();
   const online = useOnline();
   const menu = useMenu();
@@ -85,16 +98,19 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
   const agents: Agent[] = agentsQ.status === "ready" ? agentsQ.data.agents : [];
   const names = useMemo(() => new Map(agents.map((a) => [a.agentId, a.name])), [agents]);
   const agentName = useCallback((id: string) => names.get(id) ?? id, [names]);
-  const faces: Agent[] = facesQ.status === "ready" ? facesQ.data.agents : [];
+  const allFaces: Agent[] = facesQ.status === "ready" ? facesQ.data.agents : [];
+  const faces: Agent[] = useMemo(() => allFaces.filter((a) => matchesQuery(query, a.name)), [allFaces, query]);
   const recent = recentQ.status === "ready" ? recentQ.data : EMPTY_RECENT;
-  const channels: Channel[] = channelsQ.status === "ready" ? channelsQ.data.channels : [];
-  const needs: NeedsItem[] = needsQ.status === "ready" ? needsQ.data.items : [];
+  const allChannels: Channel[] = channelsQ.status === "ready" ? channelsQ.data.channels : [];
+  const channels: Channel[] = useMemo(() => allChannels.filter((c) => matchesQuery(query, c.name)), [allChannels, query]);
+  const allNeeds: NeedsItem[] = needsQ.status === "ready" ? needsQ.data.items : [];
+  const needs: NeedsItem[] = useMemo(() => allNeeds.filter((n) => matchesQuery(query, n.task.title, agentName(n.task.createdBy))), [allNeeds, query, agentName]);
   const loading = recentQ.status === "loading" || channelsQ.status === "loading" || facesQ.status === "loading";
 
   const counts = useMemo(() => filterCounts(recent, local, agentName), [recent, local, agentName]);
   const groups: Group[] = useMemo(
-    () => groupRecent(recent, local, agentName).map((g) => ({ ...g, rows: g.rows.filter((r) => matchesFilter(r, filter)) })).filter((g) => g.rows.length),
-    [recent, local, agentName, filter],
+    () => groupRecent(recent, local, agentName).map((g) => ({ ...g, rows: g.rows.filter((r) => matchesFilter(r, filter) && matchesQuery(query, r.title, r.who)) })).filter((g) => g.rows.length),
+    [recent, local, agentName, filter, query],
   );
   const working = useMemo(() => {
     const set = new Set<string>();
@@ -109,6 +125,8 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
   const order = useMemo(() => selectable(entries), [entries]);
   const byKey = useMemo(() => new Map(entries.map((e) => [e.key, e])), [entries]);
 
+  // Choosing a thing takes the phone from the list to the page (the slot's openBody); on a computer it does nothing.
+  const leave = (): void => slot?.openBody();
   const toggle = (s: SectionKey): void => setClosed((c) => { const n = new Set(c); if (n.has(s)) n.delete(s); else n.add(s); return n; });
   const guard = (p: Promise<unknown>): void => void p.catch(() => undefined);
 
@@ -118,22 +136,22 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
     items.push({ separator: true }, { label: "Next unread", onSelect: () => nextUnread() });
     menu.show(items, x, y, "other");
   };
-  const nextUnread = (): void => { if (recent.nextUnread) { setCursor(`c:${recent.nextUnread}`); data.nav.openChat(recent.nextUnread); } };
+  const nextUnread = (): void => { if (recent.nextUnread) { setCursor(`c:${recent.nextUnread}`); data.nav.openChat(recent.nextUnread); leave(); } };
   const chatMenu = (r: ChatRow): MenuEntry[] => [
-    { label: "Open", onSelect: () => data.nav.openChat(r.threadId) },
+    { label: "Open", onSelect: () => { data.nav.openChat(r.threadId); leave(); } },
     { separator: true },
     { label: r.starred ? "Remove Star" : "Star", onSelect: () => guard(api.star("thread", r.threadId, !r.starred)) },
     ...(r.unread > 0 ? [{ label: "Mark as Read", onSelect: () => guard(api.markRead(r.threadId)) }] : []),
   ];
   const faceMenu = (a: Agent): MenuEntry[] => [
-    { label: `Chat with ${a.name}`, onSelect: () => data.nav.openAgentChat(a.agentId) },
-    { label: "New Chat", onSelect: () => void api.newChat({ agentId: a.agentId, name: a.name }) },
+    { label: `Chat with ${a.name}`, onSelect: () => { data.nav.openAgentChat(a.agentId); leave(); } },
+    { label: "New Chat", onSelect: () => { void api.newChat({ agentId: a.agentId, name: a.name }); leave(); } },
     { separator: true },
     { label: "Remove from Starred", onSelect: () => guard(api.star("agent", a.agentId, false)) },
-    { label: "All Agents", onSelect: () => data.nav.openAllAgents() },
+    { label: "All Agents", onSelect: () => { data.nav.openAllAgents(); leave(); } },
   ];
   const channelMenu = (c: Channel): MenuEntry[] => [
-    { label: "Open", onSelect: () => data.nav.openChannel(c.channelId) },
+    { label: "Open", onSelect: () => { data.nav.openChannel(c.channelId); leave(); } },
     { separator: true },
     ...(c.unread > 0 ? [{ label: "Mark as Read", onSelect: () => guard(api.markRead(c.mainThreadId)) }] : []),
     { label: "Star", onSelect: () => guard(api.star("channel", c.channelId, true)) },
@@ -141,7 +159,7 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
   const needMenu = (n: NeedsItem): MenuEntry[] => [
     ...n.task.actions.map((a) => ({ label: a.label, onSelect: () => guard(data.call("tasks.act", { taskId: n.task.id, action: a.key })) })),
     ...(n.task.actions.length ? [{ separator: true } as MenuEntry] : []),
-    { label: "Open in Needs you", onSelect: () => data.nav.openNeedsYou(n.task.id) },
+    { label: "Open in Needs you", onSelect: () => { data.nav.openNeedsYou(n.task.id); leave(); } },
   ];
 
   const open = (e: Entry): void => {
@@ -151,7 +169,8 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
     else if (e.type === "channel") data.nav.openChannel(e.channel.channelId);
     else if (e.type === "need") data.nav.openNeedsYou(e.item.task.id);
     else if (e.type === "more") data.nav.openAllAgents();
-    else if (e.type === "head") toggle(e.section);
+    else if (e.type === "head") { toggle(e.section); return; }
+    leave();
   };
   const menuFor = (e: Entry): MenuEntry[] | null =>
     e.type === "chat" ? chatMenu(e.row) : e.type === "face" ? faceMenu(e.agent) : e.type === "channel" ? channelMenu(e.channel) : e.type === "need" ? needMenu(e.item) : null;
@@ -173,10 +192,11 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
       e.preventDefault();
       setCursor(`f:${a.agentId}`);
       data.nav.openAgentChat(a.agentId);
+      slot?.openBody();
     };
     doc.addEventListener("keydown", onKey);
     return () => doc.removeEventListener("keydown", onKey);
-  }, [data]);
+  }, [data, slot]);
 
   const renderEntry = (e: Entry): ReactElement => {
     const sel = cursor === e.key;
@@ -191,7 +211,7 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
           return (
             <View testID="head-needs" style={{ height: ROW_H }}>
               <Row
-                id="needs-parent" title="Needs you" onPress={() => data.nav.openNeedsYou()}
+                id="needs-parent" title="Needs you" onPress={() => { data.nav.openNeedsYou(); leave(); }}
                 leading={<LeadGlyph name="inbox" />}
                 trailing={
                   <View style={st.tools}>
@@ -209,9 +229,9 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
         return (
           <SectionHead id={e.section} label={e.label} count={e.section === "needs" ? e.count : undefined} open={e.open} onToggle={() => toggle(e.section)} keep={recentHead && filter !== "all"}>
             {recentHead ? <Tool icon="filter" label="Filter chats" active={filter !== "all"} onPress={filterMenu} testID="filter-chats" /> : null}
-            {recentHead ? <Tool icon="plus" label="New chat" onPress={() => void api.newChat()} testID="new-chat-section" /> : null}
-            {e.section === "faces" ? <Tool icon="arrow" label="All agents" onPress={() => data.nav.openAllAgents()} testID="all-agents" /> : null}
-            {e.section === "channels" ? <Tool icon="plus" label="New channel" onPress={() => data.nav.openNewChannel()} testID="new-channel" /> : null}
+            {recentHead ? <Tool icon="plus" label="New chat" onPress={() => { void api.newChat(); leave(); }} testID="new-chat-section" /> : null}
+            {e.section === "faces" ? <Tool icon="arrow" label="All agents" onPress={() => { data.nav.openAllAgents(); leave(); }} testID="all-agents" /> : null}
+            {e.section === "channels" ? <Tool icon="plus" label="New channel" onPress={() => { data.nav.openNewChannel(); leave(); }} testID="new-channel" /> : null}
           </SectionHead>
         );
       }
@@ -245,7 +265,7 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
               id={e.key} title={e.agent.name} selected={sel} onPress={() => open(e)}
               leading={<Face name={e.agent.name} seedId={e.agent.agentId} kind="agent" size={18} pulse={e.working} />}
               trailing={over
-                ? <View style={st.tools}>{e.digit !== undefined ? <Text style={st.digit}>{`⌘${e.digit}`}</Text> : null}<Tool icon="plus" label={`New chat with ${e.agent.name}`} onPress={() => void api.newChat({ agentId: e.agent.agentId, name: e.agent.name })} testID={`face-new-${e.agent.agentId}`} /></View>
+                ? <View style={st.tools}>{e.digit !== undefined ? <Text style={st.digit}>{`⌘${e.digit}`}</Text> : null}<Tool icon="plus" label={`New chat with ${e.agent.name}`} onPress={() => { void api.newChat({ agentId: e.agent.agentId, name: e.agent.name }); leave(); }} testID={`face-new-${e.agent.agentId}`} /></View>
                 : e.waiting ? <Text style={st.waiting}>Waiting on you</Text> : e.working ? <Text style={st.quiet}>Working</Text> : null}
             />
           )}
@@ -290,28 +310,25 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
     }
   };
 
+  // In the shell the assistant's new-chat button sits in the slot's header, right of the title beside the collapse button (the prototype's "Chats ... V [panel]"); alone it sits in a row of its own.
+  const inHeader = slot?.actionsOutlet !== undefined && slot.actionsOutlet !== null;
+  const headBusy = data.space.otherNeedsYou || !online;
+  const newChatButton = (
+    <Pressable accessibilityRole="button" accessibilityLabel={`New chat with ${data.space.assistant.name}`} {...{ title: `New chat with ${data.space.assistant.name}` }} onPress={() => { void api.newChat(); leave(); }} testID="new-chat" style={({ hovered }: { hovered?: boolean }) => [st.assistant, hovered === true && st.assistantOver]}>
+      <Avatar name={data.space.assistant.name} kind="assistant" size={18} />
+    </Pressable>
+  );
   return (
     <View testID="chats-sidebar" accessibilityRole="list" accessibilityLabel="Chats" style={st.root} {...{ tabIndex: 0, onKeyDown }}>
-      <View style={st.top}>
-        <View testID="sidebar-head" accessibilityRole="header" accessibilityLabel={`Chats, ${data.space.name}`} style={st.space}>
-          <Text accessibilityRole="header" style={st.spaceName}>Chats</Text>
+      {headBusy || !inHeader ? (
+        <View style={st.top} testID="sidebar-head" accessibilityLabel={`Chats, ${data.space.name}`}>
           {data.space.otherNeedsYou ? <View testID="other-space-dot" accessibilityLabel="Another Space needs you" style={st.red} /> : null}
           {online ? null : <Text testID="sidebar-offline" style={st.quiet}>Offline</Text>}
           <View style={{ flex: 1 }} />
-          <Pressable accessibilityRole="button" accessibilityLabel={`New chat with ${data.space.assistant.name}`} {...{ title: `New chat with ${data.space.assistant.name}` }} onPress={() => void api.newChat()} testID="new-chat" style={({ hovered }: { hovered?: boolean }) => [st.assistant, hovered === true && st.assistantOver]}>
-            <Avatar name={data.space.assistant.name} kind="assistant" size={18} />
-          </Pressable>
-          {data.nav.toggleSidebar ? <Tool icon="panel" label="Hide the sidebar" onPress={() => data.nav.toggleSidebar?.()} testID="sidebar-toggle" /> : null}
+          {inHeader ? null : newChatButton}
         </View>
-        <View style={st.searchRow}>
-          <Pressable accessibilityRole="search" accessibilityLabel="Search" onPress={() => data.nav.openSearch()} testID="sidebar-search" style={st.search}>
-            <Glyph name="search" size={14} color="var(--ink-3)" />
-            <Text style={st.searchText}>Search</Text>
-            <View style={{ flex: 1 }} />
-            <Text style={st.digit}>⌘K</Text>
-          </Pressable>
-        </View>
-      </View>
+      ) : null}
+      {inHeader ? portalInto(slot?.actionsOutlet, newChatButton) : null}
       <View style={st.list}>
         {loading ? <ChatsSidebarLoading /> : (
           <VirtualList data={entries} rowHeight={ROW_H} keyOf={(e) => e.key} renderItem={(e) => renderEntry(e)} {...(window ? { window } : {})} />
@@ -326,16 +343,11 @@ function Sidebar({ window }: { window?: VirtualWindow }): ReactElement {
 export const NEW_CHAT_BUDGET_MS = NEW_CHAT_MS;
 
 const st = StyleSheet.create({
-  root: { flex: 1, minHeight: 0, backgroundColor: "var(--side)" as string, paddingHorizontal: 8, paddingTop: 6 },
-  top: { gap: 6, paddingBottom: 6 },
-  space: { height: 32, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 6, borderRadius: 7 },
+  root: { flex: 1, minHeight: 0, paddingHorizontal: 8 },
+  top: { height: 28, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 6, paddingBottom: 4 },
   assistant: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   assistantOver: { backgroundColor: "var(--press)" as string },
-  spaceName: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string, flexShrink: 1 },
   red: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--danger)" as string },
-  searchRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  search: { flex: 1, height: 30, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 9, borderRadius: 7, backgroundColor: "var(--sunk)" as string },
-  searchText: { fontSize: 13, color: "var(--ink-3)" as string },
   list: { flex: 1, minHeight: 0 },
   tools: { flexDirection: "row", alignItems: "center", gap: 6 },
   time: { fontSize: 11, color: "var(--ink-3)" as string },

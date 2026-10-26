@@ -189,3 +189,23 @@ test("the table's cell face and the Avatar are one function of one seed", () => 
   assert.equal(marbleGradient("usr_1"), marbleGradient("usr_1"));
   assert.ok(marbleInner("usr_1").includes(marbleSpec("usr_1").base));
 });
+
+test("a person's face in the browser paints: the gradient goes in `background`, not `background-image`, because it ends in the base colour", () => {
+  const g = globalThis as { document?: unknown };
+  const had = g.document;
+  g.document = { documentElement: { getAttribute: () => null } };
+  try {
+    const html = renderToStaticMarkup(<Avatar name="Lena Ortiz" seedId="usr_lena" kind="person" size={18} />);
+    assert.match(html, /data-face="gradient"/, "the browser path draws the gradient span");
+    assert.ok(/background:radial-gradient/.test(html), "the gradient and its base colour are one `background` value");
+    assert.ok(!/background-image:radial-gradient[^;"]*,\s*#[0-9a-fA-F]{3,8}/.test(html), "no colour inside background-image (the browser drops the whole declaration)");
+    assert.ok(html.includes(marbleSpec("usr_lena").base), "the base colour of the id's marble is in the value");
+  } finally {
+    if (had === undefined) delete g.document; else g.document = had;
+  }
+});
+
+test("marbleGradient ends in the base colour, so it is a `background` value", () => {
+  const m = marbleSpec("Elena Rivera");
+  assert.ok(marbleGradient("Elena Rivera").trimEnd().endsWith(m.base), "base colour last");
+});

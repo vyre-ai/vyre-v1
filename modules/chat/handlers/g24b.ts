@@ -118,21 +118,24 @@ export async function channelsUpdate(ctx: ChatCtx, input: { channelId: string; n
   if (input.name === undefined && input.topic === undefined && input.visibility === undefined) raise(ctx, "validation.bad_input", "Say what to change: the name, the topic or the visibility.");
   const fields: string[] = [];
   const now = ctx.now();
+  // Every refusal comes before the first write: a refused call must leave no row changed.
+  let name: string | undefined;
   if (input.name !== undefined) {
-    const name = cleanName(ctx, input.name);
+    name = cleanName(ctx, input.name);
     const other = channelByName(ctx.db, name);
     if (other && other.id !== ch.id) raise(ctx, "validation.bad_input", "A channel with that name already exists.", { name });
-    if (name !== ch.name) {
-      ctx.db.run("UPDATE chat_channel SET name = ?, nameKey = ?, updatedAt = ? WHERE id = ?", name, nameKey(name), now, ch.id);
-      ctx.db.run("UPDATE chat_thread SET title = ?, updated_at = ? WHERE id = ?", name, now, ch.mainThread);
-      fields.push("name");
-    }
   }
+  let topic: string | undefined;
   if (input.topic !== undefined) {
-    const topic = input.topic.trim();
+    topic = input.topic.trim();
     if (topic.length > 250) raise(ctx, "validation.bad_input", "A topic can be at most 250 characters.");
-    if (topic !== (ch.topic ?? "")) { ctx.db.run("UPDATE chat_channel SET topic = ?, updatedAt = ? WHERE id = ?", topic === "" ? null : topic, now, ch.id); fields.push("topic"); }
   }
+  if (name !== undefined && name !== ch.name) {
+    ctx.db.run("UPDATE chat_channel SET name = ?, nameKey = ?, updatedAt = ? WHERE id = ?", name, nameKey(name), now, ch.id);
+    ctx.db.run("UPDATE chat_thread SET title = ?, updated_at = ? WHERE id = ?", name, now, ch.mainThread);
+    fields.push("name");
+  }
+  if (topic !== undefined && topic !== (ch.topic ?? "")) { ctx.db.run("UPDATE chat_channel SET topic = ?, updatedAt = ? WHERE id = ?", topic === "" ? null : topic, now, ch.id); fields.push("topic"); }
   if (input.visibility !== undefined && input.visibility !== ch.visibility) {
     ctx.db.run("UPDATE chat_channel SET visibility = ?, updatedAt = ? WHERE id = ?", input.visibility, now, ch.id);
     fields.push("visibility");
