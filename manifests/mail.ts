@@ -290,4 +290,7 @@ const manifest = defineManifest({
   ],
 });
 
-export default { ...manifest, capabilities: bindInputs(manifest.capabilities ?? [], { messageId: { row: 'mail_message' }, mailboxId: { on: 'mailbox' } }) };
+// DECISION: mail.message.erase stays bound to the Space, like every other governance eraser: it needs policy.manage, and a message row the access snapshot has not registered as a resource
+// would answer permission.not_found, which governance reads as "already gone" and leaves the message in the store.
+const bound = bindInputs(manifest.capabilities ?? [], { messageId: { row: 'mail_message' }, mailboxId: { on: 'mailbox' } });
+export default { ...manifest, capabilities: bound.map((c) => (c.name === 'mail.message.erase' ? { ...c, resource: { type: 'space' as const } } : c)) };

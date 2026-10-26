@@ -1,5 +1,5 @@
 // P-CC_39: inbox.item.erase removes the conversation entries of one message, text or call. The words of the item (preview, subject) are gone from the entry and from the conversation row; what other
-// items say stays; a conversation left empty shows nothing; erasing again changes nothing.
+// items say stays; a conversation left empty is deleted; erasing again changes nothing.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { itemErase, linkMessage } from "../handlers/index.ts";
@@ -25,12 +25,11 @@ test("erasing one item removes its entry and its words; the conversation falls b
   assert.equal(h.named("inbox.item_erased").length, 1);
 });
 
-test("a conversation left with no items shows no preview and nothing unread, and stays the contact's", async () => {
+test("a conversation left with no items is deleted: its address and name are the erased person's words", async () => {
   const h = harness({ contacts: [{ ...LEE }] });
   await linkMessage(h.ctx, link({ address: "pat@acme.test", id: "eml_only0001", preview: "My diagnosis is private", at: NOW + 1 }));
   assert.equal(conv(h)["unreadCount"], 1);
   await itemErase(h.ctx, { refId: "eml_only0001", idempotencyKey: "k1" });
-  const c = conv(h);
-  assert.deepEqual([c["lastPreview"], c["unreadCount"], c["lastMessageAt"], c["contactId"]], ["", 0, null, LEE.id]);
+  assert.equal(h.rows(`SELECT * FROM inbox_conversation`).length, 0);
   assert.equal(itemRows(h).length, 0);
 });
