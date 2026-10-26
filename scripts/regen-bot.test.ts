@@ -34,6 +34,9 @@ fs.writeFileSync("generated/m.txt", fs.readFileSync("manifests/m.txt", "utf8").t
   fs.writeFileSync(path.join(seed, "scripts/ci-select.ts"), `console.log(JSON.stringify({ all: false, files: [] }));\n`);
   fs.copyFileSync(path.join(root, "scripts/regen-bot.sh"), path.join(seed, "scripts/regen-bot.sh"));
   fs.writeFileSync(path.join(seed, "generated/m.txt"), "ONE\n");
+  // the bot adds these by pathspec, which git refuses when nothing is tracked there (the real repository tracks all three)
+  fs.writeFileSync(path.join(seed, "package-lock.json"), "{}\n");
+  fs.writeFileSync(path.join(seed, "docs/frozen/snapshots/.gitkeep"), "");
   sh(seed, "git add -A && git commit -q -m base && git push -q origin main && git checkout -q -b build/x && git push -q origin build/x");
   sh(dir, "git clone -q origin.git bot && git clone -q origin.git worker");
   for (const c of [bot, worker]) sh(c, "git config user.name t && git config user.email t@t && git checkout -q build/x");
