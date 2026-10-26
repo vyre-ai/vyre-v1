@@ -5,14 +5,14 @@ import { createTestSpace, createClock, SPACE_ID } from "../src/index.ts";
 import { registry } from "../../generated/registry.ts";
 import { validateEvent } from "../../generated/validators.ts";
 import { HostError } from "../../host/src/invoke.ts";
-import { readFileSync } from "node:fs";
+import fs from "node:fs";
 
-// The test asks a capability whose module is still a stub (it checks that a stub answers its example), so capabilities of modules that have gone live are not candidates.
-const live = new Set((JSON.parse(readFileSync(new URL("../../host/modules.json", import.meta.url), "utf8")) as { modules: { id: string; status: string }[] }).modules.filter((m) => m.status === "live").map((m) => m.id));
-type Cap = { module: string; name: string; v: number; emits: string[]; permission: string | null; resource: { type: string }; idempotency: string; gate?: unknown; caller?: unknown; examples: { input: unknown; output: unknown }[] };
+type Cap = { name: string; module: string; v: number; emits: string[]; permission: string | null; resource: { type: string }; idempotency: string; gate?: unknown; caller?: unknown; examples: { input: unknown; output: unknown }[] };
 const caps = registry.capabilities as unknown as Cap[];
 const perms = new Map((registry.permissions as unknown as { key: string; defaults: Record<string, boolean> }[]).map((p) => [p.key, p.defaults]));
-const usable = caps.filter((c) => !live.has(c.module) && c.resource.type === "space" && c.permission && c.idempotency !== "key" && !c.gate && !c.caller && c.examples.length);
+// These tests ask a stub for its example, so they use only capabilities of modules that are still stubs in host/modules.json (a live module answers from its own handlers).
+const stubs = new Set((JSON.parse(fs.readFileSync(new URL("../../host/modules.json", import.meta.url), "utf8")) as { modules: { id: string; status: string }[] }).modules.filter((m) => m.status === "stub").map((m) => m.id));
+const usable = caps.filter((c) => stubs.has(c.module) && c.resource.type === "space" && c.permission && c.idempotency !== "key" && !c.gate && !c.caller && c.examples.length);
 const adminOnly = usable.find((c) => perms.get(c.permission!)!["member"] === false && perms.get(c.permission!)!["admin"] === true)!;
 const memberOk = usable.find((c) => perms.get(c.permission!)!["member"] === true)!;
 

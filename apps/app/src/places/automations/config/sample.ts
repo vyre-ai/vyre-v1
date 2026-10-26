@@ -11,6 +11,7 @@ import type { SampleAutomations, SampleSpace } from "../sidebar/sample.ts";
 import { attachJourneys } from "../journeys/sample.ts";
 import type { ConfigDirectory, ConfigExtras, FieldEntry, RecordFields } from "./data.tsx";
 import type { Alerts } from "./model.ts";
+import type { TaskState } from "../journeys/model.ts";
 
 export { SAMPLE_NOW };
 
@@ -207,8 +208,15 @@ export function createConfigSample(space: SampleSpace = northwind): ConfigSample
       return base.data.call(cap, input);
     },
   };
+  // What the shell keeps for a Journey that is not in the contract: where tasks stand, and the Automations that run when a record leaves a stage. Nothing is set until someone sets it.
+  const states = new Map<string, Readonly<Record<string, TaskState>>>();
+  const leavingOf = new Map<string, Readonly<Record<string, readonly string[]>>>();
   const extras: ConfigExtras = {
     directory: DIRECTORY[space.id],
+    taskStates: (id) => states.get(id) ?? {},
+    setTaskState: (id, key, state) => void states.set(id, { ...(states.get(id) ?? {}), [key]: state }),
+    leaving: (id) => leavingOf.get(id) ?? {},
+    setLeaving: (id, stage, list) => void leavingOf.set(id, { ...(leavingOf.get(id) ?? {}), [stage]: list }),
     recordFields: (recordType) => RECORD_FIELDS[recordType] ?? { template: "Projects", inherited: TEMPLATE_FIELDS, own: [] },
     openFiles: (p) => void base.opened.push(`files:${p}`),
     openRuns: (id) => void base.opened.push(`runs:${id}`),

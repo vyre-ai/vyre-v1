@@ -130,7 +130,7 @@ export function statements(sql: string): string[] {
 export function ensure(ctx: Pick<MsCtx, "db">): void {
   if (ready.has(ctx.db)) return;
   try {
-    ctx.db.all(`SELECT id FROM ms_config WHERE id = ?`, CONFIG_ID);
+    ctx.db.all(`SELECT id FROM microsoft_config WHERE id = ?`, CONFIG_ID);
   } catch {
     for (const statement of statements(migrationSql)) ctx.db.run(statement);
   }
@@ -138,7 +138,7 @@ export function ensure(ctx: Pick<MsCtx, "db">): void {
 }
 
 export function config(ctx: MsCtx): Row | null {
-  return first(ctx.db.all(`SELECT * FROM ms_config WHERE id = ?`, CONFIG_ID));
+  return first(ctx.db.all(`SELECT * FROM microsoft_config WHERE id = ?`, CONFIG_ID));
 }
 
 // ---- the one authenticated call
@@ -184,7 +184,7 @@ export const enc = (s: string): string => encodeURIComponent(s);
 export function subjectFor(ctx: MsCtx, c: Pick<Call, "connectionId" | "as" | "open">): string {
   const cfg = config(ctx);
   const person = ctx.principal.kind === "service" ? null : (ctx.actingFor ?? ctx.principal.id);
-  const own = person ? strOrNull(first(ctx.db.all(`SELECT email FROM ms_member WHERE "userId" = ? AND mapped = ?`, person, 1)), "email") : null;
+  const own = person ? strOrNull(first(ctx.db.all(`SELECT email FROM microsoft_member WHERE "userId" = ? AND mapped = ?`, person, 1)), "email") : null;
   const target = c.as ? normalizeEmail(c.as) : own;
   if (!target) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "You are not mapped to a Microsoft 365 user." });
   // Acting as someone else takes an admin or a service. The verify probe may always act as the member it names.
@@ -195,7 +195,7 @@ export function subjectFor(ctx: MsCtx, c: Pick<Call, "connectionId" | "as" | "op
   }
   if (c.open) return target;
   if (!cfg || num(cfg, "configured") !== 1) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Microsoft 365 is not set up." });
-  const member = first(ctx.db.all(`SELECT excluded, mapped FROM ms_member WHERE email = ?`, target));
+  const member = first(ctx.db.all(`SELECT excluded, mapped FROM microsoft_member WHERE email = ?`, target));
   if (!member || num(member, "mapped") !== 1) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "That address is not a mapped Microsoft 365 user." });
   if (num(member, "excluded") === 1) throw fail("permission.no_grant", ctx.trace.traceId, { message: "That member is excluded from the Microsoft connection." });
   return target;
@@ -212,7 +212,7 @@ async function tokenFor(ctx: MsCtx, connectionId: string, fresh: boolean): Promi
 /** One read log row per call, keyed by the person whose data was reached. */
 function logCall(ctx: MsCtx, subject: string, cap: string, bulk: boolean): void {
   ctx.db.run(
-    `INSERT INTO ms_read_log (id, subject, actor, cap, bulk, at) VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO microsoft_read_log (id, subject, actor, cap, bulk, at) VALUES (?, ?, ?, ?, ?, ?)`,
     newId("mrl", ctx.now()), subject, ctx.actingFor ?? ctx.principal.id, cap, bulk ? 1 : 0, ctx.now(),
   );
 }
