@@ -4,7 +4,6 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { usePathname, useRouter } from "expo-router";
 import { claimToken } from "../src/claim/logic.ts";
 import { SessionGate } from "../src/shell/session/SessionGate.tsx";
-import { loadTwilioDevice } from "../src/shell/session/voice.ts";
 import { UrlSync } from "../src/shell/session/UrlSync.tsx";
 import type { ShellHub } from "../src/shell/spaces/hub.ts";
 import { registerShellPlaces } from "../src/shell/places.ts";
@@ -32,7 +31,8 @@ export default function Layout() {
   }
   return (
     <>
-      <SessionGate onHub={setHub} voice={loadTwilioDevice} />
+      {/* No voice loader at start: asking for a Twilio token when the app opens made every Space without a Twilio key log a 502. The phone opens when a call is started (follow-up), not before. */}
+      <SessionGate onHub={setHub} />
       {hub ? <UrlSync hub={hub} /> : null}
     </>
   );
