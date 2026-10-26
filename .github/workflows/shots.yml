@@ -4,8 +4,8 @@ name: shots
 # The artifact `shots` holds <target>/<skin>-<size>-side-by-side.png and index.md. Dispatch `lockfile` to produce package-lock.json (never npm on the Mac).
 on:
   push:
-    branches-ignore: [main]
-    paths: ["scripts/shots/**", "ui/**", "apps/app/**", "client/**", "host/**", "modules/**", "budgets.json", ".github/workflows/shots.yml"]
+    branches-ignore: [main, "gh-readonly-queue/**"]
+    paths: ["scripts/shots/**", "ui/**", "apps/app/**", "client/**", "budgets.json", ".github/workflows/shots.yml"]
   workflow_dispatch:
     inputs:
       lockfile:
@@ -83,7 +83,9 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
   perf:
-    # Ruling 46: speed budgets are measured only here, on the two v1-perf runners (runner 14 on each CI server, cores 6-7 to themselves; the other runners share cores 0-5).
+    # Ruling 46: speed budgets are measured only here, on the v1-perf runners. Opt-in (ruling 66): a branch push runs it only when the head commit message holds [perf], or on dispatch,
+    # so the few perf runners are not taken by every UI push; packets that need a scroll or startup proof push with [perf].
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[perf]')
     runs-on: [self-hosted, linux, v1-perf]
     timeout-minutes: 35
     steps:
