@@ -119,7 +119,7 @@ test("booted: a person who has just joined signs in on two devices, both tokens 
     // no configureSessionTokens here: the daemon wires identity's setSessionTokens seam at boot, and that is what this proves
     // the joined member: an account row, as the invite accept leaves it
     const ctx = { space: "spc_core", trace: { traceId: "t".repeat(32) }, now: () => Date.now(), db: d.db, emit: () => undefined } as unknown as IdentityCtx;
-    await provisionAccount(ctx, { personId: "usr_joined", username: "joined", name: "Joined Member", secret: SECRET });
+    await provisionAccount(ctx, { personId: "usr_noah", username: "joined", name: "Joined Member", secret: SECRET });
     assert.ok(await makeVerifier(SECRET));
 
     const signIn = async (deviceName: string, deviceClass: string) => {
@@ -131,8 +131,8 @@ test("booted: a person who has just joined signs in on two devices, both tokens 
     const phone = await signIn("Phone", "phone");
     assert.notEqual(mac.deviceId, phone.deviceId);
 
-    assert.deepEqual(await who(d, mac.token), { status: 200, person: "usr_joined", device: mac.deviceId }, "the new member's token works at the gateway");
-    assert.deepEqual(await who(d, phone.token), { status: 200, person: "usr_joined", device: phone.deviceId });
+    assert.deepEqual(await who(d, mac.token), { status: 200, person: "usr_noah", device: mac.deviceId }, "the new member's token works at the gateway");
+    assert.deepEqual(await who(d, phone.token), { status: 200, person: "usr_noah", device: phone.deviceId });
     assert.equal((await who(d, null)).status, 401);
     assert.equal((await who(d, "vst_" + "0".repeat(64))).status, 401, "an unknown token is refused");
 

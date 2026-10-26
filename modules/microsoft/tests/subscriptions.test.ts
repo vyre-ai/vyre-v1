@@ -41,9 +41,9 @@ test("a mail subscription asks for the longest lifetime, records the client stat
   assert.equal(body.expirationDateTime, new Date(NOW + 4230 * MIN - 5 * MIN).toISOString());
   assert.match(body.clientState!, /^[0-9a-f]{64}$/);
   assert.deepEqual(made, { subscriptionId: "sub1", expiresAt: NOW + 4225 * MIN });
-  const row = h.rows(`SELECT * FROM ms_subscription`)[0]!;
+  const row = h.rows(`SELECT * FROM microsoft_subscription`)[0]!;
   assert.deepEqual([row.id, row.kind, row.mailbox, row.clientState, row.expiresAt, row.maxMinutes], ["sub1", "mail", MAYA, body.clientState, made.expiresAt, 4230]);
-  assert.equal(h.rows(`SELECT email FROM ms_mailbox`).length, 1);
+  assert.equal(h.rows(`SELECT email FROM microsoft_mailbox`).length, 1);
   check("ms.mail.subscribe", made);
 });
 
@@ -57,7 +57,7 @@ test("calendar and Teams subscriptions, and what they refuse", async () => {
   const bodies = h.hits(`${GRAPH}/subscriptions`).map((r) => r.body as Record<string, string>);
   assert.deepEqual(bodies.map((b) => [b.changeType, b.resource]), [["created,updated,deleted", "users/maya@vyre.test/events"], ["created,updated,deleted", "users/maya@vyre.test/calendars/cal2/events"], ["created", "communications/onlineMeetings/getAllTranscripts"]]);
   assert.equal(bodies[2]!.expirationDateTime, new Date(NOW + 55 * MIN).toISOString());   // Teams subscriptions last an hour at most
-  assert.deepEqual(h.rows(`SELECT kind, mailbox, "maxMinutes" FROM ms_subscription ORDER BY id ASC`), [{ kind: "calendar", mailbox: MAYA, maxMinutes: 4230 }, { kind: "calendar", mailbox: MAYA, maxMinutes: 4230 }, { kind: "teams", mailbox: null, maxMinutes: 60 }]);
+  assert.deepEqual(h.rows(`SELECT kind, mailbox, "maxMinutes" FROM microsoft_subscription ORDER BY id ASC`), [{ kind: "calendar", mailbox: MAYA, maxMinutes: 4230 }, { kind: "calendar", mailbox: MAYA, maxMinutes: 4230 }, { kind: "teams", mailbox: null, maxMinutes: 60 }]);
   for (const [cap, out] of [["ms.calendar.subscribe", own], ["ms.calendar.subscribe", other], ["ms.teams.recordings.subscribe", teams]] as const) check(cap, out);
 
   const before = h.requests.length;
@@ -74,21 +74,21 @@ test("only the member a subscription watches, or an admin, can remove it; Micros
   const h = ready();
   h.on("POST", `${GRAPH}/subscriptions`, { body: { id: "sub1" } });
   await mailSubscribe(h.ctx, { ...act, folderId: "inbox", notificationUrl: URL_OK });
-  h.ctx.db.run(`INSERT INTO ms_subscription (id, kind, resource, mailbox, "connectionId", "notificationUrl", "clientState", "expiresAt", "maxMinutes", "changeType") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  h.ctx.db.run(`INSERT INTO microsoft_subscription (id, kind, resource, mailbox, "connectionId", "notificationUrl", "clientState", "expiresAt", "maxMinutes", "changeType") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     "subSam", "mail", "users/sam@vyre.test/messages", SAM, CONN, URL_OK, "cs", NOW + MIN, 4230, "created");
   h.on("DELETE", `${GRAPH}/subscriptions/sub1`, { status: 404, body: { error: { code: "ResourceNotFound" } } });
   assert.deepEqual(await mailUnsubscribe(h.ctx, { ...act, subscriptionId: "sub1" }), { removed: true });
-  assert.equal(h.rows(`SELECT id FROM ms_subscription WHERE id = ?`, "sub1").length, 0);
+  assert.equal(h.rows(`SELECT id FROM microsoft_subscription WHERE id = ?`, "sub1").length, 0);
   await assert.rejects(() => calendarUnsubscribe(h.ctx, { ...act, subscriptionId: "subSam" }), (e) => codeOf(e) === "permission.no_grant");
   await assert.rejects(() => mailUnsubscribe(h.ctx, { ...act, subscriptionId: "nope" }), (e) => codeOf(e) === "validation.not_found");
   h.on("DELETE", `${GRAPH}/subscriptions/subSam`, { status: 503, body: {} });
   const boss = harness({ admin: true });
   seedConsent(boss, { members: [{ email: MAYA, userId: "usr_maya01" }, { email: SAM, userId: "usr_sam01" }] });
-  boss.ctx.db.run(`INSERT INTO ms_subscription (id, kind, resource, mailbox, "connectionId", "notificationUrl", "clientState", "expiresAt", "maxMinutes", "changeType") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  boss.ctx.db.run(`INSERT INTO microsoft_subscription (id, kind, resource, mailbox, "connectionId", "notificationUrl", "clientState", "expiresAt", "maxMinutes", "changeType") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     "subSam", "mail", "users/sam@vyre.test/messages", SAM, CONN, URL_OK, "cs", NOW + MIN, 4230, "created");
   boss.on("DELETE", `${GRAPH}/subscriptions/subSam`, { status: 503, body: {} });
   await assert.rejects(() => mailUnsubscribe(boss.ctx, { ...act, as: SAM, subscriptionId: "subSam" }), (e) => codeOf(e) === "provider.unavailable");
-  assert.equal(boss.rows(`SELECT id FROM ms_subscription`).length, 1);   // a refusal other than "gone" keeps the row
+  assert.equal(boss.rows(`SELECT id FROM microsoft_subscription`).length, 1);   // a refusal other than "gone" keeps the row
   boss.on("DELETE", `${GRAPH}/subscriptions/subSam`, { status: 204 });
   assert.deepEqual(await mailUnsubscribe(boss.ctx, { ...act, as: SAM, subscriptionId: "subSam" }), { removed: true });
   check("ms.mail.unsubscribe", { removed: true });
@@ -97,7 +97,7 @@ test("only the member a subscription watches, or an admin, can remove it; Micros
 // ---- the renewal Run
 
 function sub(h: Harness, id: string, expiresIn: number, maxMinutes = 4230, kind = "mail"): void {
-  h.ctx.db.run(`INSERT INTO ms_subscription (id, kind, resource, mailbox, "connectionId", "notificationUrl", "clientState", "expiresAt", "maxMinutes", "changeType") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  h.ctx.db.run(`INSERT INTO microsoft_subscription (id, kind, resource, mailbox, "connectionId", "notificationUrl", "clientState", "expiresAt", "maxMinutes", "changeType") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, kind, `users/maya@vyre.test/messages`, MAYA, CONN, URL_OK, "cs", NOW + expiresIn, maxMinutes, "created");
 }
 
@@ -116,7 +116,7 @@ test("the renewal Run extends a subscription before it expires, leaves a fresh o
   const exp = Object.fromEntries(patched.map((r) => [r.url.split("/").pop(), (r.body as { expirationDateTime: string }).expirationDateTime]));
   assert.equal(exp.soon, new Date(NOW + 4225 * MIN).toISOString());
   assert.equal(exp.teamsSoon, new Date(NOW + 55 * MIN).toISOString());
-  const rows = Object.fromEntries(h.rows(`SELECT id, "expiresAt" FROM ms_subscription`).map((r) => [r.id, r.expiresAt]));
+  const rows = Object.fromEntries(h.rows(`SELECT id, "expiresAt" FROM microsoft_subscription`).map((r) => [r.id, r.expiresAt]));
   assert.deepEqual(rows, { soon: NOW + 4225 * MIN, fresh: NOW + 40 * 60 * MIN, teamsSoon: NOW + 55 * MIN, teamsFresh: NOW + 50 * MIN });
   assert.ok(patched.every((r) => (r.body as { expirationDateTime: string }).expirationDateTime > new Date(NOW).toISOString()));
   assert.deepEqual(h.scheduled, [{ at: NOW + 12 * 60 * MIN, cap: "ms.subscriptions.renew", input: {} }]);
@@ -140,7 +140,7 @@ test("a subscription Microsoft forgot is made again for the same resource; one t
   const again = h.hits(`${GRAPH}/subscriptions`, "POST")[0]!.body as Record<string, string>;
   assert.deepEqual([again.resource, again.notificationUrl, again.changeType], ["users/maya@vyre.test/messages", URL_OK, "created"]);
   assert.notEqual(again.clientState, "cs");
-  const rows = h.rows(`SELECT id, "clientState", "expiresAt" FROM ms_subscription ORDER BY id ASC`);
+  const rows = h.rows(`SELECT id, "clientState", "expiresAt" FROM microsoft_subscription ORDER BY id ASC`);
   assert.deepEqual(rows.map((r) => r.id), ["again", "busy"]);
   assert.equal(rows[0]!.expiresAt, NOW + 4225 * MIN);
   assert.equal(rows[1]!.expiresAt, NOW + 3 * 60 * MIN);   // untouched: the next Run tries again
@@ -163,7 +163,7 @@ function mailboxReady(): Harness {
   h.on("GET", `${U}/mailFolders/inbox/messages/delta?$select`, { body: { value: [{ id: "g3" }], "@odata.deltaLink": "https://graph.microsoft.com/v1.0/users('mid')/mailFolders('inbox')/messages/delta?$deltatoken=D1" } });
   h.on("GET", `${U}/mailFolders/sentitems/messages/delta?$select`, { body: { value: [], "@odata.deltaLink": "https://graph.microsoft.com/v1.0/users('mid')/mailFolders('sentitems')/messages/delta?$deltatoken=S1" } });
   h.on("GET", `${U}/messages/g3?`, { body: fixture("graph/message-g3.json") });
-  h.ctx.db.run(`INSERT INTO ms_subscription (id, kind, resource, mailbox, "connectionId", "notificationUrl", "clientState", "expiresAt", "maxMinutes", "changeType") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  h.ctx.db.run(`INSERT INTO microsoft_subscription (id, kind, resource, mailbox, "connectionId", "notificationUrl", "clientState", "expiresAt", "maxMinutes", "changeType") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     "subM", "mail", "users/mid/mailFolders('inbox')/messages", MAYA, CONN, URL_OK, "cs", NOW - MIN, 4230, "created,updated");   // expired, so polling stays at the active interval
   return h;
 }
@@ -226,7 +226,7 @@ test("a failed pull is logged and retried later; the notice is still accepted; a
   assert.equal(h.ingests.length, 0);
   assert.equal(h.scheduled[0]!.at, NOW + 15 * MIN);
   const live = mailboxReady();
-  live.ctx.db.run(`UPDATE ms_subscription SET "expiresAt" = ? WHERE id = ?`, NOW + 60 * MIN, "subM");
+  live.ctx.db.run(`UPDATE microsoft_subscription SET "expiresAt" = ? WHERE id = ?`, NOW + 60 * MIN, "subM");
   await receiveNotification(live.ctx, note("l1"));
   assert.equal(live.scheduled[0]!.at, NOW + 60 * MIN);
 });
@@ -245,7 +245,7 @@ test("setup connects every mapped member once and never an excluded or outside a
   const h = admin();
   const { ensure } = await import("../projections.ts");
   ensure(h.ctx);
-  h.ctx.db.run(`INSERT INTO ms_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, "kim@vyre.test", "usr_kim01", 1, 1, null, NOW);
+  h.ctx.db.run(`INSERT INTO microsoft_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, "kim@vyre.test", "usr_kim01", 1, 1, null, NOW);
   const out = await consentSetup(h.ctx, setupInput);
   assert.deepEqual(out, { configured: true, mappedMembers: 2, connected: 2 });
   check("ms.consent.setup", out);
@@ -254,10 +254,10 @@ test("setup connects every mapped member once and never an excluded or outside a
   assert.equal(connect[0]!.input.provider, "microsoft");
   assert.deepEqual(connect[0]!.input.members, [{ userId: "usr_maya01", email: MAYA }, { userId: "usr_sam01", email: SAM }]);
   assert.deepEqual(h.calls("connections.create")[0]!.input.secrets, { Microsoft_App: "#Microsoft_App" });
-  const rows = Object.fromEntries(h.rows(`SELECT email, "mailboxState", excluded FROM ms_member`).map((r) => [r.email, r]));
+  const rows = Object.fromEntries(h.rows(`SELECT email, "mailboxState", excluded FROM microsoft_member`).map((r) => [r.email, r]));
   assert.deepEqual(Object.keys(rows).sort(), ["kim@vyre.test", MAYA, SAM]);
   assert.deepEqual([rows[MAYA]!.mailboxState, rows[SAM]!.mailboxState, rows["kim@vyre.test"]!.mailboxState, rows["kim@vyre.test"]!.excluded], ["pending", "pending", null, 1]);
-  const cfg = h.rows(`SELECT * FROM ms_config`)[0]!;
+  const cfg = h.rows(`SELECT * FROM microsoft_config`)[0]!;
   assert.deepEqual([cfg.connectionId, cfg.tenantId, cfg.domain, cfg.clientId, cfg.configured, cfg.consentGiven, cfg.autoConnect], [CONN, "tenant-guid", "vyre.test", "11111111-2222-3333-4444-555555555555", 1, 0, 1]);
   assert.deepEqual(h.named("microsoft.consent_configured").map((e) => e.payload), [{ connector: "microsoft", tenantId: "tenant-guid", mappedMembers: 2, autoConnect: true }]);
   assert.deepEqual(h.scheduled, [{ at: NOW + 12 * 60 * MIN, cap: "ms.subscriptions.renew", input: {} }]);
@@ -278,8 +278,8 @@ test("an app registration Microsoft will not sign in with configures nothing and
   const h = admin();
   h.state.mintFails = true;
   await assert.rejects(() => consentSetup(h.ctx, setupInput), (e) => codeOf(e) === "provider.auth_failed");
-  assert.equal(h.rows(`SELECT id FROM ms_config`).length, 0);
-  assert.equal(h.rows(`SELECT email FROM ms_member`).length, 0);
+  assert.equal(h.rows(`SELECT id FROM microsoft_config`).length, 0);
+  assert.equal(h.rows(`SELECT email FROM microsoft_member`).length, 0);
   assert.equal(h.calls("mail.auto_connect_members").length, 0);
   h.state.mintFails = false;
   for (const patch of [{ vaultItem: "plain-secret" }, { tenantId: "bad tenant!" }, { domain: "a b" }, { domain: "x@y" }]) {
@@ -369,7 +369,7 @@ test("members list in pages; an exclusion stops every call for that member; turn
   assert.deepEqual(await consentDisable(h.ctx), { disabled: true });
   assert.deepEqual(h.named("microsoft.consent_revoked").map((e) => e.payload), [{ connector: "microsoft", by: "usr_maya01" }]);
   assert.equal((await consentStatus(h.ctx)).configured, false);
-  assert.ok(h.rows(`SELECT "mailboxState" FROM ms_member WHERE mapped = ?`, 1).every((r) => r.mailboxState === "paused"));
+  assert.ok(h.rows(`SELECT "mailboxState" FROM microsoft_member WHERE mapped = ?`, 1).every((r) => r.mailboxState === "paused"));
   await assert.rejects(() => mailFolders(h.ctx, act), (e) => codeOf(e) === "validation.precondition_failed");
   check("ms.consent.disable", { disabled: true });
 });
@@ -381,7 +381,7 @@ test("status before setup, and read log rows for tenant-level calls", async () =
   check("ms.consent.status", before);
   await consentSetup(h.ctx, setupInput);
   await consentVerify(h.ctx, {});
-  const log = h.rows(`SELECT subject, cap FROM ms_read_log`);
+  const log = h.rows(`SELECT subject, cap FROM microsoft_read_log`);
   assert.deepEqual(log.filter((r) => r.cap === "ms.consent.verify").map((r) => r.subject), ["tenant", MAYA]);   // the organization check reaches no member; the probe reaches one
 });
 

@@ -22864,6 +22864,7 @@
         "permission.guest_cannot_request",
         "permission.needs_team",
         "permission.no_grant",
+        "rate_limit.exceeded",
         "validation.bad_input",
         "validation.duplicate"
       ],
@@ -22945,8 +22946,7 @@
       },
       "permission": null,
       "resource": {
-        "ref": "/resource",
-        "type": "dynamic"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -56699,7 +56699,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "System: create the device and session rows at sign-in",
+      "summary": "Host only (svc_host): create the device and session rows at sign-in; every person, admin, agent and other service is refused",
       "surfaces": {
         "http": "auto"
       },
@@ -195324,12 +195324,12 @@
           "type": "status"
         },
         {
-          "key": "trustName",
+          "key": "trust_name",
           "title": "Trust name",
           "type": "text"
         },
         {
-          "key": "taxId",
+          "key": "tax_id",
           "label": "restricted",
           "title": "Tax ID",
           "type": "sealed"
@@ -195799,7 +195799,7 @@
           "type": "status"
         },
         {
-          "key": "practiceArea",
+          "key": "practice_area",
           "title": "Practice area",
           "type": "choice"
         },

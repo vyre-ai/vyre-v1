@@ -38,7 +38,7 @@ async function newRole(url: string, token: string, key: string): Promise<string>
   return body.data!.role!.id!;
 }
 
-const CASES: { module: string; read: [string, unknown]; write: [string, unknown]; refused?: [string, unknown] }[] = [
+const CASES: { module: string; read: [string, unknown]; write: [string, unknown]; refused?: [string, unknown]; writeAs?: "member" }[] = [
   { module: "access", read: ["/v1/access/roles/list", {}], write: ["/v1/access/groups/create", { name: "L7 live group", idempotencyKey: "l7-live-group" }], refused: ["/v1/access/groups/create", { name: "Nope", idempotencyKey: "l7-live-nope" }] },
   { module: "audit", read: ["/v1/audit/chain_health", {}], write: ["/v1/audit/append", { action: "l7.live", class: "admin" }], refused: ["/v1/audit/list", {}] },
   { module: "devices", read: ["/v1/devices/mine", {}], write: ["/v1/devices/register", { person: "usr_olivia", name: "L7 live laptop", class: "desktop", idempotencyKey: "l7-live-device" }], refused: ["/v1/devices/list", {}] },
@@ -47,7 +47,7 @@ const CASES: { module: string; read: [string, unknown]; write: [string, unknown]
   { module: "members", read: ["/v1/members/invites/list", {}], write: ["/v1/members/invites/create", { role: "ROLE", idempotencyKey: "l7-live-invite" }], refused: ["/v1/members/invites/list", {}] },
   { module: "settings", read: ["/v1/settings/list", {}], write: ["/v1/settings/set", { key: "appearance.density", value: "compact" }], refused: ["/v1/settings/set_space", { key: "access.review_every_days", value: 30 }] },
   { module: "vault", read: ["/v1/vault/items/list", {}], write: ["/v1/vault/folders/create", { name: "L7 live folder", scope: "shared", idempotencyKey: "l7-live-vault-folder" }], refused: ["/v1/vault/exports/list", {}] },
-  { module: "vault-requests", read: ["/v1/vault/requests/list", {}], write: ["/v1/vault/request", { name: "Stripe_key", reason: "billing", idempotencyKey: "l7-live-vault-request" }] },
+  { module: "vault-requests", read: ["/v1/vault/requests/list", {}], write: ["/v1/vault/request", { name: "Stripe_key", reason: "billing", idempotencyKey: "l7-live-vault-request" }], writeAs: "member" },   // a request is decided by the folder's managers: someone else than the asker
   { module: "spaces", read: ["/v1/spaces/get", {}], write: ["/v1/spaces/stars/toggle", { resource: { type: "space", id: "spc_core" }, on: true }], refused: ["/v1/spaces/update", { logoFileId: null }] },
 ];
 
@@ -91,7 +91,7 @@ test("l7 live: a booted daemon serves every live L7a module from its own handler
       const read = await post(OWNER_TOKEN, c.read[0], c.read[1]);
       assert.equal(read.status, 200, `${c.module} read ${c.read[0]}: ${await read.clone().text()}`);
       assert.ok(((await read.json()) as { data?: unknown }).data !== undefined, `${c.module}: a data body`);
-      const write = await post(OWNER_TOKEN, c.write[0], c.write[1]);
+      const write = await post(c.writeAs === "member" ? MEMBER_TOKEN : OWNER_TOKEN, c.write[0], c.write[1]);
       assert.equal(write.status, 200, `${c.module} write ${c.write[0]}: ${await write.clone().text()}`);
       if (!c.refused) continue;
       const refused = await post(MEMBER_TOKEN, c.refused[0], c.refused[1]);
@@ -170,7 +170,7 @@ test("l7 live: an invite made by the owner is accepted by a stranger through the
   });
   const post = (token: string | null, p: string, body: unknown) =>
     fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
-  const join = (code: string, username: string) => post(null, "/v1/invites/accept_create_account", {
+  const join = (code: string, username: string) => post(null, "/v1/members/accept", {
     code, username, password: "correct horse battery staple 9", deviceName: "Stranger's Mac", deviceClass: "desktop",
     keys: { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] },
   });
@@ -182,7 +182,7 @@ test("l7 live: an invite made by the owner is accepted by a stranger through the
     const joined = await join(code, "newbie");
     assert.equal(joined.status, 200, await joined.clone().text());
     // offboarding (golden 9): the new member owns an agent; the removal plan hands it to the owner through the agents module's host call
-    const newbie = ((await joined.json()) as { data: { principal: { id: string } } }).data.principal.id;
+    const newbie = ((await joined.json()) as { data: { personId: string } }).data.personId;
     const agent = await post(OWNER_TOKEN, "/v1/agents/create", { name: "Newbie helper", ownerId: newbie, idempotencyKey: "l7-join-agent" });
     assert.equal(agent.status, 200, await agent.clone().text());
     const preview = await post(OWNER_TOKEN, "/v1/members/remove_preview", { personId: newbie });
@@ -284,9 +284,9 @@ test("l7 live ruling 62: a signed-in member unlocks their key from their own cli
     const made = await post(d.token, "/v1/members/invites/create", { role: await newRole(d.url, d.token, "l7-key-role"), idempotencyKey: "l7-key-invite" });
     assert.equal(made.status, 200, JSON.stringify(made.body));
     const code = decodeURIComponent(new URL(made.body.data.link as string).pathname.split("/").pop() ?? "");
-    const joined = await post(null, "/v1/invites/accept_create_account", { code, username: "keyed", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop", keys: { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGlj", privateKeyWrapped: "cHJpdmF0ZQ==", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2U=" }] } });
+    const joined = await post(null, "/v1/members/accept", { code, username: "keyed", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop", keys: { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGlj", privateKeyWrapped: "cHJpdmF0ZQ==", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2U=" }] } });
     assert.equal(joined.status, 200, JSON.stringify(joined.body));
-    const t1 = joined.body.data.session.token as string;
+    const t1 = joined.body.data.token as string;
     const unlock = (t: string) => post(t, "/local/vault/key/unlock", { key: personKey.toString("base64") });
     assert.equal((await unlock(t1)).status, 204, "their client hands over the key it unwrapped");
     const added = await post(t1, "/v1/providers/add", { providerKey: "anthropic", connection: "api_key", scope: "mine", apiKey: SECRET, idempotencyKey: "l7-key-provider" });

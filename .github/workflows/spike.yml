@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       script:
-        description: "Repo path of the script to run (node for .mjs/.js/.ts, bash for .sh)"
+        description: "Repo path of the script to run (node for .mjs/.js/.ts, bash for .sh), or s13 for the S13 vector benchmarks (kernel on v1-perf, embedder on v1-perf-wide)"
         required: true
       args:
         description: "Arguments"
@@ -13,6 +13,7 @@ on:
         required: false
 jobs:
   spike:
+    if: inputs.script != 's13'
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 30
     steps:
@@ -28,3 +29,38 @@ jobs:
             *.sh) bash "$SCRIPT" $ARGS ;;
             *) node "$SCRIPT" $ARGS ;;
           esac
+  # Spike S13 (folded in from spike-s13-vectors.yml to keep the workflow files at 20): brute-force cosine over 200,000 vectors under 60 ms, and the real embedding model at 100 chunks per second or better.
+  s13-kernel:
+    if: inputs.script == 's13'
+    runs-on: [self-hosted, linux, v1-perf]
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ inputs.ref || github.ref }}" }
+      - uses: ./.github/actions/deps
+      - name: Kernel budget (60 ms over 200k vectors)
+        shell: bash
+        run: |
+          set -o pipefail
+          export VYRE_MODEL_CACHE="$RUNNER_TEMP/model-cache/751bff37182d3f1213fa05d7196b954e230abad9"
+          node spikes/s13/bench.ts kernel 2>&1 | tee s13-bench-kernel.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: s13-bench-kernel, path: s13-bench-kernel.txt, retention-days: 30 }
+  s13-embedder:
+    if: inputs.script == 's13'
+    runs-on: [self-hosted, linux, v1-perf-wide]
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ inputs.ref || github.ref }}" }
+      - uses: ./.github/actions/deps
+      - name: Embedder budget (100 chunks per second); the model is downloaded once per job into the temp folder and checked by sha256
+        shell: bash
+        run: |
+          set -o pipefail
+          export VYRE_MODEL_CACHE="$RUNNER_TEMP/model-cache/751bff37182d3f1213fa05d7196b954e230abad9"
+          node spikes/s13/bench.ts embed 2>&1 | tee s13-bench-embed.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: s13-bench-embed, path: s13-bench-embed.txt, retention-days: 30 }

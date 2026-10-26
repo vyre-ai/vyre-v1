@@ -396,11 +396,24 @@ function SplitBody({ hunk, marks }: { hunk: DiffHunk; marks: boolean }): ReactEl
   return <View testID="diff-split">{nodes}</View>;
 }
 
-function UnifiedBody({ hunk, marks }: { hunk: DiffHunk; marks: boolean }): ReactElement {
+/** The unchanged lines around a change, as context rows. */
+export function contextLines(text: string | undefined): DiffLine[] {
+  return linesOf(text ?? "").map((line) => ({ sign: " " as const, text: line }));
+}
+
+function UnifiedBody({ hunk, marks, bare = false }: { hunk: DiffHunk; marks: boolean; bare?: boolean }): ReactElement {
   const nodes: ReactNode[] = [];
+  if (bare) nodes.push(<Text key="top" style={styles.gap} aria-hidden>{"…"}</Text>);
+  contextLines(hunk.before).forEach((line, index) => {
+    nodes.push(<LineRow key={`b${index}`} line={line} testID="diff-line-ctx" />);
+  });
   unifiedLines(hunk, marks).forEach((line, index) => {
     nodes.push(<LineRow key={index} line={line} testID={`diff-line-${line.sign === "-" ? "del" : "add"}`} />);
   });
+  contextLines(hunk.after).forEach((line, index) => {
+    nodes.push(<LineRow key={`a${index}`} line={line} testID="diff-line-ctx" />);
+  });
+  if (bare) nodes.push(<Text key="bottom" style={styles.gap} aria-hidden>{"…"}</Text>);
   return <View testID="diff-unified">{nodes}</View>;
 }
 
@@ -423,9 +436,10 @@ function Note({ comment }: { comment: DiffComment }): ReactElement {
 
 function LineRow({ line, testID }: { line: DiffLine; testID: string }): ReactElement {
   const removed = line.sign === "-";
+  const context = line.sign === " ";
   return (
-    <View style={[styles.line, removed ? styles.lineDel : styles.lineAdd]} testID={testID}>
-      <Text style={[styles.sign, removed ? styles.signDel : styles.signAdd]} aria-hidden>{line.sign}</Text>
+    <View style={[styles.line, context ? null : removed ? styles.lineDel : styles.lineAdd]} testID={testID}>
+      <Text style={[styles.sign, context ? null : removed ? styles.signDel : styles.signAdd]} aria-hidden>{context ? " " : line.sign}</Text>
       {line.segments === undefined
         ? <Text style={styles.code}>{line.text === "" ? " " : line.text}</Text>
         : <Marked segments={line.segments} mark={removed ? "del" : "add"} style={styles.code} />}
@@ -506,11 +520,14 @@ export interface DiffTabViewProps extends DiffTabProps {
   onComment?: (path: string, hunk: DiffHunk, text: string, mentions: readonly string[]) => void;
   onSelectFile?: (path: string) => void;
   onLayout?: (layout: DiffLayout) => void;
+  /** A version compare: no toolbar and no per-change buttons, the changed lines sit in the page between "…" marks with their unchanged neighbours. */
+  bare?: boolean;
   testID?: string;
 }
 
 export function DiffTab(props: DiffTabViewProps): ReactElement {
   const { density, invoke, changesetId, onRevert, onComment, onSelectFile } = props;
+  const bare = props.bare === true;
   const [layout, setLayout] = useState<DiffLayout>(props.layout);
   const [marks, setMarks] = useState(props.wordMarks);
   const [files, setFiles] = useState<readonly DiffFile[]>(props.files);
@@ -592,18 +609,20 @@ export function DiffTab(props: DiffTabViewProps): ReactElement {
       hunks.push(
         <View
           key={hunk.id}
-          style={[styles.hunk, lit && styles.hunkLit]}
+          style={[styles.hunk, bare && styles.hunkBare, lit && styles.hunkLit]}
           testID={`diff-hunk-${hunk.id}`}
           aria-current={lit ? true : undefined}
           {...menuTrigger((x, y) => show(hunkMenu(hunk), x, y, "context", { label: "Change" }))}
           {...webProps({ onMouseDown: () => setFocus({ path: file.path, hunkId: hunk.id }) })}
         >
-          <View style={styles.hunkHead}>
-            <Text style={styles.ctx} numberOfLines={1}>{`… ${hunk.context}`}</Text>
-            <View style={styles.grow} />
-            <HunkButton label="Comment" testID={`diff-comment-${hunk.id}`} onPress={() => setReplying(replying === hunk.id ? null : hunk.id)} />
-            <HunkButton label="Revert" testID={`diff-revert-${hunk.id}`} onPress={() => revert({ path: file.path, hunkId: hunk.id })} danger />
-          </View>
+          {bare ? null : (
+            <View style={styles.hunkHead}>
+              <Text style={styles.ctx} numberOfLines={1}>{`… ${hunk.context}`}</Text>
+              <View style={styles.grow} />
+              <HunkButton label="Comment" testID={`diff-comment-${hunk.id}`} onPress={() => setReplying(replying === hunk.id ? null : hunk.id)} />
+              <HunkButton label="Revert" testID={`diff-revert-${hunk.id}`} onPress={() => revert({ path: file.path, hunkId: hunk.id })} danger />
+            </View>
+          )}
           {file.body === "image" ? (
             <ImageDiff before={hunk.removed} after={hunk.added} mode={imageMode} onMode={setImageMode} />
           ) : file.body === "paragraph" ? (
@@ -611,7 +630,7 @@ export function DiffTab(props: DiffTabViewProps): ReactElement {
           ) : layout === "split" ? (
             <SplitBody hunk={hunk} marks={marks} />
           ) : (
-            <UnifiedBody hunk={hunk} marks={marks} />
+            <UnifiedBody hunk={hunk} marks={marks} bare={bare} />
           )}
           {notes}
           {replying === hunk.id ? (
@@ -632,7 +651,7 @@ export function DiffTab(props: DiffTabViewProps): ReactElement {
       aria-label={`Changes to ${props.title}`}
       {...webProps({ onKeyDown, tabIndex: 0, dataSet: { keys: DIFF_KEYS.join(","), layout, density } })}
     >
-      <View style={styles.header}>
+      {bare ? null : <View style={styles.header}>
         <Text style={styles.title} numberOfLines={1}>{props.title}</Text>
         <Text style={styles.counts} testID="diff-total">{countsLabel(total)}</Text>
         <View style={styles.grow} />
@@ -641,7 +660,7 @@ export function DiffTab(props: DiffTabViewProps): ReactElement {
           <SegButton label="Split" on={layout === "split"} onPress={() => changeLayout("split")} testID="diff-layout-split" />
         </View>
         <SegButton label="Word marks" on={marks} onPress={() => setMarks((on) => !on)} testID="diff-wordmarks" />
-      </View>
+      </View>}
       <View style={[styles.body, density === "compact" && styles.bodyStack]}>
         {files.length > 1 ? (
           <View style={[styles.files, density === "compact" && styles.filesStack]} testID="diff-files" role="listbox" aria-label="Files">
@@ -708,6 +727,8 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollBody: { padding: 14, gap: 14 },
   hunk: { borderRadius: 8, overflow: "hidden", boxShadow: "0 0 0 1px var(--line)" as string, backgroundColor: "var(--raised)" as string },
+  hunkBare: { borderRadius: 0, boxShadow: "none" as string, backgroundColor: "transparent" },
+  gap: { color: "var(--ink-3)" as string, fontFamily: MONO, fontSize: 12.5, lineHeight: 20, paddingLeft: 22 },
   hunkLit: { boxShadow: "0 0 0 2px var(--accent-line)" as string },
   hunkHead: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 30 },
   ctx: { color: "var(--ink-3)" as string, fontSize: 12, flexShrink: 1 },
