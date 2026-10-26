@@ -1808,12 +1808,6 @@
       },
       "type": "array"
     },
-    "s_1a0d5dc1ad": {
-      "items": {
-        "$ref": "#/$defs/s_4ae4009732"
-      },
-      "type": "array"
-    },
     "s_1a1d60d9d2": {
       "properties": {
         "fileId": {
@@ -2774,17 +2768,6 @@
       ],
       "type": "object"
     },
-    "s_25dfda5e35": {
-      "properties": {
-        "journey": {
-          "$ref": "#/$defs/s_df187904ca"
-        }
-      },
-      "required": [
-        "journey"
-      ],
-      "type": "object"
-    },
     "s_2795589129": {
       "properties": {
         "conflict": {
@@ -3354,6 +3337,17 @@
       },
       "type": "object"
     },
+    "s_2c79eba4aa": {
+      "properties": {
+        "journey": {
+          "$ref": "#/$defs/s_344556bed4"
+        }
+      },
+      "required": [
+        "journey"
+      ],
+      "type": "object"
+    },
     "s_2ce06e1cc7": {
       "items": {
         "properties": {
@@ -3381,6 +3375,146 @@
         "type": "object"
       },
       "type": "array"
+    },
+    "s_2d1da53e35": {
+      "properties": {
+        "automations": {
+          "description": "Automations that run when a record enters the stage",
+          "items": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "exit": {
+          "properties": {
+            "manualOnly": {
+              "type": "boolean"
+            },
+            "requireTasks": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "requireTasks"
+          ],
+          "type": "object"
+        },
+        "final": {
+          "type": "boolean"
+        },
+        "key": {
+          "examples": [
+            "intake"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        },
+        "makesProject": {
+          "type": "boolean"
+        },
+        "onLeaving": {
+          "description": "Automations that run when a record leaves the stage",
+          "items": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "order": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tasks": {
+          "items": {
+            "properties": {
+              "approver": {
+                "$ref": "#/$defs/s_f05a3f77df"
+              },
+              "assigned": {
+                "$ref": "#/$defs/s_f05a3f77df"
+              },
+              "backupKeyId": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "doneByAutomation": {
+                "examples": [
+                  "aut_a1b2c3"
+                ],
+                "pattern": "^aut_[a-z0-9]+$",
+                "type": "string"
+              },
+              "dueAfterHours": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "key": {
+                "examples": [
+                  "collect_documents"
+                ],
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "type": "string"
+              },
+              "keyId": {
+                "description": "Inference key for an agent task",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "work",
+                  "approve",
+                  "review",
+                  "answer",
+                  "unblock",
+                  "signature"
+                ],
+                "type": "string"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "reviewer": {
+                "$ref": "#/$defs/s_f05a3f77df"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "title",
+              "assigned",
+              "required"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "timeLimit": {
+          "$ref": "#/$defs/s_d3f43ff5d3"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "order",
+        "exit",
+        "tasks",
+        "automations"
+      ],
+      "type": "object"
     },
     "s_2e121bf748": {
       "properties": {
@@ -3640,6 +3774,83 @@
         "$ref": "#/$defs/s_ac13e8babf"
       },
       "type": "array"
+    },
+    "s_344556bed4": {
+      "properties": {
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "jrn_a1b2c3"
+          ],
+          "pattern": "^jrn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "inFlight": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "recordType": {
+          "examples": [
+            "contact"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        },
+        "stages": {
+          "$ref": "#/$defs/s_a6c1ebd30d"
+        },
+        "startAutomationId": {
+          "examples": [
+            "aut_a1b2c3"
+          ],
+          "pattern": "^aut_[a-z0-9]+$",
+          "type": "string"
+        },
+        "startRule": {
+          "$ref": "#/$defs/s_25d70fcceb"
+        },
+        "subjectType": {
+          "examples": [
+            "contact"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "version": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "subjectType",
+        "recordType",
+        "version",
+        "stages",
+        "inFlight",
+        "createdAt",
+        "updatedAt"
+      ],
+      "type": "object"
     },
     "s_3550bb561b": {
       "items": {
@@ -5291,143 +5502,6 @@
       },
       "required": [
         "campaign"
-      ],
-      "type": "object"
-    },
-    "s_4ae4009732": {
-      "properties": {
-        "automations": {
-          "description": "Automations that run when a record enters the stage",
-          "items": {
-            "examples": [
-              "aut_a1b2c3"
-            ],
-            "pattern": "^aut_[a-z0-9]+$",
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "exit": {
-          "properties": {
-            "manualOnly": {
-              "type": "boolean"
-            },
-            "requireTasks": {
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "requireTasks"
-          ],
-          "type": "object"
-        },
-        "final": {
-          "type": "boolean"
-        },
-        "key": {
-          "examples": [
-            "intake"
-          ],
-          "pattern": "^[a-z][a-z0-9_]*$",
-          "type": "string"
-        },
-        "onLeaving": {
-          "description": "Automations that run when a record leaves the stage",
-          "items": {
-            "examples": [
-              "aut_a1b2c3"
-            ],
-            "pattern": "^aut_[a-z0-9]+$",
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "order": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "tasks": {
-          "items": {
-            "properties": {
-              "approver": {
-                "$ref": "#/$defs/s_f05a3f77df"
-              },
-              "assigned": {
-                "$ref": "#/$defs/s_f05a3f77df"
-              },
-              "backupKeyId": {
-                "type": "string"
-              },
-              "description": {
-                "type": "string"
-              },
-              "doneByAutomation": {
-                "examples": [
-                  "aut_a1b2c3"
-                ],
-                "pattern": "^aut_[a-z0-9]+$",
-                "type": "string"
-              },
-              "dueAfterHours": {
-                "minimum": 1,
-                "type": "integer"
-              },
-              "key": {
-                "examples": [
-                  "collect_documents"
-                ],
-                "pattern": "^[a-z][a-z0-9_]*$",
-                "type": "string"
-              },
-              "keyId": {
-                "description": "Inference key for an agent task",
-                "type": "string"
-              },
-              "kind": {
-                "enum": [
-                  "work",
-                  "approve",
-                  "review",
-                  "answer",
-                  "unblock",
-                  "signature"
-                ],
-                "type": "string"
-              },
-              "required": {
-                "type": "boolean"
-              },
-              "reviewer": {
-                "$ref": "#/$defs/s_f05a3f77df"
-              },
-              "title": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "key",
-              "title",
-              "assigned",
-              "required"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "timeLimit": {
-          "$ref": "#/$defs/s_d3f43ff5d3"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "key",
-        "title",
-        "order",
-        "exit",
-        "tasks",
-        "automations"
       ],
       "type": "object"
     },
@@ -11702,6 +11776,12 @@
       ],
       "type": "object"
     },
+    "s_a6c1ebd30d": {
+      "items": {
+        "$ref": "#/$defs/s_2d1da53e35"
+      },
+      "type": "array"
+    },
     "s_a6d34a645d": {
       "properties": {
         "number": {
@@ -15659,83 +15739,6 @@
         "name",
         "block",
         "shared",
-        "updatedAt"
-      ],
-      "type": "object"
-    },
-    "s_df187904ca": {
-      "properties": {
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "jrn_a1b2c3"
-          ],
-          "pattern": "^jrn_[a-z0-9]+$",
-          "type": "string"
-        },
-        "inFlight": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "name": {
-          "type": "string"
-        },
-        "recordType": {
-          "examples": [
-            "contact"
-          ],
-          "pattern": "^[a-z][a-z0-9_]*$",
-          "type": "string"
-        },
-        "stages": {
-          "$ref": "#/$defs/s_1a0d5dc1ad"
-        },
-        "startAutomationId": {
-          "examples": [
-            "aut_a1b2c3"
-          ],
-          "pattern": "^aut_[a-z0-9]+$",
-          "type": "string"
-        },
-        "startRule": {
-          "$ref": "#/$defs/s_25d70fcceb"
-        },
-        "subjectType": {
-          "examples": [
-            "contact"
-          ],
-          "pattern": "^[a-z][a-z0-9_]*$",
-          "type": "string"
-        },
-        "updatedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "version": {
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "subjectType",
-        "recordType",
-        "version",
-        "stages",
-        "inFlight",
-        "createdAt",
         "updatedAt"
       ],
       "type": "object"
@@ -94107,6 +94110,7 @@
                 },
                 "final": true,
                 "key": "intake",
+                "makesProject": true,
                 "onLeaving": [
                   "aut_a1b2c3"
                 ],
@@ -94172,6 +94176,7 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "makesProject": true,
                   "onLeaving": [
                     "aut_a1b2c3"
                   ],
@@ -94239,7 +94244,7 @@
             "type": "string"
           },
           "stages": {
-            "$ref": "#/$defs/s_1a0d5dc1ad"
+            "$ref": "#/$defs/s_a6c1ebd30d"
           },
           "startRule": {
             "$ref": "#/$defs/s_25d70fcceb"
@@ -94263,7 +94268,7 @@
       "module": "journeys",
       "name": "journeys.create",
       "output": {
-        "$ref": "#/$defs/s_25dfda5e35"
+        "$ref": "#/$defs/s_2c79eba4aa"
       },
       "permission": "journeys.manage",
       "resource": {
@@ -94387,6 +94392,7 @@
                 },
                 "final": true,
                 "key": "intake",
+                "makesProject": true,
                 "onLeaving": [
                   "aut_a1b2c3"
                 ],
@@ -94451,6 +94457,7 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "makesProject": true,
                   "onLeaving": [
                     "aut_a1b2c3"
                   ],
@@ -94522,7 +94529,7 @@
           },
           "stages": {
             "items": {
-              "$ref": "#/$defs/s_4ae4009732"
+              "$ref": "#/$defs/s_2d1da53e35"
             },
             "minItems": 1,
             "type": "array"
@@ -94550,7 +94557,7 @@
       "output": {
         "properties": {
           "journey": {
-            "$ref": "#/$defs/s_df187904ca"
+            "$ref": "#/$defs/s_344556bed4"
           },
           "startAutomationId": {
             "examples": [
@@ -94613,6 +94620,7 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "makesProject": true,
                   "onLeaving": [
                     "aut_a1b2c3"
                   ],
@@ -94686,7 +94694,7 @@
       "module": "journeys",
       "name": "journeys.get",
       "output": {
-        "$ref": "#/$defs/s_25dfda5e35"
+        "$ref": "#/$defs/s_2c79eba4aa"
       },
       "permission": null,
       "resource": {
@@ -95243,6 +95251,7 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "makesProject": true,
                   "onLeaving": [
                     "aut_a1b2c3"
                   ],
@@ -95320,7 +95329,7 @@
       "module": "journeys",
       "name": "journeys.rename",
       "output": {
-        "$ref": "#/$defs/s_25dfda5e35"
+        "$ref": "#/$defs/s_2c79eba4aa"
       },
       "permission": "journeys.manage",
       "resource": {
@@ -95385,6 +95394,7 @@
                   },
                   "final": true,
                   "key": "intake",
+                  "makesProject": true,
                   "onLeaving": [
                     "aut_a1b2c3"
                   ],
@@ -95489,7 +95499,7 @@
       "module": "journeys",
       "name": "journeys.rules.set",
       "output": {
-        "$ref": "#/$defs/s_25dfda5e35"
+        "$ref": "#/$defs/s_2c79eba4aa"
       },
       "permission": "journeys.manage",
       "resource": {
