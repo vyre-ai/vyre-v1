@@ -8,7 +8,7 @@ test("a selected row paints the selection token on the row itself, full width", 
   const html = renderToStaticMarkup(<Row id="a" title="Weekly sync" selected />);
   assert.match(html, /data-testid="row-a"/);
   assert.match(html, /background-color:var\(--sel\)/);
-  assert.match(html, /r-width-/, "the row carries a width style");
+  assert.match(html, /width:100%/, "the row carries a width style");
   assert.doesNotMatch(html, /margin-(left|right|inline)/i, "no horizontal margin that would inset the paint");
 });
 
@@ -105,4 +105,14 @@ test("noteLeadTone picks the lead-in colour: accent by default, warning on reque
   assert.ok(!warn.includes("color:var(--accent)"), "warning replaces the accent");
   assert.match(explicit, /color:var\(--accent\)/);
   assert.ok(warn.includes("Unsure match") && warn.includes("Maya Chen at Northwind"));
+});
+
+test("on the web a row is plain elements, and domProps put a list's own attributes on the row's element", () => {
+  const html = renderToStaticMarkup(<Row id="a" title="Brief.docx" selected domProps={{ draggable: true, "data-fkey": "file:1", style: { margin: "5px 6px" } }} />);
+  assert.match(html, /^<div role="button"[^>]*data-testid="row-a"/, "one div, the row itself, with its role");
+  assert.ok(html.includes('data-fkey="file:1"') && html.includes('draggable="true"'), "the list's attributes");
+  assert.match(html, /margin:5px 6px/, "its style joins the row's");
+  assert.match(html, /height:28px/, "and the row keeps its height and selection token");
+  assert.match(html, /background-color:var\(--sel\)/);
+  assert.ok(!html.includes("r-flexDirection") && !html.includes("css-"), "no React Native view classes");
 });
