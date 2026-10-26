@@ -43,6 +43,7 @@ import { createEngineHost } from "../seams/engine.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
 import { applyPendingRestore, createBackupHost } from "../seams/backup.ts";
 import { createKitsHost } from "../seams/kits.ts";
+import { startRelayBox } from "../seams/relay.ts";
 import { createSyncSeam } from "../seams/sync.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
 import { sha256b64 } from "../../../kernel/src/seal/index.ts";
@@ -443,7 +444,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }),
         // backups: the Space's own files, the owner from the access layer (P-SEC_07: without owner() every export refuses), exports into the blob store, S3 over the seam fetch with keys from the Vault
         setBackupHost: (d) => createBackupHost({
-          root: paths.root, space: spaceId, log: spaceLog, owner: () => cfg.owner ?? access.owner() ?? "usr_owner", system, vault: d.vault, fetch: d.fetch,
+          root: paths.root, space: spaceId, log: spaceLog, owner: () => cfg.owner ?? access.owner() ?? null, system, vault: d.vault, fetch: d.fetch,
           blobs: { put: async (bytes, type) => (await blobs.forModule("backup").put(bytes, type)).id }, secrets: () => [token],
         }),
         setEventsDispatch: () => system,
@@ -676,6 +677,26 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     if (supervisor.status("gateway")[0]?.phase !== "running") throw new Error(`the gateway did not start on ${cfg.host}:${cfg.port}`);
     await runProbes();
     reportNetwork();
+    // A relay is configured (--relay or VYRE_RELAY_URL): keep one outbound connection to it so a phone or another computer reaches this Space without a public address. The relay row in
+    // network_endpoint follows the link, so network.endpoints lists it after the direct ones and reads it down when the link drops (P-L7b_16).
+    if (hasSpace && db && cfg.relayUrl) {
+      const relayDb = db;
+      const box = startRelayBox({
+        relayUrl: cfg.relayUrl, dataDir: paths.root, localPort: () => boundPort,
+        log: (m) => sink.log({ space: space ?? "-", level: 30, msg: "relay.link", place: "relay", attrs: { note: m } }),
+        onState: (st) => {
+          void box.ready.then((r) => {
+            try {
+              relayDb.run(
+                "INSERT INTO network_endpoint (kind, url, state, rtt_ms, heartbeat_at) VALUES ('relay', ?, ?, ?, ?) ON CONFLICT(kind, url) DO UPDATE SET state = excluded.state, rtt_ms = excluded.rtt_ms, heartbeat_at = excluded.heartbeat_at",
+                r.deviceUrl, st.state, st.rttMs ?? null, st.at,
+              );
+            } catch { /* the database closed while the daemon was stopping */ }
+          }, () => {});
+        },
+      });
+      closers.push(() => box.stop());
+    }
     writeInfo(paths, { pid: process.pid, url: `http://${cfg.host}:${boundPort}`, port: boundPort, roles: cfg.roles, space, version: cfg.version, startedAt });
     sink.log({ space: space ?? "-", level: 20, msg: "daemon.started", place: "boot", attrs: { roles: cfg.roles, port: boundPort, version: cfg.version } });
   } catch (e) {
