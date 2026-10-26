@@ -63,7 +63,7 @@ export interface FormsPageDeps {
    * Run a public capability for a signed-out visitor: the pipeline has no session to authorize, so the host calls it as itself and names the visitor in `visitor` (the route sets it from the
    * socket address and clears whatever the client sent). Throws the pipeline's error as is.
    */
-  call?(cap: "forms.submit" | "bookings.book" | "bookings.availability", input: Record<string, unknown>, caller: PageCaller): Promise<unknown>;
+  call?(cap: "forms.submit" | "bookings.book" | "bookings.availability", input: Record<string, unknown>, caller: PageCaller, trace?: { traceId: string; spanId: string }): Promise<unknown>;
   captcha?: CaptchaWidget;
   /** Page views per source address per minute; default 120. */
   perMinute?: number;
@@ -512,10 +512,13 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
     delete input["visitor"];
     if (def.cap === "forms.submit") input["visitor"] = caller.id;
     if (def.method === "POST" && typeof input["idempotencyKey"] !== "string") input["idempotencyKey"] = globalThis.crypto.randomUUID();
+    // a client may carry its trace id across the call, as it can on the gateway ("<32 hex>-<16 hex>"); anything else gets a fresh one
+    const sent = /^([0-9a-f]{32})-([0-9a-f]{16})$/.exec(String(req.headers["x-vyre-trace"] ?? ""));
+    const trace = sent ? { traceId: sent[1] as string, spanId: sent[2] as string } : undefined;
     try {
-      const data = await deps.call!(def.cap, input, caller);
+      const data = await deps.call!(def.cap, input, caller, trace);
       const body = JSON.stringify({ data });
-      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(body), "cache-control": "no-store" });
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(body), "cache-control": "no-store", ...(trace ? { "x-vyre-trace": `${trace.traceId}-${trace.spanId}` } : {}) });
       res.end(body);
     } catch (e) {
       const err = (e as { error?: { code?: string } }).error;

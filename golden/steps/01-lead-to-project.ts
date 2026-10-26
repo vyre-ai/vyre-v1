@@ -6,9 +6,8 @@ import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_LEAD = ["forms", "contacts-link", "journeys", "records", "schema", "projects", "chat", "files", "devices", "access", "spaces"];
-export const GAPS: Gap[] = [
-  { packet: "L8 forms", lane: "L8", what: "forms.submit is refused 401 for a visitor with no token: the capability is not declared for anonymous callers, so a public form cannot take a lead" },
-];
+/** None left: a public form takes a lead through POST /f/submit with no session (the host route runs it as the host and names the visitor from the socket). */
+export const GAPS: Gap[] = [];
 
 const LEAD = { op: "type.create", type: "lead", def: { title: "Lead", plural: "Leads", icon: "user", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "email", type: "text", title: "Email" }] } };
 
