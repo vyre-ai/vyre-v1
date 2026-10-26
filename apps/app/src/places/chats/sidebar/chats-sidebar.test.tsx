@@ -186,9 +186,9 @@ const failing = (s: SampleSidebar, screen: string): string =>
 test("a failed read puts one compact row under that section's head, the rest still draws, and it is never the empty state", () => {
   const s = createSampleSidebar();
   const agents = failing(s, "chats.all-agents");
-  const at2 = (n: string): number => { const i = agents.indexOf(n); assert.ok(i >= 0, `${n} in: ${agents.slice(agents.indexOf("top:252px"), agents.indexOf("top:252px") + 2200)}`); return i; };
-  assert.ok(at2('data-testid="head-faces"') < at2('data-testid="section-error-agents"') && at2('data-testid="section-error-agents"') < at2('data-testid="head-channels"'), "the error row sits under the Agents head, before Channels");
-  assert.ok(agents.includes("load agents") && agents.includes('data-testid="retry-agents"') && agents.includes('data-testid="error-more-agents"'), "one row: the words, Retry and the details menu");
+  const at2 = (n: string): number => { const i = agents.indexOf(n); assert.ok(i >= 0, n); return i; };
+  assert.ok(at2('data-testid="head-faces"') < at2('data-testid="section-error-faces"') && at2('data-testid="section-error-faces"') < at2('data-testid="head-channels"'), "the error row sits under the Agents head, before Channels");
+  assert.ok(agents.includes("load agents") && agents.includes('data-testid="retry-faces"') && agents.includes('data-testid="error-more-faces"'), "one row: the words, Retry and the details menu");
   assert.ok(!agents.includes("trace-1") && !agents.includes('data-testid="state-error"'), "the cause and trace id are behind the menu, no States block");
   assert.ok(agents.includes("Rivera intake") && agents.includes("rivera-matter") && agents.includes("Send 12 invoices"), "chats, channels and Needs you still draw");
   assert.ok(!agents.includes("chats-sidebar-loading") && !agents.includes("No chats yet"), "no skeleton, no empty state");
