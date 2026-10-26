@@ -8,9 +8,9 @@ Make a short-lived scoped link to a file for an outside account
 | Version | 1 (since 1.0.0) |
 | Effects | write |
 | Permission | grant only |
-| Grant level | edit |
+| Grant level | manage |
 | Risk | medium |
-| Resource | file (create under /fileId) |
+| Resource | file (/fileId) |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |
@@ -48,6 +48,7 @@ type Out = {
 - permission.needs_team
 - permission.no_grant
 - validation.bad_input
+- validation.not_found
 
 ## Example
 

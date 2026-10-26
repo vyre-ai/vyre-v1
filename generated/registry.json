@@ -50846,7 +50846,7 @@
       "resource": {
         "create": true,
         "parent": "/connector",
-        "type": "connector"
+        "type": "connection"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -57829,7 +57829,7 @@
       "resource": {
         "create": true,
         "parent": "/intoFolderId",
-        "type": "folder"
+        "type": "file"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -66871,7 +66871,7 @@
       "resource": {
         "create": true,
         "parent": "/toFolderId",
-        "type": "folder"
+        "type": "file"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -87849,6 +87849,150 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "caller": "anonymous",
+      "effects": "write",
+      "emits": [
+        "keys.stored",
+        "signin.succeeded"
+      ],
+      "errors": [
+        "auth.expired",
+        "auth.invalid_code",
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.duplicate"
+      ],
+      "examples": [
+        {
+          "input": {
+            "code": "example",
+            "deviceClass": "desktop",
+            "deviceName": "example",
+            "displayName": "example",
+            "keys": {
+              "personKeyByPassword": "d3JhcHBlZA==",
+              "personKeyByRecovery": "d3JhcHBlZA==",
+              "privateKeyWrapped": "d3JhcHBlZA==",
+              "publicKey": "cHVibGlj",
+              "spaceKeys": [
+                {
+                  "epoch": 1,
+                  "wrapped": "d3JhcHBlZA=="
+                }
+              ]
+            },
+            "password": "example",
+            "spaceId": "spc_a1b2c3",
+            "username": "olivia"
+          },
+          "name": "example",
+          "output": {
+            "challengeId": "chl_a1b2c3",
+            "keys": {
+              "personKeyByPassword": "d3JhcHBlZA==",
+              "personKeyByRecovery": "d3JhcHBlZA==",
+              "privateKeyWrapped": "d3JhcHBlZA==",
+              "publicKey": "cHVibGlj",
+              "spaceKeys": [
+                {
+                  "epoch": 1,
+                  "wrapped": "d3JhcHBlZA=="
+                }
+              ]
+            },
+            "session": {
+              "deviceId": "dev_a1b2c3",
+              "epoch": 1,
+              "expiresAt": 1760000000000,
+              "sessionId": "ses_a1b2c3",
+              "token": "example"
+            },
+            "status": "ok"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "deviceClass": {
+            "enum": [
+              "desktop",
+              "phone",
+              "web",
+              "extension",
+              "daemon"
+            ],
+            "type": "string"
+          },
+          "deviceName": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "keys": {
+            "$ref": "#/$defs/s_50a19384f8"
+          },
+          "password": {
+            "type": "string"
+          },
+          "spaceId": {
+            "description": "The Space id from the claim link (#s=); the first Space key is sealed to it and a different Space is refused",
+            "examples": [
+              "spc_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "username": {
+            "examples": [
+              "olivia"
+            ],
+            "pattern": "^[a-z0-9_.-]{2,32}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "spaceId",
+          "username",
+          "password",
+          "deviceName",
+          "deviceClass",
+          "keys"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "identity",
+      "name": "identity.claim_owner",
+      "offline": "online",
+      "output": {
+        "$ref": "#/$defs/s_68ea0f6cb3"
+      },
+      "permission": null,
+      "rate": {
+        "n": 5,
+        "perSeconds": 300,
+        "scope": "principal"
+      },
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Claim a fresh Space as its owner with the one-time link: pick a username and password, store the wrapped keys, and sign in",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "audit": "sensitive",
       "effects": "write",
       "emits": [
@@ -93462,9 +93606,7 @@
       },
       "permission": "journeys.manage",
       "resource": {
-        "create": true,
-        "parent": "/subjectType",
-        "type": "record_type"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -95161,9 +95303,7 @@
       },
       "permission": "kits.publish",
       "resource": {
-        "create": true,
-        "parent": "/brief",
-        "type": "kit"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -118332,7 +118472,8 @@
         "permission.above_clearance",
         "permission.needs_team",
         "permission.no_grant",
-        "validation.bad_input"
+        "validation.bad_input",
+        "validation.not_found"
       ],
       "examples": [
         {
@@ -118386,7 +118527,7 @@
         ],
         "type": "object"
       },
-      "level": "edit",
+      "level": "manage",
       "module": "portal",
       "name": "portal.file_link",
       "output": {
@@ -118411,8 +118552,7 @@
       },
       "permission": null,
       "resource": {
-        "create": true,
-        "parent": "/fileId",
+        "id": "/fileId",
         "type": "file"
       },
       "risk": "medium",
@@ -119845,7 +119985,7 @@
       "resource": {
         "create": true,
         "parent": "/type",
-        "type": "record_type"
+        "type": "record"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -135356,7 +135496,7 @@
       "resource": {
         "create": true,
         "parent": "/folderId",
-        "type": "folder"
+        "type": "file"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -137479,7 +137619,8 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
-        "validation.bad_input"
+        "validation.bad_input",
+        "validation.not_found"
       ],
       "examples": [
         {
@@ -137549,9 +137690,8 @@
       },
       "permission": null,
       "resource": {
-        "create": true,
-        "parent": "/siteId",
-        "type": "record_type"
+        "id": "/siteId",
+        "type": "site"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -138099,9 +138239,7 @@
       },
       "permission": "connectors.manage",
       "resource": {
-        "create": true,
-        "parent": "/connector",
-        "type": "connector"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -153311,9 +153449,7 @@
       },
       "permission": "kits.publish",
       "resource": {
-        "create": true,
-        "parent": "/ref",
-        "type": "kit"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",

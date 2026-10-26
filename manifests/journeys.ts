@@ -64,7 +64,7 @@ export default defineManifest({
     read('journeys.get', 'Read a Journey design: stages, tasks, rules, time limits and the start rule', { in: target, out: { journey: journeyRow }, tool: 'automations', label: 'check', cli: 'vyre journeys get' }),
     create('journeys.create', 'Create a Journey and its record type (cloned from the Projects template) on a subject record type', {
       in: { name: t.str({ minLength: 1 }), subjectType: id.recordType, stages: t.opt(t.arr(stage)), startRule: t.opt(startRule) },
-      out: { journey: journeyRow }, make: ['record_type', '/subjectType'], perm: 'journeys.manage', emits: ['journey.created', 'journey.designed'], tool: 'automations', cli: 'vyre journeys create',
+      out: { journey: journeyRow }, perm: 'journeys.manage', emits: ['journey.created', 'journey.designed'], tool: 'automations', cli: 'vyre journeys create',
       errors: ['validation.duplicate', 'validation.precondition_failed'],
     }),
     write('journeys.design', 'Replace the design: stages, tasks with Assigned, Reviewer and Approver, stage automations, exit rules, time limits and the start rule', {
