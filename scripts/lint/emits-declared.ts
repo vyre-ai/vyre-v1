@@ -116,13 +116,29 @@ if (directRun()) {
   const caps = new Map(reg.capabilities.map((c) => [c.name, c]));
   const files = spawnSync("git", ["ls-files", "modules"], { cwd: repo, encoding: "utf8" }).stdout.split("\n").filter((f) => /^modules\/[^/]+\/.*\.ts$/.test(f) && !/\.test\.ts$|\/tests\/|\/fixtures\//.test(f));
   const sources = new Map(files.map((f) => [f, fs.readFileSync(path.join(repo, f), "utf8")]));
-  const byModule = new Map<string, string[]>();
-  for (const f of files) byModule.set(f.split("/")[1]!, [...(byModule.get(f.split("/")[1]!) ?? []), f]);
+  // A name resolves to a function in the same file, or in the file it is imported from (relative imports only): no module-wide guessing, so two unrelated functions called `list` are never confused.
+  const importsOf = new Map<string, Map<string, { file: string; name: string }>>();
+  const imports = (from: string): Map<string, { file: string; name: string }> => {
+    const hit = importsOf.get(from);
+    if (hit) return hit;
+    const out = new Map<string, { file: string; name: string }>();
+    for (const m of (sources.get(from) ?? "").matchAll(/import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*["'](\.[^"']+)["']/g)) {
+      const target = path.posix.normalize(path.posix.join(path.posix.dirname(from), m[2]!));
+      const file = [target, `${target}.ts`, `${target}/index.ts`].find((c) => sources.has(c));
+      if (!file) continue;
+      for (const part of m[1]!.split(",")) {
+        const [orig, local] = part.trim().replace(/^type\s+/, "").split(/\s+as\s+/);
+        if (orig) out.set((local ?? orig).trim(), { file, name: orig.trim() });
+      }
+    }
+    importsOf.set(from, out);
+    return out;
+  };
   const resolve: Resolver = (id, from) => {
     const own = functionIn(from, sources.get(from) ?? "", id);
     if (own) return own;
-    for (const f of byModule.get(from.split("/")[1]!) ?? []) { if (f === from) continue; const hit = functionIn(f, sources.get(f)!, id); if (hit) return hit; }
-    return null;
+    const imp = imports(from).get(id);
+    return imp ? functionIn(imp.file, sources.get(imp.file)!, imp.name) : null;
   };
   const all: EmitFinding[] = [];
   for (const f of files) all.push(...checkEmitsDeclared(f, sources.get(f)!, caps, f.split("/")[1]!, resolve));
