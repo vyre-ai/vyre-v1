@@ -5,6 +5,8 @@ on:
     branches-ignore: [main, 'gh-readonly-queue/**']
   # the merge queue runs the same required checks on each batch (ruling: merge queue on main)
   merge_group:
+  # the regen bot pushes with GITHUB_TOKEN, which starts no workflows; it dispatches this one on the branch so the required checks attach to the bot's head (scripts/regen-bot.sh)
+  workflow_dispatch:
 concurrency:
   group: push-${{ github.ref }}
   cancel-in-progress: true

@@ -63,6 +63,10 @@ if [ -n "$(git status --porcelain -- generated $SNAP package-lock.json $SEED)" ]
     exit 0
   fi
   echo "regen: committed generated files ($(git rev-parse --short HEAD))"
+  # A push made with GITHUB_TOKEN starts no workflow, so the required check would never attach to this head. A dispatch made with the same token is allowed to start one.
+  if [ "$MAIN" != "1" ] && [ "$DRY_RUN" != "1" ]; then
+    if gh workflow run check.yml --ref "$BRANCH"; then echo "regen: dispatched check.yml on $BRANCH"; else echo "regen: could not dispatch check.yml on $BRANCH (the required check will be missing on the bot's head)"; fi
+  fi
 else
   echo "regen: generated/ already matches the manifests, nothing to commit"
 fi
