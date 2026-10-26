@@ -97,13 +97,37 @@ async function agentsRoot(ctx: AgentsCtx): Promise<string> {
   return root.folderId;
 }
 
+const LEVEL_RANK: Record<string, number> = { view: 0, use: 1, edit: 2, manage: 3 };
+
+/**
+ * Ruling 99: an agent holds Edit on its own Agents/<name> (not Manage, so it cannot share its home out) and its owner holds Manage there. Only these two grants, written once: a grant that is
+ * already held at that level or higher is left alone, so the boot pass adds the missing ones and nothing else. Returns how many it wrote.
+ */
+export async function ensureHomeGrants(ctx: AgentsCtx, agentId: string, ownerId: string, folderId: string): Promise<number> {
+  const resource = { type: "folder", id: folderId };
+  const have = await tolerant<{ shares?: Array<{ grant: { subject: { kind: string; id: string }; level: string } }> }>(ctx, "access.shares_of", { resource }, {});
+  const holds = (kind: string, id: string, level: string): boolean =>
+    (have.shares ?? []).some((x) => x.grant.subject.kind === kind && x.grant.subject.id === id && (LEVEL_RANK[x.grant.level] ?? -1) >= (LEVEL_RANK[level] ?? 99));
+  let wrote = 0;
+  if (!holds("agent", agentId, "edit")) {
+    await call(ctx, "access.share", { resource, subject: { kind: "agent", id: agentId }, level: "edit", source: `agent:${agentId}` }, { idempotencyKey: `agent-home:${agentId}:agent` });
+    wrote += 1;
+  }
+  if (!holds("person", ownerId, "manage")) {
+    await call(ctx, "access.share", { resource, subject: { kind: "person", id: ownerId }, level: "manage", source: `agent:${agentId}` }, { idempotencyKey: `agent-home:${agentId}:owner:${ownerId}` });
+    wrote += 1;
+  }
+  return wrote;
+}
+
 export interface TreeResult { folderId: string; tomlFileId: string; agentMdFileId: string }
 
 /** Agents/<name> with the decided tree, its two files, the Vyre guide and whatever the Agent template adds. */
-async function createTree(ctx: AgentsCtx, agentId: string, name: string, tomlText: string, agentMd: string): Promise<TreeResult> {
+async function createTree(ctx: AgentsCtx, agentId: string, name: string, tomlText: string, agentMd: string, ownerId: string): Promise<TreeResult> {
   const root = await agentsRoot(ctx);
   // the home folder carries the agent as its subject (system_key agent:<id>): that is how Files knows AGENT.md and agent.toml in it are the agent's own
   const home = await makeFolder(ctx, root, name, `agents:${agentId}:folder`, { kind: "agent", id: agentId });
+  await ensureHomeGrants(ctx, agentId, ownerId, home.folderId);
   const ids = new Map<string, string>([["", home.folderId]]);
   const template = await readTemplate(ctx);
   const folders = [...new Set([...TREE_FOLDERS, ...template.items.filter((i) => i.kind === "folder").map((i) => i.path)])]
@@ -149,7 +173,7 @@ export async function create(ctx: AgentsCtx, input: {
   const template = await readTemplate(ctx);
   const starter = template.items.find((i) => i.kind === "file" && i.path === "AGENT.md")?.text;
   const agentMd = starter !== undefined ? starter.replaceAll("{{name}}", name).replaceAll("{{role}}", input.role?.trim() ?? "") : AGENT_MD_DEFAULT(name, input.role);
-  const tree = await createTree(ctx, id, name, tomlText, agentMd);
+  const tree = await createTree(ctx, id, name, tomlText, agentMd, owner);
   // ruling 88: the owner manages the folder from the start, by a grant of their own whoever made it (the asker, when they are the owner, gets the same Manage share), so the owner can approve memory into the agent and edit its files
   {
     const grant = call(ctx, "access.share", { resource: { type: "folder", id: tree.folderId }, subject: { kind: "person", id: owner }, level: "manage", source: `agent-owner:${id}`, idempotencyKey: `agent-owner:${id}:${owner}` });
@@ -468,13 +492,14 @@ interface FileGot { file?: { fileId: string; folderId: string; name: string; del
  * Files itself refuses to delete, move or rename them (files.* guard); this catches what happened before the guard or underneath it. Answers what it put back, as "<agent>/<file>".
  */
 export async function restoreAgentFiles(ctx: AgentsCtx): Promise<string[]> {
+  ensure(ctx.db);
   const put: string[] = [];
   await adoptAgentPrincipals(ctx, put);
   for (let a of allAgents(ctx.db)) {
     if (a.folderId === undefined) {
       // a record with no home: make Agents/<name> with the decided tree and both files, and point the record at them
       try {
-        const tree = await createTree(ctx, a.id, a.name, a.tomlText, AGENT_MD_DEFAULT(a.name, a.config.description));
+        const tree = await createTree(ctx, a.id, a.name, a.tomlText, AGENT_MD_DEFAULT(a.name, a.config.description), a.ownerId);
         ctx.db.run("UPDATE agents_agent SET folderId = ?, tomlFileId = ?, agentMdFileId = ?, updatedAt = ? WHERE id = ?", tree.folderId, tree.tomlFileId, tree.agentMdFileId, ctx.now(), a.id);
         put.push(`${a.name}/agent.toml`, `${a.name}/AGENT.md`);
         ctx.log.warn("agents: an agent had no folder and has been given one", { agent: a.id });
@@ -486,6 +511,11 @@ export async function restoreAgentFiles(ctx: AgentsCtx): Promise<string[]> {
     }
     if (a.folderId === undefined) continue;
     const folderId = a.folderId;
+    try {
+      if ((await ensureHomeGrants(ctx, a.id, a.ownerId, folderId)) > 0) put.push(`${a.name}/grants`);
+    } catch (e) {
+      ctx.log.warn("agents: the grants on an agent's folder could not be written", { agent: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+    }
     const wanted: Array<{ name: "agent.toml" | "AGENT.md"; id: string | undefined; column: "tomlFileId" | "agentMdFileId"; text: () => string }> = [
       { name: "agent.toml", id: a.tomlFileId, column: "tomlFileId", text: () => a.tomlText },
       { name: "AGENT.md", id: a.agentMdFileId, column: "agentMdFileId", text: () => AGENT_MD_DEFAULT(a.name, a.config.description) },
@@ -534,7 +564,7 @@ async function adoptAgentPrincipals(ctx: AgentsCtx, put: string[]): Promise<void
     try {
       const config = newConfig({ name });
       const tomlText = tomlFor(writeConfig({}, config));
-      const tree = await createTree(ctx, p.id, name, tomlText, AGENT_MD_DEFAULT(name, undefined));
+      const tree = await createTree(ctx, p.id, name, tomlText, AGENT_MD_DEFAULT(name, undefined), owner);
       const now = ctx.now();
       insertAgent(ctx.db, {
         id: p.id, name, face: slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: false,
