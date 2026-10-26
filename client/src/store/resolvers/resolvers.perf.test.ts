@@ -91,10 +91,9 @@ function offline(): ScreenHooks & { asked: string[] } {
 const hooksOf = (w: World, gw = offline()) => ({ gw, hooks: createReplicaHooks({ store: w.store, screens: screenIndex, ctx: { spaceId: SPACE, person: ME }, fallback: gw }) });
 const ready = <T>(q: LiveQuery<unknown>): T => { const s = q.getSnapshot(); assert.equal(s.status, "ready", "the query is ready"); return (s as { data: T }).data; };
 
-import { loadBudgets } from "../../../../perf/harness/index.ts";
 
 test("place open: a conversation and a list open from a populated replica inside the navigate budget, median against p50 and worst against p95", () => {
-  const row = loadBudgets().find((b) => b.id === "navigate");
+  const row = (JSON.parse(readFileSync(new URL("../../../../perf/budgets.json", import.meta.url), "utf8")) as { budgets: { id: string; p50: number; p95: number }[] }).budgets.find((b) => b.id === "navigate");   // read as data: a client test does not import the perf harness (layer boundary)
   assert.ok(row, "perf/budgets.json has a navigate row");
   const w = open(); seed(w, 2000, 10);
   const { hooks } = hooksOf(w);
