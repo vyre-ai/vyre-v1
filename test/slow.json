@@ -53,5 +53,6 @@
   {"file": "perf/server/server.test.ts", "capSec": 120, "owner": "L11", "reason": "server probes against the speed budgets; full scale (VYRE_PERF_FULL=1) in the hourly perf run on v1-perf (ruling 46)", "perf": true},
   {"file": "fixtures/seed/small/small.seed.perf.test.ts", "capSec": 120, "owner": "L2", "reason": "the speed test split out of its functional file; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
   {"file": "testkit/tests/createTestSpace.perf.test.ts", "capSec": 120, "owner": "L2", "reason": "the speed test split out of its functional file; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
-  {"file": "scripts/shard.perf.test.ts", "capSec": 120, "owner": "L11", "reason": "the speed test split out of its functional file; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true}
+  {"file": "scripts/shard.perf.test.ts", "capSec": 120, "owner": "L11", "reason": "the speed test split out of its functional file; speed numbers count only on the v1-perf runners (ruling 46)", "perf": true},
+  {"file": "host/tests/journeys.live.test.ts", "capSec": 120, "owner": "L6", "reason": "boots the daemon and creates a Journey over HTTP"}
 ]
