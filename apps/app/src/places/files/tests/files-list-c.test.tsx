@@ -144,7 +144,8 @@ test("starring a file goes through files.star and changes the Starred count", as
 test("the Agents and Projects trees list the folders Files registers for itself, an agent with its face", () => {
   const out = tree(subjects());
   assert.ok(has(out, 'data-testid="files-agents"') && has(out, 'data-testid="files-projects"'));
-  for (const id of ["fld_ag_docs", "fld_ag_research", "fld_ag_assistant"]) assert.ok(has(out, `data-testid="row-agents-${id}"`) && has(out, `data-testid="row-agents-${id}-trailing"`), id);
+  for (const id of ["fld_ag_docs", "fld_ag_research", "fld_ag_assistant"]) assert.ok(has(out, `data-testid="row-agents-${id}"`), id);
+  assert.ok(has(out, 'data-testid="row-agents-fld_ag_docs-trailing"') && has(out, 'data-testid="agents-count-fld_ag_docs"'), "a folder with files shows its count in the trailing slot");
   for (const id of ["fld_pj_rivera", "fld_pj_launch"]) assert.ok(has(out, `data-testid="row-projects-${id}"`), id);
   assert.ok(has(out, 'data-testid="face-Docs"') && has(out, 'data-avatar="agent"'), "the agent's face, shared Avatar");
   assert.ok(!has(out, 'data-testid="face-Rivera matter"'), "a project has a folder, not a face");
