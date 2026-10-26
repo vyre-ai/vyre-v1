@@ -1,4 +1,4 @@
-// P-CC_39: files.versions.purge removes old unnamed versions past the cutoff, never a file's newest version, never a named one, never a file listed in skipFileIds (held), oldest first in batches. The blob
+// P-CC_39: files.versions_purge removes old unnamed versions past the cutoff, never a file's newest version, never a named one, never a file listed in skipFileIds (held), oldest first in batches. The blob
 // a removed version held is released and goes with its last reference.
 // @reads /modules/files/migrations/0001_files_tree.sql
 import test from "node:test";
@@ -28,7 +28,7 @@ function seed(w: ReturnType<typeof open>): void {
 
 const versions = (w: ReturnType<typeof open>): string[] => w.db.rows("files_file_version").map((r) => String(r["id"])).sort();
 const blobs = (w: ReturnType<typeof open>): string[] => w.db.rows("files_blob").map((r) => String(r["id"])).sort();
-const purge = (w: ReturnType<typeof open>, input: Record<string, unknown>) => (handlers as Record<string, (c: unknown, i: unknown) => Promise<unknown>>)["files.versions.purge"]!(w.ctx, { idempotencyKey: "k", ...input });
+const purge = (w: ReturnType<typeof open>, input: Record<string, unknown>) => (handlers as Record<string, (c: unknown, i: unknown) => Promise<unknown>>)["files.versions_purge"]!(w.ctx, { idempotencyKey: "k", ...input });
 
 test("old unnamed versions go, the newest, the named and the young stay, a held file is left whole, and the blobs follow", async () => {
   const w = open();

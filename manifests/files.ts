@@ -146,7 +146,7 @@ export default defineManifest({
   ],
   capabilities: [
     // ---- erase and purge (P-CC_39)
-    write('files.versions.purge', 'Remove file versions older than a time except the newest of each file and any named version; files listed in skipFileIds (held ones) are left whole (retention)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { before: t.ts(), limit: t.opt(t.int({ minimum: 1, maximum: 5000 })), skipFileIds: t.opt(t.arr(id.file)) }, out: purgeOut, emits: ['file_versions.purged'], audit: 'always', risk: 'high' }),
+    write('files.versions_purge', 'Remove file versions older than a time except the newest of each file and any named version; files listed in skipFileIds (held ones) are left whole (retention)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { before: t.ts(), limit: t.opt(t.int({ minimum: 1, maximum: 5000 })), skipFileIds: t.opt(t.arr(id.file)) }, out: purgeOut, emits: ['file_versions.purged'], audit: 'always', risk: 'high' }),
     // ---- tree and listing
     read('files.tree', 'The roots of the file tree: Agents, Projects, People, Channels, shared knowledge, Agent template, Deployments, GitHub, plus Recent, Shared with me, Trash and Knowledge', {
       out: { roots: t.arr(t.obj({ key: t.str(), title: t.str(), kind: t.enm('folder', 'virtual'), folderId: t.opt(id.folder), count: t.int({ minimum: 0 }) })) }, tool: 'files', label: 'filter',

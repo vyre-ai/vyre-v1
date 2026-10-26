@@ -34,4 +34,4 @@ async function versionsPurge(ctx: Ctx, input: unknown) {
   return { removed: batch.length, more: due.length > limit };
 }
 
-export const purgeHandlers = { "files.versions.purge": versionsPurge };
+export const purgeHandlers = { "files.versions_purge": versionsPurge };
