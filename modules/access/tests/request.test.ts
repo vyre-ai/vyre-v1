@@ -32,7 +32,7 @@ test("a request goes to the Manage holders as one Needs you card each, and nobod
   assert.equal(t["kind"], "unblock");
   assert.deepEqual(t["assigned"], { kind: "person", id: "usr_mgr" });
   assert.deepEqual(t["source"], { kind: "manual", id: out.request.id });
-  assert.deepEqual(t["actions"], [{ key: "approve", label: "Approve" }, { key: "decline", label: "Decline", note: "optional" }]);
+  assert.deepEqual(t["actions"], [{ key: "resolved", label: "Approve" }, { key: "cannot", label: "Decline", note: "optional" }]);
   const block = (t["blocks"] as { type: string; data: Record<string, unknown> }[])[0]!;
   assert.equal(block.type, "access_request");
   assert.deepEqual(block.data, {
