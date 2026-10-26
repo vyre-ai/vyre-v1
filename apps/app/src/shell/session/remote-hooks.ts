@@ -28,6 +28,8 @@ export interface RemoteHooksOptions {
   read(cap: string, input: Record<string, unknown>): Promise<unknown>;
   /** A read failed; the query keeps its last answer. */
   onError?(cap: string, error: unknown): void;
+  /** A failure that is not the query's own (a 401: the session ended). The query keeps what it had and nobody is told, so nothing reacts to it. */
+  ignoreError?(error: unknown): boolean;
 }
 
 export interface RemoteHooks extends ScreenHooks {
@@ -96,6 +98,7 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
       done();
     }, (err: unknown) => {
       opts.onError?.(e.cap, err);
+      if (opts.ignoreError?.(err)) { done(); return; }
       // Never answered: say why (a `ready` query keeps its last answer). The next read, when something changes, replaces this.
       // The same failure again keeps the same snapshot: a re-read that fails the same way must not look like a change (an effect that reacts to the snapshot would call, refresh, fail and react again, for ever).
       if (e.snap.status !== "ready") {

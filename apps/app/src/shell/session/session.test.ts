@@ -458,3 +458,24 @@ test("hooks: a read that fails the same way again keeps the same snapshot and do
   assert.equal(told, 1);
   hooks.close();
 });
+
+test("session: after a 401 the session makes no further calls to the Space, and a 401 never becomes a failure a screen reacts to", async () => {
+  let out = 0;
+  let renameCalls = 0;
+  const gw = sessionGateway({
+    "GET /v1/files/list": () => ({ status: 401, body: { error: { code: "auth.unauthenticated", message: "Sign in.", traceId: "t" } } }),
+    "POST /v1/files/rename": () => { renameCalls++; return { body: { data: { ok: true } } }; },
+  });
+  const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => ROUTES, screens: async () => SCREENS, dial: fakeServer().dial, onSignedOut: () => { out++; }, pollMs: 1_000_000 });
+  const q = s.runtime.screens.query("files.list", "items", { folder: "root" });
+  let told = 0;
+  q.subscribe(() => { told++; });
+  await wait(30);
+  assert.equal(out, 1, "signed out once");
+  assert.equal(told, 0, "the listener was not told of a failure");
+  assert.equal(q.getSnapshot().status, "loading");
+  assert.deepEqual((q.getSnapshot() as { error?: unknown }).error, undefined);
+  await assert.rejects(s.runtime.call("files.rename", {}), (e: unknown) => e instanceof CapError && e.status === 401);
+  assert.equal(renameCalls, 0, "no call reaches the Space after the session ended");
+  s.close();
+});

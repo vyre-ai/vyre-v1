@@ -116,6 +116,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   });
   // Network failures (no CapError) mark the Space unreachable; any answer, even a refusal, proves it is there.
   const reach = async (cap: string, input?: unknown, opts?: { idempotencyKey?: string; signal?: AbortSignal }): Promise<unknown> => {
+    // Signed out (a 401 ended the session): nothing more goes to the Space, so a refused session is one signal and not a flood of refused calls.
+    if (token === null) throw new CapError({ code: "auth.unauthenticated", message: "You are signed out.", traceId: "", status: 401 });
     try {
       const r = await raw(cap, input, opts);
       if (!reachable) { reachable = true; tell(); }
@@ -137,7 +139,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const deferred = createDeferred(who.deferred, who.deferredModules);
   const me: Principal = { id: who.principal.id, name: who.name, kind: "person" };
 
-  const hooks = createRemoteScreenHooks({ screens, read: (cap, input) => reach(cap, input) });
+  // A 401 means signed out (once, to sign-in): it is never a failure state a screen reacts to by asking again.
+  const hooks = createRemoteScreenHooks({ screens, read: (cap, input) => reach(cap, input), ignoreError: (e) => e instanceof CapError && e.status === 401 });
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
   const refresh = (): void => {
     if (closed || refreshTimer !== null) return;

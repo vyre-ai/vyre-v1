@@ -155,12 +155,15 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         const p = await ctx.newPage();
         const errs: string[] = [];
         const refused: string[] = [];
+        const frames: string[] = [];
         p.on("pageerror", (e) => errs.push(e.message.slice(0, 120)));
-        p.on("response", (r) => { const u = new URL(r.url()); if ((u.pathname.startsWith("/v1/") || u.pathname.startsWith("/sync/")) && r.status() >= 400) refused.push(`${r.status()} ${u.pathname}`); });
+        p.on("response", (r) => { const u = new URL(r.url()); if ((u.pathname.startsWith("/v1/") || u.pathname.startsWith("/sync/")) && r.status() >= 400) refused.push(`${r.status()} ${u.pathname} auth:${r.request().headers()["authorization"] ? "sent" : "none"}`); });
+        // What the live socket told this page (hello_ok mode and epoch, a purge): a 401 on every call can be a revoked session after a purge.
+        p.on("websocket", (ws) => ws.on("framereceived", (f) => { const t = String(f.payload); if (/purge|hello_ok/.test(t)) frames.push(t.slice(0, 140)); }));
         await p.goto(`${web.origin}/${route}`, { waitUntil: "load" });
         await p.getByTestId("shell").waitFor({ timeout: 15_000 }).catch(() => undefined);
         const drew = await p.locator(selector).first().waitFor({ timeout: 10_000 }).then(() => true, () => false);
-        if (!drew || errs.length) failures.push(`${route}: ${drew ? "drew" : "did not draw"}${errs.length ? `, page errors: ${errs.join(" | ")}` : ""}${refused.length ? `, refused: ${[...new Set(refused)].slice(0, 5).join(", ")}` : ""}`);
+        if (!drew || errs.length) failures.push(`${route}: ${drew ? "drew" : "did not draw"}${errs.length ? `, page errors: ${errs.join(" | ")}` : ""}${refused.length ? `, refused: ${[...new Set(refused)].slice(0, 5).join(", ")}` : ""}${frames.length ? `, live: ${frames.slice(0, 3).join(" ")}` : ""}`);
         await p.close();
       }
       assert.deepEqual(failures, [], "every place must draw");
