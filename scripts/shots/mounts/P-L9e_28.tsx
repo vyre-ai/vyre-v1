@@ -1,5 +1,6 @@
 // Mount for P-L9e_28: agent.toml as the prototype's Form view, a whole AgentFilePage (file header, lint chips, the grouped form) inside the shell over the Northwind sample Space, with the Files tree beside it.
 // ?diff=1 changes one value in the form and starts the diff before the save, which sits in the History pane beside the file (never under the form); ?view=text opens the Text view instead of the Form.
+// ?file=1 opens the file on a phone (the shell's list becomes the body, with its Back arrow to the sidebar); on a computer it changes nothing.
 // The query is read after mount (rule 25): the static export keeps its pre-rendered markup, so a first-render read shows stale state.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -9,7 +10,7 @@ import type { ThemeRoot } from "../../../ui/src/theme/index.ts";
 import { Shell } from "../../../apps/app/src/shell/spaces/Shell.tsx";
 import type { PlaceContext } from "../../../apps/app/src/shell/spaces/Shell.tsx";
 import { createSampleShell, samplePlace } from "../../../apps/app/src/shell/spaces/sample.tsx";
-import { SidebarContent } from "../../../apps/app/src/shell/sidebar/index.ts";
+import { SidebarContent, useSidebarSlot } from "../../../apps/app/src/shell/sidebar/index.ts";
 import { createSampleFiles, northwind as filesNorthwind } from "../../../apps/app/src/places/files/list/sample.ts";
 import { FilesDataProvider, FilesStateProvider, FilesTree } from "../../../apps/app/src/places/files/tree/index.ts";
 import { AgentFilePage, ReviewDataProvider } from "../../../apps/app/src/places/files/review/index.ts";
@@ -28,6 +29,9 @@ function Body({ q }: { q: URLSearchParams }): ReactNode {
   const sample = useMemo(() => createSampleReview({ intake: true }), []);
   const files = useMemo(() => createSampleFiles(filesNorthwind, { subjects: true }), []);
   const diff = q.get("diff") === "1";
+  const slot = useSidebarSlot();
+  // Rule 25: the query is already read after mount (Mount below); opening the body is an effect too.
+  useEffect(() => { if (q.get("file") === "1") slot.openBody(); }, []);
   return (
     <FilesDataProvider value={files.data}>
       <FilesStateProvider initial={{ where: { kind: "folder", id: "fld_pj_rivera" } }}>
