@@ -1,7 +1,7 @@
 // The production root (ARCH 7.0): no stored session shows sign-in; a stored session paints the shell frame at once from the Space card kept on this device, then opens the real
 // session behind it (whoami, the Space, the live link) and hands the runtime to the places. A 401 or a sign-out clears the stored session and returns to sign-in. A Space that cannot
 // be reached keeps the frame and says so with Try again; it never shows another Space's rows.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, View, useWindowDimensions } from "react-native";
 import { States } from "../../../../../ui/src/States/index.tsx";
@@ -17,12 +17,14 @@ import { dropKeyOnOwnNode, holdKeyOnOwnNode } from "../../../../../client/src/ga
 import { CapError, createCapCaller } from "./caps.ts";
 import { formatHash } from "../hash/hash.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
-import { PhoneHost } from "./PhoneHost.tsx";
 import { PHONE_BELOW } from "./phone.ts";
 import { openRealSession } from "./session.ts";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
 import { clearStored, readStored, spaceAddress, writeStored } from "./stored.ts";
 import type { StoredSession } from "./stored.ts";
+
+/** The phone shell (and mobile/shell with it) loads only when the window is a phone's, so desktop never pays for it. */
+const PhoneHost = lazy(() => import("./PhoneHost.tsx").then((m) => ({ default: m.PhoneHost })));
 
 export interface SessionGateProps {
   /** Overrides, for tests: where the Space is, and how a session opens. */
@@ -132,7 +134,7 @@ function ShellHost({ stored, open, onSignedOut, onHub }: { stored: StoredSession
     onSignedOut();
   };
   const onSpaceAction = (a: string): void => { if (a === "sign-out") signOut(); };
-  if (phone) return <PhoneHost session={session} needsYou={stored.def.counts.chats ?? 0} registerGo={registerGo} onSignOut={signOut} />;
+  if (phone) return <Suspense fallback={<View style={styles.fill} />}><PhoneHost session={session} needsYou={stored.def.counts.chats ?? 0} registerGo={registerGo} onSignOut={signOut} /></Suspense>;
   return <Shell hub={hub} renderPlace={renderPlace} onSpaceAction={onSpaceAction} />;
 }
 
