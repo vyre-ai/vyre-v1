@@ -83,7 +83,7 @@ test("add sheet: pasting a .env fills a field per line with a status that says w
   const d = startDraft(paste);
   assert.equal(d.status?.undo.fields.length, 0, "Undo goes back to the empty sheet");
   assert.equal(startDraft("   ").status, null, "a blank paste is not a paste");
-  const withApp = startDraft("sk_live_51NwFakeFakeFake00aa", "stripe");
+  const withApp = startDraft("sk_live_51NwFakeFakeFake00aa", "stripe"); // secret-scan: fake
   assert.deepEqual(withApp.draft.fields.map((f) => f.key), ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"], "a paste fills the rows of the app that is picked");
   assert.equal(withApp.status?.undo.template, "stripe", "Undo returns to the picked app");
 });

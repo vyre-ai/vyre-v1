@@ -1,0 +1,53 @@
+{
+  "targets": [
+    {
+      "id": "P-L9e_05-graph-agent",
+      "route": "/m/P-L9e_05?part=graph",
+      "proto": "files,graph,{skin}",
+      "waitFor": "[data-testid='graph-surface']",
+      "note": "Intake's memory graph inside the Files place with its sidebar: notes, people, clients, projects, decisions, a site, a record and a chat, one colour per kind, clusters named after their hub, the time slider on Now, the count and the clusters in the foot. The prototype side is its Graph for the same agent in the same skin; it draws on a canvas with its own sample notes, the real side draws the sample Space's."
+    },
+    {
+      "id": "P-L9e_05-graph-space",
+      "route": "/m/P-L9e_05?part=graph&scope=space",
+      "proto": "files,graph-space,{skin}",
+      "waitFor": "[data-testid='graph-surface']",
+      "note": "The whole Space: every agent's notes together. The prototype side is its Whole Space scope."
+    },
+    {
+      "id": "P-L9e_05-graph-node",
+      "route": "/m/P-L9e_05?part=graph&scope=space&select=elena",
+      "proto": "files,graph-node,{skin}",
+      "waitFor": "[data-testid='graph-selected']",
+      "note": "Elena Rivera selected: her links in the accent, everything not linked to her faded, her note open beside the graph in the side pane (properties, text, Links, Linked from). The prototype side is the same selection with its note open beside."
+    },
+    {
+      "id": "P-L9e_05-graph-time",
+      "route": "/m/P-L9e_05?part=graph&scope=space&step=18",
+      "proto": "files,graph-time,{skin}",
+      "waitFor": "[data-testid='graph-now']",
+      "note": "The slider on Oct 12: only what existed that day, and a Back to now link. The prototype side is its time slider on Oct 12."
+    },
+    {
+      "id": "P-L9e_05-layers-menu",
+      "route": "/m/P-L9e_05?part=graph&scope=space&menu=layers",
+      "proto": "files,graph-space,{skin}",
+      "waitFor": "[data-testid='menu']",
+      "note": "The Layers menu: Agent, Project and Space with checkmarks, and the line Personal layers are private. The prototype draws a Layers menu from its Graph header."
+    },
+    {
+      "id": "P-L9e_05-proposed",
+      "route": "/m/P-L9e_05?part=proposed",
+      "proto": "files,proposed,{skin}",
+      "waitFor": "[data-testid='memory-proposed']",
+      "note": "Proposed facts by the layer they would join, each a ui/Row with its source and quiet Accept (accent text) and Reject at the right on hover or selection (always on a phone), Accept all on a group, notes waiting beneath. The prototype side is the Proposed folder of the Intake agent, where Accept and Reject are in the row's menu."
+    },
+    {
+      "id": "P-L9e_05-graph-harbor",
+      "route": "/m/P-L9e_05?part=graph&space=harbor",
+      "proto": "files,harbor,graph,{skin}",
+      "waitFor": "[data-testid='graph-surface']",
+      "note": "The same graph over the Harbor Studio sample Space."
+    }
+  ]
+}

@@ -7,6 +7,7 @@
     "channels.archive@1": "f2dd3177d7c980e814290c5acb21c767c817c577cd94ed15c88639c2b94b049f",
     "channels.connect_outside_agent@1": "9f5cfb0242f9f78ebbf345e989ee0b8031245d8368f22597e02d117dd2805367",
     "channels.create@1": "380ddd91bd1b8544c6183d9e24db4fc6c483594abbc16fff2ba811a1161e5a3a",
+    "channels.erase@1": "b083984203fe8622c39f25922ab9033c043473d82e7142845e1181a516b04afc",
     "channels.get@1": "6e0dcbdc548fc69365fe64231bc2896f0e94732e3d9ab925a00f709f5014b362",
     "channels.join@1": "79babe7d1f503efb456217e0fc3cfc28a6375c7638fac3729bc55a02bfd9f1e5",
     "channels.leave@1": "61659cf90ca9ebcfe323df41b2c604eec031523aed80298afed66ebf52db0bcf",
@@ -45,6 +46,7 @@
     "chat.thread@1": "abc287cc8caf32e20494927eced043a7f63f2873807ac273dcd7cadaf5903e6e",
     "chat.transcript.append@1": "60d04ea7e6059a73ddb176c25112b426f0b381c27be2a8f41e8189f7f547db94",
     "chat.transcript.get@1": "674558cf8f64c86e4ed7e4ad6a59b54870eb5ea9a6c782107014098497ea5aff",
+    "chat.transcript.purge@1": "d5417b58594769681c4c011590d78437edf304e3051ac1464e4c5ae036bb7654",
     "chat.transcript.read@1": "09fcc61243290ddd4df43005ae4708d8e9cd7a1e39a908c01a342b2e61f0a1dd",
     "chat.transcript.search@1": "2d7f02a46a3d070d2e0496083ec7e4bc15c85fa225abbb57188b04f2d87cf182",
     "chat.transcript.summarize@1": "88afe5bfe4569338f33671547b5cd4f170a369163a68066c26564b44fd669f74",
@@ -52,6 +54,7 @@
     "chat.unpin@1": "c8af1f614523ba9da8c7b9998f24678274590c8547322eec8d8c4108b01dbdc1",
     "threads.add_agent@1": "0a266ebc2c8c205ac1ca6c67364ca62328e5be388795e3a5305e72736e726ce6",
     "threads.close@1": "bc05dc83376bceb0fba5f5282e5a69dda35789760e58e70c583c795e522dc8f7",
+    "threads.erase@1": "4e49116b5c18018640ac5259d92b8a25d165a9c92c74de6a81263f1228805a9f",
     "threads.get@1": "50ed6935772bfbf0470f63c05bd91a7539d1b1f02354c8c0acb0ccb81e090326",
     "threads.list@1": "864cec3ab1bdc584acb5f5b77a1a6364351ce3da5b4f3b9b151c8253ca2d451c",
     "threads.make_channel@1": "28672172c390a1084f82323d40d777d500fa7947e7d5dd1bfaebe57cdadc21e7",
@@ -75,6 +78,7 @@
     "channel.agent_watch_changed": "5f3c7fe8012ef566435a139b1da671ae9f799031016016484cf8add4f14f9b21",
     "channel.archived": "402b58bfc071bc64dffe51358f83b22f449924e889fea8ff63ca90ffac8b399d",
     "channel.created": "2d572f4881f1aca6dde5404bdb46d1d8c86d6fef0d145d08c74876c8a8e2d389",
+    "channel.erased": "62b6f47fac1648a683faa1a06096063c6750b6c825218f06955e5488148e3780",
     "channel.member_added": "1f064506496886763ca99fb746a5bdd21ab75d353b0185f35433bdf34d175f4e",
     "channel.member_removed": "3852ec2af86921bc0ec53e2da58d1b7dfea1f79255686c74fbb571bb14243ed5",
     "channel.unarchived": "837f2d242bf2bf8aaf33f5c7ce1d1fae4b05d9a0f39065673e6c9815054c7be4",
@@ -93,11 +97,13 @@
     "plan.step_done": "7e0f4a33500741849fd38a2dc5659de53a52019d0a34eb6ef54daaf83b8283c1",
     "tab.opened": "22f77d9a4148288f6d4a095f17ad91f6e8842d9288df8a83110479b6333a48d5",
     "thread.closed": "e0acd78278a54cfad40d026ce54654c938881168913f5ac88d1911740c8b4183",
+    "thread.erased": "ba26ce50569ba86a130fa97d1d75fea3825e9f08a37c31a950a82d5460310752",
     "thread.plan_mode_changed": "eae9236a25bcf76f8e4b5aa12b99cd21db73b7b4f2ea33a5d91365c5eefc9197",
     "thread.promoted": "f5ea8c0099931f63277d4012b3b63d7205772548ba9521389823b83c87693867",
     "thread.reopened": "f0d32b00c8ecac07b0fe2e372aa20cc6d91a5b87b0b0bfc3df09d5caefac6fc4",
     "thread.replied": "5c9a096ad6350f17e4cc35bd762b275f7227053211e960e5ef076dc7a14a67d7",
     "thread.started": "697e99d8e73a7e39930847883511fb462e124e70976fe69b5f67118c93598cae",
-    "thread.updated": "7a96fc10ee80f1445dd043d891a25cb20ad88a98d9a5a6a7f92e240e098cc41d"
+    "thread.updated": "7a96fc10ee80f1445dd043d891a25cb20ad88a98d9a5a6a7f92e240e098cc41d",
+    "transcripts.purged": "977f209212aa641c5beedeeb0e048adb0d2b996883bf8e98ef42075162a0f0eb"
   }
 }

@@ -4,7 +4,7 @@ Lane L5. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (34)
+## Capabilities (35)
 
 - [mail.attachment.save](../capabilities/mail.attachment.save.md): Save an attachment into Files
 - [mail.auto_connect_members](../capabilities/mail.auto_connect_members.md): Create Pending mail connections for every mapped member when delegation is set and auto-connect is on (one notice each)
@@ -28,6 +28,7 @@ Requires: nothing.
 - [mail.mailbox.resume](../capabilities/mail.mailbox.resume.md): Resume a paused mailbox connection
 - [mail.mailbox.set_privacy](../capabilities/mail.mailbox.set_privacy.md): Mark a mailbox private, shared with the Space or shared with chosen people
 - [mail.mailbox.update](../capabilities/mail.mailbox.update.md): Rename a mailbox or change its agent
+- [mail.message.erase](../capabilities/mail.message.erase.md): Erase one mail message for good (governance erase)
 - [mail.message.get](../capabilities/mail.message.get.md): Read one message with attachments, provider id, DNS check state and trace id
 - [mail.message.list](../capabilities/mail.message.list.md): List messages of a mailbox, thread or contact
 - [mail.message.search](../capabilities/mail.message.search.md): Search mail by text, sender, date and mailbox
@@ -41,10 +42,11 @@ Requires: nothing.
 - [mail.status_update](../capabilities/mail.status_update.md): Apply a provider status (delivered, bounced, complained, opened, clicked, failed); hard bounces and complaints write the suppression list
 - [mail.sync_now](../capabilities/mail.sync_now.md): Sync a mailbox now
 
-## Events (24)
+## Events (25)
 
 - [inbound_route.removed](../events/inbound_route.removed.md): An inbound route was removed
 - [inbound_route.saved](../events/inbound_route.saved.md): An inbound route was set
+- [mail.message_erased](../events/mail.message_erased.md): A mail message was erased for good: body, attachments and search entries (ids only)
 - [mail.received](../events/mail.received.md): An email arrived in a mailbox (deduped across inboxes)
 - [mail_draft.discarded](../events/mail_draft.discarded.md): A draft was discarded
 - [mail_draft.saved](../events/mail_draft.saved.md): A draft was created or changed (an agent draft carries a Gate line)

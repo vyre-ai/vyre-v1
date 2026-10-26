@@ -18,8 +18,8 @@ import type { EngineAgent, SessionSpec, TurnRow } from "../src/turn-engine/index
 import type { Lookup, ValueSource } from "../src/vault-use/index.ts";
 
 const FAKE_CLI = fileURLToPath(new URL("../../host/tests/fixtures/fake-cli-driver/fake-cli.mjs", import.meta.url));
-const SECRET = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ";
-const API_KEY = "sk-ant-api03-APIkeyVALUE9876543210zyxwvuts";
+const SECRET = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ"; // secret-scan: fake
+const API_KEY = "sk-ant-api03-APIkeyVALUE9876543210zyxwvuts"; // secret-scan: fake
 const TRACE = "a".repeat(32);
 
 const value = (v: string, itemId: string): Lookup => ({ kind: "value", itemId, value: v, spaceOnly: false, injectIntoDeployments: false });

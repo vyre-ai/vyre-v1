@@ -15,7 +15,7 @@ import type { ScopedDb } from "../../../packages/contracts/src/ctx.ts";
 
 export interface GateHookDeps {
   /** Call a capability as the Space itself (its owner, origin "gate"), through the whole pipeline. */
-  call(cap: string, input: unknown): Promise<unknown>;
+  call(cap: string, input: unknown, trace?: { traceId: string; spanId: string }): Promise<unknown>;
   /** ctx.seal.unseal: opens the approval token. */
   unseal(s: { keyId: string; nonce: string; bytes: string }): Uint8Array;
   now(): number;
@@ -82,7 +82,8 @@ export function createGateHook(d: GateHookDeps): GateHook {
       if (a.seed.actingFor) input["actingFor"] = a.seed.actingFor;
       if (a.seed.run) input["runId"] = a.seed.run;
       if (a.seed.thread) input["threadId"] = a.seed.thread;
-      const r = (await d.call("gate.park", input)) as { taskId?: unknown; runId?: unknown } | null;
+      // the park runs in the held call's trace, so gate.requested sits in the asker's event chain
+      const r = (await d.call("gate.park", input, { traceId: a.traceId, spanId: "0".repeat(16) })) as { taskId?: unknown; runId?: unknown } | null;
       if (typeof r?.taskId !== "string") throw fail("internal.unavailable", a.traceId, { message: "Approvals are not available right now.", details: { cap: a.cap.name } });
       return typeof r.runId === "string" ? { taskId: r.taskId, runId: r.runId } : { taskId: r.taskId };
     },
