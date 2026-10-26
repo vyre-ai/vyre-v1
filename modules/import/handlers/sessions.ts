@@ -8,7 +8,7 @@ type Role = "user" | "assistant";
 interface Repo { remote?: string; root?: string }
 interface SourceMessage { sourceMessageId: string; role: Role; text: string; at: number }
 interface SourceSession { sourceSessionId: string; title?: string; startedAt: number; repo?: Repo; messages: SourceMessage[] }
-interface Destination { kind: "project"; projectId: string } | { kind: "imported_sessions" }
+type Destination = { kind: "project"; projectId: string } | { kind: "imported_sessions" };
 
 const REMOTE = /^(?:https?:\/\/|git@)([^/:]+)[/:](.+?)(?:\.git)?\/?$/i;
 const tempRoot = (root: string | undefined): boolean => !root || root === "/" || root === "/Users" || /(^|\/)(tmp|var\/folders|private\/tmp|home)(\/|$)/.test(root);
