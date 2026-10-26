@@ -15534,9 +15534,7 @@ export const routes: Route[] = [
     "permission": "policy.manage",
     "level": "manage",
     "resource": {
-      "type": "entity",
-      "entity": "mail_message",
-      "id": "/messageId"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "high",
