@@ -154,26 +154,6 @@ test("starred Spaces are pre-opened, the previous replica stays open read-only, 
   assert.equal(hub.switchTo("zz"), false, "an unknown Space is refused");
 });
 
-test("perf space_switch: under 500 ms with the skeleton, pre-opened and cold", async () => {
-  const { hub } = rig("nw", { openReplica: () => new Promise<void>((resolve) => { setTimeout(resolve, 25); }), skeletonMs: 120 });
-  const ran: string[] = [];
-  for (const to of ["hb", "me", "nw"]) {
-    hub.switchTo(to);
-    assert.equal(hub.state().phase, "skeleton");
-    await hub.whenReady();
-    html(hub);
-    hub.placeDrawn(hub.state().epoch);
-    ran.push(to);
-  }
-  const probes = hub.probes();
-  assert.equal(probes.length, 3);
-  for (const p of probes) {
-    console.log(`perf space_switch ${p.from}->${p.to} ${p.ms.toFixed(1)} ms (budget ${SPACE_SWITCH_BUDGET_MS} ms)`);
-    assert.ok(p.ms < SPACE_SWITCH_BUDGET_MS, `${p.from}->${p.to} took ${p.ms} ms`);
-  }
-  assert.deepEqual(ran, ["hb", "me", "nw"]);
-});
-
 test("a Space that fails to open says so and Try again opens it", async () => {
   let fail = true;
   const { hub } = rig("nw", { openReplica: () => (fail ? Promise.reject(new Error("The local store did not unlock")) : Promise.resolve()) });

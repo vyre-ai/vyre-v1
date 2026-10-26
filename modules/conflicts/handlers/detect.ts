@@ -60,6 +60,7 @@ export function recordHistory(ctx: CfCtx, h: HistoryEntry): void {
 export async function openAnswerTask(ctx: CfCtx, c: Conflict, plain: boolean): Promise<string> {
   if (c.taskId) return c.taskId;
   const out = (await ctx.call("tasks.create", {
+    idempotencyKey: `conflict:${c.conflictId}:answer-task`,
     kind: "answer",
     title: plain ? `Pick the value for ${c.field}` : `Confirm the change to ${c.field}`,
     summary: plain
@@ -115,7 +116,7 @@ export async function onConflictOpened(ctx: CfCtx, ev: { conflictId: string }): 
 // ---- assist and propose
 
 async function runAssistant(ctx: CfCtx, c: Conflict): Promise<{ runId: string }> {
-  const started = (await ctx.call("runs.start", { kind: "other", name: "conflict_assist", owner: c.person })) as { runId?: string } | null;
+  const started = (await ctx.call("runs.start", { idempotencyKey: `conflict:${c.conflictId}:assist-run`, kind: "other", name: "conflict_assist", owner: c.person })) as { runId?: string } | null;
   const runId = started?.runId;
   if (!runId) raise(ctx, "internal.unexpected", "The assistant run was not started.");
   ctx.db.run("UPDATE conflicts_detail SET run_id = ? WHERE conflict_id = ?", runId, c.conflictId);
