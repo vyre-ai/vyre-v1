@@ -214,6 +214,8 @@ export interface Daemon {
   projections: ProjectionRunner | null;
   sink: LogSink;
   log: LogClient | null;
+  /** Platform composition only: a desktop router re-enters another known daemon with the original CtxSeed. */
+  invoke?: Invoke;
   /** run probes now (all by default), write them, and return the results */
   runProbes(names?: readonly ProbeName[]): Promise<Partial<Record<ProbeName, ProbeResult>>>;
   /** do every open restart and network command now */
@@ -268,6 +270,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let chainBroken = false;
   let verified = { seq: 0, hash: "" };
   let hub: LiveHub | null = null;
+  let composedInvoke: Invoke | undefined;
   let hubFactory: (() => LiveHub) | null = null;
   let routeIndex: ((method: string, path: string) => RouteRec | undefined) | null = null;
   let capIndex: ReturnType<typeof indexCapabilities> | null = null;
@@ -523,6 +526,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         onSpan: (s) => sink.span({ trace_id: s.traceId, span_id: s.spanId, parent: s.parent ?? null, name: s.name, at: s.startedAt, dur_us: s.ms * 1000, attrs: { cap: s.cap, status: s.status } }),
       });
+      composedInvoke = invoke;
 
       // A job the host itself scheduled (a webhook retry from the events consumer) runs as the host service, which authorize does not know: it is pre-authorized like the hook that scheduled it.
       const runAsScheduled = invokeRunner(invoke);
@@ -1015,7 +1019,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
   let stopped = false;
   return {
-    url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge,
+    url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge, ...(composedInvoke ? { invoke: composedInvoke } : {}),
     runProbes, pollCommands: runCommands,
     async stop() {
       if (stopped) return;
