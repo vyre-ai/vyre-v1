@@ -43,7 +43,7 @@ export const Row = memo(function Row({ id, title, titleSuffix, titleMarks, noteL
         ) : <Text numberOfLines={1} style={[styles.title, emphasis && BOLD]}>{title}</Text>}
         {note ? (
           <Text numberOfLines={tall ? 2 : 1} style={styles.note}>
-            {noteLead ? <Text testID={id ? `row-${id}-notelead` : undefined} style={noteLeadTone === "warning" ? NOTE_LEAD_WARN : NOTE_LEAD}>{`${noteLead} `}</Text> : null}
+            {noteLead ? <><Text testID={id ? `row-${id}-notelead` : undefined} style={noteLeadTone === "warning" ? NOTE_LEAD_WARN : NOTE_LEAD}>{noteLead}</Text>{" \u00b7 "}</> : null}
             {note}
           </Text>
         ) : null}

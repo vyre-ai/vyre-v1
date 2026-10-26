@@ -75,6 +75,7 @@ test("emphasis makes the title semibold, with or without a suffix; without it th
 test("noteLead draws an accent lead-in before the note, only with a note; rows without it are unchanged", () => {
   const html = renderToStaticMarkup(<Row id="a" title="Rivera letter" note="Two edits left" noteLead="Draft ready" />);
   assert.ok(html.includes('data-testid="row-a-notelead"') && html.includes("Draft ready") && html.includes("Two edits left"));
+  assert.ok(html.includes("Draft ready</span> \u00b7 ") || html.includes("\u00b7"), "a middle dot between the lead-in and the note, as the prototype writes it");
   assert.ok(html.indexOf("Draft ready") < html.indexOf("Two edits left"), "the lead-in comes first");
   assert.match(html, /color:var\(--accent\)/);
   assert.ok(!renderToStaticMarkup(<Row id="a" title="Rivera letter" noteLead="Draft ready" />).includes("notelead"), "no note, no lead-in");
