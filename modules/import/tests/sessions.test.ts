@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { harness } from "../fixtures/harness.ts";
+import { codeOf, harness } from "../fixtures/harness.ts";
 import { sessionsContinue, sessionsImport } from "../handlers/sessions.ts";
 
 const payload = {
@@ -67,7 +67,7 @@ test("sessions.import never turns loose paths into projects and continues in a l
 
 test("sessions.import refuses unconsented or unsafe payloads before any write", async () => {
   const h = harness();
-  await assert.rejects(sessionsImport(h.ctx, { ...payload, consent: { previewedAt: 1 } }), { code: "validation.precondition_failed" });
-  await assert.rejects(sessionsImport(h.ctx, { ...payload, sessions: [{ ...payload.sessions[0]!, messages: [{ sourceMessageId: "x", role: "tool" as never, text: "secret", at: 1 }] }] }), { code: "validation.bad_input" });
+  await assert.rejects(sessionsImport(h.ctx, { ...payload, consent: { previewedAt: 1 } }), (e) => codeOf(e) === "validation.precondition_failed");
+  await assert.rejects(sessionsImport(h.ctx, { ...payload, sessions: [{ ...payload.sessions[0]!, messages: [{ sourceMessageId: "x", role: "tool" as never, text: "secret", at: 1 }] }] }), (e) => codeOf(e) === "validation.bad_input");
   assert.equal(h.rows("SELECT * FROM import_conversation").length, 0);
 });

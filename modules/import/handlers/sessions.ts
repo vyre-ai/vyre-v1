@@ -21,18 +21,18 @@ function identity(repo: Repo | undefined): { key: string; title: string } | unde
   return { key: `${remote}|${repo.root.replace(/\/+$/, "")}`, title: m[2]!.replace(/\.git$/i, "").split("/").at(-1) || "Imported project" };
 }
 
-function checked(input: In): { provider: Provider; sourceKey: string; sessions: SourceSession[] } {
+function checked(ctx: ImportCtx, input: In): { provider: Provider; sourceKey: string; sessions: SourceSession[] } {
   if (input.consent?.previewedAt === undefined || input.consent?.confirmedAt === undefined || input.consent.confirmedAt < input.consent.previewedAt) {
-    raise(input.__ctx as ImportCtx, "validation.precondition_failed", "Open the preview and confirm before importing local history.");
+    raise(ctx, "validation.precondition_failed", "Open the preview and confirm before importing local history.");
   }
-  if (input.provider !== "codex" && input.provider !== "claude_code") raise(input.__ctx as ImportCtx, "validation.bad_input", "That session provider is not supported.");
-  if (typeof input.sourceKey !== "string" || input.sourceKey.trim() === "") raise(input.__ctx as ImportCtx, "validation.bad_input", "A source key is required.");
-  if (!Array.isArray(input.sessions)) raise(input.__ctx as ImportCtx, "validation.bad_input", "Sessions must be an array.");
+  if (input.provider !== "codex" && input.provider !== "claude_code") raise(ctx, "validation.bad_input", "That session provider is not supported.");
+  if (typeof input.sourceKey !== "string" || input.sourceKey.trim() === "") raise(ctx, "validation.bad_input", "A source key is required.");
+  if (!Array.isArray(input.sessions)) raise(ctx, "validation.bad_input", "Sessions must be an array.");
   for (const s of input.sessions) {
-    if (!s || typeof s.sourceSessionId !== "string" || !Array.isArray(s.messages)) raise(input.__ctx as ImportCtx, "validation.bad_input", "A session payload is malformed.");
+    if (!s || typeof s.sourceSessionId !== "string" || !Array.isArray(s.messages)) raise(ctx, "validation.bad_input", "A session payload is malformed.");
     for (const m of s.messages) {
       if (!m || (m.role !== "user" && m.role !== "assistant") || typeof m.text !== "string" || typeof m.sourceMessageId !== "string") {
-        raise(input.__ctx as ImportCtx, "validation.bad_input", "Only visible user and assistant text may be imported.");
+        raise(ctx, "validation.bad_input", "Only visible user and assistant text may be imported.");
       }
     }
   }
@@ -52,8 +52,7 @@ async function destination(ctx: ImportCtx, session: SourceSession): Promise<{ de
 
 export async function sessionsImport(ctx: ImportCtx, raw: In): Promise<unknown> {
   ensure(ctx.db);
-  const input = { ...raw, __ctx: ctx } as In;
-  const { provider, sourceKey, sessions } = checked(input);
+  const { provider, sourceKey, sessions } = checked(ctx, raw);
   const owner = me(ctx);
   ctx.db.run("INSERT OR IGNORE INTO import_session_source (sourceKey, provider, owner, createdAt) VALUES (?, ?, ?, ?)", sourceKey, provider, owner, ctx.now());
   const out: Array<{ conversationId: string; provider: Provider; destination: Destination }> = [];
