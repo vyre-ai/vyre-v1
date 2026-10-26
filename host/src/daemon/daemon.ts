@@ -56,6 +56,7 @@ import { startRelayBox } from "../seams/relay.ts";
 import { createSyncSeam } from "../seams/sync.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
 import { createWebhookRoute } from "../routes/webhooks.ts";
+import { createRunsHost } from "../seams/runs.ts";
 import type { WebhookAccept } from "../routes/webhooks.ts";
 import { sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { createLocalKeyRoute } from "../routes/local-key.ts";
@@ -581,6 +582,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           root: paths.root, space: spaceId, log: spaceLog, owner: () => cfg.owner ?? access.owner() ?? null, system, vault: d.vault, fetch: d.fetch,
           blobs: { put: async (bytes, type) => (await blobs.forModule("backup").put(bytes, type)).id }, secrets: () => [token],
         }),
+        // the Run executor: the plan and the step runner for a Run come from the Automation and steps-core through their host calls (P-L6_24)
+        setRunsHost: () => createRunsHost({ call: (n, i, as) => hookRunner.call(n, i, as) }),
         setEventsDispatch: () => system,
         // erase reaches the append-only log (P-CC_41): governance asks the log worker to tombstone payloads, and a restore replays the seqs it kept
         setEventsCompact: () => {
@@ -650,6 +653,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             "module_drivers", "degraded", detail, null, JSON.stringify({ missing: gaps.length, wired: seams.wired.length }), now(),
           );
         } else db!.run("DELETE FROM health_probe WHERE name = ?", "module_drivers");
+      }
+
+      // Runs the last server left queued or running are driven again from their step log (P-L6_24). Started, not awaited: boot does not wait for a Run, and shutdown waits for it.
+      if (loaded.serving.get("runs") === "live") {
+        const recovering = hookRunner.call("runs.recover", {}).catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "runs.recover_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
+        closers.push(() => recovering);
       }
 
       // the Space\'s profile row, once: its name from the event that made the Space, and where people reach it

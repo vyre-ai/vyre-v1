@@ -5,6 +5,7 @@ import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 
 export { handlers };
 export { accessDiff, canView, structuralIssues, validateDefinition, webhookSecretMatches } from "./handlers/defs.ts";
+import { loadRunPlan } from "./handlers/triggers.ts";
 export { consumeEvent, dropReason, fireOne, loadRunPlan, matches, startRun, triggerPayload } from "./handlers/triggers.ts";
 
 /**
@@ -15,6 +16,11 @@ type Row = Record<string, unknown>;
 const rows = (ctx: Ctx, sql: string, ...a: unknown[]): Row[] => { try { return ctx.db.all(sql, ...a) as Row[]; } catch { return []; } };
 const kept = (r: Row[], type: string, title: string) => ({ count: r.length, sample: r.slice(0, 5).map((x) => ({ type, id: String(x["id"]), title: String(x[title] ?? x["id"]) })), ids: r.slice(0, 500).map((x) => String(x["id"])) });
 export const hostCalls = {
+  /** What the executor needs for a Run of an Automation (P-L6_24): the pinned definition, what started it, who it acts as, the vault names it may use. Nothing when the Run is not an Automation's. */
+  "automations.run_plan": (ctx: Ctx, i: { runId: string }) => {
+    const p = loadRunPlan(ctx, i.runId);
+    return p ? { link: p.link, definition: p.definition, vault: p.vault } : null;
+  },
   "automations.owned_by": (ctx: Ctx, i: { person: string }) => ({
     automations: kept(rows(ctx, `SELECT "id", "name" FROM automations_defs WHERE "owner_id" = ? AND "deleted_at" IS NULL`, i.person), "automation", "name"),
   }),
