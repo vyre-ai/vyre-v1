@@ -7,6 +7,7 @@ import { createElement, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AskButton } from "../AskButton/index.tsx";
+import { Avatar } from "../Avatar/index.tsx";
 import type { AskButtonProps } from "../AskButton/index.tsx";
 import { MenuIcon } from "../Menu/index.tsx";
 import { MONO_VAR } from "../theme/fonts.ts";
@@ -385,6 +386,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       {boxes.length + strokes.length > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Clear markup" testID="vw-clear" onPress={() => { changeBoxes([]); changeStrokes([]); setNote(null); }}><Text style={s.toolText}>Clear</Text></Pressable> : null}
       {boxes.length + strokes.length > 0 ? (
         <Pressable accessibilityRole="button" accessibilityLabel={`Ask ${props.agentName ?? "the agent"}`} testID="vw-ask-markup" onPress={() => props.onAskMarkup?.(boxes)} style={s.askMark}>
+          {props.agentName !== undefined ? <Avatar name={props.agentName} kind="agent" size={18} /> : null}
           <Text style={s.askMarkText}>{`Ask ${props.agentName ?? "the agent"}`}</Text>
         </Pressable>
       ) : null}
@@ -617,7 +619,7 @@ const s = StyleSheet.create({
   segOn: { backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
   segText: { color: "var(--ink-3)" as string, fontSize: 12.5, fontWeight: "500" },
   segTextOn: { color: "var(--ink)" as string },
-  askMark: { height: 28, paddingHorizontal: 12, borderRadius: 8, backgroundColor: "var(--ink)" as string, alignItems: "center", justifyContent: "center" },
+  askMark: { height: 28, paddingHorizontal: 12, borderRadius: 8, backgroundColor: "var(--ink)" as string, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   askMarkText: { color: "var(--win)" as string, fontSize: 12.5, fontWeight: "600" },
   bubble: { position: "absolute", top: -12, right: -4, transform: [{ translateX: "100%" as unknown as number }], backgroundColor: "var(--win)" as string, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: "var(--line)" as string, maxWidth: 220 },
   bubbleText: { color: "var(--ink)" as string, fontSize: 12 },

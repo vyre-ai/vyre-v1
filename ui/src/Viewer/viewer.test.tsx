@@ -213,3 +213,13 @@ test("a plan has no View and Edit switch: its blocks edit in place (editing prop
   assert.ok(!plan.includes("<textarea"), "blocks read as text until one is pressed");
   assert.equal(renderToStaticMarkup(<Viewer fileId="p" title="plan" kind="plan" editing blocks={blocks} />).match(/<textarea/g)?.length, 2);
 });
+
+test("the markup bar's Ask carries the agent's avatar when the agent is named, and none when it is not", () => {
+  const marked = { boxes: [{ id: "b1", x: 0.1, y: 0.1, w: 0.2, h: 0.2, text: "Look here" }] } as const;
+  const named = renderToStaticMarkup(<Viewer fileId="f" title="Offer.png" kind="image" agentName="Research" {...marked} />).replaceAll("<!-- -->", "");
+  const ask = named.slice(named.indexOf('data-testid="vw-ask-markup"'), named.indexOf('data-testid="vw-ask-markup"') + 1500);
+  assert.ok(ask.includes("Ask Research") && ask.includes("<svg"), "a face beside the name");
+  const bare = renderToStaticMarkup(<Viewer fileId="f" title="Offer.png" kind="image" {...marked} />).replaceAll("<!-- -->", "");
+  const ask2 = bare.slice(bare.indexOf('data-testid="vw-ask-markup"'), bare.indexOf('data-testid="vw-ask-markup"') + 600);
+  assert.ok(ask2.includes("Ask the agent") && !ask2.includes("<svg"), "no face when no agent is named");
+});
