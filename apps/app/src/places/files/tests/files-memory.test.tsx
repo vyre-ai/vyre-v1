@@ -171,7 +171,8 @@ test("the whole Space draws every agent's notes, still not the personal one", ()
 
 test("selecting a node marks it and the notes it links to, for the screen and for a screen reader, and opens its note in the side pane beside the graph", () => {
   const out = graph({ scope: "space", selected: "elena" });
-  assert.equal(count(out, 'aria-selected="true"'), 1, "exactly the selected note says so");
+  const listbox = (html: string): string => html.slice(at(html, 'data-testid="graph-notes"'), html.includes('data-testid="graph-selected"') ? at(html, 'data-testid="graph-selected"') : undefined);
+  assert.equal(count(listbox(out), 'aria-selected="true"'), 1, "exactly the selected note says so");
   assert.ok(has(out, 'data-testid="gnode-elena"') && has(out, 'aria-label="Elena Rivera, Clients, 2 links"'));
   assert.equal(count(out, 'data-linked="true"'), 2, "elena links to rivera and prep");
   assert.ok(has(out, 'data-testid="graph-selected"') && has(out, 'data-testid="side-pane"') && has(out, 'data-testid="viewer"') && has(out, 'data-pane="side"'), "the note is the shared Viewer in the shared SidePane");
@@ -181,7 +182,7 @@ test("selecting a node marks it and the notes it links to, for the screen and fo
   const into = graph({ scope: "space", selected: "rivera" });
   assert.ok(has(into, 'data-testid="vw-linkedfrom"') && has(into, "Linked from · 1") && has(into, "Elena Rivera"), "and what links to it");
   const none = graph({ scope: "space" });
-  assert.equal(count(none, 'aria-selected="true"'), 0);
+  assert.equal(count(listbox(none), 'aria-selected="true"'), 0);
   assert.equal(count(none, 'data-linked="true"'), 0);
   assert.ok(!has(none, 'data-testid="graph-selected"'));
 });
