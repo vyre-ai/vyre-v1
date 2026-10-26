@@ -1,6 +1,6 @@
 // Mount for P-L9d_01: the Records sidebar and table over the Northwind sample Space (or Harbor Studio with ?space=harbor).
 // ?type=clients|companies|...  ?view=vw_active (a saved view)  ?rows=100000 (the long table the table100k budget and the scroll probe run over)
-// ?menu=filter|sort|group|fields|colour opens that header menu on load  ?group=status  ?sort=value  ?find=ri
+// ?sidebar=0 leaves the sidebar out (a control for the scroll probe: no shared Row on the page)  ?menu=filter|sort|group|fields|colour opens that header menu on load  ?group=status  ?sort=value  ?find=ri
 // On a phone width the sidebar is a drawer, so only the table shows. Every control works against the sample replica.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -38,7 +38,7 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
     <RecordsDataProvider value={sample.data}>
       <RecordsStateProvider initial={initial}>
         <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-          {phone ? null : <View style={{ width: 240 }}><RecordsSidebar /></View>}
+          {phone || q.get("sidebar") === "0" ? null : <View style={{ width: 240 }}><RecordsSidebar /></View>}
           <TableView view={view} />
         </View>
       </RecordsStateProvider>
