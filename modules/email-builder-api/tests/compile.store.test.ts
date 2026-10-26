@@ -34,8 +34,8 @@ test("create: a design of each mode starts as version 1 with an empty body; name
   assert.equal(html.blocks, undefined);
   const plain = await newEmail(w, "Note", "plain");
   assert.equal(plain.plain, "");
-  assert.equal(w.db.rows("email_builder_version").length, 3);
-  assert.deepEqual(w.db.rows("email_builder_version").map((r) => [r.version, r.author]), [[1, "usr_alex"], [1, "usr_alex"], [1, "usr_alex"]]);
+  assert.equal(w.db.rows("email_builder_api_version").length, 3);
+  assert.deepEqual(w.db.rows("email_builder_api_version").map((r) => [r.version, r.author]), [[1, "usr_alex"], [1, "usr_alex"], [1, "usr_alex"]]);
   assert.equal(await code(run(w.ctx, "email_builder.create", { name: " ", mode: "blocks" })), "validation.bad_input");
   assert.equal(await code(run(w.ctx, "email_builder.create", { name: "x", mode: "pdf" })), "validation.bad_input");
   assert.equal(await code(run(w.ctx, "email_builder.create", { name: "x".repeat(121), mode: "blocks" })), "validation.bad_input");
@@ -92,7 +92,7 @@ test("save: a design for another email, or past the limits, is refused and chang
   assert.equal(await code(save(w, { ...email, blocks: [{ type: "video", props: {} } as unknown as Block] })), "validation.bad_input");
   assert.equal(await code(save(w, { ...email, html: "x".repeat(1024 * 1024 + 1) })), "validation.too_large");
   assert.equal(await code(run(w.ctx, "email_builder.save", { emailId: "eml_nope", email })), "validation.not_found");
-  assert.equal(w.db.rows("email_builder_version").filter((r) => r.email_id === email.emailId).length, 1);
+  assert.equal(w.db.rows("email_builder_api_version").filter((r) => r.email_id === email.emailId).length, 1);
 });
 
 test("html_set: an agent's HTML replaces the design, as a new version; the same HTML again is not one", async () => {
@@ -243,7 +243,7 @@ test("ask diff: the agent's proposal becomes per-change differences the author a
   assert.deepEqual(changes.map((c) => c.path), ["/subject", "/blocks/0/props/html", "/blocks/1/props/label", "/blocks/2"]);
   assert.deepEqual(changes[0], { path: "/subject", before: "Hello", after: "Hello, friend" });
   assert.equal((await run<{ email: EmailDoc }>(w.ctx, "email_builder.get", { emailId: email.emailId })).email.name, "Spring note");
-  assert.equal(w.db.rows("email_builder_version").filter((r) => r.email_id === email.emailId).length, 2, "asking changes nothing until the author saves");
+  assert.equal(w.db.rows("email_builder_api_version").filter((r) => r.email_id === email.emailId).length, 2, "asking changes nothing until the author saves");
 
   configureEmailBuilder({ ask: { propose: async () => ({ blocks: [{ type: "video", props: {} } as unknown as Block] }) } });
   assert.equal(await code(run(w.ctx, "email_builder.ask_diff", { emailId: email.emailId, instruction: "x" })), "validation.bad_input", "a proposal is held to the rules of a save");
@@ -262,3 +262,12 @@ test("module: every capability the manifest names has a handler; seed and projec
 });
 
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+
+test("create: emits email.created for the new design, with the folder it goes into when one is given", async () => {
+  const w = harness();
+  const top = await newEmail(w, "Top level");
+  assert.deepEqual(w.events.at(-1), { name: "email.created", subject: `email/${top.emailId}`, payload: { emailId: top.emailId } });
+  const inFolder = (await run<{ email: EmailDoc }>(w.ctx, "email_builder.create", { name: "In a folder", mode: "plain", folderId: "fld_a1", idempotencyKey: "k-folder" })).email;
+  assert.deepEqual(w.events.at(-1), { name: "email.created", subject: `email/${inFolder.emailId}`, payload: { emailId: inFolder.emailId, folderId: "fld_a1" } });
+  assert.equal(w.events.filter((e) => e.name === "email.created").length, 2, "one event per design");
+});

@@ -9,6 +9,7 @@ import {
 import type { Delegate, Hours, KindDef, Level, NotifCtx, ResourceRef, Row, Target } from "../projections.ts";
 import { deliverPush, pushPort } from "./push.ts";
 import { levelOverride, readChoice } from "./kinds.ts";
+import { alertLevel, heldByQuiet, readSettings, scheduleQuietSummary } from "./deliver.ts";
 
 const RANK: Record<Level, number> = { digest: 0, badge: 1, interrupt: 2 };
 /** In the contract's kind enum: a kind outside it can be neither sent nor listed. */
@@ -19,20 +20,32 @@ interface SendIn {
 }
 type Outcome = "interrupt" | "badge" | "digest" | "dropped_muted" | "capped";
 
-/** The level a notification lands at: the kind's own, lowered by away and working hours. */
-function levelFor(ctx: NotifCtx, def: KindDef, person: string, urgent: boolean): Level {
-  let level = levelOverride(ctx.db, person, def);   // my own choice for this kind (notifications.kind.set_level), else the shipped level
-  if (level !== "interrupt") return level;
-  if (readAway(ctx.db, person, ctx.now()) && def.key !== "call.incoming") return "digest";   // while away only calls interrupt
-  if (def.respectHours && !urgent && !withinHours(readRules(ctx.db, person).workingHours, ctx.now())) return "badge";
-  return level;
+/** The level a notification lands at: the kind's own, raised by Alerts, lowered by away, working hours and quiet hours. `quietEnd` is set when quiet hours held it. */
+function levelFor(ctx: NotifCtx, def: KindDef, person: string, urgent: boolean): { level: Level; quietEnd?: number } {
+  const settings = readSettings(ctx.db, person);
+  let level = alertLevel(def, levelOverride(ctx.db, person, def), settings, readChoice(ctx.db, person, def.key) !== undefined);   // my own choice for the kind (kind.set_level) wins over the Alerts setting
+  if (level !== "interrupt") return { level };
+  if (readAway(ctx.db, person, ctx.now()) && def.key !== "call.incoming") return { level: "digest" };   // while away only calls interrupt
+  const rules = readRules(ctx.db, person);
+  if (def.respectHours && !urgent && !withinHours(rules.workingHours, ctx.now())) return { level: "badge" };
+  const quietEnd = heldByQuiet(def, level, settings, rules.workingHours?.tz ?? "UTC", ctx.now(), NEEDS_YOU_KINDS.has(def.key));
+  if (quietEnd !== undefined) return { level: "digest", quietEnd };
+  return { level };
 }
 
-export async function send(ctx: NotifCtx, input: SendIn): Promise<{ outcome: Outcome; notificationId?: string }> {
+export async function send(ctx: NotifCtx, input: SendIn, handed = false): Promise<{ outcome: Outcome; notificationId?: string }> {
   const def = kindOf(input.kind);
   if (!def || !LISTED.includes(def)) raise(ctx, "validation.bad_input", "That kind of notification does not exist.", { errors: ["/kind: unknown"] });
-  const person = input.to;
+  let person = input.to;
   const now = ctx.now();
+  // While away, Needs you goes to the person named in While you are away (an away delegate set with notifications.away.set keeps its own way: tasks route it)
+  if (!handed && NEEDS_YOU_KINDS.has(def.key)) {
+    const away = readAway(ctx.db, person, now);
+    const hand = readSettings(ctx.db, person).handTo;
+    if (away && away.delegate.kind === "none" && hand && hand !== person) {
+      return send(ctx, { ...input, to: hand, data: { ...(input.data ?? {}), handedFrom: person } }, true);
+    }
+  }
   const rules = readRules(ctx.db, person);
   const sources = sourcesOf(input.data, input.subject, ctx.principal);
   if (!UNMUTABLE_KINDS.has(def.key) && isMuted(ctx.db, rules, person, sources, now)) return { outcome: "dropped_muted" };
@@ -43,7 +56,9 @@ export async function send(ctx: NotifCtx, input: SendIn): Promise<{ outcome: Out
     if (t?.task?.state === "done" || t?.task?.state === "canceled") return { outcome: "dropped_muted" };
   }
 
-  let level = levelFor(ctx, def, person, input.data?.urgent === true);
+  const landed = levelFor(ctx, def, person, input.data?.urgent === true);
+  let level = landed.level;
+  if (landed.quietEnd !== undefined) await scheduleQuietSummary(ctx, person, landed.quietEnd);
   const vars: Record<string, unknown> = { space: ctx.space, ...(input.data ?? {}), ...(input.title !== undefined ? { title: input.title } : {}) };
   const title = render(def.title, vars) || def.title.replace(/\{\{\w+\}\}/g, "").trim() || def.key;
   const collapseKey = input.collapseKey ?? (input.subject ? `${def.key}:${input.subject.id}` : undefined);

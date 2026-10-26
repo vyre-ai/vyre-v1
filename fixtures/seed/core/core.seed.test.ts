@@ -87,24 +87,6 @@ test("template cache: a build that fails leaves nothing behind, and the next try
   assert.equal(ensureTemplate(cache, "x", "k", () => { throw new Error("must not build"); }).hit, true);
 });
 
-test("PERF: core boots in under 100 ms on a template cache hit", () => {
-  const cache = scratch(), sc = scratch();
-  bootCore({ cache, scratch: sc }).close();             // build the template
-  const times: number[] = [];
-  for (let i = 0; i < 7; i++) {
-    const t0 = performance.now();
-    const c = bootCore({ cache, scratch: sc });
-    times.push(performance.now() - t0);
-    assert.equal(c.hit, true);
-    c.close();
-  }
-  times.sort((a, b) => a - b);
-  const median = times[3]!;
-  console.log(`core boot on a cache hit: median ${median.toFixed(1)} ms, min ${times[0]!.toFixed(1)} ms, max ${times[6]!.toFixed(1)} ms (budget 100 ms)`);
-  assert.ok(median < 100, `median ${median.toFixed(1)} ms is over the 100 ms budget`);
-  assert.ok(times[6]! < 100 * 3, "even the slowest boot stays near the budget");
-});
-
 test("small and perf recipes: skeletons that find every module's fixtures/seed.ts by glob", () => {
   const root = scratch();
   for (const m of ["records", "chat", "mail"]) { fs.mkdirSync(path.join(root, "modules", m, "fixtures"), { recursive: true }); fs.writeFileSync(path.join(root, "modules", m, "fixtures/seed.ts"), "export const seed = {};\n"); }

@@ -89,7 +89,9 @@ export async function routineRunNow(ctx: AgentsCtx, input: { agentId: string; ro
   const r = routineBy(ctx.db, input.routineId);
   if (!agent || !canSee(ctx, agent) || !r || r.agentId !== agent.id) raise(ctx, "validation.not_found", "That routine does not exist.");
   if (agent.paused) raise(ctx, "validation.precondition_failed", "This agent is paused: resume it before running a routine.");
-  const started = await call<{ runId: string }>(ctx, "runs.start", { kind: "routine", name: r.title, owner: r.ownerId }, { idempotencyKey: input.idempotencyKey ?? `routine-run-now:${r.id}:${ctx.now()}` });
+  // runs.start declares a key, and call options never reach the input: the key goes in the input. Without the caller's own key it is the routine and the minute.
+  const runKey = `routine-run-now:${r.id}:${input.idempotencyKey ?? Math.floor(ctx.now() / 60_000)}`;
+  const started = await call<{ runId: string }>(ctx, "runs.start", { idempotencyKey: runKey, kind: "routine", name: r.title, owner: r.ownerId }, { idempotencyKey: runKey });
   ctx.db.run("UPDATE agents_routine SET lastRunAt = ?, updatedAt = ? WHERE id = ?", ctx.now(), ctx.now(), r.id);
   ctx.emit("agent.routine_run_started", agent.id, { agentId: agent.id, routineId: r.id, runId: started.runId, ownerId: r.ownerId, requestedBy: by(ctx) });
   return { routine: routineOut(routineBy(ctx.db, r.id) as RoutineRec), runId: started.runId };
@@ -418,7 +420,7 @@ export async function onMessageReceived(ctx: AgentsCtx, event: { payload: { mess
     if (!r || !agent || !r.enabled || agent.paused) continue;
     if ((p.author.kind === "agent" && p.author.id === r.agentId) || p.via !== undefined) continue;   // no loop: an agent's own words and routine messages do not wake a watcher
     // the run carries what woke it, so the agent answers that message in that thread
-    const started = await call<{ runId: string }>(ctx, "runs.start", { kind: "routine", name: r.title, owner: r.ownerId, threadId: p.threadId, trigger: { messageId: p.messageId, threadId: p.threadId, channelId: channel } }, { idempotencyKey: `watch:${r.id}:${p.messageId}` });
+    const started = await call<{ runId: string }>(ctx, "runs.start", { idempotencyKey: `watch:${r.id}:${p.messageId}`, kind: "routine", name: r.title, owner: r.ownerId, threadId: p.threadId, trigger: { messageId: p.messageId, threadId: p.threadId, channelId: channel } }, { idempotencyKey: `watch:${r.id}:${p.messageId}` });
     ctx.db.run("UPDATE agents_routine SET lastRunAt = ?, updatedAt = ? WHERE id = ?", ctx.now(), ctx.now(), r.id);
     ctx.emit("agent.routine_run_started", agent.id, { agentId: agent.id, routineId: r.id, runId: started.runId, ownerId: r.ownerId, requestedBy: `watch:${p.messageId}` });
     fired.push(started.runId);

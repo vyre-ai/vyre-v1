@@ -8,7 +8,7 @@ Push outbox ops in order; each op runs through invoke as the person; concurrent 
 | Version | 1 (since 1.0.0) |
 | Effects | write |
 | Permission | grant only |
-| Grant level | edit |
+| Grant level | member |
 | Risk | medium |
 | Resource | space |
 | Gate | none |

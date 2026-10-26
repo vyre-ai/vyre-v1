@@ -67,7 +67,7 @@ export function harness() {
       if (!world.settings.has(k)) throw err("validation.not_found", "No such setting.");
       return { row: { key: k, title: k, page: "console.data", scope: "space", source: "space", default: {}, floorable: false, value: world.settings.get(k) } };
     },
-    "settings.set": (i) => {
+    "settings.set_space": (i) => {
       const k = String(i["key"]);
       const previous = world.settings.get(k) ?? {};
       world.settings.set(k, i["value"]);
@@ -185,7 +185,7 @@ export function harness() {
       const body = (input ?? {}) as Record<string, unknown>;
       called.push({ cap, input: body });
       const d = registry.capabilities.filter((c) => c.name === cap).sort((a, b) => b.v - a.v)[0];
-      if (!d) throw new Error(`${cap} is not in the registry`);
+      if (!d) throw err("validation.unknown_capability", `${cap} is not in the registry`);   // what the invoke pipeline answers for a capability the contract does not have
       const misfit = validate(d.input, body, "", registry.$defs);
       if (misfit.length) throw new Error(`${cap} was called with input its contract refuses: ${misfit.join("; ")}`);
       const script = scripts.get(cap) ?? defaults[cap];

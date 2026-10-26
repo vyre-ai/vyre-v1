@@ -10,7 +10,7 @@ Create a Journey and its record type (cloned from the Projects template) on a su
 | Permission | journeys.manage |
 | Grant level | edit |
 | Risk | medium |
-| Resource | record_type (create under /subjectType) |
+| Resource | space |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |

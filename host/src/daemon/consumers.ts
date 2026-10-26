@@ -8,10 +8,12 @@
 // ctx.emit, ctx.call, ctx.db (the module's own tables) and ctx.log behave as they do in a handler, and what is emitted commits with the same ids, clock and publish. The caller is the
 // host service with `preAuth`: a hook acts as the system, not as a person.
 // The async consumers a module also exports as projections (`mode: "async"`, kernel ProjectionHost) have another shape and are not touched here.
+import { isErased } from "../../../kernel/src/events/compact.ts";
 import type { StoredEvent } from "../../../kernel/src/log/index.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
 import type { CtxSeed, Handler, Invoke } from "../invoke.ts";
+import { fail } from "../routes/errors.ts";
 import type { RawDb } from "../ctx/db.ts";
 
 export const MAX_TRIES = 5;
@@ -19,6 +21,20 @@ const PAGE = 200;
 /** How often the runs module's escalation clock is swept. */
 export const RUNS_ESCALATION_EVERY_MS = 60_000;
 export const SYSTEM_PRINCIPAL = { kind: "service", id: "svc_host" } as const;
+
+/**
+ * The host calls that read or move what a person owns (the removal wizard: `<module>.owned_by`, `<module>.reassign_owned`). They are guarded twice (P-L7_21):
+ *   by permission  the capability that carries them needs `members.remove`, the permission of members.remove itself, so only an admin who may remove people passes the pipeline;
+ *   by path        the handler refuses unless the call is the host's own top-level hook call (origin "hook", depth 0): not a call from another module's ctx.call (depth 1 or more), not a gateway
+ *                  or MCP call (origin user or mcp). The host reaches them only through people.ts, from members.remove and members.remove_preview, as the admin doing the removal.
+ * They are also not in the generated registry, so no route or MCP tool names them.
+ */
+export const GUARDED_CALL = /\.(owned_by|reassign_owned)$/;
+export const GUARDED_CALL_PERMISSION = "members.remove";
+export function guardCall(name: string, ctx: Pick<Ctx, "origin" | "depth" | "trace">): void {
+  if (!GUARDED_CALL.test(name)) return;
+  if (ctx.origin !== "hook" || ctx.depth !== 0) throw fail("permission.no_grant", ctx.trace.traceId, { message: "This is a host call for the removal wizard; it cannot be called from here.", details: { call: name } });
+}
 
 /** What a consumer sees of one event. `payload` is `{}` for an event whose payload is sealed. */
 export interface HookEvent {
@@ -35,13 +51,18 @@ export interface HookEvent {
 
 export interface ConsumerDef { name: string; module: string; on: readonly string[]; run(ctx: Ctx, event: HookEvent): Promise<unknown> | unknown }
 export interface PeriodicDef { name: string; module: string; everyMs: number; run(ctx: Ctx): Promise<unknown> | unknown }
-export interface ModuleHooks { module: string; consumers: ConsumerDef[]; periodic: PeriodicDef[] }
+/** A function a module offers the host to run as that module (`export const hostCalls = { "<module>.<name>": (ctx, input) => ... }`): the host's way to hand work to a module that has no capability for it, with the module's own ctx. */
+export interface CallDef { name: string; module: string; run(ctx: Ctx, input: unknown): Promise<unknown> | unknown }
+export interface ModuleHooks { module: string; consumers: ConsumerDef[]; periodic: PeriodicDef[]; calls?: CallDef[] }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 /** Read one module's exports into the hooks the host runs. Anything that does not have the shape is ignored (the Tx-style projection consumers, plain helpers). */
 export function collectHooks(module: string, ns: Record<string, unknown>): ModuleHooks {
-  const out: ModuleHooks = { module, consumers: [], periodic: [] };
+  const out: ModuleHooks = { module, consumers: [], periodic: [], calls: [] };
+  if (isRecord(ns["hostCalls"])) {
+    for (const [name, run] of Object.entries(ns["hostCalls"])) if (typeof run === "function") out.calls!.push({ name, module, run: (ctx, input) => (run as (c: Ctx, i: unknown) => unknown)(ctx, input) });
+  }
   if (isRecord(ns["consumers"])) {
     for (const [name, def] of Object.entries(ns["consumers"])) {
       if (!isRecord(def) || !Array.isArray(def["on"]) || typeof def["run"] !== "function") continue;   // a kernel projection has `mode: "async"` and an object `on`
@@ -112,9 +133,12 @@ export interface HookRunner {
   pump(): Promise<void>;
   /** Run one periodic job now. */
   runPeriodic(name: string): Promise<void>;
+  /** Run a module's hostCall as that module and answer what it returns. */
+  /** `as`: run it for that principal (the admin whose action this is), with their authority for anything the call asks of other modules; omitted: as the host. */
+  call(name: string, input: unknown, as?: { principal: { kind: "person" | "agent" | "service"; id: string } }): Promise<unknown>;
 }
 
-const capName = (kind: "consumer" | "periodic", name: string): string => `host.hook.${kind}.${name}`;
+const capName = (kind: "consumer" | "periodic" | "call", name: string): string => `host.hook.${kind}.${name}`;
 
 export function createHookRunner(d: HookRunnerDeps): HookRunner {
   d.db.run("CREATE TABLE IF NOT EXISTS host_hook_cursor (name TEXT PRIMARY KEY, seq INTEGER NOT NULL, at INTEGER NOT NULL)");
@@ -123,8 +147,8 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
   const caps: CapabilityDef[] = [];
   const handlers: Record<string, Handler> = {};
   const moduleOf = new Map<string, string>();
-  const base = (name: string, module: string): CapabilityDef => ({
-    name, v: 1, module, summary: "A module hook the host runs", permission: null, level: "view", resource: { type: "space" }, idempotency: "natural", effects: "write", risk: "low",
+  const base = (name: string, module: string, permission: string | null = null): CapabilityDef => ({
+    name, v: 1, module, summary: "A module hook the host runs", permission, level: "view", resource: { type: "space" }, idempotency: "natural", effects: "write", risk: "low",
     emits: d.emitsOf(module), examples: [], surfaces: {}, input: {}, output: {}, errors: [],
   } as unknown as CapabilityDef);
   const byConsumer = new Map<string, ConsumerDef>(), byPeriodic = new Map<string, PeriodicDef>();
@@ -141,6 +165,14 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
     const n = capName("periodic", p.name);
     caps.push(base(n, p.module)); moduleOf.set(n, p.module);
     handlers[n] = (ctx) => p.run(ctx);
+  }
+  const byCall = new Map<string, CallDef>();
+  for (const c of d.hooks.flatMap((h) => h.calls ?? [])) {
+    if (byCall.has(c.name)) { d.warn("two modules export a host call with one name; the second is not offered", { call: c.name, module: c.module }); continue; }
+    byCall.set(c.name, c);
+    const n = capName("call", c.name);
+    caps.push(base(n, c.module, GUARDED_CALL.test(c.name) ? GUARDED_CALL_PERMISSION : null)); moduleOf.set(n, c.module);
+    handlers[n] = (ctx, input: { input: unknown }) => { guardCall(c.name, ctx); return c.run(ctx, input.input); };
   }
   const seed = (extra: Partial<CtxSeed> = {}): CtxSeed => ({ space: d.space, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook", ...extra });
 
@@ -178,7 +210,8 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
       const page = await d.log.read({ after: at, limit: PAGE });
       if (!page.length) return;
       for (const e of page) {
-        if (c.on.includes(e.type)) {
+        // an erased event (events.compact) has no payload to act on: it is skipped, as the projections skip it
+        if (c.on.includes(e.type) && !isErased(e)) {
           if (!(await deliver(c, e))) { setCursor(c.name, at); return; }   // stop here: this event is tried again on the next pass, before any later one
           at = e.seq;
           setCursor(c.name, at);   // a delivered event is recorded at once, so a crash repeats at most the one in flight
@@ -215,6 +248,12 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
       if (running) { again = true; return running; }
       running = run();
       return running;
+    },
+    async call(name, input, as) {
+      if (!byCall.has(name)) throw new Error(`no host call named ${name}`);
+      const r = await d.invoke(capName("call", name), { input }, as ? seed({ principal: { ...as.principal }, preAuth: false }) : seed());
+      if (r.status !== "ok") throw new Error(`${name} was held`);
+      return r.output;
     },
     async runPeriodic(name) {
       if (!byPeriodic.has(name)) throw new Error(`no periodic job named ${name}`);

@@ -12,6 +12,7 @@
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import { fromTree, toTree } from "./files-bridge.ts";
 import path from "node:path";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
@@ -195,7 +196,7 @@ interface Repo {
   d: GitDrivers;
 }
 
-function repoOf(ctx: Ctx, folderId: string): Repo {
+function repoOf(_ctx: unknown, folderId: string): Repo {
   const d = drivers();
   return { folderId, dir: path.join(d.treesDir, folderId), d };
 }
@@ -281,7 +282,7 @@ function stringList(v: unknown): string[] | undefined {
   return Array.isArray(v) && v.every((x) => typeof x === "string") ? (v as string[]) : undefined;
 }
 
-async function protectedList(ctx: Ctx, folderId: string): Promise<string[]> {
+async function protectedList(ctx: Pick<Ctx, "db" | "call">, folderId: string): Promise<string[]> {
   const rows = ctx.db.all("SELECT * FROM git_protection WHERE folder_id = ?", folderId) as Row[];
   const own = rows[0];
   if (own && typeof own["branches"] === "string") {
@@ -309,7 +310,7 @@ function listed(list: readonly string[], branch: string, remote?: string): boole
  * What `git.is_protected(input.branch)` evaluates for the Gate: true when the branch the call pushes (the current one when input.branch is absent) is protected for the folder.
  * It never throws; a folder that is not a repository, or a branch it cannot tell, is not protected (the handler itself then refuses the push).
  */
-export async function isProtectedCall(ctx: Ctx, input: unknown): Promise<boolean> {
+export async function isProtectedCall(ctx: Pick<Ctx, "db" | "call">, input: unknown): Promise<boolean> {
   if (input === null || typeof input !== "object" || Array.isArray(input)) return false;
   const o = input as Row;
   const folderId = typeof o["folderId"] === "string" ? o["folderId"] : "";
@@ -926,7 +927,7 @@ async function health(_ctx: Ctx, _input: unknown): Promise<Row> {
   return { state: "healthy", latencyMs, version };
 }
 
-export const opsHandlers = {
+const rawHandlers = {
   "git.init": (ctx: Ctx, input: unknown) => init(ctx, input),
   "git.status": (ctx: Ctx, input: unknown) => status(ctx, input),
   "git.log": (ctx: Ctx, input: unknown) => log(ctx, input),
@@ -943,3 +944,24 @@ export const opsHandlers = {
   "git.protect": (ctx: Ctx, input: unknown) => protect(ctx, input),
   "git.health": (ctx: Ctx, input: unknown) => health(ctx, input),
 };
+
+type OpHandler = (ctx: Ctx, input: unknown) => Promise<unknown>;
+
+/** Files is a view over the working copy: before these operations what Files holds is written into it, and after these what git left in it is brought into Files (files-bridge.ts). */
+const READS_TREE = new Set(["git.init", "git.status", "git.diff", "git.commit", "git.branch", "git.sync", "git.pull"]);
+const CHANGES_TREE = new Set(["git.pull", "git.sync", "git.branch"]);
+
+function bridged(name: string, h: OpHandler): OpHandler {
+  return async (ctx, input) => {
+    const o = input !== null && typeof input === "object" && !Array.isArray(input) ? (input as Row) : {};
+    const folderId = typeof o["folderId"] === "string" && /^fld_[a-z0-9]+$/.test(o["folderId"]) ? o["folderId"] : undefined;
+    if (folderId === undefined) return h(ctx, input);
+    const r = repoOf(ctx, folderId);
+    if (READS_TREE.has(name) && (name === "git.init" || isRepo(r))) await exclusive(folderId, () => toTree(ctx, r.d.treesDir, r.dir, folderId));
+    const out = await h(ctx, input);
+    if (CHANGES_TREE.has(name) && isRepo(r)) await exclusive(folderId, () => fromTree(ctx, r.d.treesDir, r.dir, folderId));
+    return out;
+  };
+}
+
+export const opsHandlers = Object.fromEntries(Object.entries(rawHandlers).map(([name, h]) => [name, bridged(name, h as OpHandler)])) as typeof rawHandlers;

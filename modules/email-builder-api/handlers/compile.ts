@@ -619,7 +619,7 @@ function snapshot(doc: EmailDoc): string {
 }
 
 function mustEmail(ctx: Ctx, emailId: string): Row {
-  const row = one(ctx, "SELECT * FROM email_builder_email WHERE id = ?", emailId);
+  const row = one(ctx, "SELECT * FROM email_builder_api_email WHERE id = ?", emailId);
   if (!row) fail(ctx, "validation.not_found", "That email design does not exist.");
   return row;
 }
@@ -628,10 +628,10 @@ function writeDoc(ctx: Ctx, row: Row, next: EmailDoc): number {
   const now = ctx.now();
   const version = num(row.version) + 1;
   ctx.db.run(
-    "UPDATE email_builder_email SET name = ?, mode = ?, subject = ?, blocks = ?, html = ?, plain = ?, version = ?, updated_at = ? WHERE id = ?",
+    "UPDATE email_builder_api_email SET name = ?, mode = ?, subject = ?, blocks = ?, html = ?, plain = ?, version = ?, updated_at = ? WHERE id = ?",
     next.name, next.mode, next.subject ?? null, next.blocks === undefined ? null : JSON.stringify(next.blocks), next.html ?? null, next.plain ?? null, version, now, row.id,
   );
-  ctx.db.run("INSERT INTO email_builder_version (email_id, version, doc, at, author) VALUES (?, ?, ?, ?, ?)", row.id, version, snapshot(next), now, ctx.principal.id);
+  ctx.db.run("INSERT INTO email_builder_api_version (email_id, version, doc, at, author) VALUES (?, ?, ?, ?, ?)", row.id, version, snapshot(next), now, ctx.principal.id);
   return version;
 }
 
@@ -645,6 +645,7 @@ async function create(ctx: Ctx, input: unknown): Promise<{ email: EmailDoc }> {
   const o = rec(ctx, input);
   const name = cleanName(ctx, reqStr(ctx, o, "name"), "design");
   const mode = reqStr(ctx, o, "mode");
+  const folderId = typeof o.folderId === "string" && o.folderId.length > 0 ? o.folderId : null;
   if (mode !== "blocks" && mode !== "html" && mode !== "plain") fail(ctx, "validation.bad_input", "The mode is blocks, html or plain.", { field: "mode" });
   const id = nid(ctx, "eml");
   const now = ctx.now();
@@ -653,10 +654,11 @@ async function create(ctx: Ctx, input: unknown): Promise<{ email: EmailDoc }> {
   if (mode === "html") doc.html = "";
   if (mode === "plain") doc.plain = "";
   ctx.db.run(
-    "INSERT INTO email_builder_email (id, name, mode, owner, subject, blocks, html, plain, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, name, mode, ctx.principal.id, null, doc.blocks === undefined ? null : JSON.stringify(doc.blocks), doc.html ?? null, doc.plain ?? null, 1, now, now,
+    "INSERT INTO email_builder_api_email (id, name, mode, owner, folder_id, subject, blocks, html, plain, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    id, name, mode, ctx.principal.id, folderId, null, doc.blocks === undefined ? null : JSON.stringify(doc.blocks), doc.html ?? null, doc.plain ?? null, 1, now, now,
   );
-  ctx.db.run("INSERT INTO email_builder_version (email_id, version, doc, at, author) VALUES (?, ?, ?, ?, ?)", id, 1, snapshot(doc), now, ctx.principal.id);
+  ctx.db.run("INSERT INTO email_builder_api_version (email_id, version, doc, at, author) VALUES (?, ?, ?, ?, ?)", id, 1, snapshot(doc), now, ctx.principal.id);
+  ctx.emit("email.created", `email/${id}`, folderId === null ? { emailId: id } : { emailId: id, folderId });
   return { email: doc };
 }
 
@@ -666,7 +668,7 @@ async function get(ctx: Ctx, input: unknown): Promise<{ email: EmailDoc }> {
 }
 
 async function list(ctx: Ctx, _input: unknown): Promise<{ emails: { emailId: string; name: string; updatedAt: number }[] }> {
-  const rows = many(ctx, "SELECT * FROM email_builder_email").sort((a, b) => num(b.updated_at) - num(a.updated_at) || str(a.name).localeCompare(str(b.name)) || str(a.id).localeCompare(str(b.id)));
+  const rows = many(ctx, "SELECT * FROM email_builder_api_email").sort((a, b) => num(b.updated_at) - num(a.updated_at) || str(a.name).localeCompare(str(b.name)) || str(a.id).localeCompare(str(b.id)));
   return { emails: rows.map((r) => ({ emailId: str(r.id), name: str(r.name), updatedAt: num(r.updated_at) })) };
 }
 
@@ -686,7 +688,7 @@ async function versions(ctx: Ctx, input: unknown): Promise<{ versions: { version
   const o = rec(ctx, input);
   const emailId = reqStr(ctx, o, "emailId");
   mustEmail(ctx, emailId);
-  const rows = many(ctx, "SELECT * FROM email_builder_version WHERE email_id = ?", emailId).sort((a, b) => num(b.version) - num(a.version));
+  const rows = many(ctx, "SELECT * FROM email_builder_api_version WHERE email_id = ?", emailId).sort((a, b) => num(b.version) - num(a.version));
   return { versions: rows.map((r) => ({ version: num(r.version), at: num(r.at), by: str(r.author) })) };
 }
 
@@ -696,7 +698,7 @@ async function restoreVersion(ctx: Ctx, input: unknown): Promise<{ email: EmailD
   const row = mustEmail(ctx, emailId);
   const v = o.version;
   if (typeof v !== "number" || !Number.isInteger(v) || v < 1) fail(ctx, "validation.bad_input", "The version is a whole number.", { field: "version" });
-  const old = one(ctx, "SELECT * FROM email_builder_version WHERE email_id = ? AND version = ?", emailId, v);
+  const old = one(ctx, "SELECT * FROM email_builder_api_version WHERE email_id = ? AND version = ?", emailId, v);
   if (!old) fail(ctx, "validation.not_found", "That version does not exist.");
   let parsed: unknown;
   try { parsed = JSON.parse(str(old.doc)); } catch { fail(ctx, "internal.unexpected", "That version is damaged."); }
@@ -800,7 +802,7 @@ function snippetOut(r: Row): SnippetOut {
 }
 
 async function snippetsList(ctx: Ctx, _input: unknown): Promise<{ snippets: SnippetOut[] }> {
-  const rows = many(ctx, "SELECT * FROM email_builder_snippet")
+  const rows = many(ctx, "SELECT * FROM email_builder_api_snippet")
     .filter((r) => r.owner === ctx.principal.id || r.shared === 1)
     .sort((a, b) => str(a.name).localeCompare(str(b.name)) || str(a.id).localeCompare(str(b.id)));
   return { snippets: rows.map(snippetOut) };
@@ -816,28 +818,28 @@ async function snippetsSave(ctx: Ctx, input: unknown): Promise<{ snippet: Snippe
   const sharedIn = o.shared;
   if (sharedIn !== undefined && sharedIn !== null && typeof sharedIn !== "boolean") fail(ctx, "validation.bad_input", "Shared is true or false.", { field: "shared" });
   const snippetId = optStr(ctx, o, "snippetId");
-  const existing = snippetId === undefined ? undefined : one(ctx, "SELECT * FROM email_builder_snippet WHERE id = ?", snippetId);
+  const existing = snippetId === undefined ? undefined : one(ctx, "SELECT * FROM email_builder_api_snippet WHERE id = ?", snippetId);
   if (snippetId !== undefined && (!existing || existing.owner !== ctx.principal.id)) fail(ctx, "validation.not_found", "That snippet does not exist.");
   if (shortcut !== undefined) {
-    const clash = many(ctx, "SELECT * FROM email_builder_snippet WHERE owner = ?", ctx.principal.id).find((r) => r.shortcut === shortcut && r.id !== snippetId);
+    const clash = many(ctx, "SELECT * FROM email_builder_api_snippet WHERE owner = ?", ctx.principal.id).find((r) => r.shortcut === shortcut && r.id !== snippetId);
     if (clash) fail(ctx, "validation.duplicate", "You already have a snippet with that shortcut.", { field: "shortcut" });
   }
   const shared = sharedIn === true ? 1 : sharedIn === false ? 0 : existing ? num(existing.shared) : 0;
   const now = ctx.now();
   const id = existing ? str(existing.id) : nid(ctx, "snp");
   if (existing) {
-    ctx.db.run("UPDATE email_builder_snippet SET name = ?, body = ?, shortcut = ?, shared = ?, updated_at = ? WHERE id = ?", name, body, shortcut ?? null, shared, now, id);
+    ctx.db.run("UPDATE email_builder_api_snippet SET name = ?, body = ?, shortcut = ?, shared = ?, updated_at = ? WHERE id = ?", name, body, shortcut ?? null, shared, now, id);
   } else {
-    ctx.db.run("INSERT INTO email_builder_snippet (id, owner, name, body, shortcut, shared, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", id, ctx.principal.id, name, body, shortcut ?? null, shared, now);
+    ctx.db.run("INSERT INTO email_builder_api_snippet (id, owner, name, body, shortcut, shared, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", id, ctx.principal.id, name, body, shortcut ?? null, shared, now);
   }
-  return { snippet: snippetOut(one(ctx, "SELECT * FROM email_builder_snippet WHERE id = ?", id) ?? {}) };
+  return { snippet: snippetOut(one(ctx, "SELECT * FROM email_builder_api_snippet WHERE id = ?", id) ?? {}) };
 }
 
 async function snippetsDelete(ctx: Ctx, input: unknown): Promise<{ deleted: boolean }> {
   const o = rec(ctx, input);
-  const row = one(ctx, "SELECT * FROM email_builder_snippet WHERE id = ?", reqStr(ctx, o, "snippetId"));
+  const row = one(ctx, "SELECT * FROM email_builder_api_snippet WHERE id = ?", reqStr(ctx, o, "snippetId"));
   if (!row || row.owner !== ctx.principal.id) return { deleted: false };
-  ctx.db.run("DELETE FROM email_builder_snippet WHERE id = ?", row.id);
+  ctx.db.run("DELETE FROM email_builder_api_snippet WHERE id = ?", row.id);
   return { deleted: true };
 }
 

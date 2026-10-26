@@ -17,7 +17,7 @@ export interface SpacesCtx {
   /** Names a resource for the Starred list; kind marks people and companies, which offer Also follow. Supplied by the host from the records and files modules. */
   resources?: { describe(r: ResourceRef): { title: string; kind?: "person" | "company" } | null };
   /** Counts for the tile: what waits on this person here (Needs you) and what is unread. Supplied by the host from tasks and notifications. */
-  attention?: { of(personId: string): { needsYou: number; unread: number } };
+  attention?: { of(personId: string): { needsYou: number; unread: number } | Promise<{ needsYou: number; unread: number }> };
   /** The person's role name in this Space. Supplied by the host from the access projection. */
   directory?: { roleName(personId: string): string };
 }

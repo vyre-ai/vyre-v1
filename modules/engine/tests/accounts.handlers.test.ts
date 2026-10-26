@@ -46,10 +46,10 @@ test("accounts.list: handles, kinds, Mine or shared, and sign-in state, no secre
 
 test("account.resolve: the starter's key, then the Space's fallback key when it is signed out", async () => {
   const live = fake(routes([prov({ id: "prv_1", handle: "#Dana_Anthropic" }), prov({ id: "prv_3", handle: "#Team_Anthropic_Key", scope: "shared" })]));
-  assert.deepEqual(await accountResolve(live.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: "#Dana_Anthropic", payer: "usr_dana", reason: "starter", allowed: true });
+  assert.deepEqual(await accountResolve(live.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: "#Dana_Anthropic", payer: "usr_dana", reason: "starter", allowed: true, itemId: "vit_prv_1" });
 
   const down = fake(routes([prov({ id: "prv_1", handle: "#Dana_Anthropic", state: "failing" }), prov({ id: "prv_3", handle: "#Team_Anthropic_Key", scope: "shared" })]));
-  assert.deepEqual(await accountResolve(down.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: "#Team_Anthropic_Key", payer: "usr_dana", reason: "backup_key", allowed: true });
+  assert.deepEqual(await accountResolve(down.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: "#Team_Anthropic_Key", payer: "usr_dana", reason: "backup_key", allowed: true, itemId: "vit_prv_3" });
 
   const none = fake(routes([prov({ id: "prv_1", handle: "#Dana_Anthropic", state: "failing" })], { "engine.defaults.get": () => ({ fallback: [] }) }));
   assert.deepEqual(await accountResolve(none.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: null, payer: null, reason: "none", allowed: false });
@@ -57,7 +57,7 @@ test("account.resolve: the starter's key, then the Space's fallback key when it 
 
 test("account.resolve: the steerer pays when the call acts for them; Dana's Mine key is never in their list", async () => {
   const sam = fake(routes([prov({ id: "prv_9", handle: "#Sam_Anthropic" })]), { actingFor: "usr_sam" });
-  assert.deepEqual(await accountResolve(sam.ctx, { threadId: "thr_1", agentId: "agt_1", askerId: "usr_sam" }), { accountRef: "#Sam_Anthropic", payer: "usr_sam", reason: "steerer", allowed: true });
+  assert.deepEqual(await accountResolve(sam.ctx, { threadId: "thr_1", agentId: "agt_1", askerId: "usr_sam" }), { accountRef: "#Sam_Anthropic", payer: "usr_sam", reason: "steerer", allowed: true, itemId: "vit_prv_9" });
 });
 
 test("account.resolve: a step key makes it a task; Company only drops personal accounts; a device run needs no subscription switch", async () => {
@@ -132,3 +132,5 @@ test("turning the Space's use of my subscription off stops my sandbox; turning i
   assert.deepEqual(await setSpaceUse(deps, "usr_dana", true), { enabled: true, sandboxStopped: false });
   assert.deepEqual(log, ["switch usr_dana false", "stop usr_dana", "switch usr_dana true"]);
 });
+
+// Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.

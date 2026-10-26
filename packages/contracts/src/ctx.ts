@@ -6,7 +6,11 @@ export interface Principal { kind: 'person' | 'agent' | 'actor' | 'service'; id:
 export interface ResourceRef { type: string; id: string | null; parent?: string }
 export interface Decision { effect: 'allow' | 'deny' | 'hold'; reason: string; decisionId: string }
 export interface ScopedDb { all(sql: string, ...args: unknown[]): unknown[]; run(sql: string, ...args: unknown[]): { changes: number } }
-export interface EmitOpts { idempotencyKey?: string; vis?: EventEnvelope['vis']; cause?: string }
+/**
+ * afterFailure: the event is still written when the call ends in an error (a refused sign-in must leave its signin.failed in the log). It must be an event the capability declares; the host commits
+ * it on its own once the handler has thrown, and the error still reaches the caller. A call that succeeds commits it with the rest.
+ */
+export interface EmitOpts { idempotencyKey?: string; vis?: EventEnvelope['vis']; cause?: string; afterFailure?: boolean }
 /**
  * approvalToken: the Gate's token for a held act; the host lets the call through the hold it names, once (gate.release resume path).
  * onBehalfOf: the principal id of the original caller; the host runs the call as that principal, only for a call carrying a valid approvalToken.

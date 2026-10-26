@@ -8,7 +8,7 @@ Append an accepted Yjs update from a person or agent actor (checked with authori
 | Version | 1 (since 1.0.0) |
 | Effects | write |
 | Permission | grant only |
-| Grant level | edit |
+| Grant level | member |
 | Risk | low |
 | Resource | space |
 | Gate | none |
