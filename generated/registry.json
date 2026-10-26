@@ -86004,6 +86004,10 @@
           }
         }
       ],
+      "gate": {
+        "act": "delete",
+        "when": "actor.kind != actor.kind"
+      },
       "idempotency": "natural",
       "input": {
         "properties": {

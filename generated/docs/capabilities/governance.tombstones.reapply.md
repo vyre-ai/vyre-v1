@@ -11,7 +11,7 @@ System: replay every tombstone after a restore, before the Space opens for traff
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | delete when actor.kind != actor.kind |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |
