@@ -14,9 +14,9 @@ const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any
 const NOW = 1_760_000_000_000;
 
 async function chatWith(hn: Harness, ...ids: string[]) {
-  const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: `k${ids.join("")}${Math.random()}` })).thread.threadId as string;
-  for (const id of ids) await h["threads.members.add"]!(hn.ctx, { threadId: t, personId: id });
-  return t;
+  // a private chat never gains people, so a chat with another person is a direct message started with them
+  const input = ids.length > 0 ? { kind: "chat", personId: ids[0], idempotencyKey: `k${ids.join("")}${Math.random()}` } : { kind: "chat", agentIds: [INTAKE], idempotencyKey: `k${Math.random()}` };
+  return (await h["chat.start"]!(hn.ctx, input)).thread.threadId as string;
 }
 
 test("the finished handlers replace the group's entries of the same name in the table", () => {
