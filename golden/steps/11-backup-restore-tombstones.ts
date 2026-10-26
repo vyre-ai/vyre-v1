@@ -16,7 +16,9 @@ const CONTACT = {
 };
 
 /** Why this flow is a todo today (ruling 53). */
-export const GAPS: Gap[] = [];
+export const GAPS: Gap[] = [
+  { packet: "unassigned (lead)", lane: "L7b", what: "every step passes, but tombstones.reapplied never appears: a live restore only stages the archive (host/src/seams/backup.ts restore) and governance.tombstones.reapply runs when the Space reopens, which this flow never does; the erased-contact step passes only because the live data was never replaced" },
+];
 
 export async function runRestore(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const s = await bootFlowSpace(live);
