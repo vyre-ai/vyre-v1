@@ -23,7 +23,7 @@ const stage = t.obj({
   key: stageKey, title: t.str(), order: t.int({ minimum: 0 }), exit: exitRule, timeLimit: t.opt(timeLimit), tasks: t.arr(taskTemplate),
   automations: t.arr(id.automation, { description: 'Automations that run when a record enters the stage' }), final: t.opt(t.bool()),
   onLeaving: t.opt(t.arr(id.automation, { description: 'Automations that run when a record leaves the stage' })),
-  // makesProject: a record entering this stage gets a Project of its own (its channel, folder and plan), made once when it first enters
+  // makesProject: a record entering this stage gets a Project of its own (its channel, folder and plan), made once per record the first time it enters; a Journey that does not set it makes none
   makesProject: t.opt(t.bool()),
 });
 const startRule = t.obj({ event: t.str({ examples: ['record.created'] }), filter: t.opt(t.json()), enabled: t.bool() });
