@@ -9,9 +9,9 @@ export const LIVE_FOR_PERSONAL = ["spaces", "devices", "network", "access", "mem
 
 /** Why this flow is a todo today (ruling 53). */
 export const GAPS: Gap[] = [
-  { packet: "P-L1_LIVE", lane: "L1", what: "sync cannot go live: its impl exports 4 of 16 handlers, so a host that boots it is refused; pull, push, snapshot and scope change are unreachable" },
-  { packet: "P-L7_LIVE", lane: "L7", what: "the host has no Personal Space: nothing sets space.kind, spaces.matrix is a 'later' stub, and teamOnly is never enforced (no permission.needs_team anywhere in host/src)" },
-  { packet: "P-L7b_LIVE", lane: "L7b", what: "the daemon starts no relay endpoint and network.endpoints has no relay entry for the connection manager to pin" },
+  { packet: "P-H_19 (PR 479)", lane: "L7", what: "the Space is a team Space: spaces.matrix answers kind team and nothing sets a Personal Space, so teamOnly calls are not refused with permission.needs_team" },
+  { packet: "P-L7b_15 (L7b)", lane: "L7b", what: "network.endpoints lists only direct endpoints, no relay" },
+  { packet: "P-L1_LIVE", lane: "L1", what: "no document update is pushed from the host and pulled by the phone yet (the step is a placeholder until a documents flow exists)" },
 ];
 
 export async function runPersonal(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
