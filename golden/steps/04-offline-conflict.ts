@@ -7,11 +7,10 @@ import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_CONFLICT = ["sync", "conflicts", "records", "schema", "devices", "access", "spaces"];
 export const GAPS: Gap[] = [
-  { packet: "PR 470 (P-L1_LIVE)", lane: "L1", what: "sync cannot boot live: sync.devices.lag, doc.close, doc.compact, doc.open, doc.update, endpoints, entities, health, hello, status have no handler" },
-  { packet: "conflicts (L1)", lane: "L1", what: "modules/conflicts has no impl.ts, so the module cannot be loaded live" },
+  { packet: "L1/L3 push policy", lane: "L1", what: "two devices editing the same field of a user record merge last-writer-wins and open no conflict: the push policy reads only the generated catalog's protectedFields (system entities), and the record type's own policy callback is not wired in the daemon" },
 ];
 
-const NOTE = { op: "type.create", type: "note_item", def: { title: "Note", plural: "Notes", icon: "file", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "status", type: "text", title: "Status", merge: "assistant" }] } };
+const NOTE = { op: "type.create", type: "note_item", def: { title: "Note", plural: "Notes", icon: "file", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "status", type: "text", title: "Status" }] } };
 const TRACE = "4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a";
 const opFor = (n: number, device: string, recordId: string, value: string, base: number) => ({
   opId: `0192f3a0-7b1c-7000-8000-00000000000${n}`, traceId: TRACE, hlc: `00000000000${n}-0000-${device}`, cap: "records.update", v: 1, entity: "record", id: recordId,

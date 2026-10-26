@@ -10,7 +10,9 @@ import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_CHANGES = ["files", "git", "gate", "tasks", "agents", "devices", "access", "spaces"];
-export const GAPS: Gap[] = [];
+export const GAPS: Gap[] = [
+  { packet: "L4 git", lane: "L4", what: "git.commit answers 'There is nothing to commit' right after files.create in the same folder: the files tree and the git working copy do not see each other's files" },
+];
 
 export async function runChanges(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const trail = new Trail();
