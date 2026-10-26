@@ -38753,6 +38753,29 @@
             ],
             "type": "object"
           },
+          "destination": {
+            "properties": {
+              "confirmedAt": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              "kind": {
+                "enum": [
+                  "personal",
+                  "team"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"

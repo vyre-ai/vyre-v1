@@ -31,6 +31,10 @@ type In = {
     previewedAt: number;
     confirmedAt: number;
   };
+  destination?: {
+    kind: "personal" | "team";
+    confirmedAt?: number;
+  };
   sessions: Array<{
       sourceSessionId: string;
       title?: string;
@@ -62,6 +66,7 @@ type Out = {
       destination: {
         kind: "project" | "imported_sessions";
         projectId?: string;
+        scope: "personal" | "team";
       };
     }>;
 };
@@ -85,6 +90,10 @@ type Out = {
     "consent": {
       "confirmedAt": 1760000000000,
       "previewedAt": 1760000000000
+    },
+    "destination": {
+      "confirmedAt": 1760000000000,
+      "kind": "personal"
     },
     "idempotencyKey": "idem_1",
     "provider": "codex",
@@ -116,7 +125,8 @@ type Out = {
         "conversationId": "isc_a1b2c3",
         "destination": {
           "kind": "project",
-          "projectId": "prj_a1b2c3"
+          "projectId": "prj_a1b2c3",
+          "scope": "personal"
         },
         "provider": "codex"
       }

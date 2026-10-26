@@ -17,5 +17,5 @@ export const handlers: Handlers<HandlerCtx> = {
   "import.suggest_mapping": async () => ({"mapping":[{"column":"example","confidence":1,"field":"email"}],"newFields":[{"column":"example","key":"email","type":"example"}],"unmapped":["example"]} as unknown) as never,
   "import.template": async () => ({"fileId":"fil_a1b2c3","text":"example"} as unknown) as never,
   "sessions.continue": async () => ({"linkedFrom":"isc_a1b2c3","threadId":"thr_a1b2c3"} as unknown) as never,
-  "sessions.import": async () => ({"imported":1,"sessions":[{"conversationId":"isc_a1b2c3","destination":{"kind":"project","projectId":"prj_a1b2c3"},"provider":"codex"}],"updated":1} as unknown) as never,
+  "sessions.import": async () => ({"imported":1,"sessions":[{"conversationId":"isc_a1b2c3","destination":{"kind":"project","projectId":"prj_a1b2c3","scope":"personal"},"provider":"codex"}],"updated":1} as unknown) as never,
 };

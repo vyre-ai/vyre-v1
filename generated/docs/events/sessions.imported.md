@@ -1,6 +1,6 @@
 # sessions.imported
 
-A local Codex or Claude Code session was copied into an immutable owner-private archive
+A local Codex or Claude Code session was copied into an immutable provenance-marked archive
 
 | | |
 |---|---|
@@ -22,6 +22,7 @@ type Payload = {
   provider: "codex" | "claude_code";
   sourceKey: string;
   projectId?: string;
+  scope: "personal" | "team";
   messages: number;
 };
 ```

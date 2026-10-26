@@ -20235,6 +20235,10 @@ export type SessionsImportIn = {
     previewedAt: number;
     confirmedAt: number;
   };
+  destination?: {
+    kind: "personal" | "team";
+    confirmedAt?: number;
+  };
   sessions: Array<{
       sourceSessionId: string;
       title?: string;
@@ -20261,6 +20265,7 @@ export type SessionsImportOut = {
       destination: {
         kind: "project" | "imported_sessions";
         projectId?: string;
+        scope: "personal" | "team";
       };
     }>;
 };
@@ -30592,6 +30597,7 @@ export type SessionsImportedPayload = {
   provider: "codex" | "claude_code";
   sourceKey: string;
   projectId?: string;
+  scope: "personal" | "team";
   messages: number;
 };
 export type SettingsChangedPayload = {

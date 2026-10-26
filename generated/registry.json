@@ -135663,6 +135663,10 @@
               "confirmedAt": 1760000000000,
               "previewedAt": 1760000000000
             },
+            "destination": {
+              "confirmedAt": 1760000000000,
+              "kind": "personal"
+            },
             "idempotencyKey": "idem_1",
             "provider": "codex",
             "sessions": [
@@ -135694,7 +135698,8 @@
                 "conversationId": "isc_a1b2c3",
                 "destination": {
                   "kind": "project",
-                  "projectId": "prj_a1b2c3"
+                  "projectId": "prj_a1b2c3",
+                  "scope": "personal"
                 },
                 "provider": "codex"
               }
@@ -135728,6 +135733,29 @@
             "required": [
               "previewedAt",
               "confirmedAt"
+            ],
+            "type": "object"
+          },
+          "destination": {
+            "properties": {
+              "confirmedAt": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              "kind": {
+                "enum": [
+                  "personal",
+                  "team"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
             ],
             "type": "object"
           },
@@ -135865,10 +135893,18 @@
                       ],
                       "pattern": "^prj_[a-z0-9]+$",
                       "type": "string"
+                    },
+                    "scope": {
+                      "enum": [
+                        "personal",
+                        "team"
+                      ],
+                      "type": "string"
                     }
                   },
                   "required": [
-                    "kind"
+                    "kind",
+                    "scope"
                   ],
                   "type": "object"
                 },
@@ -187439,6 +187475,13 @@
             ],
             "type": "string"
           },
+          "scope": {
+            "enum": [
+              "personal",
+              "team"
+            ],
+            "type": "string"
+          },
           "sourceKey": {
             "type": "string"
           }
@@ -187447,6 +187490,7 @@
           "conversationId",
           "provider",
           "sourceKey",
+          "scope",
           "messages"
         ],
         "type": "object"
@@ -187456,7 +187500,7 @@
         "id": "/conversationId",
         "type": "entity"
       },
-      "summary": "A local Codex or Claude Code session was copied into an immutable owner-private archive",
+      "summary": "A local Codex or Claude Code session was copied into an immutable provenance-marked archive",
       "sv": 1,
       "vis": "space"
     },

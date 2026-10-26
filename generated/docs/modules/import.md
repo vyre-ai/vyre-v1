@@ -27,4 +27,4 @@ Requires: schema.
 - [import.failed](../events/import.failed.md): An import stopped on an error; rows already written stay and the Run can be undone
 - [import.started](../events/import.started.md): An import Run began writing rows
 - [sessions.continued](../events/sessions.continued.md): An imported archival session was continued in a separate live Vyre chat
-- [sessions.imported](../events/sessions.imported.md): A local Codex or Claude Code session was copied into an immutable owner-private archive
+- [sessions.imported](../events/sessions.imported.md): A local Codex or Claude Code session was copied into an immutable provenance-marked archive
