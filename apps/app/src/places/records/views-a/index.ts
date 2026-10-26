@@ -4,7 +4,7 @@ export type { ExtraKind, RecordViewsProps } from "./RecordViews.tsx";
 export { BoardView } from "./BoardView.tsx";
 export { GalleryView } from "./GalleryView.tsx";
 export { ListView } from "./ListView.tsx";
-export { ViewHead, newRecord, useViewState } from "./view.tsx";
+export { KindSwitch, ViewHead, kindEntries, newRecord, useViewState } from "./view.tsx";
 export type { KindDef, ViewCtx, ViewState } from "./view.tsx";
 export { moveCard, moveError } from "./actions.ts";
 export * from "./model.ts";
