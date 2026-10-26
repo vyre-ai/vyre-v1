@@ -81,6 +81,9 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       if (gap) { todo.push(gap); s.todo(gap); return; }
       await step("claim", async () => {
         await page.goto(claimOnEdge(space.claim ?? "", web.origin), { waitUntil: "load" });
+        // The page names the Space by its name (from the link), never by a host or an address.
+        await page.getByText("Set up Fresh Co").first().waitFor({ timeout: 15_000 });
+        assert.equal(await page.getByText(/127\.0\.0\.1|localhost/).count(), 0, "no host or address on the claim page");
         await page.getByTestId("claim-name").fill("Olivia Owner");
         await page.getByTestId("claim-username").fill("olivia");
         await page.getByTestId("claim-password").fill("correct horse battery 9");
