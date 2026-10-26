@@ -104,7 +104,7 @@ export function HeadButton({ icon, label, detail, on = false, testID, onPress, b
       accessibilityState={{ selected: on }}
       testID={testID}
       onPress={(e) => { const p = anchorOf(e); onPress(p.x, p.y); }}
-      style={({ hovered }: { hovered?: boolean }) => [s.hb, filled ? s.hbFilled : hovered === true && s.hbOver, filled && hovered === true && s.hbFilledOver]}
+      style={({ hovered }: { hovered?: boolean }) => [s.hb, filled ? { backgroundColor: "var(--ink)" } : hovered === true && s.hbOver, filled && hovered === true && s.hbFilledOver]}
     >
       <Glyph name={icon} size={14} color={filled ? "var(--win)" : on ? "var(--accent)" : "var(--ink-2)"} />
       {bare ? null : <Text style={[s.hbText, on && s.hbOn, filled && s.hbFilledText]}>{label}</Text>}
@@ -116,7 +116,6 @@ export function HeadButton({ icon, label, detail, on = false, testID, onPress, b
 export const s = StyleSheet.create({
   hb: { height: 28, paddingHorizontal: 7, borderRadius: 7, flexDirection: "row", alignItems: "center", gap: 6 },
   hbOver: { backgroundColor: "var(--hover)" as string },
-  hbFilled: { backgroundColor: "var(--ink)" as string },
   hbFilledOver: { opacity: 0.88 },
   hbFilledText: { color: "var(--win)" as string },
   hbText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },

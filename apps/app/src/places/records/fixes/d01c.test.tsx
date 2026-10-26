@@ -33,7 +33,7 @@ test("the foot says how many records, averages a rating under its column, and en
   assert.ok(has(out, ">1,240 records<"), "the count in the name cell");
   assert.ok(/data-testid="agg-fit"[^>]*>Avg \d\.\d</.test(out), "the Fit column's average");
   assert.ok(has(out, 'data-testid="records-status"') && has(out, "1,240 clients · every record shown"), "the status line under the table");
-  assert.ok(!has(out, ">Avg"), "no figure under a column that has none, apart from Fit's");
+  assert.equal(out.split(">Avg ").length - 1, 1, "no figure under a column that has none, apart from Fit's");
 });
 
 test("the table opens on the prototype's columns, and Fields lists all of its client fields", () => {

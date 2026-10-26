@@ -640,6 +640,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
                   )}
                 </View>
                 {colWin.pad > 0 ? <View style={{ width: colWin.pad }} /> : null}
+                {/* ui-rows-lint: not a list (the foot has one figure cell per column) */}
                 {cols.slice(colWin.from, colWin.to).map((c) => (
                   <View key={c.field.key} style={[styles.td, styles.headBg, { width: c.width }, isNumeric(c.field) && styles.tdNum]}>
                     <Text numberOfLines={1} style={styles.footText} testID={`agg-${c.field.key}`}>{aggregateOf(c.field, loaded?.rows ?? [])}</Text>
