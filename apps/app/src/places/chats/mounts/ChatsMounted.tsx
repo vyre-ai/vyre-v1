@@ -19,7 +19,7 @@ import { NO_CAPTURE } from "../computer/model.ts";
 import { Conversation, ConversationLoading } from "../conversation/Conversation.tsx";
 import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { NeedsYou } from "../needsyou/NeedsYou.tsx";
-import { ChatRightPane } from "../rightpane/ChatRightPane.tsx";
+import { AGENT_PANE_W, AgentPane } from "../AgentPane.tsx";
 import { Icon } from "../rightpane/parts.tsx";
 import { Tool } from "../sidebar/parts.tsx";
 import { ChatsSidebar } from "../sidebar/ChatsSidebar.tsx";
@@ -142,7 +142,7 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
       </View>
     );
   } else if (shown.pane && paneCtx && route.view === "chat") {
-    right = <View style={st.pane}><ChatRightPane data={paneCtx} open onToggle={go.togglePane} {...(window ? { window } : {})} /></View>;
+    right = <View style={st.pane}><AgentPane data={paneCtx} open onToggle={go.togglePane} {...(window ? { window } : {})} /></View>;
   }
 
   const showMain = !listOnly && !(narrow && right !== null);
@@ -238,7 +238,7 @@ const st = StyleSheet.create({
   row: { flex: 1, flexDirection: "row", minHeight: 0, backgroundColor: "var(--win)" as string },
   side: { width: SIDEBAR_W, minHeight: 0 },
   main: { flex: 1, minWidth: 0, minHeight: 0 },
-  pane: { width: PANE_W, minHeight: 0 },
+  pane: { width: AGENT_PANE_W, minHeight: 0 },
   collapsed: { width: 40, paddingTop: 10, alignItems: "center", borderRightWidth: 1, borderRightColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
   sideFull: { flex: 1, minHeight: 0 },
   fill: { flex: 1, minHeight: 0 },
