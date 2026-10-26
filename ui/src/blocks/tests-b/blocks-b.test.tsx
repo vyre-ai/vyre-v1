@@ -39,7 +39,7 @@ interface RegistryBlock {
   component: string;
   actions?: { key: string; cap: string; input: Record<string, string>; label: string }[];
   opens?: { tab: string; input: Record<string, string> };
-  data: { properties: Record<string, unknown>; required?: string[] };
+  data: { $ref?: string; properties?: Record<string, unknown>; required?: string[] };
 }
 interface RegistryCap {
   name?: string;
@@ -53,6 +53,13 @@ interface Registry {
 }
 
 const registry = JSON.parse(readFileSync(new URL("../../../../generated/registry.json", import.meta.url), "utf8")) as Registry;
+
+function dataSchema(def: RegistryBlock): { properties: Record<string, unknown>; required: string[] } {
+  const raw = def.data;
+  const resolved = raw.$ref !== undefined ? registry.$defs[raw.$ref.split("/").pop() ?? ""] : raw;
+  assert.ok(resolved, `data of ${def.type} resolves`);
+  return { properties: resolved.properties ?? {}, required: resolved.required ?? [] };
+}
 
 function inputSchema(cap: string): { properties: Record<string, unknown>; required: string[] } {
   const found = registry.capabilities.find((c) => (c.name ?? c.id) === cap);
@@ -139,7 +146,7 @@ test("every id a block action sends is a field of the block's data schema", () =
     const def = registry.blocks.find((b) => b.type === type);
     assert.ok(def);
     for (const a of BLOCK_SPECS_B[type].actions) {
-      for (const pointer of Object.values(a.input)) assert.ok(pointer.slice(1) in def.data.properties, `${type}.${a.key} reads ${pointer}`);
+      for (const pointer of Object.values(a.input)) assert.ok(pointer.slice(1) in dataSchema(def).properties, `${type}.${a.key} reads ${pointer}`);
       const schema = inputSchema(a.cap);
       for (const key of Object.keys(a.input)) assert.ok(key in schema.properties, `${a.cap} takes ${key}`);
     }
@@ -150,7 +157,7 @@ test("the sample blocks carry every required field of their data schema", () => 
   for (const block of sampleBlocksB()) {
     const def = registry.blocks.find((b) => b.type === block.type);
     assert.ok(def);
-    for (const key of def.data.required ?? []) assert.ok(key in (block.data as object), `${block.type} has ${key}`);
+    for (const key of dataSchema(def).required) assert.ok(key in (block.data as object), `${block.type} has ${key}`);
   }
 });
 
@@ -329,7 +336,7 @@ const SECRET = "sk_live_hunter2_TOPSECRET";
 test("secret_input: the block data has no value field, only the names of the fields to fill", () => {
   const def = registry.blocks.find((b) => b.type === "secret_input");
   assert.ok(def);
-  assert.deepEqual(Object.keys(def.data.properties).sort(), ["fields", "folderId", "hint", "kind", "name"]);
+  assert.deepEqual(Object.keys(dataSchema(def).properties).sort(), ["fields", "folderId", "hint", "kind", "name"]);
   assert.ok(!JSON.stringify(SAMPLE_SECRET_INPUT).includes(SECRET));
   assert.deepEqual(secretInputData(SAMPLE_SECRET_INPUT.data).fields, ["api_key"]);
 });
