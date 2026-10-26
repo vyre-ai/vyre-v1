@@ -199,9 +199,12 @@ export async function settingsSet(ctx: LogCtx, input: { level?: LevelName; fullD
   return { ok: true };
 }
 
+import { purge } from "./purge.ts";
+
 export const handlers = {
   "logs.client_upload": clientUpload,
   "logs.export": exportLogs,
+  "logs.purge": purge,
   "logs.query": query,
   "logs.replay_get": replayGet,
   "logs.replay_start": replayStart,
