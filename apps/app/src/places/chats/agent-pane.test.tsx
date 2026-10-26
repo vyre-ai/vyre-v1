@@ -18,17 +18,23 @@ const pane = (o: { asleep?: boolean; width: number }): string => {
   return clean(renderToStaticMarkup(<AgentPane data={data} open onToggle={() => undefined} paneWidth={o.width} window={{ start: 0, end: 500 }} />));
 };
 
-test("at the desktop width every tab is drawn, Memory with its count, and More is not", () => {
-  assert.ok(AGENT_PANE_W >= 440);
+test("the pane is the prototype's 340 px, its tabs are pinned (no close slot) and take less room than a main tab", () => {
+  assert.equal(AGENT_PANE_W, 340);
+  assert.ok(PANE_TAB_EXTRA < TAB_EXTRA, "a pane tab has no close slot");
   const out = pane({ width: AGENT_PANE_W });
+  assert.ok(!out.includes('data-testid="tab-close-computer"'), "no close button on a pane tab");
+  for (const t of ["Computer", "Threads"]) assert.ok(out.includes(t), t);
+});
+
+test("a roomy pane draws every tab, Memory with its count, and no More", () => {
+  const out = pane({ width: 640 });
   for (const t of ["Computer", "Threads", "Files", "Memory 4", "Routines"]) assert.ok(out.includes(t), t);
-  assert.ok(!out.includes(">More<"), "no More on a wide pane");
+  assert.ok(!out.includes(">More<"), "no More when everything fits");
 });
 
 test("a narrow pane folds the tabs that do not fit behind More", () => {
-  const out = pane({ width: 340 });
+  const out = pane({ width: 300 });
   assert.ok(out.includes(">More<"));
-  assert.ok(PANE_TAB_EXTRA < TAB_EXTRA, "a pane tab has no close slot");
 });
 
 test("a sleeping computer shows its frame with a Wake button, and the last session's steps each carry a thumbnail, the tool and the time into the session", () => {

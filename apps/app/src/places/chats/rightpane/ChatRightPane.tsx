@@ -43,10 +43,12 @@ export interface ChatRightPaneProps {
 }
 
 export const NOTICE_MS = 8000;
-/** A pane tab has no close slot, so the strip's tab extra (TAB_EXTRA, 45 with the 18 px slot and its 7 px gap) is 20 here. */
-export const PANE_TAB_EXTRA = 26;
-/** The width a wide screen gives the pane: room for Computer, Threads, Files, Memory with its count and Routines, so More shows only when the window is narrow. */
-export const WIDE_PANE_W = 500;
+/** What the pane header holds besides tabs: the toggle, the strip's padding and the options button. */
+export const PANE_CHROME = 64;
+/** A pane tab is pinned: no close slot, so it adds 10 + 10 padding, 2 border and the 2 px between tabs around its text, not TAB_EXTRA's 45. */
+export const PANE_TAB_EXTRA = 22;
+/** The prototype's pane: 340 px, room for Computer, Threads, Files and Memory with its count; Routines waits behind More at this width. */
+export const WIDE_PANE_W = 340;
 /** Below this window width the pane fills it (a phone shows it as a screen of its own); above, it is a resizable column. */
 export const NARROW = 640;
 
@@ -90,11 +92,11 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
   const agent = agentQ.status === "ready" ? agentQ.data.agent : null;
   const summaryQ = useScreenQuery<CapMap["agents.summary"]["out"]>(AGENT_PAGE_SCREEN, "summary", { agentId: data.agent.agentId });
   const facts = summaryQ.status === "ready" ? summaryQ.data.memoryFacts : 0;
-  const tabs = useMemo(() => TABS.map((t) => (t.key === "memory" && facts > 0 ? { ...t, title: `Memory ${facts}` } : t)), [facts]);
+  const tabs = useMemo(() => TABS.map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Memory ${facts}` } : {}) })), [facts]);
   const titles = useTitleWidths();
   const paneNow = paneWidth ?? (narrow ? win.width : paneW);
   const { strip, select } = useFittedTabs(tabs, tab, paneNow, {
-    extra: PANE_TAB_EXTRA, menu, left: Math.max(0, win.width - paneNow) + 40, top: 40, measured: titles.widths,
+    extra: PANE_TAB_EXTRA, chrome: PANE_CHROME, menu, left: Math.max(0, win.width - paneNow) + 40, top: 40, measured: titles.widths,
     pick: (key) => { setOwn(key); onTab?.(key); },
   });
   const moreMenu = (x: number, y: number): void => {

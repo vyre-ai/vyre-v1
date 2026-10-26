@@ -36,13 +36,13 @@ export interface FitMenu { show(entries: MenuEntry[], x: number, y: number, kind
 export function useFittedTabs<K extends string>(
   tabs: readonly { key: K; title: string }[], active: K, width: number,
   o: { menu: FitMenu; left: number; top: number; pick(key: K): void; chrome?: number; measured?: ReadonlyMap<string, number>; extra?: number },
-): { strip: readonly { key: string; title: string }[]; select(key: string): void } {
+): { strip: readonly { key: string; title: string; pinned?: boolean }[]; select(key: string): void } {
   const measured = o.measured;
   /** What a tab adds around its text: the strip's own (TAB_EXTRA, with a close slot) unless the caller has tabs without one. */
   const extra = o.extra ?? TAB_EXTRA;
   const widthOf = useMemo(() => (title: string): number => { const w = measured?.get(title); return w === undefined ? tabWidth(title) : w + extra; }, [measured, extra]);
   const fitted = useMemo(() => fitTabs(tabs, active, width, { ...(o.chrome !== undefined ? { chrome: o.chrome } : {}), widthOf }), [tabs, active, width, o.chrome, widthOf]);
-  const strip = fitted.hidden.length === 0 ? tabs : [...fitted.shown, { key: MORE_KEY, title: "More" }];
+  const strip = fitted.hidden.length === 0 ? tabs : [...fitted.shown, { key: MORE_KEY, title: "More", pinned: o.extra !== undefined }];
   const select = (key: string): void => {
     if (key === MORE_KEY) {
       const rest: MenuEntry[] = fitted.hidden.map((t) => ({ label: t.title, onSelect: () => o.pick(t.key) }));
