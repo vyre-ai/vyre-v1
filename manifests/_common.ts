@@ -64,3 +64,6 @@ export const expr = t.str({ description: 'Expression over the call input or payl
 export const cron = t.str({ description: 'Cron expression', examples: ['0 9 * * 1-5'] });
 export const email = t.str({ pattern: '^[^@\\s]+@[^@\\s]+$', examples: ['maya@example.com'] });
 export const url = t.str({ pattern: '^https?://', examples: ['https://example.com'] });
+
+/** What an age purge answers (P-CC_39): how many it removed in this batch, whether more are left, and how many a hold kept. */
+export const purgeOut = { removed: t.int({ minimum: 0 }), more: t.bool(), skippedOnHold: t.opt(t.int({ minimum: 0 })) };

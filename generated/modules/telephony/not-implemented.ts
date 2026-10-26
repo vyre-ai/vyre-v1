@@ -7,6 +7,7 @@ import type { Handlers } from './handlers.ts';
 export const handlers: Handlers<HandlerCtx> = {
   "telephony.answer": async (ctx) => { throw new VyreErr(notImplemented("telephony.answer", ctx.trace)); },
   "telephony.call.attach_summary": async (ctx) => { throw new VyreErr(notImplemented("telephony.call.attach_summary", ctx.trace)); },
+  "telephony.call.erase": async (ctx) => { throw new VyreErr(notImplemented("telephony.call.erase", ctx.trace)); },
   "telephony.call.get": async (ctx) => { throw new VyreErr(notImplemented("telephony.call.get", ctx.trace)); },
   "telephony.call.list": async (ctx) => { throw new VyreErr(notImplemented("telephony.call.list", ctx.trace)); },
   "telephony.call.log_task": async (ctx) => { throw new VyreErr(notImplemented("telephony.call.log_task", ctx.trace)); },
@@ -34,6 +35,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "telephony.registration.save": async (ctx) => { throw new VyreErr(notImplemented("telephony.registration.save", ctx.trace)); },
   "telephony.registration.submit": async (ctx) => { throw new VyreErr(notImplemented("telephony.registration.submit", ctx.trace)); },
   "telephony.send_sms": async (ctx) => { throw new VyreErr(notImplemented("telephony.send_sms", ctx.trace)); },
+  "telephony.sms.erase": async (ctx) => { throw new VyreErr(notImplemented("telephony.sms.erase", ctx.trace)); },
   "telephony.sms.list": async (ctx) => { throw new VyreErr(notImplemented("telephony.sms.list", ctx.trace)); },
   "telephony.transfer": async (ctx) => { throw new VyreErr(notImplemented("telephony.transfer", ctx.trace)); },
   "telephony.voice_token": async (ctx) => { throw new VyreErr(notImplemented("telephony.voice_token", ctx.trace)); },

@@ -8,6 +8,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "inbox.counts": async (ctx) => { throw new VyreErr(notImplemented("inbox.counts", ctx.trace)); },
   "inbox.follow_set": async (ctx) => { throw new VyreErr(notImplemented("inbox.follow_set", ctx.trace)); },
   "inbox.following": async (ctx) => { throw new VyreErr(notImplemented("inbox.following", ctx.trace)); },
+  "inbox.item.erase": async (ctx) => { throw new VyreErr(notImplemented("inbox.item.erase", ctx.trace)); },
   "inbox.link_message": async (ctx) => { throw new VyreErr(notImplemented("inbox.link_message", ctx.trace)); },
   "inbox.list_by_contact": async (ctx) => { throw new VyreErr(notImplemented("inbox.list_by_contact", ctx.trace)); },
   "inbox.list_by_thread": async (ctx) => { throw new VyreErr(notImplemented("inbox.list_by_thread", ctx.trace)); },

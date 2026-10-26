@@ -19,6 +19,11 @@ import type { Outcome } from "./erasers.ts";
 import { fileHeld } from "./retention.ts";
 
 const DAY = 86_400_000;
+
+/** A finder that answers not found has nothing of its kind about this person: that is an answer, not a failure of the find. Any other refusal still stops it. */
+async function finder(run: () => Promise<unknown>, nothing: Json): Promise<Json> {
+  try { return obj(await run()); } catch (e) { if (codeOf(e) === "validation.not_found") return nothing; throw e; }
+}
 const EMAIL = /^[^\s@]+@[^\s@]+$/;
 const PHONE = /^\+[1-9][0-9]{6,14}$/;
 
@@ -60,7 +65,7 @@ async function recordsOf(ctx: GovCtx, s: ReturnType<typeof subjectOf>): Promise<
   }
   for (const probe of [s.email ? { email: s.email } : null, s.phone ? { phone: s.phone } : null, s.name ? { name: s.name } : null]) {
     if (!probe) continue;
-    for (const c of list(obj(await ctx.call("contacts.resolve", probe))["sure"]).map(obj)) push(text(c["type"]) || "contact", text(c["recordId"]));
+    for (const c of list((await finder(() => ctx.call("contacts.resolve", probe), { sure: [], unsure: [] }))["sure"]).map(obj)) push(text(c["type"]) || "contact", text(c["recordId"]));
   }
   return found;
 }
@@ -81,7 +86,7 @@ export async function eraseFind(ctx: GovCtx, input: { subject: unknown }) {
 
   // files, chats, inbox text: the search the caller already has
   for (const term of terms.filter((t) => !isId("rec", t))) {
-    const hits = list(obj(await ctx.call("search.query", { q: term, types: ["file", "chat", "channel", "inbox"], limit: 100 }))["hits"]).map(obj);
+    const hits = list((await finder(() => ctx.call("search.query", { q: term, types: ["file", "chat", "channel", "inbox"], limit: 100 }), { hits: [] }))["hits"]).map(obj);
     for (const h of hits) {
       const kind = text(h["kind"]);
       const it = { type: kind, id: text(h["id"]), title: text(h["title"]) || text(h["id"]) };
@@ -94,7 +99,7 @@ export async function eraseFind(ctx: GovCtx, input: { subject: unknown }) {
   for (const r of recs) {
     let before: number | undefined;
     for (let pages = 0; pages < 20; pages++) {
-      const t = obj(await ctx.call("inbox.thread", { contactId: r.id, limit: 200, ...(before !== undefined ? { before } : {}) }));
+      const t = await finder(() => ctx.call("inbox.thread", { contactId: r.id, limit: 200, ...(before !== undefined ? { before } : {}) }), { items: [] });   // a contact nobody has written to yet has no thread
       const rows = list(t["items"]).map(obj);
       for (const it of rows) {
         const kind = text(it["kind"]);
@@ -108,7 +113,7 @@ export async function eraseFind(ctx: GovCtx, input: { subject: unknown }) {
   }
   // memory: facts and notes about the subject
   for (const subject of [...recs.map((r) => r.id), ...(s.email ? [s.email] : [])]) {
-    const m = obj(await ctx.call("memory.find_by_subject", { subject, limit: 500 }));
+    const m = await finder(() => ctx.call("memory.find_by_subject", { subject, limit: 500 }), { facts: [], notes: [] });
     for (const f of list(m["facts"]).map(obj)) add(items, "memory", { type: "fact", id: text(f["factId"]), title: `fact ${text(f["factId"])}` });
     for (const n of list(m["notes"]).map(obj)) add(items, "memory", { type: "note", id: text(n["noteId"]), title: text(n["title"]) || text(n["noteId"]) });
   }

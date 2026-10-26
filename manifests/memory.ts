@@ -42,6 +42,8 @@ export default defineManifest({
     }, 'folder', { fts: ['text'], sync: { window: { recentCount: 2000 }, protectedFields: ['status'] } }),
   ],
   capabilities: [
+    // ---- erase and purge (P-CC_39)
+    write('memory.notes.erase', 'Erase one memory note for good, with its graph node and links (governance erase)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { noteId: id.note }, out: { erased: t.bool() }, emits: ['note.erased'], audit: 'always', risk: 'high' }),
     // ---- read tools
     read('memory.search', 'Search notes and current facts the asker may read; BM25, vectors and recency; snippets carry the source link', {
       in: { q: t.str(), layers: t.opt(t.arr(layer)), agentId: t.opt(id.agent), projectId: t.opt(id.project), mode: t.opt(t.enm('keyword', 'semantic', 'hybrid')), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) },
@@ -159,6 +161,8 @@ export default defineManifest({
     }),
   ],
   events: [
+    // ---- erase and purge (P-CC_39): governance removes data through these; each hard-deletes inside its own store
+    ev('note.erased', 'A memory note was erased for good (ids only)', { p: { noteId: id.note }, subject: ['entity', '/noteId'], retention: 'audit' }),
     ev('memory.fact_proposed', 'A fact was proposed (ids and layer only, never the text)', {
       p: { factId: id.fact, layer, ownerRef: t.str(), agentId: t.opt(id.agent), sourceKind: t.str(), sourceRef: t.str() }, subject: ['entity', '/factId'], vis: 'participants', label: 'subject', retention: 'memory',
     }),

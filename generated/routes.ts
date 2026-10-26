@@ -3783,6 +3783,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/channels/erase",
+    "cap": "channels.erase",
+    "v": 1,
+    "module": "chat",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/channels/get",
     "cap": "channels.get",
     "v": 1,
@@ -4493,6 +4511,24 @@ export const routes: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/chat/transcript/purge",
+    "cap": "chat.transcript.purge",
+    "v": 1,
+    "module": "chat",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -9898,6 +9934,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/files/versions_purge",
+    "cap": "files.versions_purge",
+    "v": 1,
+    "module": "files",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/files/viewer_data",
     "cap": "files.viewer_data",
     "v": 1,
@@ -14011,6 +14065,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/inbox/item/erase",
+    "cap": "inbox.item.erase",
+    "v": 1,
+    "module": "inbox",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/inbox/link_message",
     "cap": "inbox.link_message",
     "v": 1,
@@ -14883,6 +14955,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/logs/purge",
+    "cap": "logs.purge",
+    "v": 1,
+    "module": "logs",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/logs/query",
     "cap": "logs.query",
     "v": 1,
@@ -15430,6 +15520,24 @@ export const routes: Route[] = [
     },
     "idempotency": "natural",
     "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mail/message/erase",
+    "cap": "mail.message.erase",
+    "v": 1,
+    "module": "mail",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -17034,6 +17142,24 @@ export const routes: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/notes/erase",
+    "cap": "memory.notes.erase",
+    "v": 1,
+    "module": "memory",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -20012,6 +20138,42 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/records/purge",
+    "cap": "records.purge",
+    "v": 1,
+    "module": "records",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/records/purge_trashed",
+    "cap": "records.purge_trashed",
+    "v": 1,
+    "module": "records",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/records/query",
     "cap": "records.query",
     "v": 1,
@@ -20768,6 +20930,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/runs/erase",
+    "cap": "runs.erase",
+    "v": 1,
+    "module": "runs",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/runs/finish",
     "cap": "runs.finish",
     "v": 1,
@@ -20856,6 +21036,24 @@ export const routes: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/runs/purge",
+    "cap": "runs.purge",
+    "v": 1,
+    "module": "runs",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -24705,6 +24903,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/telephony/call/erase",
+    "cap": "telephony.call.erase",
+    "v": 1,
+    "module": "telephony",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/telephony/call/get",
     "cap": "telephony.call.get",
     "v": 1,
@@ -25199,6 +25415,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/telephony/sms/erase",
+    "cap": "telephony.sms.erase",
+    "v": 1,
+    "module": "telephony",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/telephony/sms/list",
     "cap": "telephony.sms.list",
     "v": 1,
@@ -25672,6 +25906,24 @@ export const routes: Route[] = [
     },
     "idempotency": "natural",
     "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/threads/erase",
+    "cap": "threads.erase",
+    "v": 1,
+    "module": "chat",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
     "offline": null,
     "teamOnly": false,
     "gate": null
