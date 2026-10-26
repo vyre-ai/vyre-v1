@@ -34056,7 +34056,9 @@
     },
     {
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "form.created"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -36258,7 +36260,9 @@
     },
     {
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "campaign.created"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -71569,7 +71573,9 @@
     },
     {
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "form.created"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -171375,6 +171381,37 @@
     },
     {
       "module": "campaigns",
+      "name": "campaign.created",
+      "payload": {
+        "properties": {
+          "campaignId": {
+            "examples": [
+              "cmp_a1b2c3"
+            ],
+            "pattern": "^cmp_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "campaignId",
+          "name"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/campaignId",
+        "type": "campaign"
+      },
+      "summary": "A campaign was created as a draft",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "campaigns",
       "name": "campaign.launched",
       "payload": {
         "properties": {
@@ -175230,6 +175267,41 @@
       "summary": "A follow was removed",
       "sv": 1,
       "vis": "owner"
+    },
+    {
+      "module": "forms",
+      "name": "form.created",
+      "payload": {
+        "properties": {
+          "formId": {
+            "examples": [
+              "frm_a1b2c3"
+            ],
+            "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "formId",
+          "name",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/formId",
+        "type": "form"
+      },
+      "summary": "A form was created as a draft",
+      "sv": 1,
+      "vis": "space"
     },
     {
       "module": "forms",

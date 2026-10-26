@@ -2,7 +2,7 @@
   "module": "campaigns",
   "capabilities": {
     "campaigns.audience_set@1": "25da1e5014e0684668af4bd3da1eba1aa8d751016e6392c4e11f79e94605cb82",
-    "campaigns.create@1": "b6a1820cc90db26263f996fd99ca7556724ea364b94fd1c96abf336d107e8da6",
+    "campaigns.create@1": "3ac0b3655928e9b7104e3ec0fe1e4ec45c2ac1251cfa891ccca32a314da20980",
     "campaigns.delete@1": "c7ab22072d92c17599248d024b108613c943366abcc0365a31e93cf013ccc71c",
     "campaigns.get@1": "5f2835306a5c1303e324b981272b0b996301871fc2877b7c830b2371156842f3",
     "campaigns.launch@1": "4e09dfd1eb31736ec6a1bdd5ba5621f890cca15c5ca7ee9571b2befe66a9544c",
@@ -25,6 +25,7 @@
   },
   "events": {
     "campaign.completed": "fe177e25b356c7d853a04fadb5c7707da627a3e806cc5baff9bfcf149d90f419",
+    "campaign.created": "1c36dbe2f3efa5f1c2ae1a71019fb14f9343de2a739f518b26f32b56392e8ff8",
     "campaign.launched": "5c07ce4a124d89839f60db8880ffcbef829a6b2b3ccdbf46ba4adead921b6910",
     "campaign.paused": "58015ecfb2c33170aaae7ada8135938d965e44ecdbe39db5a2026a8093e502a7",
     "campaign.replied": "1541468a927fcb35999db7bf1a4d823b827c99b4e8b1a634cd194dc597b89991",

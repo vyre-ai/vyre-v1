@@ -19,7 +19,7 @@ Create a campaign (one-time, sequence or triggered)
 | HTTP | POST /v1/campaigns/create |
 | MCP tool | campaigns_create (automations) |
 | CLI | none |
-| Emits | none |
+| Emits | campaign.created |
 
 ## Input
 
