@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { openPhone } from "./phone.ts";
 import type { VoiceDeviceLike } from "./phone.ts";
 
-const runtime = (deferred = false) => ({ isDeferred: () => deferred, screens: {}, connection: { get: () => "online", subscribe: () => () => undefined }, clock: () => ({ now: 0, offsetMin: 0 }), open: () => undefined }) as never;
+const runtime = (deferred = false) => ({ isDeferred: () => deferred, call: async () => ({}), screens: {}, connection: { get: () => "online", subscribe: () => () => undefined }, clock: () => ({ now: 0, offsetMin: 0 }), open: () => undefined }) as never;
 const device = (log: string[]): VoiceDeviceLike => ({
   register: async () => { log.push("register"); },
   connect: async () => { throw new Error("not used"); },
