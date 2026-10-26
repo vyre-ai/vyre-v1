@@ -38,7 +38,6 @@ test("erase removes the note, its file, its graph node and links and its words, 
   const h = setup();
   const { goneNote, keepNote } = await indexed(h);
   assert.equal(h.rows("SELECT * FROM memory_notes").length, 2);
-  h.db.run("UPDATE memory_facts SET note_id = ? WHERE 1 = 0", goneNote);
   const out = await noteErase(h.ctx, { noteId: goneNote, idempotencyKey: "k1" });
   assert.deepEqual(out, { erased: true });
   assert.deepEqual(contractErrors("memory.notes.erase", "out", out), []);
