@@ -78,8 +78,8 @@ export async function bootFlowSpace(live: readonly string[], opts: { engineCli?:
       },
     }),
     fetch: opts.fetch ?? caddyFetch,
-    // the connector seams (Resend, Twilio) reach the network through their own fetch; a flow that fakes the providers hands the same function to both
-    ...(opts.fetch ? { seams: { fetch: opts.fetch } } : {}),
+    // the provider modules (Resend, Twilio) reach the network through ctx.http (`http`) and their host seams through `seams.fetch`; a flow that fakes the providers hands the same function to both
+    ...(opts.fetch ? { http: opts.fetch, seams: { fetch: opts.fetch } } : {}),
     ...(opts.engineCli !== undefined ? { engineCli: opts.engineCli } : {}),
     ...(opts.vault ? { vault: opts.vault } : {}),
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, tick: 3_600_000, hooks: 3_600_000 },
