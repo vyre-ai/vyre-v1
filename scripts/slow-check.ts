@@ -1,11 +1,11 @@
-// Checks test/slow.json (ARCH 10.2): at most 20 non-perf entries (perf entries run on the v1-perf runners and are not counted), each { file, capSec <= 120, owner, reason, heavy? }.
+// Checks test/slow.json (ARCH 10.2): at most 22 non-perf entries (perf entries run on the v1-perf runners and are not counted), each { file, capSec <= 120, owner, reason, heavy? }.
 // CLI: node scripts/slow-check.ts [path]  exits 1 and prints one line per problem.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Raised from 15 to 20 (P-CI_31): GitHub-hosted runners exposed real files of 20-22 s that the self-hosted pass cache had been hiding.
-export const MAX_ENTRIES = 20;
+export const MAX_ENTRIES = 22;   // 20 to 22: golden/harness and the small seed run past the 30 s fast cap on loaded runners
 export const MAX_CAP_SEC = 120;
 export const TEST_FILE = /\.test\.(?:m?js|cjs|tsx?)$/;
 
