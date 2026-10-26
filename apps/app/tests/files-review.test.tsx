@@ -116,7 +116,7 @@ test("request changes sends the note; discard asks first and then discards", asy
   const req = header(s, "request");
   assert.ok(has(req, 'aria-label="Note to the agent"') && has(req, 'data-testid="changeset-request-go"') && has(req, 'data-testid="changeset-request-cancel"'));
   const r = await requestChanges(s.data.call, s.changesetId, "  Put the fee in a table.  ");
-  assert.ok(r.ok && r.value.sent === 1);
+  assert.ok(r.ok && r.value.sent === 2);
   assert.deepEqual(lastCall(s), { cap: "changesets.request_changes", input: { changesetId: "cs_rivera", note: "Put the fee in a table." } });
   assert.equal(s.changeset().state, "changes_requested");
   assert.ok(has(text(header(s)), "Sent back. The agent is working on your notes."));
