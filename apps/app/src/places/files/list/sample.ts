@@ -17,7 +17,7 @@ const DAY = 86_400_000;
 
 export type Variant = "northwind" | "harbor";
 
-interface FolderSeed { id: string; name: string; parent: string | null; section: "personal" | "shared" | "space"; shared?: boolean; knowledge?: boolean; git?: boolean; subject?: { kind: "agent" | "project"; id: string } }
+interface FolderSeed { id: string; name: string; parent: string | null; section: "personal" | "shared" | "space"; shared?: boolean; knowledge?: boolean; git?: boolean; subject?: { kind: "agent" | "project"; id?: string } }
 interface FileSeed { id: string; name: string; folder: string; kind: FileKind; size: number; ago: number; by: string; source?: string; shared?: boolean; knowledge?: boolean; starred?: boolean; conflict?: boolean }
 
 interface ChangesetSeed { id: string; folder: string; by: string; files: number }
@@ -80,12 +80,18 @@ const fileRow = (s: FileSeed): FileRow & Row => ({
 
 /** The folders Files registers for itself (ruling 65), as the prototype's Space has them: one per agent, one per project, with a subfolder or two. Added with `subjects: true`. */
 const SUBJECT_FOLDERS: FolderSeed[] = [
-  F("fld_ag_docs", "Docs", null, "space", { subject: { kind: "agent", id: "agt_docs" } }),
-  F("fld_ag_research", "Research", null, "space", { subject: { kind: "agent", id: "agt_research" } }),
-  F("fld_ag_assistant", "Assistant", null, "space", { subject: { kind: "agent", id: "agt_assistant" } }),
-  F("fld_pj_rivera", "Rivera matter", null, "space", { subject: { kind: "project", id: "pj_rivera" } }),
+  F("fld_agents", "Agents", null, "space", { subject: { kind: "agent" } }),
+  F("fld_ag_assistant", "Assistant", "fld_agents", "space", { subject: { kind: "agent", id: "agt_assistant" } }),
+  F("fld_ag_billing", "Billing", "fld_agents", "space", { subject: { kind: "agent", id: "agt_billing" } }),
+  F("fld_ag_docs", "Docs", "fld_agents", "space", { subject: { kind: "agent", id: "agt_docs" } }),
+  F("fld_ag_intake", "Intake", "fld_agents", "space", { subject: { kind: "agent", id: "agt_intake" } }),
+  F("fld_ag_research", "Research", "fld_agents", "space", { subject: { kind: "agent", id: "agt_research" } }),
+  F("fld_projects", "Projects", null, "space", { subject: { kind: "project" } }),
+  F("fld_pj_launch", "Northwind launch", "fld_projects", "space", { subject: { kind: "project", id: "pj_launch" } }),
+  F("fld_pj_rivera", "Rivera matter", "fld_projects", "space", { subject: { kind: "project", id: "pj_rivera" } }),
   F("fld_pj_rivera_docs", "Contracts", "fld_pj_rivera", "space"),
-  F("fld_pj_launch", "Northwind launch", null, "space", { subject: { kind: "project", id: "pj_launch" } }),
+  F("fld_people", "People", null, "space"),
+  F("fld_channels", "Channels", null, "space"),
 ];
 /** What the person starred, and the picture with two edits (the prototype's site photo), in the rich sample (`subjects: true`). */
 const STARRED = new Set(["fil_deck", "fil_rivera"]);
@@ -128,7 +134,7 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
   let online = o.online ?? true;
   const listeners = new Set<() => void>();
 
-  const folderSeeds = o.subjects === true && space === northwind ? [...space.folders, ...SUBJECT_FOLDERS] : space.folders;
+  const folderSeeds = o.subjects === true && space === northwind ? [...SUBJECT_FOLDERS, ...space.folders] : space.folders;
   replica.put("folders", folderSeeds.map((x): FolderSeedRow => ({ ...x, id: x.id })));
   // Docs staged three writes in the Rivera matter folder too, where the prototype shows its banner
   const changesets = o.subjects === true && space === northwind ? [...(space.changesets ?? []), { id: "chg_rivera", folder: "fld_pj_rivera", by: "agt_docs", files: 3 }] : space.changesets ?? [];

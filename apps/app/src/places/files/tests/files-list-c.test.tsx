@@ -9,8 +9,8 @@ import { FilesList, StagedBanner, approveStaged, lineMenuEntries, moreMenuEntrie
 import { KindBadge, LineMarks, RowCells } from "../FileList.tsx";
 import { createSampleFiles } from "../list/sample.ts";
 import type { SampleFiles } from "../list/sample.ts";
-import { FilesDataProvider, FilesStateProvider, FilesTree, INITIAL_STATE, emptyText, fileLine, reduce, sourceOf, subjectGroups, subtreeIds } from "../tree/index.ts";
-import type { FileRow, FilesState, TreeRoots, Where } from "../tree/index.ts";
+import { FilesDataProvider, FilesStateProvider, FilesTree, INITIAL_STATE, emptyText, fileLine, hasAgentFace, openByDefault, orderFolders, reduce, rootRank, skippedRoots, sourceOf } from "../tree/index.ts";
+import type { FileRow, FilesState, FolderRow, TreeRoots, Where } from "../tree/index.ts";
 import { isItem } from "../../../../../../ui/src/Menu/props.ts";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/props.ts";
 
@@ -142,20 +142,22 @@ test("starring a file goes through files.star and changes the Starred count", as
   assert.equal(textOf(tree(s), "count-starred"), "4");
 });
 
-test("the Agents and Projects trees list the folders Files registers for itself, an agent with its face", () => {
+test("the Space's root folders Files registers (Agents, Projects, People, Channels) are rows, an agent's folder with its face", () => {
   const out = tree(subjects());
-  assert.ok(has(out, 'data-testid="files-agents"') && has(out, 'data-testid="files-projects"'));
-  for (const id of ["fld_ag_docs", "fld_ag_research", "fld_ag_assistant"]) assert.ok(has(out, `data-testid="row-agents-${id}"`), id);
-  assert.ok(has(out, 'data-testid="row-agents-fld_ag_docs-trailing"') && has(out, 'data-testid="agents-count-fld_ag_docs"'), "a folder with files shows its count in the trailing slot");
-  for (const id of ["fld_pj_rivera", "fld_pj_launch"]) assert.ok(has(out, `data-testid="row-projects-${id}"`), id);
+  for (const id of ["fld_agents", "fld_projects", "fld_people", "fld_channels"]) assert.ok(has(out, `data-testid="row-folder-${id}"`) && has(out, `data-testid="row-folder-${id}-trailing"`), id);
+  for (const id of ["fld_ag_docs", "fld_ag_research", "fld_ag_assistant", "fld_ag_intake", "fld_ag_billing"]) assert.ok(has(out, `data-testid="row-folder-${id}"`), `${id}: Agents opens to its agents`);
+  for (const id of ["fld_pj_rivera", "fld_pj_launch"]) assert.ok(has(out, `data-testid="row-folder-${id}"`), `${id}: Projects opens to its projects`);
   assert.ok(has(out, 'data-testid="face-Docs"') && has(out, 'data-avatar="agent"'), "the agent's face, shared Avatar");
-  assert.ok(!has(out, 'data-testid="face-Rivera matter"'), "a project has a folder, not a face");
-  assert.ok(has(out, 'data-testid="agents-toggle-fld_ag_docs"') === false && has(out, 'data-testid="projects-toggle-fld_pj_rivera"'), "only a folder with subfolders opens");
+  assert.ok(!has(out, 'data-testid="face-Rivera matter"') && !has(out, 'data-testid="face-Agents"'), "a project, and the Agents folder itself, have the folder icon, not a face");
+  assert.ok(has(out, 'data-testid="folder-count-fld_ag_docs"'), "a folder shows its count");
+  assert.ok(has(out, 'data-testid="folder-toggle-fld_agents"') && has(out, 'data-testid="folder-toggle-fld_pj_rivera"') && !has(out, 'data-testid="folder-toggle-fld_ag_docs"'), "only a folder with subfolders opens");
   assert.ok(!has(out, ">Contracts<"), "a closed project keeps its subfolders out");
-  assert.ok(!has(out, 'data-testid="row-folder-fld_ag_docs"') && !has(out, 'data-testid="row-folder-fld_pj_rivera"'), "the main tree does not list them twice");
-  assert.ok(has(out, 'data-testid="row-folder-fld_sales"'), "the other Space folders stay in the main tree");
-  const order = [">Memory<", ">Space<", ">Agents<", ">Projects<"].map((t) => pos(out, t));
-  assert.deepEqual([...order].sort((a, b) => a - b), order);
+  assert.ok(has(out, 'data-testid="row-folder-fld_sales"'), "the other Space folders are in the same list");
+  const order = ["row-folder-all", "row-folder-fld_agents", "row-folder-fld_projects", "row-folder-fld_people", "row-folder-fld_channels", "row-folder-fld_billing"].map((t) => pos(out, `data-testid="${t}"`));
+  assert.deepEqual([...order].sort((a, b) => a - b), order, "All files, then the registered roots in the order files.tree lists them, then the rest");
+  assert.ok(order.every((n) => n >= 0));
+  const loc = [">Memory<", ">Space<", ">Agents<", ">Projects<"].map((t) => pos(out, t));
+  assert.deepEqual([...loc].sort((a, b) => a - b), loc);
 });
 
 test("the selected agent or project folder is the selected row", () => {
@@ -165,24 +167,30 @@ test("the selected agent or project folder is the selected row", () => {
   assert.ok(has(list(subjects(), folder("fld_ag_docs")), "Engagement letter notes.md"), "its files");
 });
 
-test("without agents or projects the sidebar has no empty groups, and nothing starred shows no count", () => {
+test("without agents or projects the sidebar has none of those rows, and nothing starred shows no count", () => {
   const out = tree(createSampleFiles());
-  assert.ok(!has(out, 'data-testid="files-agents"') && !has(out, 'data-testid="files-projects"') && !has(out, 'data-testid="count-starred"'));
+  assert.ok(!has(out, 'data-testid="row-folder-fld_agents"') && !has(out, 'data-testid="row-folder-fld_projects"') && !has(out, 'data-testid="count-starred"'));
 });
 
-test("subjectGroups reads the roots: agents and projects by title, folders only; subtreeIds follows the children", () => {
+test("the root folders are read in the order files.tree lists them; Knowledge keeps its own section; an agent's own folder has a face", () => {
   const roots: TreeRoots = [
     { key: "recent", title: "Recent", kind: "virtual", count: 3 },
-    { key: "b", title: "Zed", kind: "folder", folderId: "b", count: 1, subject: { kind: "agent", id: "agt_z" } },
-    { key: "a", title: "Docs", kind: "folder", folderId: "a", count: 2, subject: { kind: "agent", id: "agt_d" } },
-    { key: "p", title: "Rivera", kind: "folder", folderId: "p", count: 4, subject: { kind: "project", id: "pj_r" } },
-    { key: "s", title: "Sales", kind: "folder", folderId: "s", count: 5 },
+    { key: "agents", title: "Agents", kind: "folder", folderId: "fa", count: 0, subject: { kind: "agent" } },
+    { key: "projects", title: "Projects", kind: "folder", folderId: "fp", count: 0, subject: { kind: "project" } },
+    { key: "knowledge", title: "Knowledge", kind: "folder", folderId: "fk", count: 0 },
   ];
-  const g = subjectGroups(roots);
-  assert.deepEqual(g.agents.map((r) => r.title), ["Docs", "Zed"]);
-  assert.deepEqual(g.projects.map((r) => r.title), ["Rivera"]);
-  const nodes = [{ id: "p", parentId: null }, { id: "p1", parentId: "p" }, { id: "p2", parentId: "p1" }, { id: "s", parentId: null }];
-  assert.deepEqual([...subtreeIds(nodes, ["p"])].sort(), ["p", "p1", "p2"]);
+  const rank = rootRank(roots);
+  assert.deepEqual([...rank.entries()], [["fa", 1], ["fp", 2], ["fk", 3]]);
+  assert.deepEqual([...skippedRoots(roots)], ["fk"]);
+  const ord = orderFolders([{ folderId: "zz", name: "Zed" }, { folderId: "fp", name: "Projects" }, { folderId: "aa", name: "Alpha" }, { folderId: "fa", name: "Agents" }], rank);
+  assert.deepEqual(ord.map((f) => f.folderId), ["fa", "fp", "aa", "zz"]);
+  const fr = (o: Partial<FolderRow>): FolderRow => ({ folderId: "f", name: "n", path: "n", fileCount: 0, folderCount: 0, scope: "space", label: 1, git: false, reviewChanges: false, ...o });
+  assert.equal(hasAgentFace(fr({ subject: { kind: "agent", id: "agt_docs" } })), true);
+  assert.equal(hasAgentFace(fr({ subject: { kind: "agent" } })), false, "the Agents folder itself");
+  assert.equal(hasAgentFace(fr({ subject: { kind: "project", id: "pj" } })), false);
+  assert.equal(openByDefault(fr({ subject: { kind: "agent" } })), true);
+  assert.equal(openByDefault(fr({ subject: { kind: "agent", id: "agt_docs" }, parentId: "fa" })), false);
+  assert.equal(openByDefault(fr({})), false);
 });
 
 const stub = (o: Partial<FileRow>): FileRow => ({ fileId: "fil_x", folderId: "fld_x", name: "x.png", kind: "image", mime: "", size: 1, version: 1, label: 1, ownerId: "u", createdAt: 0, updatedAt: 0, updatedBy: "u", thumb: false, holds: 0, ...o });
@@ -227,10 +235,10 @@ const tree2 = (s: SampleFiles, query: string): string => wrap(s, {}, <FilesTree 
 
 test("the sidebar is the shared slot's content: Knowledge and Space open and close, Space holds All files, Agents and Projects", () => {
   const out = tree(subjects());
-  for (const id of ["files-head-know", "files-head-space", "files-new-space", "row-folder-all", "row-group-agents", "row-group-projects"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  for (const id of ["files-head-know", "files-head-space", "files-new-space", "files-space", "row-folder-all", "row-folder-fld_agents", "row-folder-fld_projects"]) assert.ok(has(out, `data-testid="${id}"`), id);
   assert.ok(has(out, 'aria-label="Space, open"') && has(out, 'aria-label="Knowledge, open"'));
-  const order = ["row-folder-all", "row-group-agents", "row-group-projects", "row-folder-fld_billing"].map((t) => pos(out, `data-testid="${t}"`));
-  assert.deepEqual([...order].sort((a, b) => a - b), order, "All files, the Agents folders, the Projects folders, then the Space's other folders");
+  const order = ["row-folder-all", "row-folder-fld_agents", "row-folder-fld_projects", "row-folder-fld_billing"].map((t) => pos(out, `data-testid="${t}"`));
+  assert.deepEqual([...order].sort((a, b) => a - b), order, "All files, Agents, Projects, then the Space's other folders");
   assert.ok(!has(out, "Search files") && !has(out, 'data-testid="place-sidebar"'), "the title and the search field are the shell's, not drawn here");
 });
 

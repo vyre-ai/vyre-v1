@@ -2,7 +2,7 @@
 // Knowledge (Memory, Graph); then Space, holding All files, the Agents folders (each agent's face), the Projects folders and the Space's other top folders. Every row is a ui/Row (a
 // ui/FolderTree SlotRow for the folders); a folder is a drop target; dropping a file or folder on a folder moves it there. The Trash is in the list's more menu.
 import { useState } from "react";
-import type { ReactElement } from "react";
+import type { Dispatch, ReactElement, SetStateAction } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
@@ -11,9 +11,9 @@ import type { FolderHandlers, FolderNode, FolderScope } from "../../../../../../
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { each, matchRows } from "../../../shell/sidebar/model.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
-import { useFilesData, useFolderNodes, useLive, useOptionalFilesData } from "./data.tsx";
-import { dropMoves, parsePayload, sameWhere, subjectGroups, subtreeIds } from "./model.ts";
-import type { TreeRoot, TreeRoots, Where } from "./model.ts";
+import { useFilesData, useLive, useOptionalFilesData, useSource } from "./data.tsx";
+import { dropMoves, hasAgentFace, openByDefault, orderFolders, parsePayload, rootRank, sameWhere, skippedRoots } from "./model.ts";
+import type { FolderRow, TreeRoots, Where } from "./model.ts";
 import { Glyph } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
 import { useFilesState } from "./state.tsx";
@@ -56,29 +56,95 @@ export function TreeLoading(): ReactElement {
   return <View style={styles.loadSide} testID="files-tree-loading" accessibilityLabel="Loading">{bars}</View>;
 }
 
-interface FolderLine { id: string; scope: "agents" | "projects" | "folder"; title: string; count: number; depth: number; node: FolderNode; face: boolean; kids: number }
+/** What the folder rows share: which folders are open, the drop highlight, where the list is, and what a click, a drop and the menu do. */
+interface RowCtx {
+  openF: Record<string, boolean>;
+  setOpenF: Dispatch<SetStateAction<Record<string, boolean>>>;
+  over: string | null;
+  setOver: Dispatch<SetStateAction<string | null>>;
+  folderId: string | null;
+  goFolder(id: string | null): void;
+  menu: ReturnType<typeof useMenu>;
+  handlers: FolderHandlers;
+  onDrop(payload: string, target: string | null, scope: FolderScope): void;
+  rank: ReadonlyMap<string, number>;
+  skip: ReadonlySet<string>;
+}
+
+const nodeOf = (f: FolderRow): FolderNode => ({
+  id: f.folderId, name: f.name, parentId: f.parentId ?? null, count: f.fileCount, scope: f.scope, section: f.scope === "space" ? "space" : "personal", via: f.scope === "space" ? "space" : "owner", open: false,
+});
+
+/** One folder row (a ui/FolderTree SlotRow): chevron where it has subfolders, the agent's face or the folder icon, the count; open, it lists its subfolders. */
+function FolderLine({ f, depth, c, flat = false }: { f: FolderRow; depth: number; c: RowCtx; flat?: boolean }): ReactElement {
+  const fid = f.folderId;
+  const isOpen = c.openF[fid] ?? openByDefault(f);
+  const kids = f.folderCount;
+  const face = hasAgentFace(f);
+  const lead = (
+    <View style={[styles.subLead, { paddingLeft: depth * DEPTH_PX }]}>
+      {kids > 0 ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={`${isOpen ? "Close" : "Open"} ${f.name}`} accessibilityState={{ expanded: isOpen }} testID={`folder-toggle-${fid}`}
+          onPress={() => c.setOpenF((o) => ({ ...o, [fid]: !isOpen }))} style={({ hovered }: { hovered?: boolean }) => [styles.chev, hovered === true && styles.chevOver]}>
+          <Glyph name={isOpen ? "chevd" : "chev"} size={10} color="var(--ink-4)" width={1.6} />
+        </Pressable>
+      ) : <View style={styles.chev} />}
+      {face ? <Avatar name={f.name} kind="agent" size={18} testID={`face-${f.name}`} /> : <Glyph name="folder" size={16} />}
+    </View>
+  );
+  const drop = {
+    onDragOver: (e: { preventDefault: () => void }) => { e.preventDefault(); c.setOver(fid); },
+    onDragLeave: () => c.setOver((o) => (o === fid ? null : o)),
+    onDrop: (e: { preventDefault: () => void; dataTransfer?: { getData?: (t: string) => string } }) => { e.preventDefault(); c.setOver(null); const item = e.dataTransfer?.getData?.("text/plain") ?? ""; if (item.length > 0) c.onDrop(item, fid, f.scope); },
+  };
+  const node = nodeOf(f);
+  return (
+    <View>
+      <SlotRow
+        id={`folder-${fid}`} title={f.name} selected={fid === c.folderId} over={c.over === fid}
+        leadWidth={depth * DEPTH_PX + 18 + 7 + (face ? 18 : 16) + 6} lead={lead} trail={<Text style={styles.count} testID={`folder-count-${fid}`}>{f.fileCount}</Text>}
+        onPress={() => c.goFolder(fid)} dom={drop}
+        onMenu={(x, y) => c.menu.show(folderMenu(node, isOpen, kids > 0, c.handlers), x, y, "context", { label: `Folder ${f.name}` })}
+      />
+      {isOpen && !flat ? <Kids parent={fid} depth={depth + 1} c={c} query="" /> : null}
+    </View>
+  );
+}
+
+const SEARCH_DEPTH = 3;
+
+/** The subfolders of a folder (the top of Files when `parent` is null), read live from files.list. With a search, every level is read down to a few levels and the matching folders are listed flat. */
+function Kids({ parent, depth, c, query }: { parent: string | null; depth: number; c: RowCtx; query: string }): ReactElement | null {
+  const src = useSource({ cap: "files.list", input: parent === null ? {} : { folder: parent } });
+  if (src.status !== "ready") return null;
+  const folders = orderFolders((src.data.folders ?? []).filter((f) => !c.skip.has(f.folderId)), parent === null ? c.rank : new Map());
+  if (query === "") return <View testID={parent === null ? "files-folders" : undefined}>{each(folders, (f) => <FolderLine key={f.folderId} f={f} depth={depth} c={c} />)}</View>;
+  return (
+    <View>
+      {each(folders, (f) => (
+        <View key={f.folderId}>
+          {matchRows([{ title: f.name }], query).length > 0 ? <FolderLine f={{ ...f, folderCount: 0 }} depth={0} c={c} flat /> : null}
+          {depth < SEARCH_DEPTH ? <Kids parent={f.folderId} depth={depth + 1} c={c} query={query} /> : null}
+        </View>
+      ))}
+    </View>
+  );
+}
 
 function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefined }): ReactElement {
   const data = useFilesData();
   const { state, dispatch } = useFilesState();
   const menu = useMenu();
   const roots = useLive("files.tree", {});
-  const nodesQ = useFolderNodes();
   const stars = useLive("stars.list", { type: "file" });
   const [shut, setShut] = useState<Record<string, boolean>>({});
   const [openF, setOpenF] = useState<Record<string, boolean>>({});
   const [over, setOver] = useState<string | null>(null);
   const q = query.trim();
-  const nodes: readonly FolderNode[] = nodesQ.status === "ready" ? nodesQ.data : [];
   const rootRows: TreeRoots = roots.status === "ready" ? roots.data.roots : [];
   const virtual = rootRows.filter((r) => r.kind === "virtual");
   const count = (key: string): number | undefined => virtual.find((r) => r.key === key)?.count;
   const starCount = stars.status === "ready" ? stars.data.stars.length : undefined;
-  const groups = subjectGroups(rootRows);
-  const subjectIds = [...groups.agents, ...groups.projects].flatMap((r) => (r.folderId === undefined ? [] : [r.folderId]));
-  const hidden = subtreeIds(nodes, subjectIds);
-  const ids = new Set(nodes.map((n) => n.id));
-  const byName = (a: { name: string }, b: { name: string }): number => a.name.localeCompare(b.name, "en", { sensitivity: "base" });
   const folderId = state.where.kind === "folder" ? state.where.id : null;
   const rootSelected = state.where.kind === "folder" && state.where.id === null;
   const go = (where: Where) => (): void => { dispatch({ type: "go", where }); slot?.openBody(); };
@@ -89,64 +155,16 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
   const onDrop = (payload: string, target: string | null, _scope: FolderScope): void => {
     for (const m of dropMoves(parsePayload(payload), target, () => null)) void data.call(m.cap, m.input);
   };
-  const handlers: FolderHandlers = {
-    onSelect: goFolder,
-    onToggle: (id, open) => setOpenF((o) => ({ ...o, [id]: open })),
-    onNewFolder: (scope, parent) => data.nav.newFolder(scope === "space" ? "space" : "personal", parent),
-    onShare: (n) => data.nav.shareFolder(n.id),
-    onRename: (n) => data.nav.renameEntry("folder", n.id, n.name),
-    onDelete: (n) => void data.call("folders.delete", { folderId: n.id }),
-  };
-
-  const nodeOf = (r: TreeRoot): FolderNode | undefined => (r.folderId === undefined ? undefined : nodes.find((n) => n.id === r.folderId) ?? { id: r.folderId, name: r.title, parentId: null, count: r.count, scope: "space", section: "space", via: "space", open: false });
-  const lines: ReactElement[] = [];
-  const pushLine = (l: FolderLine): void => {
-    const fid = l.node.id;
-    const isOpen = openF[fid] === true;
-    const lead = (
-      <View style={[styles.subLead, { paddingLeft: l.depth * DEPTH_PX }]}>
-        {l.kids > 0 ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={`${isOpen ? "Close" : "Open"} ${l.title}`} accessibilityState={{ expanded: isOpen }} testID={`${l.scope}-toggle-${fid}`}
-            onPress={() => setOpenF((o) => ({ ...o, [fid]: !isOpen }))} style={({ hovered }: { hovered?: boolean }) => [styles.chev, hovered === true && styles.chevOver]}>
-            <Glyph name={isOpen ? "chevd" : "chev"} size={10} color="var(--ink-4)" width={1.6} />
-          </Pressable>
-        ) : <View style={styles.chev} />}
-        {l.face ? <Avatar name={l.title} kind="agent" size={18} testID={`face-${l.title}`} /> : <Glyph name="folder" size={16} />}
-      </View>
-    );
-    const drop = {
-      onDragOver: (e: { preventDefault: () => void }) => { e.preventDefault(); setOver(fid); },
-      onDragLeave: () => setOver((o) => (o === fid ? null : o)),
-      onDrop: (e: { preventDefault: () => void; dataTransfer?: { getData?: (t: string) => string } }) => { e.preventDefault(); setOver(null); const item = e.dataTransfer?.getData?.("text/plain") ?? ""; if (item.length > 0) onDrop(item, fid, "space"); },
-    };
-    const countText = l.scope === "folder" || l.count > 0 ? <Text style={styles.count} testID={l.scope === "folder" ? `folder-count-${fid}` : `${l.scope}-count-${fid}`}>{l.count}</Text> : undefined;
-    lines.push(
-      <SlotRow
-        key={`${l.scope}-${fid}`} id={l.scope === "folder" ? `folder-${fid}` : `${l.scope}-${fid}`} title={l.title} selected={fid === folderId} over={over === fid}
-        leadWidth={l.depth * DEPTH_PX + 18 + 7 + (l.face ? 18 : 16) + 6} lead={lead} trail={countText} onPress={() => goFolder(fid)} dom={drop}
-        onMenu={(x, y) => menu.show(folderMenu(l.node, isOpen, l.kids > 0, handlers), x, y, "context", { label: `Folder ${l.title}` })}
-      />,
-    );
-  };
-  const kidsOf = (id: string): FolderNode[] => nodes.filter((n) => n.parentId === id).sort(byName);
-  const walk = (n: FolderNode, scope: FolderLine["scope"], depth: number, title: string, face: boolean, cnt: number): void => {
-    const kids = kidsOf(n.id);
-    pushLine({ id: n.id, scope, title, count: cnt, depth, node: n, face, kids: kids.length });
-    if (openF[n.id] === true) for (const k of kids) walk(k, scope, depth + 1, k.name, false, k.count);
-  };
-  /** Agents and Projects: a row that opens and closes, with each registered folder under it. */
-  const group = (key: "agents" | "projects", label: string, list: readonly TreeRoot[], face: boolean): ReactElement | null => {
-    if (list.length === 0) return null;
-    const open = !isShut(key);
-    lines.length = 0;
-    if (open) for (const r of list) { const n = nodeOf(r); if (n) walk(n, key, 1, r.title, face, r.count); }
-    return (
-      <View key={key} testID={`files-${key}`} accessibilityRole="list" accessibilityLabel={label}>
-        <SlotRow id={`group-${key}`} title={label} onPress={() => flip(key)}
-          lead={<View style={styles.subLead}><View style={styles.chev}><Glyph name={open ? "chevd" : "chev"} size={10} color="var(--ink-4)" width={1.6} /></View><Glyph name="folder" size={16} /></View>} leadWidth={18 + 7 + 16 + 6} />
-        {lines.slice()}
-      </View>
-    );
+  const c: RowCtx = {
+    openF, setOpenF, over, setOver, folderId, goFolder, menu, onDrop, rank: rootRank(rootRows), skip: skippedRoots(rootRows),
+    handlers: {
+      onSelect: goFolder,
+      onToggle: (id, open) => setOpenF((o) => ({ ...o, [id]: open })),
+      onNewFolder: (scope, parent) => data.nav.newFolder(scope === "space" ? "space" : "personal", parent),
+      onShare: (n) => data.nav.shareFolder(n.id),
+      onRename: (n) => data.nav.renameEntry("folder", n.id, n.name),
+      onDelete: (n) => void data.call("folders.delete", { folderId: n.id }),
+    },
   };
 
   const fixed = matchRows([
@@ -155,36 +173,13 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
     { id: "shared", title: "Shared with me", glyph: "users" as IconName, count: count("shared"), where: { kind: "shared" } as Where },
   ], q);
   const know = matchRows([{ id: "memory", title: "Memory" }, { id: "graph", title: "Graph" }], q);
+  const allFiles = q === "" || matchRows([{ title: "All files" }], q).length > 0;
 
-  let space: ReactElement[] = [];
-  if (q.length > 0) {
-    lines.length = 0;
-    const agentIds = new Set(groups.agents.flatMap((r) => (r.folderId === undefined ? [] : [r.folderId])));
-    for (const n of matchRows(nodes.map((x) => ({ ...x, title: x.name })), q).sort(byName)) pushLine({ id: n.id, scope: "folder", title: n.name, count: n.count, depth: 0, node: n, face: agentIds.has(n.id), kids: 0 });
-    space = lines.slice();
-  } else {
-    const rows: ReactElement[] = [];
-    rows.push(
-      <SlotRow
-        key="all" id="folder-all" title="All files" selected={rootSelected} over={over === "all"} leadWidth={18 + 7 + 16 + 6}
-        lead={<View style={styles.subLead}><View style={styles.chev} /><Glyph name="folder" size={16} /></View>} onPress={() => goFolder(null)}
-        dom={{
-          onDragOver: (e: { preventDefault: () => void }) => { e.preventDefault(); setOver("all"); },
-          onDragLeave: () => setOver((o) => (o === "all" ? null : o)),
-          onDrop: (e: { preventDefault: () => void; dataTransfer?: { getData?: (t: string) => string } }) => { e.preventDefault(); setOver(null); const item = e.dataTransfer?.getData?.("text/plain") ?? ""; if (item.length > 0) onDrop(item, null, "space"); },
-        }}
-      />,
-    );
-    const a = group("agents", "Agents", groups.agents, true);
-    if (a) rows.push(a);
-    const p = group("projects", "Projects", groups.projects, false);
-    if (p) rows.push(p);
-    lines.length = 0;
-    const tops = nodes.filter((n) => !hidden.has(n.id) && (n.parentId === null || !ids.has(n.parentId))).sort(byName);
-    for (const n of tops) walk(n, "folder", 0, n.name, false, n.count);
-    rows.push(<View key="others" testID="files-folders">{lines.slice()}</View>);
-    space = rows;
-  }
+  const dropAll = {
+    onDragOver: (e: { preventDefault: () => void }) => { e.preventDefault(); setOver("all"); },
+    onDragLeave: () => setOver((o) => (o === "all" ? null : o)),
+    onDrop: (e: { preventDefault: () => void; dataTransfer?: { getData?: (t: string) => string } }) => { e.preventDefault(); setOver(null); const item = e.dataTransfer?.getData?.("text/plain") ?? ""; if (item.length > 0) onDrop(item, null, "space"); },
+  };
 
   return (
     <View style={styles.side} testID="files-tree" accessibilityLabel="Files sidebar">
@@ -194,9 +189,19 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
         {know.length > 0 && !isShut("know") ? each(know, (r) => (r.id === "memory"
           ? <NavRow key={r.id} id="memory" title="Memory" glyph="memory" selected={sameWhere(state.where, { kind: "knowledge" })} onPress={() => { dispatch({ type: "go", where: { kind: "knowledge" } }); data.nav.openMemory(); slot?.openBody(); }} />
           : <NavRow key={r.id} id="graph" title="Graph" glyph="graph" selected={false} onPress={() => { data.nav.openGraph(); slot?.openBody(); }} />)) : null}
-        {space.length > 0 || q.length === 0 ? <SectionHead id="space" label="Space" open={q.length > 0 || !isShut("space")} onToggle={() => flip("space")} onAdd={() => data.nav.newFolder("space", null)} /> : null}
-        {q.length > 0 || !isShut("space") ? space : null}
-        {fixed.length === 0 && know.length === 0 && space.length === 0 ? <Text style={styles.none} testID="files-tree-empty">Nothing matches that.</Text> : null}
+        <SectionHead id="space" label="Space" open={q.length > 0 || !isShut("space")} onToggle={() => flip("space")} onAdd={() => data.nav.newFolder("space", null)} />
+        {q.length > 0 || !isShut("space") ? (
+          <View testID="files-space">
+            {allFiles ? (
+              <SlotRow
+                id="folder-all" title="All files" selected={rootSelected} over={over === "all"} leadWidth={18 + 7 + 16 + 6}
+                lead={<View style={styles.subLead}><View style={styles.chev} /><Glyph name="folder" size={16} /></View>} onPress={() => goFolder(null)} dom={dropAll}
+              />
+            ) : null}
+            <Kids parent={null} depth={0} c={c} query={q} />
+          </View>
+        ) : null}
+        {fixed.length === 0 && know.length === 0 && !allFiles && q.length > 0 ? <Text style={styles.none} testID="files-tree-empty">Nothing matches that.</Text> : null}
         {menu.element}
       </ScrollView>
     </View>

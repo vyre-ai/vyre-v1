@@ -294,28 +294,41 @@ export function emptyText(where: Where): string {
   }
 }
 
-// ---------------------------------------------------------------- Agents and Projects
+// ---------------------------------------------------------------- the Space's root folders (ruling 65)
 
 export type TreeRoot = TreeRoots[number];
-export interface SubjectGroups { agents: TreeRoot[]; projects: TreeRoot[] }
 
-/** The folders Files registers for itself (ruling 65): one per agent and one per project, read from the roots of files.tree. */
-export function subjectGroups(roots: TreeRoots): SubjectGroups {
-  const mine = roots.filter((r) => r.kind === "folder" && r.folderId !== undefined);
-  const byTitle = (a: TreeRoot, b: TreeRoot): number => a.title.localeCompare(b.title, "en", { sensitivity: "base" });
-  return {
-    agents: mine.filter((r) => r.subject?.kind === "agent").sort(byTitle),
-    projects: mine.filter((r) => r.subject?.kind === "project").sort(byTitle),
-  };
+/** Files registers its root folders itself (Agents, Projects, People, Channels, Shared knowledge, ...) and files.tree lists them in order. The sidebar shows them in that order. */
+export function rootRank(roots: TreeRoots): Map<string, number> {
+  const out = new Map<string, number>();
+  roots.forEach((r, i) => { if (r.kind === "folder" && r.folderId !== undefined) out.set(r.folderId, i); });
+  return out;
 }
 
-/** The ids of the given folders and everything under them: the main folder tree leaves these out, because the groups show them. */
-export function subtreeIds(nodes: readonly { id: string; parentId: string | null }[], rootIds: readonly string[]): Set<string> {
-  const out = new Set<string>(rootIds);
-  let grew = true;
-  while (grew) {
-    grew = false;
-    for (const n of nodes) if (n.parentId !== null && out.has(n.parentId) && !out.has(n.id)) { out.add(n.id); grew = true; }
-  }
+/** The folder ids the sidebar leaves out of the Space list: Knowledge has its own section (Memory, Graph). */
+export function skippedRoots(roots: TreeRoots): Set<string> {
+  const out = new Set<string>();
+  for (const r of roots) if (r.kind === "folder" && r.key === "knowledge" && r.folderId !== undefined) out.add(r.folderId);
   return out;
+}
+
+/** An agent's own folder (subject agent with an id) shows the agent's face; the Agents folder itself and every other folder show the folder icon. */
+export function hasAgentFace(f: FolderRow): boolean {
+  return f.subject?.kind === "agent" && f.subject.id !== undefined;
+}
+
+/** Folders in the order the sidebar lists them: registered roots in files.tree order, everything else by name. */
+export function orderFolders<T extends { folderId: string; name: string }>(folders: readonly T[], rank: ReadonlyMap<string, number>): T[] {
+  return folders.slice().sort((a, b) => {
+    const ra = rank.get(a.folderId), rb = rank.get(b.folderId);
+    if (ra !== undefined && rb !== undefined) return ra - rb;
+    if (ra !== undefined) return -1;
+    if (rb !== undefined) return 1;
+    return a.name.localeCompare(b.name, "en", { sensitivity: "base" });
+  });
+}
+
+/** Agents and Projects open when the sidebar first draws, as the prototype's do (an agent's or project's own folder, with an id, starts closed). */
+export function openByDefault(f: FolderRow): boolean {
+  return f.parentId === undefined && f.subject !== undefined && f.subject.kind !== "space" && f.subject.id === undefined;
 }
