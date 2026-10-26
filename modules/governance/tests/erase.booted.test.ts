@@ -141,8 +141,9 @@ test("erase a person end to end: found in every store, erased, and nothing of th
       run(`INSERT INTO telephony_call ("id", "numberId", "direction", "from", "to", "state", "startedAt", "recordingFileId", "transcript", "summary", "version") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, "num_a1b2c3", "in", "+14155550177", "+14155550100", "ended", 1, file, text, text, 0);
       run(`INSERT INTO telephony_call_meta ("callId", "hold", "recording", "recordingSid") VALUES (?, ?, ?, ?)`, id, 0, 0, file ? "RE00000000000000000000000000000001" : null);
     }
-    for (const [id, subject, body] of [["eml_pat00001", "Pat Lee settlement", "The settlement terms are attached"], ["eml_other001", "Lunch", "Noon works"]] as const) {
-      run(`INSERT INTO mail_message ("id", "mailboxId", "direction", "status", "fromAddress", "toAddresses", "subject", "snippet", "body", "sentAt", "attachments", "version") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, "mbx_work0001", "in", "received", "pat@client.example", "[]", subject, body, body, 1, "[]", 0);
+    // the other message is Dana's: it must stay, and it must not carry Pat's address
+    for (const [id, from, subject, body] of [["eml_pat00001", "pat@client.example", "Pat Lee settlement", "The settlement terms are attached"], ["eml_other001", "dana@other.example", "Lunch", "Noon works"]] as const) {
+      run(`INSERT INTO mail_message ("id", "mailboxId", "direction", "status", "fromAddress", "toAddresses", "subject", "snippet", "body", "sentAt", "attachments", "version") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, "mbx_work0001", "in", "received", from, "[]", subject, body, body, 1, "[]", 0);
       run(`INSERT INTO mail_body ("messageId", text) VALUES (?, ?)`, id, body);
     }
     run(`INSERT INTO inbox_conversation ("id", "contactId", "address", "displayName", "lastMessageAt", "lastChannel", "lastPreview", "unreadCount", "needsMatch", "version") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, "cnv_pat00001", pat, "pat@client.example", "Pat Lee", 3, "call", "Pat: I want to change my secret trust", 3, 0, 0);
