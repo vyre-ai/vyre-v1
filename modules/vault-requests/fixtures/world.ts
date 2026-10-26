@@ -15,6 +15,8 @@ export interface Script {
   admins: string[];
   /** field keys of the items a manager can attach, by item id */
   items: Record<string, string[]>;
+  /** the owner of the Space resource, when there is one (ruling 74: the decider of a key no folder claims) */
+  spaceOwner?: string;
   /** capabilities that should fail, with the message */
   fail: Record<string, string>;
 }
@@ -33,6 +35,7 @@ export function world(over: Partial<Script> = {}) {
     if (f) throw new Error(f);
     switch (cap) {
       case "access.shares_of": {
+        if ((i["resource"] as { type: string }).type === "space") return { shares: script.spaceOwner ? [{ grant: { id: "g_owner", subject: { kind: "person", id: script.spaceOwner }, level: "manage" }, through: "owner" }] : [] };
         const folder = (i["resource"] as { id: string }).id;
         const people = script.managers[folder] ?? [];
         return { shares: people.map((id, n) => ({ grant: { id: `g${n}`, subject: { kind: "person", id }, level: "manage" }, through: n === 0 ? "owner" : "direct" })) };

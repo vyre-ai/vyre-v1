@@ -22,7 +22,7 @@ function runtimeOver(sample: { data: { screens: ShellRuntime["screens"]; call: S
     screens, call: sample.data.call, connection: sample.data.connection,
     principals: { subscribe: () => () => undefined, getSnapshot: () => ({ status: "ready", data: [{ id: "usr_maya", name: "Maya Chen", kind: "person" }] }) },
     recordTitle: () => undefined, me: { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" }, clock: () => ({ now: 0, offsetMin: 0 }),
-    space: { id: "northwind", kind: "team", name: "Northwind" }, assistant: { id: "agt_assistant", name: "Assistant" }, aiConnected: true, calendarConnected: true,
+    space: { id: "northwind", kind: "team", name: "Northwind" }, assistant: { id: "agt_assistant", name: "Assistant" }, aiConnected: true, deferredModules: new Set<string>(), isDeferred: () => false, calendarConnected: true,
     open: (t) => void opened.push(t), openUrl: () => undefined,
   };
 }

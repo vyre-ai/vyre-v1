@@ -262,3 +262,12 @@ test("module: every capability the manifest names has a handler; seed and projec
 });
 
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+
+test("create: emits email.created for the new design, with the folder it goes into when one is given", async () => {
+  const w = harness();
+  const top = await newEmail(w, "Top level");
+  assert.deepEqual(w.events.at(-1), { name: "email.created", subject: `email/${top.emailId}`, payload: { emailId: top.emailId } });
+  const inFolder = (await run<{ email: EmailDoc }>(w.ctx, "email_builder.create", { name: "In a folder", mode: "plain", folderId: "fld_a1", idempotencyKey: "k-folder" })).email;
+  assert.deepEqual(w.events.at(-1), { name: "email.created", subject: `email/${inFolder.emailId}`, payload: { emailId: inFolder.emailId, folderId: "fld_a1" } });
+  assert.equal(w.events.filter((e) => e.name === "email.created").length, 2, "one event per design");
+});
