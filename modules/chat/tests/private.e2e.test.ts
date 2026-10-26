@@ -72,7 +72,7 @@ test("at rest the server holds ciphertext only: the body, the blocks, every tabl
   assert.equal(stored.id, sent.message.messageId);
   assert.ok(isEnvelope(stored.blocks[0]!["data"]));
   const dump = everything(hn);
-  for (const s of ["Harlow", "Dana Reyes", "250,000", "private block text", "777"]) assert.equal(dump.includes(s), false, `${s} is not anywhere on the server`);
+  for (const s of ["Harlow", "Dana Reyes", "250,000", "private block text", BLOCK_SECRET]) assert.equal(dump.includes(s), false, `${s} is not anywhere on the server`);
   assert.deepEqual(assertEventsConform(hn), []);
   // the owner's key opens it; nothing else does
   assert.equal(openText(dev.key, bodyAad(t, stored.id), stored.body), SECRET);
