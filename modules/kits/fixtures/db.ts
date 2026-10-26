@@ -83,7 +83,8 @@ export class FakeSpace implements FixtureSpace {
   async close(): Promise<void> { this.closed = true; }
 }
 
-export interface HarnessOptions { now?: number; fixture?: boolean | (() => FakeSpace); builder?: string | null }
+/** sheetCheck: install refuses on sheet problems (production behaviour). Off by default here, because the fixture Kit's steps are sketches that do not fit the real contracts. */
+export interface HarnessOptions { now?: number; fixture?: boolean | (() => FakeSpace); builder?: string | null; sheetCheck?: boolean }
 
 export function harness(o: HarnessOptions = {}) {
   const sqlite = new DatabaseSync(":memory:");
@@ -100,6 +101,7 @@ export function harness(o: HarnessOptions = {}) {
     source,
     ...(o.fixture === false ? {} : { fixture: async () => { const s = makeSpace(); spaces.push(s); return s; } }),
     ...(o.builder === null ? {} : { builderAgentId: o.builder ?? "agt_builder" }),
+    refuseOnSheetProblems: o.sheetCheck === true,
   });
   let clock = o.now ?? NOW;
   let events: Ev[] = [];
