@@ -36,6 +36,8 @@ function topLevel(obj: string): string {
       if (c === quote) quote = "";
       continue;
     }
+    if (c === "/" && obj[i + 1] === "/") { while (i < obj.length && obj[i] !== "\n") i++; continue; }      // a line comment may hold an apostrophe
+    if (c === "/" && obj[i + 1] === "*") { const end = obj.indexOf("*/", i + 2); i = end < 0 ? obj.length : end + 1; continue; }
     if (c === "'" || c === "\"" || c === "`") { quote = c; continue; }
     if (c === "{" || c === "[" || c === "(") { depth++; if (depth > 1) continue; }
     else if (c === "}" || c === "]" || c === ")") { depth--; if (depth >= 1) continue; }
@@ -60,6 +62,8 @@ export function checkIdemCalls(file: string, source: string, keyed: ReadonlySet<
     if (!keyed.has(cap)) continue;
     let j = close + 1;
     while (/\s/.test(source[j] ?? "")) j++;
+    const cast = /^as\s+never\b/.exec(source.slice(j));                  // ctx.call("x" as never, ...) is the same call
+    if (cast) { j += cast[0].length; while (/\s/.test(source[j] ?? "")) j++; }
     const line = lineOf(source, hit.index);
     if (source[j] !== ",") { out.push({ kind: "missing", file, line, cap, message: `ctx.call("${cap}") declares idempotency key but passes no input, so no idempotencyKey` }); continue; }
     j++;
