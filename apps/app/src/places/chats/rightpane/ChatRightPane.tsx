@@ -118,7 +118,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
       <View testID="chats-right-pane" style={st.root} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}>
         <TabMeasure titles={tabs.map((x) => x.title)} onWidth={titles.set} />
         <View testID="pane-agent" style={st.who}>
-          <Face name={data.agent.name} size={30} pulse={agent?.status === "working"} />
+          <Face name={data.agent.name} seedId={data.agent.agentId} size={30} pulse={agent?.status === "working"} />
           <View style={st.whoText}>
             <Text numberOfLines={1} style={st.name}>{data.agent.name}</Text>
             {agent?.role ? <Text numberOfLines={1} style={st.role}>{agent.role}</Text> : null}

@@ -63,14 +63,14 @@ export function ProviderPage({ provider, handle, onNote, tokensOf }: ProviderPag
 
         <View style={s.head}><Text accessibilityRole="header" style={s.h2}>Used by</Text></View>
         {provider.agentsUsing.map((id) => (
-          <Row key={id} id={`use:${id}`} title={people.name(id)} note={userKind(id) === "automation" ? "Automation you set up" : "Runs its turns on this"} leading={<View style={s.face}><Avatar name={people.name(id)} kind={userKind(id)} size={28} /></View>}
+          <Row key={id} id={`use:${id}`} title={people.name(id)} note={userKind(id) === "automation" ? "Automation you set up" : "Runs its turns on this"} leading={<View style={s.face}><Avatar name={people.name(id)} seedId={id} kind={userKind(id)} size={28} /></View>}
             trailing={<Text style={s.dim} testID={`use-count-${id}`}>{tokensOf?.(id) === undefined ? countWords(turns(id), "turn") : `${countWords(turns(id), "turn")}, ${tokenWords(tokensOf(id)!)}`}</Text>} />
         ))}
         <Text style={s.dim} testID="provider-total">{`This month: ${countWords(total, "turn")} across ${countWords(provider.agentsUsing.length, "agent or Automation", "agents and Automations")}, ${tokenWords(provider.usage.tokens)}.`}</Text>
 
         <View style={s.head}><Text accessibilityRole="header" style={s.h2}>Recent use</Text></View>
         {entries.length === 0 ? <Text style={s.dim} testID="history-empty">Nothing has used this sign-in yet.</Text> : entries.slice(0, 5).map((e, i) => (
-          <Row key={i} id={`rec:${i}`} title={`${people.name(e.actor.id)} ${e.action === "used" ? "used this sign-in" : e.action}`} leading={<View style={s.face}><Avatar name={people.name(e.actor.id)} kind={userKind(e.actor.id)} size={24} /></View>}
+          <Row key={i} id={`rec:${i}`} title={`${people.name(e.actor.id)} ${e.action === "used" ? "used this sign-in" : e.action}`} leading={<View style={s.face}><Avatar name={people.name(e.actor.id)} seedId={e.actor.id} kind={userKind(e.actor.id)} size={24} /></View>}
             trailing={<Text style={s.dim}>{agoLabel(e.at, data.clock())}</Text>} />
         ))}
       </ScrollView>

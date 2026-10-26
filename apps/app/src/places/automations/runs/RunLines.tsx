@@ -56,7 +56,7 @@ export function RunLines({ run, lines, name, me, actions, canRetry, openThoughts
         const turn = l.kind === "turn" ? l : null;
         return (
           <View key={l.id} testID={`line-${l.id}`} style={c.turn}>
-            <Face name={who} kind={l.who.kind === "person" ? "person" : "agent"} size={24} />
+            <Face name={who} seedId={l.who.id} kind={l.who.kind === "person" ? "person" : "agent"} size={24} />
             <View style={c.tb}>
               <View style={c.th}>
                 <Text style={c.who}>{l.who.id === me ? "You" : who}</Text>
@@ -91,7 +91,7 @@ export function RunLines({ run, lines, name, me, actions, canRetry, openThoughts
         return (
           <View key={l.id} testID={`line-${l.id}`} style={c.joinl}>
             <View style={c.rule} />
-            <View style={c.jt}><Face name={name(l.who)} kind={l.who.kind === "person" ? "person" : "agent"} size={14} /><Text style={c.joinText}>{l.text}</Text></View>
+            <View style={c.jt}><Face name={name(l.who)} seedId={l.who.id} kind={l.who.kind === "person" ? "person" : "agent"} size={14} /><Text style={c.joinText}>{l.text}</Text></View>
             <View style={c.rule} />
           </View>
         );
