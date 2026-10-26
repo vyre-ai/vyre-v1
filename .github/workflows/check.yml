@@ -5,6 +5,9 @@ on:
     branches-ignore: [main, 'gh-readonly-queue/**']
   # the merge queue runs the same required checks on each batch (ruling: merge queue on main)
   merge_group:
+  # hourly full run on main: l2-heavy (the real-engine golden halves, chat.live, the sandbox and computers proofs) is affected-only on branches, so main gets one complete result an hour
+  schedule:
+    - cron: '41 * * * *'
 concurrency:
   group: push-${{ github.ref }}
   cancel-in-progress: true
