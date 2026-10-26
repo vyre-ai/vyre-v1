@@ -168,6 +168,10 @@ if (directRun()) {
   };
   const all: EmitFinding[] = [];
   for (const f of files) all.push(...checkEmitsDeclared(f, sources.get(f)!, caps, f.split("/")[1]!, resolve));
+  // emits-known.json: "<capability> <event>" keys with the reason a finding is over-attributed from a shared helper (the handler never reaches that emit). A listed pair is not reported.
+  const knownPath = path.join(repo, "scripts/lint/emits-known.json");
+  const known = fs.existsSync(knownPath) ? (JSON.parse(fs.readFileSync(knownPath, "utf8")) as Record<string, string>) : {};
+  for (let i = all.length - 1; i >= 0; i--) if (`${all[i]!.cap} ${all[i]!.event}` in known) all.splice(i, 1);
   for (const h of all) console.log(`emits-declared ${h.file}:${h.line}: ${h.message}`);
   const enforce = process.argv.includes("--enforce");
   console.log(`emits-declared: ${all.length} undeclared emit(s) in ${HANDLERS_READ} handlers read of ${caps.size} capabilities${enforce ? "" : " (report mode, exit 0)"}`);

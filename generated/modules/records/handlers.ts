@@ -20,6 +20,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "records.merge": Handler<"records.merge", X>;
   "records.page_prefs.get": Handler<"records.page_prefs.get", X>;
   "records.page_prefs.set": Handler<"records.page_prefs.set", X>;
+  "records.purge": Handler<"records.purge", X>;
+  "records.purge_trashed": Handler<"records.purge_trashed", X>;
   "records.query": Handler<"records.query", X>;
   "records.relate": Handler<"records.relate", X>;
   "records.relations_map": Handler<"records.relations_map", X>;
