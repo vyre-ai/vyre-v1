@@ -86,3 +86,17 @@ test("erase, back up before it, restore, restart: the erased record is erased ag
     assert.ok(left.includes(recordId), "the restored database now holds the tombstone too, so a second restart replays it as well");
   } finally { await d.stop(); }
 });
+
+test("tombstones.reapply through the gateway is refused, the owner included, and a crafted list erases nothing", async () => {
+  const d = await boot(seededDir());
+  try {
+    await ok(d, "/v1/schema/apply", { idempotencyKey: "crafted-type", ops: [{ op: "type.create", type: "rt_contact", def: { title: "Contact", plural: "Contacts", icon: "user", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }] } }] });
+    const id = (await ok<{ record: { id: string } }>(d, "/v1/records/create", { idempotencyKey: "crafted-rec", type: "rt_contact", fields: { name: "Dana Other" } })).record.id;
+    const r = await post(d, "/v1/governance/tombstones/reapply", { tombstones: [{ id: "tmb_crafted01", kind: "records", subjectType: "rt_contact", subjectId: id, at: 1, by: "usr_olivia" }] });
+    const body = (await r.json()) as { error?: { code?: string; details?: { reason?: string } } };
+    assert.equal(r.status, 403);
+    assert.equal(body.error?.code, "permission.role_lacks_permission");
+    assert.equal(body.error?.details?.reason, "system_only");
+    assert.equal((await post(d, "/v1/records/get", { type: "rt_contact", recordId: id })).status, 200, "the record is still there");
+  } finally { await d.stop(); }
+});
