@@ -25,7 +25,7 @@ export function ClaimRoute({ token, onDone, onSignIn }: { token: string; onDone(
   if (!spaceId) return <ClaimOwner space={hostOf(baseUrl)} newCode={makeRecoveryCode} onClaim={async () => undefined} dead="invalid" onSignIn={onSignIn} />;
   const claim = async (v: { name: string; username: string; password: string; recoveryCode: string }): Promise<void> => {
     const claimed = await claimOwner(
-      { call, makeBundle, holdKey: (t, key) => holdKeyOnOwnNode(baseUrl, t, key), wipe },
+      { call, makeBundle: (password, recoveryCode, id) => makeBundle(password, recoveryCode, { spaceId: id }), holdKey: (t, key) => holdKeyOnOwnNode(baseUrl, t, key), wipe },
       { token, spaceId, name: v.name, username: v.username, password: v.password, recoveryCode: v.recoveryCode, deviceName: "Web browser" },
     );
     const real = await openRealSession({ baseUrl, token: claimed.token });

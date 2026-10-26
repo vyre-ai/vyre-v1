@@ -32,8 +32,8 @@ type ClaimOut = { status?: string; session?: { token: string }; principal?: { id
 
 export async function claimOwner(deps: ClaimDeps, i: ClaimInput): Promise<Claimed> {
   const made = await deps.makeBundle(i.password, i.recoveryCode, i.spaceId);
-  // identity.claim_owner wants the wrapped halves only, plus the wrapped Space key epochs (spaceKeys) when makeBundle supplies them.
-  const spaceKeys = (made as { spaceKeys?: { epoch: number; wrapped: string }[] }).spaceKeys ?? [];
+  // identity.claim_owner wants the wrapped halves only, plus the Space key sealed to the owner's public key (spaceKeys, made by makeBundle for this spaceId).
+  const spaceKeys = made.spaceKeys ?? [];
   const keys = { personKeyByPassword: made.personKeyByPassword, personKeyByRecovery: made.personKeyByRecovery, publicKey: made.publicKey, privateKeyWrapped: made.privateKeyWrapped, spaceKeys };
   try {
     let out: ClaimOut;
