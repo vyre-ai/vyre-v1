@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
-import { createLiveHub } from "../src/ws.ts";
+import { createLiveHub } from "../../host/src/ws.ts";
 import { createSyncLiveHub } from "../../modules/sync/handlers/live.ts";
 import { systemClock } from "../../sync/src/live/transport.ts";
 import { createConnection, endpoint } from "../../client/src/connection/index.ts";
