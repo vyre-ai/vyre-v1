@@ -149,7 +149,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     let got: ThreadGet;
     try { got = (await ctx.call("threads.get", { threadId })) as ThreadGet; } catch (e) {
       // not "no agents": the thread could not be read at all (a private chat the calling principal is not in, a thread that is gone). Say so, with the trace, instead of skipping in silence.
-      warn("the bridge could not read the thread, so no turn runs for its message", { traceId: ctx.trace.traceId, threadId, code: (e as { error?: { code?: string } })?.error?.code ?? "unknown", error: e instanceof Error ? e.message : String(e) });
+      ctx.log.warn("the bridge could not read the thread, so no turn runs for its message", { traceId: ctx.trace.traceId, threadId, code: (e as { error?: { code?: string } })?.error?.code ?? "unknown", error: e instanceof Error ? e.message : String(e) });
       return false;
     }
     if (got.thread.agents.length === 0) return false;   // nobody to run; the thread opens on the first message after an agent joins
