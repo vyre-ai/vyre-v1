@@ -145120,7 +145120,9 @@
     },
     {
       "effects": "read",
-      "emits": [],
+      "emits": [
+        "sync.scope_changed"
+      ],
       "errors": [
         "auth.device_revoked",
         "internal.unexpected",
