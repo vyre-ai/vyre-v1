@@ -27,6 +27,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "mail.mailbox.resume": async (ctx) => { throw new VyreErr(notImplemented("mail.mailbox.resume", ctx.trace)); },
   "mail.mailbox.set_privacy": async (ctx) => { throw new VyreErr(notImplemented("mail.mailbox.set_privacy", ctx.trace)); },
   "mail.mailbox.update": async (ctx) => { throw new VyreErr(notImplemented("mail.mailbox.update", ctx.trace)); },
+  "mail.message.erase": async (ctx) => { throw new VyreErr(notImplemented("mail.message.erase", ctx.trace)); },
   "mail.message.get": async (ctx) => { throw new VyreErr(notImplemented("mail.message.get", ctx.trace)); },
   "mail.message.list": async (ctx) => { throw new VyreErr(notImplemented("mail.message.list", ctx.trace)); },
   "mail.message.search": async (ctx) => { throw new VyreErr(notImplemented("mail.message.search", ctx.trace)); },
