@@ -6,7 +6,7 @@
 // is a resource type, whose id is well formed for that type and is not in the access snapshot yet, registers that subject. Events that end an object (deleted, dropped, removed ...) never
 // register one. The first event about an object is its birth, whatever it is called (`record.created`, `schema.type_changed` for a new record type, `kit.installed`).
 //   parent  the capability's own container (the `parent` pointer of its resource binding, read from the input) when that container is a known resource, else the Space
-//   owner   the person the birth event names as ownerId, else the person the call acts for (the principal when nobody is acted for)
+//   owner   the person the birth event names as ownerId when the type opts in (OWNER_NAMED), else the person the call acts for (the principal when nobody is acted for)
 import type { ResourceRow } from "../../../kernel/src/authorize/index.ts";
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
 import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
@@ -23,6 +23,11 @@ const ID_SHAPE: Readonly<Record<string, RegExp | null>> = Object.freeze({
   terminal: /^trm_[a-z0-9]+$/, computer: /^cmt_[a-z0-9]+$/, task: /^tsk_[a-z0-9]+$/, run: /^run_[a-z0-9]+$/, number: /^num_[a-z0-9]+$/, domain: /^dom_[a-z0-9]+$/, note: /^not_[a-z0-9]+$/, email: /^eml_[a-z0-9]+$/,
   inbox: null, automation_group: null, connector: null, calendar: null,
 });
+/**
+ * Resource types whose birth event may name the owner (its payload `ownerId`). Opt-in per type: the capability that creates one of these decides who may assign an owner other than the caller
+ * (agents.create refuses a caller who is not an owner or admin), so the registrar only records what that capability allowed.
+ */
+const OWNER_NAMED: ReadonlySet<string> = new Set(["agent"]);
 /** Every resource type the registrar checks ids for. */
 export const KNOWN_TYPES: readonly string[] = Object.freeze(Object.keys(ID_SHAPE));
 const ANY_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/;
@@ -76,7 +81,7 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
         seen.add(id);
         const container = typeof given === "string" && given !== id && (deps.exists(given) || seen.has(given)) ? given : a.space;
         // a birth event that names its owner (agent.created names ownerId) says whose the object is; otherwise the person the call acts for
-        const named = pointer(ev.payload, "/ownerId");
+        const named = OWNER_NAMED.has(s.type) ? pointer(ev.payload, "/ownerId") : undefined;
         out.push({ id, type: s.type, parent_id: s.type === "space" ? null : container, label: 0, owner_id: typeof named === "string" && /^usr_[a-z0-9]+$/.test(named) ? named : a.owner, holds: 0 });
       }
       return out;

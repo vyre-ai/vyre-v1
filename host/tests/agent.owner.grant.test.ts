@@ -41,8 +41,8 @@ test("the owner of a new agent can approve memory into it; after a reassign the 
     return { status: r.status, body: text ? JSON.parse(text) as Json : {} };
   };
   const owner = d.token;   // the local admin token acts as the Space owner
-  const join = async (name: string): Promise<{ id: string; token: string }> => {
-    const invite = await post(owner, "/v1/members/invites/create", { role: "rol_guest", idempotencyKey: `gf10-invite-${name}` });
+  const joinAs = async (name: string, role: string): Promise<{ id: string; token: string }> => {
+    const invite = await post(owner, "/v1/members/invites/create", { role, idempotencyKey: `gf10-invite-${name}` });
     assert.equal(invite.status, 200, JSON.stringify(invite.body));
     const code = decodeURIComponent(new URL(invite.body.data.link as string).pathname.split("/").pop() ?? "");
     const r = await fetch(`${d.url}/v1/members/accept`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code, username: name, password: PASSWORD, deviceName: "Mac", deviceClass: "desktop", keys: KEYS }) });
@@ -50,6 +50,7 @@ test("the owner of a new agent can approve memory into it; after a reassign the 
     assert.equal(r.status, 200, JSON.stringify(body));
     return { id: body.data.personId as string, token: body.data.token as string };
   };
+  const join = (name: string): Promise<{ id: string; token: string }> => joinAs(name, "rol_guest");
   try {
     const first = await join("firstowner"), asker = await join("asker"), heir = await join("heir");
     const made = await post(owner, "/v1/agents/create", { name: "Scout Two", ownerId: first.id, idempotencyKey: "gf10-agent" });
@@ -70,6 +71,14 @@ test("the owner of a new agent can approve memory into it; after a reassign the 
       assert.notEqual(direct.status, 200, "a direct call to transfer_ownership is refused");
     }
     assert.ok((await sharesOf("folder", agent.folderId)).some((w) => w.endsWith(`:${first.id}`)), "and nothing moved");
+
+    // a member cannot hand an agent to someone else (owner and admin only: permission access.manage); naming themselves is fine and the agent is theirs
+    const member = await joinAs("plainmember", "rol_member");
+    const refused = await post(member.token, "/v1/agents/create", { name: "Not Yours", ownerId: first.id, idempotencyKey: "gf10-member-other" });
+    assert.equal(refused.status, 403, JSON.stringify(refused.body));
+    const mine = await post(member.token, "/v1/agents/create", { name: "Mine Alone", idempotencyKey: "gf10-member-self" });
+    assert.equal(mine.status, 200, JSON.stringify(mine.body));
+    assert.ok((await sharesOf("agent", mine.body.data.agent.id)).includes(`owner:${member.id}`), "and a member's own agent is theirs");
 
     const promote = async (key: string, text: string): Promise<string> => {
       const fact = await post(asker.token, "/v1/memory/propose_fact", { idempotencyKey: `gf10-fact-${key}`, layer: "person", agentId: agent.id, text, sourceKind: "manual", sourceRef: `gf10-${key}` });
