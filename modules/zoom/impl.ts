@@ -8,7 +8,7 @@ import type { SeamSetters } from "../../host/src/seams/index.ts";
 
 export { setZoomHost };
 export type { ZoomHost } from "./projections.ts";
-export { signatureMatches, signatureOf, encryptedTokenOf } from "./handlers/index.ts";
+export { signatureMatches, signatureOf, encryptedTokenOf, verifyWebhook, WEBHOOK_TOLERANCE_MS } from "./handlers/index.ts";
 
 export const handlers: Record<string, Handler> = {
   "zoom.meetings.create": (ctx, i) => h.meetingsCreate(ctx, i),
