@@ -9,7 +9,9 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-export const ALLOWED_LICENSES = ['MIT', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'BSD', 'ISC', 'MPL-2.0'] as const;
+export const ALLOWED_LICENSES = ['MIT', 'MIT-0', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'BSD', 'ISC', 'MPL-2.0', 'BlueOak-1.0.0', 'Unlicense', 'Zlib', '0BSD', 'Python-2.0'] as const;
+/** CC-BY-4.0 is a data licence: allowed only for these packages, which ship data and no code (ruling 84). Attribution stays in the third-party notices. */
+export const DATA_PACKAGES = ['caniuse-lite'] as const;
 
 export interface LicenseHit {
   name: string;
@@ -115,9 +117,12 @@ export function normalizeLicense(raw: string): string {
   return s;
 }
 
-function isAllowedId(id: string): boolean {
+function isAllowedId(id: string, pkg?: string): boolean {
   if (/^(?:AGPL|GPL|SSPL|LGPL)(?:-|$)/.test(id)) return false;
-  if (id === 'MIT' || id === 'Apache-2.0' || id === 'ISC' || id === 'MPL-2.0' || id === 'BSD') return true;
+  if (id === 'MIT' || id === 'MIT-0' || id === 'Apache-2.0' || id === 'ISC' || id === 'MPL-2.0' || id === 'BSD') return true;
+  if (id === 'BlueOak-1.0.0' || id === 'Unlicense' || id === 'Zlib') return true;   // rulings 77 and 78: permissive, no copyleft
+  if (id === '0BSD' || id === 'Python-2.0') return true;   // ruling 84: permissive
+  if (id === 'CC-BY-4.0') return pkg !== undefined && (DATA_PACKAGES as readonly string[]).includes(pkg);   // ruling 84: data packages only
   if (id.startsWith('BSD-')) return true;
   return false;
 }
@@ -126,7 +131,7 @@ function isAllowedId(id: string): boolean {
  * SPDX expression. OR passes when one disjunct is fully allowed.
  * MPL-2.0 sets fileLevel: the copyleft applies to that dependency's files, not the whole program.
  */
-export function evaluateLicense(expr: string): { ok: boolean; fileLevel: boolean; reason: string } {
+export function evaluateLicense(expr: string, pkg?: string): { ok: boolean; fileLevel: boolean; reason: string } {
   const cleaned = unwrap(expr.replace(/\s+WITH\s+[A-Za-z0-9.-]+/gi, '').trim());
   if (!cleaned) return { ok: false, fileLevel: false, reason: 'missing license' };
   const failures: string[] = [];
@@ -135,7 +140,7 @@ export function evaluateLicense(expr: string): { ok: boolean; fileLevel: boolean
     let ok = true;
     let fileLevel = false;
     for (const id of ands) {
-      if (!isAllowedId(id)) {
+      if (!isAllowedId(id, pkg)) {
         ok = false;
         failures.push(id);
         break;
@@ -156,7 +161,7 @@ export function evaluateLicense(expr: string): { ok: boolean; fileLevel: boolean
 export function checkNpmLicenses(deps: Array<{ name: string; license: unknown }>): LicenseHit[] {
   return deps.map((dep) => {
     const license = licenseText(dep.license);
-    const ev = evaluateLicense(license);
+    const ev = evaluateLicense(license, dep.name);
     return { name: dep.name, license, ok: ev.ok, fileLevel: ev.fileLevel, reason: ev.reason };
   });
 }

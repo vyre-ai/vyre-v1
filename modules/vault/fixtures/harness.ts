@@ -29,6 +29,13 @@ export function harness() {
   let clock = NOW;
   const levels = new Map<string, Level>();          // `${principal}|${resourceId}`
   const perms = new Set<string>();                  // `${principal}|${perm}`
+  /** what the engine answers for engine.usage.query: by agent or by person, as `by:itemId` -> rows */
+  const usageRows = new Map<string, Array<{ key: string; turns: number; tokensIn: number; tokensOut: number }>>();
+  const usage = (body: Record<string, unknown>) => {
+    const rows = (usageRows.get(`${String(body["by"])}:${String(body["itemId"])}`) ?? []).map((r) => ({ key: r.key, title: r.key, totals: { turns: r.turns, tokensIn: r.tokensIn, tokensOut: r.tokensOut, costMicros: 0 } }));
+    const totals = rows.reduce((a, r) => ({ turns: a.turns + r.totals.turns, tokensIn: a.tokensIn + r.totals.tokensIn, tokensOut: a.tokensOut + r.totals.tokensOut, costMicros: 0 }), { turns: 0, tokensIn: 0, tokensOut: 0, costMicros: 0 });
+    return { rows, totals };
+  };
   const locked = new Set<string>();                 // people whose person key the session did not unlock
   const filler = new Filler(FILLER_KEY);
   setFiller(filler);
@@ -58,6 +65,7 @@ export function harness() {
       if (misfit.length) throw new Error(`${cap} was called with input its contract refuses: ${misfit.join("; ")}`);
       if (cap === "access.share") return { grant: { id: "gnt_vault0001", subject: body["subject"], resource: body["resource"], level: body["level"], conditions: {}, by: ctx.principal.id, createdAt: clock } };
       if (cap === "access.unshare") return { revoked: 1 };
+      if (cap === "engine.usage.query") return usage(body);
       throw new Error(`unscripted capability ${cap}`);
     },
     authorize(action, resource) {
@@ -81,6 +89,7 @@ export function harness() {
     grant(principal: string, resourceId: string, level: Level) { levels.set(`${principal}|${resourceId}`, level); },
     allow(principal: string, perm: string) { perms.add(`${principal}|${perm}`); },
     lock(personId: string) { locked.add(personId); },
+    setUsage(by: "agent" | "person", itemId: string, rows: Array<{ key: string; turns: number; tokensIn: number; tokensOut: number }>) { usageRows.set(`${by}:${itemId}`, rows); },
     actAs(kind: "person" | "agent" | "service", id: string) { ctx.principal = { kind, id }; },
     advance(ms: number) { clock += ms; },
     rows(sql: string, ...args: unknown[]) { return ctx.db.all(sql, ...args) as Record<string, string | number | null>[]; },

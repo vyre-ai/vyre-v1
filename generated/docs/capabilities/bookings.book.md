@@ -10,7 +10,7 @@ Public: make a booking; creates or updates a record and a meeting
 | Permission | grant only |
 | Grant level | edit |
 | Risk | medium |
-| Resource | record (create under /slug) |
+| Resource | space |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |

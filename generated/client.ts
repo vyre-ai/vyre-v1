@@ -751,6 +751,7 @@ export function createClient(transport: Transport) {
       share: call("files.share", 1),
       share_external: call("files.share_external", 1),
       shared_with_me: call("files.shared_with_me", 1),
+      star: call("files.star", 1),
       trash: {
         empty: call("files.trash.empty", 1),
         list: call("files.trash.list", 1),
@@ -1011,6 +1012,7 @@ export function createClient(transport: Transport) {
     },
     identity: {
       change_password: call("identity.change_password", 1),
+      claim_owner: call("identity.claim_owner", 1),
       github_link: call("identity.github_link", 1),
       github_sign_in: call("identity.github_sign_in", 1),
       github_unlink: call("identity.github_unlink", 1),
@@ -2049,6 +2051,7 @@ export function createClient(transport: Transport) {
         restore: call("vault.item.restore", 1),
         reveal: call("vault.item.reveal", 1),
         update: call("vault.item.update", 1),
+        usage: call("vault.item.usage", 1),
       },
       items: {
         export_mine: call("vault.items.export_mine", 1),

@@ -19,7 +19,7 @@ Make a folder for one type of thing (Personal, or Space when the person may shar
 | HTTP | POST /v1/folders/create |
 | MCP tool | folders_create (meta) |
 | CLI | none |
-| Emits | folder.created |
+| Emits | folder.created, grant.created, access.changed |
 
 ## Input
 

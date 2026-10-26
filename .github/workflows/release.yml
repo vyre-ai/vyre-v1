@@ -14,8 +14,9 @@ jobs:
       - uses: actions/checkout@v4
       - id: sel
         run: |
-          node scripts/ci-select.ts "" --matrix > select.json
-          node -e 'const r=JSON.parse(require("fs").readFileSync("select.json","utf8"));require("fs").appendFileSync(process.env.GITHUB_OUTPUT,"matrix="+JSON.stringify(r.matrix)+"\n")'
+          # A tag has no base to select against: the whole suite, always listing tracked files. Perf is measured by perf.yml (hourly, dispatch), not by the tag (same as main.yml).
+          node scripts/ci-select.ts "" --matrix --max 8 --no-perf > select.json
+          node -e 'const r=JSON.parse(require("fs").readFileSync("select.json","utf8"));const n=r.matrix.include.length;if(n===0){console.error("select: an empty matrix on a tag run is an error");process.exit(1)}console.log("select: "+n+" jobs; "+r.files.length+" files");require("fs").appendFileSync(process.env.GITHUB_OUTPUT,"matrix="+JSON.stringify(r.matrix)+"\n")'
   suite:
     name: ${{ matrix.name }}
     needs: select

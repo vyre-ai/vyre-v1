@@ -202,6 +202,12 @@ export async function injectEnv(ctx: VaultCtx, input: { folderId: string; purpos
 // ---- vault.export_env
 
 async function expiryCap(ctx: VaultCtx): Promise<Expiry> {
+  // the Space vault policy (vault.policy.set) is the one source; the settings key below is only the fallback while no policy has been saved
+  try {
+    const row = first(ctx.db.all(`SELECT * FROM vault_policy WHERE "id" = ?`, "space"));
+    const max = parseJson<{ pullExpiryMax?: unknown }>(row?.["value"], {}).pullExpiryMax;
+    if (typeof max === "string" && (EXPIRIES as readonly string[]).includes(max)) return max as Expiry;
+  } catch { /* no policy table yet: nothing was ever saved */ }
   try {
     const v = obj(obj(await ctx.call("settings.get", { key: "vault.export_expiry_max" }))["row"])["value"];
     if (typeof v === "string" && (EXPIRIES as readonly string[]).includes(v)) return v as Expiry;

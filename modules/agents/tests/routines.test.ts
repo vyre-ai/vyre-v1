@@ -146,6 +146,7 @@ test("run now starts one run as the routine owner, never the caller, and leaves 
   assert.equal(out.runId, "run_a1b2c3");
   assert.equal(started.length, 1);
   assert.deepEqual([started[0].kind, started[0].owner, started[0].name], ["routine", DANA, "Morning digest"]);
+  assert.equal(started[0].idempotencyKey, `routine-run-now:${routine.routineId}:rn1`, "runs.start declares a key, so it is in the input, not only in the call options");
   assert.equal(out.routine.lastRunAt, hn.clock.t);
   assert.equal(out.routine.nextRunAt, routine.nextRunAt, "the schedule did not move");
   assert.deepEqual(hn.named("agent.routine_run_started")[0]!.payload, { agentId: id, routineId: routine.routineId, runId: "run_a1b2c3", ownerId: DANA, requestedBy: MAYA });
