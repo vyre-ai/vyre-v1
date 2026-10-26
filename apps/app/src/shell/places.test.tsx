@@ -158,3 +158,17 @@ test("every button of the checklist leads somewhere through the shell's one door
   }
   assert.equal(opened.length, Object.keys(GO_TARGETS).length);
 });
+
+test("a first-list read that fails ends the loading frame: not in this version is a calm line, any other failure the shared error state", async () => {
+  registerShellPlaces();
+  const { rt } = runtimeFor("northwind", true);
+  const loading = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "loading" as const }) };
+  const failing = (err: unknown): ShellRuntime => ({ ...rt, screens: { query: () => loading, errorFor: () => err } as unknown as ShellRuntime["screens"] });
+  const calm = await mount("sites", failing({ code: "internal.unavailable", message: "Not in this version yet", traceId: "t1" }));
+  assert.ok(calm.includes("This is not in this version yet."));
+  assert.ok(!calm.includes('data-testid="state-error"') && !calm.includes("Not in this version yet</"), "no raw error text");
+  const broken = await mount("sites", failing({ code: "internal.unexpected", message: "boom", traceId: "t2" }));
+  assert.ok(broken.includes('data-testid="state-error"'));
+  assert.ok(broken.includes("Couldn&#x27;t load Apps") || broken.includes("Couldn't load Apps"));
+  assert.ok(!(await mount("sites", rt)).includes("place-sites-failed"), "a healthy read is not the failed frame");
+});
