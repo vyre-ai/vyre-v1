@@ -1,4 +1,4 @@
-// Whether the item a place was told to open is not there: its query is still loading and the last read of it failed (missing, or not yours to open). The session's screen hooks keep the error.
+// Whether the item a place was told to open is not there: its query is still loading and the last read of it failed (missing, or not yours to open); the query state carries that failure (`error`).
 import { useMemo, useSyncExternalStore } from "react";
 import type { LiveQuery } from "../../../../../client/src/index.ts";
 import type { ScreenHooks } from "../../../../../client/src/index.ts";
@@ -10,6 +10,5 @@ export function useMissing(screens: ScreenHooks, screen: string, name: string, s
   const q = useMemo(() => (state === null ? null : screens.query(screen, name, state)), [screens, screen, name, key]); // eslint-disable-line react-hooks/exhaustive-deps -- state is keyed by its text
   const live = q ?? NEVER;
   const snap = useSyncExternalStore(live.subscribe, live.getSnapshot, live.getSnapshot);
-  const errorFor = (screens as { errorFor?: (x: LiveQuery<unknown>) => unknown }).errorFor;
-  return q !== null && snap.status === "loading" && errorFor?.(q) != null;
+  return q !== null && snap.status === "loading" && snap.error !== undefined;
 }

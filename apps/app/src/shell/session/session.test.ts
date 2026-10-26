@@ -323,10 +323,11 @@ test("hooks: a read that fails leaves the query loading, with the error availabl
   const q = hooks.query("files.list", "items");
   let told = 0;
   q.subscribe(() => { told++; });
-  assert.equal(hooks.errorFor(q), null);
+  assert.equal((q.getSnapshot() as { error?: unknown }).error, undefined);
   await wait();
-  assert.equal(q.getSnapshot().status, "loading");
-  assert.ok(hooks.errorFor(q) instanceof CapError);
+  const snap = q.getSnapshot() as { status: string; error?: { code?: string; message?: string; traceId?: string } };
+  assert.equal(snap.status, "loading");
+  assert.deepEqual(snap.error, { message: "no", code: "validation.not_found", traceId: "t" });
   assert.equal(told, 1, "the listener looked again once");
   hooks.close();
 });

@@ -88,7 +88,7 @@ export default function FirstListPlace({ place }: { place: string }): ReactEleme
   );
   const items = useMemo(() => (snap.status === "ready" ? listItems(snap.data) : []), [snap]);
   const title = cfg?.title ?? place;
-  const failed = rt && snap.status !== "ready" ? (rt.screens as { errorFor?: (x: LiveQuery<unknown>) => unknown }).errorFor?.(q) : null;
+  const failed = rt && snap.status === "loading" ? snap.error : undefined;
   if (failed) {
     // A read that failed ends the loading frame. A part of the product that is not in this version (Sites in v1, ruling 93: internal.unavailable) is a calm line, never an error; anything else is the shared error state.
     const e = failed as { code?: string; message?: string; traceId?: string };

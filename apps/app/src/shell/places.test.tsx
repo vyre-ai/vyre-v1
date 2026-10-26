@@ -162,8 +162,10 @@ test("every button of the checklist leads somewhere through the shell's one door
 test("a first-list read that fails ends the loading frame: not in this version is a calm line, any other failure the shared error state", async () => {
   registerShellPlaces();
   const { rt } = runtimeFor("northwind", true);
-  const loading = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "loading" as const }) };
-  const failing = (err: unknown): ShellRuntime => ({ ...rt, screens: { query: () => loading, errorFor: () => err } as unknown as ShellRuntime["screens"] });
+  const failing = (error: { message: string; code?: string; traceId?: string }): ShellRuntime => {
+    const q = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "loading" as const, error }) };
+    return { ...rt, screens: { query: () => q } as unknown as ShellRuntime["screens"] };
+  };
   const calm = await mount("sites", failing({ code: "internal.unavailable", message: "Not in this version yet", traceId: "t1" }));
   assert.ok(calm.includes("This is not in this version yet."));
   assert.ok(!calm.includes('data-testid="state-error"') && !calm.includes("Not in this version yet</"), "no raw error text");

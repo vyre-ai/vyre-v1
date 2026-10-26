@@ -35,8 +35,6 @@ export interface RemoteHooks extends ScreenHooks {
   capQuery<T>(cap: string, input?: Record<string, unknown>): LiveQuery<T>;
   /** Re-read every query that is being watched. */
   invalidate(): void;
-  /** The error of the last read of this query, or null (a missing or forbidden item never becomes `ready`). */
-  errorFor(q: LiveQuery<unknown>): unknown;
   /** Warm a screen query: read it now with nobody watching, so the first draw of the place finds the answer. */
   prefetch(screenId: string, name: string, state?: Record<string, unknown>): void;
   /** How many queries are being watched right now. */
@@ -53,7 +51,6 @@ interface Entry {
   inflight: boolean;
   dirty: boolean;
   stale: boolean;
-  error: unknown;
   live: LiveQuery<unknown>;
 }
 
@@ -76,7 +73,6 @@ export function stableJson(v: unknown): string {
 
 export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
   const entries = new Map<string, Entry>();
-  const byLive = new WeakMap<LiveQuery<unknown>, Entry>();
   let closed = false;
 
   const notify = (e: Entry): void => { for (const l of [...e.listeners]) l(); };
@@ -91,7 +87,6 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
       if (e.dirty && !closed) { e.dirty = false; fetchEntry(e); }
     };
     opts.read(e.cap, e.input).then((data) => {
-      e.error = null;
       const json = stableJson(data);
       if (e.snap.status !== "ready" || json !== e.json) {
         e.json = json;
@@ -101,7 +96,6 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
       done();
     }, (err: unknown) => {
       opts.onError?.(e.cap, err);
-      e.error = err;
       // Never answered: say why (a `ready` query keeps its last answer). The next read, when something changes, replaces this.
       if (e.snap.status !== "ready") { e.snap = { status: "loading", error: failureOf(err) }; notify(e); }
       done();
@@ -113,7 +107,7 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
     let e = entries.get(key);
     if (e) return e;
     const made: Entry = {
-      cap, input, listeners: new Set(), snap: { status: "loading" }, json: "", inflight: false, dirty: false, stale: false, error: null,
+      cap, input, listeners: new Set(), snap: { status: "loading" }, json: "", inflight: false, dirty: false, stale: false,
       live: {
         subscribe(l) {
           made.listeners.add(l);
@@ -124,7 +118,6 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
       },
     };
     entries.set(key, made);
-    byLive.set(made.live, made);
     e = made;
     return e;
   };
@@ -154,7 +147,6 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
       const e = entryFor(q.cap, resolvePointers(q.input, state));
       if (e.snap.status === "loading" && !e.inflight) fetchEntry(e);
     },
-    errorFor: (q) => byLive.get(q)?.error ?? null,
     watching() {
       let n = 0;
       for (const e of entries.values()) if (e.listeners.size > 0) n++;
