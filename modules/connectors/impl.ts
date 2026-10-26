@@ -94,3 +94,6 @@ export const periodic = {
     },
   },
 };
+
+/** The live handle the host's handlers run on. For host tests that need to seed rows and read back what a real call left; nothing else should reach for it. */
+export function liveConnectors(): ConnectorsHandle { return live(); }
