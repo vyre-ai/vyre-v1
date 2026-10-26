@@ -11,8 +11,8 @@ import { mkChain, mkProject, run } from "../fixtures/seed.ts";
 
 const mine = registry.capabilities.filter((c) => c.module === "projects");
 
-test("the handler table covers exactly the 22 capabilities of the projects manifest", () => {
-  assert.equal(mine.length, 22);
+test("the handler table covers exactly the 24 capabilities of the projects manifest", () => {
+  assert.equal(mine.length, 24);
   assert.deepEqual(Object.keys(handlers).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof handlers[c.name], "function", c.name);
 });

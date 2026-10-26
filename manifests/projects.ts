@@ -199,6 +199,7 @@ export default defineManifest({
         title: t.str(), status: t.str(), goal: t.opt(t.str()), statusUpdate: t.opt(t.obj({ text: t.str(), at: t.ts() })),
         milestones: t.arr(t.obj({ title: t.str(), due: t.opt(t.ts()), status: t.str() })), expiresAt: t.opt(t.ts()),
       },
+      errors: ['validation.not_found'],
     }),
   ],
   screens: [

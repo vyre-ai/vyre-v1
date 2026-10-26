@@ -227,14 +227,14 @@ test("the system halves refuse a direct call from a person, the owner included, 
       }
     }
     // a suspension takes effect on the next call, and reactivating takes it back
-    assert.equal((await post(d, "/v1/access/principals/get", NOAH, {})).status, 200, "a member can call before");
+    assert.equal((await post(d, "/v1/example/who", NOAH, {})).status, 200, "a member can call before");
     const suspended = await post(d, "/v1/members/suspend", OWNER, { personId: "usr_noah", reason: "sweep 10", idempotencyKey: "sweep10-suspend" });
     assert.equal(suspended.status, 200, await suspended.clone().text());
-    const after = await post(d, "/v1/access/principals/get", NOAH, {});
+    const after = await post(d, "/v1/example/who", NOAH, {});
     assert.ok(after.status === 401 || after.status === 403, `the very next call is refused, got ${after.status}`);
     const back = await post(d, "/v1/members/reactivate", OWNER, { personId: "usr_noah", idempotencyKey: "sweep10-reactivate" });
     assert.equal(back.status, 200, await back.clone().text());
-    assert.equal((await post(d, "/v1/access/principals/get", NOAH, {})).status, 200, "and reactivating takes it back on the next call");
+    assert.equal((await post(d, "/v1/example/who", NOAH, {})).status, 200, "and reactivating takes it back on the next call");
   } finally { await d.stop(); }
 });
 
