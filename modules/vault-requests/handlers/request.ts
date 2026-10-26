@@ -84,7 +84,8 @@ export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fie
     const made = asRow(await ctx.call("tasks.create", {
       kind: "unblock", title: `The key ${name} is needed`, summary: input.reason.trim(), why: "A key is needed that only a manager of the Vault can supply.",
       assigned: { kind: "person", id: manager }, source: { kind: "manual", id }, blocks: [block],
-      actions: [{ key: "fulfil", label: "Provide the key" }, { key: "decline", label: "Decline", note: "optional" }], idempotencyKey: `${id}:${manager}`,
+      // the actions an unblock task offers (modules/tasks/handlers/state.ts): the card closes through vault.requests.fulfil or decline, which transition it
+      actions: [{ key: "resolved", label: "Provide the key" }, { key: "cannot", label: "Decline", note: "optional" }], idempotencyKey: `${id}:${manager}`,
     }));
     const taskId = strOf(asRow(made?.["task"])?.["id"]);
     if (!taskId) raise(trace, "internal.unexpected", "The task for the request was not created.");

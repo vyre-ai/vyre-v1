@@ -44,7 +44,7 @@ test("a request goes to the folder's managers as one card each, holds names and 
   const t = tasks[0]!.input;
   assert.equal(t["kind"], "unblock");
   assert.deepEqual(t["source"], { kind: "manual", id: r.id });
-  assert.deepEqual(t["actions"], [{ key: "fulfil", label: "Provide the key" }, { key: "decline", label: "Decline", note: "optional" }]);
+  assert.deepEqual(t["actions"], [{ key: "resolved", label: "Provide the key" }, { key: "cannot", label: "Decline", note: "optional" }]);
   const block = (t["blocks"] as { type: string; data: Record<string, unknown> }[])[0]!;
   assert.equal(block.type, "vault_request");
   assert.deepEqual(block.data, { requestId: r.id, name: "Dana_Lawmatics", fields: ["api_key", "account"], reason: "The intake run needs the Lawmatics key", requester: { kind: "agent", id: "agt_helper" }, forRun: "run_intake", folderId: FOLDER, state: "waiting" });
