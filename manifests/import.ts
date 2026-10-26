@@ -9,6 +9,13 @@ import { id, pageIn, pageOut, runStarted } from './_common.ts';
 const importId = t.id('imp');
 const fieldKey = t.str({ pattern: '^[a-z][a-z0-9_]*$', examples: ['email'] });
 const sourceKind = t.enm('csv', 'excel', 'airtable', 'notion', 'google_sheets');
+const sessionProvider = t.enm('codex', 'claude_code');
+const importedMessage = t.obj({ sourceMessageId: t.str(), role: t.enm('user', 'assistant'), text: t.str(), at: t.ts() });
+const importedSession = t.obj({
+  sourceSessionId: t.str(), title: t.opt(t.str()), startedAt: t.ts(),
+  repo: t.opt(t.obj({ remote: t.opt(t.str()), root: t.opt(t.str()) })), messages: t.arr(importedMessage),
+});
+const importedConversation = t.obj({ conversationId: t.id('isc'), provider: sessionProvider, destination: t.obj({ kind: t.enm('project', 'imported_sessions'), projectId: t.opt(id.project) }) });
 
 const column = t.obj({ name: t.str(), inferred: t.str({ description: 'Field type key the column looks like', examples: ['email'] }), sample: t.arr(t.str()), distinct: t.int({ minimum: 0 }), empty: t.int({ minimum: 0 }) });
 const table = t.obj({ name: t.str(), rowCount: t.int({ minimum: 0 }), columns: t.arr(column) });
@@ -40,6 +47,8 @@ export default defineManifest({
       subject: ['entity', '/importId'], trigger: { title: 'An import finishes', fields: ['/type', '/source'] },
     }),
     ev('import.failed', 'An import stopped on an error; rows already written stay and the Run can be undone', { p: { importId, runId: id.run, type: id.recordType, error: t.str() }, subject: ['entity', '/importId'], notify: 'run.failed' }),
+    ev('sessions.imported', 'A local Codex or Claude Code session was copied into an immutable owner-private archive', { p: { conversationId: t.id('isc'), provider: sessionProvider, sourceKey: t.str(), projectId: t.opt(id.project), messages: t.int() }, subject: ['entity', '/conversationId'] }),
+    ev('sessions.continued', 'An imported archival session was continued in a separate live Vyre chat', { p: { conversationId: t.id('isc'), threadId: id.thread }, subject: ['entity', '/conversationId'] }),
   ],
   capabilities: [
     read('import.parse_csv', 'Stage a CSV or pasted CSV text and report its columns with inferred field types', {
@@ -90,6 +99,13 @@ export default defineManifest({
     write('import.discard', 'Drop a staged import before it is committed', { in: { importId }, out: { discarded: t.bool() }, perm: 'records.create', tool: 'records' }),
     read('import.template', 'A CSV template for a record type: header row and one example row', {
       in: { type: id.recordType }, out: { text: t.str(), fileId: t.opt(id.file) }, on: ['record_type', '/type'], tool: 'records',
+    }),
+    write('sessions.import', 'Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply only visible user and assistant text', {
+      in: { provider: sessionProvider, sourceKey: t.str(), consent: t.obj({ previewedAt: t.ts(), confirmedAt: t.ts() }), sessions: t.arr(importedSession, { minItems: 1 }) },
+      out: { imported: t.int(), updated: t.int(), sessions: t.arr(importedConversation) }, perm: 'chats.private', idem: 'key', audit: 'always', emits: ['sessions.imported'], tool: 'chats', errors: ['validation.precondition_failed'],
+    }),
+    write('sessions.continue', 'Start a separate live Vyre chat linked to an immutable imported conversation; it never writes back to the local provider store', {
+      in: { conversationId: t.id('isc'), agentId: id.agent, first: t.opt(t.str()) }, out: { threadId: id.thread, linkedFrom: t.id('isc') }, perm: 'chats.private', emits: ['sessions.continued'], tool: 'chats',
     }),
   ],
   screens: [

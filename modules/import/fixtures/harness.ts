@@ -57,6 +57,8 @@ export function fakeWorld(clock: { t: number }) {
   const keyOf = (fields: Record<string, unknown>, match: string[]): string | undefined => (match.some((k) => fields[k] === undefined) ? undefined : JSON.stringify(match.map((k) => fields[k])));
   let bulkCalls = 0;
   const handlers: Record<string, Handler> = {
+    "projects.create": (i, o) => keyed(o, "project", () => ({ projectId: next("prj"), recordId: next("rec"), channelId: next("chn"), folderId: next("fld") })),
+    "chat.start": (i, o) => keyed(o, "chat", () => ({ thread: { threadId: next("thr"), kind: i.kind, listed: true } })),
     "files.read": (i) => {
       const f = files.get(i.fileId) ?? fail("validation.not_found", "no such file");
       if (i.as === "base64") return { base64: Buffer.from(f.bytes ?? new TextEncoder().encode(f.text ?? "")).toString("base64"), mime: "application/octet-stream", size: 1, version: 1, truncated: false };
