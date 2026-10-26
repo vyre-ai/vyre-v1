@@ -60,7 +60,7 @@ export interface FlowSpace {
   stop(): Promise<void>;
 }
 
-/** Boots a daemon on the `small` seed with `live` flipped in a temporary code root. Rejects with the host's own refusal text when the boot is refused. */
+/** Boots a daemon on the `core` seed with `live` flipped in a temporary code root. Rejects with the host's own refusal text when the boot is refused. */
 export async function bootFlowSpace(live: readonly string[], opts: { engineCli?: unknown } = {}): Promise<FlowSpace> {
   const dir = await seededDir();
   const d = await startDaemon({

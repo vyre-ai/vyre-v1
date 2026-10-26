@@ -14,6 +14,7 @@ import { ensureDeps, ensureChromium } from "./ensure-deps.mjs";
 import { parseArgs, routeUrl, countWrongFrames, budgetOf } from "./lib.mjs";
 import { serve } from "./serve.mjs";
 import { summarizeCombo, comboOk } from "./probes/theme-flash-gate.mjs";
+import { exportEnv } from "../lib/registry-hash.mjs";
 
 // P-CI_11: per skin and mode, one warm-up load (its time is discarded, its wrong frames still count) then 5 timed loads; the median is held to the unchanged budget.
 const WARMUP = 1, SAMPLES = 5;
@@ -30,7 +31,7 @@ if (args["skip-export"] && !fs.existsSync(path.join(dist, "index.html"))) {
   console.log(`theme_flash: skipped, no web export at ${path.relative(REPO, dist)} (this branch has no shot targets, so shots.yml exported nothing)`);
   process.exit(0);
 }
-if (!args["skip-export"] && !fs.existsSync(dist)) execSync("npx expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: { ...process.env, CI: "1", EXPO_NO_TELEMETRY: "1" } });
+if (!args["skip-export"] && !fs.existsSync(dist)) execSync("npx expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
 
 const { skins } = await import("../../ui/src/tokens/skins.ts");
 const rgb = (hex) => { const n = parseInt(hex.slice(1), 16); return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`; };
