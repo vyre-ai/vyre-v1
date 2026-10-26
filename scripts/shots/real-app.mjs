@@ -11,15 +11,15 @@ import { parseArgs, SKINS, SIZES } from "./lib.mjs";
 import { bootFreshSpace, claimOnEdge, edge, liveModules, ownerSession, todoFor } from "../../apps/app/tests/real-app-harness.test.ts";
 
 export const PLACES = [
-  { id: "home", rail: "rail-home", drew: "[data-testid='s-needs'], [data-testid='home-place']", needs: ["sign in", "home"] },
-  { id: "chats", rail: "rail-chats", drew: "[data-testid='chats-place']", needs: ["sign in", "chats"] },
-  { id: "records", rail: "rail-records", drew: "[data-testid='records-place']", needs: ["sign in", "records"] },
-  { id: "files", rail: "rail-files", drew: "[data-testid='files-place']", needs: ["sign in", "files"] },
-  { id: "inbox", rail: "rail-inbox", drew: "[data-testid='inbox-place']", needs: ["sign in", "inbox"] },
-  { id: "apps", rail: "rail-apps", drew: "[data-testid='place-sites']", needs: ["sign in", "apps"] },
-  { id: "automations", rail: "rail-automations", drew: "[data-testid='automations-place']", needs: ["sign in", "automations"] },
-  { id: "vault", rail: "rail-vault", drew: "[data-testid='vault-place']", needs: ["sign in", "vault"] },
-  { id: "settings", rail: "rail-settings", drew: "[data-testid='settings-place']", needs: ["sign in", "settings"] },
+  { id: "home", route: "home", rail: "rail-home", drew: "[data-testid='s-needs'], [data-testid='home-place']", needs: ["sign in", "home"] },
+  { id: "chats", route: "chat", rail: "rail-chats", drew: "[data-testid='chats-place']", needs: ["sign in", "chats"] },
+  { id: "records", route: "records", rail: "rail-records", drew: "[data-testid='records-place']", needs: ["sign in", "records"] },
+  { id: "files", route: "files", rail: "rail-files", drew: "[data-testid='files-place']", needs: ["sign in", "files"] },
+  { id: "inbox", route: "mail", rail: "rail-inbox", drew: "[data-testid='inbox-place']", needs: ["sign in", "inbox"] },
+  { id: "apps", route: "sites", rail: "rail-apps", drew: "[data-testid='place-sites'], [data-testid='place-sites-failed']", needs: ["sign in", "apps"] },
+  { id: "automations", route: "automations", rail: "rail-automations", drew: "[data-testid='automations-place']", needs: ["sign in", "automations"] },
+  { id: "vault", route: "vault", rail: "rail-vault", drew: "[data-testid='vault-place']", needs: ["sign in", "vault"] },
+  { id: "settings", route: "settings", rail: "rail-settings", drew: "[data-testid='settings-place']", needs: ["sign in", "settings"] },
 ];
 
 /** The phone has five tabs: Chats, Inbox, Records, Files and You (Home is reached through You). Places without a tab are not shot at phone width. */
@@ -101,34 +101,34 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     if (!session) console.log("no claimed session: the place shots use the owner bootstrap session, which the Space does not know as a person");
     for (const skin of skins) for (const [sizeName, vp] of sizes) {
       const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
-      const page = await ctx.newPage();
-      const errors = [];
-      page.on("pageerror", (e) => errors.push(e.message));
-      // Per place: the calls the Space refused while it was on screen, so a place that does not draw says why (a refused input, a module that is not there).
-      const refused = [];
-      page.on("response", (r) => { const u = new URL(r.url()); if ((u.pathname.startsWith("/v1/") || u.pathname.startsWith("/sync/")) && r.status() >= 400) refused.push(`${r.status()} ${u.pathname}`); });
-      await page.goto(`${web.origin}/home?skin=${skin}`, { waitUntil: "load", timeout: 60000 });
-      await page.evaluate((v) => localStorage.setItem("vyre.session.v1", v), session ?? JSON.stringify(ownerSession(space, web.origin)));
-      await page.goto(`${web.origin}/home?skin=${skin}`, { waitUntil: "load", timeout: 60000 });
-      await page.getByTestId("shell").or(page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30000 }).catch(() => {});
+      // The session goes in once; every place then opens in its own fresh page load, so a place that loops or crashes the page cannot take the places after it down with it.
+      const seed = await ctx.newPage();
+      await seed.goto(`${web.origin}/home?skin=${skin}`, { waitUntil: "load", timeout: 60000 });
+      await seed.evaluate((v) => localStorage.setItem("vyre.session.v1", v), session ?? JSON.stringify(ownerSession(space, web.origin)));
+      await seed.close();
       for (const p of PLACES) {
         if (sizeName === "phone" && !PHONE_TAB[p.id]) continue;
-        if (sizeName === "phone") {
-          await page.getByTestId(`tab-${PHONE_TAB[p.id]}`).click({ timeout: 5000 }).catch(() => {});
-        } else {
-          await page.getByTestId(p.rail).or(page.getByTestId(`${p.rail}-selected`)).first().click({ timeout: 5000 }).catch(() => {});
-        }
+        const page = await ctx.newPage();
+        const errors = [];
+        page.on("pageerror", (e) => errors.push(e.message));
+        // The calls the Space refused while the place was on screen, so a place that does not draw says why (a refused input, a module that is not there).
+        const refused = [];
+        page.on("response", (r) => { const u = new URL(r.url()); if ((u.pathname.startsWith("/v1/") || u.pathname.startsWith("/sync/")) && r.status() >= 400) refused.push(`${r.status()} ${u.pathname}`); });
+        await page.goto(`${web.origin}/${p.route}?skin=${skin}`, { waitUntil: "load", timeout: 60000 });
+        await page.getByTestId("shell").or(page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30000 }).catch(() => {});
+        if (sizeName === "phone") await page.getByTestId(`tab-${PHONE_TAB[p.id]}`).click({ timeout: 5000 }).catch(() => {});
+        else await page.getByTestId(p.rail).or(page.getByTestId(`${p.rail}-selected`)).first().click({ timeout: 5000 }).catch(() => {});
         const drew = await page.locator(p.drew).first().waitFor({ timeout: 8000 }).then(() => true, () => false);
         await page.waitForTimeout(800);
         const dir = path.join(out, `P-APP_03-real-${p.id}`);
         fs.mkdirSync(dir, { recursive: true });
         const file = `${skin}-${sizeName}.png`;
         await page.screenshot({ path: path.join(dir, file) });
-        const gaps = p.needs.map((s) => todoFor(s, live)).filter(Boolean);
+        const gaps = p.needs.map((x) => todoFor(x, live)).filter(Boolean);
         rows.push(rowFor({ place: p.id, skin, sizeName, vp, file, drew, gaps }));
-        console.log(`shot ${p.id} ${skin} ${sizeName} ${drew ? "drew" : "did not draw"}${refused.length ? ` refused: ${[...new Set(refused.splice(0))].slice(0, 6).join(", ")}` : ""}`);
+        console.log(`shot ${p.id} ${skin} ${sizeName} ${drew ? "drew" : "did not draw"}${refused.length ? ` refused: ${[...new Set(refused)].slice(0, 6).join(", ")}` : ""}${errors.length ? ` page errors: ${errors.join(" | ")}` : ""}`);
+        await page.close();
       }
-      if (errors.length) console.log(`page errors (${skin} ${sizeName}): ${errors.join(" | ")}`);
       await ctx.close();
     }
   } finally {

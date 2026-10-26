@@ -138,6 +138,31 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       });
     });
 
+    await t.test("7 every place draws on its own page load, with no page errors", async (s) => {
+      const gap = signedIn ? null : "needs the claimed owner session (step 2)";
+      if (gap) { todo.push(gap); s.todo(gap); return; }
+      // One fresh page per place: a place that loops or throws takes its whole page down, and must not hide the places after it.
+      const places: [string, string][] = [
+        ["home", '[data-testid="s-needs"], [data-testid="home-place"]'], ["chat", '[data-testid="chats-place"]'], ["mail", '[data-testid="inbox-place"]'], ["records", '[data-testid="records-place"]'],
+        ["files", '[data-testid="files-place"]'], ["sites", '[data-testid="place-sites"], [data-testid="place-sites-failed"]'], ["automations", '[data-testid="automations-place"]'],
+        ["vault", '[data-testid="vault-place"]'], ["settings", '[data-testid="settings-place"]'],
+      ];
+      const failures: string[] = [];
+      for (const [route, selector] of places) {
+        const p = await ctx.newPage();
+        const errs: string[] = [];
+        const refused: string[] = [];
+        p.on("pageerror", (e) => errs.push(e.message.slice(0, 120)));
+        p.on("response", (r) => { const u = new URL(r.url()); if ((u.pathname.startsWith("/v1/") || u.pathname.startsWith("/sync/")) && r.status() >= 400) refused.push(`${r.status()} ${u.pathname}`); });
+        await p.goto(`${web.origin}/${route}`, { waitUntil: "load" });
+        await p.getByTestId("shell").waitFor({ timeout: 15_000 }).catch(() => undefined);
+        const drew = await p.locator(selector).first().waitFor({ timeout: 10_000 }).then(() => true, () => false);
+        if (!drew || errs.length) failures.push(`${route}: ${drew ? "drew" : "did not draw"}${errs.length ? `, page errors: ${errs.join(" | ")}` : ""}${refused.length ? `, refused: ${[...new Set(refused)].slice(0, 5).join(", ")}` : ""}`);
+        await p.close();
+      }
+      assert.deepEqual(failures, [], "every place must draw");
+    });
+
     assert.deepEqual(errors, [], "the page threw no errors");
   } finally {
     if (todo.length) console.log(`real-app e2e TODO (not a pass):\n  ${todo.join("\n  ")}`);
