@@ -224,6 +224,13 @@ export function bindBridge(b: Bridge | null): void { bound = b; }
 export const bridgeConsumers = {
   "engine.bridge": {
     on: ["message.received", "message.edited"],
-    run: async (ctx: EngineCtx, event: BridgeEvent): Promise<{ skipped?: string; receivedAs?: string[] }> => (bound ? bound.onEvent(ctx, event) : { skipped: "engine_not_running" }),
+    run: async (ctx: EngineCtx, event: BridgeEvent): Promise<{ skipped?: string; receivedAs?: string[] }> => {
+      const res = bound ? await bound.onEvent(ctx, event) : { skipped: "engine_not_running" };
+      // a message that did not reach the engine says why, with the trace and the ids (one trace id, clear logs); the ones that did are not logged here
+      if (res.skipped && res.skipped !== "known" && res.skipped !== "own_post") {
+        ctx.log.warn("the engine bridge did not run a turn for a message", { traceId: ctx.trace.traceId, reason: res.skipped, event: event.name, threadId: String(event.payload["threadId"] ?? ""), messageId: String(event.payload["messageId"] ?? "") });
+      }
+      return res;
+    },
   },
 };
