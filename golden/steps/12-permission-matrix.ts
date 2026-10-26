@@ -12,7 +12,9 @@ const TESS = { kind: "person", id: "usr_tess" } as const;
 const CHANNEL = { type: "channel", id: "chn_general" } as const;
 
 /** Why this flow is a todo today (ruling 53). */
-export const GAPS: Gap[] = [];
+export const GAPS: Gap[] = [
+  { packet: "P-CC_42 follow-up", lane: "L7", what: "folders.place answers 500: it emits access.changed, which its manifest does not declare in emits (folders.create was fixed in #635, folders.place and likely folders.unplace were not)" },
+];
 
 export async function runMatrix(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const s = await bootFlowSpace(live);
