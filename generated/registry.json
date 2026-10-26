@@ -38169,6 +38169,7 @@
         {
           "input": {
             "changesetId": "chg_a1b2c3",
+            "context": "hunks",
             "mode": "unified",
             "path": "example"
           },
@@ -38214,6 +38215,13 @@
               "chg_a1b2c3"
             ],
             "pattern": "^chg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "context": {
+            "enum": [
+              "hunks",
+              "full"
+            ],
             "type": "string"
           },
           "mode": {
@@ -38477,6 +38485,7 @@
               {
                 "added": 1,
                 "conflict": true,
+                "fileId": "fil_a1b2c3",
                 "path": "example",
                 "removed": 1,
                 "status": "added"
@@ -38518,6 +38527,13 @@
                 },
                 "conflict": {
                   "type": "boolean"
+                },
+                "fileId": {
+                  "examples": [
+                    "fil_a1b2c3"
+                  ],
+                  "pattern": "^fil_[a-z0-9]+$",
+                  "type": "string"
                 },
                 "path": {
                   "type": "string"
