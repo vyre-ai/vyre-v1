@@ -125,7 +125,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
           </View>
           <Tool icon="more" label="More" onPress={moreMenu} testID="pane-more" />
         </View>
-        <TabStrip tabs={strip} active={tab} onSelect={select} tight label={`${data.agent.name}'s tabs`} />
+        <TabStrip tabs={strip} active={tab} onSelect={select} tight bare label={`${data.agent.name}'s tabs`} />
         {online ? null : <Text testID="pane-offline" style={st.offline}>Offline. Showing what this device keeps.</Text>}
         <View testID={`pane-body-${tab}`} style={st.body}>
           {tab === "computer" ? <ComputerTab deps={deps} {...(window ? { window } : {})} /> : null}

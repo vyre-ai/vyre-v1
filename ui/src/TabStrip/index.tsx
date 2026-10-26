@@ -142,6 +142,8 @@ export interface TabStripViewProps extends TabStripProps {
   label?: string;
   /** Pinned tabs with 7 px padding instead of 10: a narrow side pane that has to fit four tabs (the prototype's agent pane). */
   tight?: boolean;
+  /** No bar of its own: no fill and no rule under the tabs, for a strip that sits inside a pane's body (the prototype's agent pane). */
+  bare?: boolean;
 }
 
 export function TabStrip(props: TabStripViewProps): ReactElement {
@@ -244,7 +246,7 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
 
   const current = activeTab(props);
   return (
-    <View style={styles.strip} testID="tab-strip" {...webProps({ onPointerLeave: () => setDrag(null), onPointerUp: finishDrag })}>
+    <View style={[styles.strip, props.bare === true ? styles.stripBare : null]} testID="tab-strip" {...webProps({ onPointerLeave: () => setDrag(null), onPointerUp: finishDrag })}>
       <ScrollView
         ref={(node) => { scroller.current = node as unknown as typeof scroller.current; }}
         horizontal
@@ -375,6 +377,7 @@ const HIDDEN = { opacity: 0 };
 
 const styles = StyleSheet.create({
   strip: { height: TAB_STRIP_HEIGHT, flexDirection: "row", backgroundColor: "var(--side)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  stripBare: { backgroundColor: "transparent", borderBottomWidth: 0 },
   scroll: { flex: 1 },
   content: { flexGrow: 1, alignItems: "flex-end", paddingHorizontal: 6, gap: 2 },
   tabs: { flexDirection: "row", alignItems: "flex-end", gap: 2 },
