@@ -10,7 +10,7 @@ Erase one mail message for good (governance erase)
 | Permission | policy.manage |
 | Grant level | manage |
 | Risk | high |
-| Resource | entity (/messageId) |
+| Resource | space |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |
