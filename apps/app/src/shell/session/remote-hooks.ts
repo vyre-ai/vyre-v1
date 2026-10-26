@@ -36,6 +36,15 @@ interface Entry {
   live: LiveQuery<unknown>;
 }
 
+function failureOf(err: unknown): { message: string; code?: string; traceId?: string } {
+  const o = (typeof err === "object" && err !== null ? err : {}) as { message?: unknown; code?: unknown; traceId?: unknown };
+  return {
+    message: typeof o.message === "string" && o.message !== "" ? o.message : "The read failed.",
+    ...(typeof o.code === "string" ? { code: o.code } : {}),
+    ...(typeof o.traceId === "string" && o.traceId !== "" ? { traceId: o.traceId } : {}),
+  };
+}
+
 /** Key order does not change a query's identity. */
 export function stableJson(v: unknown): string {
   if (v === null || typeof v !== "object") return JSON.stringify(v) ?? "null";
@@ -69,6 +78,8 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
       done();
     }, (err: unknown) => {
       opts.onError?.(e.cap, err);
+      // Never answered: say why (a `ready` query keeps its last answer). The next read, when something changes, replaces this.
+      if (e.snap.status !== "ready") { e.snap = { status: "loading", error: failureOf(err) }; notify(e); }
       done();
     });
   };

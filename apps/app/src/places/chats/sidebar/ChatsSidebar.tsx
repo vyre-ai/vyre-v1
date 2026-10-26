@@ -2,7 +2,8 @@
 // Starred, Today, Yesterday and Earlier with a pulse where an agent works, then Channels with Projects beneath. One flat list in ui/VirtualList, every row a ui/Row with
 // leading and trailing slots (ruling 36). Everything reads from the local copy; a new chat shows as a row at once and the server answers behind it.
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
-import { SidebarContent } from "../../../shell/sidebar/index.ts";
+import { States } from "../../../../../../ui/src/States/index.tsx";
+import { SidebarContent, each } from "../../../shell/sidebar/index.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import { portalInto } from "../../../shell/sidebar/portal.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -13,6 +14,7 @@ import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
+import { FACES_SHOWN } from "./model.ts";
 import { createSidebarApi } from "./actions.ts";
 import type { SidebarApi } from "./actions.ts";
 import { ChatsSidebarDataProvider, useOnline, useOptionalSidebarData, useScreenQuery, useSidebarData } from "./data.tsx";
@@ -30,6 +32,8 @@ export const AGENTS_SCREEN = "chats.all-agents";
 export const NEEDS_SCREEN = "home.needs-you-top3";
 export const ROW_H = 28;
 
+/** What a failed read says (the query layer's QueryFailure). */
+interface QueryFailureLike { message: string; code?: string; traceId?: string }
 type ChannelsOut = CapMap["channels.list"]["out"];
 type AgentsOut = CapMap["agents.list"]["out"];
 type NeedsOut = CapMap["tasks.needs_you"]["out"];
@@ -88,7 +92,6 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
 
   const recentQ = useScreenQuery<RecentOut>(SIDEBAR_SCREEN, "recent", { filter: "all" });
   const channelsQ = useScreenQuery<ChannelsOut>(SIDEBAR_SCREEN, "channels", {});
-  const facesQ = useScreenQuery<AgentsOut>(AGENTS_SCREEN, "agents", { section: "starred" });
   const agentsQ = useScreenQuery<AgentsOut>(AGENTS_SCREEN, "agents", {});
   // The prototype lists every request under Needs you, not only the top three.
   const needsQ = useScreenQuery<NeedsOut>(NEEDS_SCREEN, "items", {});
@@ -98,14 +101,23 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   const agents: Agent[] = agentsQ.status === "ready" ? agentsQ.data.agents : [];
   const names = useMemo(() => new Map(agents.map((a) => [a.agentId, a.name])), [agents]);
   const agentName = useCallback((id: string) => names.get(id) ?? id, [names]);
-  const allFaces: Agent[] = facesQ.status === "ready" ? facesQ.data.agents : [];
-  const faces: Agent[] = useMemo(() => allFaces.filter((a) => matchesQuery(query, a.name)), [allFaces, query]);
+  // The Agents group is the Space's agents (agents.list takes no "starred" input; starring becomes its own packet): the first FACES_SHOWN of them, the rest behind All agents.
+  const matching: Agent[] = useMemo(() => agents.filter((a) => matchesQuery(query, a.name)), [agents, query]);
+  const faces: Agent[] = useMemo(() => matching.slice(0, FACES_SHOWN), [matching]);
+  const facesMore = matching.length - faces.length;
   const recent = recentQ.status === "ready" ? recentQ.data : EMPTY_RECENT;
   const allChannels: Channel[] = channelsQ.status === "ready" ? channelsQ.data.channels : [];
   const channels: Channel[] = useMemo(() => allChannels.filter((c) => matchesQuery(query, c.name)), [allChannels, query]);
   const allNeeds: NeedsItem[] = needsQ.status === "ready" ? needsQ.data.items : [];
   const needs: NeedsItem[] = useMemo(() => allNeeds.filter((n) => matchesQuery(query, n.task.title, agentName(n.task.createdBy))), [allNeeds, query, agentName]);
-  const loading = recentQ.status === "loading" || channelsQ.status === "loading" || facesQ.status === "loading";
+  // A read that failed ends the skeleton and says so, for that section only (never the empty state: empty means nothing is here). The other sections draw what they have.
+  const failures: { key: string; label: string; error: QueryFailureLike }[] = [];
+  for (const [key, label, q] of [["recent", "Chats", recentQ], ["channels", "Channels", channelsQ], ["agents", "Agents", agentsQ], ["needs", "Needs you", needsQ]] as const) {
+    if (q.status === "loading" && q.error !== undefined) failures.push({ key, label, error: q.error });
+  }
+  const failed = (key: string): boolean => failures.some((f) => f.key === key);
+  const pending = (q: { status: string; error?: unknown }): boolean => q.status === "loading" && q.error === undefined;
+  const loading = pending(recentQ) || pending(channelsQ) || pending(agentsQ);
 
   const counts = useMemo(() => filterCounts(recent, local, agentName), [recent, local, agentName]);
   const groups: Group[] = useMemo(
@@ -119,8 +131,8 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   }, [groups, agents]);
 
   const entries = useMemo(
-    () => buildEntries({ needs, needsTotal: needsQ.status === "ready" ? needsQ.data.total : 0, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, closed }),
-    [needs, needsQ, faces, working, waiting, groups, channels, filter, closed],
+    () => buildEntries({ needs, needsTotal: needsQ.status === "ready" ? needsQ.data.total : 0, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, closed, facesMore, recentFailed: failed("recent") }),
+    [needs, needsQ, faces, facesMore, recentQ, working, waiting, groups, channels, filter, closed],
   );
   const order = useMemo(() => selectable(entries), [entries]);
   const byKey = useMemo(() => new Map(entries.map((e) => [e.key, e])), [entries]);
@@ -329,6 +341,11 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
         </View>
       ) : null}
       {inHeader ? portalInto(slot?.actionsOutlet, newChatButton) : null}
+      {each(failures, (f) => (
+        <View key={f.key} testID={`section-error-${f.key}`} accessibilityLabel={`${f.label} could not load`}>
+          <States kind="error" message={`${f.label} could not load`} cause={f.error.message} {...(f.error.code ? { code: f.error.code } : {})} {...(f.error.traceId ? { traceId: f.error.traceId } : {})} />
+        </View>
+      ))}
       <View style={st.list}>
         {loading ? <ChatsSidebarLoading /> : (
           <VirtualList data={entries} rowHeight={ROW_H} keyOf={(e) => e.key} renderItem={(e) => renderEntry(e)} {...(window ? { window } : {})} />
