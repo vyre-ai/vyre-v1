@@ -26864,6 +26864,7 @@ if (g1639 === 'object') { const o1639 = x1639 as Record<string, unknown>;
 }
 }
 if ("recordId" in o1638) lf(o1638["recordId"], p + "/recordId", e, L31);
+if ("recordType" in o1638) lf(o1638["recordType"], p + "/recordType", e, L41);
 if ("mapping" in o1638) {
 {
 const x1640 = o1638["mapping"];
@@ -26983,6 +26984,7 @@ if (g1647 === 'object') { const o1647 = x1647 as Record<string, unknown>;
 }
 }
 if ("recordId" in o1646) lf(o1646["recordId"], p + "/recordId", e, L31);
+if ("recordType" in o1646) lf(o1646["recordType"], p + "/recordType", e, L41);
 if ("mapping" in o1646) {
 {
 const x1648 = o1646["mapping"];
@@ -27571,6 +27573,7 @@ if (!("emailId" in o1689)) e.push(p + "/emailId" + ': required');
 if (!("variant" in o1689)) e.push(p + "/variant" + ': required');
 if ("emailId" in o1689) lf(o1689["emailId"], p + "/emailId", e, L170);
 if ("asRecordId" in o1689) lf(o1689["asRecordId"], p + "/asRecordId", e, L31);
+if ("recordType" in o1689) lf(o1689["recordType"], p + "/recordType", e, L41);
 if ("variant" in o1689) lf(o1689["variant"], p + "/variant", e, L403);
 }
 }
