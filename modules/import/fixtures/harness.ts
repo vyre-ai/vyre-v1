@@ -126,7 +126,10 @@ export function openRaw(): RawDb {
   };
 }
 
-export interface HarnessOptions { raw?: RawDb; principal?: Principal; actingFor?: string; clock?: { t: number }; world?: FakeWorld }
+export interface HarnessOptions {
+  raw?: RawDb; principal?: Principal; actingFor?: string; clock?: { t: number }; world?: FakeWorld; space?: string; personalSpace?: string;
+  sessionDestination?: NonNullable<ImportCtx["sessionDestination"]>;
+}
 
 export function harness(o: HarnessOptions = {}) {
   const raw = o.raw ?? openRaw();
@@ -138,7 +141,7 @@ export function harness(o: HarnessOptions = {}) {
   const db = scopedDb("import", raw, TRACE);
   setHost({ secret: async (_ctx, handle) => world.secrets.get(handle) ?? Promise.reject(Object.assign(new Error("no such handle"), { error: { code: "validation.not_found", message: "no such handle" } })) });
   const ctx: ImportCtx = {
-    space: SPACE,
+    space: o.space ?? SPACE,
     principal: o.principal ?? { kind: "person", id: DANA },
     ...(o.actingFor === undefined ? {} : { actingFor: o.actingFor }),
     trace: { traceId: TRACE },
@@ -150,6 +153,12 @@ export function harness(o: HarnessOptions = {}) {
       const f = world.handlers[cap];
       if (!f || world.down.has(cap)) throw Object.assign(new Error(`${cap} is not available`), { error: { code: "internal.unavailable", message: `${cap} is not available` } });
       return f(input, opts);
+    },
+    sessionDestination: o.sessionDestination ?? {
+      async resolve(_owner, request) {
+        return request.kind === "personal" ? { kind: "personal", spaceId: o.personalSpace ?? o.space ?? SPACE } : { kind: "team", spaceId: request.spaceId };
+      },
+      async invoke() { throw new Error("a test must provide a destination invoke route"); },
     },
     http: world.request,
     log: { warn(msg) { warned.push(msg); } },

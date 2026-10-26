@@ -59,7 +59,7 @@ test("sessions.import never turns loose paths into projects and continues in a l
   });
   assert.equal(imported.sessions[0]?.destination.kind, "imported_sessions");
   assert.equal(h.only("projects.create").length, 0);
-  const live = await sessionsContinue(h.ctx, { conversationId: imported.sessions[0]!.conversationId, agentId: "agt_intake" });
+  const live = await sessionsContinue(h.ctx, { conversationId: imported.sessions[0]!.conversationId, destinationSpaceId: imported.sessions[0]!.destination.spaceId, destinationScope: imported.sessions[0]!.destination.scope, agentId: "agt_intake" });
   assert.equal(live.linkedFrom, imported.sessions[0]?.conversationId);
   assert.equal(h.only("chat.start").length, 1);
   assert.equal(h.rows("SELECT immutable FROM import_conversation")[0]?.immutable, 1);
@@ -79,7 +79,7 @@ test("sessions.import scopes identical provider source keys to the personal owne
   const copied = await sessionsImport(maya, payload);
   assert.equal(copied.imported, 1, "a matching source key belongs to Maya's own import, not Dana's");
   assert.equal(h.only("projects.create").length, 2, "repository bindings are per owner");
-  await assert.rejects(sessionsContinue(maya, { conversationId: dana.sessions[0]!.conversationId, agentId: "agt_intake" }), (e) => codeOf(e) === "validation.not_found");
+  await assert.rejects(sessionsContinue(maya, { conversationId: dana.sessions[0]!.conversationId, destinationSpaceId: dana.sessions[0]!.destination.spaceId, destinationScope: dana.sessions[0]!.destination.scope, agentId: "agt_intake" }), (e) => codeOf(e) === "validation.not_found");
   assert.deepEqual(h.rows("SELECT owner, sourceKey, sourceSessionId FROM import_conversation ORDER BY owner"), [
     { owner: "usr_dana", sourceKey: payload.sourceKey, sourceSessionId: "rollout-111" },
     { owner: "usr_maya", sourceKey: payload.sourceKey, sourceSessionId: "rollout-111" },
@@ -91,6 +91,38 @@ test("sessions.import defaults to a personal destination and requires explicit c
   await sessionsImport(h.ctx, payload);
   assert.equal(h.rows("SELECT destinationScope FROM import_conversation")[0]?.destinationScope, "personal");
   await assert.rejects(sessionsImport(h.ctx, { ...payload, sourceKey: "codex:team-refused", destination: { kind: "team" } }), (e) => codeOf(e) === "validation.precondition_failed");
-  await sessionsImport(h.ctx, { ...payload, sourceKey: "codex:team-confirmed", destination: { kind: "team", confirmedAt: 1_760_000_000_002 } });
+  await sessionsImport(h.ctx, { ...payload, sourceKey: "codex:team-confirmed", destination: { kind: "team", spaceId: "spc_importtest", confirmedAt: 1_760_000_000_002 } });
   assert.equal(h.rows("SELECT destinationScope FROM import_conversation WHERE sourceKey = ?", "codex:team-confirmed")[0]?.destinationScope, "team");
+});
+
+test("sessions.import resolves Personal and confirmed Team destinations before writes, even from a Team ambient Space", async () => {
+  const seed = harness();
+  const personal = harness({ raw: seed.raw, world: seed.world, clock: seed.clock, space: "spc_personal", personalSpace: "spc_personal" });
+  const selectedTeam = harness({ raw: seed.raw, world: seed.world, clock: seed.clock, space: "spc_team_target", personalSpace: "spc_personal" });
+  const ambientTeam = harness({ raw: seed.raw, world: seed.world, clock: seed.clock, space: "spc_team_ambient", personalSpace: "spc_personal" });
+  const route = {
+    async resolve(_owner: string, request: { kind: "personal" } | { kind: "team"; spaceId: string }) {
+      return request.kind === "personal" ? { kind: "personal" as const, spaceId: "spc_personal" } : { kind: "team" as const, spaceId: request.spaceId };
+    },
+    async invoke(spaceId: string, input: unknown) {
+      const isContinuation = typeof input === "object" && input !== null && "conversationId" in input;
+      if (spaceId === "spc_personal") return isContinuation ? sessionsContinue(personal.ctx, input as { conversationId: string; destinationSpaceId: string; destinationScope: "personal" | "team"; agentId: string }) : sessionsImport(personal.ctx, input as typeof payload);
+      if (spaceId === "spc_team_target") return isContinuation ? sessionsContinue(selectedTeam.ctx, input as { conversationId: string; destinationSpaceId: string; destinationScope: "personal" | "team"; agentId: string }) : sessionsImport(selectedTeam.ctx, input as typeof payload);
+      throw new Error("unexpected destination");
+    },
+  };
+  personal.ctx.sessionDestination = route;
+  selectedTeam.ctx.sessionDestination = route;
+  ambientTeam.ctx.sessionDestination = route;
+
+  const defaulted = await sessionsImport(ambientTeam.ctx, { ...payload, sourceKey: "codex:personal-from-team" });
+  assert.equal(defaulted.sessions[0]?.destination.spaceId, "spc_personal");
+  assert.deepEqual(ambientTeam.rows("SELECT sourceKey FROM import_conversation WHERE spaceId = ?", "spc_team_ambient"), []);
+  assert.deepEqual(personal.rows("SELECT spaceId, destinationScope FROM import_conversation WHERE sourceKey = ?", "codex:personal-from-team"), [{ spaceId: "spc_personal", destinationScope: "personal" }]);
+
+  const selected = await sessionsImport(ambientTeam.ctx, { ...payload, sourceKey: "codex:team-target", destination: { kind: "team", spaceId: "spc_team_target", confirmedAt: 1_760_000_000_002 } });
+  assert.equal(selected.sessions[0]?.destination.spaceId, "spc_team_target");
+  assert.deepEqual(selectedTeam.rows("SELECT spaceId, destinationScope FROM import_conversation WHERE sourceKey = ?", "codex:team-target"), [{ spaceId: "spc_team_target", destinationScope: "team" }], "the selected Team is concrete and owns its archive projection");
+  await sessionsContinue(ambientTeam.ctx, { conversationId: selected.sessions[0]!.conversationId, destinationSpaceId: "spc_team_target", destinationScope: "team", agentId: "agt_intake" });
+  assert.equal(selectedTeam.only("chat.start").length, 1, "continuation runs in the selected destination Space");
 });

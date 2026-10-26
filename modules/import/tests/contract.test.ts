@@ -67,8 +67,8 @@ const scenarios: Scenario[] = [
   { cap: "import.template", run: (hn) => run(hn, "import.template", { type: "nothing" }), expect: "validation.not_found" },
   { cap: "sessions.import", run: (hn) => run(hn, "sessions.import", localSession) },
   { cap: "sessions.import", run: (hn) => run(hn, "sessions.import", { ...localSession, consent: { previewedAt: 1 } }), expect: "validation.precondition_failed" },
-  { cap: "sessions.continue", setup: async (hn) => (await run(hn, "sessions.import", localSession)).sessions[0].conversationId, run: (hn, conversationId) => run(hn, "sessions.continue", { conversationId, agentId: "agt_intake" }) },
-  { cap: "sessions.continue", run: (hn) => run(hn, "sessions.continue", { conversationId: "isc_none", agentId: "agt_intake" }), expect: "validation.not_found" },
+  { cap: "sessions.continue", setup: async (hn) => (await run(hn, "sessions.import", localSession)).sessions[0].conversationId, run: (hn, conversationId) => run(hn, "sessions.continue", { conversationId, destinationSpaceId: "spc_importtest", destinationScope: "personal", agentId: "agt_intake" }) },
+  { cap: "sessions.continue", run: (hn) => run(hn, "sessions.continue", { conversationId: "isc_none", destinationSpaceId: "spc_importtest", destinationScope: "personal", agentId: "agt_intake" }), expect: "validation.not_found" },
 ];
 
 test("every path through every capability: answers match the schema, errors are declared, events are declared and match their schemas", async () => {
