@@ -14,7 +14,8 @@ export async function itemErase(ctx: InboxCtx, input: { refId: string; idempoten
   for (const id of conversations) {
     if (first(ctx.db.all(`SELECT id FROM inbox_item WHERE "conversationId" = ?`, id))) { refresh(ctx, id); continue; }
     ctx.db.run(`DELETE FROM inbox_match_task WHERE "conversationId" = ?`, id);
-    ctx.db.run(`DELETE FROM inbox_undo WHERE "sourceId" = ? OR "targetId" = ?`, id, id);
+    ctx.db.run(`DELETE FROM inbox_undo WHERE "sourceId" = ?`, id);
+    ctx.db.run(`DELETE FROM inbox_undo WHERE "targetId" = ?`, id);
     ctx.db.run(`DELETE FROM inbox_conversation WHERE id = ?`, id);
   }
   ctx.emit("inbox.item_erased", `entity/${input.refId}`, { refId: input.refId, removed: rows.length });
