@@ -75,7 +75,7 @@ export function harness() {
       return { deleted: true };
     },
     "records.query": (i) => {
-      const rows = [...store.values()].filter((r) => r.type === i["type"] && !r.deleted).sort((a, b) => Number(b.fields["starts_at"] ?? 0) - Number(a.fields["starts_at"] ?? 0));
+      const rows = [...store.values()].filter((r) => r.type === i["type"] && !r.deleted).sort((a, b) => (Date.parse(String(b.fields["starts_at"] ?? "")) || 0) - (Date.parse(String(a.fields["starts_at"] ?? "")) || 0));
       return { rows: rows.map(rowOf), total: rows.length };
     },
     "contacts.resolve": (i) => {

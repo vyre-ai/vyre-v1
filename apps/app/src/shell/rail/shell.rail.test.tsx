@@ -80,3 +80,11 @@ test("the red dot is for another Space that needs you, and the tile says away", 
   assert.ok(tile("nw", false).includes(">N<") && tile("hb", false).includes(">H<"));
   assert.ok(iconMarkup("chats").startsWith("<svg") && iconMarkup("chats").includes("<path"));
 });
+
+test("the rail tells the shell which place is pointed at or focused, so it can read that place ahead of the click; no prop, no calls", () => {
+  const seen: string[] = [];
+  const html = renderToStaticMarkup(<Rail groups={{ top: [{ place: "home", title: "Home", count: 0, dot: false }, { place: "chats", title: "Chats", count: 0, dot: false }], bottom: [] }} active="home" onSelect={() => undefined} onPrefetch={(p) => seen.push(p)} />);
+  assert.ok(html.includes('data-testid="rail-chats"'), "the rail still draws");
+  assert.deepEqual(seen, [], "nothing is prefetched until a person points at a place");
+  assert.ok(renderToStaticMarkup(<Rail groups={{ top: [], bottom: [] }} active="home" onSelect={() => undefined} />).includes("shell-rail"));
+});

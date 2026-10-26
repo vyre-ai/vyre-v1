@@ -12,6 +12,7 @@ import { ensureDeps, ensureChromium } from "./ensure-deps.mjs";
 import { parseArgs, SKINS, SIZES, MAX_EXPORT_S, protoHash, routeUrl, loadTargets, sideBySideHtml } from "./lib.mjs";
 import { serve } from "./serve.mjs";
 import { measureScroll, withinBudget, SCROLL_P95_MS } from "./probes/scroll.mjs";
+import { traceScroll } from "./probes/trace.mjs";
 import { exportEnv } from "../lib/registry-hash.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)), REPO = path.resolve(HERE, "../..");
@@ -56,7 +57,7 @@ fs.mkdirSync(out, { recursive: true });
 const real = await serve(dist, { spa: true });
 const proto = await serve(path.join(HERE, "prototype"));
 const { chromium } = await import("playwright-core");
-const browser = await chromium.launch({ args: ["--no-sandbox"] });
+const browser = await chromium.launch({ args: ["--no-sandbox", "--js-flags=--expose-gc"] });
 const rows = [];
 const scrollFailed = [];
 try {
@@ -99,6 +100,14 @@ try {
     console.log(`METRIC ${JSON.stringify({ name: "scroll", target: t.id, frames: r.frames, p95_ms: +r.p95.toFixed(2), max_ms: +r.max.toFixed(2), budget_ms: SCROLL_P95_MS, layout_shift: r.layoutShift, height_stable: r.heightStable, ok })}`);
     if (!ok || !r.heightStable) scrollFailed.push(t.id);
     await ctx.close();
+    // --trace: the same scroll again on a fresh page under a Chrome trace (where the time goes); the measured pass above stays untraced.
+    if (args.trace) {
+      const tctx = await browser.newContext({ viewport: SIZES.desktop, deviceScaleFactor: 1, reducedMotion: "no-preference" });
+      const tpage = await tctx.newPage();
+      await tpage.goto(routeUrl(real.origin, t.route, "paper"), { waitUntil: "load", timeout: 60000 });
+      await traceScroll(browser, tpage, t.id, t.scroll, path.join(out, "traces"));
+      await tctx.close();
+    }
   }
 } finally { await browser.close(); real.close(); proto.close(); }
 fs.writeFileSync(path.join(out, "index.md"), `# Side-by-side screenshots\n\nExport: ${exportSeconds ? exportSeconds.toFixed(1) + " s" : "skipped"} (budget ${maxExport} s)\n\n| target | skin | size | file |\n|---|---|---|---|\n${rows.join("\n")}\n`);
