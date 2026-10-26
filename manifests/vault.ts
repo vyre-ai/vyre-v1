@@ -90,6 +90,11 @@ export default defineManifest({
     read('vault.item.history', 'Every use, reveal, edit and share of an item (never values)', { in: { itemId: id.vaultItem, ...pageIn }, out: { entries: t.arr(historyRow), ...pageOut }, on: ['vault_item', '/itemId'], level: 'edit', tool: 'vault' }),
 
     // ---- items: create, change, move, delete
+    read('vault.item.usage', 'Who used a key or sign-in and how much: turns and tokens per agent and per person, and the total, from the turns the engine metered on the item; a person sees their own turns, a manager of AI spend all of them', {
+      in: { itemId: id.vaultItem, since: t.opt(t.ts()) },
+      out: { actors: t.arr(t.obj({ actor: principalRef, turns: t.int({ minimum: 0 }), tokens: t.int({ minimum: 0 }) })), total: t.obj({ turns: t.int({ minimum: 0 }), tokens: t.int({ minimum: 0 }) }) },
+      on: ['vault_item', '/itemId'], level: 'view', tool: 'vault',
+    }),
     write('vault.item.put', 'Add an item: a name plus KEY=value fields (a pasted .env or an app template becomes fields on the client)', {
       idem: 'key', in: { folderId: id.vaultFolder, name: t.str(), kind: itemKind, fields: t.arr(fieldIn), template: t.opt(t.str({ examples: ['lawmatics'] })), spaceOnly: t.opt(t.bool()), injectIntoDeployments: t.opt(t.bool()), rotateEveryDays: t.opt(t.int({ minimum: 1 })) },
       out: { item: itemMeta }, on: ['vault_folder', '/folderId'], level: 'edit', perm: 'vault.shared_create', emits: ['vault.item_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['validation.duplicate'],

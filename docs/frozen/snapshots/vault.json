@@ -31,6 +31,7 @@
     "vault.item.restore@1": "6c085e260e5535f77138b6f72b8b0dfd7925a41579d7eec5a95629e32fe0761b",
     "vault.item.reveal@1": "414ada1d9839830ac2212921152c610656dc8944161197ecf31416bb98f784e6",
     "vault.item.update@1": "c1d2fad4146912063736cc7b7fb932191503f8fb01fb872225f8eb1a4e879c2a",
+    "vault.item.usage@1": "0e5711d534ea26032b8835dee5a8e9089175d7beca4ae0f7f31fa1decb7d78fd",
     "vault.items.export_mine@1": "53faf85e539b466156aeb5c76c6861c800c1890d02cb2f2ec724a62ce0a5256d",
     "vault.items.list@1": "ae98b97d5e1d5e0fe46fadc0b0dd4eb91487993166bae7d5cc6367d57ee88633",
     "vault.items.match@1": "74d0c76349715de15cfc96673e82ebb67f27ab393fa1db7de858a39e8883f0cf",
