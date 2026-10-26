@@ -36,6 +36,8 @@ export interface EngineHostSeam {
   /** The Space data directory. With it and no `sandbox`, the module builds the default sandbox for this platform on the first CLI turn (sandbox-default.ts). */
   dataDir?: string;
   now?: () => number;
+  /** Where the bridge logs a turn that failed or a reply it could not post. */
+  log?: (msg: string, attrs?: Record<string, unknown>) => void;
   /** Run chat.post as an agent (the host builds the call with the agent as principal). With it the chat bridge is attached: the engine's replies become chat posts. */
   postAs?: PostAs;
   /** Runs once the runtime exists and before it is bound (the chat bridge attaches here). */
@@ -107,7 +109,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   closeOpener = opener ? () => opener.close() : null;
   building ??= (async () => {
     const now = h.now ?? Date.now;
-    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
+    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
     const engine = createTurnEngine({
       holder: h.holder, openSession: bridge ? bridge.tap(openSession) : openSession, now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
