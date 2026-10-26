@@ -84,7 +84,8 @@ test("a review shows the excerpt and the file; a report shows its values; a bloc
 test("every row is a ui/Row with a face, a second line and a time; a quick action sits in its trailing slot", () => {
   const out = html(createSample());
   assert.ok(has(out, 'data-testid="row-need-n1-leading"') && has(out, 'data-testid="row-need-n1-trailing"') && has(out, 'data-testid="face-Billing"'));
-  assert.ok(has(out, "Approve · Billing · $18,420 total · due Friday") && has(out, "Unblock · Scout · Needs a login for the county site"));
+  assert.ok(has(out, "Billing · $18,420 total · due Friday") && has(out, "Scout · Needs a login for the county site"), "the second line names who and what");
+  assert.ok(has(out, 'data-testid="row-verb"') && has(out, ">Approve<") && has(out, ">Unblock<"), "the verb you act with is drawn at the row's end, in its colour (P-L9b_23)");
   assert.ok(has(out, 'data-testid="quick-n1"') && has(out, 'data-testid="quick-n7"'));
   assert.ok(has(out, ">9:12<"), "the time of the request is the clock time, as the prototype shows it");
 });

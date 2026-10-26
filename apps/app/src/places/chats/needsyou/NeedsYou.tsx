@@ -16,7 +16,7 @@ import type { NeedsDeps } from "./actions.ts";
 import { NeedsYouDataProvider, useNeedsData, useOnline, useOptionalNeedsData, useScreenQuery } from "./data.tsx";
 import type { NeedsYouData } from "./data.tsx";
 import {
-  FILTERS, SNOOZES, arrivedLabel, blockView, holder, matchesFilter, needsLine, needsNote, needsTake, nextSelection, notePrompt, roleWord, rowNote, sortItems,
+  FILTERS, SNOOZES, arrivedLabel, blockView, holder, kindWord, matchesFilter, needsLine, needsNote, needsTake, nextSelection, notePrompt, roleWord, rowNote, sortItems,
   isWithdrawn, peopleCount, participants, sourceWord, splitActions, splitWithdrawn, stateWord, stepSelection,
 } from "./model.ts";
 import type { Action, BlockView, Item, KindFilter, Task } from "./model.ts";
@@ -110,16 +110,19 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
     const sel = current?.task.id === i.task.id;
     const a = splitActions(i.task);
     const quick = a.primary && !needsNote(a.primary) && !isWithdrawn(i) ? a.primary : null;
+    const verb = i.task.kind === "unblock" ? "Unblock" : kindWord(i.task);
+    const full = rowNote(i, who(i.task), clock);
+    const note = full.startsWith(`${verb} \u00b7 `) ? full.slice(verb.length + 3) : full;
     return (
       <View style={isWithdrawn(i) ? st.dimRow : undefined} {...menuTrigger((x, y) => menu.show(entriesFor(i), x, y, "context", { label: i.task.title }))}>
         <Row
-          id={`need-${i.task.id}`} title={i.task.title} note={rowNote(i, who(i.task), clock)} selected={sel} onPress={() => choose(i.task.id)}
+          id={`need-${i.task.id}`} title={i.task.title} note={note} selected={sel} onPress={() => choose(i.task.id)}
           leading={<Face name={who(i.task)} size={26} />}
           trailing={
-            <View style={st.rowEnd}>
-              <Text style={st.time}>{arrivedLabel(i.task.updatedAt, clock)}</Text>
-              {quick && holder(i, data.me).kind === "free" ? <Tool icon="check" label={`${quick.label} ${i.task.title}`} onPress={() => void doAct(i, quick)} testID={`quick-${i.task.id}`} /> : null}
-            </View>
+            <RowEnd
+              time={arrivedLabel(i.task.updatedAt, clock)} verb={verb} unblock={i.task.kind === "unblock"} lit={sel}
+              quick={quick && holder(i, data.me).kind === "free" ? <Tool icon="check" label={`${quick.label} ${i.task.title}`} onPress={() => void doAct(i, quick)} testID={`quick-${i.task.id}`} /> : null}
+            />
           }
         />
       </View>
@@ -317,6 +320,8 @@ const st = StyleSheet.create({
   quiet: { fontSize: 11.5, color: "var(--ink-3)" as string },
   rowEnd: { flexDirection: "row", alignItems: "center", gap: 4 },
   time: { fontSize: 11, color: "var(--ink-3)" as string },
+  verb: { fontSize: 12, color: "var(--accent)" as string },
+  verbWarn: { color: "var(--warn)" as string },
   note: { paddingHorizontal: 10, paddingVertical: 6, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   noteText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   foot: { height: 30, justifyContent: "center", paddingHorizontal: 10 },
@@ -389,4 +394,16 @@ function NeedList({ items, withdrawn, render, window }: { items: readonly Item[]
 /** The quiet label above the withdrawn requests: a section heading, not a list item. */
 function WithdrawnLabel({ label }: { label: string }): ReactElement {
   return <View testID="needs-withdrawn-label" style={st.nsec}><Text accessibilityRole="header" style={st.nsecText}>{label}</Text></View>;
+}
+
+/** The end of a row: when it arrived, the verb you act with in its colour, and the quick action, which shows on hover and on the selected row. */
+function RowEnd({ time, verb, unblock, lit, quick }: { time: string; verb: string; unblock: boolean; lit: boolean; quick: ReactElement | null }): ReactElement {
+  const [over, setOver] = useState(false);
+  return (
+    <View {...{ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) }} style={st.rowEnd}>
+      <Text style={st.time}>{time}</Text>
+      <Text testID="row-verb" style={[st.verb, unblock && st.verbWarn]}>{verb}</Text>
+      {quick ? <View style={{ opacity: over || lit ? 1 : 0 }}>{quick}</View> : null}
+    </View>
+  );
 }

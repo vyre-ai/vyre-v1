@@ -195,7 +195,7 @@ export function createMountSample(o: { conversation?: ConversationVariant; who?:
 
   const hooks: Record<string, ScreenHooks> = {};
   const own = createScreenHooks(replica, screensById);
-  for (const id of ["chats.sidebar", "chats.all-agents"]) hooks[id] = side.data.screens;
+  for (const id of ["chats.sidebar", "chats.all-agents", "home.needs-you-top3"]) hooks[id] = side.data.screens;
   hooks["chats.conversation"] = conv.data.screens;
   for (const id of ["chats.agent-page", "chats.agent-memory", "chats.right-pane"]) hooks[id] = agent.data.screens;
   hooks["chats.agent-computer"] = agent.data.screens;
