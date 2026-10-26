@@ -68,27 +68,29 @@ export async function policySet(
   input: { allowedAccounts?: "any" | "company"; allowedModels?: string[]; allowedProviders?: string[]; labelProviders?: Record<string, string[]> },
 ): Promise<{ ok: boolean }> {
   ensureExtra(ctx.db);
+  // Every refusal comes before the first write: a refused call leaves the policy as it was.
+  if (input.allowedAccounts !== undefined && input.allowedAccounts !== "any" && input.allowedAccounts !== "company") raise(ctx, "validation.bad_input", "Allowed accounts is any or company.", { field: "allowedAccounts" });
+  let cleanLabels: Record<string, string[]> | undefined;
+  if (input.labelProviders !== undefined) {
+    cleanLabels = {};
+    for (const [label, providers] of Object.entries(input.labelProviders)) {
+      if (!(LABELS as readonly string[]).includes(label)) raise(ctx, "validation.bad_input", `${label} is not a label. Use public, internal, confidential or restricted.`, { field: "labelProviders", label });
+      cleanLabels[label] = uniq(providers);
+    }
+  }
   const keys: string[] = [];
   const put = (key: string, value: unknown): void => {
     ctx.db.run("INSERT OR REPLACE INTO engine_policy (key, value, updated_at) VALUES (?, ?, ?)", key, JSON.stringify(value), ctx.now());
     keys.push(key);
   };
   if (input.allowedAccounts !== undefined) {
-    if (input.allowedAccounts !== "any" && input.allowedAccounts !== "company") raise(ctx, "validation.bad_input", "Allowed accounts is any or company.", { field: "allowedAccounts" });
     put("allowedAccounts", input.allowedAccounts);
     // The settings page shows the same choice; keep its row in step. A caller without the settings permission still changes the policy.
     try { await ctx.call("settings.set_space", { key: "engine.allowed_accounts", value: input.allowedAccounts }); } catch (e) { ctx.log.warn("settings row was not updated", { error: e instanceof Error ? e.message : "unknown" }); }
   }
   if (input.allowedModels !== undefined) put("allowedModels", uniq(input.allowedModels));
   if (input.allowedProviders !== undefined) put("allowedProviders", uniq(input.allowedProviders));
-  if (input.labelProviders !== undefined) {
-    const clean: Record<string, string[]> = {};
-    for (const [label, providers] of Object.entries(input.labelProviders)) {
-      if (!(LABELS as readonly string[]).includes(label)) raise(ctx, "validation.bad_input", `${label} is not a label. Use public, internal, confidential or restricted.`, { field: "labelProviders", label });
-      clean[label] = uniq(providers);
-    }
-    put("labelProviders", clean);
-  }
+  if (cleanLabels !== undefined) put("labelProviders", cleanLabels);
   if (keys.length === 0) return { ok: true };
   ctx.emit("engine.policy_changed", actorOf(ctx), { keys, by: actorOf(ctx) });
   return { ok: true };
