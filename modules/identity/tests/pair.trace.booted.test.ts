@@ -59,5 +59,20 @@ test("pair_redeem keeps the caller's trace on device.registered and session.star
     }
     const signed = (await d.log!.read({ type: "signin.succeeded" })).filter((e) => e.trace_id === traceId);
     assert.equal(signed.length, 1, "and so does the sign-in event identity itself emits");
+
+    // golden 2: the anonymous accept of an invite writes its events in the accept call's trace too
+    const role = await post(d.token, "/v1/access/roles/create", { name: "Newcomer", idempotencyKey: "pair-trace-role" });
+    assert.equal(role.status, 200, JSON.stringify(role.body));
+    const invite = await post(d.token, "/v1/members/invites/create", { role: role.body.data.role.id, idempotencyKey: "pair-trace-invite" });
+    assert.equal(invite.status, 200, JSON.stringify(invite.body));
+    const inviteCode = decodeURIComponent(new URL(invite.body.data.link as string).pathname.split("/").pop() ?? "");
+    const acceptTrace = "7c".repeat(16);
+    const keys = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] };
+    const joined = await post(null, "/v1/members/accept", { code: inviteCode, username: "tracer", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop", keys }, `${acceptTrace}-${"cd".repeat(8)}`);
+    assert.equal(joined.status, 200, JSON.stringify(joined.body));
+    for (const type of ["member.joined", "keys.stored", "device.registered", "session.started"]) {
+      const mine = (await d.log!.read({ type })).filter((e) => e.trace_id === acceptTrace);
+      assert.ok(mine.length >= 1, `${type} carries the accept call's trace`);
+    }
   } finally { await d.stop(); }
 });
