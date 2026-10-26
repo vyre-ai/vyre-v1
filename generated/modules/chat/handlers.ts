@@ -11,6 +11,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "channels.archive": Handler<"channels.archive", X>;
   "channels.connect_outside_agent": Handler<"channels.connect_outside_agent", X>;
   "channels.create": Handler<"channels.create", X>;
+  "channels.erase": Handler<"channels.erase", X>;
   "channels.get": Handler<"channels.get", X>;
   "channels.join": Handler<"channels.join", X>;
   "channels.leave": Handler<"channels.leave", X>;
@@ -49,6 +50,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.thread": Handler<"chat.thread", X>;
   "chat.transcript.append": Handler<"chat.transcript.append", X>;
   "chat.transcript.get": Handler<"chat.transcript.get", X>;
+  "chat.transcript.purge": Handler<"chat.transcript.purge", X>;
   "chat.transcript.read": Handler<"chat.transcript.read", X>;
   "chat.transcript.search": Handler<"chat.transcript.search", X>;
   "chat.transcript.summarize": Handler<"chat.transcript.summarize", X>;
@@ -56,6 +58,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.unpin": Handler<"chat.unpin", X>;
   "threads.add_agent": Handler<"threads.add_agent", X>;
   "threads.close": Handler<"threads.close", X>;
+  "threads.erase": Handler<"threads.erase", X>;
   "threads.get": Handler<"threads.get", X>;
   "threads.list": Handler<"threads.list", X>;
   "threads.make_channel": Handler<"threads.make_channel", X>;

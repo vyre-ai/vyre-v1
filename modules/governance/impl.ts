@@ -22,6 +22,14 @@ export const handlers: Record<string, Handler> = {
   "governance.jobs_health": (ctx) => h.jobsHealth(ctx),
 };
 
+/**
+ * The host runs this every minute (P-L7_15, P-CC_39): every retention kind gets its first daily tick, and a kind whose tick lapsed gets a new one. The host starts a periodic job after its first interval, not at
+ * boot, so a short interval is what puts the first tick within a minute of boot; the check is a few indexed reads and schedules nothing when every kind already has its tick.
+ */
+export const periodic = {
+  "governance.seed_ticks": { everyMs: 60_000, run: (ctx: unknown) => h.seedTicks(ctx as Parameters<typeof h.seedTicks>[0]) },
+};
+
 /** The host binds the event log behind erase (host/src/daemon): erase then reaches the append-only log, and a restore replays it. */
 export const hostSeams = { setEventsCompact: h.setEventsCompact };
 

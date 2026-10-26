@@ -3,6 +3,7 @@
   "capabilities": {
     "telephony.answer@1": "d0451810f0200cdfb6dd0ee51c7a3b23425a9051f184c798d2d642ea3e6d062e",
     "telephony.call.attach_summary@1": "ad59c15c989a5d044be6e7d9b3d41cd873f46d8eb61a2ef1cf05dd50e6489b99",
+    "telephony.call.erase@1": "af7c702fca2a3e8d1c0ad579eedc98cb128c4ecbdc25928046c99f8f638d4db2",
     "telephony.call.get@1": "67800d87fd45d3bba9b261bb1e2b24dfa9aac062d0866f05671861813e334394",
     "telephony.call.list@1": "4ebd291781ece32e223b88540906823a67c8d22d28b5e98b189771d012def3ba",
     "telephony.call.log_task@1": "dea4e75a2b28adf821db52f6fdba8f1357022bfb2d39505ff3bbd8968b21631a",
@@ -30,12 +31,14 @@
     "telephony.registration.save@1": "fe6b84cfde6032769700ed47fba1961285650e48deb9599693a631d90671e494",
     "telephony.registration.submit@1": "d85c37079dc1b1ede2182d235ec1af861fb7bfb14b98ed134b7ec48d37bb0c89",
     "telephony.send_sms@1": "876f1deaf43237695225f2f27f610aca1d0f44ef9013a7b561829833d9d6506f",
+    "telephony.sms.erase@1": "42d119e9dbb6513ff5054982c958d6eb1ef87cb7638d099b44bbf4024d2d4299",
     "telephony.sms.list@1": "6551b57c2d2967b8f0fe97b4a89550e750ad413223c7ddbc25f7a7411811db50",
     "telephony.transfer@1": "7256d3ed3492e64d231d67dfe795e5b8ea195faef1698d6c5c12b4366e21cfc2",
     "telephony.voice_token@1": "1ee3f7fae0345a9908a9cddeb95b55f33689c30dd207cb5cbbcc66a5f95b965e"
   },
   "events": {
     "call.ended": "830a04f3aead56f7e554c3deb204ec9e78346836ed21d0bb2736f4366a08ab84",
+    "call.erased": "7b07353d0bc0ec2f5c7154a6b1f85c6ab26d95665705d0388c88b1a91d541978",
     "call.missed": "594fc6024a7780ff8bc01e1a15326fd6f0eaa38f07509b5a70449f8d0a3afb16",
     "call.recording_changed": "ec8a222f97b261779f5ac28f5ccefd660f3e5c80b4626f86180d641e3e6a63c1",
     "call.recording_ready": "a2fc976d04c1630e6baec9a7621ff8752558f49c088b9708a96b36d151f4bcbd",
@@ -50,6 +53,7 @@
     "number.route_changed": "ef148972f6f0c1b1729d3ab532841e29820cbd35ef80a59150445e9693ebc403",
     "registration.status_changed": "ad3c5641512209e28fc37bc4befab95368789af774dc1bb03c7be6f0ffc718a1",
     "registration.submitted": "641fa5378e47146e6b4f850a8d46b49316f1c3bf1c4f0006c286a7d7bda20495",
+    "sms.erased": "f4cedcb5b7eb59becd242c3c9213b4c3c908fb5f79a857a23bbefc9643da123a",
     "sms.received": "c8609eab6194b4c3dfa3fb9df48cc9d1bd54c3abf9a60833fbed6d82d82a01b7"
   }
 }
