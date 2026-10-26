@@ -6,18 +6,18 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useOptionalRecordsData, useRecordsData, useScreenQuery } from "./data.tsx";
 import { SCREENS, compact, effectiveType, sortedViews, typeGroups } from "./model.ts";
-import { Glyph, typeIcon } from "./parts.tsx";
+import { Glyph, TypeTile, typeHue, typeIcon } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
 import { useRecordsState } from "./state.tsx";
 
 type TypesOut = CapMap["schema.types.list"]["out"];
 type ViewsOut = CapMap["views.list"]["out"];
 
-function SideRow({ id, title, glyph, selected, trailing, onPress }: { id: string; title: string; glyph: IconName; selected: boolean; trailing?: ReactElement | null; onPress: () => void }): ReactElement {
+function SideRow({ id, title, glyph, selected, trailing, onPress, tile }: { id: string; title: string; glyph: IconName; selected: boolean; trailing?: ReactElement | null; onPress: () => void; tile?: ReactElement | null }): ReactElement {
   return (
     <Row
       id={`nav:${id}`} title={title} selected={selected}
-      leading={<View style={styles.glyph}><Glyph name={glyph} size={16} /></View>}
+      leading={<View style={styles.glyph}>{tile ?? <Glyph name={glyph} size={16} />}</View>}
       trailing={<View style={styles.trail}>{trailing ?? null}</View>}
       onPress={onPress}
     />
@@ -58,7 +58,7 @@ function Sidebar(): ReactElement {
     for (const t of g.items) {
       sections.push(
         <SideRow
-          key={t.key} id={`type:${t.key}`} title={t.label} glyph={typeIcon(t.icon)} selected={open === t.key && state.viewId === null}
+          key={t.key} id={`type:${t.key}`} title={t.label} glyph={typeIcon(t.icon)} tile={<TypeTile icon={typeIcon(t.icon)} hue={typeHue(t.key)} syncedFrom={t.syncedFrom} />} selected={open === t.key && state.viewId === null}
           trailing={<>{t.synced ? <Glyph name="sync" size={12} /> : null}<Text style={styles.count} testID={`count-${t.key}`}>{compact(t.count)}</Text></>}
           onPress={() => dispatch({ type: "open", key: t.key })}
         />,

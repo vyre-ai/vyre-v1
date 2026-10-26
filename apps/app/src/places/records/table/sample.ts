@@ -5,7 +5,7 @@
 import { createFakeReplica, createScreenHooks, liveQuery } from "../../../../../../client/src/index.ts";
 import type { FakeReplica, LiveQuery, Row, Tables } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
-import { PROTO_CHN, PROTO_SPACE_TYPES } from "../../../fixtures/prototype-data.ts";
+import { PROTO_CHN, PROTO_SPACE_TYPES, PROTO_TYPES } from "../../../fixtures/prototype-data.ts";
 import { PROTO_CLIENT_COUNT, protoClients } from "../../../fixtures/prototype-clients.ts";
 import { nameOf, namesFor, peopleFor } from "../../../fixtures/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -108,16 +108,19 @@ const dayMs = (iso: string): number => Date.parse(`${iso}T00:00:00Z`);
 const STATUS_OPTIONS: readonly (readonly [string, number | null])[] = [["Lead", 220], ["Consult booked", 270], ["Active", 145], ["On hold", 35], ["Closed", null]];
 const SOURCE_OPTIONS: readonly (readonly [string, number | null])[] = [["Referral", 160], ["Website", 205], ["Event", 330], ["Partner", 35]];
 
+type ProtoField = { id: string; n: string; t: string; kind?: string; rt?: string; o?: readonly (readonly [string, number | null])[] };
+const protoClientType = PROTO_TYPES["clients"] as { fields: readonly ProtoField[]; hidden: readonly string[] };
+/** The prototype's field types as the table draws them: a status is a coloured choice here, a check a checkbox, a text of kind email or phone its own type. */
+const protoFieldType = (p: ProtoField): string => (p.t === "status" ? "choice" : p.t === "check" ? "checkbox" : p.t === "text" && (p.kind === "email" || p.kind === "phone") ? p.kind : p.t);
+const protoField = (p: ProtoField): FieldDef => f(p.id, protoFieldType(p), p.n, p.o ? hueChoices(p.o) : undefined);
+/** All 23 of the prototype's Client fields (the name and the 22 under Fields), then the first and latest channel the prototype's table also draws. */
 const PROTO_CLIENT_FIELDS: FieldDef[] = [
-  f("name", "text", "Name"),
-  f("status", "choice", "Status", hueChoices(STATUS_OPTIONS)),
-  f("owner", "person", "Owner"),
-  f("fit", "rating", "Fit"),
-  f("since", "date", "Client since"),
+  ...protoClientType.fields.map(protoField),
   f("fch", "choice", "First channel", hueChoices(PROTO_CHN as readonly (readonly [string, number | null])[])),
   f("lch", "choice", "Latest channel", hueChoices(PROTO_CHN as readonly (readonly [string, number | null])[])),
-  f("source", "choice", "How did you hear about us", hueChoices(SOURCE_OPTIONS)),
 ];
+/** The fields the prototype's Clients table opens without (the view's hidden list). */
+export const PROTO_CLIENT_HIDDEN: readonly string[] = protoClientType.hidden;
 
 function protoNorthwind(): SampleSpace {
   const idOf = Object.fromEntries(Object.entries(namesFor("northwind")).map(([id, name]) => [name, id]));
@@ -128,8 +131,25 @@ function protoNorthwind(): SampleSpace {
   const base = northwind;
   return {
     ...base,
-    types: [def("clients", "Client", "Clients", "people", "name", PROTO_CLIENT_FIELDS), ...base.types.filter((t) => t.key !== "clients")],
-    counts: { ...base.counts, clients: PROTO_CLIENT_COUNT },
+    types: [
+      def("clients", "Client", "Clients", "people", "name", PROTO_CLIENT_FIELDS),
+      ...base.types.filter((t) => t.key === "projects"),
+      // the prototype's other record types, as the sidebar lists them (their rows are not drawn here, only their names, icons and counts)
+      def("meetings", "Meeting", "Meetings", "calendar", "title", [f("title", "text", "Title"), f("when", "datetime", "When")]),
+      def("agents", "Agent", "Agents", "agents", "name", [f("name", "text", "Name")]),
+      def("invoices", "Invoice", "Invoices", "invoice", "no", [f("no", "text", "Number")]),
+      def("tasks", "Task", "Tasks", "task", "title", [f("title", "text", "Title")]),
+      def("hires", "Hire", "Hires", "hires", "name", [f("name", "text", "Name")]),
+      def("messages", "Message", "Messages", "message", "subject", [f("subject", "text", "Subject")]),
+      def("hscontacts", "HubSpot contact", "HubSpot Contacts", "people", "name", [f("name", "text", "Name")], { syncedFrom: "hubspot" }),
+      def("hsdeals", "HubSpot deal", "HubSpot Deals", "table", "name", [f("name", "text", "Name")], { syncedFrom: "hubspot" }),
+      def("pulls", "Pull request", "Pull requests", "pull", "title", [f("title", "text", "Title")], { syncedFrom: "github" }),
+      def("issues", "Issue", "Issues", "issue", "title", [f("title", "text", "Title")], { syncedFrom: "github" }),
+      def("atp", "ATP", "ATP", "route", "title", [f("title", "text", "Title")], { group: "Journeys" }),
+      def("bookings", "Booking", "Bookings", "table", "name", [f("name", "text", "Name")], { scope: "site:booking-widget" }),
+      def("slots", "Slot", "Slots", "table", "name", [f("name", "text", "Name")], { scope: "site:booking-widget" }),
+    ],
+    counts: { ...base.counts, clients: PROTO_CLIENT_COUNT, agents: 5, invoices: 2120, meetings: 652, tasks: 931, hires: 2, messages: 5, hscontacts: 79, hsdeals: 40, pulls: 4, issues: 5, atp: 2, bookings: 12, slots: 40 },
     views: [
       { viewId: "vw_active", type: "clients", kind: "table", title: "Active clients", shared: true, ownerId: "usr_maya", filter: { field: "status", op: "eq", value: "active" }, sort: [{ field: "since", dir: "desc" }], updatedAt: SAMPLE_NOW },
       { viewId: "vw_mine", type: "clients", kind: "table", title: "My clients", shared: false, ownerId: "usr_irfad", filter: { field: "owner", op: "eq", value: "usr_maya" }, updatedAt: SAMPLE_NOW },
@@ -242,7 +262,7 @@ export function createSampleRecords(space: SampleSpace = northwind, o: { online?
 
   const typeRows = (tables: Tables): TypeRow[] => space.types.map((t) => ({
     key: t.key, title: t.title, plural: t.plural, icon: t.icon, ...(t.group ? { group: t.group } : {}), label: t.label, system: t.system,
-    ...(t.scope ? { scope: t.scope } : {}), rowCount: tables.get(`records:${t.key}`)?.size ?? 0, fieldCount: t.fields.length,
+    ...(t.scope ? { scope: t.scope } : {}), ...(t.syncedFrom ? { syncedFrom: t.syncedFrom } : {}), rowCount: tables.get(`records:${t.key}`)?.size || space.counts[t.key] || 0, fieldCount: t.fields.length,
   }));
 
   // The long table (100,000 rows) asks the same filter and sort again for every window and every re-render; filtering and sorting the whole table each time took seconds. The matching

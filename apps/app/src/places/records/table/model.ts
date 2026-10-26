@@ -30,7 +30,7 @@ export function widthOf(f: FieldDef, primary: boolean): number {
   return primary ? 280 : WIDTHS[f.type] ?? 170;
 }
 
-const NUMERIC = new Set(["number", "money", "duration", "rating", "autonumber", "rollup", "formula"]);
+const NUMERIC = new Set(["number", "money", "duration", "autonumber", "rollup", "formula"]);
 export const isNumeric = (f: FieldDef): boolean => NUMERIC.has(f.type);
 
 export interface Column { field: FieldDef; width: number; left: number; primary: boolean }

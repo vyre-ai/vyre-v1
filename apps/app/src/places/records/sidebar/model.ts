@@ -10,7 +10,7 @@ export const DEFAULT_GROUP = "Records";
 export const SITES_GROUP = "Sites";
 
 export interface TypeGroup { key: string; label: string; items: TypeItem[] }
-export interface TypeItem { key: string; label: string; icon: string; count: number; synced: boolean; system: boolean }
+export interface TypeItem { key: string; label: string; icon: string; count: number; synced: boolean; syncedFrom?: string; system: boolean }
 
 /** A site table belongs to its site: the scope names it ("site:northwind"). */
 export function isSiteTable(t: TypeRow): boolean {
@@ -33,7 +33,7 @@ export function typeGroups(types: readonly TypeRow[]): TypeGroup[] {
   for (const t of types) {
     const site = isSiteTable(t);
     put(site ? SITES_GROUP : t.group ?? DEFAULT_GROUP, {
-      key: t.key, label: site && t.scope ? `${siteName(t.scope)} › ${t.plural}` : t.plural, icon: t.icon, count: t.rowCount, synced: t.syncedFrom !== undefined, system: t.system,
+      key: t.key, label: site && t.scope ? `${siteName(t.scope)} › ${t.plural}` : t.plural, icon: t.icon, count: t.rowCount, synced: t.syncedFrom !== undefined, ...(t.syncedFrom !== undefined ? { syncedFrom: t.syncedFrom } : {}), system: t.system,
     });
   }
   const order = [...groups.values()];

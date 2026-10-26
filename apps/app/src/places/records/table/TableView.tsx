@@ -5,7 +5,7 @@ import { createElement, memo, useCallback, useDeferredValue, useEffect, useMemo,
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
-import { marbleSpec } from "../../../../../../ui/src/Avatar/index.tsx";
+import { marbleInner, marbleSpec } from "../../../../../../ui/src/Avatar/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
@@ -37,7 +37,7 @@ function Tag({ field, value }: { field: FieldDef; value: string }): ReactElement
   const hue = opt?.color && /^\d+$/.test(opt.color) ? Number(opt.color) : hueOf(value);
   return (
     <View style={[styles.tag, { backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)` }]}>
-      <Text numberOfLines={1} style={[styles.tagText, { color: `hsl(${hue}, 55%, 40%)` }]}>{opt?.title ?? value}</Text>
+      <Text numberOfLines={1} style={[styles.tagText, { color: `color-mix(in srgb, hsl(${hue}, 65%, 50%) 60%, var(--ink))` }]}>{opt?.title ?? value}</Text>
     </View>
   );
 }
@@ -198,8 +198,8 @@ function ensureRowCss(): void {
 }
 
 /** A plain text cell is cut to what its column holds (7 px a character at 13 px, a little over the average) and ends in an ellipsis: no clip box and no text-overflow on the 400 cells a fling mounts. */
-function fit(text: string, width: number): string {
-  const room = Math.floor((width - 20) / 7);
+function fit(text: string, width: number, charW = 7): string {
+  const room = Math.floor((width - 20) / charW);
   return text.length > room ? `${text.slice(0, Math.max(1, room - 1))}\u2026` : text;
 }
 /** The field types webCell draws as plain text (everything but chips, ticks, faces and stars). */
@@ -226,10 +226,10 @@ function webCell(field: FieldDef, row: RecordRow, names: (id: string) => string,
   if ((field.type === "choice" || field.type === "status") && typeof v === "string") {
     const opt = optionsOf(field).find((o) => o.key === v);
     const hue = opt?.color && /^\d+$/.test(opt.color) ? Number(opt.color) : hueOf(v);
-    return createElement("span", { className: "vrt-chip", style: { backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)`, color: `hsl(${hue}, 55%, 40%)` } }, fit(opt?.title ?? v, width - 36));
+    return createElement("span", { className: "vrt-chip", style: { backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)`, color: `color-mix(in srgb, hsl(${hue}, 65%, 50%) 60%, var(--ink))` } }, fit(opt?.title ?? v, width - 16, 6.2));
   }
   if (field.type === "checkbox") return v === true ? <Glyph name="check" size={14} color="var(--ink-2)" width={1.8} /> : null;
-  if (field.type === "person") return createElement("span", { className: "vrt-p" }, dot(names(String(v))), fit(names(String(v)), width - 45));
+  if (field.type === "person") return createElement("span", { className: "vrt-p" }, dot(names(String(v))), fit(names(String(v)), width - 25));
   if (field.type === "rating" && typeof v === "number") return createElement("span", { className: "vrt-st", "aria-label": `${v} of 5` }, "\u2605".repeat(Math.max(0, Math.min(5, v))));
   return createElement("span", { className: isNumeric(field) ? "vrt-c vrt-n" : "vrt-c" }, fit(cellText(field, v, names), width));
 }
@@ -271,6 +271,16 @@ export interface TableViewProps {
   view?: Partial<TableViewState>;
   /** What the Records place adds to the header, before New: the switch between the table and the other kinds of view. */
   headerExtra?: ReactNode;
+}
+
+/**
+ * The foot's figure under a column: the average of a rating, over the rows in hand. The sample holds the whole table; the real figure for a long table is a count-style aggregate from the
+ * server (the contract has none yet), so a table with more rows than are loaded shows the average of the loaded window.
+ */
+function aggregateOf(field: FieldDef, rows: readonly RecordRow[]): string {
+  if (field.type !== "rating") return "";
+  const v = rows.map((r) => r.fields[field.key]).filter((x): x is number => typeof x === "number");
+  return v.length === 0 ? "" : `Avg ${(v.reduce((a, b) => a + b, 0) / v.length).toFixed(1)}`;
 }
 
 function Grid({ type, def, views, base, saved, headerExtra }: { type: string; def: TypeDef; views: readonly SavedView[]; base: TableViewState; saved: SavedView | undefined; headerExtra: ReactNode }): ReactElement {
@@ -327,6 +337,9 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
     const snap = data.live("records.counts", countSpec(type, probe, def.titleField)).getSnapshot();
     return snap.status === "ready" ? snap.data.count : null;
   };
+  // the filter menu's rows: counts in the Menu's count column, a dot in the option's colour for a status or choice, the person's face for an owner (svg strings, as ui/Menu draws them)
+  const dotIcon = (hue: number): string => `<svg viewBox="0 0 16 16" width="15" height="15"><circle cx="8" cy="8" r="4" fill="hsl(${hue}, 65%, 52%)"/></svg>`;
+  const faceIcon = (name: string): string => `<svg viewBox="0 0 80 80" width="15" height="15">${marbleInner(name)}</svg>`;
   const filterEntries = (cur: TableViewState): MenuEntry[] => {
     const out: MenuEntry[] = [];
     for (const f of def.fields.filter(hasOptions)) {
@@ -334,7 +347,19 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
       out.push({ head: f.title });
       for (const o of optionsOf(f)) {
         const n = countOf(f, o.key);
-        out.push({ label: n === null ? o.title : `${o.title} (${n})`, checked: chosen(cur, f.key).includes(optionValue(f, o.key)), onSelect: () => set(toggleOption(cur, f.key, optionValue(f, o.key))) });
+        const hue = o.color && /^\d+$/.test(o.color) ? Number(o.color) : hueOf(o.key);
+        out.push({ label: o.title, icon: dotIcon(hue), ...(n === null ? {} : { count: n }), checked: chosen(cur, f.key).includes(optionValue(f, o.key)), onSelect: () => set(toggleOption(cur, f.key, optionValue(f, o.key))) });
+      }
+    }
+    // a person field lists the people the loaded rows name
+    for (const f of def.fields.filter((x) => x.type === "person")) {
+      const ids = [...new Set((loaded?.rows ?? []).map((r) => r.fields[f.key]).filter((x): x is string => typeof x === "string" && x !== ""))];
+      if (ids.length === 0) continue;
+      if (out.length) out.push({ separator: true });
+      out.push({ head: f.title });
+      for (const id of ids.sort((a, b) => data.nameOf(a).localeCompare(data.nameOf(b)))) {
+        const n = countOf(f, id);
+        out.push({ label: data.nameOf(id), icon: faceIcon(data.nameOf(id)), ...(n === null ? {} : { count: n }), checked: chosen(cur, f.key).includes(id), onSelect: () => set(toggleOption(cur, f.key, id)) });
       }
     }
     if (out.length === 0) out.push({ head: "Filter" }, { label: "No fields to filter by" });
@@ -566,7 +591,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
         <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={slim} testID="records-fields" onPress={keep("fields")} />
         <HeadButton icon="colour" label="Colour" detail={colourField?.title} on={lit(colourField !== undefined)} bare={slim} testID="records-colour" onPress={keep("colour")} />
         {headerExtra}
-        <HeadButton icon="plus" label="New" bare={slim} testID="records-new" onPress={newRecord} />
+        <HeadButton icon="plus" label="New" bare={slim} filled testID="records-new" onPress={newRecord} />
       </View>
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="records-offline">Offline, showing your saved copy</Text>}
       {work ? (
@@ -630,7 +655,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
               <View style={[styles.tf, { width }]} testID="records-foot">
                 <View style={[styles.rn, STICKY(0), styles.headBg]} />
                 <View style={[styles.td, STICKY(GUTTER), styles.headBg, { width: primary?.width ?? 280 }]}>
-                  <Text style={styles.footText} testID="records-count">{count === null ? "" : `${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()}`}</Text>
+                  <Text style={styles.footText} testID="records-count">{count === null ? "" : `${count.toLocaleString("en-US")} ${count === 1 ? "record" : "records"}`}</Text>
                   {jump === null ? (
                     <Pressable accessibilityRole="button" accessibilityLabel="Go to row" testID="records-goto" onPress={() => setJump("")} style={styles.goto}><Text style={styles.footText}>Go to row</Text></Pressable>
                   ) : (
@@ -641,6 +666,12 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
                     />
                   )}
                 </View>
+                {colWin.pad > 0 ? <View style={{ width: colWin.pad }} /> : null}
+                {cols.slice(colWin.from, colWin.to).map((c) => (
+                  <View key={c.field.key} style={[styles.td, styles.headBg, { width: c.width }, isNumeric(c.field) && styles.tdNum]}>
+                    <Text numberOfLines={1} style={styles.footText} testID={`agg-${c.field.key}`}>{aggregateOf(c.field, loaded?.rows ?? [])}</Text>
+                  </View>
+                ))}
               </View>
             )}
           >
@@ -648,6 +679,11 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
           </Scroller>
         )}
       </View>
+      {count === null ? null : (
+        <View style={styles.statusBar} testID="records-status">
+          <Text style={styles.footText}>{`${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()} · ${v.clauses.length > 0 || v.find ? "filtered" : "every record shown"}`}</Text>
+        </View>
+      )}
       {menu.element}
     </View>
   );
@@ -766,6 +802,7 @@ const styles = StyleSheet.create({
   groupText: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string },
   groupCount: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   chevShut: { transform: [{ rotate: "-90deg" }] },
+  statusBar: { height: 28, justifyContent: "center", paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   tf: { height: 32, flexDirection: "row", alignItems: "center", borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   footText: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   skRow: { flexDirection: "row", alignItems: "center", gap: 18, height: ROW_H, paddingHorizontal: 18 },

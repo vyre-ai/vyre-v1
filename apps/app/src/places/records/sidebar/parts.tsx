@@ -32,6 +32,12 @@ export const ICON = {
   desc: ["M8 12.5v-9M4.5 9L8 12.5 11.5 9"],
   check: ["M3 8.5l3 3 7-7"],
   expand: ["M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5L9 7M2.5 13.5L7 9"],
+  invoice: ["M4 2.5h8v11l-2-1.2-2 1.2-2-1.2-2 1.2z", "M6 6h4M6 8.5h4"],
+  task: ["M13.5 8a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z", "M5.8 8.2l1.7 1.7 3-3.2"],
+  message: ["M3 3.5h10a1 1 0 011 1v6a1 1 0 01-1 1H7.5L4.5 14v-2.5H3a1 1 0 01-1-1v-6a1 1 0 011-1z"],
+  route: ["M4 12.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z", "M12 6.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z", "M5.5 11h4a2 2 0 002-2V8"],
+  pull: ["M4.5 5.2a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM4.5 13.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z", "M4.5 5.2v5.3M11.5 13.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z", "M11.5 10.5V6.5a2 2 0 00-2-2H8"],
+  issue: ["M13.5 8a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z", "M8 8h.01"],
 } as const;
 export type IconName = keyof typeof ICON;
 
@@ -40,6 +46,7 @@ export function typeIcon(icon: string): IconName {
   const known: Record<string, IconName> = {
     table: "table", users: "people", people: "people", person: "people", contact: "people", contacts: "people", building: "building", company: "building", companies: "building",
     folder: "folder", project: "project", projects: "project", calendar: "calendar", meeting: "calendar", meetings: "calendar", agent: "agent", agents: "agent", globe: "globe", site: "globe",
+    invoice: "invoice", invoices: "invoice", task: "task", tasks: "task", hire: "people", hires: "people", message: "message", messages: "message", journey: "route", route: "route", pull: "pull", issue: "issue",
   };
   return known[icon] ?? "table";
 }
@@ -87,8 +94,8 @@ export function anchorOf(e: unknown): { x: number; y: number } {
 }
 
 /** A quiet header button: an icon, a label that drops away on a phone, and what it applies ("Sort", "Name"). Lit when something is applied. */
-export function HeadButton({ icon, label, detail, on = false, testID, onPress, bare = false }: {
-  icon: IconName; label: string; detail?: string | undefined; on?: boolean; testID?: string; onPress: (x: number, y: number) => void; bare?: boolean;
+export function HeadButton({ icon, label, detail, on = false, testID, onPress, bare = false, filled = false }: {
+  icon: IconName; label: string; detail?: string | undefined; on?: boolean; testID?: string; onPress: (x: number, y: number) => void; bare?: boolean; filled?: boolean;
 }): ReactElement {
   return (
     <Pressable
@@ -97,10 +104,10 @@ export function HeadButton({ icon, label, detail, on = false, testID, onPress, b
       accessibilityState={{ selected: on }}
       testID={testID}
       onPress={(e) => { const p = anchorOf(e); onPress(p.x, p.y); }}
-      style={({ hovered }: { hovered?: boolean }) => [s.hb, hovered === true && s.hbOver]}
+      style={({ hovered }: { hovered?: boolean }) => [s.hb, filled ? s.hbFilled : hovered === true && s.hbOver, filled && hovered === true && s.hbFilledOver]}
     >
-      <Glyph name={icon} size={14} color={on ? "var(--accent)" : "var(--ink-2)"} />
-      {bare ? null : <Text style={[s.hbText, on && s.hbOn]}>{label}</Text>}
+      <Glyph name={icon} size={14} color={filled ? "var(--win)" : on ? "var(--accent)" : "var(--ink-2)"} />
+      {bare ? null : <Text style={[s.hbText, on && s.hbOn, filled && s.hbFilledText]}>{label}</Text>}
       {detail && !bare ? <Text style={s.hbDetail}>{detail}</Text> : null}
     </Pressable>
   );
@@ -109,7 +116,34 @@ export function HeadButton({ icon, label, detail, on = false, testID, onPress, b
 export const s = StyleSheet.create({
   hb: { height: 28, paddingHorizontal: 7, borderRadius: 7, flexDirection: "row", alignItems: "center", gap: 6 },
   hbOver: { backgroundColor: "var(--hover)" as string },
+  hbFilled: { backgroundColor: "var(--ink)" as string },
+  hbFilledOver: { opacity: 0.88 },
+  hbFilledText: { color: "var(--win)" as string },
   hbText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
   hbOn: { color: "var(--accent)" as string },
   hbDetail: { fontSize: 12, color: "var(--ink-3)" as string },
 });
+
+/** The prototype's brand tiles for a synced type: the app's colour with its mark in white. */
+const BRANDS: Record<string, { color: string; path: string }> = {
+  hubspot: { color: "#FF7A59", path: "M18.164 7.93V5.084a2.198 2.198 0 001.267-1.978v-.067A2.2 2.2 0 0017.238.845h-.067a2.2 2.2 0 00-2.193 2.193v.067a2.196 2.196 0 001.252 1.973l.013.006v2.852a6.22 6.22 0 00-2.969 1.31l.012-.01-7.828-6.095A2.497 2.497 0 104.3 4.656l-.012.006 7.697 5.991a6.176 6.176 0 00-1.038 3.446c0 1.343.425 2.588 1.147 3.607l-.013-.02-2.342 2.343a1.968 1.968 0 00-.58-.095h-.002a2.033 2.033 0 102.033 2.033 1.978 1.978 0 00-.1-.595l.005.014 2.317-2.317a6.247 6.247 0 104.782-11.134l-.036-.005zm-.964 9.378a3.206 3.206 0 113.215-3.207v.002a3.206 3.206 0 01-3.207 3.207z" },
+  github: { color: "#3D444D", path: "M12 .3a12 12 0 00-3.800 23.400c.600.100.800-.300.800-.600v-2c-3.300.700-4-1.600-4-1.600-.600-1.400-1.400-1.800-1.400-1.800-1-.700.100-.700.100-.700 1.200.100 1.800 1.200 1.800 1.200 1 1.800 2.800 1.300 3.500 1 .100-.800.400-1.300.700-1.600-2.700-.300-5.500-1.300-5.500-5.900 0-1.300.500-2.400 1.200-3.200-.100-.400-.500-1.600.100-3.200 0 0 1-.300 3.300 1.200a11.500 11.500 0 016 0c2.300-1.500 3.300-1.200 3.300-1.200.700 1.700.200 2.900.100 3.200.800.800 1.200 1.900 1.200 3.200 0 4.600-2.800 5.600-5.500 5.900.400.400.800 1.100.800 2.200v3.300c0 .300.200.700.800.600A12 12 0 0012 .3" },
+};
+
+/** The sidebar's tile for a record type: the type's icon on a soft tile of its hue, or the brand tile of the app it is synced from. */
+export function TypeTile({ icon, hue, syncedFrom, size = 18 }: { icon: IconName; hue: number; syncedFrom?: string | undefined; size?: number }): ReactElement | null {
+  if (Platform.OS !== "web") return null;
+  const brand = syncedFrom !== undefined ? BRANDS[syncedFrom.toLowerCase()] : undefined;
+  if (brand) {
+    return createElement("span", { "aria-hidden": true, "data-testid": `brand-${syncedFrom}`, style: { width: size, height: size, borderRadius: "28%", background: brand.color, display: "grid", placeItems: "center", flex: "none" } },
+      createElement("svg", { viewBox: "0 0 24 24", width: "64%", height: "64%", fill: "#fff" }, createElement("path", { d: brand.path })));
+  }
+  return createElement("span", { "aria-hidden": true, style: { width: size, height: size, borderRadius: 5, display: "grid", placeItems: "center", flex: "none", background: `color-mix(in srgb, hsl(${hue}, 70%, 55%) 20%, transparent)` } },
+    createElement(Glyph, { name: icon, size: 12, color: `color-mix(in srgb, hsl(${hue}, 70%, 48%) 75%, var(--ink))`, width: 1.5 }));
+}
+
+/** The hue of a type's tile (the prototype's TYHUE, and a spread for the rest). */
+export function typeHue(key: string): number {
+  const known: Record<string, number> = { clients: 250, projects: 160, invoices: 35, meetings: 205, tasks: 330, agents: 285, hires: 185, messages: 10 };
+  return known[key] ?? (key.split("").reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 360);
+}
