@@ -5,7 +5,7 @@
 // DECISION: ingest is idempotent: the same event or provider id again refreshes the fields (time, title, link, status) and says created false, merged false; only a new identity joining is a merge.
 // DECISION: unmerge splits one calendar event off into a Meeting of its own, built from the event. A meeting with nothing but that one event cannot be unmerged (nothing would be left behind).
 // DECISION: cancel marks the record canceled, deletes its calendar events and the Zoom meeting best-effort (a missing one is fine, a provider refusal is the caller's to see), and says so once.
-import { codeOf, bad, ensure, first, isId, isInt, keyOf, linkFor, linkKey, links, list, meetingRecord, meetingRow, obj, paging, patchMeeting, providerOfUrl, pageOf, refuse, saveLink, text, strOrUndef } from "../projections.ts";
+import { codeOf, bad, ensure, first, isId, isInt, isoOf, keyOf, linkFor, linkKey, links, list, meetingRecord, meetingRow, msOf, obj, paging, patchMeeting, providerOfUrl, pageOf, refuse, saveLink, text, strOrUndef } from "../projections.ts";
 import type { Json, Link, MeetCtx, Provider } from "../projections.ts";
 
 const WINDOW_MS = 15 * 60_000;
@@ -89,7 +89,7 @@ export async function ingest(ctx: MeetCtx, input: {
     const created = obj(obj(await ctx.call("records.create", {
       type: "meeting", idempotencyKey: `meeting:${input.source}:${input.providerRef}`,
       fields: {
-        title: input.title?.trim() || "Meeting", starts_at: input.startsAt, ...(input.endsAt !== undefined ? { ends_at: input.endsAt } : {}), provider,
+        title: input.title?.trim() || "Meeting", starts_at: isoOf(input.startsAt), ...(input.endsAt !== undefined ? { ends_at: isoOf(input.endsAt) } : {}), provider,
         ...(input.joinUrl ? { join_url: input.joinUrl } : {}), status: input.status ?? "scheduled", attendees: attendeeIds, recording_state: "none",
         ...(eventId ? { calendar_event_id: eventId } : {}), ...(!isCal ? { provider_ref: input.providerRef } : {}),
       },
@@ -114,8 +114,8 @@ export async function ingest(ctx: MeetCtx, input: {
   if (newRef) { next.providerRef = input.providerRef; patch["provider_ref"] = input.providerRef; }
   if (input.joinUrl && (!l.joinUrl || !isCal)) { next.joinUrl = input.joinUrl; patch["join_url"] = input.joinUrl; }
   if (provider !== "none" && l.provider !== provider) { next.provider = provider; patch["provider"] = provider; }
-  if (!merged && input.startsAt !== l.startsAt) { next.startsAt = input.startsAt; patch["starts_at"] = input.startsAt; }
-  if (!merged && input.endsAt !== undefined && input.endsAt !== l.endsAt) { next.endsAt = input.endsAt; patch["ends_at"] = input.endsAt; }
+  if (!merged && input.startsAt !== l.startsAt) { next.startsAt = input.startsAt; patch["starts_at"] = isoOf(input.startsAt); }
+  if (!merged && input.endsAt !== undefined && input.endsAt !== l.endsAt) { next.endsAt = input.endsAt; patch["ends_at"] = isoOf(input.endsAt); }
   // a refresh of the same event or provider meeting may retitle it; a new identity joining keeps the title it finds, unless that was only the placeholder
   if (input.title?.trim() && input.title.trim() !== text(rec.fields["title"]) && (!merged || text(rec.fields["title"]) === "" || text(rec.fields["title"]) === "Meeting")) patch["title"] = input.title.trim();
   if (newEvent && !text(rec.fields["calendar_event_id"])) patch["calendar_event_id"] = eventId;
@@ -201,7 +201,7 @@ export async function unmerge(ctx: MeetCtx, input: { meetingId: string; eventId:
   const created = obj(obj(await ctx.call("records.create", {
     type: "meeting", idempotencyKey: `meeting:unmerge:${input.meetingId}:${input.eventId}`,
     fields: {
-      title: text(ev["title"]) || text(rec.fields["title"]) || "Meeting", starts_at: startsAt, ...(typeof ev["endsAt"] === "number" ? { ends_at: ev["endsAt"] } : {}), provider: "none", status: "scheduled",
+      title: text(ev["title"]) || text(rec.fields["title"]) || "Meeting", starts_at: isoOf(startsAt), ...(typeof ev["endsAt"] === "number" ? { ends_at: isoOf(ev["endsAt"]) } : {}), provider: "none", status: "scheduled",
       attendees: await contactIds(ctx, who), recording_state: "none", calendar_event_id: input.eventId,
     },
   })).record);
@@ -281,7 +281,7 @@ export async function listMeetings(ctx: MeetCtx, input: { from?: number; to?: nu
   }
   const picked = rows.filter((r) => {
     const f = obj(r["fields"]);
-    const s = typeof f["starts_at"] === "number" ? f["starts_at"] : 0;
+    const s = msOf(f["starts_at"]) ?? 0;
     return (input.from === undefined || s >= input.from) && (input.to === undefined || s < input.to) && (input.status === undefined || (text(f["status"]) || "scheduled") === input.status)
       && (input.contactId === undefined || list(f["attendees"]).includes(input.contactId));
   }).map((r) => meetingRow(ctx, text(r["id"]), obj(r["fields"]), linkFor(ctx, text(r["id"]))));

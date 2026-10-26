@@ -1,7 +1,7 @@
 // P-L5_LIVE: the host halves of Stripe, Twilio and GitHub read only the Vault handles their manifests declare, reach only their own domains, and hand a GitHub token to git only through the filler.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createGithubHost, createStripeHost, createTwilioHost } from "../src/seams/comms.ts";
+import { createGithubHost, createStripeHost, createTwilioHost, createZoomHost } from "../src/seams/comms.ts";
 import { createFiller } from "../src/seams/filler.ts";
 import type { SeamCtx, SeamFetch } from "../src/seams/ports.ts";
 
@@ -49,4 +49,17 @@ test("github: the App JWT is signed in the Vault, and a token goes behind a fill
   assert.equal(filler.fill(handle, { kind: "other", ref: "r2" }, 2_000), false, "no sink takes another kind");
   assert.equal(filler.fill(handle, { kind: "git_credential", ref: "r3" }, 6_000), false, "an expired token is not filled");
   assert.equal(filler.fill("#fill_nope", { kind: "git_credential", ref: "r4" }, 2_000), false);
+});
+
+test("zoom: only its own handles are readable, and a recording is fetched only from a Zoom host with the account token", async () => {
+  const seen: { url: string; auth?: string | undefined }[] = [];
+  const fetch: SeamFetch = async (url, init) => { seen.push({ url, auth: init?.headers?.["authorization"] }); return { status: 200, text: async () => "", arrayBuffer: async () => new Uint8Array([9]).buffer }; };
+  const h = createZoomHost({ vault: { secret: async (hd: string) => (hd === "#Zoom_S2S.client_id" ? "cid" : Promise.reject(new Error("no such item"))) }, fetch, blobs: { put: async () => "blb_z" } });
+  assert.equal(await h.secret(ctx, "#Zoom_S2S.client_id"), "cid");
+  assert.equal(await codeOf(h.secret(ctx, "#Stripe_Key")), "permission.no_grant");
+  assert.equal(await codeOf(h.secret(ctx, "#Zoom_S2S.client_secret")), "provider.auth_failed", "an item the Vault does not have");
+  assert.deepEqual(await h.download(ctx, { url: "https://us02web.zoom.us/rec/download/x", bearer: "tok", mime: "video/mp4" }), { blobId: "blb_z", size: 1, mime: "video/mp4" });
+  assert.equal(seen[0]?.auth, "Bearer tok");
+  assert.equal(await codeOf(h.download(ctx, { url: "https://evil.example/x", bearer: "tok" })), "permission.no_grant");
+  assert.equal(seen.length, 1, "a refused address is never fetched");
 });

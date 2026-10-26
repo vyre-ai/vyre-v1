@@ -49,7 +49,8 @@ function markReconnect(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: ConnectionDb
   const cur = deps.tx.get<{ state: string }>("SELECT state FROM cn_connections WHERE connection_id = ?", c.connection_id);
   if (!cur || cur.state === "needs_reconnect") return;
   deps.tx.run("UPDATE cn_connections SET state = 'needs_reconnect' WHERE connection_id = ?", c.connection_id);
-  ctx.emit("connection.needs_reconnect", `connection/${c.connection_id}`, { connectionId: c.connection_id, connector: c.connector });
+  // the call that rejected the sign-in throws right after this (connectors.run, sync_types.discover), which drops what it buffered; the state change above is already written, so the event is too
+  ctx.emit("connection.needs_reconnect", `connection/${c.connection_id}`, { connectionId: c.connection_id, connector: c.connector }, { afterFailure: true });
 }
 
 /** Run one action of a connector. Throws the catalogue error for anything that goes wrong; the message and details never hold a secret. */

@@ -13,7 +13,7 @@ import { memoryDb } from "./memory-db.ts";
 export const NOW = 1_760_000_000_000;
 export const ACCOUNT = "AC00000000000000000000000000000001";
 export const AUTH = "auth-token-not-real";
-export const API_KEY = "SK00000000000000000000000000000002";
+export const API_KEY = "SK00000000000000000000000000000002"; // secret-scan: fake
 export const PUBLIC_URL = "https://space.example.test";
 export const BASIC_ACCOUNT = `Basic ${Buffer.from(`${ACCOUNT}:${AUTH}`).toString("base64")}`;
 export const BASIC_KEY = `Basic ${Buffer.from(`${API_KEY}:${AUTH}`).toString("base64")}`;

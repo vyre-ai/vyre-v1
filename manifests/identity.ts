@@ -85,7 +85,7 @@ export default defineManifest({
 
     // ---- password, recovery, reset
     write('identity.change_password', 'Change my own password; keys are re-wrapped on the device first', {
-      ...V, in: { currentPassword: t.str(), newPassword: t.str(), keys: keyBundle }, out: ok, emits: ['password.changed', 'keys.stored'], audit: 'sensitive', offline: 'online', errors: ['auth.bad_credentials'],
+      ...V, in: { currentPassword: t.str(), newPassword: t.str(), keys: keyBundle }, out: ok, emits: ['password.changed', 'keys.stored', 'signin.failed'], audit: 'sensitive', offline: 'online', errors: ['auth.bad_credentials'],
     }),
     write('identity.recovery_save', 'Save a recovery code so a reset keeps Mine vault items, private chats and personal memory', {
       ...V, in: { personKeyByRecovery: wrapped }, out: ok, emits: ['recovery.saved', 'keys.stored'], audit: 'sensitive', offline: 'online',
@@ -121,7 +121,7 @@ export default defineManifest({
       ...V, in: {}, out: { setupUri: t.str({ description: 'otpauth URI, shown once', examples: ['otpauth://totp/Vyre:maya?secret=ABC'] }), enrolmentId: t.id('enr') }, offline: 'online', audit: 'sensitive', tool: 'meta',
     }),
     write('identity.totp_confirm', 'Confirm a TOTP enrolment with the first code', { ...V, in: { enrolmentId: t.id('enr'), code: t.str({ examples: ['123456'] }) }, out: ok, emits: ['factor.enrolled'], offline: 'online', audit: 'sensitive', errors: ['auth.invalid_code'], tool: 'meta' }),
-    write('identity.totp_remove', 'Remove my TOTP factor (refused when the Space requires a second factor)', { ...V, in: { password: t.str() }, out: ok, emits: ['factor.removed'], offline: 'online', audit: 'sensitive', errors: ['auth.bad_credentials', 'validation.precondition_failed'], tool: 'meta' }),
+    write('identity.totp_remove', 'Remove my TOTP factor (refused when the Space requires a second factor)', { ...V, in: { password: t.str() }, out: ok, emits: ['factor.removed', 'signin.failed'], offline: 'online', audit: 'sensitive', errors: ['auth.bad_credentials', 'validation.precondition_failed'], tool: 'meta' }),
     write('identity.passkey_register', 'Add a passkey as a second factor (ships later)', { ...V, in: { attestation: t.json(), name: t.str() }, out: ok, emits: ['factor.enrolled'], offline: 'online', audit: 'sensitive', since: '1.1.0', tool: 'meta' }),
     write('identity.passkey_remove', 'Remove a passkey (ships later)', { ...V, in: { name: t.str() }, out: ok, emits: ['factor.removed'], offline: 'online', audit: 'sensitive', since: '1.1.0', tool: 'meta' }),
 

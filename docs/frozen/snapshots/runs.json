@@ -2,11 +2,13 @@
   "module": "runs",
   "capabilities": {
     "runs.count@1": "39fa4eb2bc9b1fc204623bd4811d87e49e7797db402f9750423e5973e10120c7",
+    "runs.erase@1": "cea79946854c60344be4bcaab23e07d2efbe75ce55d70519d9820eac27674c79",
     "runs.finish@1": "9b08285c6823a48018343b0f4742ef3e212bbc8f5c98a5d6f6279ddef8220283",
     "runs.get@1": "8c9be829d9fbe2bf7fa6fb09dc1afaafd584b5ea8337c29ae858495f7472d93f",
     "runs.list@1": "0989c4a2af7d2d392c93e6fe6ae458023944f4a2472c457bcd555803185546f2",
     "runs.mark_waiting@1": "ee0786ceb4a322e9d2d3be0906eeba02263aba64254906ed50ed4e808ad4cbbd",
     "runs.preview_undo@1": "a3a996524c663a6116c1896eb95ac8b4674471c0f11aad13edddd2294e0e77bd",
+    "runs.purge@1": "13cac0ab618473db7663fc88363b4d8249c7a6c3152bc57ed324f441a2029eda",
     "runs.record_key@1": "8262cd464a1d989064ea48a48c91a76851367258775cd96f461e4f3932af85d7",
     "runs.record_step@1": "ee2166d1ab6b2f888e81b7462e03d47fb538da36ed300eee56a64151f48fade7",
     "runs.replay@1": "5cdb78573d199677ac3815e89b607a7fb9b38e510b60c5335048d17fc982bf69",
@@ -20,6 +22,7 @@
     "runs.wait_for@1": "424ab56ad41b07983295ee792154e98e922b4de2a0fd28cc1e0d81eaa6f7b4df"
   },
   "events": {
+    "run.erased": "f909c8996ae5b7774853c0bccc0bd4c5ede717c86cd25269d52a188f0b0c52cf",
     "run.failed": "84d6841f29bb11982b422e3f7a56e0812dcf063b9e716cdadf9c1694f87f2848",
     "run.key_fallback": "43445014bcefcd2e1cbb494dcac7b6150cccb0d4e64214965f31d4192e9bda72",
     "run.resumed": "aa7d199340b8e6f263bb65e981f855a9c3b4a514207ea6d2102e09bb4f89e179",
@@ -28,6 +31,7 @@
     "run.stopped": "ea42520412b2fad4ae46796af7d4efd23e4a930a522a9149fdebb9d13d8c0ad1",
     "run.succeeded": "e3b3b56d0ab42fdc37bf601ff18efa2b5ff32d70c33afe19b003ae008d7cc023",
     "run.undone": "f526a5be1342563dddc0437a8cd1770e2b895623b236b7a831815e1cd5b0478e",
-    "run.waiting": "78aa3a84421cfc577348a055da0a6d9ef5165752f8acd6ca188ef93aa395811c"
+    "run.waiting": "78aa3a84421cfc577348a055da0a6d9ef5165752f8acd6ca188ef93aa395811c",
+    "runs.purged": "e88d77fcf9c721084bb71b06f88ec14535cd0c15a9dffd71dd4d1548c098f44f"
   }
 }

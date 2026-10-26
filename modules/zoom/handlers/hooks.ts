@@ -34,6 +34,42 @@ export async function signatureMatches(secret: string, timestamp: string, body: 
   return diff === 0;
 }
 
+/** Zoom's signed requests older (or newer) than this are refused, so a captured request cannot be played back later. */
+export const WEBHOOK_TOLERANCE_MS = 5 * 60_000;
+
+export type Verified = { ok: true; input: { eventId: string; type: string; meetingId?: string; uuid?: string; plainToken?: string; at: number } } | { ok: false; reason: "no_signature" | "stale" | "bad_signature" | "bad_body" };
+
+/**
+ * What a request to /hooks/zoom must pass before anything is recorded: the x-zm-request-timestamp is a number of seconds within five minutes of now, x-zm-signature is the HMAC of
+ * `v0:<timestamp>:<raw body>` under the webhook secret token, and the body is a Zoom event. Returns the input zoom.receive_webhook takes. The timestamp is judged first, so a stale request
+ * costs no key work; the signature is compared over its whole length. Zoom sends no event id, so one is made from the event, the meeting's uuid and Zoom's own event_ts: the same
+ * delivery sent twice is the same id and handled once.
+ */
+export async function verifyWebhook(secret: string, headers: Readonly<Record<string, string | undefined>>, body: string, now: number): Promise<Verified> {
+  const stamp = headers["x-zm-request-timestamp"], signature = headers["x-zm-signature"];
+  if (!stamp || !signature) return { ok: false, reason: "no_signature" };
+  const seconds = Number(stamp);
+  if (!Number.isFinite(seconds) || Math.abs(now - seconds * 1000) > WEBHOOK_TOLERANCE_MS) return { ok: false, reason: "stale" };
+  if (!(await signatureMatches(secret, stamp, body, signature))) return { ok: false, reason: "bad_signature" };
+  let event: Json;
+  try { event = obj(JSON.parse(body)); } catch { return { ok: false, reason: "bad_body" }; }
+  const type = text(event["event"]);
+  const payload = obj(event["payload"]);
+  const object = obj(payload["object"]);
+  const uuid = strOrUndef(object["uuid"]);
+  const id = object["id"] === undefined ? undefined : String(object["id"]);
+  const at = typeof event["event_ts"] === "number" && Number.isSafeInteger(event["event_ts"]) ? event["event_ts"] : Math.round(seconds * 1000);
+  if (!type) return { ok: false, reason: "bad_body" };
+  const plainToken = strOrUndef(payload["plainToken"]);
+  return {
+    ok: true,
+    input: {
+      eventId: `${type}:${uuid ?? id ?? plainToken ?? ""}:${at}`, type, at,
+      ...(id !== undefined ? { meetingId: id } : {}), ...(uuid !== undefined ? { uuid } : {}), ...(plainToken !== undefined ? { plainToken } : {}),
+    },
+  };
+}
+
 /** The answer to Zoom's endpoint validation challenge. */
 export async function encryptedTokenOf(secret: string, plainToken: string): Promise<string> {
   return hmacHex(secret, plainToken);

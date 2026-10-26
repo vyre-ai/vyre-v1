@@ -68,11 +68,11 @@ export default defineManifest({
       errors: ['validation.precondition_failed'],
     }),
     write('computers.take_over', 'Take over the computer ("You\'re in control"); your actions become one "You took over" step', {
-      in: comp, out: { computer: computerRow, ticket: t.str() }, on: ['computer', '/computerId'], perm: 'computers.take_over', level: 'use', team: true, emits: ['computer.takeover'],
+      in: comp, out: { computer: computerRow, ticket: t.str() }, on: ['computer', '/computerId'], perm: 'computers.take_over', level: 'use', team: true, emits: ['computer.takeover', 'computer.started'],
       tool: 'computer', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['validation.precondition_failed'],
     }),
     write('computers.give_back', 'Give the computer back to the agent', {
-      in: comp, out: { computer: computerRow }, on: ['computer', '/computerId'], perm: 'computers.take_over', level: 'use', team: true, emits: ['computer.given_back'], tool: 'computer', idem: 'natural', offline: 'online',
+      in: comp, out: { computer: computerRow }, on: ['computer', '/computerId'], perm: 'computers.take_over', level: 'use', team: true, emits: ['computer.given_back', 'computer.recording_saved'], tool: 'computer', idem: 'natural', offline: 'online',
     }),
     write('computers.record_start', 'Record while you take over: every click and key with the element, each page, network traffic with secrets masked, and video', {
       in: comp, out: { recordingId: t.id('rcd') }, on: ['computer', '/computerId'], perm: 'computers.take_over', level: 'use', team: true, emits: ['computer.recording_started'],
@@ -115,7 +115,7 @@ export default defineManifest({
       in: comp, out: { sessions: t.arr(sessionRow) }, on: ['computer', '/computerId'], perm: 'computers.watch', team: true, tool: 'computer',
     }),
     write('computers.session.sign_out', 'Sign out of a site on the profile disk', {
-      in: { ...comp, site: t.str() }, out: { ok: t.bool() }, on: ['computer', '/computerId'], perm: 'computers.take_over', team: true, emits: ['computer.session_signed_out'], tool: 'computer', audit: 'sensitive',
+      in: { ...comp, site: t.str() }, out: { ok: t.bool() }, on: ['computer', '/computerId'], perm: 'computers.take_over', team: true, emits: ['computer.session_signed_out', 'computer.started'], tool: 'computer', audit: 'sensitive',
     }),
     read('computers.health', 'Health of the container runtime and agentd on the host', {
       out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()), awake: t.int(), asleep: t.int() }, team: true,

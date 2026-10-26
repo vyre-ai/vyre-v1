@@ -2,16 +2,14 @@
 // device of the person is ended: tokens answer 401, the devices are revoked, the sign-in is refused, and each device confirms its wipe. Through the gateway, real tokens.
 import assert from "node:assert/strict";
 import { bootFlowSpace, expectStatus, short, Trail } from "./02-space.ts";
-import { GAPS as JOIN_GAPS, joinPerson, memberRole } from "./02-person-joining.ts";
+import { joinPerson, memberRole } from "./02-person-joining.ts";
 import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_OFFBOARDING = ["members", "identity", "devices", "access", "spaces", "tasks", "gate"];
 
 /** Why this flow is a todo today (ruling 53). The join gaps are flow 2's; the rest is specific to offboarding. */
-export const GAPS: Gap[] = [
-  { packet: "L7 members", lane: "L7", what: "a removed person's sign-in still answers 200: members.remove ends the devices but identity.sign_in does not check the removed status" },
-];
+export const GAPS: Gap[] = [];
 
 export async function runOffboarding(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const s = await bootFlowSpace(live);
