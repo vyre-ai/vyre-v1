@@ -134,7 +134,8 @@ function protoNorthwind(): SampleSpace {
     ...base,
     types: [
       def("clients", "Client", "Clients", "people", "name", PROTO_CLIENT_FIELDS),
-      ...base.types.filter((t) => t.key === "projects"),
+      // Projects sits with the other record types in the prototype, not in a group of its own
+      ...base.types.filter((t) => t.key === "projects").map(({ group: _group, ...t }) => t),
       // the prototype's other record types, as the sidebar lists them (their rows are not drawn here, only their names, icons and counts)
       def("meetings", "Meeting", "Meetings", "calendar", "title", [f("title", "text", "Title"), f("when", "datetime", "When")]),
       def("agents", "Agent", "Agents", "agents", "name", [f("name", "text", "Name")]),
