@@ -1,5 +1,6 @@
 // The extras identity, members and spaces expect on their ctx besides what the invoke pipeline builds (ruling 31/32): the host reads them from the access projection and the module tables, or hands the work to the
 // module that owns it. Each is a plain object on the ctx of that module's capabilities; a module without the extra answers the way its handler says (empty directory, no invites wired).
+//   identity.membership whether the access projection still has the person active; issueSession refuses a suspended or removed person
 //   identity.directory  roles (names) and groups of a person, from the access projection
 //   identity.invites    peek and accept, run by the members module through its host calls (members.invite_peek, members.invite_accept), so identity never touches members tables
 //   identity.github     GitHub sign-in and linking, only when VYRE_GH_OAUTH_CLIENT_ID and _SECRET are set
@@ -96,6 +97,8 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
   const extras: Record<string, Record<string, unknown>> = {
     identity: {
       directory,
+      // a person the access projection knows as suspended or removed gets no session, whatever proves who they are; one it does not know yet is mid-join (the account comes first, the principal event commits with the call)
+      membership: { active: (personId: string) => { const p = d.access().principal(personId); return p === undefined || p.status === "active"; } },
       ...(d.github ? { github: createGithub(d.github) } : {}),
       ...(d.keyring ? { keyring: { clear: (personId: string) => d.keyring!.clear(personId) } } : {}),
       invites: {
