@@ -4,7 +4,8 @@
 // is listed in scripts/lint/raise-after-write-known.json as "<file>#<function>": "<reason>".
 // How it reads: functions are found by header (function f(, const f = (...) =>, "cap.name": async (...) =>); inside one, the first write is a .run( on db, ctx.db or tx. A later raise( refuse( fail(
 // or throw fail( / throw new is a finding, unless the write sat in a block that ended in return or throw (another branch), or in a try whose catch comes first (the author handles the failure).
-// A bare `throw e` is a rethrow and not judged. Not seen: writes made through helper functions, and refusals raised by a ctx.call.
+// A write and a refusal in different branches of one if/else are not judged. A function defined inside a handler is read where its name is called (const put = (...) => {...}), and a callback or
+// object method defined inline is not read. A bare `throw e` is a rethrow and not judged. Not seen: writes made through helper functions in other places, and refusals raised by a ctx.call.
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -99,6 +100,11 @@ function closeOf(code: string, open: number): number {
   return -1;
 }
 
+type Nested = { first: number; last: number; name: string | undefined; writes: boolean; refuseLine: number };
+
+// where a function body opens inside a line: after =>, after function f(...), or a method shorthand `name(...) {` (not if, for, while, switch or catch)
+const NESTED_OPEN = /(?:=>\s*|\bfunction\b[^{]*\)\s*(?::[^{]*)?|^\s*(?:async\s+)?(?!(?:if|for|while|switch|catch|return)\b)\w+\s*\([^)]*\)\s*(?::[^{]+)?)\{/;
+
 export function checkRaiseAfterWrite(file: string, rawSource: string): RawFinding[] {
   const code = scrub(rawSource);
   const rawLines = rawSource.split("\n");
@@ -110,6 +116,7 @@ export function checkRaiseAfterWrite(file: string, rawSource: string): RawFindin
     while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (lineStarts[mid]! <= index) lo = mid; else hi = mid - 1; }
     return lo;
   };
+  const isWrite = (l: number): boolean => WRITE.test(codeLines[l]!) && !/CREATE\s|PRAGMA/i.test(rawLines.slice(l, l + 3).join(" "));
   const out: RawFinding[] = [];
   const seen = new Set<string>();
   for (let h = 0; h < rawLines.length; h++) {
@@ -122,25 +129,52 @@ export function checkRaiseAfterWrite(file: string, rawSource: string): RawFindin
     if (close < 0) continue;
     const first = lineOf(open);
     const last = lineOf(close);
+    // Function bodies inside this one run when they are called, not where they are defined. A named one (const put = (...) => {) is read at each call of its name; an anonymous one
+    // (a callback, an object method) is not read at all.
+    const nested: Nested[] = [];
+    for (let l = first + 1; l <= last; l++) {
+      if (nested.length > 0 && l <= nested[nested.length - 1]!.last) continue;
+      const hit = NESTED_OPEN.exec(codeLines[l]!);
+      if (!hit) continue;
+      const brace = lineStarts[l]! + hit.index + hit[0].length - 1;
+      const end = closeOf(code, brace);
+      if (end < 0) continue;
+      const lastL = lineOf(end);
+      const named = /^\s*(?:export\s+)?(?:const|let)\s+(\w+)\s*(?::[^=]+)?=/.exec(rawLines[l]!) ?? /\bfunction\s+(\w+)/.exec(rawLines[l]!);
+      let writes = false, refuseLine = -1;
+      for (let k = l; k <= lastL; k++) { if (isWrite(k)) writes = true; if (refuseLine < 0 && REFUSE.test(codeLines[k]!)) refuseLine = k; }
+      nested.push({ first: l, last: lastL, name: named?.[1], writes, refuseLine });
+    }
+    const named = nested.filter((n) => n.name !== undefined).map((n) => ({ n, call: new RegExp(`(?<![\\w$.])${n.name!.replace(/\$/g, "\\$")}\\(`) }));
     let depth = 0;
     let pending: { line: number; depth: number } | null = null;
     let lastCode = "";
-    for (let l = first; l <= last; l++) {
+    const report = (writeLine: number, raiseLine: number): void => {
+      const key = `${writeLine}:${raiseLine}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({ file, fn: name, writeLine: writeLine + 1, raiseLine: raiseLine + 1, message: `${name}() writes at line ${writeLine + 1} and then refuses at line ${raiseLine + 1}; a refused call keeps that write with no event` });
+    };
+    let stop = false;
+    for (let l = first; l <= last && !stop; l++) {
       let text = codeLines[l]!;
       if (l === first) text = text.slice(open - lineStarts[first]!);
       const trimmed = text.trim();
       const startsClose = trimmed.startsWith("}");
       const lineDepth = depth;
-      if (/\bcatch\b/.test(trimmed) && pending && pending.depth > lineDepth - (startsClose ? 1 : 0)) pending = null;
-      if (pending && REFUSE.test(text) && !(WRITE.test(text) && l === pending.line)) {
-        const key = `${pending.line}:${l}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          out.push({ file, fn: name, writeLine: pending.line + 1, raiseLine: l + 1, message: `${name}() writes at line ${pending.line + 1} and then refuses at line ${l + 1}; a refused call keeps that write with no event` });
+      const inNested = nested.some((n) => l >= n.first && l <= n.last);
+      if (!inNested) {
+        if (/\bcatch\b/.test(trimmed) && pending && pending.depth > lineDepth - (startsClose ? 1 : 0)) pending = null;
+        // the other branch of the if that holds the write is never run after it
+        if (startsClose && /^\}\s*else\b/.test(trimmed) && pending && pending.depth >= lineDepth) pending = null;
+        if (pending && REFUSE.test(text) && !(WRITE.test(text) && l === pending.line)) { report(pending.line, l); stop = true; break; }
+        if (!pending && isWrite(l) && !/\breturn\b/.test(text)) pending = { line: l, depth: lineDepth };
+        for (const { n, call } of named) {
+          if (!call.test(text) || l === n.first) continue;
+          if (n.writes && !pending && !/\breturn\b/.test(text)) pending = { line: l, depth: lineDepth };
+          if (n.refuseLine >= 0 && pending) { report(pending.line, n.refuseLine); stop = true; break; }
         }
-        break;
       }
-      if (!pending && WRITE.test(text) && !/CREATE\s|PRAGMA/i.test(rawLines.slice(l, l + 3).join(" "))) pending = { line: l, depth: lineDepth };
       for (const ch of text) { if (ch === "{") depth++; else if (ch === "}") depth--; }
       if (pending && depth < pending.depth) {
         if (/^(?:return\b|throw\b|raise\(|refuse\(|fail\()/.test(startsClose ? lastCode : trimmed)) pending = null;

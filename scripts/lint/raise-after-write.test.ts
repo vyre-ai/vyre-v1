@@ -38,3 +38,22 @@ test("raise-after-write: scrub blanks comments, strings and regex literals and k
   assert.equal(out.split("\n").length, 4);
   assert.ok(!out.includes("q{") && !out.includes("'"));
 });
+
+test("raise-after-write: a closure is read where it is called, not where it is defined", () => {
+  const defined = `async function f(ctx) {\n  ctx.db.run("UPDATE t SET a = 1");\n  const live = () => { if (!open) throw new Error("gone"); };\n  return live;\n}`;
+  assert.deepEqual(run(defined), [], "a throw inside a closure that is never called is not a refusal after the write");
+  const called = `async function f(ctx, input) {\n  const put = (k) => {\n    ctx.db.run("INSERT INTO p VALUES (?)", k);\n  };\n  put("a");\n  if (input.bad) raise(ctx, "validation.bad_input", "no");\n}`;
+  assert.deepEqual(run(called).map((h) => [h.writeLine, h.raiseLine]), [[5, 6]], "a closure that writes counts as a write at its call");
+  const checked = `async function f(ctx, input) {\n  const put = (k) => {\n    ctx.db.run("INSERT INTO p VALUES (?)", k);\n  };\n  if (input.bad) raise(ctx, "validation.bad_input", "no");\n  put("a");\n}`;
+  assert.deepEqual(run(checked), []);
+});
+
+test("raise-after-write: a write and a refusal in different branches of one if and else are not judged", () => {
+  assert.deepEqual(run(`async function f(ctx, input) {\n  if (input.a) {\n    ctx.db.run("UPDATE t SET a = 1");\n  } else {\n    raise(ctx, "validation.bad_input", "no");\n  }\n}`), []);
+  assert.equal(run(`async function f(ctx, input) {\n  if (input.a) {\n    ctx.db.run("UPDATE t SET a = 1");\n  }\n  raise(ctx, "validation.bad_input", "no");\n}`).length, 1, "after the if, with no else, the write is still there");
+});
+
+test("raise-after-write: a callback written inline is not read, and a one-line write that returns does not count", () => {
+  assert.deepEqual(run(`async function f(ctx) {\n  ctx.db.run("UPDATE t SET a = 1");\n  items.forEach((i) => {\n    raise(ctx, "validation.bad_input", "no");\n  });\n}`), []);
+  assert.deepEqual(run(`async function f(ctx, input) {\n  if (input.undo) { ctx.db.run("DELETE FROM t"); return {}; }\n  raise(ctx, "validation.bad_input", "no");\n}`), []);
+});
