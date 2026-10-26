@@ -98,7 +98,7 @@ test("Rust crates are Tauri 2 and its MIT/Apache plugins only, and the package i
   const cargo = read("Cargo.toml");
   const deps = cargo.split("[dependencies]")[1]?.split("[profile")[0] ?? "";
   const names = [...deps.matchAll(/^([a-z0-9_-]+)\s*=/gm)].map((m) => m[1]).sort();
-  assert.deepEqual(names, ["serde", "serde_json", "tauri", "tauri-plugin-deep-link", "tauri-plugin-dialog", "tauri-plugin-global-shortcut", "tauri-plugin-notification", "tauri-plugin-shell", "tauri-plugin-single-instance"]);
+  assert.deepEqual(names, ["rusqlite", "serde", "serde_json", "tauri", "tauri-plugin-deep-link", "tauri-plugin-dialog", "tauri-plugin-global-shortcut", "tauri-plugin-notification", "tauri-plugin-shell", "tauri-plugin-single-instance"]);
   assert.match(cargo, /license = "MIT"/);
   const allow = read("deny.toml");
   assert.doesNotMatch(allow, /GPL|AGPL|SSPL/);

@@ -8,11 +8,20 @@ import { fileURLToPath } from "node:url";
 import { discoverSessions, providerRoots } from "../src/session-import/discover.ts";
 import { readCodexSession } from "../src/session-import/codex.ts";
 import { readClaudeSession } from "../src/session-import/claude.ts";
+import { makeBridge } from "../src/bridge.ts";
 
 const TESTS = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES = path.join(TESTS, "fixtures", "session-import");
 const codex = path.join(FIXTURES, "codex");
 const claude = path.join(FIXTURES, "claude");
+
+test("the shell exposes a metadata-only Codex discovery command with a configured home", async () => {
+  const calls: { command: string; args?: Record<string, unknown> }[] = [];
+  const source = { provider: "codex", sessionId: "11111111-1111-4111-8111-111111111111", sessionKey: "codex:11111111-1111-4111-8111-111111111111", projectKey: "codex:/workspace/vyre", transcriptPath: "/safe/sessions/rollout-11111111-1111-4111-8111-111111111111.jsonl" };
+  const bridge = makeBridge(async (command, args) => { calls.push({ command, args }); return [source]; });
+  assert.deepEqual(await bridge.discoverCodexSessions({ codexHome: "/safe" }), [source]);
+  assert.deepEqual(calls, [{ command: "discover_codex_sessions", args: { options: { codexHome: "/safe" } } }]);
+});
 
 test("configured homes win over defaults and discovery returns metadata without opening transcript bodies", async () => {
   assert.deepEqual(providerRoots("codex", { codexHome: codex, home: "/ignored" }), [codex]);
