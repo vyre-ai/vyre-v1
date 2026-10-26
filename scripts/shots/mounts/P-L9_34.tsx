@@ -1,4 +1,4 @@
-// Mount for P-L9_34: the whole shell with the phone wired in. The softphone dock wraps the shell, so a call rings over any place and, once answered while another place is open, is the green pill in
+// Mount for P-L9_34 (the real Chats place, ChatsMounted over its runtime, so the sidebar fills the shared slot with data; the call comes after the place has drawn): the whole shell with the phone wired in. The softphone dock wraps the shell, so a call rings over any place and, once answered while another place is open, is the green pill in
 // the title bar. ?state=ring leaves the call ringing (the dock's incoming sheet); ?state=live answers it (the title-bar pill). The place is Chats, as in P-L9_14c. State is read after mount (rule 25).
 import { useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
@@ -6,8 +6,10 @@ import { View, useWindowDimensions } from "react-native";
 import { createThemeController } from "../../../ui/src/theme/index.ts";
 import type { ThemeRoot } from "../../../ui/src/theme/index.ts";
 import { Shell } from "../../../apps/app/src/shell/spaces/Shell.tsx";
-import { chatsPlace } from "../../../apps/app/src/shell/spaces/sample-chats.tsx";
-import { createSampleShell } from "../../../apps/app/src/shell/spaces/sample.tsx";
+import type { PlaceContext } from "../../../apps/app/src/shell/spaces/Shell.tsx";
+import { ChatsMounted } from "../../../apps/app/src/places/chats/mounts/ChatsMounted.tsx";
+import { createMountSample } from "../../../apps/app/src/places/chats/mounts/sample.ts";
+import { createSampleShell, samplePlace } from "../../../apps/app/src/shell/spaces/sample.tsx";
 import { createUnmatchedSample } from "../../../apps/app/src/places/inbox/unmatched/sample.ts";
 import { PHONE_OF } from "../../../apps/app/src/places/inbox/softphone/sample.ts";
 
@@ -33,16 +35,16 @@ export default function Mount(): ReactNode {
       removeProperty: (n) => { root?.style.removeProperty(n); },
     };
     const theme = createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
-    return { hub: createSampleShell({ openId: "nw", theme }), theme, phone: createUnmatchedSample(), state: query.get("state") ?? "live" };
+    return { hub: createSampleShell({ openId: "nw", theme }), theme, phone: createUnmatchedSample(), chats: createMountSample(), state: query.get("state") ?? "live" };
   }, []);
   useEffect(() => {
-    const timers = [setTimeout(() => { made.phone.device.ring(PHONE_OF["elena"]!); }, 600)];
-    if (made.state === "live") timers.push(setTimeout(() => click("softphone-answer"), 1000));
+    const timers = [setTimeout(() => { made.phone.device.ring(PHONE_OF["elena"]!); }, 2000)];
+    if (made.state === "live") timers.push(setTimeout(() => click("softphone-answer"), 2600));
     return () => { for (const t of timers) clearTimeout(t); };
   }, [made]);
   return (
     <View style={{ height }}>
-      <Shell hub={made.hub} theme={made.theme} renderPlace={chatsPlace} phone={{ device: made.phone.device, data: made.phone.data }} />
+      <Shell hub={made.hub} theme={made.theme} renderPlace={(ctx: PlaceContext): ReactNode => (ctx.place === "chats" ? <ChatsMounted key={ctx.spaceId} rt={made.chats.rt} window={{ start: 0, end: 500 }} /> : samplePlace(ctx))} phone={{ device: made.phone.device, data: made.phone.data }} />
     </View>
   );
 }
