@@ -152,8 +152,8 @@ export function createPortalHost(d: PortalHostDeps): PortalHostSeam {
     mailer: {
       async sendLink(msg) {
         try { await send(msg); } catch (e) {
-          const code = (e as { error?: { code?: unknown } } | null)?.error?.code;
-          d.warn?.("portal.mail_failed", { purpose: msg.purpose, code: typeof code === "string" ? code : "unknown", message: e instanceof Error ? e.message.slice(0, 300) : "failed" });
+          const err = (e as { error?: { code?: unknown; details?: unknown } } | null)?.error;
+          d.warn?.("portal.mail_failed", { purpose: msg.purpose, code: typeof err?.code === "string" ? err.code : "unknown", why: `${e instanceof Error ? e.message : "failed"} ${JSON.stringify(err?.details ?? null)}`.slice(0, 400) });
           throw e;
         }
       },
