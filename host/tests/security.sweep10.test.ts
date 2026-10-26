@@ -36,6 +36,12 @@ const nestHandler: Handler = (async (ctx: { principal: { kind: string; id: strin
   inner: await ctx.call("example.who", {}),
 })) as never;
 
+/** A capability whose handler calls gate.park nested, as any module could: the nested call has depth one and the caller's own identity. */
+const nestParkHandler: Handler = (async (ctx: { call(cap: string, input: unknown): Promise<unknown> }) => ctx.call("gate.park", {
+  capName: "mail.send", capVersion: 1, input: { to: ["x@example.com"], subject: "s", body: "b" }, payloadHash: "ph_nested", act: "send",
+  principal: { kind: "person", id: "usr_olivia" }, actingFor: "usr_olivia", decisionId: "dec_nested01", idempotencyKey: "sweep10-nestpark",
+})) as never;
+
 function seededDir(): string {
   const core = bootCore();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-sweep10-"));
@@ -60,9 +66,9 @@ async function boot(session?: Parameters<typeof startDaemon>[0]["session"]): Pro
     fetch: caddyFetch,
     ...(session ? { session } : {}),
     extra: {
-      caps: [probe("example.who"), probe("example.nest"), probe("example.hello", "anonymous")],
-      routes: [route("example.who", "/v1/example/who"), route("example.nest", "/v1/example/nest"), route("example.hello", "/v1/example/hello")],
-      handlers: { "example.who": whoHandler, "example.nest": nestHandler, "example.hello": whoHandler },
+      caps: [probe("example.who"), probe("example.nest"), probe("example.hello", "anonymous"), probe("example.nestpark")],
+      routes: [route("example.who", "/v1/example/who"), route("example.nest", "/v1/example/nest"), route("example.hello", "/v1/example/hello"), route("example.nestpark", "/v1/example/nestpark")],
+      handlers: { "example.who": whoHandler, "example.nest": nestHandler, "example.hello": whoHandler, "example.nestpark": nestParkHandler },
     },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, tick: 3_600_000, hooks: 3_600_000 },
   });
@@ -273,6 +279,14 @@ test("gate.park: a person cannot write a hold, so a forged hold cannot be releas
     assert.deepEqual(owner, { status: 403, code: "permission.role_lacks_permission", reason: "system_only" });
     const member = await post(d, "/v1/gate/park", "tok-noah", { ...forged, idempotencyKey: "sweep10-park-2", principal: { kind: "person", id: "usr_noah" }, actingFor: "usr_noah" }, FORGED_HEADERS);
     assert.ok(member.status === 403 || member.status === 404, `a member's park is refused, got ${member.status}`);
+    // origin is the server's word: a member who says "gate" in a header or the body is still a user
+    for (const origin of ["gate", "hook", "engine", "schedule"]) {
+      const lied = await errorOf(await post(d, "/v1/gate/park", "tok-owner", { ...forged, idempotencyKey: `sweep10-park-${origin}`, origin }, { ...FORGED_HEADERS, "x-vyre-origin": origin }));
+      assert.deepEqual(lied, { status: 403, code: "permission.role_lacks_permission", reason: "system_only" }, origin);
+    }
+    // and a capability that calls gate.park nested (depth one, the caller's own identity) is refused the same way
+    const nested = await errorOf(await post(d, "/v1/example/nestpark", "tok-owner", {}, { ...FORGED_HEADERS, "x-vyre-origin": "gate" }));
+    assert.deepEqual(nested, { status: 403, code: "permission.role_lacks_permission", reason: "system_only" });
     assert.equal(count(d, "gate_holds"), 0, "no hold exists");
     // a release of a hold that does not exist, with a made-up token, does nothing
     for (const token of ["tok-owner", "tok-noah"]) {

@@ -6,7 +6,7 @@ import {
   ACTS, APPROVER_RANK, RISK_RANK, actOf, allRules, approverFor, clean, effectiveRule, getHold, holdOut, holdsWhere, insertHold, mayHandle, newHoldId, previewBlocks, putRule,
   raise, readPolicy, saveHold, sha, summaryLine,
 } from "../projections.ts";
-import { isSystemCall } from "../../../lib/trust.ts";
+import { isHostService } from "../../../lib/trust.ts";
 import type { ActDef, GateCtx, Hold, PrincipalRef, RuleRow, Scope } from "../projections.ts";
 import { dropHold } from "./approve.ts";
 
@@ -30,9 +30,9 @@ async function askerOf(ctx: GateCtx, p: PrincipalRef, actingFor: string | undefi
 }
 
 export async function park(ctx: GateCtx, input: In): Promise<unknown> {
-  // Only the pipeline parks a call: the Gate hook calls with origin "gate" (as the Space's owner, for the Space itself), the host with svc_host. The hold names the principal, the capability and the input
+  // Only the pipeline parks a call: the Gate hook calls with origin "gate" (as the Space's owner, for the Space itself), the host with svc_host, and only at the top of the call: a capability the Gate hook ran that calls gate.park nested has depth above zero and is refused. The hold names the principal, the capability and the input
   // that gate.release later runs as that principal, so a hold a caller wrote themselves would run anything as anyone (P-SEC_10).
-  if (!isSystemCall(ctx) && ctx.origin !== "gate") raise(ctx, "permission.role_lacks_permission", "Only the server parks a call for approval.", { reason: "system_only" });
+  if (!isHostService(ctx.principal) && !(ctx.origin === "gate" && (ctx.depth ?? 0) === 0)) raise(ctx, "permission.role_lacks_permission", "Only the server parks a call for approval.", { reason: "system_only" });
   const same = holdsWhere(ctx.db, "decision_id = ?", input.decisionId)[0];
   if (same) return clean({ holdId: same.id, taskId: same.taskId, runId: same.runId });   // the same decision parked twice is one hold
   if (!ctx.call) raise(ctx, "internal.unavailable", "Approvals are not available right now.", { service: "call" });
