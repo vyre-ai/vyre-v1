@@ -142749,7 +142749,7 @@
         ],
         "type": "object"
       },
-      "level": "edit",
+      "level": "member",
       "module": "sync",
       "name": "sync.doc.close",
       "offline": "online",
@@ -142827,7 +142827,7 @@
         ],
         "type": "object"
       },
-      "level": "edit",
+      "level": "member",
       "module": "sync",
       "name": "sync.doc.compact",
       "output": {
@@ -142906,7 +142906,7 @@
         "type": "object"
       },
       "label": "check",
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.doc.open",
       "output": {
@@ -143008,7 +143008,7 @@
         "type": "object"
       },
       "label": "check",
-      "level": "edit",
+      "level": "member",
       "module": "sync",
       "name": "sync.doc.update",
       "offline": "online",
@@ -143070,7 +143070,7 @@
         "properties": {},
         "type": "object"
       },
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.endpoints",
       "output": {
@@ -143169,7 +143169,7 @@
         },
         "type": "object"
       },
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.entities",
       "output": {
@@ -143484,7 +143484,7 @@
         ],
         "type": "object"
       },
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.hello",
       "output": {
@@ -143648,7 +143648,7 @@
         "type": "object"
       },
       "label": "filter",
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.pull",
       "output": {
@@ -143988,7 +143988,7 @@
         ],
         "type": "object"
       },
-      "level": "edit",
+      "level": "member",
       "module": "sync",
       "name": "sync.push",
       "offline": "online",
@@ -144122,7 +144122,7 @@
         "type": "object"
       },
       "label": "filter",
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.snapshot.begin",
       "output": {
@@ -144227,7 +144227,7 @@
         "type": "object"
       },
       "label": "filter",
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.snapshot.page",
       "output": {
@@ -144306,7 +144306,7 @@
         },
         "type": "object"
       },
-      "level": "view",
+      "level": "member",
       "module": "sync",
       "name": "sync.status",
       "output": {
