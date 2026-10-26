@@ -22,13 +22,13 @@ test("a calendar event becomes a Meeting; the same event again changes it, not t
   assert.deepEqual(contractErrors("meetings.ingest", "out", first), []);
   assert.deepEqual([first.created, first.merged], [true, false]);
   const f = h.fields(String(first.meetingId));
-  assert.deepEqual([f["title"], f["starts_at"], f["ends_at"], f["provider"], f["status"], f["attendees"], f["calendar_event_id"], f["recording_state"]], ["Estate consult", START, START + HOUR, "none", "scheduled", [PAT], EVENT, "none"]);
+  assert.deepEqual([f["title"], f["starts_at"], f["ends_at"], f["provider"], f["status"], f["attendees"], f["calendar_event_id"], f["recording_state"]], ["Estate consult", new Date(START).toISOString(), new Date(START + HOUR).toISOString(), "none", "scheduled", [PAT], EVENT, "none"]);
   assert.equal(h.store.size, 1);
 
   const again = out(await m.ingest(h.ctx, calendar({ title: "Estate consult, moved", startsAt: START + HOUR, endsAt: START + 2 * HOUR, joinUrl: "https://meet.google.com/aaa-bbbb-ccc" })));
   assert.deepEqual([again.meetingId, again.created, again.merged], [first.meetingId, false, false]);
   const g = h.fields(String(first.meetingId));
-  assert.deepEqual([g["title"], g["starts_at"], g["join_url"], g["provider"]], ["Estate consult, moved", START + HOUR, "https://meet.google.com/aaa-bbbb-ccc", "meet"]);
+  assert.deepEqual([g["title"], g["starts_at"], g["join_url"], g["provider"]], ["Estate consult, moved", new Date(START + HOUR).toISOString(), "https://meet.google.com/aaa-bbbb-ccc", "meet"]);
   assert.equal(h.store.size, 1);
   assert.equal(h.named("meeting.merged").length, 0, "the same event is not a merge");
 });

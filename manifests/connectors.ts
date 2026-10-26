@@ -126,7 +126,7 @@ export default defineManifest({
     }),
     outward('connectors.run', 'Run one connector action against the live app, sandboxed to the connector domains, with a dry run option', {
       in: { key: id.connector, action: t.str(), connectionId: id.connection, input: t.json(), dryRun: t.opt(t.bool()) }, out: { output: t.json(), dryRun: t.bool() },
-      on: ['connector', '/key'], perm: 'connectors.manage', gate: { act: 'send', when: "actor.kind != 'person'" }, tool: 'engineer', cli: 'vyre connector run',
+      on: ['connector', '/key'], perm: 'connectors.manage', gate: { act: 'send', when: "actor.kind != 'person'" }, emits: ['connection.needs_reconnect'], tool: 'engineer', cli: 'vyre connector run',
     }),
     read('connectors.diff', 'Diff a draft against the live version of a connector', {
       in: { key: id.connector, draftId: t.opt(draftId) }, out: { files: t.arr(t.obj({ path: t.str(), added: t.int(), removed: t.int() })), breaking: t.bool() }, on: ['connector', '/key'], perm: 'connectors.manage', tool: 'engineer',
@@ -160,7 +160,7 @@ export default defineManifest({
     write('connections.complete_auth', 'Finish an OAuth sign-in from the callback (state and code)', {
       in: { state: t.str(), code: t.str() }, out: { connectionId: id.connection }, level: 'use', emits: ['connection.reconnected', 'connection.created'], errors: ['auth.invalid_code', 'provider.auth_failed'], offline: 'online',
     }),
-    read('connections.test', 'Probe a connection with the connector health call', { in: { connectionId: id.connection }, out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) }, on: ['connection', '/connectionId'], tool: 'engineer' }),
+    read('connections.test', 'Probe a connection with the connector health call', { in: { connectionId: id.connection }, out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) }, on: ['connection', '/connectionId'], emits: ['connection.needs_reconnect'], tool: 'engineer' }),
     write('connections.delete', 'Remove a connection; synced types bound to it pause', { in: { connectionId: id.connection }, out: { deleted: t.bool() }, on: ['connection', '/connectionId'], level: 'manage', audit: 'always', emits: ['connection.deleted'], tool: 'engineer' }),
     // ---- synced types
     read('sync_types.list', 'List synced types with state, pending pushes, conflicts and schema changes', { in: { connector: t.opt(id.connector), ...pageIn }, out: { syncedTypes: t.arr(syncedTypeRow), ...pageOut }, tool: 'records', label: 'filter' }),
@@ -168,7 +168,7 @@ export default defineManifest({
     read('sync_types.discover', 'List remote objects and their fields with a proposed record type and mapping', {
       in: { connectionId: id.connection, remote: t.opt(t.str()) },
       out: { objects: t.arr(t.obj({ remote: t.str(), title: t.str(), fields: t.arr(t.obj({ remote: t.str(), type: t.str(), proposedKey: fieldKey, proposedType: t.str(), sensitive: t.bool() })) })) },
-      on: ['connection', '/connectionId'], perm: 'connectors.manage', tool: 'engineer',
+      on: ['connection', '/connectionId'], perm: 'connectors.manage', emits: ['connection.needs_reconnect'], tool: 'engineer',
     }),
     write('sync_types.create', 'Bind a record type (new or existing) to a remote object with field directions, match rule and conflict rule', {
       in: bindingIn, out: { syncedType: syncedTypeRow }, perm: 'connectors.manage', idem: 'key', audit: 'always', emits: ['sync.type_bound', 'schema.changed'], tool: 'engineer', errors: ['validation.duplicate'],

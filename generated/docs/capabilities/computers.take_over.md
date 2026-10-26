@@ -19,7 +19,7 @@ Take over the computer ("You're in control"); your actions become one "You took 
 | HTTP | POST /v1/computers/take_over |
 | MCP tool | computers_take_over (computer) |
 | CLI | none |
-| Emits | computer.takeover |
+| Emits | computer.takeover, computer.started |
 
 ## Input
 

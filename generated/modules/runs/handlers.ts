@@ -6,11 +6,13 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "runs.count": Handler<"runs.count", X>;
+  "runs.erase": Handler<"runs.erase", X>;
   "runs.finish": Handler<"runs.finish", X>;
   "runs.get": Handler<"runs.get", X>;
   "runs.list": Handler<"runs.list", X>;
   "runs.mark_waiting": Handler<"runs.mark_waiting", X>;
   "runs.preview_undo": Handler<"runs.preview_undo", X>;
+  "runs.purge": Handler<"runs.purge", X>;
   "runs.record_key": Handler<"runs.record_key", X>;
   "runs.record_step": Handler<"runs.record_step", X>;
   "runs.replay": Handler<"runs.replay", X>;

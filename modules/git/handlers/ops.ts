@@ -12,6 +12,7 @@
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import { fromTree, toTree } from "./files-bridge.ts";
 import path from "node:path";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
@@ -926,7 +927,7 @@ async function health(_ctx: Ctx, _input: unknown): Promise<Row> {
   return { state: "healthy", latencyMs, version };
 }
 
-export const opsHandlers = {
+const rawHandlers = {
   "git.init": (ctx: Ctx, input: unknown) => init(ctx, input),
   "git.status": (ctx: Ctx, input: unknown) => status(ctx, input),
   "git.log": (ctx: Ctx, input: unknown) => log(ctx, input),
@@ -943,3 +944,24 @@ export const opsHandlers = {
   "git.protect": (ctx: Ctx, input: unknown) => protect(ctx, input),
   "git.health": (ctx: Ctx, input: unknown) => health(ctx, input),
 };
+
+type OpHandler = (ctx: Ctx, input: unknown) => Promise<unknown>;
+
+/** Files is a view over the working copy: before these operations what Files holds is written into it, and after these what git left in it is brought into Files (files-bridge.ts). */
+const READS_TREE = new Set(["git.init", "git.status", "git.diff", "git.commit", "git.branch", "git.sync", "git.pull"]);
+const CHANGES_TREE = new Set(["git.pull", "git.sync", "git.branch"]);
+
+function bridged(name: string, h: OpHandler): OpHandler {
+  return async (ctx, input) => {
+    const o = input !== null && typeof input === "object" && !Array.isArray(input) ? (input as Row) : {};
+    const folderId = typeof o["folderId"] === "string" && /^fld_[a-z0-9]+$/.test(o["folderId"]) ? o["folderId"] : undefined;
+    if (folderId === undefined) return h(ctx, input);
+    const r = repoOf(ctx, folderId);
+    if (READS_TREE.has(name) && (name === "git.init" || isRepo(r))) await exclusive(folderId, () => toTree(ctx, r.d.treesDir, r.dir, folderId));
+    const out = await h(ctx, input);
+    if (CHANGES_TREE.has(name) && isRepo(r)) await exclusive(folderId, () => fromTree(ctx, r.d.treesDir, r.dir, folderId));
+    return out;
+  };
+}
+
+export const opsHandlers = Object.fromEntries(Object.entries(rawHandlers).map(([name, h]) => [name, bridged(name, h as OpHandler)])) as typeof rawHandlers;

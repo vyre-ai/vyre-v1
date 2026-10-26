@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { handlesIn, handlesInArgs, runWithVault, substitute } from "../src/vault-use/index.ts";
 import type { Lookup, ValueSource, VaultCall } from "../src/vault-use/index.ts";
 
-const VALUE = "sk_live_9f8e7d6c5b4a39281706";
+const VALUE = "sk_live_9f8e7d6c5b4a39281706"; // secret-scan: fake
 const val = (over: Partial<Extract<Lookup, { kind: "value" }>> = {}): Lookup => ({ kind: "value", itemId: "vit_1", value: VALUE, spaceOnly: false, injectIntoDeployments: false, ...over });
 function src(rows: Record<string, Lookup>): { source: ValueSource; asked: string[] } {
   const asked: string[] = [];

@@ -1,7 +1,7 @@
 {
   "module": "conflicts",
   "capabilities": {
-    "conflicts.assist@1": "85050dea69c6a4768d6fa1677e7fb266ab6e76887b3f0fb42c82744bc3f715c3",
+    "conflicts.assist@1": "f3fcfda7da10cea390a59770caf7b0731372b183b17320494e7e0d11a9a6d8b4",
     "conflicts.confirm@1": "261c2ae10868742a65a329ff16b92b7130a1a95087f4411238ce1e853d6d7d51",
     "conflicts.counts@1": "744ffe0b801db550dd0e2cc43b4f95e60cfb915f460c1b2fcf72fd01d2b9ace6",
     "conflicts.field_history@1": "8f11d7b2aeebce7d0c4e73bf241a580c26e6e12ad405e8d9d663572e51dcb688",

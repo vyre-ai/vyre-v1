@@ -81,7 +81,7 @@ export default defineManifest({
       in: { sourceId, status: t.opt(t.enm('accepted', 'duplicate', 'rejected', 'failed', 'linked_pending')), ...pageIn }, out: { deliveries: t.arr(deliveryRow), ...pageOut }, perm: 'connectors.manage', tool: 'records',
     }),
     write('sources.replay', 'Process a failed delivery again after fixing the mapping', {
-      in: { deliveryId }, out: { status: t.enm('accepted', 'duplicate', 'rejected', 'failed'), recordIds: t.arr(id.record) }, perm: 'connectors.manage', idem: 'key', emits: ['source.received', 'source.mapping_failed'], tool: 'records',
+      in: { deliveryId }, out: { status: t.enm('accepted', 'duplicate', 'rejected', 'failed'), recordIds: t.arr(id.record) }, perm: 'connectors.manage', idem: 'key', emits: ['source.received', 'source.mapping_failed', 'source.rejected', 'source.deduped', 'source.link_pending', 'source.linked'], tool: 'records',
     }),
     write('sources.ingest', 'Pipeline entry called by the public listener for /hooks/<source>: verify, dedupe on provider id, normalise, upsert, link', {
       in: { source: t.str({ examples: ['stripe'] }), receivedAt: t.ts(), headers: t.rec(t.str()), body: t.str({ description: 'Raw request body, needed for signature checks' }), runAutomations: t.opt(t.bool()) },

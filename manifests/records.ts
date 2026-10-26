@@ -3,7 +3,7 @@
 import { create, defineManifest, ev, ftype, read, t, vkind, write } from '../packages/contracts/src/index.ts';
 import type { FieldTypeDef } from '../packages/contracts/src/index.ts';
 import { block } from '../packages/contracts/src/index.ts';
-import { id, pageIn, pageOut, viewSpec, versionRow } from './_common.ts';
+import { id, pageIn, pageOut, purgeOut, viewSpec, versionRow } from './_common.ts';
 
 const recordRow = t.obj({
   id: id.record, type: id.recordType, version: t.int(), label: t.int({ minimum: 0, maximum: 3 }),
@@ -28,6 +28,9 @@ export default defineManifest({
   title: 'Records',
   owner: 'L3',
   events: [
+    // ---- erase and purge (P-CC_39): governance removes data through these; each hard-deletes inside its own store
+    ev('record.purged', 'A record was hard-deleted for good (ids only)', { p: { type: id.recordType, recordId: id.record }, subject: ['entity', '/recordId'], retention: 'audit' }),
+    ev('records.trash_purged', 'Records past their Trash retention were hard-deleted (a count)', { p: { removed: t.int({ minimum: 0 }) }, subject: ['entity', '/removed'], retention: 'audit' }),
     ev('record.created', 'A record was created; fields carries the initial values (sealed and Restricted values as ciphertext only)', { p: { recordId: id.record, type: id.recordType, fields: t.rec(t.json()) }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A record is created', fields: ['/type'] } }),
     ev('record.updated', 'Fields of a record changed; fields carries the new values and prev the old ones (sealed and Restricted values as ciphertext only)', { p: { recordId: id.record, type: id.recordType, fields: t.rec(t.json()), prev: t.rec(t.json()), version: t.int() }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A record changes', fields: ['/type', '/fields'] } }),
     ev('record.deleted', 'A record moved to Trash; prev carries the values it held (sealed and Restricted values as ciphertext only)', { p: { recordId: id.record, type: id.recordType, prev: t.rec(t.json()) }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A record is deleted' } }),
@@ -45,6 +48,9 @@ export default defineManifest({
       '{{title}} ({{type}})', { opens: { tab: 'record', input: { recordId: '/recordId' } } }),
   ],
   capabilities: [
+    // ---- erase and purge (P-CC_39)
+    write('records.purge', 'Hard-delete one record for good: its fields, history, search entries and Trash row (governance erase; not Trash)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { type: id.recordType, recordId: id.record }, out: { erased: t.bool() }, emits: ['record.purged'], audit: 'always', risk: 'high' }),
+    write('records.purge_trashed', 'Hard-delete records that have been in Trash since before a time (retention)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { before: t.ts(), limit: t.opt(t.int({ minimum: 1, maximum: 5000 })) }, out: purgeOut, emits: ['records.trash_purged'], audit: 'always', risk: 'high' }),
     read('records.get', 'Read one record by id', { in: target, out: { record: recordRow }, on: ['record', '/recordId'], tool: 'records', label: 'check', cli: 'vyre records get' }),
     read('records.query', 'Query rows of a record type with filter, sort, group and window', {
       in: { type: id.recordType, ...viewSpec, ...pageIn }, out: { rows: t.arr(recordRow), ...pageOut },

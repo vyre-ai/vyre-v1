@@ -140,5 +140,5 @@ export async function acceptCreateAccount(
   await ctx.invites.accept(invite.inviteId, personId);
   ctx.emit("principal.created", personId, { principalId: personId, kind: "person" });
   ctx.emit("member.joined", personId, { personId, inviteId: invite.inviteId, role: invite.role, invitedBy: invite.invitedBy });
-  return await issueSession(ctx, mustAccount(ctx, personId), input, "password");
+  return await issueSession(ctx, mustAccount(ctx, personId), input, "password", { joining: true });
 }
