@@ -28,7 +28,7 @@ export function ClaimRoute({ token, onDone, onSignIn }: { token: string; onDone(
     );
     const real = await openRealSession({ baseUrl, token: claimed.token });
     writeStored({ baseUrl, token: claimed.token, def: real.def, personId: real.me.id });
-    real.close();
+    real.close("claim: the shell opens its own session");
     onDone();
   };
   return <ClaimOwner space={spaceNameOf(hash)} newCode={makeRecoveryCode} onClaim={claim} onSignIn={onSignIn} fingerprint={fingerprintOf(hash)} />;

@@ -134,7 +134,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
       },
       onSignedOut })
       .then((s) => {
-        if (off) { s.close(); return; }
+        if (off) { s.close("superseded before it opened"); return; }
         opened = s;
         setSession(s);
       })
@@ -143,7 +143,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
         if (e instanceof CapError && e.status === 401) { onSignedOut(); return; }
         setFailed(e instanceof Error && e.message ? e.message : "The Space did not answer.");
       });
-    return () => { off = true; opened?.close(); setSession(null); };
+    return () => { off = true; opened?.close("shell effect cleanup"); setSession(null); };
   }, [open, stored.baseUrl, stored.token, onSignedOut, attempt]);
 
   // The runtime's online flag feeds the title bar's offline line.

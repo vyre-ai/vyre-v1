@@ -151,13 +151,15 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         ["vault", '[data-testid="vault-place"]'], ["settings", '[data-testid="settings-place"]'],
       ];
       const failures: string[] = [];
+      const bareCalls: string[] = [];
       for (const [route, selector] of places) {
         const p = await ctx.newPage();
         const errs: string[] = [];
         const refused: string[] = [];
         const frames: string[] = [];
         p.on("pageerror", (e) => errs.push(e.message.slice(0, 120)));
-        p.on("response", (r) => { const u = new URL(r.url()); if ((u.pathname.startsWith("/v1/") || u.pathname.startsWith("/sync/")) && r.status() >= 400) refused.push(`${r.status()} ${u.pathname} auth:${r.request().headers()["authorization"] ? "sent" : "none"}`); });
+        p.on("console", (m) => { if (m.text().startsWith("vyre session closed")) frames.push(m.text()); });
+        p.on("response", (r) => { const u = new URL(r.url()); if (u.pathname.startsWith("/v1/") || u.pathname.startsWith("/sync/")) void r.request().allHeaders().then((h) => { if (r.status() >= 400) refused.push(`${r.status()} ${u.pathname} auth:${h["authorization"] ? "sent" : "none"}`); else if (!h["authorization"] && !/claim_owner|sign_in/.test(u.pathname)) bareCalls.push(`${u.pathname}`); }).catch(() => undefined); });
         // What the live socket told this page (hello_ok mode and epoch, a purge): a 401 on every call can be a revoked session after a purge.
         p.on("websocket", (ws) => ws.on("framereceived", (f) => { const t = String(f.payload); if (/purge|hello_ok/.test(t)) frames.push(t.slice(0, 140)); }));
         await p.goto(`${web.origin}/${route}`, { waitUntil: "load" });
@@ -166,6 +168,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         if (!drew || errs.length) failures.push(`${route}: ${drew ? "drew" : "did not draw"}${errs.length ? `, page errors: ${errs.join(" | ")}` : ""}${refused.length ? `, refused: ${[...new Set(refused)].slice(0, 5).join(", ")}` : ""}${frames.length ? `, live: ${frames.slice(0, 3).join(" ")}` : ""}`);
         await p.close();
       }
+      assert.deepEqual(bareCalls, [], "no request to the Space leaves without the session token");
       assert.deepEqual(failures, [], "every place must draw");
     });
 

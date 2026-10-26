@@ -64,7 +64,7 @@ export interface RealSession {
   prefetchPlace(place: PlaceId): void;
   /** Re-read everything on screen now. */
   refresh(): void;
-  close(): void;
+  close(why?: string): void;
 }
 
 const loadScreens = (): Promise<ReadonlyMap<string, ScreenIndexEntry>> => import("../../../../../generated/screens.ts").then((m) => m.screensById);
@@ -265,9 +265,10 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     liveStatus: () => live,
     prefetchPlace,
     refresh,
-    close() {
+    close(why = "unspecified") {
       if (closed) return;
       closed = true;
+      console.info(`vyre session closed: ${why}`);
       clearInterval(poll);
       for (const t of warmTimers) clearTimeout(t);
       if (refreshTimer !== null) clearTimeout(refreshTimer);
