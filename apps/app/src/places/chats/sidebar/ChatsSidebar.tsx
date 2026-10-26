@@ -5,6 +5,7 @@ import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { SidebarContent, each } from "../../../shell/sidebar/index.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
+import type { QueryFailure } from "../../../../../../client/src/query/types.ts";
 import { portalInto } from "../../../shell/sidebar/portal.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
@@ -32,8 +33,6 @@ export const AGENTS_SCREEN = "chats.all-agents";
 export const NEEDS_SCREEN = "home.needs-you-top3";
 export const ROW_H = 28;
 
-/** What a failed read says (the query layer's QueryFailure). */
-interface QueryFailureLike { message: string; code?: string; traceId?: string }
 type ChannelsOut = CapMap["channels.list"]["out"];
 type AgentsOut = CapMap["agents.list"]["out"];
 type NeedsOut = CapMap["tasks.needs_you"]["out"];
@@ -102,7 +101,11 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   const names = useMemo(() => new Map(agents.map((a) => [a.agentId, a.name])), [agents]);
   const agentName = useCallback((id: string) => names.get(id) ?? id, [names]);
   // The Agents group is the Space's agents (agents.list takes no "starred" input; starring becomes its own packet): the first FACES_SHOWN of them, the rest behind All agents.
-  const matching: Agent[] = useMemo(() => agents.filter((a) => matchesQuery(query, a.name)), [agents, query]);
+  // Not the assistant (its mark sits beside New chat). An agent waiting on you always comes first, so the cap can never hide one; everyone else keeps the Space's order.
+  const matching: Agent[] = useMemo(() => {
+    const own = agents.filter((a) => a.agentId !== data.space.assistant.agentId && matchesQuery(query, a.name));
+    return [...own.filter((a) => waiting.has(a.agentId)), ...own.filter((a) => !waiting.has(a.agentId))];
+  }, [agents, query, waiting, data.space.assistant.agentId]);
   const faces: Agent[] = useMemo(() => matching.slice(0, FACES_SHOWN), [matching]);
   const facesMore = matching.length - faces.length;
   const recent = recentQ.status === "ready" ? recentQ.data : EMPTY_RECENT;
@@ -111,7 +114,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   const allNeeds: NeedsItem[] = needsQ.status === "ready" ? needsQ.data.items : [];
   const needs: NeedsItem[] = useMemo(() => allNeeds.filter((n) => matchesQuery(query, n.task.title, agentName(n.task.createdBy))), [allNeeds, query, agentName]);
   // A read that failed ends the skeleton and says so, for that section only (never the empty state: empty means nothing is here). The other sections draw what they have.
-  const failures: { key: string; label: string; error: QueryFailureLike }[] = [];
+  const failures: { key: string; label: string; error: QueryFailure }[] = [];
   for (const [key, label, q] of [["recent", "Chats", recentQ], ["channels", "Channels", channelsQ], ["agents", "Agents", agentsQ], ["needs", "Needs you", needsQ]] as const) {
     if (q.status === "loading" && q.error !== undefined) failures.push({ key, label, error: q.error });
   }

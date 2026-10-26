@@ -33,8 +33,9 @@ test("Needs you is one row with the count, and its requests sit under it", () =>
 
 test("every agent that raised a request says Waiting on you; the others do not", () => {
   const out = html(createSampleSidebar());
-  assert.equal(count(out, "Waiting on you"), 4, "Intake, Docs, Billing and Research wait on you; the assistant never says it");
-  for (const n of ["Intake", "Docs", "Billing", "Research"]) {
+  // The Agents group is the Space's agents now (agents.list has no starred filter), so Scout, who raised "County records search", is in it and says so too.
+  assert.equal(count(out, "Waiting on you"), 5, "Intake, Docs, Billing, Research and Scout wait on you; the assistant is not a face and never says it");
+  for (const n of ["Intake", "Docs", "Billing", "Research", "Scout"]) {
     assert.ok(rowHtml(out, `f:agt_${n.toLowerCase()}`).includes("Waiting on you"), `${n} waits on you`);
   }
   const h = html(createSampleSidebar(harbor));
