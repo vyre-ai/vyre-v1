@@ -12,7 +12,11 @@ import { PEOPLE, CHANNEL, COMPUTER, HELPER, RECORDING, SERVER_TERMINAL, TERMINAL
 import type { MountSample } from "../src/places/chats/mounts/sample.ts";
 import ChatsPlace from "../src/shell/providers/chats.tsx";
 import { ShellRuntimeProvider } from "../src/shell/providers/runtime.tsx";
+import type { ReactElement } from "react";
 import { ChatsMounted } from "../src/places/chats/mounts/ChatsMounted.tsx";
+import { ChatsSidebarSlot } from "../src/places/chats/sidebar/ChatsSidebar.tsx";
+import { SidebarContent } from "../src/shell/sidebar/index.ts";
+import type { SidebarSlotApi } from "../src/shell/sidebar/index.ts";
 import { AllAgents, pickAgents } from "../src/places/chats/mounts/AllAgents.tsx";
 import type { AgentRow } from "../src/places/chats/mounts/AllAgents.tsx";
 import { ConnectOutsideAgent, DEFAULT_SCOPES, SCOPE_ROWS, createConnection, maskCommand, maskToken, minutesLeft } from "../src/places/chats/mounts/ConnectOutsideAgent.tsx";
@@ -38,6 +42,15 @@ const nameOf = (id: string): string => PEOPLE.find((p) => p.id === id)?.name ?? 
 /** The place drawn on what has been shown so far. */
 const html = (s: MountSample, shown?: Shown, hash = ""): string =>
   clean(renderToStaticMarkup(<ChatsMounted rt={s.rt} {...(shown ? { initial: shown } : {})} {...(hash === "" ? {} : { hash })} window={WINDOW} />));
+
+/** What the place registers in the shell's shared sidebar slot (P-L9b_22): the SidebarContent's title and search placeholder, and the content its render prop draws, over this runtime's live screens. */
+function inSlot(s: MountSample, query = ""): { title: string; placeholder: string | undefined; out: string } {
+  const { go } = doors(s);
+  const slot: SidebarSlotApi = { query, collapsed: false, setCollapsed: () => undefined, hasSidebar: true, compact: false, openBody: () => undefined, back: () => undefined, view: "body", title: "Chats" };
+  const el = ChatsSidebarSlot({ data: wireSidebar(s.rt, go), window: WINDOW }) as ReactElement<{ title: string; searchPlaceholder?: string; children: (q: string, slot: SidebarSlotApi) => ReactElement }>;
+  assert.equal(el.type, SidebarContent, "the sidebar goes into the shared slot");
+  return { title: el.props.title, placeholder: el.props.searchPlaceholder, out: clean(renderToStaticMarkup(el.props.children(query, slot))) };
+}
 
 /** The place's doors over a recorder: every `act` the doors make, in order, and the lines the place would have said. */
 function doors(s: MountSample): { go: ReturnType<typeof createGo>; acts: Act[]; said: string[]; shown: () => Shown } {
@@ -444,7 +457,10 @@ test("every step changes only what it names: a page closes the layer, a layer ke
 test("the whole place with a runtime draws the sidebar and the open chat, and every control the screens add is in the header", () => {
   const s = createMountSample();
   const out = html(s, step(START, { t: "chat", threadId: "c1" }));
-  assert.ok(has(out, 'data-testid="chats-place"') && has(out, 'data-testid="chats-sidebar"') && has(out, 'data-testid="conversation"'));
+  assert.ok(has(out, 'data-testid="chats-place"') && has(out, 'data-testid="conversation"'));
+  const side = inSlot(s);
+  assert.ok(has(side.out, 'data-testid="chats-sidebar"'), "the sidebar is drawn in the shell's slot");
+  for (const own of ["sidebar-head", "sidebar-toggle", "sidebar-collapsed", "sidebar-show", "chats-back", "chats-sidebar"]) assert.ok(!has(out, `data-testid="${own}"`), `${own}: the place draws no sidebar frame of its own`);
   for (const id of ["helpers-button", "participants-button", "pane-button", "more-button", "computer-button"]) assert.ok(has(out, `data-testid="${id}"`), id);
   assert.ok(!has(out, "-loading"), "no loading frame once the Space is open");
 });
@@ -452,9 +468,11 @@ test("the whole place with a runtime draws the sidebar and the open chat, and ev
 test("the shipped place, through the shell provider and the runtime's live screens, draws Needs you with its count and the agents that wait on you", () => {
   const s = createMountSample();
   const out = clean(renderToStaticMarkup(<ShellRuntimeProvider value={s.rt}><ChatsPlace /></ShellRuntimeProvider>));
-  assert.ok(has(out, 'data-testid="row-needs-parent"') && has(out, 'data-testid="count-needs"') && has(out, ">7<"), "the Needs you entry with its count, read from home.needs-you-top3 through rt.screens");
-  assert.ok(has(out, "Send 12 invoices"), "its requests beneath");
-  assert.equal(out.split("Waiting on you").length - 1, 4, "the four agents with a request say so");
+  assert.ok(has(out, 'data-testid="chats-place"'), "the place itself draws");
+  const side = inSlot(s).out;
+  assert.ok(has(side, 'data-testid="row-needs-parent"') && has(side, 'data-testid="count-needs"') && has(side, ">7<"), "the Needs you entry with its count, read from home.needs-you-top3 through rt.screens");
+  assert.ok(has(side, "Send 12 invoices"), "its requests beneath");
+  assert.equal(side.split("Waiting on you").length - 1, 4, "the four agents with a request say so");
 });
 
 test("a click on an agent opens its chat with the agent's pane beside it; the page is behind the pane's menu; the sidebar header reads Chats", async () => {
@@ -468,8 +486,10 @@ test("a click on an agent opens its chat with the agent's pane beside it; the pa
   const out = html(s, shown());
   assert.ok(has(out, 'data-testid="chats-right-pane"') && has(out, 'data-testid="conversation"'), "the shared side pane beside the chat");
   for (const tab of ["Computer", "Threads"]) assert.ok(has(out, tab), `${tab}: the pane fits its other tabs behind a menu when it is narrow`);
-  assert.ok(has(out, 'data-testid="sidebar-head"') && has(out, ">Chats<") && !has(out, "switch Space"), "the sidebar header reads Chats");
-  assert.ok(has(out, 'data-testid="new-chat"') && has(out, 'data-testid="sidebar-toggle"'), "the assistant button and the panel toggle");
+  const side = inSlot(s);
+  assert.ok(side.title === "Chats" && side.placeholder === "Search chats" && has(side.out, 'data-testid="sidebar-head"') && !has(side.out, "switch Space"), "the sidebar header reads Chats (the slot's title)");
+  assert.ok(has(side.out, 'data-testid="new-chat"') && !has(side.out, 'data-testid="sidebar-toggle"'), "the assistant button stays; the panel toggle is the slot's collapse button now");
+  assert.ok(has(inSlot(s, "docs").out, "Docs") && !has(inSlot(s, "docs").out, "Rivera intake"), "the slot's search narrows the rows");
   // the pane's menu opens the full page
   wirePane(s.rt, go, "c1", { agentId: "agt_docs", name: "Docs" }).nav.openAgentPage("agt_docs");
   assert.deepEqual(acts[acts.length - 1], { t: "agent", agentId: "agt_docs" });

@@ -22,6 +22,7 @@ import type { ScheduledCall } from "../ctx/schedule.ts";
 import { createBlobStore } from "../ctx/blobs.ts";
 import { scopedDb } from "../ctx/db.ts";
 import { createBlobRoute } from "../routes/blobs.ts";
+import { createPortalLinkRoute } from "../routes/portal-link.ts";
 import { createShareRoute } from "../routes/share.ts";
 import type { SharedView } from "../routes/share.ts";
 import { createFormsPageRoute } from "../routes/forms-page.ts";
@@ -50,7 +51,7 @@ import { createComputersFillHost, createFillRoute } from "../seams/computers.ts"
 import { createComputersHost } from "../seams/computers-host.ts";
 import { createEngineHost } from "../seams/engine.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
-import { applyPendingRestore, createBackupHost } from "../seams/backup.ts";
+import { applyPendingRestore, clearRestoredTombstones, createBackupHost, readRestoredTombstones } from "../seams/backup.ts";
 import { createKitsHost } from "../seams/kits.ts";
 import { startRelayBox } from "../seams/relay.ts";
 import { createSyncSeam } from "../seams/sync.ts";
@@ -68,6 +69,7 @@ import { preAuthSession } from "./preauth.ts";
 import { createProviderProbe, createVaultService, resolveVaultItem } from "../seams/vault.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, wireSeams } from "../seams/index.ts";
+import { createPortalHost } from "../seams/comms.ts";
 import { createUpdatesHost } from "../seams/updates.ts";
 import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
 import { createLiveHub } from "../ws.ts";
@@ -263,6 +265,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let claim: { url: string; expiresAt: number } | null = null;
   let gateway: ReturnType<typeof createGateway> | null = null;
   let blobRoute: ReturnType<typeof createBlobRoute> | null = null;
+  let portalLinkRoute: ReturnType<typeof createPortalLinkRoute> | null = null;
   let shareRoute: ReturnType<typeof createShareRoute> | null = null;
   let formsPageRoute: ReturnType<typeof createFormsPageRoute> | null = null;
   // GET /exports/<id>?token= (P-L7_16): the vault module checks the token; until it is configured every pull is refused
@@ -546,6 +549,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       dispatchSystem = system;
       const hostDrivers: Record<string, SeamDriver> = {
         setPushPort: () => createPushPort(o.seams?.push),
+        // portal invitations and sign-in links go out through mail.send from the service mailbox (P-L8_17)
+        configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: d.publicUrl, owner: () => cfg.owner ?? access.owner() ?? null, warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "portal", attrs }) }),
         // the updates module: the compiled-in release key, the GitHub Releases feed and the vyre-server installer (P-L7b_17)
         configureUpdates: () => createUpdatesHost(),
         // A Kit is a resource in the access projection (type "kit") so that the capabilities on it can be authorized. The module cannot create resources, so the host does: one
@@ -693,6 +698,20 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       }
 
       const owner = (): string => cfg.owner ?? access.owner() ?? "usr_owner";
+
+      // A restore brought an older Space back. What was erased since is erased again, as the host, before any request is served (spec 2.26, ARCH 7.10). If it cannot be done the Space does not open.
+      const kept = loaded.serving.get("governance") === "live" ? readRestoredTombstones(paths.root) : null;
+      if (kept) {
+        const replayed = (await system("governance.tombstones.reapply", { tombstones: kept.tombstones }, kept.traceId ? { traceId: kept.traceId, spanId: "0".repeat(16) } : undefined).catch((e: unknown) => {
+          // the Space does not open with an erased person still in it; say why, with the host's own log of the failing call
+          const traceId = (e as { error?: { traceId?: string } } | null)?.error?.traceId;
+          let why = "";
+          try { sink.flush(); why = traceId ? sink.trace(traceId).logs.filter((l) => l.level >= 40).map((l) => JSON.stringify(l.attrs ?? l.msg)).join(" | ").slice(0, 1500) : ""; } catch { /* the log is a help */ }
+          throw new Error(`replaying the tombstones after a restore failed: ${e instanceof Error ? e.message : String(e)} ${why}`);
+        })) as { count?: number };
+        sink.log({ space: spaceId, level: 20, msg: "restore.tombstones_reapplied", place: "boot", attrs: { count: replayed?.count ?? 0 } });
+        clearRestoredTombstones(paths.root);
+      }
       // Identity comes from the bearer token alone (host/src/daemon/session.ts): a device session row gives the person and the device; the x-vyre-device header and ?device= are ignored.
       // The single admin token is the owner bootstrap path only (ensureAdminToken): it acts as the owner on the fixed device `local-admin`.
       const sessions = createSessionResolver({ db: db!, space: spaceId });
@@ -713,7 +732,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         const device = token ? sessions.resolve(token) : null;
         return { person: who.principal.id, ...(device ? { sessionId: device.sessionId } : {}) };
       };
-      gateway = createGateway({ invoke, caps: indexCapabilities(caps), routes: [...routes, ...(o.extra?.routes ?? [])], session,
+      // Ruling 73: portal invitations work without Sites. The Space's default portal is the site "sit_default". The host registers it as a resource the first time a portal call names it, not at
+      // boot (ruling 71: a new Space starts with exactly six events); the event id is fixed, so the log refuses a second one.
+      let defaultPortal: Promise<void> | null = null;
+      const ensureDefaultPortal = (): Promise<void> => (defaultPortal ??= (async () => {
+        const r = await spaceLog.appendResult({
+          id: "evt_res_sit_default", type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: "sit_default",
+          payload: { id: "sit_default", type: "site", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 },
+        });
+        if (!r.ok) throw new Error(`could not register the default portal: ${r.message}`);
+        if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
+      })().catch((e: unknown) => { defaultPortal = null; throw e; }));
+      const invokeWithPortal: Invoke = async (cap, input, seed) => {
+        if (cap.startsWith("portal.") && (input as { siteId?: unknown } | null)?.siteId === "sit_default" && loaded.moduleExports.has("portal")) await ensureDefaultPortal();
+        return invoke(cap, input, seed);
+      };
+      gateway = createGateway({ invoke: invokeWithPortal, caps: indexCapabilities(caps), routes: [...routes, ...(o.extra?.routes ?? [])], session,
         // callers before sign-in (the anonymous and pending capabilities): a no-one service principal named by source address, so a handler that needs a person (me()) refuses and rate limits are per address
         preAuth: (caller, headers) => preAuthSession(spaceId, caller, headers) });
       // GET /spaces/<space>/blobs/<id> (ruling 50): a blob is served to a caller who may read the resource its module stored it for
@@ -721,6 +755,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         space: spaceId, store: blobs,
         session: async (h) => { const s = await session(h); return s ? { space: s.space, principal: s.principal, ...(s.actingFor ? { actingFor: s.actingFor } : {}) } : null; },
         allow: (c, r) => !staleFor(c.principal.id) && authorize(access.snap, { principal: c.principal.id, ...(c.actingFor ? { actingFor: c.actingFor } : {}), action: { perm: null, level: "view" }, resource: { type: r.type, id: r.id } }).effect === "allow",
+      });
+      // the landing page of a portal invitation or sign-in link (P-L8_17): sites is deferred, so the Space host serves it; null while the portal module is not live
+      const peekLink = loaded.moduleExports.get("portal")?.["peekLink"] as ((ctx: { db: unknown }, now: number, siteId: string, token: string) => Promise<never>) | undefined;
+      if (peekLink) portalLinkRoute = createPortalLinkRoute({
+        peek: (siteId, token) => peekLink({ db: db! }, now(), siteId, token) as never,
+        // the client is not signed in: the call is made as the host, through the pipeline, and the module's own throttling and one-use token rules decide
+        signIn: async (a) => {
+          const r = await invoke("portal.sign_in", a, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "portal" });
+          if (r.status !== "ok") throw new Error("held");
+          return r.output as { session: string };
+        },
       });
       // GET /share/project/<token>: the read-only link a client opens without signing in; the projects module decides whether the token still works (P-SEC_10)
       shareRoute = createShareRoute({
@@ -875,7 +920,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       health, coerce,
       gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),
     });
-    server.on("request", (req, res) => { if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return; listener(req, res); });
+    server.on("request", (req, res) => { if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return; listener(req, res); });
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error): void => reject(err);
       server.once("error", onError);

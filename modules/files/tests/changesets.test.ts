@@ -253,7 +253,7 @@ test("an agent write in a Review changes folder is staged: the file, its version
   assert.equal(eventsOf(k.events, "file.version_added").length, 1, "only the person's first version");
 
   const got = await handlers["changesets.get"](ctx, { changesetId: w.changesetId! });
-  assert.deepEqual(got.files, [{ path: "plan.txt", status: "modified", added: 1, removed: 1, conflict: false }]);
+  assert.deepEqual(got.files, [{ path: "plan.txt", fileId: plan, status: "modified", added: 1, removed: 1, conflict: false }]);
   const cs = got.changeset as Record<string, unknown>;
   assert.deepEqual([cs["state"], cs["by"], cs["onBehalfOf"], cs["baseVersion"], cs["fileCount"], cs["threadId"], cs["folderId"]], ["open", "agt_intake", "per_maya", "1", 1, "thr_1", docs]);
 

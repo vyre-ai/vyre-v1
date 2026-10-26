@@ -19,7 +19,7 @@ Pull changes after a cursor, already permission and label filtered for this pers
 | HTTP | POST /sync/v1/pull |
 | MCP tool | none |
 | CLI | none |
-| Emits | none |
+| Emits | sync.scope_changed |
 
 ## Input
 

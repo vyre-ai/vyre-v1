@@ -60,14 +60,14 @@ export interface ShellProps {
 }
 
 /** The body beside the sidebar. On a computer the sidebar sits left of the place. On the phone a place with a sidebar opens on its list; choosing an item shows the body with Back. */
-function Stage({ children }: { children: ReactNode }): ReactElement {
+export function Stage({ children }: { children: ReactNode }): ReactElement {
   const slot = useSidebarSlot();
   const showList = slot.compact && slot.view === "list";
   return (
     <View style={styles.stageRow}>
       <SidebarSlot />
       {/* the place stays mounted while the phone shows its list, because its sidebar content is drawn from inside the place */}
-      <View style={[styles.stageCol, showList && styles.hidden]}>
+      <View testID="place-body" aria-hidden={showList} style={[styles.stageCol, showList && styles.hidden]}>
         <SidebarBack />
         <SidebarExpand />
         <View style={styles.stage}>{children}</View>

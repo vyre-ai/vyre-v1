@@ -31,6 +31,9 @@ function port(over: { erased?: number[] } = {}) {
 const find = (h: Harness) => g.eraseFind(h.ctx, { subject: { email: EMAIL, name: "Pat Lee" } });
 const apply = (h: Harness, findingId: string, include: string[]) => g.eraseApply(h.ctx, { findingId, include, idempotencyKey: `k-${findingId}` } as Parameters<typeof g.eraseApply>[1]);
 
+/** Only the host replays tombstones, as itself. */
+const reapply = (h: ReturnType<typeof harness>) => { h.actAs("service", "svc_host"); return g.tombstonesReapply(h.ctx); };
+
 test("erase compacts the log once, with the erased ids and the person's own text read before the records went, and keeps only the seqs", async () => {
   const h = harness();
   pat(h);
@@ -60,7 +63,7 @@ test("a restore replays the seqs: the older events.db comes back with its payloa
     const f = (await find(h)) as Json;
     await apply(h, String(f["findingId"]), ["records", "files"]);
     x.calls.length = 0;
-    await g.tombstonesReapply(h.ctx);
+    await reapply(h);
     assert.deepEqual(x.calls, [{ op: "compactSeqs", arg: [4, 5, 9] }]);
   } finally { g.setEventsCompact(null); }
 });
