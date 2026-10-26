@@ -24,8 +24,8 @@ import { hostServices, invokeRunner } from "../ctx/services.ts";
 import { createGateway, indexRoutes } from "../gateway.ts";
 import { withEventIds } from "../ids.ts";
 import type { GatewayDeps, RouteRec } from "../gateway.ts";
-import { createInvoke, createRateLimiter, fail, indexCapabilities, makeError } from "../invoke.ts";
-import type { AuditRow, Handler, Invoke } from "../invoke.ts";
+import { createInvoke, createRateLimiter, fail, indexCapabilities, makeError, personalMatrix } from "../invoke.ts";
+import type { AuditRow, Handler, Invoke, InvokeDeps } from "../invoke.ts";
 import { fileExportsImporter, fileImporter, fileSeamImporter, loadHost, readModuleList } from "../loader.ts";
 import type { RegistryLike } from "../loader.ts";
 import { LogSink } from "../logsink/index.ts";
@@ -58,6 +58,7 @@ import { createProviderProbe, createVaultService, resolveVaultItem } from "../se
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, wireSeams } from "../seams/index.ts";
 import { createPortalHost } from "../seams/comms.ts";
+import { createUpdatesHost } from "../seams/updates.ts";
 import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
 import { createLiveHub } from "../ws.ts";
 import type { LiveHub } from "../ws.ts";
@@ -118,6 +119,8 @@ export interface DaemonOptions {
   network?: NetworkPort;
   /** replace a probe (P-L7b_04 supplies the recorded-output disk check) */
   probes?: { diskEncrypted?: () => Promise<ProbeResult>; indexLag?: () => number | null };
+  /** The Personal Space gate (the sync module's createPersonalHost(...).gate) asked first for every capability; omitted on a Team Space. */
+  personal?: InvokeDeps["personal"];
   /** more supervised services: Caddy, the vault filler, the Chrome bridge, local turns */
   services?: ServiceSpec[];
   /** capabilities, routes, handlers and event names beyond the generated registry (tests register example.echo; later lanes register host-only calls) */
@@ -379,6 +382,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }))
         : undefined;
 
+      // the Personal Space gate (P-H_19): a test or boot may pass one; otherwise the matrix over the registry's teamOnly rows, which refuses while cfg.spaceKind is "personal"
+      const personal = o.personal ?? personalMatrix({ kind: () => cfg.spaceKind ?? "team", caps: registryCaps as unknown as Array<{ name: string; teamOnly?: boolean }> });
       const invoke = createInvoke({
         caps: indexCapabilities(caps),
         validateInput: (cap, v, input) => (extraCaps.has(cap) ? [] : validateInput(cap, v, input)),
@@ -402,6 +407,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         services: hostServices({ base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)), seal, queue: scheduleQueue, blobs, vault: (seed) => createVaultService((c, i, sd) => invokeRef(c, i, sd), spaceId, seed) }),
         idem, rate: createRateLimiter(), now, log: sinkLog,
         ...(gate ? { gate } : {}),
+        personal,
         // P-H_16: an object a call creates is a resource in the same commit, so it is authorizable at once
         resources: createResourceRegistrar({ events: registry.events, exists: (id) => access.snap.resource(id) !== undefined }),
         commit: withEventIds(async (b) => {
@@ -447,6 +453,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setPushPort: () => createPushPort(o.seams?.push),
         // portal invitations and sign-in links go out through mail.send from the service mailbox (P-L8_17)
         configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: d.publicUrl }),
+        // the updates module: the compiled-in release key, the GitHub Releases feed and the vyre-server installer (P-L7b_17)
+        configureUpdates: () => createUpdatesHost(),
         // A Kit is a resource in the access projection (type "kit") so that the capabilities on it can be authorized. The module cannot create resources, so the host does: one
         // resource.created per Kit, with an id made from the Kit's own, so the same Kit is the same event after a reboot (the log refuses a duplicate id) and the fold is the same.
         setKitsHost: () => createKitsHost({
