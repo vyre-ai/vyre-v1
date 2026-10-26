@@ -22,6 +22,7 @@ export const handlers: Record<string, Handler> = {
   "inbox.following": (ctx, i) => h.following(ctx, i),
   "inbox.send_options": (ctx, i) => h.sendOptions(ctx, i),
   "inbox.recipients_search": (ctx, i) => recipientsSearchWithMembers(ctx, i),
+  "inbox.item.erase": (ctx, i) => h.itemErase(ctx, i),
 };
 
 export const projections = { inline: {}, consumers: {} };
