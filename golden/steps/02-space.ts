@@ -63,7 +63,7 @@ export interface FlowSpace {
 }
 
 /** Boots a daemon on the `core` seed with `live` flipped in a temporary code root. Rejects with the host's own refusal text when the boot is refused. */
-export async function bootFlowSpace(live: readonly string[], opts: { engineCli?: unknown; spaceKind?: "personal" | "team"; relay?: string; vault?: { secret(handle: string): Promise<string>; signRs256(): Promise<string> } } = {}): Promise<FlowSpace> {
+export async function bootFlowSpace(live: readonly string[], opts: { engineCli?: unknown; spaceKind?: "personal" | "team"; relay?: string; fetch?: FetchFn; vault?: { secret(handle: string): Promise<string>; signRs256(): Promise<string> } } = {}): Promise<FlowSpace> {
   const dir = await seededDir();
   const start = (port: string): Promise<Daemon> => startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", port, ...(opts.spaceKind ? ["--space-kind", opts.spaceKind] : []), ...(opts.relay ? ["--relay", opts.relay] : [])], {}, "1.2.3"),
@@ -76,7 +76,7 @@ export async function bootFlowSpace(live: readonly string[], opts: { engineCli?:
         "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
       },
     }),
-    fetch: caddyFetch,
+    fetch: opts.fetch ?? caddyFetch,
     ...(opts.engineCli !== undefined ? { engineCli: opts.engineCli } : {}),
     ...(opts.vault ? { vault: opts.vault } : {}),
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, tick: 3_600_000, hooks: 3_600_000 },
