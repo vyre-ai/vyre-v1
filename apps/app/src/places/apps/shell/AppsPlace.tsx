@@ -131,6 +131,15 @@ function Page({ initial }: { initial?: AppsStart | undefined }): ReactElement {
     return out;
   }
 
+  const line = (r: AppRow): ReactElement => (
+
+              <View {...menuTrigger((x, y) => menuFor(r, x, y))} style={s.rowWrap}>
+                <Row
+                  id={r.id} title={r.title} note={r.note} selected={selected === r.id} onPress={() => press(r)}
+                  trailing={<View style={s.trail}>{r.count ? <Text style={s.count}>{r.count}</Text> : null}<Pressable accessibilityRole="button" accessibilityLabel={`More for ${r.title}`} testID={`more-${r.id}`} onPress={(e) => { const p = pointOf(e); menuFor(r, p.x, p.y); }} style={s.more2}><Text style={s.moreText}>{"···"}</Text></Pressable></View>}
+                />
+              </View>
+  );
   const cur = lists[group];
   const rows = rowsOf(group);
   const g = groupOf(group);
@@ -149,17 +158,7 @@ function Page({ initial }: { initial?: AppsStart | undefined }): ReactElement {
       ) : (
         <VirtualList
           data={rows} rowHeight={ROW_HEIGHT} keyOf={(r) => (r as AppRow).id}
-          renderItem={(raw) => {
-            const r = raw as AppRow;
-            return (
-              <View {...menuTrigger((x, y) => menuFor(r, x, y))} style={s.rowWrap}>
-                <Row
-                  id={r.id} title={r.title} note={r.note} selected={selected === r.id} onPress={() => press(r)}
-                  trailing={<View style={s.trail}>{r.count ? <Text style={s.count}>{r.count}</Text> : null}<Pressable accessibilityRole="button" accessibilityLabel={`More for ${r.title}`} testID={`more-${r.id}`} onPress={(e) => { const p = pointOf(e); menuFor(r, p.x, p.y); }} style={s.more2}><Text style={s.moreText}>{"···"}</Text></Pressable></View>}
-                />
-              </View>
-            );
-          }}
+          renderItem={(raw) => line(raw as AppRow)}
         />
       )}
       {note ? (
