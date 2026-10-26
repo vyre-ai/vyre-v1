@@ -134,7 +134,7 @@ export async function create(ctx: AgentsCtx, input: {
   const owner = input.ownerId ?? askerOf(ctx);
   if (!owner.startsWith("usr_")) raise(ctx, "validation.bad_input", "An agent's owner is a person.", { ownerId: owner });
   // naming someone else as the owner hands them an agent and grants on its folder: that is for whoever manages access (owner and admin, permission access.manage), not for any member
-  if (owner !== askerOf(ctx) && ctx.authorize && ctx.authorize({ perm: "access.manage", level: "manage" }, { type: "space", id: ctx.space }).effect !== "allow") {
+  if (owner !== askerOf(ctx) && (!ctx.authorize || ctx.authorize({ perm: "access.manage", level: "manage" }, { type: "space", id: ctx.space }).effect !== "allow")) {   // no authorize means no answer: refuse
     raise(ctx, "permission.no_grant", "Only an owner or an admin can make someone else the owner of an agent.", { ownerId: owner });
   }
   if (input.limits) for (const [k, v] of Object.entries(input.limits)) if (!LIMIT_KEYS.includes(k as keyof Limits) || typeof v !== "number" || v < 0) raise(ctx, "validation.bad_input", `${k} is not a limit, or is not a number of zero or more.`);
