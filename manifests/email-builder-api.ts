@@ -21,7 +21,7 @@ export default defineManifest({
     ev('email_template.test_sent', 'A test email was sent to the author', { p: { emailId }, subject: ['entity', '/emailId'], replay: 'stub' }),
   ],
   capabilities: [
-    create('email_builder.create', 'Create an email design', { in: { name: t.str(), mode: t.enm('blocks', 'html', 'plain') }, out: { email: doc }, make: ['folder', '/name'], tool: 'inbox' }),
+    create('email_builder.create', 'Create an email design', { in: { name: t.str(), mode: t.enm('blocks', 'html', 'plain'), folderId: t.opt(id.folder) }, out: { email: doc }, make: ['folder', '/folderId'], tool: 'inbox' }),
     read('email_builder.get', 'Read an email design', { in: target, out: { email: doc }, tool: 'inbox' }),
     read('email_builder.list', 'List email designs (campaigns, inbox templates, automation steps share them)', { out: { emails: t.arr(t.obj({ emailId, name: t.str(), updatedAt: t.ts() })) }, tool: 'inbox' }),
     write('email_builder.save', 'Autosave a design; each save is a version', { in: { emailId, email: doc }, out: { version: t.int() }, emits: ['email_template.saved'], tool: 'inbox', offline: 'queue' }),
