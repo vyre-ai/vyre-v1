@@ -47,7 +47,7 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
       const list = expectStatus(await s.call("projects.list", admin, {}), 200, "projects.list").projects as { channel?: unknown; folder?: unknown }[];
       // a stage that cannot make its project does not stop the Journey, so when the list is empty say what the pipeline logged about projects on this trace
       s.d.sink.flush();
-      const logged = s.d.sink.trace(s.trace).logs.filter((l) => JSON.stringify(l.attrs ?? {}).includes("projects.")).map((l) => `${l.msg} ${JSON.stringify(l.attrs)}`).join(" | ");
+      const logged = s.d.sink.trace(s.trace).logs.filter((l) => /project/i.test(`${l.msg} ${JSON.stringify(l.attrs ?? {})}`)).map((l) => `${l.msg} ${JSON.stringify(l.attrs)}`).join(" | ");
       const ok = list.some((p) => p.channel && p.folder);
       let told = "";
       if (!ok) {
