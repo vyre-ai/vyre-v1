@@ -135,7 +135,11 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
     await trail.step("a person approves and the campaign mails the lead", async () => {
       expectStatus(await s.call("tasks.act", admin, { taskId: held!, action: "approve" }), 200, "tasks.act");
       const stats = expectStatus(await s.call("campaigns.stats", admin, { campaignId: campaign! }), 200, "campaigns.stats");
-      assert.equal(stats.sent, 1, `the lead got the email: ${short(stats)}`);
+      if (stats.sent !== 1) {
+        const c = await s.call("campaigns.get", adam, { campaignId: campaign! });
+        const m = await s.call("mail.message.list", admin, { mailboxId: mailbox! });
+        assert.fail(`the lead got the email: ${short(stats)} campaign ${short(c.body?.data?.campaign)} mail ${short(m.body?.data ?? m.body)} net ${short(net.requests)}`);
+      }
       assert.ok(net.requests.includes("POST api.resend.com/emails"), `Resend was asked to send: ${short(net.requests)}`);
     }, ["launching is held by the Gate for approval"]);
 
