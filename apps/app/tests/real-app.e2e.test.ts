@@ -8,7 +8,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { bootSpace, edge, liveModules, ownerSession, todoFor } from "./real-app-harness.test.ts";
+import { bootFreshSpace, claimOnEdge, edge, liveModules, todoFor } from "./real-app-harness.test.ts";
 
 function exportApp(): string {
   return process.env["VYRE_APP_DIST"] ?? "";
@@ -37,7 +37,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
     return;
   }
   const live = liveModules();
-  const space = await bootSpace();
+  const space = await bootFreshSpace();
   const dist = exportApp();
   const web = await edge(dist, space.url);
   const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
@@ -58,6 +58,9 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
     const text = await page.locator("body").innerText({ timeout: 2000 }).catch(() => "(no body)");
     console.log(`real-app e2e ${label}: on screen: ${text.replace(/\s+/g, " ").slice(0, 400)}\n  calls: ${seen.slice(-8).join(" | ") || "(no failed calls)"}`);
   };
+  const step = async (label: string, body: () => Promise<void>): Promise<void> => {
+    try { await body(); } catch (e) { await dump(label); throw e; }
+  };
   const todo: string[] = [];
   try {
     await t.test("1 the app opens on sign-in when nobody is signed in", async () => {
@@ -66,18 +69,21 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       assert.equal(await page.getByTestId("shell").count(), 0, "no shell before sign-in");
     });
 
-    await t.test("2 sign in (owner bootstrap token) opens the shell on the Space", async (s) => {
-      const gap = todoFor("sign in", live);
+    await t.test("2 the owner claims the Space with the one-time link and lands in the shell", async (s) => {
+      const gap = todoFor("sign in", live) ?? (space.claim ? null : "claim: the daemon printed no claim link (a fresh install prints one with P-L7_23, #578)");
       if (gap) { todo.push(gap); s.todo(gap); return; }
-      const session = ownerSession(space, web.origin);
-      await page.evaluate((v) => { localStorage.setItem("vyre.session.v1", JSON.stringify(v)); }, session);
-      await page.reload({ waitUntil: "load" });
-      await page.getByTestId("shell").waitFor({ timeout: 15_000 });
+      await step("claim", async () => {
+        await page.goto(claimOnEdge(space.claim ?? "", web.origin), { waitUntil: "load" });
+        await page.getByTestId("claim-name").fill("Olivia Owner");
+        await page.getByTestId("claim-username").fill("olivia");
+        await page.getByTestId("claim-password").fill("correct horse battery 9");
+        await page.getByTestId("claim-confirm").fill("correct horse battery 9");
+        await page.getByTestId("claim-next").click();
+        await page.getByTestId("claim-saved").click();
+        await page.getByTestId("claim-create").click();
+        await page.getByTestId("shell").waitFor({ timeout: 30_000 });
+      });
     });
-
-    const step = async (label: string, body: () => Promise<void>): Promise<void> => {
-      try { await body(); } catch (e) { await dump(label); throw e; }
-    };
 
     await t.test("3 Home shows real data from the Space", async (s) => {
       const gap = todoFor("sign in", live) ?? todoFor("home", live);

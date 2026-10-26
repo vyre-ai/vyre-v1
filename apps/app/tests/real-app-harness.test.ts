@@ -79,34 +79,61 @@ export function edge(dist: string, daemonUrl: string): Promise<Edge> {
 
 const ADMIN_TOKEN = "e2e-owner-bootstrap-token";
 
-export interface Space { url: string; token: string; space: string; dir: string; stop(): Promise<void> }
+export interface Space { url: string; token: string; space: string; dir: string; stop(): Promise<void>; /** The one-time owner claim link the daemon printed (fresh installs only), or null. */ claim: string | null }
 
-/** The daemon as a person starts it (`node host/src/daemon/main.ts`), on a copy of the frozen core seed. The app tests may not import host, so it runs as its own process. */
+const stopper = (child: ChildProcess): (() => Promise<void>) => () => new Promise<void>((resolve) => { child.once("exit", () => resolve()); child.kill("SIGTERM"); setTimeout(() => child.kill("SIGKILL"), 10_000).unref(); });
+
+/** Starts the daemon as a person does and reads the address it prints (and, on a fresh install, the claim link it prints right after). */
+async function startDaemon(dir: string, extra: string[]): Promise<{ child: ChildProcess; url: string; claim: string | null }> {
+  const child: ChildProcess = spawn(process.execPath, ["host/src/daemon/main.ts", "--role", "space", "--data-dir", dir, "--port", "0", ...extra], {
+    cwd: REPO, env: { ...process.env, VYRE_ADMIN_TOKEN: ADMIN_TOKEN }, stdio: ["ignore", "pipe", "inherit"],
+  });
+  const printed = await new Promise<{ url: string; claim: string | null }>((resolve, reject) => {
+    let out = "";
+    let url: string | null = null;
+    let settle: ReturnType<typeof setTimeout> | null = null;
+    const timer = setTimeout(() => reject(new Error(`the daemon did not start in 30 s: ${out}`)), 30_000);
+    const done = (): void => {
+      clearTimeout(timer);
+      if (settle) clearTimeout(settle);
+      resolve({ url: url ?? "", claim: /Claim this Space[^\n]*?: (http\S+)/.exec(out)?.[1] ?? null });
+    };
+    child.stdout?.on("data", (d: Buffer) => {
+      out += d.toString();
+      if (!url) {
+        const m = /listening on (http\S+)/.exec(out);
+        if (m?.[1]) { url = m[1]; settle = setTimeout(done, 2000); }   // the claim line follows at once on a fresh install; a seeded Space prints none
+      }
+      if (url && /Claim this Space[^\n]*?: http\S+/.test(out)) done();
+    });
+    child.once("exit", (code) => { clearTimeout(timer); reject(new Error(`the daemon exited with ${String(code)}: ${out}`)); });
+  });
+  return { child, ...printed };
+}
+
+/** The daemon on a copy of the frozen core seed (owner bootstrap token only; nobody can sign in with a password). */
 export async function bootSpace(): Promise<Space> {
   const core = bootCore();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-real-app-"));
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
   fs.copyFileSync(core.file, path.join(dir, "events.db"));
   core.close();
-  const child: ChildProcess = spawn(process.execPath, ["host/src/daemon/main.ts", "--role", "space", "--data-dir", dir, "--space", CORE_SPACE, "--port", "0"], {
-    cwd: REPO, env: { ...process.env, VYRE_ADMIN_TOKEN: ADMIN_TOKEN }, stdio: ["ignore", "pipe", "inherit"],
-  });
-  const url = await new Promise<string>((resolve, reject) => {
-    let out = "";
-    const timer = setTimeout(() => reject(new Error(`the daemon did not start in 30 s: ${out}`)), 30_000);
-    child.stdout?.on("data", (d: Buffer) => {
-      out += d.toString();
-      const m = /listening on (http\S+)/.exec(out);
-      if (m?.[1]) { clearTimeout(timer); resolve(m[1]); }
-    });
-    child.once("exit", (code) => { clearTimeout(timer); reject(new Error(`the daemon exited with ${String(code)}: ${out}`)); });
-  });
-  return {
-    url, token: ADMIN_TOKEN, space: CORE_SPACE, dir,
-    stop: () => new Promise<void>((resolve) => { child.once("exit", () => resolve()); child.kill("SIGTERM"); setTimeout(() => child.kill("SIGKILL"), 10_000).unref(); }),
-  };
+  const d = await startDaemon(dir, ["--space", CORE_SPACE]);
+  return { url: d.url, token: ADMIN_TOKEN, space: CORE_SPACE, dir, stop: stopper(d.child), claim: d.claim };
 }
 
+/** A fresh install (ruling 71): an empty data directory. The host makes the Space and prints a one-time claim link; the owner becomes the owner by claiming it, as a person does. */
+export async function bootFreshSpace(): Promise<Space> {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-real-app-fresh-"));
+  const d = await startDaemon(dir, ["--space", "spc_fresh", "--space-name", "Fresh Co"]);
+  return { url: d.url, token: ADMIN_TOKEN, space: "spc_fresh", dir, stop: stopper(d.child), claim: d.claim };
+}
+
+/** The claim link as the browser opens it: the daemon prints its own address, the page is served from the edge, so the path and fragment move to the edge's origin. */
+export function claimOnEdge(link: string, origin: string): string {
+  const u = new URL(link);
+  return `${origin}${u.pathname}${u.hash}`;
+}
 
 /** What a browser holds once signed in as the owner of this Space (the owner bootstrap token, the same door the CLI and the Console use). */
 export function ownerSession(space: Space, origin: string): { baseUrl: string; token: string; def: Record<string, unknown>; personId: string } {
@@ -118,9 +145,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 test("harness: the owner session a browser carries names the Space, the owner token and the origin it was served from", () => {
-  const s = ownerSession({ url: "http://127.0.0.1:1", token: "tok", space: "spc_core", dir: "/x", stop: async () => undefined }, "http://127.0.0.1:2");
+  const s = ownerSession({ url: "http://127.0.0.1:1", token: "tok", space: "spc_core", dir: "/x", stop: async () => undefined, claim: null }, "http://127.0.0.1:2");
   assert.equal(s.baseUrl, "http://127.0.0.1:2");
   assert.equal(s.token, "tok");
   assert.equal(s.def["spaceId"], "spc_core");
   for (const step of Object.keys(STEP_NEEDS)) assert.equal(typeof todoFor(step, new Set()), "string", step);
+});
+
+test("harness: the claim link moves to the edge's origin with its path and fragment", () => {
+  assert.equal(claimOnEdge("http://127.0.0.1:7777/claim/clm_abc#fp=aa11&s=spc_fresh", "http://127.0.0.1:9000"), "http://127.0.0.1:9000/claim/clm_abc#fp=aa11&s=spc_fresh");
 });
