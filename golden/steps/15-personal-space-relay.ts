@@ -10,8 +10,8 @@ export const LIVE_FOR_PERSONAL = ["spaces", "devices", "network", "access", "mem
 
 /** Why this flow is a todo today (ruling 53). */
 export const GAPS: Gap[] = [
-  { packet: "P-H_19 follow-up (w2q)", lane: "L7", what: "the node boots with --space-kind personal and refuses team-only calls with permission.needs_team, but spaces.matrix still answers kind team with every feature available" },
-  { packet: "L1 sync docs", lane: "L1", what: "sync.doc.update answers 404 'That document is not here': a document is a synced row (sync_rows) and no capability creates one, so there is nothing for the phone to open" },
+  { packet: "L1 sync docs", lane: "L1", what: "sync.doc.update answers a seq and declares doc.updated, but no doc.updated event reaches the log" },
+  { packet: "L7 devices/identity", lane: "L7", what: "pair_redeem makes device.registered and session.started without the caller's trace id, so the one-trace event chain breaks" },
 ];
 
 export async function runPersonal(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {

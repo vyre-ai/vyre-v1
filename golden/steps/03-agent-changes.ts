@@ -10,9 +10,7 @@ import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_CHANGES = ["files", "git", "gate", "tasks", "agents", "devices", "access", "spaces"];
-export const GAPS: Gap[] = [
-  { packet: "PR 472 (P-L4_LIVE)", lane: "L4", what: "files migrations never create files_file, so files.list and every files tree call answer 500" },
-];
+export const GAPS: Gap[] = [];
 
 export async function runChanges(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
   const trail = new Trail();
@@ -29,7 +27,7 @@ export async function runChanges(live: readonly string[]): Promise<{ events: Obs
       return (f.id ?? f.folderId) as string;
     });
     const folder = await trail.step("a project folder is made and turned into a repository", async () => {
-      const made = expectStatus(await s.call("files.folder.create", admin, { idempotencyKey: "golden-3-folder", parentId: root!, name: "site-copy" }), 200, "files.folder.create").folder.id as string;
+      const made = expectStatus(await s.call("files.folder.create", admin, { idempotencyKey: "golden-3-folder", parentId: root!, name: "site-copy" }), 200, "files.folder.create").folder.folderId as string;
       expectStatus(await s.call("git.init", admin, { folderId: made, branch: "main" }), 200, "git.init");
       return made;
     }, ["the Space has a root folder"]);

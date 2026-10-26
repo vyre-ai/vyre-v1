@@ -11,7 +11,7 @@ export const GAPS: Gap[] = [
   { packet: "conflicts (L1)", lane: "L1", what: "modules/conflicts has no impl.ts, so the module cannot be loaded live" },
 ];
 
-const NOTE = { op: "type.create", type: "note_item", def: { title: "Note", plural: "Notes", icon: "file", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "status", type: "text", title: "Status" }] } };
+const NOTE = { op: "type.create", type: "note_item", def: { title: "Note", plural: "Notes", icon: "file", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "status", type: "text", title: "Status", merge: "assistant" }] } };
 const TRACE = "4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a";
 const opFor = (n: number, device: string, recordId: string, value: string, base: number) => ({
   opId: `0192f3a0-7b1c-7000-8000-00000000000${n}`, traceId: TRACE, hlc: `00000000000${n}-0000-${device}`, cap: "records.update", v: 1, entity: "record", id: recordId,

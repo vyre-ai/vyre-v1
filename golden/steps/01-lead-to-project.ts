@@ -26,8 +26,8 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
     const form = await trail.step("the owner makes and publishes a public form on it", async () => {
       const made = expectStatus(await s.call("forms.create", admin, { idempotencyKey: "golden-1-form", name: "Contact us", recordType: "lead", kind: "public" }), 200, "forms.create").form;
       expectStatus(await s.call("forms.fields_set", admin, { formId: made.formId, fields: [{ field: "name", mode: "ask" }, { field: "email", mode: "ask" }] }), 200, "forms.fields_set");
-      const pub = expectStatus(await s.call("forms.publish", admin, { formId: made.formId }), 200, "forms.publish").form;
-      return { id: made.formId as string, slug: (pub.slug ?? made.slug) as string };
+      const pub = expectStatus(await s.call("forms.publish", admin, { formId: made.formId }), 200, "forms.publish");
+      return { id: made.formId as string, slug: (pub.form?.slug ?? made.slug) as string };
     }, ["the lead record type exists"]);
     const journey = await trail.step("a Journey on leads is designed", async () =>
       expectStatus(await s.call("journeys.create", admin, { idempotencyKey: "golden-1-journey", name: "Client onboarding", subjectType: "lead" }), 200, "journeys.create").journey.id as string,
