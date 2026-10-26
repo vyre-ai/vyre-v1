@@ -5,7 +5,7 @@ import { createElement, memo, useCallback, useDeferredValue, useEffect, useMemo,
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
-import { cachedFace, currentSkin, faceKey, hash, marbleGradient, marbleInner, marbleSpec, requestFace, wrapSvg } from "../../../../../../ui/src/Avatar/index.tsx";
+import { cachedFace, currentSkin, faceKey, marbleGradient, marbleInner, marbleSpec, requestFace, wrapSvg } from "../../../../../../ui/src/Avatar/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
@@ -19,7 +19,7 @@ import { Scroller } from "./Scroller.tsx";
 import type { ScrollHandle } from "./Scroller.tsx";
 import {
   FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, SCROLL_BLOCK, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, groupable, hasOptions,
-  hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, setSort, sortable, toSaved, toggleHidden, totalWidth,
+  faceClassOf, faceRule, hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, setSort, sortable, toSaved, toggleHidden, totalWidth, safeBitmapUrl,
 } from "./model.ts";
 import { allIds, eachId, recordsWord } from "./bulk.ts";
 import { filterMenuEntries } from "./filtermenu.ts";
@@ -211,10 +211,14 @@ function isPlainText(f: FieldDef): boolean {
 
 const dots = new Map<string, Record<string, string | number>>();
 // the DOM bits the face rules need, typed here because the app's TypeScript config carries no DOM lib
-interface FaceRule { style: { backgroundImage: string } }
-interface FaceSheet { cssRules: { length: number; [i: number]: FaceRule }; insertRule(rule: string, index: number): number }
+interface FaceRule { selectorText: string }
+interface FaceSheet { cssRules: { length: number; [i: number]: FaceRule }; insertRule(rule: string, index: number): number; deleteRule(index: number): void }
 interface FaceDoc { createElement(tag: string): { sheet: FaceSheet | null }; head: { appendChild(node: unknown): unknown } }
-const faceClasses = new Map<string, FaceRule>();
+const faceClasses = new Map<string, true>();
+function findRule(sheet: FaceSheet, cls: string): number {
+  for (let i = 0; i < sheet.cssRules.length; i++) if (sheet.cssRules[i]!.selectorText === `.${cls}`) return i;
+  return -1;
+}
 let faceSheet: FaceSheet | null = null;
 const faceDoc = (): FaceDoc | undefined => (globalThis as { document?: FaceDoc }).document;
 /**
@@ -230,17 +234,18 @@ function dot(name: string): ReactElement {
     if (!st) { st = { ...look, backgroundColor: marbleSpec(name).base, backgroundImage: marbleGradient(name) }; dots.set(name, st); }
     return createElement("span", { "aria-hidden": true, "data-testid": `face-${name}`, style: st });
   }
-  const cls = `vrt-f${hash(name).toString(36)}`;
+  const cls = faceClassOf(name);
   if (!faceClasses.has(cls)) {
     if (faceSheet === null) { const el = doc.createElement("style"); doc.head.appendChild(el); faceSheet = el.sheet; }
     if (faceSheet !== null) {
-      const at = faceSheet.insertRule(`.${cls}{width:18px;height:18px;flex:none;border-radius:9px;background-color:${marbleSpec(name).base};background-image:${marbleGradient(name)};background-size:cover}`, faceSheet.cssRules.length);
-      const rule = faceSheet.cssRules[at]!;
-      faceClasses.set(cls, rule);
+      const sheet = faceSheet;
+      sheet.insertRule(faceRule(name), sheet.cssRules.length);
+      faceClasses.set(cls, true);
       const key = faceKey(name, "person", 18, currentSkin());
       requestFace(key, wrapSvg(marbleInner(name), "0 0 80 80", 18), 18, () => {
-        const url = cachedFace(key);
-        if (url !== undefined) { rule.style.backgroundImage = `url("${url}")`; }
+        // the bitmap replaces the rule: same class, the look with the real marble
+        const at = findRule(sheet, cls);
+        if (at >= 0 && safeBitmapUrl(cachedFace(key)) !== null) { sheet.deleteRule(at); sheet.insertRule(faceRule(name, cachedFace(key)), at); }
       });
     }
   }

@@ -242,3 +242,21 @@ test("harbor studio draws its own types, people and a shorter table", () => {
   assert.ok(has(sidebar, ">Clients<") && has(sidebar, ">Projects<") && !has(sidebar, ">Companies<"));
   assert.equal(GUTTER, 56);
 });
+
+test("a face in a cell reaches the stylesheet only as a hash class and a checked bitmap, never as text of a name", async () => {
+  const { faceClassOf, faceRule, safeBitmapUrl } = await import("../table/model.ts");
+  const nasty = ["Evil\" } body { display:none } /*", "Line\nbreak {x}", "a'b\"c", "}</style><script>x</script>", "名前   (x)"];
+  for (const name of nasty) {
+    assert.match(faceClassOf(name), /^vrt-f[a-z0-9]+$/, name);
+    const css = faceRule(name);
+    assert.ok(css.startsWith(`.${faceClassOf(name)}{`), "the selector is the hash class");
+    assert.ok(css.endsWith("}") && css.split("{").length === 2 && css.split("}").length === 2, `one rule, no stray braces: ${css}`);
+    for (const piece of ["display:none", "script", "style>", "\n", " ", "Evil"]) assert.ok(!css.includes(piece), `${piece} must not reach the rule`);
+  }
+  assert.notEqual(faceClassOf("Maya Chen"), faceClassOf("Omar Haddad"));
+  const png = "data:image/png;base64,iVBORw0KGgo=";
+  assert.equal(safeBitmapUrl(png), png);
+  for (const bad of ["data:image/png;base64,AAA\") ;} body{x:y", "javascript:alert(1)", "https://evil.example/x.png", "data:image/svg+xml;utf8,<svg/>", "", undefined]) assert.equal(safeBitmapUrl(bad), null, String(bad));
+  assert.ok(faceRule("Maya Chen", png).includes(`url("${png}")`));
+  assert.ok(!faceRule("Maya Chen", "javascript:alert(1)").includes("javascript"));
+});
