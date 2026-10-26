@@ -487,7 +487,7 @@ async function accountsList(ctx: Ctx, input: unknown): Promise<{ accounts: Accou
   const o = rec(ctx, input);
   const siteId = reqStr(ctx, o, "siteId");
   const { offset, limit } = pageOf(ctx, o);
-  await ctx.call("sites.get", { siteId });
+  if (siteId !== DEFAULT_PORTAL_SITE) await ctx.call("sites.get", { siteId });   // ruling 73: the default portal needs no Sites
   const rows = many(ctx, "SELECT * FROM portal_account WHERE site_id = ?", siteId).sort((a, b) => num(a.created_at) - num(b.created_at) || str(a.id).localeCompare(str(b.id)));
   const out: { accounts: AccountOut[]; next?: string; total: number } = { accounts: rows.slice(offset, offset + limit).map(accountOut), total: rows.length };
   if (offset + limit < rows.length) out.next = String(offset + limit);
@@ -508,7 +508,7 @@ async function accountDisable(ctx: Ctx, input: unknown): Promise<{ ok: true }> {
 async function rulesList(ctx: Ctx, input: unknown): Promise<{ rules: { accountId: string; recordType: string; rule: RowRule }[] }> {
   const o = rec(ctx, input);
   const siteId = reqStr(ctx, o, "siteId");
-  await ctx.call("sites.get", { siteId });
+  if (siteId !== DEFAULT_PORTAL_SITE) await ctx.call("sites.get", { siteId });   // ruling 73: the default portal needs no Sites
   const rules: { accountId: string; recordType: string; rule: RowRule }[] = [];
   const accounts = many(ctx, "SELECT * FROM portal_account WHERE site_id = ?", siteId).sort((a, b) => num(a.created_at) - num(b.created_at) || str(a.id).localeCompare(str(b.id)));
   for (const a of accounts) {

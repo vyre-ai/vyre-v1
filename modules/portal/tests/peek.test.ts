@@ -38,7 +38,7 @@ test("the token is stored hashed: no row, event or warning holds it", async () =
 test("an expired, wrong-site, wrong-token, used or disabled link is null, the same answer for every cause", async () => {
   const w = harness();
   const { accountId, token } = await invited(w);
-  const expiresAt = (w.db.all("SELECT expires_at FROM portal_magic") as { expires_at: number }[])[0]!.expires_at;
+  const expiresAt = (w.db.all("SELECT * FROM portal_magic") as { expires_at: number }[])[0]!.expires_at;
   assert.equal(await peekLink(w.ctx, expiresAt, SITE, token), null, "at its expiry");
   assert.equal(await peekLink(w.ctx, expiresAt + 1, SITE, token), null, "after it");
   assert.equal(await peekLink(w.ctx, NOW, OTHER_SITE, token), null, "the right token on another site");

@@ -159,7 +159,7 @@ test("portal live: the session a claim makes is the client's portal session only
     const done = await fetch(`${d.url}${link}`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
     const session = ((await done.json()) as { data?: { session?: string } }).data?.session ?? "";
     assert.ok(session.length >= 20);
-    for (const cap of ["portal.accounts", "spaces.list", "records.list"]) {
+    for (const cap of ["portal.accounts", "portal.rules", "records.list"]) {
       const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${session}` }, body: JSON.stringify({ siteId: SITE }) });
       assert.equal(r.status, 401, `${cap} does not take a portal session as a Space caller`);
     }

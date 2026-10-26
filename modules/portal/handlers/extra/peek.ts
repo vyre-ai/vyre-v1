@@ -36,8 +36,8 @@ export async function peekLink(ctx: { db: PeekDb }, now: number, siteId: string,
   if (!m || !PURPOSES.has(str(m["purpose"])) || m["used_at"] !== null && m["used_at"] !== undefined || num(m["expires_at"]) <= now) return null;
   const a = (ctx.db.all("SELECT * FROM portal_account WHERE id = ?", str(m["account_id"])) as Row[])[0];
   if (!a || str(a["site_id"]) !== siteId || (a["state"] !== "invited" && a["state"] !== "active")) return null;
-  const rules = ctx.db.all("SELECT record_type FROM portal_link WHERE account_id = ? ORDER BY record_type", str(a["id"])) as Row[];
-  const files = (ctx.db.all("SELECT purpose, expires_at FROM portal_magic WHERE account_id = ?", str(a["id"])) as Row[]).filter((r) => str(r["purpose"]).startsWith("file:") && num(r["expires_at"]) > now);
+  const rules = (ctx.db.all("SELECT * FROM portal_link WHERE account_id = ?", str(a["id"])) as Row[]).sort((x, y) => (str(x["record_type"]) < str(y["record_type"]) ? -1 : 1));
+  const files = (ctx.db.all("SELECT * FROM portal_magic WHERE account_id = ?", str(a["id"])) as Row[]).filter((r) => str(r["purpose"]).startsWith("file:") && num(r["expires_at"]) > now);
   return {
     accountId: str(a["id"]), siteId, email: str(a["email"]), method: a["method"] === "password" ? "password" : "magic_link", state: a["state"] === "active" ? "active" : "invited",
     purpose: str(m["purpose"]) as PeekedLink["purpose"], expiresAt: num(m["expires_at"]),
