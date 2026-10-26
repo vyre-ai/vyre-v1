@@ -9,7 +9,7 @@ import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import { ChatsSidebar, ChatsSidebarSlot } from "./ChatsSidebar.tsx";
 import { createSidebarApi } from "./actions.ts";
 import { validateInput } from "../../../../../../generated/validators.ts";
-import { FACES_SHOWN, NEW_CHAT_MS, buildEntries, groupRecent, matchesQuery, rowOf } from "./model.ts";
+import { FACES_SHOWN, NEW_CHAT_MS, buildEntries, groupRecent, matchesQuery, refetch, rowOf } from "./model.ts";
 import type { ChatRow, RecentOut } from "./model.ts";
 import { createSampleSidebar, harbor, northwind, personal } from "./sample.ts";
 import type { SampleSidebar } from "./sample.ts";
@@ -183,14 +183,26 @@ const FAILED = { status: "loading" as const, error: { message: "agents.list: bad
 const failing = (s: SampleSidebar, screen: string): string =>
   renderToStaticMarkup(<ChatsSidebar data={{ ...s.data, screens: { query: (id, name, state) => (id === screen ? { subscribe: () => () => undefined, getSnapshot: () => FAILED } : s.data.screens.query(id, name, state)) } }} window={{ start: 0, end: 500 }} />).replaceAll("<!-- -->", "");
 
-test("a failed read shows the error for that section, the rest still draws, and it is never the empty state", () => {
+test("a failed read puts one compact row under that section's head, the rest still draws, and it is never the empty state", () => {
   const s = createSampleSidebar();
   const agents = failing(s, "chats.all-agents");
-  assert.ok(agents.includes('data-testid="section-error-agents"') && agents.includes("Agents could not load") && agents.includes("trace-1"), "the error for the Agents section");
+  const at2 = (n: string): number => { const i = agents.indexOf(n); assert.ok(i >= 0, n); return i; };
+  assert.ok(at2('data-testid="head-faces"') < at2('data-testid="section-error-faces"') && at2('data-testid="section-error-faces"') < at2('data-testid="head-channels"'), "the error row sits under the Agents head, before Channels");
+  assert.ok(agents.includes("load agents") && agents.includes('data-testid="retry-faces"') && agents.includes('data-testid="error-more-faces"'), "one row: the words, Retry and the details menu");
+  assert.ok(!agents.includes("trace-1") && !agents.includes('data-testid="state-error"'), "the cause and trace id are behind the menu, no States block");
   assert.ok(agents.includes("Rivera intake") && agents.includes("rivera-matter") && agents.includes("Send 12 invoices"), "chats, channels and Needs you still draw");
   assert.ok(!agents.includes("chats-sidebar-loading") && !agents.includes("No chats yet"), "no skeleton, no empty state");
   const chats = failing(s, "chats.sidebar");
-  assert.ok(chats.includes('data-testid="section-error-recent"') && chats.includes("Chats could not load"));
+  const ci = (n: string): number => chats.indexOf(n);
+  assert.ok(ci('data-testid="head-recent"') >= 0 && ci('data-testid="head-recent"') < ci('data-testid="section-error-recent"'), "the Chats error row is under the Chats head");
+  assert.ok(chats.includes("load chats") && chats.includes("load channels"), "both reads of that screen say so, each under its own head");
   assert.ok(!chats.includes("No chats yet") && !chats.includes("Nothing here") && !chats.includes("chats-sidebar-loading"), "a failed Chats read is not 'No chats yet'");
   assert.ok(chats.includes("Send 12 invoices"), "Needs you still draws");
+});
+
+test("Retry asks the live reads to read again; a stand-in without that has nothing to re-ask", () => {
+  let asked = 0;
+  assert.equal(refetch({ invalidate() { asked++; } }), true);
+  assert.equal(asked, 1);
+  assert.equal(refetch({}), false);
 });

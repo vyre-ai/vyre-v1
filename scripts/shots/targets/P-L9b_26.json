@@ -11,7 +11,7 @@
       "id": "P-L9b_26-chats-sidebar-error",
       "route": "/m/P-L9b_26?fail=agents",
       "proto": "chat,{skin}",
-      "waitFor": "[data-testid='section-error-agents']",
+      "waitFor": "[data-testid='section-error-faces']",
       "note": "The agents read is refused: the Agents section shows the shared error state (Agents could not load, the cause and trace id) and the rest of the sidebar still draws, with no skeleton and no empty state. The prototype has no error state; its sidebar is shown for the other sections."
     }
   ]
