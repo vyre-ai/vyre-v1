@@ -503,12 +503,16 @@ export async function restoreAgentFiles(ctx: AgentsCtx): Promise<string[]> {
 }
 
 /**
- * An agent that access knows (a principal of kind agent) but this module has no record for, such as one the seed or an import wrote straight to the log, gets its record, its Agents/<name> folder with
+ * An agent of the Space (a principal of kind agent) that access knows but this module has no record for, such as one the seed wrote straight to the log, gets its record, its Agents/<name> folder with
  * the decided tree and both files. Its name and owner come from the principal. An owner that is not a person, or a name another agent already has, leaves it alone and says so in the log.
+ * Outside agents are kind actor, not agent, and are never adopted.
  */
 async function adoptAgentPrincipals(ctx: AgentsCtx, put: string[]): Promise<void> {
-  const listed = await tolerant<{ principals?: Array<{ id: string; name: string; owner?: string; status: string }> }>(ctx, "access.principals.list", { kind: "agent", limit: 200 }, {});
+  const listed = await tolerant<{ principals?: Array<{ id: string; kind: string; name: string; owner?: string; status: string }> }>(ctx, "access.principals.list", { kind: "agent", limit: 200 }, {});
   for (const p of listed.principals ?? []) {
+    // Only the Space's own agents (kind agent, id agt_...). An outside agent (Claude Code, Codex over MCP) registers as an outside actor (kind actor) and never gets a Vyre agent record or home;
+    // the kind is checked here as well as in the query so a list that ignored the filter could not adopt one.
+    if (p.kind !== "agent" || !p.id.startsWith("agt_")) continue;
     if (p.status === "removed" || agentBy(ctx.db, p.id)) continue;
     const name = p.name.trim();
     const owner = p.owner;

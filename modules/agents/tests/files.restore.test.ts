@@ -99,3 +99,23 @@ test("a record with no folder or no file ids is given Agents/<name> and both fil
   assert.ok(r["folderId"] && r["tomlFileId"] && r["agentMdFileId"], "the record points at them again");
   assert.equal(hn.world.text(String(r["tomlFileId"])), String(r["tomlText"]));
 });
+
+test("an outside agent is never adopted: it is an outside actor, not an agent of the Space, and gets no record, folder or files", async () => {
+  const hn = harness();
+  hn.world.principals.push(
+    { id: "act_claudecode1", kind: "actor", name: "Claude Code", owner: DANA, status: "active" },
+    { id: "act_codex1", kind: "actor", name: "Codex", status: "active" },
+    { id: "agt_scout", kind: "agent", name: "Scout", owner: DANA, status: "active" },
+  );
+  assert.deepEqual((await restoreAgentFiles(hn.ctx)).sort(), ["Scout/AGENT.md", "Scout/agent.toml"], "only the Space's own agent");
+  assert.equal(hn.rows("SELECT * FROM agents_agent").length, 1);
+  assert.equal(hn.world.folderNamed("Claude Code", hn.world.root), undefined);
+  assert.equal(hn.world.folderNamed("Codex", hn.world.root), undefined);
+  // and a list that ignored the kind filter still adopts no actor, and no agent whose id is not an agent id
+  hn.world.answer("access.principals.list", () => ({ principals: [
+    { id: "act_claudecode1", kind: "actor", name: "Claude Code", owner: DANA, status: "active" },
+    { id: "ext_agent9", kind: "agent", name: "Imported", owner: DANA, status: "active" },
+  ] }));
+  assert.deepEqual(await restoreAgentFiles(hn.ctx), []);
+  assert.equal(hn.rows("SELECT * FROM agents_agent").length, 1);
+});
