@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import Mount, { title } from "./P-L9_17.tsx";
+import Mount, { title } from "./mounts/P-L9_17.tsx";
 
 test("the phone shell mount draws a blank first frame, then reads ?tab, ?space and ?empty after mount", () => {
   assert.equal(title, "Phone shell");
