@@ -55,7 +55,7 @@ test("the owner of a new agent can approve memory into it; after a reassign the 
     const first = await join("firstowner"), asker = await join("asker"), heir = await join("heir");
     const made = await post(owner, "/v1/agents/create", { name: "Scout Two", ownerId: first.id, idempotencyKey: "gf10-agent" });
     assert.equal(made.status, 200, JSON.stringify(made.body));
-    const agent = made.body.data.agent as { id: string; folderId: string };
+    const agent = (({ agentId, folderId }) => ({ id: agentId, folderId }))(made.body.data.agent as { agentId: string; folderId: string });
 
     const sharesOf = async (type: string, id: string): Promise<string[]> => {
       const r = await post(owner, "/v1/access/shares_of", { resource: { type, id } });
@@ -78,7 +78,7 @@ test("the owner of a new agent can approve memory into it; after a reassign the 
     assert.equal(refused.status, 403, JSON.stringify(refused.body));
     const mine = await post(member.token, "/v1/agents/create", { name: "Mine Alone", idempotencyKey: "gf10-member-self" });
     assert.equal(mine.status, 200, JSON.stringify(mine.body));
-    assert.ok((await sharesOf("agent", mine.body.data.agent.id)).includes(`owner:${member.id}`), "and a member's own agent is theirs");
+    assert.ok((await sharesOf("agent", mine.body.data.agent.agentId)).includes(`owner:${member.id}`), "and a member's own agent is theirs");
 
     const promote = async (key: string, text: string): Promise<string> => {
       const fact = await post(asker.token, "/v1/memory/propose_fact", { idempotencyKey: `gf10-fact-${key}`, layer: "person", agentId: agent.id, text, sourceKind: "manual", sourceRef: `gf10-${key}` });
