@@ -10,5 +10,14 @@ export const deferred: Handler = (ctx) => {
   throw fail("internal.unavailable", ctx.trace.traceId, { message: NOT_YET, next: [{ kind: "report", label: "Tell us you need this" }] });
 };
 
-/** `{ "<cap>": deferred, ... }` for a list of capability names. */
-export const deferredHandlers = (caps: readonly string[]): Record<string, Handler> => Object.fromEntries(caps.map((c) => [c, deferred]));
+/** Every capability registered through deferredHandlers: the one runtime source of what is deferred. The host publishes it to signed-in clients; docs/deferred.md must match it (scripts/check-deferred-doc.ts). */
+export const DEFERRED_CAPS: Set<string> = new Set();
+
+/** The deferred capability names, sorted. */
+export const deferredCaps = (): string[] => [...DEFERRED_CAPS].sort();
+
+/** `{ "<cap>": deferred, ... }` for a list of capability names; each name is recorded in DEFERRED_CAPS. */
+export const deferredHandlers = (caps: readonly string[]): Record<string, Handler> => {
+  for (const c of caps) DEFERRED_CAPS.add(c);
+  return Object.fromEntries(caps.map((c) => [c, deferred]));
+};
