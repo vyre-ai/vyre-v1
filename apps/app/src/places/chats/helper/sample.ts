@@ -1,4 +1,4 @@
-// The sample helper behind the helper chat tests and screenshots: Research's "Firms 1-3" helper (done, three steps) and "County mirrors" (still running), filled from the
+// The sample helper behind the helper chat tests and screenshots: Research's "Firms 1-3" helper (done, three steps) and "Supplier mirrors" (still running), filled from the
 // prototype. A fake replica holds the thread and its messages; engine.stop closes the thread, so Stop really works in a mount.
 import { createFakeReplica, createScreenHooks } from "../../../../../../client/src/index.ts";
 import type { FakeReplica, Row } from "../../../../../../client/src/index.ts";
@@ -17,9 +17,9 @@ export const NAMES: Record<string, string> = namesFor("northwind", { usr_irfad: 
 
 function build(variant: Variant): { thread: Thread; messages: Message[] } {
   const done = variant === "done";
-  const parent = done ? { title: "Competitor pricing", threadId: "c2" } : { title: "County records search", threadId: "c6" };
+  const parent = done ? { title: "Competitor pricing", threadId: "c2" } : { title: "Supplier records search", threadId: "c6" };
   const agent = done ? "agt_research" : "agt_scout";
-  const title = done ? "Firms 1–3" : "County mirrors";
+  const title = done ? "Firms 1–3" : "Supplier mirrors";
   const started = done ? at(9, 20) : at(9, 56);
   const thread: Thread = {
     threadId: done ? "h1" : "h4", kind: "helper", title, parentThreadId: parent.threadId, listed: false, planMode: false, members: [{ kind: "agent", id: agent }],
@@ -38,8 +38,8 @@ function build(variant: Variant): { thread: Thread; messages: Message[] } {
       ]),
     ]
     : [
-      msg(1, 1, agent, "While the main county site needs a login, check the three public mirror sites for the same parcel records and return what's there.", started),
-      msg(2, 2, agent, "", started + 20_000, [step(1, "Opened records.county-mirror-1.example", "headless Chrome", "done"), step(2, "Searching parcel 104-22-009", "headless Chrome", "live")]),
+      msg(1, 1, agent, "While the main supplier site needs a login, check the three public mirror sites for the same parcel records and return what's there.", started),
+      msg(2, 2, agent, "", started + 20_000, [step(1, "Opened records.supplier-mirror-1.example", "headless Chrome", "done"), step(2, "Searching parcel 104-22-009", "headless Chrome", "live")]),
     ];
   return { thread, messages };
 }

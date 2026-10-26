@@ -31,14 +31,18 @@ export interface SampleSpace {
 
 /**
  * The prototype's sidebar draws a project channel only when it is starred or followed (renderSide: c.project && (c.starred || c.followed)); spec 3.2 says the same. Its seed marks
- * pruitt-matter followed and atp-q4 not, so atp-q4 stays out of the list. The shared fixture carries the channel but not that flag, so the followed ids are kept here.
+ * pruitt-matter followed (shown here as globex-launch) and atp-q4 not (renewals-q4), so it stays out of the list. The shared fixture carries the channel but not that flag, so the followed ids are kept here.
  */
 export const FOLLOWED_PROJECTS: ReadonlySet<string> = new Set(["ch_pruitt"]);
+
+/** The shared fixture keeps the prototype's channel names; the Chats samples show industry-neutral ones (no law-firm words). The ids stay the fixture's. */
+const NEUTRAL_NAMES: Record<string, string> = { "rivera-matter": "acme-launch", "pruitt-matter": "globex-launch", "atp-q4": "renewals-q4" };
+const neutral = (name: string): string => NEUTRAL_NAMES[name] ?? name;
 
 function channelsOf(all: readonly FixtureChannel[], followed: ReadonlySet<string>): SampleSpace["channels"] {
   return all
     .filter((c) => c.project !== true || followed.has(c.id))
-    .map((c) => ({ channelId: c.id.replace(/^ch_/, ""), name: c.name, unread: c.mentions ?? (c.unread === true ? 1 : 0), visibility: c.private === true ? ("invite" as const) : ("public" as const), ...(c.project === true ? { project: true } : {}) }));
+    .map((c) => ({ channelId: c.id.replace(/^ch_/, ""), name: neutral(c.name), unread: c.mentions ?? (c.unread === true ? 1 : 0), visibility: c.private === true ? ("invite" as const) : ("public" as const), ...(c.project === true ? { project: true } : {}) }));
 }
 
 const t = (threadId: string, title: string, agents: string[], lastAt: number, o: Partial<SampleThread> = {}): SampleThread =>
@@ -49,11 +53,11 @@ export const northwind: SampleSpace = {
   // the faces are the pinned agents in the order the seed lists them (the assistant is the Vyre mark beside New chat, not a face)
   agents: fixtureFor("northwind").agents.map((a) => ({ agentId: a.id, name: a.name, starred: a.pinned, ...(a.id === "agt_intake" ? { working: true } : {}) })),
   threads: [
-    t("c1", "Rivera intake", ["agt_intake"], at(10, 24, 9, 31), { working: true }),
+    t("c1", "Acme intake", ["agt_intake"], at(10, 24, 9, 31), { working: true }),
     t("c3", "October invoices", ["agt_billing"], at(10, 24, 9, 12), { unread: 2 }),
-    t("c4", "Rivera engagement letter", ["agt_docs"], at(10, 24, 8, 50), { unread: 1 }),
+    t("c4", "Acme service agreement", ["agt_docs"], at(10, 24, 8, 50), { unread: 1 }),
     t("d1", "Maya Chen", [], at(10, 24, 8, 40), { unread: 1 }),
-    t("c6", "County records search", ["agt_scout"], at(10, 24, 8, 20)),
+    t("c6", "Supplier records search", ["agt_scout"], at(10, 24, 8, 20)),
     t("c2", "Competitor pricing", ["agt_research"], at(10, 23, 16, 5), { starred: true }),
     t("d2", "Omar Haddad", [], at(10, 23, 11, 15)),
     t("c5", "Weekly lead report", ["agt_intake"], at(10, 20, 9, 0)),
@@ -62,10 +66,10 @@ export const northwind: SampleSpace = {
   channels: channelsOf(fixtureFor("northwind").channels, FOLLOWED_PROJECTS),
   needs: [
     { taskId: "tsk_n1", title: "Send 12 invoices", kind: "approve", by: "agt_billing" },
-    { taskId: "tsk_n2", title: "Rivera engagement letter", kind: "review", by: "agt_docs" },
-    { taskId: "tsk_n3", title: "County records search", kind: "unblock", by: "agt_scout" },
-    { taskId: "tsk_n4", title: "Pruitt intake summary", kind: "review", by: "agt_intake" },
-    { taskId: "tsk_n5", title: "Send the ATP reminder to Harlow & Price", kind: "approve", by: "agt_research" },
+    { taskId: "tsk_n2", title: "Acme service agreement", kind: "review", by: "agt_docs" },
+    { taskId: "tsk_n3", title: "Supplier records search", kind: "unblock", by: "agt_scout" },
+    { taskId: "tsk_n4", title: "Globex intake summary", kind: "review", by: "agt_intake" },
+    { taskId: "tsk_n5", title: "Send the renewal reminder to Harlow & Co", kind: "approve", by: "agt_research" },
     { taskId: "tsk_n6", title: "Problem report from Omar", kind: "review", by: "agt_assistant" },
     { taskId: "tsk_n7", title: "Month-end export is waiting on a sign-in", kind: "unblock", by: "agt_billing" },
   ],

@@ -16,7 +16,7 @@ export type Variant = "northwind" | "harbor";
 
 export const ME = "usr_irfad";
 export const NAMES: Record<string, string> = { ...namesFor("harbor"), ...namesFor("northwind", { usr_irfad: "You", role_finance: "Finance" }) };
-const SOURCES: Record<string, string> = { "chat:c3": "October invoices", "chat:c4": "Rivera engagement letter", "chat:c6": "County records search", "chat:c1": "Rivera intake", "chat:c2": "Competitor pricing", "chat:c7": "Plan the Q4 offsite", "chat:h1": "Moreno shoot Saturday", "chat:h2": "Moreno gallery" };
+const SOURCES: Record<string, string> = { "chat:c3": "October invoices", "chat:c4": "Acme service agreement", "chat:c6": "Supplier records search", "chat:c1": "Acme intake", "chat:c2": "Competitor pricing", "chat:c7": "Plan the Q4 offsite", "chat:h1": "Moreno shoot Saturday", "chat:h2": "Moreno gallery" };
 
 const approve = [{ key: "approve", label: "Approve" }, { key: "send_back", label: "Send back", note: "required" as const }];
 const review = [{ key: "review", label: "Looks good" }, { key: "send_back", label: "Send back", note: "required" as const }];
@@ -34,19 +34,19 @@ export function northwindTasks(): { task: Task; reason: Reason; handledBy?: stri
     { reason: "due_today", task: task("n1", "approve", "agt_billing", "Send 12 invoices", "$18,420 total · due Friday", "The monthly run, same as September. Two clients have new rates since last month; both are marked.", "c3", at(10, 24, 9, 12), {
       due: at(10, 24, 17), blocks: [{ type: "table", v: 1, data: { columns: ["Client", "Amount", "Due"], rows: [["Harlow & Price", "$2,400", "Oct 31"], ["Grant Legal", "$1,850", "Oct 31"], ["Meyer Law", "$3,100", "Nov 1"], ["Ardent Partners", "$960", "Nov 1"], ["Brook Studio", "$1,200", "Nov 2"]], more: 7, tags: ["", "new rate", "", "", "new rate"] } }],
     }) },
-    { reason: "ready", task: task("n2", "review", "agt_docs", "Rivera engagement letter", "Draft from the standard template", "Filled from Elena's record and the consult booking. Three values came from the record; please check the fee.", "c4", at(10, 24, 8, 50), {
-      fileIds: ["doc1"], blocks: [{ type: "document", v: 1, data: { lines: ["This letter confirms that Elena Rivera engages Northwind for the matter described below.", "The consult fee is $250, due at the consult on Tuesday, Oct 28."], file: "engagement-letter.docx" } }],
+    { reason: "ready", task: task("n2", "review", "agt_docs", "Acme service agreement", "Draft from the standard template", "Filled from Elena's record and the consult booking. Three values came from the record; please check the fee.", "c4", at(10, 24, 8, 50), {
+      fileIds: ["doc1"], blocks: [{ type: "document", v: 1, data: { lines: ["This letter confirms that Elena Acme engages Northwind for the launch described below.", "The consult fee is $250, due at the consult on Tuesday, Oct 28."], file: "service-agreement.docx" } }],
     }) },
-    { reason: "blocking", task: task("n3", "unblock", "agt_scout", "County records search", "Needs a login for the county site", "It reached the county records portal and hit a sign-in page. Lend it a login from the Vault and it carries on from the same step; it never sees the password.", "c6", at(10, 24, 8, 31), {
-      blocked: true, actions: [{ key: "lend", label: "Lend a login…" }], blocks: [{ type: "screenshot", v: 1, data: { caption: "records.county.gov/search, sign-in page" } }],
+    { reason: "blocking", task: task("n3", "unblock", "agt_scout", "Supplier records search", "Needs a login for the supplier site", "It reached the supplier records portal and hit a sign-in page. Lend it a login from the Vault and it carries on from the same step; it never sees the password.", "c6", at(10, 24, 8, 31), {
+      blocked: true, actions: [{ key: "lend", label: "Lend a login…" }], blocks: [{ type: "screenshot", v: 1, data: { caption: "records.supplier.example/search, sign-in page" } }],
     }) },
-    { reason: "ready", task: task("n4", "review", "agt_intake", "Pruitt intake summary", "Form came back, 2 fields unclear", "Marcus Pruitt returned the intake form. The property address and the other party's name were unclear, so I left them blank.", "c1", at(10, 24, 9, 10)) },
-    { reason: "ready", task: task("n5", "approve", "agt_research", "Send the ATP reminder to Harlow & Price", "Quarterly worksheet, due Nov 12", "A standard reminder with the worksheet link. It goes from your address.", "c2", at(10, 23, 16, 5)) },
-    { reason: "ready", task: task("n6", "review", "agt_assistant", "Problem report from Omar", "The intake form would not send", "Omar pressed Report a problem on the Rivera intake form. The bundle holds the last 20 trace ids, recent errors and a window picture. Sealed values are redacted.", "c7", at(10, 24, 9, 36), {
-      blocks: [{ type: "pairs", v: 1, data: { pairs: [["Item", "forms/rivera-intake · e41c"], ["Trace ids", "20 · last tr_91ac07"], ["Errors", "1 · form.send 503"], ["Versions", "app 1.0.0 · server 1.0.0"], ["Device", "MacBook · macOS 26"]] } }],
+    { reason: "ready", task: task("n4", "review", "agt_intake", "Globex intake summary", "Form came back, 2 fields unclear", "Marcus Globex returned the intake form. The property address and the other party's name were unclear, so I left them blank.", "c1", at(10, 24, 9, 10)) },
+    { reason: "ready", task: task("n5", "approve", "agt_research", "Send the renewal reminder to Harlow & Co", "Quarterly worksheet, due Nov 12", "A standard reminder with the worksheet link. It goes from your address.", "c2", at(10, 23, 16, 5)) },
+    { reason: "ready", task: task("n6", "review", "agt_assistant", "Problem report from Omar", "The intake form would not send", "Omar pressed Report a problem on the Acme intake form. The bundle holds the last 20 trace ids, recent errors and a window picture. Sealed values are redacted.", "c7", at(10, 24, 9, 36), {
+      blocks: [{ type: "pairs", v: 1, data: { pairs: [["Item", "forms/acme-intake · e41c"], ["Trace ids", "20 · last tr_91ac07"], ["Errors", "1 · form.send 503"], ["Versions", "app 1.0.0 · server 1.0.0"], ["Device", "MacBook · macOS 26"]] } }],
     }) },
     // Withdrawn by its source: the fee changed and Docs is redrafting it. It sits under Withdrawn and does not count.
-    { reason: "ready", task: task("n8", "approve", "agt_docs", "Send the Pruitt fee letter", "Withdrawn: the fee changed and Docs is redrafting it.", "", "c4", at(10, 24, 8, 10), { state: "canceled", actions: [{ key: "dismiss", label: "Dismiss" }] }) },
+    { reason: "ready", task: task("n8", "approve", "agt_docs", "Send the Globex fee letter", "Withdrawn: the fee changed and Docs is redrafting it.", "", "c4", at(10, 24, 8, 10), { state: "canceled", actions: [{ key: "dismiss", label: "Dismiss" }] }) },
     { reason: "blocking", task: task("n7", "unblock", "agt_billing", "Month-end export is waiting on a sign-in", "The wait outlived your Claude sign-in", "The export has waited 14 hours for the bank to finish. Your Claude sign-in ran out meanwhile. Sign in again and Billing carries on, or let it use its backup key. The run shows Waiting, not Failed.", "c3", at(10, 24, 9, 14), {
       blocked: true, actions: [{ key: "signin", label: "Sign in again" }, { key: "backup", label: "Use the backup key" }],
     }) },

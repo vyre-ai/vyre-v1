@@ -1,5 +1,5 @@
 // Mount for P-L9b_22: the real Chats place (ChatsMounted over the sample Space's runtime) inside the whole shell, so its sidebar is drawn by the shared place sidebar slot (title, collapse, search
-// field, and on a phone the list before the chat). ?screen=chat (default, Rivera intake open) or needs (the Needs you page). The query is read after mount (rule 25), so the first frame is empty
+// field, and on a phone the list before the chat). ?screen=chat (default, Acme intake open) or needs (the Needs you page). The query is read after mount (rule 25), so the first frame is empty
 // and the client draws the same one.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";

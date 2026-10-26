@@ -120,7 +120,7 @@ test("the channel menu: Connect an Outside Agent is on a channel's menu only, an
   const s = createMountSample();
   const { go, acts, shown } = doors(s);
   const nav = conversation(s, go).nav;
-  const entries = connectEntries({ kind: "channel", channelId: CHANNEL, threadId: "t_rivera" }, nav);
+  const entries = connectEntries({ kind: "channel", channelId: CHANNEL, threadId: "t_acme" }, nav);
   assert.deepEqual(entries.map((e) => ("label" in e ? e.label : "")), ["Connect an Outside Agent"]);
   const first = entries[0];
   assert.ok(first && "onSelect" in first);
@@ -128,9 +128,9 @@ test("the channel menu: Connect an Outside Agent is on a channel's menu only, an
   assert.deepEqual(acts, [{ t: "layer", layer: { kind: "connect", channelId: CHANNEL } }]);
   assert.deepEqual(connectEntries({ kind: "chat", threadId: "c1" }, nav), [], "a chat has no such entry");
   const { openConnectOutsideAgent: _gone, ...bare } = nav;
-  assert.deepEqual(connectEntries({ kind: "channel", channelId: CHANNEL, threadId: "t_rivera" }, bare), [], "nor where the shell has no sheet");
+  assert.deepEqual(connectEntries({ kind: "channel", channelId: CHANNEL, threadId: "t_acme" }, bare), [], "nor where the shell has no sheet");
   const out = html(s, shown());
-  assert.ok(has(out, 'data-testid="connect-outside-agent"') && has(out, "rivera-matter") && has(out, "Create connection"));
+  assert.ok(has(out, 'data-testid="connect-outside-agent"') && has(out, "acme-launch") && has(out, "Create connection"));
 });
 
 test("the Computer chip: the chip is in the composer bar and opens the agent's computer popup over the chat", async () => {
@@ -228,7 +228,7 @@ test("Waiting on: an agent that waits on background work says so in the thread a
 test("Connect an outside agent: the tool and what it may do, then the address, a masked one-time token and the command", async () => {
   const s = createMountSample();
   const sheet = clean(renderToStaticMarkup(<ConnectOutsideAgent screens={s.rt.screens} call={s.rt.call} newKey={() => "k1"} clock={s.rt.clock} channelId={CHANNEL} onClose={() => undefined} />));
-  assert.ok(has(sheet, 'role="dialog"') && has(sheet, "Connect an outside agent") && has(sheet, "#rivera-matter"));
+  assert.ok(has(sheet, 'role="dialog"') && has(sheet, "Connect an outside agent") && has(sheet, "#acme-launch"));
   for (const k of ["claude", "codex", "other"]) assert.ok(has(sheet, `data-testid="connect-kind-${k}"`), k);
   assert.ok(has(sheet, 'role="radiogroup"') && has(sheet, 'aria-checked="true"'), "a tool is chosen");
   assert.ok(has(sheet, "Never. Agents see handles, not values."), "the Vault is never offered");
@@ -357,8 +357,8 @@ test("terminal list: sessions with where they run, running ones first, the star 
   const out = clean(renderToStaticMarkup(<TerminalList data={td} x={8} y={48} onClose={() => undefined} window={WINDOW} />));
   assert.ok(has(out, 'data-testid="terminal-list"') && has(out, "Terminals") && has(out, "3 in Northwind"));
   const at = (needle: string): number => { const i = out.indexOf(needle); assert.ok(i >= 0, needle); return i; };
-  assert.ok(at("Rivera dev server") < at("Space server") && at("Space server") < at("Invoice export"), "running, idle, then exited");
-  assert.ok(has(out, 'data-testid="star-trm_rivera"'), "the starred session shows its star");
+  assert.ok(at("Acme dev server") < at("Space server") && at("Space server") < at("Invoice export"), "running, idle, then exited");
+  assert.ok(has(out, 'data-testid="star-trm_acme"'), "the starred session shows its star");
   assert.ok(!has(out, 'data-testid="star-trm_server"'), "an unstarred one shows it on hover");
   assert.ok(has(out, 'data-testid="terminal-new"') && has(out, 'data-testid="terminal-rules-open"'));
   const rows = [
@@ -387,7 +387,7 @@ test("terminal rules: the allow, ask and deny lists and the folders, one entry p
   const out = clean(renderToStaticMarkup(<TerminalRules data={td} onClose={() => undefined} />));
   assert.ok(has(out, 'data-testid="terminal-rules"') && has(out, 'role="dialog"'));
   for (const t of ["Always allow", "Ask first", "Never allow", "Folders it may work in"]) assert.ok(has(out, t), t);
-  for (const e of ["git status", "git push", "rm -rf", "fld_rivera"]) assert.ok(has(out, e), `${e} is in its list`);
+  for (const e of ["git status", "git push", "rm -rf", "fld_acme"]) assert.ok(has(out, e), `${e} is in its list`);
   assert.ok(has(out, 'data-testid="rules-save"') && has(out, 'data-testid="rules-revert"'));
   assert.deepEqual(parseLines("  git status \n\n git status\nls  \n"), ["git status", "ls"]);
   assert.equal(linesText(["a", "b"]), "a\nb");
@@ -472,7 +472,7 @@ test("the shipped place, through the shell provider and the runtime's live scree
   const side = inSlot(s).out;
   assert.ok(has(side, 'data-testid="row-needs-parent"') && has(side, 'data-testid="count-needs"') && has(side, ">7<"), "the Needs you entry with its count, read from home.needs-you-top3 through rt.screens");
   assert.ok(has(side, "Send 12 invoices"), "its requests beneath");
-  // 5, not 4: the Agents group lists all the Space's agents (agents.list has no starred filter), and Scout raised "County records search", so it says Waiting on you too. The old 4 held only because Scout was hidden.
+  // 5, not 4: the Agents group lists all the Space's agents (agents.list has no starred filter), and Scout raised "Supplier records search", so it says Waiting on you too. The old 4 held only because Scout was hidden.
   assert.equal(side.split("Waiting on you").length - 1, 5, "the five agents with a request say so (Scout is in the Agents group now that it lists the Space's agents)");
 });
 
@@ -490,7 +490,7 @@ test("a click on an agent opens its chat with the agent's pane beside it; the pa
   const side = inSlot(s);
   assert.ok(side.title === "Chats" && side.placeholder === "Search chats" && has(side.out, 'data-testid="sidebar-head"') && !has(side.out, "switch Space"), "the sidebar header reads Chats (the slot's title)");
   assert.ok(has(side.out, 'data-testid="new-chat"') && !has(side.out, 'data-testid="sidebar-toggle"'), "the assistant button stays; the panel toggle is the slot's collapse button now");
-  assert.ok(has(inSlot(s, "docs").out, "Docs") && !has(inSlot(s, "docs").out, "Rivera intake"), "the slot's search narrows the rows");
+  assert.ok(has(inSlot(s, "docs").out, "Docs") && !has(inSlot(s, "docs").out, "Acme intake"), "the slot's search narrows the rows");
   // the pane's menu opens the full page
   wirePane(s.rt, go, "c1", { agentId: "agt_docs", name: "Docs" }).nav.openAgentPage("agt_docs");
   assert.deepEqual(acts[acts.length - 1], { t: "agent", agentId: "agt_docs" });

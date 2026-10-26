@@ -21,9 +21,9 @@ export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const at = (h: number, m: number, s = 0): number => Date.UTC(2025, 9, 24, h, m, s);
 
 export const COMPUTER = "cmp_intake";
-export const TERMINAL = "trm_rivera";
+export const TERMINAL = "trm_acme";
 export const SERVER_TERMINAL = "trm_server";
-export const CHANNEL = "chn_rivera";
+export const CHANNEL = "chn_acme";
 export const RECORDING = "rec_1";
 export const HELPER = "h1";
 
@@ -39,7 +39,7 @@ type Run = CapMap["runs.list"]["out"]["runs"][number];
 type Thread = CapMap["threads.get"]["out"]["thread"];
 
 const term = (terminalId: string, name: string, host: Terminal["host"], hostTitle: string, o: Partial<Terminal> = {}): Terminal => ({
-  terminalId, name, host, hostTitle, ...(host === "agent_computer" ? { agentId: "agt_intake", computerId: COMPUTER } : {}), cwd: "~/rivera", state: "running", exitCode: null, named: true, cols: 100, rows: 30,
+  terminalId, name, host, hostTitle, ...(host === "agent_computer" ? { agentId: "agt_intake", computerId: COMPUTER } : {}), cwd: "~/acme", state: "running", exitCode: null, named: true, cols: 100, rows: 30,
   createdAt: at(9, 10), lastActiveAt: at(9, 58), ...o,
 });
 
@@ -87,15 +87,15 @@ export function createMountSample(o: { conversation?: ConversationVariant; who?:
   let seq = 0;
 
   replica.put("terminals", [
-    { id: TERMINAL, ...term(TERMINAL, "Rivera dev server", "agent_computer", "Intake's computer") },
+    { id: TERMINAL, ...term(TERMINAL, "Acme dev server", "agent_computer", "Intake's computer") },
     { id: SERVER_TERMINAL, ...term(SERVER_TERMINAL, "Space server", "space_server", "Space server", { cwd: "/srv/vyre", createdAt: at(8, 30), lastActiveAt: at(9, 20), state: "idle" }) },
     { id: "trm_old", ...term("trm_old", "Invoice export", "device", "irfad-macbook", { state: "exited", exitCode: 0, lastActiveAt: at(7, 45), createdAt: at(7, 40) }) },
   ]);
-  replica.put("stars", [{ id: TERMINAL, resource: { type: "terminal", id: TERMINAL }, title: "Rivera dev server", at: at(9, 15) }]);
-  replica.put("rules", [{ id: "mine", allow: ["git status", "git diff", "ls"], ask: ["git push", "npm install"], deny: ["rm -rf", "sudo"], folders: ["fld_rivera", "fld_work"] }]);
-  replica.put("computers", [{ id: COMPUTER, computerId: COMPUTER, agentId: "agt_intake", state: "working", caption: "Looking up Elena Rivera", tabs: 2, tabLimit: 10, host: "server", recording: false, lastActiveAt: at(9, 59) }]);
+  replica.put("stars", [{ id: TERMINAL, resource: { type: "terminal", id: TERMINAL }, title: "Acme dev server", at: at(9, 15) }]);
+  replica.put("rules", [{ id: "mine", allow: ["git status", "git diff", "ls"], ask: ["git push", "npm install"], deny: ["rm -rf", "sudo"], folders: ["fld_acme", "fld_work"] }]);
+  replica.put("computers", [{ id: COMPUTER, computerId: COMPUTER, agentId: "agt_intake", state: "working", caption: "Looking up Elena Acme", tabs: 2, tabLimit: 10, host: "server", recording: false, lastActiveAt: at(9, 59) }]);
   replica.put("channels", [{
-    id: CHANNEL, channelId: CHANNEL, mainThreadId: "t_rivera", name: "rivera-matter", topic: "Everything for the Rivera matter", visibility: "invite", archived: false,
+    id: CHANNEL, channelId: CHANNEL, mainThreadId: "t_acme", name: "acme-launch", topic: "Everything for the Acme launch", visibility: "invite", archived: false,
     members: [{ kind: "person", id: "usr_irfad" }, { kind: "person", id: "usr_maya" }], agents: [{ agentId: "agt_intake", mode: "lead" }], unread: 0, createdAt: at(8, 0),
   }]);
   replica.put("recordings", [{

@@ -66,7 +66,7 @@ const need = (id: string, kind: string, blocked = false): NeedsItem => ({ reason
 const base = { needs: [] as NeedsItem[], needsTotal: 0, faces: [agent("a1"), agent("a2")], workingAgents: new Set<string>(), groups: groupRecent(recent, [], name), channels: [] as Channel[], filter: "all" as const, closed: new Set<never>() };
 
 test("the list runs Needs you (only when something waits), Agents, Channels with Projects, then Chats (ruling 45)", () => {
-  const e = buildEntries({ ...base, needs: [need("n1", "approve")], needsTotal: 7, channels: [channel("intake"), channel("pruitt", { recordId: "r1" }), channel("old", { archived: true })] });
+  const e = buildEntries({ ...base, needs: [need("n1", "approve")], needsTotal: 7, channels: [channel("intake"), channel("globex", { recordId: "r1" }), channel("old", { archived: true })] });
   const kinds = e.map((x) => `${x.type}:${x.key}`);
   assert.equal(kinds[0], "head:h:needs");
   assert.ok(kinds.indexOf("head:h:faces") < kinds.indexOf("head:h:channels") && kinds.indexOf("head:h:channels") < kinds.indexOf("head:h:recent"));

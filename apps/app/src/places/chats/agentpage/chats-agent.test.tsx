@@ -56,7 +56,7 @@ test("the strip: chats this week, open tasks, runs today, spend against the limi
 test("Chats tab: what it is working on, its chats newest first, what it is linked to", () => {
   const s = createSample("owner");
   const out = html(s, "chats");
-  inOrder(out, ['data-testid="label-l-working"', "Rivera matter intake", "Follow up with Dev Rao", 'data-testid="label-l-chats"', "Rivera intake", "Weekly lead report", 'data-testid="label-l-linked"', "#intake"]);
+  inOrder(out, ['data-testid="label-l-working"', "Acme launch intake", "Follow up with Dev Rao", 'data-testid="label-l-chats"', "Acme intake", "Weekly lead report", 'data-testid="label-l-linked"', "#intake"]);
   assert.ok(has(out, 'data-testid="page-body-chats"'));
   const all = (s.replica.rows("threads") as unknown as Thread[]);
   assert.deepEqual(chatsOf("agt_intake", all).map((t) => t.threadId), ["c1", "c5"], "chats only, newest first; threads and helpers stay in the right pane");
@@ -212,7 +212,7 @@ test("Memory, Files and Computer are the right pane's tabs read from the same da
   const files = html(s, "files");
   assert.ok(has(files, "AGENT.md") && has(files, "agent.toml"));
   const computer = html(s, "computer");
-  assert.ok(has(computer, "Filling the county records form"));
+  assert.ok(has(computer, "Filling the supplier records form"));
   for (const t of tabs) assert.ok(has(html(s, t), `data-testid="page-body-${t}"`), t);
   assert.ok(isTabKey("settings") && !isTabKey("routines"));
 });

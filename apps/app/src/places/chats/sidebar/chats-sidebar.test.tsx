@@ -41,10 +41,10 @@ test("the sections render from the Northwind sample, in the spec's order", () =>
 
 test("Needs you lists every request that waits, with the count (ruling 45: the prototype lists all seven)", () => {
   const out = html(createSampleSidebar());
-  assert.ok(at(out, "Send 12 invoices") < at(out, "Rivera engagement letter"));
+  assert.ok(at(out, "Send 12 invoices") < at(out, "Acme service agreement"));
   assert.ok(out.includes('data-testid="count-needs"') && out.includes(">7<"));
   assert.ok(out.includes("Approve") && out.includes("Blocked"));
-  for (const title of ["Pruitt intake summary", "Send the ATP reminder", "Problem report from Omar", "Month-end export"]) assert.ok(out.includes(title), title);
+  for (const title of ["Globex intake summary", "Send the renewal reminder", "Problem report from Omar", "Month-end export"]) assert.ok(out.includes(title), title);
 });
 
 test("Starred agent faces come first, each a row with its face; the working one is ringed", () => {
@@ -58,7 +58,7 @@ test("Chats are grouped Starred, Today, Yesterday, Earlier", () => {
   const g = ["Starred", "Today", "Yesterday", "Earlier"].map((l) => at(out, `data-testid="group-${l}"`));
   assert.deepEqual([...g].sort((a, b) => a - b), g);
   assert.ok(at(out, "Competitor pricing") > g[0]! && at(out, "Competitor pricing") < g[1]!, "the starred chat sits under Starred");
-  assert.ok(at(out, "Rivera intake") > g[1]! && at(out, "Rivera intake") < g[2]!);
+  assert.ok(at(out, "Acme intake") > g[1]! && at(out, "Acme intake") < g[2]!);
   assert.ok(at(out, "Omar Haddad") > g[2]! && at(out, "Omar Haddad") < g[3]!);
   assert.ok(at(out, "Plan the Q4 offsite") > g[3]!);
 });
@@ -67,7 +67,7 @@ test("unread chats carry a dot and channels a count; Projects sit under Channels
   const out = html(createSampleSidebar());
   assert.ok(out.includes('data-testid="unread-dot"'));
   assert.ok(out.includes('data-testid="unread-intake"'));
-  assert.ok(at(out, "pruitt-matter") > at(out, "data-testid=\"group-Projects\"") && at(out, "data-testid=\"group-Projects\"") > at(out, "rivera-matter"));
+  assert.ok(at(out, "globex-launch") > at(out, "data-testid=\"group-Projects\"") && at(out, "data-testid=\"group-Projects\"") > at(out, "acme-launch"));
   assert.ok(out.includes("other-space-dot"), "another Space needs you");
 });
 
@@ -89,7 +89,7 @@ test("before the data arrives the sidebar draws its loading frame; offline it sa
   assert.ok(renderToStaticMarkup(<ChatsSidebar />).includes("chats-sidebar-loading"));
   const s = createSampleSidebar(northwind, { online: false });
   const out = html(s);
-  assert.ok(out.includes("sidebar-offline") && out.includes("Rivera intake"));
+  assert.ok(out.includes("sidebar-offline") && out.includes("Acme intake"));
 });
 
 test("star, mark read and approve change what the next render shows", async () => {
@@ -140,17 +140,17 @@ const registered = (s: SampleSidebar, query: string, slot: SidebarSlotApi = slot
 test("the sidebar registers in the shared slot as Chats with the Search chats field, and draws all its rows inside it", () => {
   const { entry, out } = registered(createSampleSidebar(), "");
   assert.deepEqual(entry, { title: "Chats", searchPlaceholder: "Search chats" });
-  for (const text of ["Needs you", "Send 12 invoices", "Intake", "Competitor pricing", "Rivera intake", "rivera-matter"]) assert.ok(out.includes(text), text);
+  for (const text of ["Needs you", "Send 12 invoices", "Intake", "Competitor pricing", "Acme intake", "acme-launch"]) assert.ok(out.includes(text), text);
   assert.ok(out.includes('data-testid="new-chat"') && out.includes('data-testid="filter-chats"'), "the assistant's new chat and the filter keep their place");
 });
 
 test("the slot's search field narrows Needs you, Agents, Channels and Chats; a word nothing holds leaves only the section heads", () => {
   const s = createSampleSidebar();
-  const out = registered(s, "rivera").out;
-  assert.ok(out.includes("Rivera intake") && out.includes("rivera-matter") && out.includes("Rivera engagement letter"));
+  const out = registered(s, "acme").out;
+  assert.ok(out.includes("Acme intake") && out.includes("acme-launch") && out.includes("Acme service agreement"));
   assert.ok(!out.includes("Competitor pricing") && !out.includes("Send 12 invoices") && !out.includes("data-testid=\"face-Billing\""));
   const none = registered(s, "zzzz").out;
-  assert.ok(!none.includes("Rivera intake") && !none.includes("rivera-matter") && !none.includes('data-testid="head-needs"'));
+  assert.ok(!none.includes("Acme intake") && !none.includes("acme-launch") && !none.includes('data-testid="head-needs"'));
   assert.equal(registered(s, "  ").out, registered(s, "").out, "blank text is no search");
   assert.ok(matchesQuery("pric comp", "Competitor pricing") && !matchesQuery("pric zzz", "Competitor pricing") && matchesQuery("", "x"));
 });
@@ -173,7 +173,7 @@ test("one type for every section header: Agents and Channels, and the Starred, T
 
 test("the sample channels carry the prototype's neutral names", () => {
   const out = html(createSampleSidebar());
-  assert.ok(out.includes("rivera-matter") && out.includes("pruitt-matter"));
+  assert.ok(out.includes("acme-launch") && out.includes("globex-launch"));
 });
 
 // ---- reads the contract accepts, and reads that fail (P-L9b_26)
@@ -209,7 +209,7 @@ test("a failed read shows the error for that section, the rest still draws, and 
   const s = createSampleSidebar();
   const agents = failing(s, "chats.all-agents");
   assert.ok(agents.includes('data-testid="section-error-agents"') && agents.includes("Agents could not load") && agents.includes("trace-1"), "the error for the Agents section");
-  assert.ok(agents.includes("Rivera intake") && agents.includes("rivera-matter") && agents.includes("Send 12 invoices"), "chats, channels and Needs you still draw");
+  assert.ok(agents.includes("Acme intake") && agents.includes("acme-launch") && agents.includes("Send 12 invoices"), "chats, channels and Needs you still draw");
   assert.ok(!agents.includes("chats-sidebar-loading") && !agents.includes("No chats yet"), "no skeleton, no empty state");
   const chats = failing(s, "chats.sidebar");
   assert.ok(chats.includes('data-testid="section-error-recent"') && chats.includes("Chats could not load"));

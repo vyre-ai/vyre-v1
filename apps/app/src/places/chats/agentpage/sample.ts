@@ -50,8 +50,8 @@ export function createSample(variant: Variant = "owner", o: { online?: boolean }
     ? { chatsThisWeek: 2, openTasks: 1, runsToday: 0, spendTodayMicros: 0, memoryFacts: 0, proposedFacts: 0, workingOn: [], linked: [], watches: [] }
     : {
       chatsThisWeek: 3, openTasks: 4, runsToday: 6, spendTodayMicros: 420_000, spendLimitMicros: 5_000_000, memoryFacts: 4, proposedFacts: 3,
-      workingOn: [{ kind: "record", id: "rec_rivera", title: "Rivera matter intake" }, { kind: "task", id: "tsk_dev", title: "Follow up with Dev Rao" }],
-      linked: [{ kind: "project", id: "prj_rivera", title: "Rivera matter" }, { kind: "channel", id: "ch_intake", title: "#intake" }],
+      workingOn: [{ kind: "record", id: "rec_acme", title: "Acme launch intake" }, { kind: "task", id: "tsk_dev", title: "Follow up with Dev Rao" }],
+      linked: [{ kind: "project", id: "prj_acme", title: "Acme launch" }, { kind: "channel", id: "ch_intake", title: "#intake" }],
       watches: ["Web form inbox"],
     };
   replica.resolve("agents.summary", () => summary);

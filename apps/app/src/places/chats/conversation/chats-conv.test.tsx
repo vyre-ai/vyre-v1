@@ -27,7 +27,7 @@ const ctx = (s: Sample) => ({ meId: "usr_irfad", nameOf: s.data.nameOf, kindOf: 
 
 test("the page reads: header with title and faces, your bubbles, Intake's folded work, cards, the composer line", () => {
   const out = html(createSample("idle"));
-  inOrder(out, ['data-testid="conversation-head"', 'data-testid="conversation-title"', 'data-testid="conversation-faces"', "New client: Elena Rivera", "Intake is on it", "Worked for 14s, 3 steps", "Tuesday has two openings", "Book 2pm.", "Worked for 6s, 2 steps", 'data-testid="composer"']);
+  inOrder(out, ['data-testid="conversation-head"', 'data-testid="conversation-title"', 'data-testid="conversation-faces"', "New client: Elena Acme", "Intake is on it", "Worked for 14s, 3 steps", "Tuesday has two openings", "Book 2pm.", "Worked for 6s, 2 steps", 'data-testid="composer"']);
   assert.ok(has(out, "client-intake.pdf") && has(out, 'data-testid="proposal-b2"'));
   assert.ok(has(out, "Intake will reply") && has(out, "Message Intake…"));
 });
@@ -138,7 +138,7 @@ test("an error is one inline row: what, why, next, What happened, Copy trace id;
   const out = html(s);
   assert.ok(has(out, "Docs did not read fee-schedule.csv") && has(out, "Restricted data only goes to a model on your computer."));
   for (const t of ["Switch to Llama 3.3 on this computer", "Ask for access", "Retry", "What happened?", "Copy trace id", "Report a problem"]) assert.ok(has(out, t), t);
-  assert.ok(has(out, "Changed 1 file in Rivera matter") && has(out, "Review changes") && has(out, "Rivera engagement letter"));
+  assert.ok(has(out, "Changed 1 file in Acme launch") && has(out, "Review changes") && has(out, "Acme service agreement"));
   await act.retryTurn(s.data, "turn_9").catch(() => undefined);
   assert.equal(s.calls[0]!.cap, "engine.turn.retry");
 });
@@ -146,8 +146,8 @@ test("an error is one inline row: what, why, next, What happened, Copy trace id;
 test("cards: a plan waits for approval and a question waits for an answer; both write", async () => {
   const s = createSample("plan");
   const out = html(s);
-  assert.ok(has(out, "Rivera onboarding plan") && has(out, 'data-testid="blk-plan-p1-approve"') && has(out, "Send the engagement letter"));
-  assert.ok(has(out, "Who signs the engagement letter?") && has(out, "Maya Chen") && has(out, "Omar Haddad"));
+  assert.ok(has(out, "Acme onboarding plan") && has(out, 'data-testid="blk-plan-p1-approve"') && has(out, "Send the service agreement"));
+  assert.ok(has(out, "Who signs the service agreement?") && has(out, "Maya Chen") && has(out, "Omar Haddad"));
   await act.answerBlock(s.data, "q1", "maya");
   await act.approvePlan(s.data, "plan_1");
   await act.setPlanMode(s.data, false);
@@ -250,7 +250,7 @@ test("find in chat: matches are ignoring case and accents, counted, and stepped"
   assert.equal(matchLine(2, 0, "tuesday"), "1 of 2");
   assert.equal(matchLine(0, 0, "zzz"), "No matches");
   assert.equal(matchLine(0, 0, ""), "");
-  assert.deepEqual(findMatches([{ ...all[0]!, body: "Café Rivera" }], "cafe"), ["m1"]);
+  assert.deepEqual(findMatches([{ ...all[0]!, body: "Café Acme" }], "cafe"), ["m1"]);
 });
 
 test("the composer has the model chip (Opus) and the computer button; its placeholder names who answers", () => {

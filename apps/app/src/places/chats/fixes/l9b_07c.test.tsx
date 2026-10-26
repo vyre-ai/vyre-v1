@@ -32,12 +32,12 @@ test("Files: a tree with the prototype's folders in its order, counts, and locks
 });
 
 test("Memory: MAP.md reads as key rows with its count against 200; proposed facts are cards with where from and when", () => {
-  const map = parseMap("- `elena-rivera` client referred by Maya\n- `consult-rules` length, host and fee");
-  assert.deepEqual(map.rows.map((r) => r.key), ["elena-rivera", "consult-rules"]);
+  const map = parseMap("- `elena-acme` client referred by Maya\n- `consult-rules` length, host and fee");
+  assert.deepEqual(map.rows.map((r) => r.key), ["elena-acme", "consult-rules"]);
   assert.equal(MAP_LIMIT, 200);
   const out = pane("memory");
   for (const id of ["p1", "p2", "p3"]) assert.ok(has(out, `data-testid="proposed-${id}"`), id);
-  assert.ok(has(out, "Rivera intake") && has(out, " · 9:31") && has(out, "#intake"));
+  assert.ok(has(out, "Acme intake") && has(out, " · 9:31") && has(out, "#intake"));
   assert.ok(has(out, "Proposed · 3"));
   assert.ok(has(out, "2 low-risk facts merged on their own") && out.indexOf("merged on their own") > out.indexOf("proposed-p3") && out.indexOf("merged on their own") < out.indexOf("What Intake knows"));
 });
@@ -52,7 +52,7 @@ test("Routines: the watcher is the second routine, switches are green when on, t
 
 test("Threads: the thread it worked in, then its chats with their times", () => {
   const out = pane("threads");
-  assert.ok(out.indexOf("#intake · Omar Haddad") < out.indexOf("Rivera intake") && out.indexOf("Rivera intake") < out.indexOf("Weekly lead report"));
+  assert.ok(out.indexOf("#intake · Omar Haddad") < out.indexOf("Acme intake") && out.indexOf("Acme intake") < out.indexOf("Weekly lead report"));
   assert.ok(has(out, "5 replies · last 9:34"));
   assert.ok(has(out, ">9:31<") && has(out, ">Mon<"));
 });

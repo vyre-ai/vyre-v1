@@ -33,7 +33,7 @@ test("Needs you is one row with the count, and its requests sit under it", () =>
 
 test("every agent that raised a request says Waiting on you; the others do not", () => {
   const out = html(createSampleSidebar());
-  // The Agents group is the Space's agents now (agents.list has no starred filter), so Scout, who raised "County records search", is in it and says so too.
+  // The Agents group is the Space's agents now (agents.list has no starred filter), so Scout, who raised "Supplier records search", is in it and says so too.
   assert.equal(count(out, "Waiting on you"), 5, "Intake, Docs, Billing, Research and Scout wait on you; the assistant is not a face and never says it");
   for (const n of ["Intake", "Docs", "Billing", "Research", "Scout"]) {
     assert.ok(rowHtml(out, `f:agt_${n.toLowerCase()}`).includes("Waiting on you"), `${n} waits on you`);
@@ -58,13 +58,13 @@ test("channels with nothing new sit dim; the one with unread keeps its count", (
   const out = html(createSampleSidebar());
   assert.ok(has(out, 'data-testid="channel-unread-intake"') && has(out, 'data-testid="unread-intake"'));
   for (const id of ["billing", "rivera", "pruitt"]) assert.ok(has(out, `data-testid="channel-read-${id}"`), id);
-  assert.ok(at(out, "rivera-matter") < at(out, 'data-testid="group-Projects"'));
+  assert.ok(at(out, "acme-launch") < at(out, 'data-testid="group-Projects"'));
 });
 
 test("the sidebar lists all seven requests and no extra project", () => {
   const out = html(createSampleSidebar());
-  for (const t of ["Send 12 invoices", "Rivera engagement letter", "County records search", "Pruitt intake summary", "Send the ATP reminder", "Problem report from Omar", "Month-end export"]) assert.ok(has(out, t), t);
-  assert.ok(has(out, "pruitt-matter") && !has(out, "atp-q4"), "atp-q4 is a project nobody follows, so the sidebar leaves it out as the prototype does");
+  for (const t of ["Send 12 invoices", "Acme service agreement", "Supplier records search", "Globex intake summary", "Send the renewal reminder", "Problem report from Omar", "Month-end export"]) assert.ok(has(out, t), t);
+  assert.ok(has(out, "globex-launch") && !has(out, "renewals-q4"), "atp-q4 (shown as renewals-q4) is a project nobody follows, so the sidebar leaves it out as the prototype does");
 });
 
 test("agents and people wear real faces, the assistant the Vyre mark", () => {
@@ -93,5 +93,5 @@ test("unread chats and channels have a bold title (Row emphasis); read ones do n
   assert.ok(/font-weight:\s*(600|700|bold)/.test(title("ch:intake", "intake")), "unread #intake is bold");
   assert.ok(!/font-weight:\s*(600|700|bold)/.test(title("ch:billing", "billing")), "read #billing is not");
   assert.ok(/font-weight:\s*(600|700|bold)/.test(title("c:c3", "October invoices")), "unread chat is bold");
-  assert.ok(!/font-weight:\s*(600|700|bold)/.test(title("c:c6", "County records search")), "read chat is not");
+  assert.ok(!/font-weight:\s*(600|700|bold)/.test(title("c:c6", "Supplier records search")), "read chat is not");
 });

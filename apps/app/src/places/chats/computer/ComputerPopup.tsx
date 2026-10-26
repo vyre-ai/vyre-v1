@@ -186,7 +186,7 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
             style={st.screen}
             {...screenWeb}
           >
-            <Desk kind={view.screen} caption="Elena Rivera, referred by Maya" />
+            <Desk kind={view.screen} caption="Elena Acme, referred by Maya" />
             {stream && stream.transport === "mjpeg" ? <Image testID="popup-stream" accessibilityLabel="Live view" source={{ uri: `${stream.url}?ticket=${stream.ticket}` }} resizeMode="contain" style={st.stream} /> : null}
             {c.state === "asleep" ? <View style={st.wakeWrap}><View testID="popup-wake" style={st.wake}><Icon name="moon" size={14} /><Text style={st.wakeText}>Wake</Text></View></View> : null}
           </Pressable>
