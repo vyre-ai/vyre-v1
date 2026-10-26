@@ -6589,6 +6589,13 @@ kbd { font: 500 11px/16px var(--ui); color: var(--ink-3); padding: 0 4px; border
       return `&lt;button class="trow" style="padding-left:${pad + 14}px" data-file="${fid}" data-r="afile" data-id="${fid}" title="${esc(x.desc || "")}"&gt;${path === "agent.toml" ? IF.cfg : IF.doc}&lt;span class="tnm"&gt;${esc(x.name)}&lt;/span&gt;${x.desc &amp;&amp; /^routines\//.test(path) ? `&lt;span class="tcnt"&gt;${esc(x.desc)}&lt;/span&gt;` : ""}${/^logs\//.test(path) ? `&lt;span class="tlk" title="Read only"&gt;${I.lock}&lt;/span&gt;` : ""}&lt;/button&gt;`;
     }).join("");
   }
+  /* screenshot hashes for the agent's own files (P-L9e_03, ruling 42): agent-md opens AGENT.md and toml-form opens agent.toml in the file pane, in edit mode */
+  setTimeout(() => { try {
+    const hs = (location.hash || "").slice(1).split(","), tok = ["agent-md", "toml-form"].find((t) => hs.includes(t));
+    if (!tok) return;
+    const fid = ensureFile("Intake", tok === "agent-md" ? "AGENT.md" : "agent.toml");
+    ui.fvMode[fid] = "edit"; openFile(fid, "pane"); renderAll();
+  } catch (e) { /* the hash is only for screenshots */ } }, 260);
   function settingsHtml(a) {
     const n = a.n, c = (ui.cfgDraft &amp;&amp; ui.cfgDraft[n]) || cfgOf(n), cnt = mdLines(n), pend = Object.entries(S.agentEdits || {}).filter(([, e]) =&gt; e.agent === n &amp;&amp; e.state === "open");
     const ops = cfgChanged(n) ? lineDiff(tomlText(n, cfgOf(n)), tomlText(n, c)) : null;
