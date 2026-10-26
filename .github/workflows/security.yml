@@ -30,9 +30,11 @@ jobs:
           # our rules, by absolute path: cargo-deny resolves a relative --config against the manifest directory and would fall back to its default config. A missing file fails the step.
           CONFIG="$GITHUB_WORKSPACE/scripts/security/deny.toml"
           [ -f "$CONFIG" ] || { echo "::error::$CONFIG is missing, the cargo licence rules cannot be applied"; exit 1; }
-          # cargo-deny runs `cargo metadata`; the toolchain the runner hosts install lives in CARGO_HOME/bin (or ~/.cargo/bin)
-          export PATH="${CARGO_HOME:+$CARGO_HOME/bin:}$HOME/.cargo/bin:/usr/local/cargo/bin:$PATH"
-          command -v cargo >/dev/null 2>&1 || { echo "::error::no cargo on this runner (looked in CARGO_HOME/bin, ~/.cargo/bin, /usr/local/cargo/bin); cargo-deny needs it for cargo metadata"; exit 1; }
+          # cargo-deny runs `cargo metadata`: the hosts keep one Rust toolchain and cargo-deny under the tools cache (ciHosts); the runner service PATH does not include them, and rustup needs RUSTUP_HOME
+          TOOLS_ROOT="${VYRE_TOOLS_CACHE:-/var/lib/ci-run/tools}"
+          export RUSTUP_HOME="$TOOLS_ROOT/rust/rustup" CARGO_HOME="$TOOLS_ROOT/rust/cargo"
+          export PATH="$CARGO_HOME/bin:$TOOLS/bin:$PATH"
+          command -v cargo >/dev/null 2>&1 || { echo "::error::no cargo under $CARGO_HOME/bin on this runner; cargo-deny needs it for cargo metadata"; exit 1; }
           rc=0
           "$TOOLS/bin/cargo-deny" --manifest-path apps/desktop/src-tauri/Cargo.toml check licenses --config "$CONFIG" > cargo-deny.out 2>&1 || rc=$?
           node scripts/license-check.ts --cargo cargo-deny.out
