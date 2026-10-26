@@ -61,7 +61,7 @@ import { createUpdatesHost } from "../seams/updates.ts";
 import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
 import { createLiveHub } from "../ws.ts";
 import type { LiveHub } from "../ws.ts";
-import { createAccess } from "./access.ts";
+import { createAccess, isMemberOrGuest } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
 import { createResourceRegistrar } from "../gateway/resources.ts";
 import { fromStored, toNew } from "./commit.ts";
@@ -389,6 +389,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         validateInput: (cap, v, input) => (extraCaps.has(cap) ? [] : validateInput(cap, v, input)),
         validateEvent: (name, payload) => (extraEvents.has(name) ? [] : validateEvent(name, payload)),
         authorize: (r) => authorize(access.snap, r),
+        membership: (principal, actingFor) => isMemberOrGuest(access.snap, principal) && (actingFor === undefined || isMemberOrGuest(access.snap, actingFor)),
         resolveItem: (type, kind, value) => resolveVaultItem(db!, type, kind, value),
         handler: (cap, v) => {
           const h = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);

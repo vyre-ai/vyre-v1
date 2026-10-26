@@ -8,7 +8,7 @@ One page of a snapshot (up to 5000 rows, scoped to the person, rows carry field 
 | Version | 1 (since 1.0.0) |
 | Effects | read |
 | Permission | grant only |
-| Grant level | view |
+| Grant level | member |
 | Risk | low |
 | Resource | space |
 | Gate | none |
