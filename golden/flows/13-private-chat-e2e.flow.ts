@@ -6,5 +6,5 @@ export default defineFlow({
   name: "private-chat-e2e",
   title: "Private chat E2E",
   needs: ["chat", "identity", "vault"],
-  events: ["channel.created", "message.received", "keys.stored"],
+  events: ["thread.started", "agent.engaged", "message.received"],
 });

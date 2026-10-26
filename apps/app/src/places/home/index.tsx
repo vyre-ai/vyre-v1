@@ -18,19 +18,14 @@ export type { HomeData, HomeNav } from "./sections-a/index.ts";
 type NeedsOut = CapMap["tasks.needs_you"]["out"];
 type WorkOut = CapMap["tasks.my_work"]["out"];
 
-function Greeting(): ReactElement {
+/** A Personal Space lives on this computer only; the subtitle says so (prototype Home, Personal Space). */
+export const PERSONAL_INTRO = "Your Personal Space, on this computer only";
+
+function GreetingView({ sub }: { sub: string }): ReactElement {
   const data = useHomeData();
   const line = useHomeLine();
   const online = useOnline();
-  const needs = useScreenQuery<NeedsOut>(NEEDS_SCREEN, "items", { limit: 3 });
-  const work = useScreenQuery<WorkOut>(WORK_SCREEN, "list", { section: "open" });
   const c = data.clock();
-  const today = dayNumber(c.now, c.offsetMin);
-  const tasks = work.status === "ready" ? work.data.tasks : [];
-  const dueToday = tasks.filter((t) => t.due !== undefined && dayNumber(t.due, c.offsetMin) === today).length;
-  const overdue = tasks.filter((t) => t.due !== undefined && dayNumber(t.due, c.offsetMin) < today).length;
-  const bits = summaryBits(needs.status === "ready" ? needs.data.total : 0, dueToday, overdue);
-  const calm = needs.status === "ready" && work.status === "ready" && bits.length === 0;
 
   // Cmd-Z (Ctrl-Z) takes back the latest change on the page
   useEffect(() => {
@@ -46,7 +41,7 @@ function Greeting(): ReactElement {
   return (
     <View style={styles.hh} accessibilityRole="header">
       <Text accessibilityRole="header" aria-level={1} style={styles.h1}>{`${greeting(c)}, ${firstName(data.me.name)}`}</Text>
-      <Text style={styles.hdate} testID="home-date">{dateLine(c)}{bits.length ? ` · ${bits.join(", ")}` : calm ? " · Nothing is waiting on you" : ""}</Text>
+      <Text style={styles.hdate} testID="home-date">{sub}</Text>
       {online ? null : (
         <View style={styles.offline} testID="home-offline" accessibilityRole="status">
           <Glyph name="clock" size={13} />
@@ -66,8 +61,39 @@ function Greeting(): ReactElement {
   );
 }
 
-function Page({ top, bottom }: { top?: ReactNode; bottom?: ReactNode }): ReactElement {
+function Greeting(): ReactElement {
+  const data = useHomeData();
+  const needs = useScreenQuery<NeedsOut>(NEEDS_SCREEN, "items", { limit: 3 });
+  const work = useScreenQuery<WorkOut>(WORK_SCREEN, "list", { section: "open" });
+  const c = data.clock();
+  const today = dayNumber(c.now, c.offsetMin);
+  const tasks = work.status === "ready" ? work.data.tasks : [];
+  const dueToday = tasks.filter((t) => t.due !== undefined && dayNumber(t.due, c.offsetMin) === today).length;
+  const overdue = tasks.filter((t) => t.due !== undefined && dayNumber(t.due, c.offsetMin) < today).length;
+  const bits = summaryBits(needs.status === "ready" ? needs.data.total : 0, dueToday, overdue);
+  const calm = needs.status === "ready" && work.status === "ready" && bits.length === 0;
+  return <GreetingView sub={`${dateLine(c)}${bits.length ? ` · ${bits.join(", ")}` : calm ? " · Nothing is waiting on you" : ""}`} />;
+}
+
+function PersonalGreeting(): ReactElement {
+  const data = useHomeData();
+  return <GreetingView sub={`${dateLine(data.clock())} · ${PERSONAL_INTRO}`} />;
+}
+
+function Page({ top, bottom, personal }: { top?: ReactNode; bottom?: ReactNode; personal?: boolean }): ReactElement {
   const sel = useSelection();
+  if (personal) {
+    // A Personal Space is the assistant and the checklist only: Needs you, My work, Projects at risk, While you were away and Routines need a team, so they are not drawn.
+    return (
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" testID="home-place">
+        <Pressable accessible={false} onPress={() => sel.select(null)} style={styles.col}>
+          <PersonalGreeting />
+          {top}
+          {bottom}
+        </Pressable>
+      </ScrollView>
+    );
+  }
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" testID="home-place">
       <Pressable accessible={false} onPress={() => sel.select(null)} style={styles.col}>
@@ -105,9 +131,11 @@ export interface HomeProps {
   top?: ReactNode;
   /** Below the routines: Today, Starred and the Ask box (P-L9b_02). */
   bottom?: ReactNode;
+  /** A Personal Space: the personal greeting, the checklist and the lower sections only (empty sections are not drawn). */
+  personal?: boolean;
 }
 
-export default function Home({ data, top, bottom }: HomeProps): ReactElement {
+export default function Home({ data, top, bottom, personal }: HomeProps): ReactElement {
   const provided = useOptionalHomeData();
   const d = data ?? provided;
   if (!d) return <HomeLoading />;
@@ -115,7 +143,7 @@ export default function Home({ data, top, bottom }: HomeProps): ReactElement {
     <HomeDataProvider value={d}>
       <HomeLineProvider>
         <SelectionProvider>
-          <Page top={top} bottom={bottom} />
+          <Page top={top} bottom={bottom} personal={personal === true} />
         </SelectionProvider>
       </HomeLineProvider>
     </HomeDataProvider>

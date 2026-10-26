@@ -68,9 +68,9 @@ test("delta pages: new mail lands once, in both folders, with its parts; drafts 
   const since = new Date(NOW - 90 * 86_400_000).toISOString().replace(/\.\d+Z$/, "Z");
   assert.equal(q(first, "$filter"), `receivedDateTime ge ${since}`);
   assert.equal(q(first, "$select"), "id,isDraft");
-  const links = JSON.parse(String(h.rows(`SELECT "deltaLinks" FROM ms_mailbox`)[0]?.deltaLinks)) as Record<string, string>;
+  const links = JSON.parse(String(h.rows(`SELECT "deltaLinks" FROM microsoft_mailbox`)[0]?.deltaLinks)) as Record<string, string>;
   assert.deepEqual(links, { inbox: `${U}/mailFolders/inbox/messages/delta?$deltatoken=D1`, sentitems: `${U}/mailFolders/sentitems/messages/delta?$deltatoken=SD1` });
-  assert.deepEqual(h.rows(`SELECT "lastPolledAt", "lastActivityAt" FROM ms_mailbox`), [{ lastPolledAt: NOW, lastActivityAt: NOW }]);
+  assert.deepEqual(h.rows(`SELECT "lastPolledAt", "lastActivityAt" FROM microsoft_mailbox`), [{ lastPolledAt: NOW, lastActivityAt: NOW }]);
   assert.equal(pull.nextPollMs, 2 * 60_000);
 });
 
@@ -84,7 +84,7 @@ test("the next pull resumes from the saved delta links and reads only what chang
   const again = await pullMailbox(h.ctx, { connectionId: CONN, mailbox: MAYA });
   assert.deepEqual([again.ingested, again.bootstrapped, again.complete], [0, false, true]);
   assert.equal(h.ingests.length, 4);
-  assert.deepEqual(JSON.parse(String(h.rows(`SELECT "deltaLinks" FROM ms_mailbox`)[0]?.deltaLinks)), { inbox: `${U}/mailFolders/inbox/messages/delta?$deltatoken=D2`, sentitems: `${U}/mailFolders/sentitems/messages/delta?$deltatoken=SD2` });
+  assert.deepEqual(JSON.parse(String(h.rows(`SELECT "deltaLinks" FROM microsoft_mailbox`)[0]?.deltaLinks)), { inbox: `${U}/mailFolders/inbox/messages/delta?$deltatoken=D2`, sentitems: `${U}/mailFolders/sentitems/messages/delta?$deltatoken=SD2` });
   assert.equal(again.nextPollMs, 2 * 60_000);   // active five minutes ago
 });
 
@@ -94,7 +94,7 @@ test("when mail.ingest cannot take a message the folder's delta link stays, so n
   h.ingestState.fail = true;
   const pull = await pullMailbox(h.ctx, { connectionId: CONN, mailbox: MAYA });
   assert.deepEqual([pull.ingested, pull.complete], [0, false]);
-  assert.deepEqual(JSON.parse(String(h.rows(`SELECT "deltaLinks" FROM ms_mailbox`)[0]?.deltaLinks)), {});
+  assert.deepEqual(JSON.parse(String(h.rows(`SELECT "deltaLinks" FROM microsoft_mailbox`)[0]?.deltaLinks)), {});
   h.ingestState.fail = false;
   const again = await pullMailbox(h.ctx, { connectionId: CONN, mailbox: MAYA });
   assert.deepEqual([again.ingested, again.complete], [4, true]);
@@ -103,7 +103,7 @@ test("when mail.ingest cannot take a message the folder's delta link stays, so n
 test("an expired delta token starts that folder over; a known message counts as deduped; a sender-less one and a vanished one are skipped", async () => {
   const h = ready();
   mailbox(h);
-  h.ctx.db.run(`INSERT INTO ms_mailbox (email, "connectionId", "deltaLinks", "lastPolledAt", "lastActivityAt", "nextPollAt") VALUES (?, ?, ?, ?, ?, ?)`, MAYA, CONN,
+  h.ctx.db.run(`INSERT INTO microsoft_mailbox (email, "connectionId", "deltaLinks", "lastPolledAt", "lastActivityAt", "nextPollAt") VALUES (?, ?, ?, ?, ?, ?)`, MAYA, CONN,
     JSON.stringify({ inbox: `${U}/mailFolders/inbox/messages/delta?$deltatoken=OLD` }), null, null, null);
   h.on("GET", `${U}/mailFolders/inbox/messages/delta?$deltatoken=OLD`, { status: 410, body: fixture("graph/delta-resync.json") });
   h.on("GET", `${U}/messages/gn?`, { body: fixture("graph/message-nosender.json") });
@@ -119,7 +119,7 @@ test("an expired delta token starts that folder over; a known message counts as 
   h2.on("GET", `${U}/messages/gn?`, { body: fixture("graph/message-nosender.json") });
   const quiet = await pullMailbox(h2.ctx, { connectionId: CONN, mailbox: MAYA });
   assert.deepEqual([quiet.ingested, quiet.skipped, quiet.complete], [0, 2, true]);
-  assert.equal(h2.rows(`SELECT "lastActivityAt" FROM ms_mailbox`)[0]?.lastActivityAt, null);   // nothing new: not an active mailbox
+  assert.equal(h2.rows(`SELECT "lastActivityAt" FROM microsoft_mailbox`)[0]?.lastActivityAt, null);   // nothing new: not an active mailbox
 });
 
 test("a walk past the page cap hands back a position that continues it; a walk with no end is refused", async () => {
@@ -383,7 +383,7 @@ test("a call acts as the member through /users/{address} with the application to
   h.advance(3_600_000 - 30_000);
   await mailFolders(h.ctx, act);
   assert.equal(h.state.mints, 2);
-  const log = h.rows(`SELECT subject, actor, cap, bulk FROM ms_read_log`);
+  const log = h.rows(`SELECT subject, actor, cap, bulk FROM microsoft_read_log`);
   assert.deepEqual(log, [1, 2, 3].map(() => ({ subject: MAYA, actor: "usr_maya01", cap: "ms.mail.list_folders", bulk: 1 })));
 });
 
@@ -413,7 +413,7 @@ test("another member needs an admin or a service; an excluded or unmapped one is
   seedConsent(agent);
   agent.on("GET", /mailFolders/, { body: { value: [] } });
   await mailFolders(agent.ctx, act);
-  assert.deepEqual(agent.rows(`SELECT subject, actor FROM ms_read_log`), [{ subject: MAYA, actor: "usr_maya01" }]);
+  assert.deepEqual(agent.rows(`SELECT subject, actor FROM microsoft_read_log`), [{ subject: MAYA, actor: "usr_maya01" }]);
 });
 
 test("a 401 mints a new token once; a second 401 is an answer", async () => {

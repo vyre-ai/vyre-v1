@@ -5,6 +5,7 @@ import type { LogErrorCode } from "./errors.ts";
 import type { AppendResult, NewEvent, ReadQuery, StoredEvent, VerifyResult } from "./types.ts";
 import type { IdemBackend, IdemRecord } from "../idempotency/index.ts";
 import { createIdempotency } from "../idempotency/index.ts";
+import type { CompactResult, CompactSubject } from "../events/compact.ts";
 
 export interface OpenOptions {
   path: string;
@@ -74,6 +75,10 @@ export class LogClient {
   verify(o: { from?: number; prev?: string } = {}): Promise<VerifyResult> { return this.call("verify", o); }
   proves(seq: number): Promise<boolean> { return this.call("proves", { seq }); }
   erase(seq: number): Promise<boolean> { return this.call("erase", { seq }); }
+  /** Erase the payloads of everything about a subject (kernel/src/events/compact.ts), in the worker that owns the file, then scrub it. */
+  compact(subject: CompactSubject, o: { vacuum?: boolean } = {}): Promise<CompactResult> { return this.call("compact", { subject, ...(o.vacuum === undefined ? {} : { vacuum: o.vacuum }) }); }
+  /** Erase these events by seq (what a restore replays from a tombstone). */
+  compactSeqs(seqs: readonly number[], o: { vacuum?: boolean } = {}): Promise<CompactResult> { return this.call("compact_seqs", { seqs, ...(o.vacuum === undefined ? {} : { vacuum: o.vacuum }) }); }
   async currentHead(): Promise<{ seq: number; hash: string }> { this.head = await this.call("head"); return this.head; }
   flush(): Promise<void> { return this.call("flush"); }
 

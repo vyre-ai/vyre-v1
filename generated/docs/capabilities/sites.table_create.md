@@ -10,7 +10,7 @@ Create a site table (a site-scoped record type); no schema permission needed for
 | Permission | grant only |
 | Grant level | edit |
 | Risk | medium |
-| Resource | record_type (create under /siteId) |
+| Resource | site (/siteId) |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |
@@ -50,6 +50,7 @@ type Out = {
 - permission.above_clearance
 - permission.no_grant
 - validation.bad_input
+- validation.not_found
 
 ## Example
 

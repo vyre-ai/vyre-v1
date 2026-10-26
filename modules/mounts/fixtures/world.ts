@@ -114,6 +114,17 @@ export class FakeFiles {
     const missing = (what: string): never => {
       throw vyreErr("validation.not_found", `No such ${what}.`);
     };
+    // what a rename or a move made in Vyre looks like from here (the outbound moves read it before they send anything)
+    if (cap === "files.get") {
+      const f = this.files.get(String(i["fileId"]));
+      if (!f) return missing("file");
+      return { file: { fileId: f.id, folderId: f.folderId, name: f.name, version: f.version, deletedAt: f.deleted ? 1 : null } };
+    }
+    if (cap === "files.folder.get") {
+      const f = this.folders.get(String(i["folderId"]));
+      if (!f || f.deleted) return missing("folder");
+      return { folder: { folderId: f.id, parentId: f.parentId, name: f.name } };
+    }
     if (cap === "files.folder.create") {
       const parentId = String(i["parentId"]);
       const name = String(i["name"]);

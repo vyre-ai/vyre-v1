@@ -79,7 +79,7 @@ export function fillAccessTables(db: AccessTableDb, events: readonly AnyEvent[])
       case "principal.created": principals.set(String(p["id"]), p); break;
       case "principal.role_set": roles.set(String(p["holder"]), [...(roles.get(String(p["holder"])) ?? []), ROLE_OF[String(p["role"])] ?? `rol_${String(p["role"])}`]); break;
       case "resource.created":
-        db.run("INSERT INTO access_resources (id,type,parent_id,label,owner_id,holds,row_json) VALUES (?,?,?,?,?,?,?)", String(p["id"]), String(p["type"]), p["parent_id"] ?? null, LABELS[Number(p["label"] ?? 0)] ?? "public", p["owner_id"] ?? null, Number(p["holds"] ?? 0), null);
+        db.run("INSERT OR IGNORE INTO access_resources (id,type,parent_id,label,owner_id,holds,row_json) VALUES (?,?,?,?,?,?,?)", String(p["id"]), String(p["type"]), p["parent_id"] ?? null, LABELS[Number(p["label"] ?? 0)] ?? "public", p["owner_id"] ?? null, Number(p["holds"] ?? 0), null);
         break;
       case "grant.created": {
         const kind = String(p["subject_kind"]), id = String(p["subject_id"]);

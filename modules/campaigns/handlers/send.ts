@@ -178,10 +178,10 @@ async function sendEmail(p: Pass, m: Row, cfg: Record<string, unknown>, fields: 
   return { status: str(res.status) || "sent", ref: typeof res.messageId === "string" ? res.messageId : null, domain: domainOf(await mailboxAddress(p, mailboxId)) };
 }
 
-async function sendSms(p: Pass, m: Row, cfg: Record<string, unknown>, fields: Record<string, unknown>): Promise<{ status: string; ref: string | null }> {
+async function sendSms(p: Pass, m: Row, stepKey: string, cfg: Record<string, unknown>, fields: Record<string, unknown>): Promise<{ status: string; ref: string | null }> {
   let text = render(str(cfg.body), fields);
   if (!/\bSTOP\b/i.test(text)) text += " Reply STOP to opt out.";
-  const res = (await p.ctx.call("telephony.send_sms", { numberId: str(cfg.numberId), to: str(m.phone), body: text, contactId: str(m.record_id), campaignId: str(p.row.id) })) as { status?: unknown; smsId?: unknown };
+  const res = (await p.ctx.call("telephony.send_sms", { idempotencyKey: `campaign:${str(p.row.id)}:${str(m.id)}:${stepKey}:sms`, numberId: str(cfg.numberId), to: str(m.phone), body: text, contactId: str(m.record_id), campaignId: str(p.row.id) })) as { status?: unknown; smsId?: unknown };
   return { status: str(res.status) || "sent", ref: typeof res.smsId === "string" ? res.smsId : null };
 }
 
@@ -240,6 +240,7 @@ async function walk(p: Pass, m: Row): Promise<void> {
       const f = await load();
       const assigned = isRec(step.config.assigned) ? step.config.assigned : { kind: "person", id: str(row.owner) };
       await ctx.call("tasks.create", {
+        idempotencyKey: `campaign:${str(row.id)}:${str(m.id)}:${step.key}:task`,
         title: `${step.type === "call_task" ? "Call: " : ""}${render(str(step.config.title), f)}`, assigned, recordId: str(m.record_id), source: { kind: "manual", id: str(row.id) },
       });
       key = nextKey(p.steps, i);
@@ -298,7 +299,7 @@ async function walk(p: Pass, m: Row): Promise<void> {
         ref = r.ref;
         domain = r.domain || domain;
       } else {
-        const r = await sendSms(p, m, cfg, f);
+        const r = await sendSms(p, m, step.key, cfg, f);
         status = r.status;
         ref = r.ref;
       }

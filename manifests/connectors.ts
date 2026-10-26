@@ -151,7 +151,7 @@ export default defineManifest({
     read('connections.get', 'Read one connection', { in: { connectionId: id.connection }, out: { connection: connectionRow }, on: ['connection', '/connectionId'], tool: 'engineer' }),
     create('connections.create', 'Plug an account into a connector; secrets are named Vault items, never values', {
       in: { connector: id.connector, title: t.str(), ownerKind: t.enm('person', 'space'), secrets: t.opt(t.rec(id.handle)), scopes: t.opt(t.arr(t.str())) },
-      out: { connection: connectionRow, authUrl: t.opt(t.str()) }, make: ['connector', '/connector'], perm: 'connectors.manage', emits: ['connection.created'], audit: 'always', tool: 'engineer',
+      out: { connection: connectionRow, authUrl: t.opt(t.str()) }, make: ['connection', '/connector'], perm: 'connectors.manage', emits: ['connection.created'], audit: 'always', tool: 'engineer',
     }),
     write('connections.update', 'Rename a connection or change its scopes', { in: { connectionId: id.connection, title: t.opt(t.str()), scopes: t.opt(t.arr(t.str())) }, out: { connection: connectionRow }, on: ['connection', '/connectionId'], level: 'manage', tool: 'engineer' }),
     write('connections.pause', 'The owner pauses a connection; syncing and actions stop', { in: { connectionId: id.connection }, out: { ok: t.bool() }, on: ['connection', '/connectionId'], level: 'manage', emits: ['connection.paused'], tool: 'engineer' }),

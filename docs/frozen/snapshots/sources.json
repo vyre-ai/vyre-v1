@@ -1,7 +1,7 @@
 {
   "module": "sources",
   "capabilities": {
-    "sources.create@1": "57e75db601d543ca2d807d14baac671bab5095648daf0965943f49b3fd1cada7",
+    "sources.create@1": "d1e37038fe8cb5da4867cc49ad376b77325b24cc1a0889267dffd40809ec7e46",
     "sources.delete@1": "d4fc34d7a09c7ff492d7f6497bbc43eed1fcf4db5547700a5c125495296e21dd",
     "sources.deliveries.list@1": "a9871f939e2391c42c54773339ba0d840d1bb5be2131ee614746bda1aff1f2ed",
     "sources.get@1": "39ad01dffebf6e2685e0dd420cff32cce5e381a1133a858d670bbeda22cde389",

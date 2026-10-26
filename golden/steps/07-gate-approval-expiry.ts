@@ -9,9 +9,7 @@ export const LIVE_FOR_GATE = ["gate", "tasks", "mail", "agents", "runs", "device
 
 /** Why this flow is a todo today (ruling 53). */
 export const GAPS: Gap[] = [
-  { packet: "P-L4_LIVE", lane: "L4", what: "files migrations never create files_file (files_folder and files_blob only), so every files tree call, including agents.create, answers 500 no such table: files_file" },
-  { packet: "P-L2_23", lane: "L2", what: "the daemon never constructs the agent turn engine, so agents.routine.run_now starts no turn and no send is raised for the Gate to hold" },
-  { packet: "P-L2_LIVE", lane: "L2", what: "no real-token path puts an agent principal in front of the Gate: the gateway resolves device sessions only, so an agent act can only come from an engine turn" },
+  { packet: "L2 agents", lane: "L2", what: "agents.routine.run_now answers 422: it calls runs.start without an idempotencyKey, so no routine run starts and no send is raised for the Gate" },
 ];
 
 async function until<T>(what: string, ms: number, probe: () => Promise<T | undefined>): Promise<T> {

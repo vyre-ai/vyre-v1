@@ -1,6 +1,6 @@
 # devices.register
 
-System: create the device and session rows at sign-in
+Host only (svc_host): create the device and session rows at sign-in; every person, admin, agent and other service is refused
 
 | | |
 |---|---|
