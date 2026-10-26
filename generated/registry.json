@@ -47155,7 +47155,8 @@
     {
       "effects": "write",
       "emits": [
-        "computer.given_back"
+        "computer.given_back",
+        "computer.recording_saved"
       ],
       "errors": [
         "internal.unexpected",
@@ -48884,7 +48885,8 @@
       "audit": "sensitive",
       "effects": "write",
       "emits": [
-        "computer.session_signed_out"
+        "computer.session_signed_out",
+        "computer.started"
       ],
       "errors": [
         "internal.unexpected",
@@ -49334,7 +49336,8 @@
       "audit": "sensitive",
       "effects": "write",
       "emits": [
-        "computer.takeover"
+        "computer.takeover",
+        "computer.started"
       ],
       "errors": [
         "internal.unexpected",
@@ -49711,7 +49714,9 @@
     {
       "effects": "write",
       "emits": [
-        "conflict.proposed"
+        "conflict.proposed",
+        "conflict.confirmation_needed",
+        "conflict.resolved"
       ],
       "errors": [
         "internal.unexpected",
@@ -51347,7 +51352,9 @@
     },
     {
       "effects": "read",
-      "emits": [],
+      "emits": [
+        "connection.needs_reconnect"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -52811,7 +52818,9 @@
     {
       "audit": "always",
       "effects": "outward",
-      "emits": [],
+      "emits": [
+        "connection.needs_reconnect"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -139748,7 +139757,11 @@
       "effects": "write",
       "emits": [
         "source.received",
-        "source.mapping_failed"
+        "source.mapping_failed",
+        "source.rejected",
+        "source.deduped",
+        "source.link_pending",
+        "source.linked"
       ],
       "errors": [
         "internal.unexpected",
@@ -145067,7 +145080,9 @@
     },
     {
       "effects": "read",
-      "emits": [],
+      "emits": [
+        "connection.needs_reconnect"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
