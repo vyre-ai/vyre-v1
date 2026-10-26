@@ -3,6 +3,7 @@
 // account's token is filled in at the last moment, and the reply lands in the thread with a turn row that holds the usage. Every call goes through the gateway with a real token.
 // The CLI is the test stand-in for `claude` (host/tests/fixtures/fake-cli-driver/fake-cli.mjs): the first word of the prompt picks what it streams ("hello" is two text deltas and usage).
 import assert from "node:assert/strict";
+import { DatabaseSync } from "node:sqlite";
 import { bootFlowSpace, expectStatus, short, Trail } from "./02-space.ts";
 import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
@@ -50,7 +51,7 @@ export async function runAgentReply(live: readonly string[], opts: Parameters<ty
         if (Date.now() > end) {
           // what the host logged while this flow ran: a consumer that failed, a bridge that skipped, an engine that could not open a session
           s.d.sink.flush();
-          const logs = s.d.sink.trace(s.trace).logs.filter((l) => l.level >= 30 || /engine|bridge|consumer|session/.test(String(l.msg))).slice(-25).map((l) => `${l.msg} ${JSON.stringify(l.attrs ?? {}).slice(0, 300)}`);
+          const logs = new DatabaseSync(s.d.paths.logs, { readOnly: true }).prepare("SELECT level, place, cap, msg, attrs FROM logs WHERE level >= 30 OR msg LIKE '%consumer%' OR msg LIKE '%bridge%' OR msg LIKE '%engine%' ORDER BY id DESC LIMIT 30").all().map((r) => `${r.level} ${r.place ?? ""} ${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 300)}`);
           const turns = await s.call("engine.turns.list", admin, { threadId: thread! });
           throw new Error(`no reply from the agent after 40 s: ${short(msgs)}; turns ${short(turns.body?.data ?? turns.body)}; host log ${JSON.stringify(logs)}`);
         }
