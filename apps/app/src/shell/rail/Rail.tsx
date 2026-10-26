@@ -30,6 +30,7 @@ export function Rail({ groups, active, onSelect, onOpenInTab, onPrefetch, header
     <RailButton
       key={e.place}
       entry={e}
+      flat={bottom === true}
       on={e.place === active}
       onPress={() => onSelect(e.place)}
       onPrefetch={onPrefetch === undefined ? undefined : () => onPrefetch(e.place)}
@@ -90,7 +91,7 @@ export function Rail({ groups, active, onSelect, onOpenInTab, onPrefetch, header
   );
 }
 
-function RailButton({ entry, on, onPress, onPrefetch, trigger }: { entry: RailEntry; on: boolean; onPress: () => void; onPrefetch?: (() => void) | undefined; trigger: Record<string, unknown> }): ReactElement {
+function RailButton({ entry, on, onPress, onPrefetch, trigger, flat = false }: { entry: RailEntry; on: boolean; flat?: boolean; onPress: () => void; onPrefetch?: (() => void) | undefined; trigger: Record<string, unknown> }): ReactElement {
   const [over, setOver] = useState(false);
   const web = Platform.OS === "web" ? { title: entry.title } : {};
   return (
@@ -107,7 +108,7 @@ function RailButton({ entry, on, onPress, onPrefetch, trigger }: { entry: RailEn
       {...trigger}
       {...web}
     >
-      {on ? <View testID="rail-bar" style={styles.bar} /> : null}
+      {on && !flat ? <View testID="rail-bar" style={styles.bar} /> : null}
       <ShellIcon name={entry.place} color={on || over ? "var(--ink)" : "var(--ink-3)"} />
       {entry.count > 0 ? <View testID={`rail-count-${entry.place}`} style={styles.count}><Text style={styles.countText}>{entry.count > 99 ? "99+" : entry.count}</Text></View> : null}
       {entry.dot ? <View testID={`rail-dot-${entry.place}`} style={styles.dot} /> : null}
