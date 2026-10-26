@@ -46,8 +46,9 @@ export function sortedViews(views: readonly ViewRow[], me: string | null): ViewR
   return views.slice().sort((a, b) => Number(b.ownerId === me) - Number(a.ownerId === me) || a.title.localeCompare(b.title));
 }
 
+/** A count in the sidebar: whole numbers up to 10,000 ("1,240", as the prototype draws them), then 12k and 2.5M. */
 export function compact(n: number): string {
-  return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M` : n >= 10_000 ? `${Math.round(n / 1000)}k` : n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k` : String(n);
+  return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M` : n >= 10_000 ? `${Math.round(n / 1000)}k` : n.toLocaleString("en-US");
 }
 
 // ---------------------------------------------------------------- state
