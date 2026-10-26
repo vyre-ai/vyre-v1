@@ -205,6 +205,8 @@ jobs:
       - name: Did the sandbox, the terminal module, the person-sandbox image or the heavy tests change on this branch?
         id: scope
         run: |
+          # The hourly run on main (schedule, or a dispatch on main) runs every heavy test, so main always carries a real result; a branch keeps the affected-only selection below.
+          if [ "${{ github.event_name }}" = "schedule" ] || { [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.ref_name }}" = "main" ]; }; then echo "changed=true" >> "$GITHUB_OUTPUT"; echo "full run on main"; exit 0; fi
           git fetch -q origin main
           base="$(git merge-base origin/main HEAD)"
           if git diff --name-only --no-renames "$base"...HEAD | grep -Eq '^(sandbox/|modules/terminal/|modules/computers/|modules/engine/(sandbox|tests/(sandbox|cli))|host/tests/chat\.live|images/person-sandbox/|images/agent-computer/|agent/tests/sandbox\.(net\.)?heavy|golden/steps/07-(reply|gate)\.heavy)'; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "nothing the heavy tests cover changed"; fi
@@ -357,7 +359,7 @@ jobs:
   budget:
     permissions: { contents: read, actions: read }
     needs: [select, shards, check, golden]
-    if: always() && github.event_name != 'merge_group'
+    if: always() && github.event_name != 'merge_group' && github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
