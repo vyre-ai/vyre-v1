@@ -26,5 +26,7 @@ export interface RowProps {
   leading?: ReactNode;
   /** After the title, right aligned (count, level picker, controls). */
   trailing?: ReactNode;
-  onPress?: () => void;
+  onPress?: (event?: unknown) => void;
+  /** Web only: more attributes and handlers for the row's element (draggable, a data attribute a list delegates on, a context-menu trigger). Off the web it is ignored. */
+  domProps?: Record<string, unknown>;
 }

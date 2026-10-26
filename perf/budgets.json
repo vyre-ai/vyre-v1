@@ -19,7 +19,8 @@
       "machine": "mid laptop",
       "probe": "screen.shell.new-tab",
       "unit": "ms",
-      "sense": "max"
+      "sense": "max",
+      "also": [{ "metric": "nav.open", "p50": 200, "p95": 400, "machine": "mid phone" }]
     },
     {
       "id": "search",
