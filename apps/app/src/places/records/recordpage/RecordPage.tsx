@@ -37,10 +37,9 @@ interface Flash { text: string; undo?: Undo; bad?: boolean }
 
 // ---------------------------------------------------------------- relation cards
 
-/** Fields drawn in the first frame of a record page; the rest follow after the first paint. */
-const FIRST_FRAME_FIELDS = 8;
-// DIAGNOSTIC (P-L9d_04, removed once the first-frame cost is found): ?pv=nosections|noring|nohead|floor leaves parts of the page out so one perf run says which part costs the frames.
-const PV = typeof location !== "undefined" ? new URLSearchParams(location.search).get("pv") ?? "" : "";
+/** Fields drawn in the first frame of a record page: none. The header, title and summary paint first; the ring, the sections and the right pane follow in the next frame. The perf traces (runs 40282475958) put 51 ms of a 110 ms navigate in the sections and the floor at 45 ms, so nothing else fits the 50 ms budget. */
+const FIRST_FRAME_FIELDS = 0;
+
 
 export function Peek({ type, recordId }: { type: string; recordId: string }): ReactElement | null {
   const data = usePageData();
@@ -284,7 +283,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   // the first frame draws what the screen shows (about the first eight fields); the sections below it join after the first paint, with the right pane (navigate budget, 50 ms)
   let drawn = 0;
   for (const s of sections) {
-    if (PV === "nosections" || PV === "floor" || (!late && drawn >= FIRST_FRAME_FIELDS)) break;
+    if (!late && drawn >= FIRST_FRAME_FIELDS) break;
     const sh = shownFields(s, row, prefs.keepVisible, all);
     if (!s.folded) drawn += sh.fields.length;
     const fields: ReactElement[] = [];
@@ -305,7 +304,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const mapEdges = mq.status === "ready" ? mq.data.edges : [];
   return (
     <View style={p.main} testID="record-page" accessibilityLabel={`${title}, ${def.title}`}>
-      {PV === "nohead" || PV === "floor" ? null : <View style={p.head}>
+      <View style={p.head}>
         <Glyph name="project" size={16} color="var(--ink-2)" />
         <Text style={p.crumb} numberOfLines={1}>{def.plural}</Text>
         <Text style={p.slash}>/</Text>
@@ -313,7 +312,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
         <View style={p.grow} />
         <Pressable accessibilityRole="button" accessibilityState={{ selected: map }} testID="toggle-map" onPress={() => setMap(!map)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, map && p.hbOn]}><Glyph name="map" size={14} color={map ? "var(--accent)" : "var(--ink-2)"} /><Text style={[p.hbText, map && p.lit]}>Relationships</Text></Pressable>
         <Pressable accessibilityRole="button" accessibilityState={{ selected: paneOpen }} testID="toggle-pane" onPress={() => setPane(!paneOpen)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, paneOpen && p.hbOn]}><Glyph name="expand" size={14} color={paneOpen ? "var(--accent)" : "var(--ink-2)"} /><Text style={[p.hbText, paneOpen && p.lit]}>Details</Text></Pressable>
-      </View>}
+      </View>
       {flash ? (
         <View style={[p.flash, flash.bad === true && p.flashBad]} accessibilityRole="alert" testID="record-flash">
           <Text style={p.flashText}>{flash.text}</Text>
@@ -329,7 +328,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
               : <Text accessibilityRole="header" aria-level={2} style={p.title}>{title}</Text>}
           </Pressable>
           {summary ? <Text style={p.summary} testID="summary">{summary}</Text> : null}
-          {ring && PV !== "noring" && PV !== "floor" ? (
+          {ring && late ? (
             <View style={p.ringRow} testID="completeness">
               {Platform.OS === "web" ? createElement("svg", { viewBox: "0 0 24 24", width: 24, height: 24, role: "img", "aria-label": `Completeness ${ring.label}`, "data-testid": "ring" },
                 createElement("circle", { cx: 12, cy: 12, r: RING_R, fill: "none", style: { stroke: "var(--line-2)", strokeWidth: 3 } }),
