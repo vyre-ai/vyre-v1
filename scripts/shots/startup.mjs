@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { ensureDeps, ensureChromium } from "./ensure-deps.mjs";
 import { parseArgs } from "./lib.mjs";
 import { serve } from "./serve.mjs";
+import { coldProfile } from "./startup-profile.mjs";
 import { bundleReport } from "./bundle-report.mjs";
 import { exportEnv } from "../lib/registry-hash.mjs";
 
@@ -116,7 +117,9 @@ export async function main(argv) {
         console.log(`METRIC ${JSON.stringify({ name: "startup_prod", size, kind, cpu_rate: CPU[size], ms, runs: v, budget_ms: BUDGET_MS[size], transferred_bytes: median(sizes) })}`);
       }
     }
-  } finally { await browser.close(); server.close(); }
+  } finally { /* profile below uses the same browser */ }
+  try { await coldProfile(browser, server.origin, args.route || "/home"); } catch (e) { console.log(`cold profile failed: ${e.message}`); }
+  await browser.close(); server.close();
   console.log("\n| size | cpu | cold ms | warm ms | budget |\n|---|---:|---:|---:|---:|");
   for (const size of ["desktop", "phone"]) console.log(`| ${size} | ${CPU[size]}x | ${rows.find((r) => r.size === size && r.kind === "cold")?.ms?.toFixed(0)} | ${rows.find((r) => r.size === size && r.kind === "warm")?.ms?.toFixed(0)} | ${BUDGET_MS[size]} |`);
   const bad = rows.filter((r) => r.kind === "cold" && (r.ms === null || r.ms > r.budget));

@@ -4,7 +4,8 @@
 import { useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
-import { ContactTab, createContactTabSample } from "../../../apps/app/src/places/inbox/contacttab/index.ts";
+import { ContactTab } from "../../../apps/app/src/places/inbox/contacttab/index.ts";
+import { createContactTabSample } from "../../../apps/app/src/places/inbox/contacttab/sample.ts";
 import { harbor, northwind } from "../../../apps/app/src/places/inbox/contactlist/sample.ts";
 import { InboxDataProvider } from "../../../apps/app/src/places/inbox/sidebar/index.ts";
 

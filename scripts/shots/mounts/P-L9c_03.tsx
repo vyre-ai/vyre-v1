@@ -4,7 +4,8 @@
 import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
-import { Calendar, ME, TEAM, createCalendarSample, newDraft } from "../../../apps/app/src/places/inbox/calendar/index.ts";
+import { Calendar, newDraft } from "../../../apps/app/src/places/inbox/calendar/index.ts";
+import { ME, TEAM, createCalendarSample } from "../../../apps/app/src/places/inbox/calendar/sample.ts";
 import type { Mode } from "../../../apps/app/src/places/inbox/calendar/index.ts";
 import { harbor, northwind } from "../../../apps/app/src/places/inbox/contactlist/sample.ts";
 import { InboxDataProvider, InboxSidebar, InboxStateProvider } from "../../../apps/app/src/places/inbox/sidebar/index.ts";

@@ -5,5 +5,3 @@ export type { ContactTabProps } from "./ContactTab.tsx";
 export { discardDraft, markRead, sendAgentDraft, sendEmail, sendText, setFollow } from "./actions.ts";
 export * from "./model.ts";
 export { Bubbles, CallLine, DaySep, DraftBlock, EmailItem, Player, QuietLine } from "./parts.tsx";
-export { createContactTabSample } from "./sample.ts";
-export type { ContactTabSample } from "./sample.ts";
