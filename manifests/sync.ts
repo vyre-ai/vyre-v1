@@ -44,7 +44,7 @@ export default defineManifest({
         epoch: t.int(), changes: t.arr(change), hide: t.arr(hideRow), next: t.int(), more: t.bool(), serverHlc: hlc,
         conflicts: t.opt(t.arr(conflictNotice)), rejected: t.opt(t.arr(rejectedOp)), reset: t.opt(t.lit('purge')),
       },
-      label: 'filter', http: { method: 'POST', path: '/sync/v1/pull' }, errors: ['auth.device_revoked'],
+      label: 'filter', http: { method: 'POST', path: '/sync/v1/pull' }, errors: ['auth.device_revoked'], emits: ['sync.scope_changed'],
     }),
     write('sync.push', 'Push outbox ops in order; each op runs through invoke as the person; concurrent field edits merge by the field policy', { level: 'member',
       in: { deviceId: id.device, epoch: t.int({ minimum: 0 }), ops: t.arr(op, { maxItems: 200 }) },

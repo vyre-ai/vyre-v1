@@ -10,6 +10,8 @@ export interface PullCtx {
   principal: string;
   deviceId: string;
   deviceClass: DeviceClass;
+  /** The host announces that rows of an entity changed hands for this person (sync.scope_changed). */
+  scopeChanged?(entity: string, rows: number): void;
 }
 
 export interface PullHandlers {
@@ -26,7 +28,7 @@ export function createPullHandlers(deps: PullDeps): PullHandlers {
   const who = (ctx: PullCtx, deviceClass: DeviceClass = ctx.deviceClass) => ({ person: ctx.principal, device: ctx.deviceId, deviceClass });
   return {
     async "sync.pull"(ctx, input) {
-      return pullChanges(deps, who(ctx), input, ctx.trace.traceId);
+      return pullChanges(deps, who(ctx), input, ctx.trace.traceId, ctx.scopeChanged);
     },
     async "sync.snapshot.begin"(ctx, input) {
       return snapshotBegin(deps, who(ctx, input.deviceClass), input, ctx.trace.traceId);

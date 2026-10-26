@@ -140,7 +140,11 @@ function infoHandlers() {
 
 export const handlers = {
   "sync.pull": async (ctx: SessionCtx, input: PullReq) => {
-    const res = await live().handlers["sync.pull"](toPullCtx(ctx), input);
+    const res = await live().handlers["sync.pull"]({
+      ...toPullCtx(ctx),
+      // names the entity and a count, never a row; private, so no reader of the log learns what changed hands
+      ...(ctx.emit ? { scopeChanged: (entity: string, rows: number) => { ctx.emit!("sync.scope_changed", `entity/${entity}`, { entity, personId: ctx.principal.id, rows }, { vis: "private" }); } } : {}),
+    }, input);
     if (ctx.device) noteCursor(live().deps.db, ctx.principal.id, ctx.device, "desktop", (res as { next?: number }).next ?? input.cursor, live().deps.now());
     return res;
   },
