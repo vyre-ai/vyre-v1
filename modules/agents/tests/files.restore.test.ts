@@ -9,7 +9,15 @@ import type { Harness } from "../fixtures/harness.ts";
 
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;   // eslint-disable-line @typescript-eslint/no-explicit-any
 let n = 0;
-const make = async (hn: Harness, name = "Intake"): Promise<any> => (await h["agents.create"]!(hn.ctx, { name, role: "Use me when a new client form arrives.", idempotencyKey: `rk${++n}` })).agent;   // eslint-disable-line @typescript-eslint/no-explicit-any
+const make = async (hn: Harness, name = "Intake"): Promise<any> => {
+  const agent = (await h["agents.create"]!(hn.ctx, { name, role: "Use me when a new client form arrives.", idempotencyKey: `rk${++n}` })).agent;
+  hn.world.homeGrants.push(
+    { resource: { type: "folder", id: agent.folderId }, subject: { kind: "agent", id: agent.agentId }, level: "edit", source: `agent:${agent.agentId}` },
+    { resource: { type: "folder", id: agent.folderId }, subject: { kind: "person", id: DANA }, level: "manage", source: `agent:${agent.agentId}` },
+  );
+  hn.ctx.db.run("INSERT INTO agents_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", `agents.home_grants.v1:${agent.agentId}`, "gateway");
+  return agent;
+};   // eslint-disable-line @typescript-eslint/no-explicit-any
 const record = (hn: Harness, id: string): Record<string, unknown> => hn.rows("SELECT * FROM agents_agent WHERE id = ?", id)[0]!;
 
 test("nothing is missing: the check changes nothing and asks Files for no file to be made, moved or restored", async () => {
