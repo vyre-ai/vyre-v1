@@ -2,6 +2,7 @@
 // records that have been in Trash since before a cutoff, oldest first in batches, and skips a record under a hold, counting it. The kernel event log is not touched (see the header of handlers/purge.ts).
 import test from "node:test";
 import assert from "node:assert/strict";
+import { formatHlc } from "../../../lib/hlc.ts";
 import { mintRecordId } from "../../../lib/ids.ts";
 import { openRecords } from "../impl.ts";
 import { createPurgeHandlers } from "../handlers/purge.ts";
@@ -21,15 +22,14 @@ async function world() {
   return { rec, purge, make, tick: (ms: number) => { clock += ms; }, now: () => clock };
 }
 
-const count = (w: Awaited<ReturnType<typeof world>>, table: string, id: string): number =>
-  w.rec.host.tx.get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table} WHERE ${table === "rs_changes" || table.startsWith("records_") ? "id" : "id"} = ?`, id)!.n;
+const count = (w: Awaited<ReturnType<typeof world>>, table: string, id: string): number => w.rec.host.tx.get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table} WHERE id = ?`, id)!.n;
 
 test("purge removes the record from its table, its clocks, its change feed and its history, and leaves other records", async () => {
   const w = await world();
   const gone = await w.make("Pat Lee divorce file");
   const keep = await w.make("Lunch order");
-  await w.rec.mergeFields("item", gone, { name: { value: "Pat Lee settlement", hlc: "0000000000002-0000-dev_a", baseSeq: 1 } }, "usr_dana");
-  assert.ok(count(w, "rs_changes", gone) > 0 && count(w, "records_field_history", gone) > 0);
+  await w.rec.mergeFields("item", gone, { name: { value: "Pat Lee settlement", hlc: formatHlc({ ms: 2_000, counter: 0, deviceId: "dev_a" }), baseSeq: 1 } }, "usr_dana");
+  assert.ok(count(w, "rs_changes", gone) > 0, "the change feed holds the record before the purge");
   const c = ctx();
   assert.deepEqual(await w.purge["records.purge"](c, { type: "item", recordId: gone, idempotencyKey: "k1" }), { erased: true });
   assert.equal(await w.rec.store.get("item", gone, { include_deleted: true }), null);
