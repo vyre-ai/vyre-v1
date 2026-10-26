@@ -41,7 +41,7 @@ export const handlers: Record<string, Handler> = {
   "github.issue.comment": (ctx, i) => h.issueComment(ctx, i),
   "github.issue.close": (ctx, i) => h.issueClose(ctx, i),
   "github.issue.assign_agent": (ctx, i) => h.issueAssignAgent(ctx, i),
-  "github.receive_webhook": (ctx, i) => { hostOnly(ctx, "github.receive_webhook"); return h.receiveWebhook(ctx, i); },
+  "github.receive_webhook": async (ctx, i) => { hostOnly(ctx, "github.receive_webhook"); return h.receiveWebhook(ctx, i); },
 };
 
 export const projections = { inline: {}, consumers: {} };

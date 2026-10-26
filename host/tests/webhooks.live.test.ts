@@ -88,22 +88,23 @@ test("webhook ingress: Zoom, Stripe, GitHub and Twilio take a signed event, refu
     assert.equal((await post("/hooks/github", ghBody + " ", await ghHeaders())).status, 401, "a body changed after signing");
 
     // ---- Twilio: HMAC-SHA1 over the URL then each field name and value in order, base64; the answer is TwiML
-    const params: Record<string, string> = { MessageSid: "SMhooks1", From: "+14155550100", To: "+14155550101", Body: "hello" };
+    // a status callback: it names a call and its status, and is applied (or ignored) whether or not the call is known, so it needs no number set up in the Space
+    const params: Record<string, string> = { CallSid: "CAhooks1", CallStatus: "completed" };
     const form = new URLSearchParams(params).toString();
-    const twilioUrl = `${d.url}/hooks/twilio/sms`;
+    const twilioUrl = `${d.url}/hooks/twilio/status`;
     const twilioSig = async (url: string) => ({ "content-type": "application/x-www-form-urlencoded", "x-twilio-signature": Buffer.from(await hmac("SHA-1", SECRETS["#Twilio_Auth"]!, Object.keys(params).sort().reduce((acc, k) => acc + k + params[k], url))).toString("base64") });
-    const twilioGood = await post("/hooks/twilio/sms", form, await twilioSig(twilioUrl));
+    const twilioGood = await post("/hooks/twilio/status", form, await twilioSig(twilioUrl));
     assert.equal(twilioGood.status, 200, await why(twilioGood.clone()));
-    assert.match(twilioGood.headers.get("content-type") ?? "", /xml/, "Twilio is answered with TwiML");
-    assert.equal((await post("/hooks/twilio/sms", form, await twilioSig(`${d.url}/hooks/twilio/voice`))).status, 401, "a signature made for another address");
-    assert.equal((await post("/hooks/twilio/sms", form + "&Extra=1", await twilioSig(twilioUrl))).status, 401, "a field added after signing");
+    assert.equal((await twilioGood.json() as { accepted?: boolean }).accepted, true, "a status callback is acknowledged");
+    assert.equal((await post("/hooks/twilio/status", form, await twilioSig(`${d.url}/hooks/twilio/voice`))).status, 401, "a signature made for another address");
+    assert.equal((await post("/hooks/twilio/status", form + "&Extra=1", await twilioSig(twilioUrl))).status, 401, "a field added after signing");
 
     // ---- nobody posts receive_webhook through the gateway: not a member, not the owner
     for (const [cap, body] of [
       ["zoom", { eventId: "e1", type: "endpoint.url_validation", plainToken: "x", at: now }],
       ["stripe", { eventId: "e2", type: "customer.created", objectId: "cus_2", amount: 0, currency: "USD", at: now }],
       ["github", { deliveryId: "d1", event: "ping" }],
-      ["twilio", { kind: "sms", dedupeKey: "sms:SMx", sid: "SMx", params: params }],
+      ["twilio", { kind: "status", dedupeKey: "status:CAhooks1:completed", sid: "CAhooks1", params: params }],
     ] as const) {
       for (const token of [MEMBER, OWNER]) {
         const r = await fetch(`${d.url}/v1/${cap}/receive_webhook`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) });

@@ -26,7 +26,7 @@ export const handlers: Record<string, Handler> = {
   "zoom.transcripts.get": (ctx, i) => h.transcriptsGet(ctx, i),
   "zoom.users.me": (ctx) => h.usersMe(ctx),
   "zoom.health": (ctx) => h.health(ctx),
-  "zoom.receive_webhook": (ctx, i) => { hostOnly(ctx, "zoom.receive_webhook"); return h.receiveWebhook(ctx, i); },
+  "zoom.receive_webhook": async (ctx, i) => { hostOnly(ctx, "zoom.receive_webhook"); return h.receiveWebhook(ctx, i); },
 };
 
 export const projections = { inline: {}, consumers: {} };

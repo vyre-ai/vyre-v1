@@ -32,7 +32,7 @@ export const handlers: Record<string, Handler> = {
   "stripe.subscription.cancel": (ctx, i) => h.subscriptionCancel(ctx, i),
   "stripe.refund.create": (ctx, i) => h.refundCreate(ctx, i),
   "stripe.health": (ctx) => h.health(ctx),
-  "stripe.receive_webhook": (ctx, i) => { hostOnly(ctx, "stripe.receive_webhook"); return h.receiveWebhook(ctx, i); },
+  "stripe.receive_webhook": async (ctx, i) => { hostOnly(ctx, "stripe.receive_webhook"); return h.receiveWebhook(ctx, i); },
 };
 
 export const projections = { inline: {}, consumers: {} };

@@ -34,7 +34,7 @@ export const handlers: Record<string, Handler> = {
   "twilio.a2p.status": (ctx, i) => h.a2pStatus(ctx, i),
   "twilio.a2p.attach_number": (ctx, i) => h.a2pAttachNumber(ctx, i),
   "twilio.health": (ctx) => h.health(ctx),
-  "twilio.receive_webhook": (ctx, i) => { hostOnly(ctx, "twilio.receive_webhook"); return h.receiveWebhook(ctx, i); },
+  "twilio.receive_webhook": async (ctx, i) => { hostOnly(ctx, "twilio.receive_webhook"); return h.receiveWebhook(ctx, i); },
 };
 
 export const projections = { inline: {}, consumers: {} };
