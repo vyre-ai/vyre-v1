@@ -36,7 +36,7 @@ test("a member's held call leaves gate.requested in the log, in the held call's 
     const traceId = "9d".repeat(16);
     // exporting one's own Mine items is behind the secret_export Gate act, which holds a person's own call too
     const r = await fetch(`${d.url}/v1/vault/items/export_mine`, {
-      method: "POST", headers: { "content-type": "application/json", authorization: "Bearer tok-usr_noah", "x-vyre-trace": `${traceId}-${"ef".repeat(8)}` }, body: JSON.stringify({ expiresIn: "1h" }),
+      method: "POST", headers: { "content-type": "application/json", authorization: "Bearer tok-usr_noah", "x-vyre-trace": `${traceId}-${"ef".repeat(8)}` }, body: JSON.stringify({ expiresIn: "1h", idempotencyKey: "gate-requested-export" }),
     });
     const body = (await r.json()) as { data?: { status?: string; taskId?: string }; error?: { code?: string } };
     assert.equal(body.data?.status, "held", `the call is held: ${JSON.stringify(body)}`);
