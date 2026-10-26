@@ -132,7 +132,8 @@ export default defineManifest({
     write('access.request', 'Ask the Manage holders of a resource (or the admins, for a permission) for access; one open request per person and resource', {
       // Any member may ask for any resource id (space: true binds the Space, not the thing asked for): a link to something you cannot see must still let you ask. The answer is the same whether or not
       // the resource exists or the asker can view it, and the handler rate-limits each requester across real and made-up ids alike.
-      ...V, space: true, idem: 'key', in: { resource: resourceRef, level, note: t.opt(t.str()) }, out: { request: requestRow }, emits: ['access.requested'], tool: 'meta', errors: ['permission.guest_cannot_request', 'validation.duplicate', 'rate_limit.exceeded'], team: true,
+      // level 'member' (ruling 69): view on the Space is not needed to ask, any role or grant is, so a guest or temp whose only grant is one folder can still ask for another thing.
+      ...V, level: 'member', space: true, idem: 'key', in: { resource: resourceRef, level, note: t.opt(t.str()) }, out: { request: requestRow }, emits: ['access.requested'], tool: 'meta', errors: ['permission.guest_cannot_request', 'validation.duplicate', 'rate_limit.exceeded'], team: true,
     }),
     read('access.requests.list', 'Access requests I made, or waiting on me to decide', { ...V, in: { mine: t.opt(t.bool()), state: t.opt(t.enm('waiting', 'granted', 'declined')), ...pageIn }, out: { requests: t.arr(requestRow), ...pageOut }, tool: 'meta' }),
     write('access.requests.approve', 'Approve an access request: shares as the approver and tells the requester', { ...V, in: { requestId: t.id('arq'), level: t.opt(level) }, out: { grant: grantRow }, emits: ['access.granted', 'grant.created', 'access.changed'], audit: 'always', tool: 'meta', team: true, errors: ['permission.not_contained'] }),
