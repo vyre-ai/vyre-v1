@@ -93,6 +93,7 @@ export class Scheduler {
     this.lastTickAt = this.now();
     this.timer = setInterval(() => { void this.tick(); }, this.tickMs);
     this.timer.unref();
+    void this.tick();
   }
 
   async stop(): Promise<void> {
