@@ -74,6 +74,8 @@ export function harness(o: HarnessOptions = {}) {
       const r = respond[cap];
       if (r) return r(body);
       if (cap === "agents.get") return { agent: { folderId: `fld_${String(body["agentId"]).replace(/^agt_/, "")}`, ownerId: "usr_boss" } };
+      // the folder's own shares: by default the asker holds a direct grant, so a test that is not about inheritance keeps editing; a test that is sets respond["access.shares_of"]
+      if (cap === "access.shares_of") return { shares: [{ grant: { subject: { kind: "person", id: ctx.principal.id }, level: "manage" }, through: "direct" }] };
       if (cap === "projects.get") return { project: { folderId: `fld_${String(body["projectId"]).replace(/^prj_/, "")}`, lead: "usr_lead" } };
       if (cap === "settings.get") return { row: settings[String(body["key"])] === undefined ? undefined : { value: settings[String(body["key"])] } };
       if (cap === "tasks.create") return { task: { id: `tsk_prom${++tasks}` } };

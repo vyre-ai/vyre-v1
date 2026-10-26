@@ -1,5 +1,5 @@
 // Builders for the projects tests: calling a capability through the handler table, and a project with a few tasks.
-import { handlers } from "../impl.ts";
+import { grantOnProject, handlers } from "../impl.ts";
 import { DAY, NOW } from "./harness.ts";
 import type { Harness } from "./harness.ts";
 import type { ProjectsCtx } from "../projections.ts";
@@ -18,7 +18,12 @@ export function run(h: Harness, cap: string, input: Record<string, unknown>, ctx
 }
 
 export interface Made { projectId: string; recordId: string; channelId: string; folderId: string }
-export const mkProject = async (h: Harness, over: Record<string, unknown> = {}): Promise<Made> => run(h, "projects.create", { type: "project", title: "Probate GTM", ...over });
+/** Makes a project the way the host does: the call, then the `project.created` consumer that grants the starting members on the committed project. */
+export const mkProject = async (h: Harness, over: Record<string, unknown> = {}): Promise<Made> => {
+  const made = await run(h, "projects.create", { type: "project", title: "Probate GTM", ...over }) as Made;
+  await grantOnProject(h.ctx, made.projectId);
+  return made;
+};
 
 export interface Chain { p: Made; a: string; b: string; c: string }
 /** Three tasks in a row, each starting the day the one before is due: A (day 1 to 3), B (3 to 5), C (5 to 8), with arrows A to B and B to C. */

@@ -6,7 +6,8 @@
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import type { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
 import { isElevatedRole } from "../../kernel/src/authorize/snapshot.ts";
-import { AccessStore, EVERYONE, labelOf, storeOf } from "./projections.ts";
+import { fail } from "../../host/src/routes/errors.ts";
+import { AccessStore, EVERYONE, changed, labelOf, storeOf } from "./projections.ts";
 import type { AccessCtx, Cond, GrantRec, Level, PKind, Ref, Status, SubjectKind } from "./projections.ts";
 
 export interface LogEvent { seq: number; type: string; payload: unknown }
@@ -189,6 +190,31 @@ export const hostCalls = {
     const store = storeOf(actx);
     apply(actx, store, input.events);
     return withRoleGrants(store.snapshot(), store, actx.space);
+  },
+  /** Ruling 88: a resource changes owner (an agent's folder follows its owner). The previous owner keeps nothing on it: their direct grants on the resource go too. Answers whether anything moved. */
+  "access.transfer_ownership": (ctx: Ctx, input: { resource: { type: string; id: string }; from: string; to: string }): boolean => {
+    // host only: it moves ownership and drops grants. The host runs it at depth 0 with origin "hook"; a module reaching it through ctx.call arrives deeper, and the gateway has no route to it.
+    if (ctx.origin !== "hook" || ctx.depth !== 0) throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only the server itself may do that." });
+    const actx = ctx as unknown as AccessCtx;
+    const store = storeOf(actx);
+    const r = store.resources.get(input.resource.id);
+    if (!r || r.type !== input.resource.type) return false;
+    const heldBy = (who: string) => [...store.grants.entries()].filter(([, g]) => g.resource.type === r.type && g.resource.id === r.id && g.subject.kind === "person" && g.subject.id === who);
+    const held = heldBy(input.from);
+    if (r.ownerId === input.from) {
+      // theirs: the resource changes owner and their direct grants on it go
+      r.ownerId = input.to;
+      for (const [id] of held) store.grants.delete(id);
+    } else if (held.length > 0) {
+      // not theirs, only a grant of theirs: the grant moves to the heir and the owner stays whoever it was (nobody gains ownership of what they did not own)
+      const mine = heldBy(input.to);
+      for (const [id, g] of held) {
+        const dup = mine.some(([, m]) => m.source === g.source && m.level === g.level);
+        if (dup) store.grants.delete(id); else g.subject = { kind: "person", id: input.to };
+      }
+    } else return false;   // the previous owner has nothing here: nothing moves
+    changed(actx, store, "assignment");
+    return true;
   },
   /** The authorize snapshot as the tables hold it now (a share, a revoke or a role change made by a capability is already there). */
   "access.snapshot": (ctx: Ctx): AccessSnapshot => { const a = ctx as unknown as AccessCtx; const store = storeOf(a); return withRoleGrants(store.snapshot(), store, a.space); },
