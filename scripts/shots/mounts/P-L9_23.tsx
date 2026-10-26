@@ -35,7 +35,7 @@ export default function Mount(): ReactNode {
     const theme = createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
     const hub = createSampleShell({ openId: "nw", theme });
     const part = query.get("part") ?? "cmdk";
-    hub.go("files");
+    hub.go(part === "newtab" ? "home" : "files");
     if (part === "newtab") hub.newTab();
     return { hub, theme, part };
   }, []);

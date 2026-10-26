@@ -11,9 +11,9 @@
     {
       "id": "P-L9_23-newtab",
       "route": "/m/P-L9_23?part=newtab",
-      "proto": "files,{skin}",
+      "proto": "home,{skin}",
       "waitFor": "[data-testid='cmdk-list'] [data-testid^='row-']",
-      "note": "The new-tab page over the whole shell: a \"+\" tab selected, the same search inline in its body. The prototype side presses the plus in its tab strip (#tabs) so its own new-tab launcher shows. Paper and graphite, 1280 and 390 wide.",
+      "note": "The new-tab page over the whole shell: a \"+\" tab selected, the same search inline in its body. The prototype keeps its new-tab launcher in the Home module, so that side opens Home and presses the plus in its tab strip. Paper and graphite, 1280 and 390 wide.",
       "protoClick": "#tabs [data-vplus]"
     }
   ]
