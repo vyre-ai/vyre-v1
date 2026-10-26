@@ -67,8 +67,13 @@ async function existing(ctx: ImportCtx, type: string, match: readonly string[], 
   for (let i = 0; i < list.length; i += 100) {
     const chunk = list.slice(i, i + 100);
     const filter = { or: chunk.map((f) => ({ and: match.map((k) => ({ field: k, op: "eq", value: f[k] })) })) };
-    const res = await call<{ rows?: Array<{ fields?: Record<string, unknown> }> }>(ctx, "records.query", { type, filter, fields: [...match], limit: 5000 });
-    for (const r of res.rows ?? []) { const k = r.fields ? keyOf(r.fields, match) : undefined; if (k !== undefined) found.add(k); }
+    // a page holds at most 500 rows (the capability's limit), so a chunk whose keys match many rows is read page by page
+    let cursor: string | undefined;
+    do {
+      const res = await call<{ rows?: Array<{ fields?: Record<string, unknown> }>; next?: string }>(ctx, "records.query", { type, filter, fields: [...match], limit: 500, ...(cursor !== undefined ? { cursor } : {}) });
+      for (const r of res.rows ?? []) { const k = r.fields ? keyOf(r.fields, match) : undefined; if (k !== undefined) found.add(k); }
+      cursor = res.next;
+    } while (cursor !== undefined);
   }
   return found;
 }
