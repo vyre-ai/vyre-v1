@@ -512,9 +512,10 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
     delete input["visitor"];
     if (def.cap === "forms.submit") input["visitor"] = caller.id;
     if (def.method === "POST" && typeof input["idempotencyKey"] !== "string") input["idempotencyKey"] = globalThis.crypto.randomUUID();
-    // a client may carry its trace id across the call, as it can on the gateway ("<32 hex>-<16 hex>"); anything else gets a fresh one
+    // the trace id comes from a signed-out visitor, so it is untrusted: only "<32 lowercase hex>-<16 lowercase hex>" with neither part all zeros is kept; anything else gets a fresh id from the
+    // pipeline and the rejected value is never echoed back
     const sent = /^([0-9a-f]{32})-([0-9a-f]{16})$/.exec(String(req.headers["x-vyre-trace"] ?? ""));
-    const trace = sent ? { traceId: sent[1] as string, spanId: sent[2] as string } : undefined;
+    const trace = sent && !/^0+$/.test(sent[1] as string) && !/^0+$/.test(sent[2] as string) ? { traceId: sent[1] as string, spanId: sent[2] as string } : undefined;
     try {
       const data = await deps.call!(def.cap, input, caller, trace);
       const body = JSON.stringify({ data });
