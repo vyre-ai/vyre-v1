@@ -8,6 +8,9 @@ import { States } from "../../../../../ui/src/States/index.tsx";
 import { JoinFlow } from "../../join/JoinFlow.tsx";
 import type { JoinInvite } from "../../join/logic.ts";
 import { mark } from "../../startup/marks.ts";
+import { CmdK, NewTabSearch } from "../cmdk/CmdK.tsx";
+import { createGateSearch, loadRecent } from "../cmdk/gate.ts";
+import type { Hit } from "../cmdk/model.ts";
 import { createShellHub } from "../spaces/hub.ts";
 import type { ShellHub } from "../spaces/hub.ts";
 import { Shell } from "../spaces/Shell.tsx";
@@ -58,16 +61,30 @@ function SignInScreen({ baseUrl, onSignedIn }: { baseUrl: string; onSignedIn: (s
   return <JoinFlow invite={invite} initial={{ stage: "signin" }} onSignIn={signIn} />;
 }
 
-function ShellHost({ stored, open, onSignedOut, onHub }: { stored: StoredSession; open: NonNullable<SessionGateProps["open"]>; onSignedOut: () => void; onHub: (h: ShellHub | null) => void }): ReactElement {
+export interface ShellHostProps {
+  stored: StoredSession;
+  open: NonNullable<SessionGateProps["open"]>;
+  onSignedOut: () => void;
+  onHub: (h: ShellHub | null) => void;
+  /** For tests: a hub made outside, and the search sheet already open. */
+  hub?: ShellHub;
+  initialSearchOpen?: boolean;
+}
+
+export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initialSearchOpen = false }: ShellHostProps): ReactElement {
   const navRef = useRef<ShellHub | null>(null);
   const hub = useMemo(() => {
+    if (given) { navRef.current = given; return given; }
     const h = createShellHub({ spaces: [{ ...stored.def, starred: true }], openId: stored.def.spaceId, personId: stored.personId, deviceId: "web", storage: tabsStorage() });
     navRef.current = h;
     return h;
-  }, [stored.def, stored.personId]);
+  }, [given, stored.def, stored.personId]);
   const [session, setSession] = useState<RealSession | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [searchOpen, setSearchOpen] = useState(initialSearchOpen);
+  const recent = useRef<readonly Hit[]>([]);
+  const flags = useRef({ away: false, offline: false });
 
   useEffect(() => { onHub(hub); return () => onHub(null); }, [hub, onHub]);
 
@@ -79,7 +96,8 @@ function ShellHost({ stored, open, onSignedOut, onHub }: { stored: StoredSession
       shell: (screen) => {
         const h = navRef.current;
         if (!h) return;
-        if (screen === "shell.cmdk" || screen === "shell.new-tab") h.newTab();
+        if (screen === "shell.cmdk") setSearchOpen(true);
+        else if (screen === "shell.new-tab") h.newTab();
         else h.flash("Switch Spaces from the tile at the top of the rail");
       },
       onSignedOut })
@@ -104,10 +122,26 @@ function ShellHost({ stored, open, onSignedOut, onHub }: { stored: StoredSession
     return session.runtime.connection.subscribe(sync);
   }, [session, hub]);
 
+  // Recent is read ahead so the sheet draws it in the same frame it opens.
+  useEffect(() => {
+    if (!session) return;
+    let off = false;
+    void loadRecent(session.runtime).then((hits) => { if (!off) recent.current = hits; });
+    return () => { off = true; };
+  }, [session]);
+
+  const search = useMemo(() => (session ? createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current }) : null), [session, hub]);
+
   const renderPlace = (ctx: PlaceContext): ReactElement => failed !== null && session === null
     ? <States kind="error" message={`Couldn't reach ${stored.def.name}`} cause={failed} next="Try again" retryable onRetry={() => setAttempt((n) => n + 1)} />
     : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} />;
-  return <Shell hub={hub} renderPlace={renderPlace} />;
+  const renderNewTab = (): ReactElement => (search ? <NewTabSearch data={search} /> : <States kind="empty" title="Open anything, or start something" icon="search" />);
+  return (
+    <>
+      <Shell hub={hub} renderPlace={renderPlace} renderNewTab={renderNewTab} onSearch={() => setSearchOpen(true)} />
+      {searchOpen && search ? <CmdK data={search} onClose={() => setSearchOpen(false)} /> : null}
+    </>
+  );
 }
 
 export function SessionGate(props: SessionGateProps): ReactElement {
