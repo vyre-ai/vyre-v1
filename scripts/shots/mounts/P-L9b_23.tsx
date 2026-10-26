@@ -41,6 +41,7 @@ export default function Mount(): ReactNode {
       case "terminals": return over({ kind: "terminals", x: 300, y: 48 });
       case "rules": return over({ kind: "rules" });
       case "waiting": return chat;
+      case "pane": return step(chat, { t: "pane" });
       default: return step(START, { t: "agent", agentId: "agt_intake", tab: isTabKey(tab) ? tab : "chats" });
     }
   }, [screen, params]);

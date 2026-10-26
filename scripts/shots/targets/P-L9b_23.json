@@ -1,6 +1,13 @@
 {
   "targets": [
     {
+      "id": "P-L9b_23-agent-pane",
+      "route": "/m/P-L9b_23?screen=pane",
+      "proto": "chat,at:demo-agent-computer,{skin}",
+      "waitFor": "[data-testid='chats-right-pane']",
+      "note": "A click on an agent opens its latest chat with the agent's pane on the right in the shared side pane (Computer, Threads, Files, Memory, Routines); the full Agent page is behind the pane's menu (Open page)."
+    },
+    {
       "id": "P-L9b_23-agent-page",
       "route": "/m/P-L9b_23?screen=agent&tab=chats",
       "proto": "chat,at:demo-agent-threads,{skin}",

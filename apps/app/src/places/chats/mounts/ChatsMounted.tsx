@@ -21,6 +21,7 @@ import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { NeedsYou } from "../needsyou/NeedsYou.tsx";
 import { ChatRightPane } from "../rightpane/ChatRightPane.tsx";
 import { Icon } from "../rightpane/parts.tsx";
+import { Tool } from "../sidebar/parts.tsx";
 import { ChatsSidebar } from "../sidebar/ChatsSidebar.tsx";
 import { TerminalList } from "../terminal/TerminalList.tsx";
 import { TerminalRules } from "../terminal/TerminalRules.tsx";
@@ -64,6 +65,7 @@ export interface ChatsMountedProps {
 export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedProps): ReactElement {
   const [shown, setShown] = useState<Shown>(() => initial ?? (hash === "" ? START : fromHash(hash)));
   const [line, setLine] = useState<string | null>(null);
+  const [sideHidden, setSideHidden] = useState(false);
   const [counter] = useState<CaptureCounter>(createCapture);
 
   const live = useSyncExternalStore(rt.principals.subscribe, rt.principals.getSnapshot, rt.principals.getSnapshot);
@@ -86,7 +88,7 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const listOnly = narrow && route.view === "chat" && route.threadId === null;
 
   /* ---------- the sidebar ---------- */
-  const side = useMemo(() => wireSidebar(rt, go), [rt, go]);
+  const side = useMemo(() => wireSidebar(rt, go, () => setSideHidden((v) => !v)), [rt, go]);
 
   /* ---------- the open chat ---------- */
   const recent = useLive<RecentOut>(rt.screens, "chats.sidebar", "recent", { filter: "all" });
@@ -146,7 +148,10 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const showMain = !listOnly && !(narrow && right !== null);
   return (
     <View testID="chats-place" style={st.row}>
-      {!narrow || listOnly ? <View style={narrow ? st.sideFull : st.side}><ChatsSidebar data={side} {...(window ? { window } : {})} /></View> : null}
+      {sideHidden && !narrow ? (
+        <View testID="sidebar-collapsed" style={st.collapsed}><Tool icon="panel" label="Show the sidebar" onPress={() => setSideHidden(false)} testID="sidebar-show" /></View>
+      ) : null}
+      {(!narrow || listOnly) && !(sideHidden && !narrow) ? <View style={narrow ? st.sideFull : st.side}><ChatsSidebar data={side} {...(window ? { window } : {})} /></View> : null}
       {showMain ? (
         <View testID="chats-main" style={st.main}>
           {narrow ? (
@@ -234,6 +239,7 @@ const st = StyleSheet.create({
   side: { width: SIDEBAR_W, minHeight: 0 },
   main: { flex: 1, minWidth: 0, minHeight: 0 },
   pane: { width: PANE_W, minHeight: 0 },
+  collapsed: { width: 40, paddingTop: 10, alignItems: "center", borderRightWidth: 1, borderRightColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
   sideFull: { flex: 1, minHeight: 0 },
   fill: { flex: 1, minHeight: 0 },
   back: { height: 36, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },

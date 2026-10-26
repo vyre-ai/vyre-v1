@@ -456,3 +456,21 @@ test("the shipped place, through the shell provider and the runtime's live scree
   assert.ok(has(out, "Send 12 invoices"), "its requests beneath");
   assert.equal(out.split("Waiting on you").length - 1, 4, "the four agents with a request say so");
 });
+
+test("a click on an agent opens its chat with the agent's pane beside it; the page is behind the pane's menu; the sidebar header reads Chats", async () => {
+  const s = createMountSample();
+  const { go, acts, shown } = doors(s);
+  wireSidebar(s.rt, go).nav.openAgentChat("agt_docs");
+  await settle(120);
+  const last = acts[acts.length - 1];
+  assert.ok(last && last.t === "chat" && last.pane === true, "the chat opens with the pane");
+  assert.equal(shown().pane, true);
+  const out = html(s, shown());
+  assert.ok(has(out, 'data-testid="chats-right-pane"') && has(out, 'data-testid="conversation"'), "the shared side pane beside the chat");
+  for (const tab of ["Computer", "Threads", "Files", "Memory"]) assert.ok(has(out, tab), tab);
+  assert.ok(has(out, 'data-testid="sidebar-head"') && has(out, ">Chats<") && !has(out, "switch Space"), "the sidebar header reads Chats");
+  assert.ok(has(out, 'data-testid="new-chat"') && has(out, 'data-testid="sidebar-toggle"'), "the assistant button and the panel toggle");
+  // the pane's menu opens the full page
+  wirePane(s.rt, go, "c1", { agentId: "agt_docs", name: "Docs" }).nav.openAgentPage("agt_docs");
+  assert.deepEqual(acts[acts.length - 1], { t: "agent", agentId: "agt_docs" });
+});

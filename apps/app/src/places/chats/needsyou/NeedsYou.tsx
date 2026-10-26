@@ -116,11 +116,11 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
     return (
       <View style={isWithdrawn(i) ? st.dimRow : undefined} {...menuTrigger((x, y) => menu.show(entriesFor(i), x, y, "context", { label: i.task.title }))}>
         <Row
-          id={`need-${i.task.id}`} title={i.task.title} note={note} selected={sel} onPress={() => choose(i.task.id)}
+          id={`need-${i.task.id}`} title={i.task.title} note={note} noteLead={verb} noteLeadTone={i.task.kind === "unblock" ? "warning" : "accent"} selected={sel} onPress={() => choose(i.task.id)}
           leading={<Face name={who(i.task)} size={26} />}
           trailing={
             <RowEnd
-              time={arrivedLabel(i.task.updatedAt, clock)} verb={verb} unblock={i.task.kind === "unblock"} lit={sel}
+              time={arrivedLabel(i.task.updatedAt, clock)} lit={sel}
               quick={quick && holder(i, data.me).kind === "free" ? <Tool icon="check" label={`${quick.label} ${i.task.title}`} onPress={() => void doAct(i, quick)} testID={`quick-${i.task.id}`} /> : null}
             />
           }
@@ -320,8 +320,6 @@ const st = StyleSheet.create({
   quiet: { fontSize: 11.5, color: "var(--ink-3)" as string },
   rowEnd: { flexDirection: "row", alignItems: "center", gap: 4 },
   time: { fontSize: 11, color: "var(--ink-3)" as string },
-  verb: { fontSize: 12, color: "var(--accent)" as string },
-  verbWarn: { color: "var(--warn)" as string },
   note: { paddingHorizontal: 10, paddingVertical: 6, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   noteText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   foot: { height: 30, justifyContent: "center", paddingHorizontal: 10 },
@@ -396,13 +394,12 @@ function WithdrawnLabel({ label }: { label: string }): ReactElement {
   return <View testID="needs-withdrawn-label" style={st.nsec}><Text accessibilityRole="header" style={st.nsecText}>{label}</Text></View>;
 }
 
-/** The end of a row: when it arrived, the verb you act with in its colour, and the quick action, which shows on hover and on the selected row. */
-function RowEnd({ time, verb, unblock, lit, quick }: { time: string; verb: string; unblock: boolean; lit: boolean; quick: ReactElement | null }): ReactElement {
+/** The end of a row: when it arrived and the quick action, which shows on hover and on the selected row. */
+function RowEnd({ time, lit, quick }: { time: string; lit: boolean; quick: ReactElement | null }): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <View {...{ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) }} style={st.rowEnd}>
       <Text style={st.time}>{time}</Text>
-      <Text testID="row-verb" style={[st.verb, unblock && st.verbWarn]}>{verb}</Text>
       {quick ? <View style={{ opacity: over || lit ? 1 : 0 }}>{quick}</View> : null}
     </View>
   );

@@ -35,7 +35,8 @@ export interface Shown {
 export const START: Shown = { route: { view: "chat", threadId: null }, pane: false, terminalId: null, layer: null };
 
 export type Act =
-  | { t: "chat"; threadId: string }
+  /** `pane` opens the agent's pane beside the chat (a click on an agent). */
+  | { t: "chat"; threadId: string; pane?: boolean }
   | { t: "helper"; threadId: string }
   | { t: "needs"; taskId?: string }
   | { t: "agent"; agentId: string; tab?: TabKey }
@@ -47,7 +48,7 @@ export type Act =
 
 export function step(s: Shown, a: Act): Shown {
   switch (a.t) {
-    case "chat": return a.threadId.startsWith(LOCAL_PREFIX) ? s : { ...s, route: { view: "chat", threadId: a.threadId === "" ? null : a.threadId }, layer: null };
+    case "chat": return a.threadId.startsWith(LOCAL_PREFIX) ? s : { ...s, route: { view: "chat", threadId: a.threadId === "" ? null : a.threadId }, ...(a.pane ? { pane: true, terminalId: null } : {}), layer: null };
     case "helper": return { ...s, route: { view: "helper", threadId: a.threadId }, layer: null };
     case "needs": return { ...s, route: { view: "needs", taskId: a.taskId ?? null }, layer: null };
     case "agent": return { ...s, route: { view: "agent", agentId: a.agentId, tab: a.tab ?? null }, layer: null };
