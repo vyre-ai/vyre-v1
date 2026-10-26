@@ -64,6 +64,25 @@ const contentsOf = (k: KitManifest): string[] => CONTENT.filter((c) => k.items.s
 const steps = (k: KitManifest): { item: string; which: string; step: Step }[] =>
   k.items.flatMap((it) => (["apply", "undo"] as const).flatMap((w) => (it[w] ? [{ item: it.key, which: w, step: it[w]! }] : [])));
 
+// The manifest's recordTypes is the one declaration of a Kit's record types (ruling 56): the installer creates them and no Kit step calls type.create. These stand in for the installer on the fixture Space.
+const KIT_ID = "default";
+const toSnake = (s: string): string => s.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+/** The record types the Kit's manifest declares, as type.create ops (field keys in the lower snake case the schema accepts). */
+const typeOps = (): Obj[] => registry.recordTypes.filter((r) => r.module === KIT_ID).map((r) => {
+  const d = r as unknown as Obj;
+  const def: Obj = { ...d, fields: (d["fields"] as Obj[]).map((f) => ({ ...f, key: toSnake(f["key"] as string) })) };
+  for (const k of ["titleField", "statusField", "ownerField"]) if (typeof d[k] === "string") def[k] = toSnake(d[k] as string);
+  return { op: "type.create", type: r.key, def };
+});
+/** What the installer does for one item on the fixture Space: run its step, or for a record type with none, find the declared type in the Space. */
+async function applyItem(s: Fixture, it: Item): Promise<void> {
+  if (it.apply) { await s.call(it.apply.cap, it.apply.input); return; }
+  if (it.type !== "record_type") return;
+  const type = it.recordType ?? it.key;
+  if (!registry.recordTypes.some((r) => r.module === KIT_ID && r.key === type)) throw new Error(`The record type ${type} is declared by the Kit but not in this Space.`);
+  if (!s.types.includes(type)) s.types.push(type);
+}
+
 /** What the install sheet lists (sheetOf of modules/kits): every capability called, record types made, nothing else. */
 function sheetOf(k: KitManifest): { tools: string[]; recordTypes: string[] } {
   const tools = new Set<string>(), types = new Set<string>();
@@ -116,7 +135,7 @@ async function runDeclared(k: KitManifest): Promise<{ test: string; message: str
   for (const t of k.tests ?? []) {
     const s = new Fixture();
     try {
-      for (const it of k.items) if (it.apply) await s.call(it.apply.cap, it.apply.input);
+      for (const it of k.items) await applyItem(s, it);
       for (const st of t.seed ?? []) await s.call(st.cap, st.input);
       for (const want of t.expect.events ?? []) {
         if (!s.log.some((e) => e.name === want.name && (want.payload === undefined || subset(want.payload, e.payload)))) failures.push({ test: t.name, message: `expected the event ${want.name}; saw ${s.log.map((e) => e.name).join(", ") || "no events"}` });
@@ -151,7 +170,7 @@ test("the install sheet lists what the Kit touches and names no network domain, 
   assert.deepEqual(sheet.recordTypes, ["note_board"]);
   assert.ok(kit().items.every((i) => !("networkDomains" in i) && !("vaultNames" in i)), "no network domain and no Vault handle");
   assert.equal((raw()["scripts"] ?? []).length, 0, "no scripts");
-  for (const t of ["schema.apply", "settings.set_space", "automations.create", "access.groups.defaults_set", "agents.create", "tasks.create", "records.update"]) assert.ok(sheet.tools.includes(t), `the sheet lists ${t}`);
+  for (const t of ["settings.set_space", "automations.create", "access.groups.defaults_set", "agents.create", "tasks.create", "records.update"]) assert.ok(sheet.tools.includes(t), `the sheet lists ${t}`);
 });
 
 test("every capability a step or tool names exists, no step uses a Kit-forbidden capability, and every step input passes the generated validator", () => {
@@ -179,16 +198,16 @@ test("every write step that needs an idempotency key carries a stable one, uniqu
 
 // ---- agreement with the manifest ---------------------------------------------------------------------------------------------------
 
-test("the record types match what the manifest declares: title, plural, icon, group, status field and field keys and types", () => {
-  const made = steps(kit()).flatMap((s) => (s.step.cap === "schema.apply" ? (s.step.input["ops"] as Obj[]) : [])).filter((o) => o["op"] === "type.create");
-  assert.deepEqual(made.map((o) => o["type"]).sort(), ["note_board"]);
-  for (const op of made) {
-    const declared = registry.recordTypes.find((r) => r.key === op["type"] && r.module === "default");
-    assert.ok(declared, `the manifest declares ${op["type"]}`);
-    const d = op["def"] as Obj;
-    for (const k of ["title", "plural", "icon", "group", "titleField"] as const) assert.equal(d[k], (declared as Obj)[k], `${op["type"]}.${k}`);
-    if ((declared as Obj)["statusField"]) assert.equal(d["statusField"], (declared as Obj)["statusField"]);
-    assert.deepEqual((d["fields"] as Obj[]).map((f) => [f["key"], f["type"]]), ((declared as Obj)["fields"] as Obj[]).map((f) => [f["key"], f["type"]]), `${op["type"]} fields`);
+test("the record types are declared once, in the manifest: every record type item names a declared type, every declared type has its item, and no step creates or drops one", () => {
+  const declared = typeOps().map((o) => o["type"] as string).sort();
+  const items = kit().items.filter((i) => i.type === "record_type");
+  assert.deepEqual(items.map((i) => i.recordType ?? i.key).sort(), declared);
+  for (const it of items) assert.ok(!it.apply && !it.undo, `${it.key}: the installer creates the type, a step does not`);
+  for (const { item, step } of steps(kit())) for (const op of step.cap === "schema.apply" ? (step.input["ops"] as Obj[]) : []) assert.ok(!["type.create", "type.drop"].includes(op["op"] as string), `${item}: ${op["op"]}`);
+  for (const t of typeOps()) {
+    const d = t["def"] as Obj;
+    const keys = (d["fields"] as Obj[]).map((f) => f["key"]);
+    for (const k of ["titleField", "statusField", "ownerField"] as const) if (d[k] !== undefined) assert.ok(keys.includes(d[k]), `${t["type"]}.${k} is one of its fields`);
   }
 });
 
@@ -208,7 +227,7 @@ test("the settings the Kit writes are declared in the registry and its values pa
 });
 
 test("the layout of each type shows only fields the type has", () => {
-  const types = new Map(steps(kit()).flatMap((s) => (s.step.cap === "schema.apply" ? (s.step.input["ops"] as Obj[]) : [])).filter((o) => o["op"] === "type.create").map((o) => [o["type"], ((o["def"] as Obj)["fields"] as Obj[]).map((f) => f["key"])] as const));
+  const types = new Map(typeOps().map((o) => [o["type"], ((o["def"] as Obj)["fields"] as Obj[]).map((f) => f["key"])] as const));
   const layouts = steps(kit()).filter((s) => s.step.cap === "schema.layout.set");
   assert.ok(layouts.length >= 1);
   for (const { step } of layouts) {
@@ -240,7 +259,7 @@ test("Everyone gets edit on the note board and nothing wider", () => {
 
 test("install: the Kit's steps apply in item order, each with its own input, and the record types, layouts, settings and agents exist afterwards", async () => {
   const s = new Fixture();
-  for (const it of kit().items) if (it.apply) await s.call(it.apply.cap, it.apply.input);
+  for (const it of kit().items) await applyItem(s, it);
   assert.deepEqual(s.calls.map((c) => c.cap), kit().items.flatMap((i) => (i.apply ? [i.apply.cap] : [])));
   assert.deepEqual(s.types, ["note_board"]);
   assert.deepEqual(s.calls.filter((c) => c.cap === "settings.set_space").map((c) => c.input["key"]), ["kit.default.rail", "space.skin_default"]);
