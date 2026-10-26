@@ -48,7 +48,11 @@ export function Rail({ groups, active, onSelect, onOpenInTab, onPrefetch, header
     return out;
   };
   if (bottom === true) {
-    const more = groups.bottom;
+    // The bar keeps the places a person lives in; Inbox and the bottom group sit behind More.
+    const barPlaces: readonly PlaceId[] = ["home", "chats", "records", "files"];
+    const inBar = (e: RailEntry): boolean => barPlaces.includes(e.place);
+    const barEntries = groups.top.filter(inBar);
+    const more = [...groups.top.filter((e) => !inBar(e)), ...groups.bottom];
     const moreOn = more.some((e) => e.place === active);
     const openMore = (x: number, y: number): void => show(
       more.map((e) => ({ label: e.title, icon: iconMarkup(e.place), onSelect: () => onSelect(e.place), ...(e.place === active ? { checked: true } : {}) })),
@@ -57,7 +61,7 @@ export function Rail({ groups, active, onSelect, onOpenInTab, onPrefetch, header
     return (
       <View testID="shell-rail-bottom" accessibilityRole="navigation" aria-label="Places" style={styles.bar2}>
         {header}
-        {buttons(groups.top)}
+        {buttons(barEntries)}
         {more.length === 0 ? null : (
           <Pressable
             role="button" aria-label="More places" aria-haspopup="menu" testID="rail-more"

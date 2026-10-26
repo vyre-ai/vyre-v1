@@ -204,7 +204,7 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
         </>
       )}
       {extra}
-      <KindSwitch ctx={ctx} />
+      {slim ? null : <KindSwitch ctx={ctx} />}
       <HeadButton icon="plus" label="New" bare={slim} testID="records-new" onPress={() => st.newRecord()} />
       {online ? null : <Text style={s.offline} accessibilityRole="alert" testID="records-offline">Offline</Text>}
       {menu.element}
