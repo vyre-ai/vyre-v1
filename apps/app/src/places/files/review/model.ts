@@ -114,25 +114,41 @@ function bodyOf(kind: DiffOut["kind"], path = ""): DiffBody {
   return kind;
 }
 
-/** A capability's hunk as the hunk ui/DiffTab draws: the unchanged lines above and below are context, the rest is removed and added. */
-export function hunkOf(h: RawHunk, joiner = "\n"): DiffHunk {
+/**
+ * A capability's hunk as the hunks ui/DiffTab draws. The unchanged lines above the first change are `before`, the unchanged lines below the last are `after`, and unchanged lines between two changes lead the later one
+ * (so a hunk that holds two changes becomes two, the second named `<id>.2`, and no line is drawn twice). Each change is its removed and its added lines.
+ */
+export function hunksFrom(h: RawHunk, joiner = "\n"): DiffHunk[] {
   const lines = h.lines;
-  let from = 0;
-  while (from < lines.length && lines[from]?.op === "ctx") from++;
-  let to = lines.length;
-  while (to > from && lines[to - 1]?.op === "ctx") to--;
   const text = (ls: readonly { text: string }[]): string => ls.map((l) => l.text).join(joiner);
-  const mid = lines.slice(from, to);
-  const before = text(lines.slice(0, from));
-  const after = text(lines.slice(to));
-  return {
-    id: h.hunkId,
-    context: `Line ${h.newStart}`,
-    removed: text(mid.filter((l) => l.op !== "add")),
-    added: text(mid.filter((l) => l.op !== "del")),
-    ...(before ? { before } : {}),
-    ...(after ? { after } : {}),
+  const out: DiffHunk[] = [];
+  let ctx: { text: string }[] = [];
+  let del: { text: string }[] = [];
+  let add: { text: string }[] = [];
+  let newLine = h.newStart;
+  let startAt = h.newStart;
+  const flush = (): void => {
+    if (!del.length && !add.length) return;
+    const before = text(ctx);
+    out.push({ id: out.length === 0 ? h.hunkId : `${h.hunkId}.${out.length + 1}`, context: `Line ${startAt}`, removed: text(del), added: text(add), ...(before ? { before } : {}) });
+    ctx = [];
+    del = [];
+    add = [];
   };
+  for (const l of lines) {
+    if (l.op === "ctx") { if (del.length || add.length) flush(); if (!ctx.length) startAt = newLine; ctx.push(l); newLine++; }
+    else { if (!del.length && !add.length && !ctx.length) startAt = newLine; if (l.op === "del") del.push(l); else { add.push(l); newLine++; } }
+  }
+  flush();
+  const after = text(ctx);
+  const last = out[out.length - 1];
+  if (last && after) out[out.length - 1] = { ...last, after };
+  return out;
+}
+
+/** The single hunk of a capability hunk that holds one change. */
+export function hunkOf(h: RawHunk, joiner = "\n"): DiffHunk {
+  return hunksFrom(h, joiner)[0] ?? { id: h.hunkId, context: `Line ${h.newStart}`, removed: "", added: "" };
 }
 
 /** One file's diff out of files.diff, changesets.diff or git.show. An image has no lines: its two addresses ride in the one hunk, removed (before) and added (after). */
@@ -140,14 +156,14 @@ export function diffFileOf(path: string, out: Pick<DiffOut, "kind" | "added" | "
   const body = bodyOf(out.kind, path);
   const hunks: DiffHunk[] = body === "image" && out.images
     ? [{ id: `${path}:image`, context: "Image", removed: out.images.left ?? "", added: out.images.right ?? "" }]
-    : out.hunks.map((h) => hunkOf(h, body === "paragraph" ? "\n\n" : "\n"));
+    : out.hunks.flatMap((h) => hunksFrom(h, body === "paragraph" ? "\n\n" : "\n"));
   return { path, added: out.added, removed: out.removed, body, hunks };
 }
 
 /** The files of a commit (git.show gives one list of hunks for the whole commit, so they go to the file they belong to when there is one file, else to the first). */
 export function commitFiles(show: CapMap["git.show"]["out"], onlyPath?: string): DiffFile[] {
   const files = onlyPath ? show.files.filter((f) => f.path === onlyPath) : show.files;
-  return files.map((f, i): DiffFile => ({ path: f.path, added: f.added, removed: f.removed, body: "text", hunks: i === 0 ? show.hunks.map(hunkOf) : [] }));
+  return files.map((f, i): DiffFile => ({ path: f.path, added: f.added, removed: f.removed, body: "text", hunks: i === 0 ? show.hunks.flatMap((h) => hunksFrom(h)) : [] }));
 }
 
 /** The comments of a changeset placed on a hunk: the one whose text holds the quote, else the file's first change. */

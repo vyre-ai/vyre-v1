@@ -6,11 +6,13 @@ import { StyleSheet, Text, View } from "react-native";
 import { DiffTab } from "../../../../../../ui/src/DiffTab/index.tsx";
 import type { Density, DiffFile } from "../../../../../../ui/src/DiffTab/index.tsx";
 import { useCap, useCapMany, useReviewData, useReviewLayout } from "./data.tsx";
-import { readTexts } from "./actions.ts";
+import { basePreviewUrl, readTexts } from "./actions.ts";
 import { commentsOf, paragraphsOfText, wholeDocument, commitFiles, diffFileOf } from "./model.ts";
 import { Skeleton } from "./parts.tsx";
 
 const LOADING_HEIGHT = 240;
+
+const isAddress = (s: string): boolean => /^(data:|https?:|\/)/.test(s);
 
 function Empty({ text }: { text: string }): ReactElement {
   return <View style={st.empty} testID="diff-empty"><Text style={st.emptyText}>{text}</Text></View>;
@@ -65,13 +67,33 @@ export function ChangesetDiff({ changesetId, density = "regular", path }: Change
   const data = useReviewData();
   const cs = useCap("changesets.get", { changesetId });
   const paths = useMemo<string[]>(() => (cs.status === "ready" ? cs.data.files.map((f) => f.path) : []), [cs]);
-  const diffs = useCapMany("changesets.diff", paths.map((p) => ({ changesetId, path: p })));
+  // context full: every paragraph of the base and the staged text, so the open file reads as the whole document
+  const diffs = useCapMany("changesets.diff", paths.map((p) => ({ changesetId, path: p, context: "full" as const })));
   const comments = useCap("changesets.comments.list", { changesetId });
+  const [pictures, setPictures] = useState<Record<string, string>>({});
+  const baseVersion = cs.status === "ready" ? Number(cs.data.changeset.baseVersion) : 0;
+  useEffect(() => {
+    if (cs.status !== "ready" || !Number.isFinite(baseVersion) || baseVersion <= 0) return;
+    let live = true;
+    cs.data.files.forEach((f, i) => {
+      const d = diffs.items[i];
+      if (!f.fileId || !d || d.kind !== "image" || !d.images?.left || isAddress(d.images.left)) return;
+      const fileId = f.fileId;
+      void basePreviewUrl(data.call, fileId, baseVersion).then((url) => { if (live && url) setPictures((m) => ({ ...m, [f.path]: url })); });
+    });
+    return () => { live = false; };
+  }, [cs, diffs, baseVersion, data]);
   const files = useMemo<DiffFile[]>(() => {
     const out: DiffFile[] = [];
-    paths.forEach((p, i) => { const d = diffs.items[i]; if (d) out.push(diffFileOf(p, d)); });
+    paths.forEach((p, i) => {
+      const d = diffs.items[i];
+      if (!d) return;
+      const f = diffFileOf(p, d);
+      // a picture's before is the file's preview at its base version; an address the capability already gave stays
+      out.push(f.body === "image" ? { ...f, hunks: f.hunks.map((h) => ({ ...h, removed: isAddress(h.removed) ? h.removed : (pictures[p] ?? ""), added: isAddress(h.added) ? h.added : "" })) } : f);
+    });
     return out;
-  }, [paths, diffs]);
+  }, [paths, diffs, pictures]);
   const notes = useMemo(() => (comments.status === "ready" ? commentsOf(comments.data.comments, files, data.nameOf, data.clock().now) : []), [comments, files, data]);
   const [layout] = useReviewLayout();
   if (cs.status !== "ready" || !diffs.ready) return <Skeleton height={LOADING_HEIGHT} testID="diff-loading" />;

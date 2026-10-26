@@ -101,3 +101,16 @@ export async function readTexts(call: Call, fileId: string, from: string, to: st
     return null;
   }
 }
+
+/** The address of a file's picture at the version a changeset started from, through files.viewer_data's previewUrl (never a hand-built blob path). Null when there is none. */
+export async function basePreviewUrl(call: Call, fileId: string, baseVersion: number): Promise<string | null> {
+  try {
+    const versions = (await call("files.versions", { fileId })) as CapMap["files.versions"]["out"];
+    const v = versions.versions.find((x) => x.n === baseVersion);
+    if (!v) return null;
+    const out = (await call("files.viewer_data", { fileId, versionId: v.versionId })) as CapMap["files.viewer_data"]["out"];
+    return out.previewUrl ?? null;
+  } catch {
+    return null;
+  }
+}

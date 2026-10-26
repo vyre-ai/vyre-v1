@@ -7,7 +7,7 @@ import type { ReactElement } from "react";
 import {
   AgentFileEditor, AgentFilePage, SuggestionCard, ChangesetDiff, ChangesetHeader, CommitDiff, FileDiff, GateRow, GitRow, HistoryPanel, LintBar, ReviewDataProvider, TomlForm,
   approveBlocked, approveChangeset, approveInput, blockedReason, branchChoices, changedLine, commitFiles, diffFileOf, discardChangeset, draftDiff, errorWords, gateWords, hunkOf, historyVersions, initRepo, lineHunks,
-  lintItems, needsGate, nameVersion, parseToml, pushBranch, rawFromForm, requestChanges, requestLabel, readTexts, stamp, wholeDocument, paragraphsOfText, applySuggestion, choiceOf, choiceRaw, humanKey, suggestionHunks, acceptSuggestion, dismissSuggestion, restoreVersion, reviewExternally, saveFile, saveBlocked, setTomlValue, switchBranch, tomlGroups, tomlKind,
+  lintItems, needsGate, nameVersion, parseToml, pushBranch, rawFromForm, requestChanges, requestLabel, hunksFrom, basePreviewUrl, readTexts, stamp, wholeDocument, paragraphsOfText, applySuggestion, choiceOf, choiceRaw, humanKey, suggestionHunks, acceptSuggestion, dismissSuggestion, restoreVersion, reviewExternally, saveFile, saveBlocked, setTomlValue, switchBranch, tomlGroups, tomlKind,
 } from "../src/places/files/review/index.ts";
 import { lineRange } from "../src/places/files/review/index.ts";
 import { inlineMarks, proseRows } from "../../../ui/src/DiffTab/index.tsx";
@@ -586,4 +586,32 @@ test("the shell's review provider: live reads through the runtime, writes throug
     { screen: "files.diff", args: { changesetId: "cs_1" } }, { screen: "files.diff", args: { fileId: "f", from: "v1", to: "v2" } },
     { screen: "files.commit-diff", args: { folder: "fld", sha: "abc" } }, { screen: "files.history", args: { fileId: "f" } },
   ]);
+});
+
+test("a handler hunk that holds two changes becomes two hunks, and no unchanged paragraph is drawn twice", () => {
+  const raw = { hunkId: "h1", oldStart: 1, oldLines: 8, newStart: 1, newLines: 8, lines: [
+    { op: "ctx" as const, text: "a" }, { op: "del" as const, text: "b" }, { op: "add" as const, text: "B" },
+    { op: "ctx" as const, text: "c" }, { op: "ctx" as const, text: "d" },
+    { op: "del" as const, text: "e" }, { op: "add" as const, text: "E" }, { op: "add" as const, text: "E2" },
+    { op: "ctx" as const, text: "f" },
+  ] };
+  const hunks = hunksFrom(raw, "\n\n");
+  assert.deepEqual(hunks.map((h) => h.id), ["h1", "h1.2"]);
+  assert.deepEqual(hunks.map((h) => [h.before, h.removed, h.added, h.after]), [["a", "b", "B", undefined], ["c\n\nd", "e", "E\n\nE2", "f"]]);
+  const everything = hunks.flatMap((h) => [h.before, h.removed, h.added, h.after]).join(" ");
+  assert.equal(everything.split("c").length - 1, 1, "an unchanged paragraph between two changes is in one place");
+});
+
+test("a picture's before is the file's preview at the version the changeset started from, through files.viewer_data", async () => {
+  const asked: { cap: string; input: unknown }[] = [];
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    asked.push({ cap, input });
+    if (cap === "files.versions") return { versions: [{ versionId: "ver_2", n: 2, by: "usr_a", at: 1 }, { versionId: "ver_1", n: 1, by: "usr_a", at: 0 }] };
+    return { previewUrl: "https://files.example/p/ver_1.png" };
+  };
+  assert.equal(await basePreviewUrl(call, "fil_1", 1), "https://files.example/p/ver_1.png");
+  assert.deepEqual(asked.map((a) => a.cap), ["files.versions", "files.viewer_data"]);
+  assert.deepEqual(asked[1]?.input, { fileId: "fil_1", versionId: "ver_1" });
+  assert.equal(await basePreviewUrl(call, "fil_1", 9), null, "a version that is gone has no picture");
+  assert.equal(await basePreviewUrl(async () => { throw new Error("no"); }, "fil_1", 1), null);
 });
