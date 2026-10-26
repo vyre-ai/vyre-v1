@@ -15,4 +15,5 @@ Area: records. Risk: medium. Applies to: record, record_type.
 ## Capabilities that need it
 
 - projects.share_out
+- projects.unshare_out
 - views.share_external

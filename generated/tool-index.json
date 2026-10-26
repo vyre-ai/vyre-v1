@@ -5121,7 +5121,7 @@
     {
       "deferred": false,
       "name": "projects_share_out",
-      "summary": "Make a read-only link to the project Overview for a client",
+      "summary": "Make a read-only link to the project Overview for a client; it expires in 30 days unless expiresAt or expiresInDays says otherwise",
       "toolset": "records"
     },
     {
@@ -5146,6 +5146,12 @@
       "deferred": false,
       "name": "projects_unpin_file",
       "summary": "Unpin a file from the Overview",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_unshare_out",
+      "summary": "Revoke a read-only link to the project Overview; the link answers not found at once",
       "toolset": "records"
     },
     {
