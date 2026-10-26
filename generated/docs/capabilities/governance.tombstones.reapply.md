@@ -1,6 +1,6 @@
 # governance.tombstones.reapply
 
-System: replay every tombstone after a restore, before the Space opens for traffic
+System: replay every tombstone after a restore, before the Space opens for traffic; `tombstones` are the ones the Space held before the restore, which the restored database does not have
 
 | | |
 |---|---|
@@ -11,7 +11,7 @@ System: replay every tombstone after a restore, before the Space opens for traff
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | delete when actor.kind != actor.kind |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |
@@ -24,7 +24,17 @@ System: replay every tombstone after a restore, before the Space opens for traff
 ## Input
 
 ```ts
-type In = Record<string, unknown>;
+type In = {
+  tombstones?: Array<{
+      id: string;
+      kind: string;
+      subjectType: string;
+      subjectId: string;
+      at: number;
+      by: string;
+      findingId?: string;
+    }>;
+};
 ```
 
 ## Output
@@ -47,7 +57,19 @@ type Out = {
 ```json
 {
   "name": "example",
-  "input": {},
+  "input": {
+    "tombstones": [
+      {
+        "at": 1760000000000,
+        "by": "example",
+        "findingId": "example",
+        "id": "example",
+        "kind": "example",
+        "subjectId": "example",
+        "subjectType": "example"
+      }
+    ]
+  },
   "output": {
     "count": 1
   }

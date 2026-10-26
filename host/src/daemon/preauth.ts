@@ -9,7 +9,8 @@ const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 /** The address a pre-auth call came from, as best the host can tell. */
 export function sourceOf(headers: Readonly<Record<string, string | undefined>>): string {
   const socket = headers["x-vyre-remote"] ?? "";
-  const forwarded = headers["x-forwarded-for"]?.split(",")[0]?.trim();
+  // The last entry is the one the local proxy added; earlier entries are whatever the visitor sent.
+  const forwarded = headers["x-forwarded-for"]?.split(",").at(-1)?.trim();
   return LOOPBACK.has(socket) && forwarded ? forwarded : socket || "unknown";
 }
 

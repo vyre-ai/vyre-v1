@@ -51,7 +51,7 @@ import { createComputersFillHost, createFillRoute } from "../seams/computers.ts"
 import { createComputersHost } from "../seams/computers-host.ts";
 import { createEngineHost } from "../seams/engine.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
-import { applyPendingRestore, createBackupHost } from "../seams/backup.ts";
+import { applyPendingRestore, clearRestoredTombstones, createBackupHost, readRestoredTombstones } from "../seams/backup.ts";
 import { createKitsHost } from "../seams/kits.ts";
 import { startRelayBox } from "../seams/relay.ts";
 import { createSyncSeam } from "../seams/sync.ts";
@@ -687,6 +687,20 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       }
 
       const owner = (): string => cfg.owner ?? access.owner() ?? "usr_owner";
+
+      // A restore brought an older Space back. What was erased since is erased again, as the host, before any request is served (spec 2.26, ARCH 7.10). If it cannot be done the Space does not open.
+      const kept = loaded.serving.get("governance") === "live" ? readRestoredTombstones(paths.root) : null;
+      if (kept) {
+        const replayed = (await system("governance.tombstones.reapply", { tombstones: kept.tombstones }, kept.traceId ? { traceId: kept.traceId, spanId: "0".repeat(16) } : undefined).catch((e: unknown) => {
+          // the Space does not open with an erased person still in it; say why, with the host's own log of the failing call
+          const traceId = (e as { error?: { traceId?: string } } | null)?.error?.traceId;
+          let why = "";
+          try { sink.flush(); why = traceId ? sink.trace(traceId).logs.filter((l) => l.level >= 40).map((l) => JSON.stringify(l.attrs ?? l.msg)).join(" | ").slice(0, 1500) : ""; } catch { /* the log is a help */ }
+          throw new Error(`replaying the tombstones after a restore failed: ${e instanceof Error ? e.message : String(e)} ${why}`);
+        })) as { count?: number };
+        sink.log({ space: spaceId, level: 20, msg: "restore.tombstones_reapplied", place: "boot", attrs: { count: replayed?.count ?? 0 } });
+        clearRestoredTombstones(paths.root);
+      }
       // Identity comes from the bearer token alone (host/src/daemon/session.ts): a device session row gives the person and the device; the x-vyre-device header and ?device= are ignored.
       // The single admin token is the owner bootstrap path only (ensureAdminToken): it acts as the owner on the fixed device `local-admin`.
       const sessions = createSessionResolver({ db: db!, space: spaceId });
