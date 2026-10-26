@@ -27,7 +27,7 @@ Start a separate live Vyre chat linked to an immutable imported conversation; it
 type In = {
   conversationId: string;
   destinationSpaceId: string;
-  destinationScope: "personal" | "team";
+  destinationScope: "personal";
   agentId: string;
   first?: string;
 };
