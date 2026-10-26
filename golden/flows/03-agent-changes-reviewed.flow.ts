@@ -6,5 +6,5 @@ export default defineFlow({
   name: "agent-changes-reviewed",
   title: "Agent changes reviewed and pushed",
   needs: ["agents", "git", "gate"],
-  events: ["git.committed", "git.pushed", "gate.approved"],
+  events: ["git.committed", "gate.requested", "git.pushed", "gate.approved"],
 });

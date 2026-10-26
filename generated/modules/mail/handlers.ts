@@ -27,6 +27,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "mail.mailbox.resume": Handler<"mail.mailbox.resume", X>;
   "mail.mailbox.set_privacy": Handler<"mail.mailbox.set_privacy", X>;
   "mail.mailbox.update": Handler<"mail.mailbox.update", X>;
+  "mail.message.erase": Handler<"mail.message.erase", X>;
   "mail.message.get": Handler<"mail.message.get", X>;
   "mail.message.list": Handler<"mail.message.list", X>;
   "mail.message.search": Handler<"mail.message.search", X>;
