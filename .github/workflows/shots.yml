@@ -4,7 +4,7 @@ name: shots
 # The artifact `shots` holds <target>/<skin>-<size>-side-by-side.png and index.md. Dispatch `lockfile` to produce package-lock.json (never npm on the Mac).
 on:
   push:
-    branches-ignore: [main]
+    branches-ignore: [main, "gh-readonly-queue/**"]
     paths: ["scripts/shots/**", "ui/**", "apps/app/**", "client/**", "budgets.json", ".github/workflows/shots.yml"]
   workflow_dispatch:
     inputs:
