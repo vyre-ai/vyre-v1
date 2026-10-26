@@ -195324,12 +195324,12 @@
           "type": "status"
         },
         {
-          "key": "trustName",
+          "key": "trust_name",
           "title": "Trust name",
           "type": "text"
         },
         {
-          "key": "taxId",
+          "key": "tax_id",
           "label": "restricted",
           "title": "Tax ID",
           "type": "sealed"
@@ -195799,7 +195799,7 @@
           "type": "status"
         },
         {
-          "key": "practiceArea",
+          "key": "practice_area",
           "title": "Practice area",
           "type": "choice"
         },
