@@ -1,15 +1,17 @@
-// The page's side of the shell (window.__TAURI__.core.invoke): typed calls for the native features. The invoke function is passed in, so the same
-// code runs in the page (window.__TAURI__.core.invoke) and in tests (a recorder). Nothing here reaches the network or the file system.
-
+// Desktop-only features compose the lower validated deep-link bridge with
+// notifications, picker and badge controls. App clients import the lower
+// structural bridge directly and never depend on this sibling app package.
+import { makeDesktopLinkBridge } from "../../../client/src/connection/desktop-link.ts";
+import type { DesktopDeepLink, DesktopInfo, DesktopLinkBridge, Invoke, Listen, Unlisten } from "../../../client/src/connection/desktop-link.ts";
 import { checkPicked, pickOptions } from "./files.ts";
 import type { PickRequest } from "./files.ts";
 import { osNotification } from "./notify.ts";
 import type { NotificationInput } from "./notify.ts";
 import { badgeText } from "./notify.ts";
 
-export type Invoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
+export type { DesktopDeepLink, DesktopInfo, Invoke, Listen, Unlisten } from "../../../client/src/connection/desktop-link.ts";
 
-export type Bridge = {
+export type Bridge = DesktopLinkBridge & {
   /** Shows an OS banner when the rules allow it. Resolves true when one was shown. */
   notify(n: NotificationInput, opts: { windowFocused: boolean; showContent?: boolean }): Promise<boolean>;
   /** Opens the system dialog; resolves to the absolute paths chosen (empty when cancelled). */
@@ -18,7 +20,8 @@ export type Bridge = {
   setBadge(count: number): Promise<void>;
 };
 
-export function makeBridge(invoke: Invoke): Bridge {
+export function makeBridge(invoke: Invoke, listen: Listen): Bridge {
+  const links = makeDesktopLinkBridge(invoke, listen);
   return {
     async notify(n, opts) {
       const os = osNotification(n, opts);
@@ -27,17 +30,26 @@ export function makeBridge(invoke: Invoke): Bridge {
       return true;
     },
     async pick(req) {
-      const o = pickOptions(req);
-      const got = await invoke("pick_paths", { options: o });
-      return checkPicked(o, Array.isArray(got) ? got.filter((p): p is string => typeof p === "string") : null);
+      const options = pickOptions(req);
+      const got = await invoke("pick_paths", { options });
+      return checkPicked(options, Array.isArray(got) ? got.filter((path): path is string => typeof path === "string") : null);
     },
     async setBadge(count) {
       await invoke("set_badge", { count: Math.max(0, Math.floor(Number.isFinite(count) ? count : 0)), text: badgeText(count) });
     },
+    bootstrap: links.bootstrap,
+    listenLinks: links.listenLinks,
   };
 }
 
 /** The shell's invoke when the page runs inside it; undefined in a browser. */
-export function shellInvoke(g: { __TAURI__?: { core?: { invoke?: Invoke } } } = globalThis as never): Invoke | undefined {
+type TauriGlobal = { __TAURI__?: { core?: { invoke?: Invoke }; event?: { listen?: Listen } } };
+
+export function shellInvoke(g: TauriGlobal = globalThis as never): Invoke | undefined {
   return g.__TAURI__?.core?.invoke;
+}
+
+/** The shell's event listener when the page runs inside it; undefined in a browser. */
+export function shellListen(g: TauriGlobal = globalThis as never): Listen | undefined {
+  return g.__TAURI__?.event?.listen;
 }

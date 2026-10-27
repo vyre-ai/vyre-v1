@@ -10,7 +10,8 @@ import type { Banner, NotificationInput } from "../src/notify.ts";
 import { MAX_PICKED, checkPicked, cleanExtension, isAbsolutePath, pickOptions } from "../src/files.ts";
 import { trayAction, trayModel } from "../src/tray.ts";
 import { ChannelError, MINOR_TOLERANCE, appSupportedByServer, compareVersions, manifestUrl, parseChannelManifest, platformKey, selectAppUpdate } from "../src/channel.ts";
-import { makeBridge, shellInvoke } from "../src/bridge.ts";
+import { makeBridge, shellInvoke, shellListen } from "../src/bridge.ts";
+import type { DesktopDeepLink, DesktopInfo } from "../src/bridge.ts";
 
 const DESKTOP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TAURI = path.join(DESKTOP, "src-tauri");
@@ -142,7 +143,7 @@ test("what comes back from the dialog: absolute paths only, no '..', no duplicat
 test("the bridge sends only what the rules allow and checks what comes back", async () => {
   const calls: { c: string; a?: Record<string, unknown> }[] = [];
   const answers: Record<string, unknown> = { pick_paths: ["/ok/a.pdf", "relative.pdf", "/ok/a.pdf"] };
-  const b = makeBridge(async (c, a) => { calls.push({ c, a }); return answers[c]; });
+  const b = makeBridge(async (c, a) => { calls.push({ c, a }); return answers[c]; }, async () => () => {});
   assert.equal(await b.notify(note({ level: "badge" }), { windowFocused: false }), false);
   assert.equal(calls.length, 0, "a badge-level item never calls the shell");
   assert.equal(await b.notify(note(), { windowFocused: true }), false);
@@ -159,6 +160,96 @@ test("the bridge sends only what the rules allow and checks what comes back", as
   assert.equal(shellInvoke({}), undefined, "in a browser there is no shell");
   const fn = async (): Promise<unknown> => 1;
   assert.equal(shellInvoke({ __TAURI__: { core: { invoke: fn } } }), fn);
+  const listen = async (): Promise<() => void> => () => {};
+  assert.equal(shellListen({ __TAURI__: { event: { listen } } }), listen);
+});
+
+test("desktop bootstrap returns only typed shell status and the one pending Vyre deep link", async () => {
+  const calls: string[] = [];
+  const info: DesktopInfo = {
+    app: "vyre-desktop", version: "1.0.0-rc.1", platform: "macos", arch: "aarch64",
+    sidecar: { phase: "ready", url: "http://127.0.0.1:41233", version: "1.0.0-rc.1", restarts: 0, error: null },
+  };
+  const pending: DesktopDeepLink = { action: "join", params: { address: "https://acme.vyre.run", code: "one-time-code", fp: "abcd" } };
+  const bridge = makeBridge(async (command) => {
+    calls.push(command);
+    return command === "desktop_info" ? info : command === "take_pending_link" ? pending : undefined;
+  }, async () => () => {});
+
+  assert.deepEqual(await bridge.bootstrap(), { info, pendingLink: pending });
+  assert.deepEqual(calls, ["desktop_info", "take_pending_link"]);
+});
+
+test("desktop link handoff is ordered, bounded, replaceable, and stays subscribed between callbacks", async () => {
+  const nativeListeners = new Set<(event: { payload: unknown }) => void>();
+  const nativeEvents: string[] = [];
+  let nativeSubscriptions = 0;
+  let nativeUnsubscribes = 0;
+  const emit = (link: DesktopDeepLink): void => {
+    for (const listener of nativeListeners) listener({ payload: link });
+  };
+  const info: DesktopInfo = {
+    app: "vyre-desktop", version: "1.0.0-rc.1", platform: "macos", arch: "aarch64",
+    sidecar: { phase: "ready", url: "http://127.0.0.1:41233", version: "1.0.0-rc.1", restarts: 0, error: null },
+  };
+  const bridge = makeBridge(async (command) => {
+    if (command === "desktop_info") return info;
+    if (command === "take_pending_link") {
+      for (let i = 0; i < 17; i++) emit({ action: "join", params: { code: String(i) } });
+      return null;
+    }
+    return undefined;
+  }, async (event, listener) => {
+    nativeSubscriptions++;
+    nativeEvents.push(event);
+    nativeListeners.add(listener);
+    return () => {
+      nativeUnsubscribes++;
+      nativeListeners.delete(listener);
+    };
+  });
+
+  assert.deepEqual(await bridge.bootstrap(), { info, pendingLink: null });
+  const first: DesktopDeepLink[] = [];
+  const unlistenA = await bridge.listenLinks((delivered) => first.push(delivered));
+  assert.deepEqual(first.map((link) => link.params["code"]), Array.from({ length: 16 }, (_, i) => String(i + 1)));
+
+  emit({ action: "open", params: { address: "https://first.vyre.run" } });
+  unlistenA();
+  emit({ action: "open", params: { address: "https://gap.vyre.run" } });
+
+  const second: DesktopDeepLink[] = [];
+  const unlistenB = await bridge.listenLinks((delivered) => second.push(delivered));
+  emit({ action: "open", params: { address: "https://second.vyre.run" } });
+
+  const third: DesktopDeepLink[] = [];
+  const unlistenC = await bridge.listenLinks((delivered) => third.push(delivered));
+  emit({ action: "open", params: { address: "https://third.vyre.run" } });
+  unlistenB();
+  emit({ action: "open", params: { address: "https://still-third.vyre.run" } });
+
+  assert.deepEqual(first.filter((link) => link.action === "open").map((link) => link.params["address"]), ["https://first.vyre.run"]);
+  assert.deepEqual(second.map((link) => link.params["address"]), ["https://gap.vyre.run", "https://second.vyre.run"]);
+  assert.deepEqual(third.map((link) => link.params["address"]), ["https://third.vyre.run", "https://still-third.vyre.run"]);
+  assert.equal(nativeSubscriptions, 1);
+  assert.equal(nativeUnsubscribes, 0);
+  assert.deepEqual(nativeEvents, ["vyre://deep-link"]);
+  unlistenC();
+  assert.equal(nativeUnsubscribes, 0);
+});
+
+test("desktop link delivery refuses control characters in decoded parameters", async () => {
+  const received: DesktopDeepLink[] = [];
+  const bridge = makeBridge(async () => undefined, async (_event, listener) => {
+    listener({ payload: { action: "join", params: { code: "safe" } } });
+    listener({ payload: { action: "join", params: { code: "bad\ncode" } } });
+    listener({ payload: { action: "delete", params: { code: "safe" } } });
+    return () => {};
+  });
+
+  await bridge.listenLinks((link) => received.push(link));
+
+  assert.deepEqual(received, [{ action: "join", params: { code: "safe" } }]);
 });
 
 // ---- the app's update channel --------------------------------------------------------------------------------------------------------

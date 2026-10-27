@@ -1,9 +1,10 @@
 // Join logic with no rendering: the stage machine, the validity of each step, username and password rules (spec 3.13).
 // The screens only dispatch actions and paint the state, so every rule here is tested without a renderer.
 
-export type Stage = "accept" | "steps" | "run" | "done" | "signin" | "expired";
+export type Stage = "connect" | "accept" | "steps" | "run" | "done" | "signin" | "expired";
 export type AiChoice = "sub" | "key" | "admin" | "none";
 export type SignInMode = "pw" | "totp";
+export type ConnectIntent = "signin" | "onboarding";
 
 export interface JoinInvite {
   space: string;
@@ -12,7 +13,7 @@ export interface JoinInvite {
   by: string;
   role: string;
   email?: string;
-  /** the Space key fingerprint, shown on the first step so the person can compare it */
+  /** server-supplied display marker, shown only as a continuity hint and never used to authenticate a Space */
   fingerprint?: string;
   /** names a person starts with, when the invite carries them */
   names?: { first: string; last: string };
@@ -49,6 +50,10 @@ export interface FlowState {
   siUser: string;
   siPw: string;
   siCode: string;
+  spaceAddress: string;
+  spaceIntent: ConnectIntent;
+  spaceResolving: boolean;
+  spaceError: string;
   run: number;
   dir: 1 | -1;
   error: string;
@@ -60,7 +65,7 @@ export function initialState(invite: JoinInvite, over: Partial<FlowState> = {}):
   return {
     stage: "accept", step: 0, first: invite.names?.first ?? "", last: invite.names?.last ?? "", photo: "", user: "", pw: "", pw2: "",
     device: invite.deviceName ?? "", trust: true, rec: false, code: "", saved: false, sheet: false, ai: invite.adminKey ? "admin" : "sub", key: "",
-    note: "", si: "pw", siUser: "", siPw: "", siCode: "", run: 0, dir: 1, error: "", ...over,
+    note: "", si: "pw", siUser: "", siPw: "", siCode: "", spaceAddress: "", spaceIntent: "signin", spaceResolving: false, spaceError: "", run: 0, dir: 1, error: "", ...over,
   };
 }
 
@@ -80,6 +85,51 @@ export function strength(p: string): number {
 export const meter = (s: number): 0 | 1 | 2 | 3 => (s >= 3 ? 3 : (s as 0 | 1 | 2));
 export const usernameOk = (u: string): boolean => /^[a-z][a-z0-9._-]{2,23}$/.test(u);
 export const cleanUsername = (raw: string): string => raw.toLowerCase().replace(/\s/g, "");
+
+/** A Space is always reached through an explicit HTTP(S) address, never through the Tauri device daemon. */
+export function normalizeSpaceAddress(raw: string): string | null {
+  const value = raw.trim();
+  if (!value) return null;
+  if (/^[a-z][a-z\d+.-]*:/i.test(value) && !/^https?:\/\//i.test(value)) return null;
+  const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(value) ? value : `https://${value}`;
+  try {
+    const url = new URL(candidate);
+    const local = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
+    if ((url.protocol !== "https:" && (url.protocol !== "http:" || !local)) || !url.hostname) return null;
+    const path = url.pathname.replace(/\/+$/, "");
+    return `${url.origin}${path}`;
+  } catch {
+    return null;
+  }
+}
+
+/** The greeting is intentionally deterministic for testable, calm first-run copy. */
+export const welcomeGreeting = (hour: number): "Good morning" | "Good afternoon" | "Good evening" => hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+
+/** Resolving is the boundary between a typed address and a verified Space identity. */
+export async function resolveSpaceInvite(address: string, resolve: (normalizedAddress: string) => Promise<JoinInvite>): Promise<JoinInvite> {
+  const normalized = normalizeSpaceAddress(address);
+  if (!normalized) throw new Error("Enter a valid HTTPS Space address, or a local development address.");
+  return resolve(normalized);
+}
+
+/** Keeps late network responses from replacing a newer Space or touching an unmounted flow. */
+export interface SpaceResolutionGate {
+  begin(): number;
+  invalidate(): void;
+  isCurrent(request: number): boolean;
+  dispose(): void;
+}
+export function createSpaceResolutionGate(): SpaceResolutionGate {
+  let latest = 0;
+  let mounted = true;
+  return {
+    begin: () => ++latest,
+    invalidate: () => { latest++; },
+    isCurrent: (request) => mounted && request === latest,
+    dispose: () => { mounted = false; },
+  };
+}
 
 export function suggestions(first: string, last: string, current: string, ok: (u: string) => boolean): string[] {
   const f = first.trim().toLowerCase().replace(/[^a-z]/g, "");
@@ -113,6 +163,7 @@ export type Action =
   | { t: "web" } | { t: "signin" } | { t: "back" } | { t: "next" }
   | { t: "recovery_open"; code: string } | { t: "recovery_close" } | { t: "recovery_done" }
   | { t: "pick_ai"; ai: AiChoice }
+  | { t: "space_resolving"; intent: ConnectIntent } | { t: "space_resolved" } | { t: "space_failed"; message: string }
   | { t: "run_tick"; total: number } | { t: "run_done" }
   | { t: "failed"; message: string };
 
@@ -141,6 +192,9 @@ export function reduce(s: FlowState, a: Action, r: Rules): FlowState {
     case "recovery_close": return s.rec === "new" ? { ...s, sheet: false, rec: false, saved: false, code: "" } : { ...s, sheet: false };
     case "recovery_done": return s.saved ? { ...s, sheet: false, rec: true } : s;
     case "pick_ai": return { ...s, ai: a.ai };
+    case "space_resolving": return s.stage === "connect" ? { ...s, spaceIntent: a.intent, spaceResolving: true, spaceError: "" } : s;
+    case "space_resolved": return s.stage === "connect" ? { ...s, stage: s.spaceIntent === "signin" ? "signin" : "accept", si: "pw", siUser: "", siPw: "", siCode: "", spaceResolving: false, spaceError: "", error: "" } : s;
+    case "space_failed": return s.stage === "connect" ? { ...s, spaceResolving: false, spaceError: a.message } : s;
     case "run_tick": return s.stage === "run" ? { ...s, run: Math.min(a.total, s.run + 1) } : s;
     case "run_done": return s.stage === "run" ? { ...s, stage: "done", dir: 1 } : s;
     case "failed": return { ...s, stage: "steps", step: 3, error: a.message, run: 0, dir: -1 };

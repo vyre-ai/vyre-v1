@@ -18,8 +18,8 @@ export interface ConnectAIProps {
 
 export function aiOptions(invite: Pick<JoinInvite, "space" | "adminKey">): { id: AiChoice; title: string; help: string }[] {
   const o: { id: AiChoice; title: string; help: string }[] = [
-    { id: "sub", title: "Use my subscription", help: "Sign in with your Claude, ChatGPT or Codex account. Your usage stays on your plan." },
-    { id: "key", title: "Use my own key", help: "Paste an API key. Vyre keeps it in your vault and never shows it again." },
+    { id: "sub", title: "Use my subscription", help: "Sign in with Claude, ChatGPT or Codex. Your usage stays on your plan." },
+    { id: "key", title: "Use my own key", help: "Paste an API key. Vyre stores it in your vault and never shows it again." },
   ];
   if (invite.adminKey) o.push({ id: "admin", title: `Use the key from ${invite.space}`, help: "An admin provides a shared key. Spend counts toward the Space limit." });
   return o;
@@ -35,14 +35,14 @@ export function ConnectAI({ invite, ai, apiKey, note, error, onPick, onKey, onSu
   return (
     <View>
       <AppIcon kind="ai" />
-      <Title title="Connect an AI account" sub="Your assistant needs one to answer. You can change it later in Settings." />
+      <Title title="Connect an AI account" sub="Your assistant needs an account to answer. You can change this in Settings." />
       {error ? <ErrorLine testID="join-error">{error}</ErrorLine> : null}
       <Group testID="ai-options">
         {aiOptions(invite).map((o) => <Row kind="option" key={o.id} testID={`ai-${o.id}`} title={o.title} help={o.help} checked={ai === o.id} onPress={() => onPick(o.id)} />)}
       </Group>
       {ai === "key" ? (
         <Group top={24}>
-          <FieldRow label="API key" value={apiKey} onChange={onKey} placeholder="sk-…" secure testID="ai-key-field" />
+          <FieldRow label="API key" value={apiKey} onChange={onKey} placeholder="Paste your API key" secure testID="ai-key-field" />
         </Group>
       ) : null}
       {ai === "sub" ? (

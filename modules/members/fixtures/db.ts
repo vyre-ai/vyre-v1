@@ -367,7 +367,7 @@ export function harness(now = NOW) {
     const arg = i.roleId ?? i.groupId ?? i.channelId ?? i.projectId ?? i.resource?.id ?? "";
     if (world.failing.has(cap) || world.failing.has(`${cap}:${arg}`)) throw fail("internal.unexpected", TRACE, { message: `${cap} is down` });
     switch (cap) {
-      case "spaces.get": return { space: { name: "Maya Studio", fingerprint: "ab12 cd34 ef56 7890", address: world.host ? { mode: "relay", host: world.host } : { mode: "device" } } };
+      case "spaces.get": return { space: { id: SPACE, name: "Maya Studio", fingerprint: "ab12 cd34 ef56 7890", address: world.host ? { mode: "relay", host: world.host } : { mode: "device" } } };
       case "access.roles.get": { const n = world.roles.get(i.roleId); return n ? { role: { id: i.roleId, name: n }, holders: [] } : gone(TRACE, "validation.not_found"); }
       case "access.groups.get": return world.groups.has(i.groupId) ? { group: { id: i.groupId } } : gone(TRACE, "validation.not_found");
       case "access.principals.get": { const p = world.principals.get(i.principal.id); return p ? { principal: { ...p } } : gone(TRACE, "validation.not_found"); }

@@ -44937,11 +44937,13 @@ const g2834 = typeOf(x2834);
 const b2834: string[] = []; lf(x2834, p, b2834, L0); if (b2834.length) e.push(...b2834);
 if (g2834 === "object") {
 if (g2834 === 'object') { const o2834 = x2834 as Record<string, unknown>;
+if (!("spaceId" in o2834)) e.push(p + "/spaceId" + ': required');
 if (!("spaceName" in o2834)) e.push(p + "/spaceName" + ': required');
 if (!("invitedBy" in o2834)) e.push(p + "/invitedBy" + ': required');
 if (!("role" in o2834)) e.push(p + "/role" + ': required');
 if (!("expiresAt" in o2834)) e.push(p + "/expiresAt" + ': required');
 if (!("fingerprint" in o2834)) e.push(p + "/fingerprint" + ': required');
+if ("spaceId" in o2834) lf(o2834["spaceId"], p + "/spaceId", e, L250);
 if ("spaceName" in o2834) lf(o2834["spaceName"], p + "/spaceName", e, L2);
 if ("logoFileId" in o2834) lf(o2834["logoFileId"], p + "/logoFileId", e, L32);
 if ("invitedBy" in o2834) lf(o2834["invitedBy"], p + "/invitedBy", e, L2);

@@ -10,7 +10,8 @@ import type { Hit } from "../src/shell/cmdk/model.ts";
 import { createGateSearch, gateActions, hashOfHit, placeOfHit } from "../src/shell/cmdk/gate.ts";
 import type { GateNav } from "../src/shell/cmdk/gate.ts";
 import type { ShellRuntime } from "../src/shell/providers/runtime.tsx";
-import { SessionGate } from "../src/shell/session/SessionGate.tsx";
+import { SessionGate, signInInvite } from "../src/shell/session/SessionGate.tsx";
+import { JoinFlow } from "../src/join/JoinFlow.tsx";
 import { shellKey } from "../src/shell/spaces/keys.ts";
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -129,6 +130,19 @@ test("choosing a hit opens its place; Cmd-Enter opens it in a new tab; the open 
 });
 
 test("the real SessionGate draws its blank frame before a stored session is read", () => {
-  const out = renderToStaticMarkup(<SessionGate baseUrl="http://space.test" />);
+  const out = renderToStaticMarkup(<SessionGate baseUrl="https://space.test" />);
   assert.ok(typeof out === "string");
+});
+
+test("the packaged shell with no stored Space offers Connect a Space, not tauri as a host", () => {
+  const out = renderToStaticMarkup(<SessionGate baseUrl={null} />).replaceAll("<!-- -->", "");
+  assert.ok(out.includes("Connect a Space"));
+  assert.ok(!out.includes("tauri"));
+});
+
+test("discovery options do not expose inert GitHub or SSO controls", () => {
+  const invite = signInInvite("https://northwind.test", { name: "Northwind", fingerprint: "display-only", password: true, github: true, sso: [{ key: "google", title: "Google" }], secondFactorRequired: false });
+  const out = renderToStaticMarkup(<JoinFlow invite={invite} initial={{ stage: "signin" }} hold />);
+  assert.match(out, /Sign in to Northwind/);
+  assert.doesNotMatch(out, /Single sign-on|GitHub|Google/);
 });
