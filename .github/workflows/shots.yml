@@ -55,6 +55,12 @@ jobs:
             H="$(node -e 'import("./scripts/lib/registry-hash.mjs").then((m) => console.log(m.registryHash()))')"
             (cd apps/app && rm -rf dist && CI=1 EXPO_NO_TELEMETRY=1 EXPO_PUBLIC_VYRE_REGISTRY_HASH="$H" npx expo export --platform web --output-dir dist)
           else echo "production export: no real-app test or script on this branch, skipped"; fi
+      - name: Production export PWA contract (manifest, iPhone metadata and session boundary)
+        env:
+          VYRE_APP_DIST: ${{ github.workspace }}/apps/app/dist
+        run: node scripts/test-run.ts --no-cache --files apps/app/src/startup/pwa.test.ts
+      - name: iPhone-width PWA smoke (standalone is simulated in Chromium; real Safari remains owner evidence)
+        run: node scripts/shots/pwa-mobile.mjs --dist apps/app/dist --out shots-out/pwa-mobile
       - name: Real app end to end against the production export (apps/app/tests/real-app.e2e.test.ts)
         # Runs the built app in Chromium against a booted daemon. Needs the production export of apps/app from the step above; skipped until the test is on the branch.
         run: |

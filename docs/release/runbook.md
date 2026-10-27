@@ -20,6 +20,8 @@ The repo has no `release` Environment yet (checked 26 Oct: `gh api repos/vyre-ai
 - `node scripts/release/cli.ts bump <version>` on a PR; the tag must equal the version (a prerelease is `1.0.0-rc.1`).
 - Patch releases (a tag not on main): the commit is on `origin/hotfix/<tag>`, the tag is the next patch of the newest published stable release. `node scripts/release/cli.ts lineage <sha> <tag>` refuses anything else; the workflow runs it first.
 - Check the real-install walk of a fresh Space (spec b14).
+- Run the web/PWA gate on the exact candidate commit: `gh workflow run shots.yml --repo vyre-ai/vyre-v1 --ref main -f lockfile=false`. The `shots` artifact must include `pwa-mobile/evidence.json` and `iphone-390x844-standalone-simulated.png`; these prove the production export's manifest, Apple metadata, safe-area viewport, browser session storage, service-worker offline shell and reconnect behavior in Chromium. The `evidence` field deliberately says `standalone media query simulated` and is not an iPhone approval.
+- Complete the separate owner pass on a deployed HTTPS candidate URL using a physical iPhone: open it in Safari, use Share → Add to Home Screen, launch the Vyre icon, sign in, close/reopen it, go offline and back online, and attach one screenshot plus the URL/commit to the release evidence. A simulated Chromium result never substitutes for this Add to Home Screen pass.
 
 ## What the tag does (release.yml, budget 25 minutes tag to live)
 
