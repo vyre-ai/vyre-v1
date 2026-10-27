@@ -75,7 +75,7 @@ test("an agent's AGENT.md and agent.toml cannot be deleted, moved or renamed thr
     assert.equal(other.status, 200, JSON.stringify(other.json));
     const otherId = (d.db!.all("SELECT id FROM agents_agent WHERE name = 'Other'")[0] as unknown as { id: string }).id;
     const check = async (kind: string, id: string, level: string, actingFor?: string): Promise<{ effect: string; reason?: string }> => {
-      const r = await post(d, "/v1/access/check", { principal: { kind, id }, ...(actingFor ? { actingFor } : {}), action: { perm: "files.read", level }, resource: { type: "folder", id: folderId } }, token);
+      const r = await post(d, "/v1/access/check", { principal: { kind, id }, ...(actingFor ? { actingFor: { kind: "person", id: actingFor } } : {}), action: { perm: "files.read", level }, resource: { type: "folder", id: folderId } }, token);
       assert.equal(r.status, 200, JSON.stringify(r.json));
       return r.json.data.decision;
     };
