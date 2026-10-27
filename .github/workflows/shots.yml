@@ -32,15 +32,15 @@ jobs:
           path: package-lock.json
           retention-days: 7
   shots:
-    # Full runs use eighteen bounded shards. Packet branches retain their single targeted capture.
+    # Full runs use thirty-six bounded shards. Packet branches retain their single targeted capture.
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON(startsWith(github.ref_name, 'build/P-') && '[0]' || '[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17]') }}
+        shard: ${{ fromJSON(startsWith(github.ref_name, 'build/P-') && '[0]' || '[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35]') }}
     env:
-      SHARD_TOTAL: ${{ startsWith(github.ref_name, 'build/P-') && '1' || '18' }}
+      SHARD_TOTAL: ${{ startsWith(github.ref_name, 'build/P-') && '1' || '36' }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/deps
@@ -127,7 +127,7 @@ jobs:
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
-          SHARD_TOTAL=18
+          SHARD_TOTAL=36
           case "$BRANCH" in build/P-*) SHARD_TOTAL=1 ;; esac
           node scripts/shots/merge-index.mjs --dir shots-merged --expect-shards "$SHARD_TOTAL"
           test -f shots-merged/pwa-mobile/evidence.json

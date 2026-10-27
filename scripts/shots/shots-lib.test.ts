@@ -36,9 +36,9 @@ test("the shipped targets.json is valid", () => {
   for (const x of t) assert.ok(x.proto.includes("{skin}"), `${x.id} prototype hash takes the skin`);
 });
 
-test("eighteen screenshot shards cover every target once without overlap", () => {
+test("thirty-six screenshot shards cover every target once without overlap", () => {
   const targets = loadTargets(path.dirname(new URL(import.meta.url).pathname));
-  const shards = Array.from({ length: 18 }, (_, index) => shardTargets(targets, index, 18));
+  const shards = Array.from({ length: 36 }, (_, index) => shardTargets(targets, index, 36));
   const ids = shards.flat().map((t: { id: string }) => t.id);
   assert.equal(ids.length, targets.length);
   assert.equal(new Set(ids).size, targets.length);
