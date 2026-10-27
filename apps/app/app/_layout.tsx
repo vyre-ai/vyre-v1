@@ -4,6 +4,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { usePathname, useRouter } from "expo-router";
 import { claimToken } from "../src/claim/logic.ts";
 import { SessionGate } from "../src/shell/session/SessionGate.tsx";
+import { hydrationBaseUrl } from "../src/shell/session/hydration.ts";
 import { UrlSync } from "../src/shell/session/UrlSync.tsx";
 import type { ShellHub } from "../src/shell/spaces/hub.ts";
 import { loadTwilioDevice } from "../src/shell/session/voice.ts";
@@ -32,7 +33,7 @@ export default function Layout() {
   }
   return (
     <>
-      <SessionGate onHub={setHub} voice={loadTwilioDevice} />
+      <SessionGate baseUrl={hydrationBaseUrl(mounted)} onHub={setHub} voice={loadTwilioDevice} />
       {hub ? <UrlSync hub={hub} /> : null}
     </>
   );

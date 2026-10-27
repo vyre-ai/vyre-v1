@@ -10,6 +10,7 @@ import { createLiveLink, socketBase, socketPath } from "./live.ts";
 import { createRemoteScreenHooks, stableJson } from "./remote-hooks.ts";
 import { openRealSession, targetHash } from "./session.ts";
 import { clearStored, openVerifiedSession, phaseForStoredAddress, readStored, signInAndVerify, spaceAddress, verifyStoredSession, writeStored } from "./stored.ts";
+import { hydrationBaseUrl } from "./hydration.ts";
 import { acceptDesktopJoin, consumeDesktopBootstrap, consumeDesktopRoute, previewDesktopJoin, redeemDesktopPair, routeDesktopLink } from "./desktop.ts";
 import type { DesktopDeepLink } from "./desktop.ts";
 import type { KeyValueStore } from "./stored.ts";
@@ -302,6 +303,11 @@ function memoryStore(): KeyValueStore {
   const m = new Map<string, string>();
   return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v), removeItem: (k) => void m.delete(k) };
 }
+
+test("layout keeps SSR and the first browser frame address-neutral", () => {
+  assert.equal(hydrationBaseUrl(false), null);
+  assert.equal(hydrationBaseUrl(true), undefined);
+});
 
 test("stored: a session is kept, read back, and cleared; junk reads as no session", () => {
   const store = memoryStore();

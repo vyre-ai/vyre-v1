@@ -4,6 +4,7 @@ import { ClaimError, claimOwner } from "./claim.ts";
 import type { ClaimDeps } from "./claim.ts";
 import { CapError } from "../shell/session/caps.ts";
 import { FAILURE_LINE, claimToken, failureOf, fingerprintOf, spaceIdOf, spaceNameOf, isDeadLink, problemOf } from "./logic.ts";
+import { storeClaimedOwnerSession } from "./session.ts";
 
 const bundle = { personKeyByPassword: "pw", personKeyByRecovery: "rc", publicKey: "pk", privateKeyWrapped: "sk" };
 
@@ -22,6 +23,22 @@ function deps(over: Partial<ClaimDeps> = {}): { d: ClaimDeps; calls: { cap: stri
   return { d, calls, held, wiped, seen };
 }
 const input = { token: "tok_abcdefgh", spaceId: "spc_core", name: " Irfad Imtiaz ", username: "irfad", password: "correct horse", recoveryCode: "ABCD-EFGH-JKMN-PQRS", deviceName: "Web browser" };
+
+test("claim: the authenticated Space marker is persisted before the shell opens", async () => {
+  const saved: unknown[] = [];
+  let closed = 0;
+  const stored = await storeClaimedOwnerSession(
+    { baseUrl: "https://fresh.test", token: "vst_owner", spaceId: "spc_fresh" },
+    {
+      open: async () => ({ def: { spaceId: "spc_fresh", name: "Fresh Co" }, me: { id: "usr_owner" }, close: () => { closed++; } }),
+      getSpace: async () => ({ id: "spc_fresh", marker: "fresh-marker" }),
+      persist: (session) => saved.push(session),
+    },
+  );
+  assert.equal(stored.marker, "fresh-marker");
+  assert.deepEqual(saved, [stored]);
+  assert.equal(closed, 1);
+});
 
 test("claim: the bundle is made on this device and only its wrapped halves are sent", async () => {
   const { d, calls, seen } = deps();
