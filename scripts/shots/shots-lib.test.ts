@@ -85,6 +85,13 @@ test("a packet without visual targets emits an empty uploadable index", () => {
   assert.match(fs.readFileSync(path.join(out, "index.md"), "utf8"), /0 side-by-side images/);
 });
 
+test("P-UI_14 emits an empty uploadable index after its startup-only path", () => {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), "shots-ui14-"));
+  execFileSync(process.execPath, [new URL("./shots.mjs", import.meta.url).pathname, "--target", "P-UI_14", "--out", out, "--skip-startup", "--skip-export", "--no-probes", "--shard-index", "0", "--shard-total", "1"]);
+  assert.ok(fs.existsSync(path.join(out, "index.md")));
+  assert.match(fs.readFileSync(path.join(out, "index.md"), "utf8"), /0 side-by-side images/);
+});
+
 test("side-by-side page shows both images with captions", () => {
   const h = sideBySideHtml({ title: "t <x>", real: "r.png", proto: "p.png" });
   assert.match(h, /src="r\.png"/); assert.match(h, /src="p\.png"/); assert.match(h, /t &lt;x>/);

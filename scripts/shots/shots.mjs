@@ -24,25 +24,32 @@ const skins = args["probes-only"] ? [] : (args.skins || SKINS.join(",")).split("
 const sizes = (args.sizes || Object.keys(SIZES).join(",")).split(",").map((n) => [n, SIZES[n]]);
 const maxExport = Number(args["max-export-s"] || MAX_EXPORT_S);
 const want = args.target || "all";
+const shardIndex = args["shard-index"] === undefined ? 0 : Number(args["shard-index"]);
+const shardTotal = args["shard-total"] === undefined ? 1 : Number(args["shard-total"]);
+const writeEmptyIndex = () => {
+  fs.rmSync(out, { recursive: true, force: true });
+  fs.mkdirSync(out, { recursive: true });
+  fs.writeFileSync(path.join(out, shardIndexName(shardIndex, shardTotal)), "# Side-by-side screenshots\n\n0 side-by-side images.\n\n| target | skin | size | file |\n|---|---|---|---|\n");
+};
 
 // P-UI_14: the production app's startup and bundle report, on the perf runner (the target carries no screenshots). P-UI_14 ends there. On the perf job of any other branch (it runs only for a
 // head commit with [perf], ruling 66) the report runs first and the scroll probe follows, so a packet that changes what the app loads (P-L9_17) gets its startup number from its own branch.
-if (want === "P-UI_14" || args["probes-only"]) {
+if ((want === "P-UI_14" || args["probes-only"]) && !args["skip-startup"]) {
   const { main } = await import("./startup.mjs");
   await main(args["skip-export"] ? ["--skip-export"] : []);
-  if (want === "P-UI_14") process.exit(0);
+}
+if (want === "P-UI_14") {
+  writeEmptyIndex();
+  console.log("P-UI_14 carries startup evidence only: wrote an empty screenshot index");
+  process.exit(0);
 }
 
 // A packet id (P-L9b_02) selects that packet's targets, whose ids start with it; "all" runs everything.
 const selectedTargets = loadTargets(HERE).filter((t) => want === "all" || t.id === want || (want.startsWith("P-") && t.id.startsWith(want + "-")));
-const shardIndex = args["shard-index"] === undefined ? 0 : Number(args["shard-index"]);
-const shardTotal = args["shard-total"] === undefined ? 1 : Number(args["shard-total"]);
 const targets = shardTargets(selectedTargets, shardIndex, shardTotal);
 // A packet branch with no screenshot targets of its own (a backend packet that merged main) has nothing to shoot.
 if (!targets.length && want.startsWith("P-")) {
-  fs.rmSync(out, { recursive: true, force: true });
-  fs.mkdirSync(out, { recursive: true });
-  fs.writeFileSync(path.join(out, shardIndexName(shardIndex, shardTotal)), "# Side-by-side screenshots\n\n0 side-by-side images.\n\n| target | skin | size | file |\n|---|---|---|---|\n");
+  writeEmptyIndex();
   console.log(`no targets for ${want}: wrote an empty screenshot index`);
   process.exit(0);
 }
