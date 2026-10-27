@@ -92,6 +92,22 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
           {personal ? <TextButton label="Promote to Space" primary testID="promote" onPress={() => setPromote(true)} /> : <TextButton label="Make a personal copy" icon="plus" testID="personal-copy" onPress={() => void copy()} />}
         </SRow>
       </Group>
+      {data.keysStatus ? (
+        <>
+          <Lab>Provider keys</Lab>
+          <View testID="provider-keys">
+            {data.keysStatus === "loading" ? <Text style={t.para}>Loading keys</Text> : null}
+            {data.keysStatus === "ready" ? data.keys.map((key) => <Text key={key.id} style={t.para}>{key.name}</Text>) : null}
+            {data.keysStatus === "empty" || data.keysStatus === "unavailable" ? (
+              <>
+                <Text style={t.para}>No keys yet</Text>
+                {data.keysStatus === "unavailable" ? <Text style={t.para}>The provider list did not load.</Text> : null}
+                <TextButton label="Open keys" testID="open-keys" onPress={() => data.nav.openKeys?.()} />
+              </>
+            ) : null}
+          </View>
+        </>
+      ) : null}
 
       {personal ? (
         <>

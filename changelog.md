@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- Automations: load the step and trigger catalog from the runtime, mark AI, code, and schedule as Preview, and keep Parallel and Loop as ordinary flow steps in the menu.
+- Automations: open Promote from the canvas menu, route Connect from a structured service, and mount Settings with provider keys or an honest empty state.
+- Automations: paint a selected run from its step log, drop Stop on a finished run, and keep sandbox replay separate from a confirmed live re-run.
+- Automations: register the sidebar in the shared slot, and offer Ask Vyre a scrubbed error context that leaves out secrets.
 - Release: gate tag publication on the exact-tag macOS desktop build, publish its verified ad-hoc-signed DMG with a SHA-256 sidecar, and leave Windows as CI-only coverage.
 - Gateway: reconcile legacy/imported `agent.created` births missing resource and principal access events at boot, preserving the named owner and deterministic grants without allowing follow-up agent events to claim resources.
 - Gateway: limit legacy agent-access repair to the owner-capped Space grant; defer home-folder grants to the agents module, preserve historical grant revocations, and fail boot on a conflicting deterministic repair event id.

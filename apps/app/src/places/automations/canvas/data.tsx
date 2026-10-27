@@ -3,7 +3,11 @@
 import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
+import type { AskBundle } from "../ask/bundle.ts";
+import type { ConnectTarget } from "../connect/route.ts";
 import type { KeyChoice } from "./model.ts";
+
+export type KeysStatus = "loading" | "ready" | "empty" | "unavailable";
 
 export interface AutomationsNav {
   openAutomation(id: string): void;
@@ -12,10 +16,12 @@ export interface AutomationsNav {
   newJourney?(): void;
   openFailedRuns(): void;
   openRun(runId: string): void;
-  /** The Ask box scoped to this Automation. */
-  ask(id: string): void;
-  /** Connect the service a step needs (opens Connections). */
-  connect(service: string): void;
+  /** Ask Vyre about this Automation. The bundle is already scrubbed. */
+  ask(id: string, context?: AskBundle): void;
+  /** Open the connection screen named by a structured service. */
+  connect(target: ConnectTarget): void;
+  /** The provider and key screen. */
+  openKeys?(): void;
 }
 
 export interface AutomationsData {
@@ -27,6 +33,8 @@ export interface AutomationsData {
   name(id: string): string;
   /** The sign-ins and API keys shared with this person, for an AI step's key and backup. */
   keys: readonly KeyChoice[];
+  /** Set when the place loaded providers.list. Absent on sample data that already supplies keys. */
+  keysStatus?: KeysStatus;
   nav: AutomationsNav;
   clock(): { now: number };
 }

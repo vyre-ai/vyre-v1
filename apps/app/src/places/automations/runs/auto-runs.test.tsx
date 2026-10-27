@@ -113,7 +113,7 @@ test("history: Needs attention comes first with the failed run and its two butto
   assert.ok(!has(out, ">Today<"), "the only run today is waiting under Needs attention");
   assert.ok(has(out, 'data-testid="row-attention-rl1"') && has(out, "Elena Rivera arrived from the Meta lead form"));
   assert.ok(has(out, "No Twilio key") && has(out, "33 min ago"));
-  assert.ok(has(out, 'data-testid="retry-step-rl1"') && has(out, "Retry step") && has(out, "Copy trace id") && has(out, 'data-testid="stop-rl1"'));
+  assert.ok(has(out, 'data-testid="retry-step-rl1"') && has(out, "Retry step") && has(out, "Copy trace id") && !has(out, 'data-testid="stop-rl1"'));
   const rows = ["rl2", "rl3", "rl4", "rl5", "rl6"].map((id) => at(out, `data-testid="row-run-${id}"`));
   assert.deepEqual([...rows].sort((a, b) => a - b), rows, "newest first");
   assert.ok(has(out, "Succeeded, 5 steps, 41 s"));
@@ -155,7 +155,7 @@ test("the run chat of the failed run: the thread's compact rows, Intake's turn w
   assert.ok(has(out, "Try 1 of 3, failed. Waited 5 s.") && has(out, "Try 2 of 3, failed. Waited 5 s.") && has(out, "Try 3 of 3, failed."));
   const err = at(out, "No Twilio key");
   assert.ok(err > at(out, "Tried to text"), "the error closes the thread");
-  assert.ok(has(out, 'data-testid="retry-step"') && has(out, 'data-testid="skip-step"') && has(out, 'data-testid="edit-step"') && has(out, 'data-testid="stop-failed"') && has(out, 'data-testid="copy-trace"') && has(out, 'data-testid="replay"'));
+  assert.ok(has(out, 'data-testid="retry-step"') && has(out, 'data-testid="skip-step"') && has(out, 'data-testid="edit-step"') && !has(out, 'data-testid="stop-failed"') && has(out, 'data-testid="copy-trace"') && has(out, 'data-testid="replay"'));
   assert.ok(has(out, "tr_rl1"), "the trace id is on the error row");
   assert.ok(has(out, 'placeholder="Ask about this run, or tell an agent what to do"') && has(out, 'aria-label="Send"'));
   assert.ok(has(out, 'data-testid="undo-run"') && has(out, 'data-testid="replay-run"') && !has(out, 'data-testid="stop-run"'));
@@ -253,7 +253,7 @@ test("Failed runs lists every failed run across Automations with the Automation'
   assert.ok(at(out, 'data-testid="row-run-rl1"') < at(out, 'data-testid="row-run-rbig0"'), "the newer failure first");
   assert.ok(has(out, "No Twilio key") && has(out, "The message was refused"));
   assert.ok(!has(out, "Priya Nair"), "succeeded runs stay out");
-  assert.ok(has(out, 'data-testid="open-rl1"') && has(out, 'data-testid="retry-rl1"') && has(out, 'data-testid="stop-rl1"'), "Open, Retry and Stop stay on each failed row (prototype)");
+  assert.ok(has(out, 'data-testid="open-rl1"') && has(out, 'data-testid="retry-rl1"') && !has(out, 'data-testid="stop-rl1"'), "Open and Retry stay on each failed row; a finished run has no Stop");
 });
 
 test("Failed runs is empty once everything was retried", async () => {

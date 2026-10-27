@@ -8,14 +8,29 @@ import type { LayoutChangeEvent } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
+import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
+import type { PaneTab } from "../../../../../../ui/src/SidePane/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { AskVyre } from "../ask/AskVyre.tsx";
+import type { AskBundle } from "../ask/bundle.ts";
+import { loadProductCatalog, menuGroups } from "../catalog/model.ts";
+import type { CatalogStep, CatalogTrigger } from "../catalog/model.ts";
+import { setupFromIssue } from "../connect/route.ts";
+import type { ConnectTarget } from "../connect/route.ts";
+import { AutomationConfig } from "../config/AutomationConfig.tsx";
+import { Overlay } from "../config/Overlay.tsx";
+import { PromoteSheet } from "../config/PromoteSheet.tsx";
+import { AnalyticsPanel } from "../operations/StudioViews.tsx";
+import { statesFromSteps, stepsFromCall } from "../runs/ledger.ts";
+import { definitionLabel } from "../versions/cohorts.ts";
+import { CohortMigration } from "../versions/CohortMigration.tsx";
 import { AddDot, StepCard, TriggerCard } from "./Cards.tsx";
 import type { CardHandlers } from "./Cards.tsx";
 import { Inspector } from "./Inspector.tsx";
 import { Glyph } from "./icons.tsx";
 import { CANVAS, CONFIG, useAutomationsData, useScreenQuery } from "./data.tsx";
 import {
-  TRIGGER_PALETTE, addAfter, addInto, addTrigger, check, clampZoom, describeTrigger, duplicateStep, fitScale, kindOfKey, layout, moveStep, neighbour, palette, removeStep, removeTrigger, sortedIssues,
+  addAfter, addInto, addTrigger, check, clampZoom, describeTrigger, duplicateStep, fitScale, kindOfKey, layout, moveStep, neighbour, removeStep, removeTrigger, sortedIssues, titleOfKey,
 } from "./model.ts";
 import type { CardNode, DefTrigger, Definition, Issue, RunState } from "./model.ts";
 import { Dot, IconButton, SubTabs, TextButton, pointer, webOnly } from "./parts.tsx";
@@ -25,7 +40,7 @@ type GetOut = CapMap["automations.get"]["out"];
 type VersionsOut = CapMap["automations.versions"]["out"];
 type RunsOut = CapMap["runs.list"]["out"];
 
-export type CanvasTab = "steps" | "runs" | "versions" | "settings";
+export type CanvasTab = "steps" | "runs" | "versions" | "settings" | "analytics";
 
 export interface CanvasProps {
   automationId: string;
@@ -42,11 +57,13 @@ export interface CanvasProps {
   initialSelected?: string | null;
   /** Start with the step panel open on the selected step. */
   initialPanel?: boolean;
+  /** Start with the Promote sheet open (the canvas menu opens the same sheet). */
+  initialPromote?: boolean;
 }
 
 const DEFAULT_ZOOM = 0.84;
 
-export function AutomationCanvas({ automationId, tabBodies, initialTab = "steps", run = null, onClearRun, paneOpen = false, onTogglePane, initialZoom = DEFAULT_ZOOM, initialSelected = null, initialPanel = false }: CanvasProps): ReactElement {
+export function AutomationCanvas({ automationId, tabBodies, initialTab = "steps", run = null, onClearRun, paneOpen = false, onTogglePane, initialZoom = DEFAULT_ZOOM, initialSelected = null, initialPanel = false, initialPromote = false }: CanvasProps): ReactElement {
   const data = useAutomationsData();
   const q = useScreenQuery<GetOut>(CANVAS, "automation", { automationId, route: { automationId } });
   const failed = useScreenQuery<RunsOut>(CONFIG, "runs", { subject: { type: "automation", id: automationId }, statuses: ["failed"], scope: "subject" });
@@ -71,6 +88,7 @@ export function AutomationCanvas({ automationId, tabBodies, initialTab = "steps"
       initialZoom={initialZoom}
       initialSelected={initialSelected}
       initialPanel={initialPanel}
+      initialPromote={initialPromote}
       data={data}
     />
   );
@@ -80,13 +98,15 @@ function Frame({ children }: { children: ReactNode }): ReactElement {
   return <View testID="canvas-frame" style={s.frame}>{children}</View>;
 }
 
-function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onClearRun, paneOpen, onTogglePane, initialZoom, initialSelected, initialPanel, data }: {
+type CatalogPhase = { phase: "loading" } | { phase: "ready"; steps: CatalogStep[]; triggers: CatalogTrigger[] } | { phase: "unavailable"; message: string };
+
+function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onClearRun, paneOpen, onTogglePane, initialZoom, initialSelected, initialPanel, initialPromote, data }: {
   a: GetOut["automation"];
   tab: CanvasTab;
   setTab(t: CanvasTab): void;
   failedRuns: number;
   versions: VersionsOut["versions"];
-  tabBodies: Partial<Record<Exclude<CanvasTab, "steps">, ReactNode>>;
+  tabBodies: NonNullable<CanvasProps["tabBodies"]>;
   run: CanvasProps["run"];
   onClearRun: CanvasProps["onClearRun"];
   paneOpen: boolean;
@@ -94,6 +114,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   initialZoom: number;
   initialSelected: string | null;
   initialPanel: boolean;
+  initialPromote: boolean;
   data: ReturnType<typeof useAutomationsData>;
 }): ReactElement {
   const { element, show } = useMenu();
@@ -108,6 +129,12 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const [view, setView] = useState({ w: 0, h: 0 });
   const [graphView, setGraphView] = useState({ w: 0, h: 0 });
   const [note, setNote] = useState<string | null>(null);
+  const [promoteOpen, setPromoteOpen] = useState(initialPromote);
+  const [catalog, setCatalog] = useState<CatalogPhase>({ phase: "loading" });
+  const [samples, setSamples] = useState<Record<string, unknown>>({});
+  const [stepTabs, setStepTabs] = useState<PaneTab[]>(initialPanel && initialSelected ? [{ key: initialSelected, title: initialSelected }] : []);
+  const [activeStep, setActiveStep] = useState<string | null>(initialPanel ? initialSelected : null);
+  const [sections, setSections] = useState<Record<string, "configure" | "data" | "test">>({});
   const [saving, setSaving] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [litRun, setLitRun] = useState<{ id: string; label: string; states: Readonly<Record<string, RunState>> } | null>(null);
@@ -124,6 +151,14 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
     }, 350);
     return () => { live = false; clearTimeout(t); };
   }, [def, a.kind, data]);
+  useEffect(() => {
+    let live = true;
+    void loadProductCatalog((cap, input) => data.call(cap, input)).then((res) => {
+      if (!live) return;
+      setCatalog(res.ok ? { phase: "ready", steps: res.catalog.steps, triggers: res.catalog.triggers } : { phase: "unavailable", message: res.message });
+    });
+    return () => { live = false; };
+  }, [data]);
   const issues = useMemo(() => sortedIssues([...check(def, a.kind), ...serverIssues]), [def, a.kind, serverIssues]);
   const lay = useMemo(() => layout(def, { issues, ...(shownRun ? { run: shownRun.states } : {}), keyName: (id) => data.keys.find((k) => k.id === id)?.name ?? data.name(id) }), [def, issues, shownRun, data]);
   const errors = issues.filter((i) => i.severity === "error");
@@ -153,15 +188,32 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
 
   const selected = sel ? (sel.id === "trigger" ? null : def.nodes.find((n) => n.id === sel.id) ?? null) : null;
   const select = (id: string | null, trigger: number | null = null): void => { setSel(id === null ? null : { id, trigger }); if (id === null) setPanel(false); };
-  const openPanel = (id: string, trigger: number | null = null): void => { setSel({ id, trigger }); setPanel(true); };
+  const tabKey = (id: string, trigger: number | null): string => (id === "trigger" ? `trigger:${trigger ?? 0}` : id);
+  const openPanel = (id: string, trigger: number | null = null): void => {
+    setSel({ id, trigger });
+    setPanel(true);
+    const key = tabKey(id, trigger);
+    const title = id === "trigger" ? "Trigger" : (def.nodes.find((n) => n.id === id)?.title ?? titleOfKey(def.nodes.find((n) => n.id === id)?.key ?? id));
+    setStepTabs((cur) => cur.some((t) => t.key === key) ? cur : [...cur, { key, title }]);
+    setActiveStep(key);
+  };
+  const focusStepTab = (key: string): void => {
+    setActiveStep(key);
+    if (key.startsWith("trigger:")) setSel({ id: "trigger", trigger: Number(key.slice(8)) });
+    else setSel({ id: key, trigger: null });
+    setPanel(true);
+  };
 
-  // ---- menus
+  // ---- menus. The product catalog is the runtime list. A failed load stays unavailable.
   const addEntries = (onPick: (key: string) => void): MenuEntry[] => {
+    if (catalog.phase === "loading") return [{ label: "Loading the step catalog", onSelect: () => undefined }];
+    if (catalog.phase === "unavailable") return [{ label: catalog.message, onSelect: () => undefined }];
     const out: MenuEntry[] = [];
-    for (const g of palette()) {
+    for (const g of menuGroups(catalog.steps)) {
       out.push({ head: g.head });
-      for (const p of g.items) out.push({ label: p.title, onSelect: () => onPick(p.key) });
+      for (const p of g.items) out.push({ label: p.availability === "preview" ? `${p.title} (Preview)` : p.title, onSelect: () => onPick(p.key) });
     }
+    if (out.length === 0) return [{ label: "The step catalog is empty", onSelect: () => undefined }];
     return out;
   };
   const rect = (e: unknown): { x: number; y: number } => {
@@ -212,7 +264,11 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
     const used = new Set<string>();
     for (const t of def.triggers) used.add(t.key);
     const entries: MenuEntry[] = [];
-    for (const t of TRIGGER_PALETTE) entries.push({ label: t.title, checked: used.has(t.key), onSelect: () => { edit(addTrigger(def, t.key)); openPanel("trigger", def.triggers.length); } });
+    const triggers = catalog.phase === "ready" ? catalog.triggers : [];
+    if (catalog.phase === "loading") entries.push({ label: "Loading the trigger catalog", onSelect: () => undefined });
+    else if (catalog.phase === "unavailable") entries.push({ label: catalog.message, onSelect: () => undefined });
+    else if (triggers.length === 0) entries.push({ label: "The trigger catalog is empty", onSelect: () => undefined });
+    for (const t of triggers) entries.push({ label: t.availability === "preview" ? `${t.title} (Preview)` : t.title, checked: used.has(t.key), onSelect: () => { edit(addTrigger(def, t.key)); openPanel("trigger", def.triggers.length); } });
     show(entries, p.x, p.y, "other");
   };
   const openTriggerMenu = (index: number, x: number, y: number): void => {
@@ -250,8 +306,9 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const handlers: CardHandlers = { onSelect: (id) => select(id), onOpen: (id) => openPanel(id), onMenu: openCardMenu, onAdd: (id, x, y) => openAdd(id, x, y), onKey };
 
   // ---- header actions
-  const needs = issues.find((i) => /^needs the .+ (key|connection)$/i.test(i.message))?.message ?? a.pausedReason ?? null;
-  const service = needs ? /^needs the (.+?)( key| connection)?$/i.exec(needs)?.[1] ?? null : null;
+  const connectTarget: ConnectTarget | null = issues.map((issue) => setupFromIssue(issue)).find((setup) => setup.connect)?.connect ?? null;
+  const blockedIssue = !connectTarget ? issues.map((issue) => ({ issue, setup: setupFromIssue(issue) })).find((row) => row.issue.message === a.pausedReason && row.setup.blocked) : undefined;
+  const needs = a.pausedReason ?? null;
   const statusLabel = a.status === "on" ? "On" : a.status === "paused" ? "Paused" : a.status === "draft" ? "Draft" : "Off";
   const test = async (): Promise<void> => {
     if (errors.length > 0) { flash(`Fix ${errors.length === 1 ? "the problem" : `the ${errors.length} problems`} first, then test.`); setTab("steps"); return; }
@@ -270,7 +327,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const openMore = (e: unknown): void => {
     const p = rect(e);
     show([
-      ...(a.kind === "space" ? [{ label: "Make a personal copy", onSelect: () => void data.call("automations.make_personal_copy", { automationId: a.id, name: `${a.name} (mine)` }).then(() => flash("A personal copy is in your Automations")).catch((x: unknown) => flash(x instanceof Error ? x.message : "No copy was made")) }] : [{ label: "Promote to the Space", onSelect: () => flash("Promote opens its own sheet") }]),
+      ...(a.kind === "space" ? [{ label: "Make a personal copy", onSelect: () => void data.call("automations.make_personal_copy", { automationId: a.id, name: `${a.name} (mine)` }).then(() => flash("A personal copy is in your Automations")).catch((x: unknown) => flash(x instanceof Error ? x.message : "No copy was made")) }] : [{ label: "Promote to the Space", onSelect: () => setPromoteOpen(true) }]),
       { label: "Undo last edit", onSelect: undoEdit },
       { separator: true },
       { label: "Move to Trash", danger: true, onSelect: () => void data.call("automations.delete", { automationId: a.id }).catch((x: unknown) => flash(x instanceof Error ? x.message : "That did not move")) },
@@ -298,11 +355,13 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   }, [note]);
 
   const tabs: SubTab[] = [
-    { key: "steps", label: "Steps" },
+    { key: "steps", label: "Build" },
     { key: "runs", label: "Runs", ...(failedRuns > 0 ? { note: `${failedRuns} failed`, tone: "danger" as const } : {}) },
+    { key: "analytics", label: "Analytics" },
     { key: "versions", label: "Versions", note: `v${a.version}` },
     { key: "settings", label: "Settings" },
   ];
+  const askBundle = (issue: { nodeId?: string; message: string }): AskBundle => ({ resource: a.id, message: issue.message, ...(issue.nodeId ? { nodeId: issue.nodeId } : {}), definitionVersion: a.version });
   const trigSel = sel?.id === "trigger";
   const stepCards: ReactElement[] = [];
   const addDots: ReactElement[] = [];
@@ -346,9 +405,11 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
           )}
         </View>
         <View style={s.kind} testID="kind"><Glyph name={a.kind === "space" ? "users" : "key"} size={13} color="var(--ink-3)" /><Text style={s.kindText}>{a.kind === "space" ? "Space" : "Personal"}</Text></View>
+        <Text testID="definition-version" style={s.kindText}>{definitionLabel(a)}</Text>
         {needs ? (<><View style={s.sep} /><View style={s.needs}><Dot tone="warn" size={6} /><Text numberOfLines={1} style={s.needsText}>{needs.replace(/^needs/i, "Needs")}</Text></View></>) : null}
         <View style={{ flex: 1 }} />
-        {service ? <TextButton label={`Connect ${service}`} icon="key" testID="connect" onPress={() => data.nav.connect(service)} /> : null}
+        {connectTarget ? <TextButton label={`Connect ${connectTarget.service}`} icon="key" testID="connect" onPress={() => data.nav.connect(connectTarget)} /> : null}
+        {!connectTarget && blockedIssue?.setup.blocked ? <Text testID="blocked-step" style={s.needsText}>{blockedIssue.setup.blocked}</Text> : null}
         {dirty ? <TextButton label={saving ? "Saving" : "Save"} primary disabled={saving || errors.length > 0} testID="save" onPress={() => void save()} /> : null}
         <Pressable accessibilityRole="button" accessibilityLabel={`Status: ${statusLabel}`} testID="status" onPress={openStatus} style={[s.status, pointer]}>
           <Dot tone={a.status === "on" ? "ok" : a.status === "paused" ? "warn" : "muted"} />
@@ -370,6 +431,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
               <Pressable accessibilityRole="button" accessibilityLabel="Show the first problem" testID="problem-go" onPress={() => { const i = errors[0]; if (i) { const id = i.nodeId ?? "trigger"; select(id); focusCard(id); } }} style={pointer}>
                 <Text style={s.problemsLink}>{errors[0]?.message ?? ""}</Text>
               </Pressable>
+              {errors[0] ? <AskVyre bundle={askBundle(errors[0])} onOpen={(safe) => data.nav.ask(a.id, safe)} /> : null}
             </View>
           ) : null}
           <View style={s.body}>
@@ -399,11 +461,32 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
               ) : null}
               {note ? <View style={s.toast} accessibilityLiveRegion="polite" testID="note"><Text style={s.toastText}>{note}</Text></View> : null}
             </View>
-            {inspect ? (
-              <Inspector
-                def={def} node={selected} trigger={trigSel && sel?.trigger !== null && sel?.trigger !== undefined ? def.triggers[sel.trigger] ?? null : null} triggerIndex={trigSel ? sel?.trigger ?? null : null}
-                issues={issues} keys={data.keys} onChange={edit} onClose={() => select(null)} onDelete={() => { if (sel && sel.id !== "trigger") { edit(removeStep(def, sel.id)); select(null); } }}
-              />
+            {inspect && activeStep ? (
+              <SidePane
+                paneKey={`automation-steps:${a.id}`}
+                toggle={{ open: true, onPress: () => select(null) }}
+                tabs={stepTabs}
+                activeTab={activeStep}
+                onSelectTab={focusStepTab}
+                onCloseTab={(key) => {
+                  const next = stepTabs.filter((t) => t.key !== key);
+                  setStepTabs(next);
+                  if (next.length === 0) { setPanel(false); setSel(null); setActiveStep(null); return; }
+                  if (activeStep === key) focusStepTab(next[next.length - 1]!.key);
+                }}
+              >
+                <Inspector
+                  embedded
+                  section={sections[activeStep] ?? "configure"}
+                  onSection={(next) => setSections((cur) => ({ ...cur, [activeStep]: next }))}
+                  samples={samples}
+                  version={a.version}
+                  onStoreSample={(id, output) => setSamples((cur) => ({ ...cur, [id]: output }))}
+                  def={def} node={selected} trigger={trigSel && sel?.trigger !== null && sel?.trigger !== undefined ? def.triggers[sel.trigger] ?? null : null} triggerIndex={trigSel ? sel?.trigger ?? null : null}
+                  issues={issues} keys={data.keys} {...(data.keysStatus ? { keysStatus: data.keysStatus } : {})} onChange={edit} onClose={() => select(null)} onDelete={() => { if (sel && sel.id !== "trigger") { edit(removeStep(def, sel.id)); select(null); } }}
+                  onAsk={(bundle) => data.nav.ask(a.id, bundle)}
+                />
+              </SidePane>
             ) : null}
           </View>
         </>
@@ -413,8 +496,14 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
           <View style={s.runsBody}><View style={{ flex: 1, minWidth: 0 }}>{tabBodies.runs}</View>{runGraph}</View>
         ) : <View style={s.pageBody}><RunsList automationId={a.id} onLight={(r) => { setLitRun(r); setTab("steps"); }} /></View>
       ) : null}
-      {tab === "versions" ? <View style={s.pageBody}>{tabBodies.versions ?? <VersionsList versions={versions} current={a.version} onRestore={(id) => void data.call("automations.restore_version", { automationId: a.id, versionId: id }).then(() => flash("Restored as a new version")).catch((x: unknown) => flash(x instanceof Error ? x.message : "That did not restore"))} />}</View> : null}
-      {tab === "settings" ? <View style={s.pageBody}>{tabBodies.settings ?? <Text style={s.dim}>Settings, Alerts and Runs open here.</Text>}</View> : null}
+      {tab === "analytics" ? <AnalyticsPanel automationId={a.id} /> : null}
+      {tab === "versions" ? <View style={s.pageBody}>{tabBodies.versions ?? <VersionsList versions={versions} current={a.version} onRestore={(id) => void data.call("automations.restore_version", { automationId: a.id, versionId: id }).then(() => flash("Restored as a new version")).catch((x: unknown) => flash(x instanceof Error ? x.message : "That did not restore"))} />}<CohortMigration automationId={a.id} currentVersion={a.version} /></View> : null}
+      {tab === "settings" ? <View style={s.pageBody}>{tabBodies.settings ?? <AutomationConfig automationId={a.id} />}</View> : null}
+      {promoteOpen ? (
+        <Overlay label="Promote to Space" onClose={() => setPromoteOpen(false)} testID="promote-overlay">
+          <PromoteSheet automation={a} onClose={() => setPromoteOpen(false)} />
+        </Overlay>
+      ) : null}
       {element}
     </View>
   );
@@ -463,15 +552,27 @@ const webTransformOrigin = { transformOrigin: "0 0" } as unknown as Record<strin
 function RunsList({ automationId, onLight }: { automationId: string; onLight(r: { id: string; label: string; states: Record<string, RunState> }): void }): ReactElement {
   const q = useScreenQuery<RunsOut>(CONFIG, "runs", { subject: { type: "automation", id: automationId }, scope: "subject" });
   const data = useAutomationsData();
-  if (q.status !== "ready") return <Text style={s.dim}>Loading</Text>;
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  if (q.status !== "ready") return <Text style={s.dim}>{q.error?.message ?? "Loading"}</Text>;
   if (q.data.runs.length === 0) return <Text style={s.dim}>No runs yet. Test run sends sample data through it.</Text>;
+  const light = (r: RunsOut["runs"][number]): void => {
+    setBusy(r.id);
+    setErr(null);
+    void data.call("runs.steps", { runId: r.id }).then((out) => {
+      const steps = stepsFromCall(out);
+      if (!steps) { setErr("The step log did not return steps."); return; }
+      onLight({ id: r.id, label: r.summary ?? "run", states: statesFromSteps(steps) });
+    }).catch((e: unknown) => setErr(e instanceof Error ? e.message : "The step log did not load.")).finally(() => setBusy(null));
+  };
   return (
     <View testID="runs-list">
+      {err ? <Text style={s.dim}>{err}</Text> : null}
       {q.data.runs.map((r) => (
         <Row
-          key={r.id} id={`run-${r.id}`} title={r.summary ?? r.name ?? "Run"} note={`${r.status === "failed" ? "Failed" : r.status === "succeeded" ? "Done" : r.status === "waiting" ? "Waiting" : "Running"} · ${new Date(r.startedAt).toISOString().slice(0, 10)}${r.definitionVersion ? ` · v${r.definitionVersion}` : ""}`}
+          key={r.id} id={`run-${r.id}`} title={r.summary ?? r.name ?? "Run"} note={`${r.status === "failed" ? "Failed" : r.status === "succeeded" ? "Done" : r.status === "waiting" ? "Waiting" : "Running"} · ${new Date(r.startedAt).toISOString().slice(0, 10)}${r.definitionVersion ? ` · v${r.definitionVersion}` : ""}${busy === r.id ? " · loading steps" : ""}`}
           leading={<Dot tone={r.status === "failed" ? "danger" : r.status === "succeeded" ? "ok" : "warn"} />}
-          onPress={() => onLight({ id: r.id, label: `${r.summary ?? "run"}`, states: {} })}
+          onPress={() => light(r)}
         />
       ))}
       <View style={{ height: 8 }} />
@@ -487,7 +588,7 @@ function VersionsList({ versions, current, onRestore }: { versions: VersionsOut[
     <View testID="versions-list">
       {versions.map((v) => (
         <Row
-          key={v.versionId} id={`ver-${v.n}`} title={`Version ${v.n}${v.n === current ? ", running" : ""}`} note={`${data.name(v.by)}${v.reason ? `, ${v.reason}` : ""}`}
+          key={v.versionId} id={`ver-${v.n}`} title={`Version ${v.n}${v.n === current ? ", current definition" : ""}`} note={`${data.name(v.by)}${v.reason ? `, ${v.reason}` : ""}`}
           trailing={v.n === current ? undefined : <TextButton label="Restore" onPress={() => onRestore(v.versionId)} />}
         />
       ))}
