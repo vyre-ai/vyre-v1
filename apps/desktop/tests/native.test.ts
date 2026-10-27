@@ -180,6 +180,32 @@ test("desktop bootstrap returns only typed shell status and the one pending Vyre
   assert.deepEqual(calls, ["desktop_info", "take_pending_link"]);
 });
 
+test("desktop bootstrap keeps a link delivered while its pending link is drained until the page subscribes", async () => {
+  let nativeListener: ((event: { payload: unknown }) => void) | undefined;
+  const received: DesktopDeepLink[] = [];
+  const link: DesktopDeepLink = { action: "join", params: { code: "one-time-code" } };
+  const info: DesktopInfo = {
+    app: "vyre-desktop", version: "1.0.0-rc.1", platform: "macos", arch: "aarch64",
+    sidecar: { phase: "ready", url: "http://127.0.0.1:41233", version: "1.0.0-rc.1", restarts: 0, error: null },
+  };
+  const bridge = makeBridge(async (command) => {
+    if (command === "desktop_info") return info;
+    if (command === "take_pending_link") {
+      nativeListener?.({ payload: link });
+      return null;
+    }
+    return undefined;
+  }, async (_event, listener) => {
+    nativeListener = listener;
+    return () => {};
+  });
+
+  assert.deepEqual(await bridge.bootstrap(), { info, pendingLink: null });
+  await bridge.listenLinks((delivered) => received.push(delivered));
+
+  assert.deepEqual(received, [link]);
+});
+
 test("desktop link delivery subscribes only to the Vyre deep-link event and returns Tauri's unlisten function", async () => {
   const calls: string[] = [];
   const received: DesktopDeepLink[] = [];

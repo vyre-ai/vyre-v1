@@ -94,6 +94,22 @@ function deepLink(value: unknown): DesktopDeepLink | null {
 }
 
 export function makeBridge(invoke: Invoke, listen: Listen): Bridge {
+  let pendingDeliveredLinks: DesktopDeepLink[] = [];
+  let linkListener: ((link: DesktopDeepLink) => void) | undefined;
+  let linkSubscription: Promise<Unlisten> | undefined;
+
+  const subscribeToLinks = (): Promise<Unlisten> => {
+    if (!linkSubscription) {
+      linkSubscription = listen("vyre://deep-link", (event) => {
+        const link = deepLink(event.payload);
+        if (!link) return;
+        if (linkListener) linkListener(link);
+        else pendingDeliveredLinks.push(link);
+      });
+    }
+    return linkSubscription;
+  };
+
   return {
     async notify(n, opts) {
       const os = osNotification(n, opts);
@@ -110,6 +126,9 @@ export function makeBridge(invoke: Invoke, listen: Listen): Bridge {
       await invoke("set_badge", { count: Math.max(0, Math.floor(Number.isFinite(count) ? count : 0)), text: badgeText(count) });
     },
     async bootstrap() {
+      // Register before take_pending_link flips the native delivery switch. Links
+      // emitted while it drains are held above until listenLinks receives them.
+      await subscribeToLinks();
       const [rawInfo, rawPendingLink] = await Promise.all([invoke("desktop_info"), invoke("take_pending_link")]);
       const info = desktopInfo(rawInfo);
       if (!info) throw new Error("desktop shell returned invalid bootstrap info");
@@ -118,10 +137,10 @@ export function makeBridge(invoke: Invoke, listen: Listen): Bridge {
       return { info, pendingLink };
     },
     async listenLinks(listener) {
-      return listen("vyre://deep-link", (event) => {
-        const link = deepLink(event.payload);
-        if (link) listener(link);
-      });
+      const unlisten = await subscribeToLinks();
+      linkListener = listener;
+      for (const link of pendingDeliveredLinks.splice(0)) listener(link);
+      return unlisten;
     },
   };
 }

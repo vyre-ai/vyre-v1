@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Desktop: retain deep links delivered while bootstrap drains the native pending-link slot, so page subscription cannot miss them.
 - Desktop: expose typed bootstrap status and validated Vyre deep links through the narrow Tauri bridge, including second-instance launches.
 - Desktop: stop the local sidecar through its loopback admin endpoint before process fallback, so Windows removes `vyred.json` on a requested shutdown.
 - Desktop smoke: use Windows Ctrl-Break for graceful sidecar shutdown, preserving the cleanup and restart proof before bounded force cleanup.
