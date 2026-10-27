@@ -38,7 +38,7 @@ function setStatus(store: AccessStore, id: string | undefined, status: Status): 
 }
 
 /** Seeded grant rows name an `actor`, `group` or `role`; the module keeps the same words. */
-function seededGrant(p: Record<string, unknown>, at: number): GrantRec | null {
+function seededGrant(store: AccessStore, p: Record<string, unknown>, at: number): GrantRec | null {
   const id = str(p["id"]), subjectId = str(p["subject_id"]), type = str(p["resource_type"]);
   const sk = p["subject_kind"];
   if (!id || !subjectId || !type || (sk !== "actor" && sk !== "group" && sk !== "role")) return null;
@@ -49,8 +49,12 @@ function seededGrant(p: Record<string, unknown>, at: number): GrantRec | null {
   if (typeof c["notBefore"] === "number" && typeof c["notAfter"] === "number") conditions.window = { from: c["notBefore"], to: c["notAfter"] };
   if (typeof p["expires_at"] === "number") conditions.expiresAt = p["expires_at"];
   const level = p["level"] as Level;
+  // Gateway events use the historical `actor` wire kind for all non-person
+  // principals. Resolve that alias against the principal projection so agent
+  // home grants authorize the agent itself, while outside actors remain actors.
+  const kind = sk === "actor" ? (store.principals.get(subjectId)?.kind ?? "actor") : sk as SubjectKind;
   return {
-    id, subject: { kind: sk as SubjectKind, id: subjectId }, resource: { type, id: str(p["resource_id"]) ?? "*" }, level, conditions,
+    id, subject: { kind, id: subjectId }, resource: { type, id: str(p["resource_id"]) ?? "*" }, level, conditions,
     by: str(p["by"]) ?? "svc_host", createdAt: at,
   };
 }
@@ -109,7 +113,7 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number): boolean
     case "grant.created": {
       // the module's own shares emit `{ grantId, subject, resource, level }` and already hold the row; only a seeded row has `subject_kind`
       if (p["subject_kind"] === undefined) return false;
-      const g = seededGrant(p, at);
+      const g = seededGrant(store, p, at);
       if (!g || store.grants.has(g.id)) return false;
       store.grants.set(g.id, g);
       return true;
