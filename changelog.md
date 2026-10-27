@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Release CI: allow the desktop release assembly 15 minutes to download and verify the 125 MB macOS artifact instead of cancelling at the five-minute boundary.
 - Auth: verify and persist the authenticated Space marker after owner claim so the new session opens the shell, keep SSR and the first browser render address-neutral to prevent hydration errors, and update the real-app invalid-session proof for address-scoped session storage.
 - CI screenshots: split all-target visual capture into thirty-six deterministic shards, run production PWA and real-app evidence independently, and merge validated parts into the canonical `shots` artifact so the release proof fits its 35-minute gate.
 - Terminal CI: retry removal of the real-tmux test home while server shells and control clients finish exiting, preventing a transient `ENOTEMPTY` after every behavior assertion has passed.
