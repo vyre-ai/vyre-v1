@@ -10,6 +10,7 @@ import { openRealSession } from "../shell/session/session.ts";
 import { spaceAddress, writeStored } from "../shell/session/stored.ts";
 import { claimOwner } from "./claim.ts";
 import { fingerprintOf, spaceIdOf, spaceNameOf } from "./logic.ts";
+import { storeClaimedOwnerSession } from "./session.ts";
 import { ClaimOwner } from "./ClaimOwner.tsx";
 
 export function ClaimRoute({ token, onDone, onSignIn }: { token: string; onDone(): void; onSignIn(): void }): ReactElement | null {
@@ -26,9 +27,15 @@ export function ClaimRoute({ token, onDone, onSignIn }: { token: string; onDone(
       { call, makeBundle: (password, recoveryCode, id) => makeBundle(password, recoveryCode, { spaceId: id }), holdKey: (t, key) => holdKeyOnOwnNode(baseUrl, t, key), wipe },
       { token, spaceId, name: v.name, username: v.username, password: v.password, recoveryCode: v.recoveryCode, deviceName: "Web browser" },
     );
-    const real = await openRealSession({ baseUrl, token: claimed.token });
-    writeStored({ baseUrl, token: claimed.token, def: real.def, personId: real.me.id });
-    real.close("claim: the shell opens its own session");
+    const authenticated = createCapCaller({ baseUrl, token: () => claimed.token });
+    await storeClaimedOwnerSession({ baseUrl, token: claimed.token, spaceId }, {
+      open: () => openRealSession({ baseUrl, token: claimed.token }),
+      getSpace: async () => {
+        const current = ((await authenticated("spaces.get", {})) as { space: { id: string; fingerprint: string } }).space;
+        return { id: current.id, marker: current.fingerprint };
+      },
+      persist: writeStored,
+    });
     onDone();
   };
   return <ClaimOwner space={spaceNameOf(hash)} newCode={makeRecoveryCode} onClaim={claim} onSignIn={onSignIn} fingerprint={fingerprintOf(hash)} />;

@@ -178,7 +178,15 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       if (gap) { todo.push(gap); s.todo(gap); return; }
       const p = await ctx.newPage();
       await p.goto(`${web.origin}/home`, { waitUntil: "load" });
-      await p.evaluate(() => { const raw = localStorage.getItem("vyre.session.v1"); if (raw) localStorage.setItem("vyre.session.v1", JSON.stringify({ ...JSON.parse(raw), token: "vst_not_a_session" })); });
+      await p.evaluate(() => {
+        const raw = localStorage.getItem("vyre.session.v1");
+        if (!raw) return;
+        const saved = JSON.parse(raw) as { token?: string; sessions?: Record<string, { token: string }> };
+        const active = saved.sessions?.[location.origin];
+        if (active) active.token = "vst_not_a_session";
+        else saved.token = "vst_not_a_session";
+        localStorage.setItem("vyre.session.v1", JSON.stringify(saved));
+      });
       await p.reload({ waitUntil: "load" });
       await p.getByTestId("si-user").waitFor({ timeout: 15_000 });
       assert.ok(await p.getByText("You were signed out").first().isVisible(), "the sign-in page says the person was signed out");

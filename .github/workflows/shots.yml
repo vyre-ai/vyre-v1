@@ -32,41 +32,56 @@ jobs:
           path: package-lock.json
           retention-days: 7
   shots:
-    # GitHub-hosted again: the repo is public, hosted minutes are free (25 Oct). The 120 s export budget is a wall-time report here, never a speed gate (ruling 46).
+    # Full runs use thirty-six bounded shards. Packet branches retain their single targeted capture.
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(startsWith(github.ref_name, 'build/P-') && '[0]' || '[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35]') }}
+    env:
+      SHARD_TOTAL: ${{ startsWith(github.ref_name, 'build/P-') && '1' || '36' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/deps
+      - name: Export the web build and take this shard's side-by-side screenshots
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          T=all
+          case "$BRANCH" in build/P-*) T="${BRANCH#build/}" ;; esac
+          node scripts/shots/shots.mjs --target "$T" --out shots-out --max-export-s 600 --no-probes --shard-index "${{ matrix.shard }}" --shard-total "$SHARD_TOTAL"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shots-part-${{ matrix.shard }}
+          path: shots-out
+          retention-days: 1
+          if-no-files-found: error
+  release-evidence:
+    # This starts beside the visual shards so release-critical PWA and real-app proof cannot wait behind the full prototype suite.
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/deps
-      - name: Export the web build and take side-by-side screenshots (export reported; 600 s cap on self-hosted)
-        env:
-          BRANCH: ${{ github.head_ref || github.ref_name }}
-        # A packet branch (build/P-L9b_02) shoots only its own targets; main and other branches shoot all.
-        run: |
-          T=all
-          case "$BRANCH" in build/P-*) T="${BRANCH#build/}" ;; esac
-          # Self-hosted runners share load with the test shards; the 120 s export budget is measured on hosted runners (ruling 40: CI wall time is reported, not gating, while saturated).
-          node scripts/shots/shots.mjs --target "$T" --out shots-out --max-export-s 600 --no-probes
       - name: Export the production app (apps/app) for the real-app steps
-        # The sample-mount export above (scripts/shots/app) is not the product: it has no sign-in and no shell. The real-app steps need the app people run, exported the way startup.mjs does,
-        # with the registry hash baked in (scripts/lib/registry-hash.mjs).
         run: |
-          if [ -f apps/app/tests/real-app.e2e.test.ts ] || [ -f scripts/shots/real-app.mjs ]; then
-            H="$(node -e 'import("./scripts/lib/registry-hash.mjs").then((m) => console.log(m.registryHash()))')"
-            (cd apps/app && rm -rf dist && CI=1 EXPO_NO_TELEMETRY=1 EXPO_PUBLIC_VYRE_REGISTRY_HASH="$H" npx expo export --platform web --output-dir dist)
-          else echo "production export: no real-app test or script on this branch, skipped"; fi
+          H="$(node -e 'import("./scripts/lib/registry-hash.mjs").then((m) => console.log(m.registryHash()))')"
+          (cd apps/app && rm -rf dist && CI=1 EXPO_NO_TELEMETRY=1 EXPO_PUBLIC_VYRE_REGISTRY_HASH="$H" npx expo export --platform web --output-dir dist)
       - name: Production export PWA contract (manifest, iPhone metadata and session boundary)
         env:
           VYRE_APP_DIST: ${{ github.workspace }}/apps/app/dist
         run: node scripts/test-run.ts --no-cache --files apps/app/src/startup/pwa.test.ts
       - name: iPhone-width PWA smoke (standalone is simulated in Chromium; real Safari remains owner evidence)
-        run: node scripts/shots/pwa-mobile.mjs --dist apps/app/dist --out shots-out/pwa-mobile
+        run: |
+          node scripts/shots/pwa-mobile.mjs --dist apps/app/dist --out shots-evidence/pwa-mobile
+          test -f shots-evidence/pwa-mobile/evidence.json
+          test -f shots-evidence/pwa-mobile/iphone-390x844-standalone-simulated.png
       - name: Real app end to end against the production export (apps/app/tests/real-app.e2e.test.ts)
-        # Runs the built app in Chromium against a booted daemon. Needs the production export of apps/app from the step above; skipped until the test is on the branch.
         run: |
           set -o pipefail
           T=apps/app/tests/real-app.e2e.test.ts
-          if [ ! -f "$T" ] || [ ! -d apps/app/dist ]; then echo "real-app e2e: test or export dir not present, skipped"; exit 0; fi
           npx playwright-core install chromium
           CHROME_BIN="$(node -e 'import("playwright-core").then((p) => console.log((p.chromium ?? p.default.chromium).executablePath()))')"
           test -x "$CHROME_BIN"
@@ -74,31 +89,55 @@ jobs:
           node scripts/test-run.ts --slow --no-cache --files "$T" 2>&1 | tee real-app-e2e.out
           grep -q "^ok .*real-app.e2e.test.ts" real-app-e2e.out
       - name: Real app capture against the production export (scripts/shots/real-app.mjs, P-APP_03)
-        run: |
-          if [ -f scripts/shots/real-app.mjs ] && [ -d apps/app/dist ]; then
-            node scripts/shots/real-app.mjs --dist apps/app/dist --out shots-out/real-app
-          else echo "real-app capture: script or export dir not present, skipped"; fi
+        run: node scripts/shots/real-app.mjs --dist apps/app/dist --out shots-evidence/real-app
       - name: The export carries the daemon's registry hash (EXPO_PUBLIC_VYRE_REGISTRY_HASH)
-        run: |
-          if [ -d apps/app/dist ]; then node scripts/shots/registry-hash-in-bundle.mjs apps/app/dist; else echo "registry hash check: no export dir, skipped"; fi
+        run: node scripts/shots/registry-hash-in-bundle.mjs apps/app/dist
       - name: No prototype seed in the production web bundle (P-UI_06b)
-        run: |
-          # skipped until scripts/shots/no-seed-in-bundle.mjs is on the branch (it lands with P-UI_06b)
-          if [ -f scripts/shots/no-seed-in-bundle.mjs ] && [ -d apps/app/dist ]; then node scripts/shots/no-seed-in-bundle.mjs apps/app/dist; else echo "no-seed-in-bundle: script or export dir not present, skipped"; fi
+        run: node scripts/shots/no-seed-in-bundle.mjs apps/app/dist
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: real-app
-          path: shots-out/real-app
+          path: shots-evidence/real-app
           retention-days: 14
           if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: shots
-          path: shots-out
+          name: shots-evidence
+          path: shots-evidence
           retention-days: 14
-          if-no-files-found: ignore
+          if-no-files-found: error
+  aggregate-shots:
+    needs: [shots, release-evidence]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: shots-part-*
+          path: shots-merged
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: shots-evidence
+          path: shots-merged
+      - name: Validate and merge the complete screenshot evidence
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          SHARD_TOTAL=36
+          case "$BRANCH" in build/P-*) SHARD_TOTAL=1 ;; esac
+          node scripts/shots/merge-index.mjs --dir shots-merged --expect-shards "$SHARD_TOTAL"
+          test -f shots-merged/pwa-mobile/evidence.json
+          test -f shots-merged/pwa-mobile/iphone-390x844-standalone-simulated.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shots
+          path: shots-merged
+          retention-days: 14
+          if-no-files-found: error
   perf:
     # Ruling 46: speed budgets are measured only here, on the v1-perf runners. Opt-in (ruling 66): a branch push runs it only when the head commit message holds [perf], or on dispatch,
     # so the few perf runners are not taken by every UI push; packets that need a scroll or startup proof push with [perf].

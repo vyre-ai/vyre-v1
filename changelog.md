@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Auth: verify and persist the authenticated Space marker after owner claim so the new session opens the shell, keep SSR and the first browser render address-neutral to prevent hydration errors, and update the real-app invalid-session proof for address-scoped session storage.
+- CI screenshots: split all-target visual capture into thirty-six deterministic shards, run production PWA and real-app evidence independently, and merge validated parts into the canonical `shots` artifact so the release proof fits its 35-minute gate.
 - Terminal CI: retry removal of the real-tmux test home while server shells and control clients finish exiting, preventing a transient `ENOTEMPTY` after every behavior assertion has passed.
 - Files: bind the large-upload helper used by host calls so agent-computer downloads above the direct-write limit reach Files intact instead of failing before blob storage.
 - Files: propagate folder sensitivity changes into Access through a Personal-safe host seam, and filter listings, nested counts, tree and Trash badges, Trash rows, and Recent through live view authorization so restricted material disappears from agent computer mirrors without leaking its presence.

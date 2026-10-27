@@ -4,8 +4,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 // @ts-expect-error plain .mjs helper without types
-import { parseArgs, protoHash, routeUrl, loadTargets, sideBySideHtml, countWrongFrames, budgetOf } from "./lib.mjs";
+import { parseArgs, protoHash, routeUrl, loadTargets, shardTargets, shardIndexName, mergeShotIndexes, sideBySideHtml, countWrongFrames, budgetOf } from "./lib.mjs";
 
 test("parseArgs reads values and flags", () => {
   assert.deepEqual(parseArgs(["--target", "sample", "--skip-export", "--out", "x"]), { target: "sample", "skip-export": true, out: "x" });
@@ -33,6 +34,62 @@ test("the shipped targets.json is valid", () => {
   const t = loadTargets(path.dirname(new URL(import.meta.url).pathname));
   assert.ok(t.length >= 1);
   for (const x of t) assert.ok(x.proto.includes("{skin}"), `${x.id} prototype hash takes the skin`);
+});
+
+test("thirty-six screenshot shards cover every target once without overlap", () => {
+  const targets = loadTargets(path.dirname(new URL(import.meta.url).pathname));
+  const shards = Array.from({ length: 36 }, (_, index) => shardTargets(targets, index, 36));
+  const ids = shards.flat().map((t: { id: string }) => t.id);
+  assert.equal(ids.length, targets.length);
+  assert.equal(new Set(ids).size, targets.length);
+  assert.deepEqual([...ids].sort(), targets.map((t: { id: string }) => t.id).sort());
+  assert.ok(Math.max(...shards.map((s) => s.length)) - Math.min(...shards.map((s) => s.length)) <= 1);
+});
+
+test("screenshot shard selection is deterministic and rejects invalid coordinates", () => {
+  const targets = Array.from({ length: 8 }, (_, id) => ({ id }));
+  assert.deepEqual(shardTargets(targets, 1, 3).map((t: { id: number }) => t.id), [1, 4, 7]);
+  assert.deepEqual(shardTargets(targets, 1, 3), shardTargets(targets, 1, 3));
+  assert.throws(() => shardTargets(targets, -1, 3), /shard index/);
+  assert.throws(() => shardTargets(targets, 3, 3), /shard index/);
+  assert.throws(() => shardTargets(targets, 0, 0), /shard total/);
+});
+
+test("shard indexes merge into one canonical screenshot index", () => {
+  assert.equal(shardIndexName(0, 1), "index.md");
+  assert.equal(shardIndexName(2, 18), "index-shard-02-of-18.md");
+  const first = "# Side-by-side screenshots\n\nExport: 1.0 s\n\n| target | skin | size | file |\n|---|---|---|---|\n| b | paper | phone | b.png |\n";
+  const second = "# Side-by-side screenshots\n\nExport: 2.0 s\n\n| target | skin | size | file |\n|---|---|---|---|\n| a | graphite | desktop | a.png |\n";
+  const merged = mergeShotIndexes([
+    { name: "index-shard-00-of-2.md", text: first },
+    { name: "index-shard-01-of-2.md", text: second },
+  ], 2);
+  assert.match(merged, /^# Side-by-side screenshots/m);
+  assert.match(merged, /2 shards/);
+  assert.ok(merged.indexOf("| a |") < merged.indexOf("| b |"), "canonical rows are stable");
+  assert.throws(() => mergeShotIndexes([{ name: "index-shard-00-of-2.md", text: first }], 2), /expected shard indexes/);
+  assert.throws(() => mergeShotIndexes([
+    { name: "index-shard-00-of-3.md", text: first },
+    { name: "index-shard-01-of-3.md", text: second },
+  ], 2), /expected shard indexes/);
+  assert.throws(() => mergeShotIndexes([
+    { name: "index-shard-00-of-2.md", text: first },
+    { name: "index-shard-00-of-2.md", text: second },
+  ], 2), /expected shard indexes/);
+});
+
+test("a packet without visual targets emits an empty uploadable index", () => {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), "shots-empty-"));
+  execFileSync(process.execPath, [new URL("./shots.mjs", import.meta.url).pathname, "--target", "P-NO_VISUAL_TARGETS", "--out", out, "--skip-export", "--no-probes", "--shard-index", "0", "--shard-total", "1"]);
+  assert.ok(fs.existsSync(path.join(out, "index.md")));
+  assert.match(fs.readFileSync(path.join(out, "index.md"), "utf8"), /0 side-by-side images/);
+});
+
+test("P-UI_14 emits an empty uploadable index after its startup-only path", () => {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), "shots-ui14-"));
+  execFileSync(process.execPath, [new URL("./shots.mjs", import.meta.url).pathname, "--target", "P-UI_14", "--out", out, "--skip-startup", "--skip-export", "--no-probes", "--shard-index", "0", "--shard-total", "1"]);
+  assert.ok(fs.existsSync(path.join(out, "index.md")));
+  assert.match(fs.readFileSync(path.join(out, "index.md"), "utf8"), /0 side-by-side images/);
 });
 
 test("side-by-side page shows both images with captions", () => {
