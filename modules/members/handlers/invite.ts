@@ -10,12 +10,12 @@ import {
 const ok = { ok: true } as const;
 type Dev = "desktop" | "phone" | "web" | "extension" | "daemon";
 
-interface SpaceInfo { name: string; logoFileId?: string; fingerprint: string; host?: string }
+interface SpaceInfo { id: string; name: string; logoFileId?: string; fingerprint: string; host?: string }
 
 async function spaceInfo(ctx: MembersCtx): Promise<SpaceInfo> {
-  const out = (await ctx.call("spaces.get", {})) as { space: { name: string; logoFileId?: string; fingerprint: string; address?: { host?: string } } };
+  const out = (await ctx.call("spaces.get", {})) as { space: { id: string; name: string; logoFileId?: string; fingerprint: string; address?: { host?: string } } };
   const s = out.space;
-  const info: SpaceInfo = { name: s.name, fingerprint: s.fingerprint };
+  const info: SpaceInfo = { id: s.id, name: s.name, fingerprint: s.fingerprint };
   if (s.logoFileId) info.logoFileId = s.logoFileId;
   if (s.address?.host) info.host = s.address.host;
   return info;
@@ -126,8 +126,8 @@ export async function invitesPreview(ctx: MembersCtx, input: { code: string }) {
   } catch { /* the join page shows the id when the directory cannot be read before sign-in */ }
   let role = r.role;
   try { role = await roleName(ctx, r.role); } catch { /* same */ }
-  const out: { spaceName: string; logoFileId?: string; invitedBy: string; role: string; expiresAt: number; fingerprint: string } = {
-    spaceName: info.name, invitedBy, role, expiresAt: r.expires_at, fingerprint: info.fingerprint,
+  const out: { spaceId: string; spaceName: string; logoFileId?: string; invitedBy: string; role: string; expiresAt: number; fingerprint: string } = {
+    spaceId: info.id, spaceName: info.name, invitedBy, role, expiresAt: r.expires_at, fingerprint: info.fingerprint,
   };
   if (info.logoFileId) out.logoFileId = info.logoFileId;
   return out;

@@ -6,7 +6,7 @@ import { handlers } from "../impl.ts";
 import { harness } from "../fixtures/db.ts";
 import { preAuthSession } from "../../../host/src/daemon/preauth.ts";
 
-test("an invite preview works for a pending caller and for an anonymous one", async () => {
+test("an invite preview exposes only public routing data to pending and anonymous callers", async () => {
   const h = harness();
   const made = await handlers["members.invites.create"](h.as("usr_admin"), { role: "rol_member", idempotencyKey: "pre-1" });
   const code = /\/join\/([A-Z0-9-]+)#fp=/.exec(made.link)![1]!;
@@ -14,5 +14,7 @@ test("an invite preview works for a pending caller and for an anonymous one", as
     const who = preAuthSession("spc_x", caller, { "x-vyre-remote": "203.0.113.9" }).principal;
     const view = await handlers["members.invites.preview"]({ ...h.anon, principal: who } as never, { code });
     assert.equal(view.spaceName, "Maya Studio", caller);
+    assert.equal(view.spaceId, "spc_test", `${caller} receives only the public Space routing id`);
+    assert.equal("code" in view, false, `${caller} never receives the one-time invite code back`);
   }
 });

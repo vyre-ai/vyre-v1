@@ -9,11 +9,15 @@ import { fakeServer, settle } from "../../../../../client/src/connection/testing
 import { createLiveLink, socketBase, socketPath } from "./live.ts";
 import { createRemoteScreenHooks, stableJson } from "./remote-hooks.ts";
 import { openRealSession, targetHash } from "./session.ts";
-import { clearStored, readStored, spaceAddress, writeStored } from "./stored.ts";
+import { clearStored, openVerifiedSession, phaseForStoredAddress, readStored, signInAndVerify, spaceAddress, verifyStoredSession, writeStored } from "./stored.ts";
+import { acceptDesktopJoin, consumeDesktopBootstrap, consumeDesktopRoute, previewDesktopJoin, redeemDesktopPair, routeDesktopLink } from "./desktop.ts";
+import type { DesktopDeepLink } from "./desktop.ts";
 import type { KeyValueStore } from "./stored.ts";
 
 const ROUTES: RouteRow[] = [
   { method: "POST", path: "/v1/identity/whoami", cap: "identity.whoami", v: 1 },
+  { method: "POST", path: "/v1/identity/sign_in_options", cap: "identity.sign_in_options", v: 1 },
+  { method: "POST", path: "/v1/identity/sign_in", cap: "identity.sign_in", v: 1 },
   { method: "GET", path: "/v1/spaces/get", cap: "spaces.get", v: 1 },
   { method: "GET", path: "/v1/spaces/switcher", cap: "spaces.switcher", v: 1 },
   { method: "GET", path: "/v1/files/list", cap: "files.list", v: 1 },
@@ -303,19 +307,313 @@ test("stored: a session is kept, read back, and cleared; junk reads as no sessio
   const store = memoryStore();
   assert.equal(readStored(store), null);
   const def = { spaceId: "spc_nw", name: "Northwind" } as never;
-  writeStored({ baseUrl: "http://s.test", token: "t", def, personId: "usr_1" }, store);
+  writeStored({ baseUrl: "http://s.test", token: "t", def, personId: "usr_1", marker: "fp" }, store);
   assert.equal(readStored(store)?.token, "t");
   store.setItem("vyre.session.v1", "{not json");
   assert.equal(readStored(store), null);
-  writeStored({ baseUrl: "http://s.test", token: "t", def, personId: "usr_1" }, store);
+  writeStored({ baseUrl: "http://s.test", token: "t", def, personId: "usr_1", marker: "fp" }, store);
   clearStored(store);
   assert.equal(readStored(store), null);
 });
 
-test("stored: the Space address is ?space= when it is a URL, else the page origin", () => {
-  assert.equal(spaceAddress({ origin: "http://127.0.0.1:3000", search: "?space=http%3A%2F%2F10.0.0.2%3A7777%2F" }), "http://10.0.0.2:7777");
+test("stored: clearing one Space preserves every other saved Space", () => {
+  const store = memoryStore();
+  const def = { spaceId: "spc_nw", name: "Northwind" } as never;
+  const harbor = { ...def, spaceId: "spc_hb", name: "Harbor" };
+  writeStored({ baseUrl: "https://northwind.test", token: "nw", def, personId: "usr_1", marker: "northwind-marker" }, store);
+  writeStored({ baseUrl: "https://harbor.test", token: "hb", def: harbor, personId: "usr_1", marker: "harbor-marker" }, store);
+  clearStored(store, "https://northwind.test");
+  assert.equal(readStored(store, "https://northwind.test"), null);
+  assert.equal(readStored(store, "https://harbor.test")?.token, "hb");
+});
+
+test("an address transition loads only that address's session", () => {
+  const store = memoryStore();
+  const alpha = { spaceId: "spc_alpha", name: "Alpha" } as never;
+  const beta = { spaceId: "spc_beta", name: "Beta" } as never;
+  writeStored({ baseUrl: "https://alpha.test", token: "alpha", def: alpha, personId: "usr_alpha", marker: "alpha" }, store);
+
+  const noBeta = phaseForStoredAddress(readStored(store, "https://beta.test"));
+  assert.deepEqual(noBeta, { kind: "signin" }, "B without a stored session cannot retain A's shell");
+
+  writeStored({ baseUrl: "https://beta.test", token: "beta", def: beta, personId: "usr_beta", marker: "beta" }, store);
+  const savedBeta = phaseForStoredAddress(readStored(store, "https://beta.test"));
+  assert.equal(savedBeta.kind, "shell");
+  if (savedBeta.kind === "shell") assert.equal(savedBeta.stored.def.spaceId, "spc_beta", "the next address loads only its own session");
+});
+
+test("the anonymous sign-in route discovers options before normal password sign-in, never spaces.get", async () => {
+  const gw = gateway({
+    "POST /v1/identity/sign_in_options": (seen) => {
+      assert.equal(seen.headers["authorization"], undefined, "options are safe before authentication");
+      return { body: { data: { name: "Northwind", fingerprint: "display-only", password: true, github: true, sso: [{ key: "google", title: "Google" }], secondFactorRequired: false } } };
+    },
+    "POST /v1/identity/sign_in": (seen) => {
+      assert.equal(seen.headers["authorization"], undefined);
+      return { body: { data: { status: "ok", session: { token: "vst_1" } } } };
+    },
+    "GET /v1/spaces/get": (seen) => {
+      assert.equal(seen.headers["authorization"], "Bearer vst_1", "the Space is read only after authentication");
+      return { body: { data: SPACE } };
+    },
+  });
+  const anonymous = createCapCaller({ baseUrl: "https://northwind.test", token: () => null, fetch: gw.fetch, routes: async () => ROUTES });
+  const authenticated = createCapCaller({ baseUrl: "https://northwind.test", token: () => "vst_1", fetch: gw.fetch, routes: async () => ROUTES });
+  const opened = { def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_1" }, close: () => undefined } as never;
+  const result = await signInAndVerify({
+    baseUrl: "https://northwind.test",
+    discover: async () => anonymous("identity.sign_in_options", {}) as never,
+    signIn: async () => anonymous("identity.sign_in", { username: "dana", password: "harbor-lamp", deviceName: "Web browser", deviceClass: "web" }) as never,
+    open: async () => opened,
+    getSpace: async () => {
+      const space = ((await authenticated("spaces.get", {})) as typeof SPACE).space;
+      return { id: space.id, marker: space.fingerprint };
+    },
+    persist: () => undefined,
+  });
+  assert.equal(result.status, "ok");
+  assert.deepEqual(gw.seen.map((s) => s.url), ["/v1/identity/sign_in_options", "/v1/identity/sign_in", "/v1/spaces/get"]);
+  assert.equal(result.options.name, "Northwind");
+  assert.equal(result.stored?.marker, "ab", "a first sign-in stores the authenticated continuity marker, not the anonymous display value");
+});
+
+test("personal-key work runs only after a password session is verified and persisted", async () => {
+  let unlocks = 0;
+  let writes = 0;
+  await assert.rejects(signInAndVerify({
+    baseUrl: "https://northwind.test",
+    discover: async () => ({ name: "Northwind", fingerprint: "display", password: true, github: false, sso: [], secondFactorRequired: false }),
+    signIn: async () => ({ status: "ok", session: { token: "vst_1" } }),
+    open: async () => { throw new Error("whoami failed"); },
+    getSpace: async () => ({ id: "spc_nw", marker: "marker" }),
+    persist: () => { writes++; },
+    afterVerified: async () => { unlocks++; },
+  }), /whoami failed/);
+  assert.deepEqual([writes, unlocks], [0, 0], "a token alone never unlocks the local person key");
+
+  const result = await signInAndVerify({
+    baseUrl: "https://northwind.test",
+    discover: async () => ({ name: "Northwind", fingerprint: "display", password: true, github: false, sso: [], secondFactorRequired: false }),
+    signIn: async () => ({ status: "ok", session: { token: "vst_2" } }),
+    open: async () => ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_1" }, close: () => undefined } as never),
+    getSpace: async () => ({ id: "spc_nw", marker: "marker" }),
+    persist: () => { writes++; },
+    afterVerified: async () => { unlocks++; },
+  });
+  assert.equal(result.status, "ok");
+  assert.deepEqual([writes, unlocks], [1, 1]);
+});
+
+test("verification persists only after the opened session and authenticated Space IDs agree", async () => {
+  const calls: string[] = [];
+  const writes: unknown[] = [];
+  const real = { def: { spaceId: "spc_nw" }, me: { id: "usr_1" }, close: () => { calls.push("close"); } } as never;
+  const stored = await openVerifiedSession({
+    baseUrl: "https://northwind.test", token: "vst_1", continuity: { id: "spc_nw", marker: "marker_1" },
+    open: async () => { calls.push("open:whoami+spaces.get"); return real; },
+    getSpace: async () => { calls.push("get:spaces.get"); return { id: "spc_nw", marker: "marker_1" }; },
+    persist: (candidate) => writes.push(candidate),
+  });
+  assert.deepEqual(calls, ["open:whoami+spaces.get", "get:spaces.get", "close"]);
+  assert.equal(writes.length, 1, "storage waits for identity.whoami and both spaces.get checks");
+  assert.equal(stored.marker, "marker_1");
+});
+
+test("verification never persists when identity.whoami cannot open the real session", async () => {
+  let writes = 0;
+  await assert.rejects(openVerifiedSession({
+    baseUrl: "https://northwind.test", token: "vst_1", continuity: { id: "spc_nw" },
+    open: async () => { throw new Error("identity.whoami rejected the session"); },
+    getSpace: async () => ({ id: "spc_nw", marker: "marker_1" }),
+    persist: () => { writes++; },
+  }), /whoami rejected/i);
+  assert.equal(writes, 0);
+});
+
+test("verification rejects a continuity-marker mismatch without persisting the session", async () => {
+  let writes = 0;
+  let closed = 0;
+  const real = { def: { spaceId: "spc_nw" }, me: { id: "usr_1" }, close: () => { closed++; } } as never;
+  await assert.rejects(openVerifiedSession({
+    baseUrl: "https://northwind.test", token: "vst_1", continuity: { id: "spc_nw", marker: "marker_expected" },
+    open: async () => real,
+    getSpace: async () => ({ id: "spc_nw", marker: "marker_other" }),
+    persist: () => { writes++; },
+  }), /no longer matches/i);
+  assert.deepEqual([writes, closed], [0, 1]);
+});
+
+test("a returning session rejects a changed continuity marker and closes before shell use", async () => {
+  let closed = 0;
+  const stored = { baseUrl: "https://northwind.test", token: "vst_1", def: { spaceId: "spc_nw", name: "Northwind" } as never, personId: "usr_1", marker: "marker_saved" };
+  await assert.rejects(verifyStoredSession({
+    stored,
+    open: async () => ({ def: stored.def, me: { id: "usr_1" }, close: () => { closed++; } }),
+    getSpace: async () => ({ id: "spc_nw", marker: "marker_changed" }),
+  }), /no longer matches/i);
+  assert.equal(closed, 1);
+});
+
+test("verification blocks persistence when authenticated Space IDs differ", async () => {
+  let writes = 0;
+  await assert.rejects(openVerifiedSession({
+    baseUrl: "https://northwind.test", token: "vst_1",
+    open: async () => ({ def: { spaceId: "spc_nw" }, me: { id: "usr_1" }, close: () => undefined } as never),
+    getSpace: async () => ({ id: "spc_other", marker: "marker_1" }),
+    persist: () => { writes++; },
+  }), /no longer matches/i);
+  assert.equal(writes, 0);
+});
+
+test("stored: the Space address is HTTP(S), never the packaged shell origin", () => {
+  assert.equal(spaceAddress({ origin: "http://127.0.0.1:3000", search: "?space=http%3A%2F%2F10.0.0.2%3A7777%2F" }), null, "LAN HTTP never carries credentials");
+  assert.equal(spaceAddress({ origin: "http://127.0.0.1:3000", search: "?space=http%3A%2F%2Flocalhost%3A7777%2F" }), "http://localhost:7777");
+  assert.equal(spaceAddress({ origin: "http://127.0.0.1:3000", search: "?space=http%3A%2F%2F127.0.0.1%3A7777%2F" }), "http://127.0.0.1:7777");
+  assert.equal(spaceAddress({ origin: "http://127.0.0.1:3000", search: "?space=http%3A%2F%2F%5B%3A%3A1%5D%3A7777%2F" }), "http://[::1]:7777");
   assert.equal(spaceAddress({ origin: "https://northwind.vyre.run", search: "" }), "https://northwind.vyre.run");
-  assert.equal(spaceAddress({ origin: "https://x.test", search: "?space=javascript:alert(1)" }), "https://x.test");
+  assert.equal(spaceAddress({ origin: "https://x.test", search: "?space=javascript:alert(1)" }), null);
+  assert.equal(spaceAddress({ origin: "tauri://localhost", search: "" }), null);
+  assert.equal(spaceAddress({ origin: "tauri://localhost", search: "?space=tauri%3A%2F%2Flocalhost" }), null);
+});
+test("desktop bootstrap routes its pending link before live links and unsubscribes safely", async () => {
+  let live: ((link: DesktopDeepLink) => void) | undefined;
+  let unlistened = 0;
+  const seen: unknown[] = [];
+  const stop = await consumeDesktopBootstrap({
+    bootstrap: async () => ({ info: {} as never, pendingLink: { action: "join", params: { address: "https://northwind.vyre.run", code: "one-time-code", fp: "ab12" } } }),
+    listenLinks: async (listener) => { live = listener; return () => { unlistened++; }; },
+  }, (route) => seen.push(route));
+  live?.({ action: "signin", params: { address: "https://northwind.vyre.run" } });
+  assert.deepEqual(seen, [
+    { kind: "join", address: "https://northwind.vyre.run", code: "one-time-code", fingerprint: "ab12" },
+    { kind: "signin", address: "https://northwind.vyre.run" },
+  ]);
+  stop();
+  stop();
+  assert.equal(unlistened, 1);
+});
+
+test("desktop links only route verified Space addresses into the existing flows", () => {
+  assert.deepEqual(routeDesktopLink({ action: "open", params: { address: "http://127.0.0.1:7777" } }), { kind: "signin", address: "http://127.0.0.1:7777" });
+  assert.deepEqual(routeDesktopLink({ action: "signin", params: { address: "http://localhost:7777" } }), { kind: "signin", address: "http://localhost:7777" });
+  assert.deepEqual(routeDesktopLink({ action: "pair", params: { address: "https://northwind.vyre.run", code: "pairing-code" } }), { kind: "pair", address: "https://northwind.vyre.run", code: "pairing-code" });
+  for (const action of ["open", "signin", "pair"] as const) assert.equal(routeDesktopLink({ action, params: { address: "http://10.0.0.2:7777", ...(action === "pair" ? { code: "never-send" } : {}) } }), null, `${action} never sends a credential or code over LAN HTTP`);
+  assert.equal(routeDesktopLink({ action: "join", params: { address: "http://127.0.0.1:7777", code: "one-time-code", fp: "ab12" } }), null, "join links require HTTPS");
+  assert.equal(routeDesktopLink({ action: "join", params: { address: "https://northwind.vyre.run", code: "", fp: "ab12" } }), null);
+  assert.equal(routeDesktopLink({ action: "signin", params: { address: "tauri://localhost" } }), null);
+});
+
+test("desktop pairing redeems anonymously, verifies the Space, then persists without key ciphertext", async () => {
+  const route = routeDesktopLink({ action: "pair", params: { address: "https://northwind.vyre.run", code: "pair-code" } });
+  assert.ok(route && route.kind === "pair");
+  const calls: { cap: string; input: unknown }[] = [];
+  let persisted: unknown;
+  const stored = await redeemDesktopPair(route, {
+    anonymous: async (cap, input) => { calls.push({ cap, input }); return { status: "ok", session: { token: "vst_pair", epoch: 4 }, keys: { privateKeyWrapped: "ciphertext" } }; },
+    open: async (token) => ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_1" }, close: () => undefined, token } as never),
+    getSpace: async () => ({ id: "spc_nw", marker: "current-display-marker" }),
+    persist: (s) => { persisted = s; },
+  });
+  assert.deepEqual(calls, [{ cap: "identity.pair_redeem", input: { code: "pair-code", deviceName: "Vyre desktop", deviceClass: "desktop" } }]);
+  assert.deepEqual(stored, { baseUrl: "https://northwind.vyre.run", token: "vst_pair", def: { spaceId: "spc_nw", name: "Northwind" }, personId: "usr_1", marker: "current-display-marker" });
+  assert.deepEqual(persisted, stored);
+  assert.equal("keys" in stored, false, "pairing ciphertext never reaches ordinary session storage");
+  assert.deepEqual(consumeDesktopRoute(route), { kind: "signin", address: "https://northwind.vyre.run" }, "after the successful pair, a sign-out has only the ordinary sign-in route, never the consumed code");
+});
+
+test("desktop pair persists verified sessions by default and leaves the sync epoch to the hello handshake", async () => {
+  const store = memoryStore();
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  Object.defineProperty(globalThis, "localStorage", { value: store, configurable: true });
+  try {
+    const route = routeDesktopLink({ action: "pair", params: { address: "https://northwind.vyre.run", code: "pair-code" } });
+    assert.ok(route && route.kind === "pair");
+    const stored = await redeemDesktopPair(route, {
+      anonymous: async () => ({ status: "ok", session: { token: "vst_pair", epoch: 9 } }),
+      open: async () => ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_1" }, close: () => undefined } as never),
+      getSpace: async () => ({ id: "spc_nw", marker: "current-display-marker" }),
+    });
+    assert.equal(stored.syncEpoch, undefined);
+    assert.deepEqual(readStored(store, "https://northwind.vyre.run"), stored);
+  } finally {
+    if (previous) Object.defineProperty(globalThis, "localStorage", previous);
+    else Reflect.deleteProperty(globalThis, "localStorage");
+  }
+});
+
+test("desktop joining previews first and accepts with a real Space-key bundle", async () => {
+  const route = routeDesktopLink({ action: "join", params: { address: "https://northwind.vyre.run", code: "invite-code", fp: "untrusted-link-display" } });
+  assert.ok(route && route.kind === "join");
+  const calls: { cap: string; input: Record<string, unknown> }[] = [];
+  const anonymous = async (cap: string, input: unknown): Promise<unknown> => {
+    calls.push({ cap, input: input as Record<string, unknown> });
+    if (cap === "members.invites.preview") return { spaceId: "spc_nw", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 1, fingerprint: "server-display-marker" };
+    return { status: "ok", session: { token: "vst_join", epoch: 2 } };
+  };
+  const invite = await previewDesktopJoin(route, anonymous);
+  const stored = await acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", trustDevice: true, ai: { choice: "none" } }, {
+    anonymous,
+    open: async () => ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_dana" }, close: () => undefined } as never),
+    getSpace: async () => ({ id: "spc_nw", marker: "authenticated-marker" }),
+    persist: () => undefined,
+  });
+  assert.equal(invite.preview.fingerprint, "server-display-marker", "the link fingerprint is never a trust pin");
+  const accept = calls.find((c) => c.cap === "invites.accept_create_account")!;
+  assert.equal(accept.input["code"], "invite-code");
+  assert.equal((accept.input["keys"] as { spaceKeys: unknown[] }).spaceKeys.length, 1);
+  assert.equal("personKey" in (accept.input["keys"] as object), false, "only wrapped key material leaves the client");
+  assert.equal(stored.marker, "authenticated-marker");
+  assert.deepEqual(consumeDesktopRoute(route), { kind: "signin", address: "https://northwind.vyre.run" }, "after the successful join, a sign-out has only the ordinary sign-in route, never the consumed code");
+});
+
+test("desktop joining never persists when the post-accept authenticated Space differs from the preview", async () => {
+  const route = routeDesktopLink({ action: "join", params: { address: "https://northwind.vyre.run", code: "invite-code", fp: "display-only" } });
+  assert.ok(route && route.kind === "join");
+  const invite = await previewDesktopJoin(route, async () => ({ spaceId: "spc_preview", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 1, fingerprint: "server-display-marker" }));
+  let writes = 0;
+  await assert.rejects(acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", trustDevice: true, ai: { choice: "none" } }, {
+    anonymous: async () => ({ status: "ok", session: { token: "vst_join" } }),
+    open: async () => ({ def: { spaceId: "spc_authenticated", name: "Elsewhere" }, me: { id: "usr_dana" }, close: () => undefined } as never),
+    getSpace: async () => ({ id: "spc_authenticated", marker: "authenticated-marker" }),
+    persist: () => { writes++; },
+  }), /Space no longer matches/);
+  assert.equal(writes, 0);
+});
+
+test("desktop join persists the verified session by default, never the identity epoch", async () => {
+  const store = memoryStore();
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  Object.defineProperty(globalThis, "localStorage", { value: store, configurable: true });
+  try {
+    const route = routeDesktopLink({ action: "join", params: { address: "https://northwind.vyre.run", code: "invite-code", fp: "display-only" } });
+    assert.ok(route && route.kind === "join");
+    const anonymous = async (cap: string): Promise<unknown> => cap === "members.invites.preview"
+      ? { spaceId: "spc_nw", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 1, fingerprint: "server-display-marker" }
+      : { status: "ok", session: { token: "vst_join", epoch: 11 } };
+    const invite = await previewDesktopJoin(route, anonymous);
+    const stored = await acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", trustDevice: true, ai: { choice: "none" } }, {
+      anonymous,
+      open: async () => ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_dana" }, close: () => undefined } as never),
+      getSpace: async () => ({ id: "spc_nw", marker: "authenticated-marker" }),
+    });
+    assert.equal(stored.syncEpoch, undefined);
+    assert.deepEqual(readStored(store, "https://northwind.vyre.run"), stored);
+  } finally {
+    if (previous) Object.defineProperty(globalThis, "localStorage", previous);
+    else Reflect.deleteProperty(globalThis, "localStorage");
+  }
+});
+
+test("desktop pair and invite failures redact one-time codes", async () => {
+  const pair = routeDesktopLink({ action: "pair", params: { address: "https://northwind.vyre.run", code: "pair-secret" } });
+  const join = routeDesktopLink({ action: "join", params: { address: "https://northwind.vyre.run", code: "invite-secret", fp: "display-only" } });
+  assert.ok(pair && pair.kind === "pair");
+  assert.ok(join && join.kind === "join");
+  await assert.rejects(redeemDesktopPair(pair, {
+    anonymous: async () => { throw new Error("pair-secret was refused"); },
+    open: async () => { throw new Error("not reached"); }, getSpace: async () => ({ id: "", marker: "" }),
+  }), (error: unknown) => error instanceof Error && !error.message.includes("pair-secret"));
+  await assert.rejects(previewDesktopJoin(join, async () => { throw new Error("invite-secret was refused"); }), (error: unknown) => error instanceof Error && !error.message.includes("invite-secret"));
 });
 
 test("hooks: a read that fails leaves the query loading, with the error available to the place that asked", async () => {

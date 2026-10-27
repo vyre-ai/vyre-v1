@@ -4,11 +4,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Checklist } from "./Checklist.tsx";
+import { HalftoneField, syncHalftoneCanvasSize } from "./HalftoneField.tsx";
 import { JoinFlow, makeRecoveryCode } from "./JoinFlow.tsx";
 import { aiOptions } from "./ConnectAI.tsx";
 import { DARK, LIGHT, paletteOf } from "./palette.ts";
-import { RUN_STEPS, initialState, meter, reduce, signInValid, strength, suggestions, usernameOk, valid } from "./logic.ts";
+import { RUN_STEPS, createSpaceResolutionGate, initialState, meter, normalizeSpaceAddress, reduce, resolveSpaceInvite, signInValid, strength, suggestions, usernameOk, valid, welcomeGreeting } from "./logic.ts";
 import type { Action, FlowState, JoinInvite } from "./logic.ts";
+import { Shell } from "../shell/spaces/Shell.tsx";
+import { createSampleShell, samplePlace } from "../shell/spaces/sample.tsx";
 
 const INVITE: JoinInvite = {
   space: "Northwind", host: "northwind", by: "Irfad Imtiaz", role: "Member", email: "irfad@northwind.example", names: { first: "Dana", last: "Whitfield" }, deviceName: "Dana's MacBook",
@@ -31,6 +34,115 @@ test("password strength, usernames and suggestions follow the rules", () => {
   assert.deepEqual(suggestions("Dana", "Whitfield", "irfad", (u) => !TAKEN.includes(u)), ["dana.whitfield", "danaw", "dana-ops"]);
   assert.deepEqual(suggestions("", "", "x", () => true), []);
   assert.deepEqual(suggestions("Maya", "Chen", "maya", (u) => u !== "maya.chen"), ["mayac", "maya-ops"]);
+});
+
+test("Space addresses require HTTPS outside explicit local development", () => {
+  assert.equal(normalizeSpaceAddress(" northwind.example "), "https://northwind.example");
+  assert.equal(normalizeSpaceAddress("HTTPS://Northwind.Example/path/"), "https://northwind.example/path");
+  assert.equal(normalizeSpaceAddress("http://localhost:3000/"), "http://localhost:3000");
+  assert.equal(normalizeSpaceAddress("http://127.0.0.1:3000/"), "http://127.0.0.1:3000");
+  assert.equal(normalizeSpaceAddress("http://[::1]:3000/"), "http://[::1]:3000");
+  for (const address of ["", "http://northwind.example", "tauri://localhost", "file:///Users/irfad", "vyre://join", "mailto:hello@example.com"]) {
+    assert.equal(normalizeSpaceAddress(address), null, address);
+  }
+});
+
+test("the Welcome greeting is deterministic for morning, afternoon, and evening", () => {
+  assert.equal(welcomeGreeting(0), "Good morning");
+  assert.equal(welcomeGreeting(12), "Good afternoon");
+  assert.equal(welcomeGreeting(18), "Good evening");
+});
+
+test("the connect reducer owns the address, failure, and distinct resolved destinations", () => {
+  let s = initialState(INVITE, { stage: "connect" });
+  s = step(s, { t: "set", patch: { spaceAddress: "northwind.example" } });
+  assert.equal(s.spaceAddress, "northwind.example");
+  s = step(s, { t: "space_resolving", intent: "signin" });
+  assert.equal(s.spaceResolving, true);
+  s = step(s, { t: "space_failed", message: "Could not verify this Space." });
+  assert.deepEqual([s.spaceResolving, s.spaceError], [false, "Could not verify this Space."]);
+  s = step(s, { t: "space_resolving", intent: "signin" }, { t: "space_resolved" });
+  assert.equal(s.stage, "signin");
+  s = step(initialState(INVITE, { stage: "connect" }), { t: "space_resolving", intent: "onboarding" }, { t: "space_resolved" });
+  assert.equal(s.stage, "accept");
+});
+
+test("a Space resolver receives only the normalized address and must return before credentials can open", async () => {
+  const calls: string[] = [];
+  const resolved = resolveSpaceInvite(" Northwind.Example ", async (address) => {
+    calls.push(address);
+    return INVITE;
+  });
+  assert.deepEqual(calls, ["https://northwind.example"], "the connection begins with a normalized address");
+  assert.equal(await resolved, INVITE, "the verified invite arrives asynchronously");
+  await assert.rejects(resolveSpaceInvite("tauri://localhost", async () => INVITE), /valid https/i);
+});
+
+test("editing a Space address invalidates its stale deferred response and lets the new address resolve", async () => {
+  let releaseA!: (invite: JoinInvite) => void;
+  let releaseB!: (invite: JoinInvite) => void;
+  let releaseUnmounted!: (invite: JoinInvite) => void;
+  const a = new Promise<JoinInvite>((resolve) => { releaseA = resolve; });
+  const b = new Promise<JoinInvite>((resolve) => { releaseB = resolve; });
+  const unmounted = new Promise<JoinInvite>((resolve) => { releaseUnmounted = resolve; });
+  const gate = createSpaceResolutionGate();
+  let invite = INVITE;
+  let stage: "connect" | "signin" = "connect";
+  const commit = (request: number, resolved: JoinInvite): void => {
+    if (!gate.isCurrent(request)) return;
+    invite = resolved;
+    stage = "signin";
+  };
+  const requestA = gate.begin();
+  void a.then((resolved) => commit(requestA, resolved));
+  gate.invalidate();
+  releaseA({ ...INVITE, space: "Alpha" });
+  await a;
+  assert.deepEqual([invite.space, stage], ["Northwind", "connect"], "editing to Space B prevents stale Space A from opening credentials");
+  const requestB = gate.begin();
+  void b.then((resolved) => commit(requestB, resolved));
+  releaseB({ ...INVITE, space: "Beta" });
+  await b;
+  assert.deepEqual([invite.space, stage], ["Beta", "signin"], "the edited Space can resolve after invalidating the old request");
+  const requestUnmounted = gate.begin();
+  void unmounted.then((resolved) => commit(requestUnmounted, resolved));
+  gate.dispose();
+  releaseUnmounted({ ...INVITE, space: "Gone" });
+  await unmounted;
+  assert.equal(invite.space, "Beta", "unmounted flows never commit a verified Space");
+});
+
+test("a fresh connection starts at the one-column Welcome back screen before credentials", () => {
+  const out = html({ stage: "connect" });
+  for (const text of ["Welcome back", "Connect a Space", "Space address", "Sign in", "Get started"]) assert.ok(out.includes(text), text);
+  assert.match(out, /data-testid="space-address"/);
+  assert.doesNotMatch(out, /Sign in to Northwind/, "credentials wait for a verified Space");
+  assert.equal(out.match(/data-testid="join-panel"/g)?.length, 1);
+  assert.equal(out.match(/data-testid="step-/g)?.length, 1);
+});
+
+test("auth-only halftone gives Welcome its full field and keeps forms calm", () => {
+  const welcome = html({ stage: "connect" });
+  const form = html({ stage: "signin" });
+  const still = renderToStaticMarkup(<HalftoneField intensity="calm" reducedMotion />);
+  assert.equal(welcome.match(/data-testid="auth-halftone"/g)?.length, 1);
+  assert.match(welcome, /data-intensity="full"/);
+  assert.match(form, /data-testid="auth-halftone"[^>]*data-intensity="calm"/);
+  assert.match(still, /data-static="true"/);
+});
+
+test("the static halftone resizes its backing canvas for viewport and display changes", () => {
+  const canvas = { width: 0, height: 0 };
+  assert.equal(syncHalftoneCanvasSize(canvas, 390, 844, 1), true);
+  assert.deepEqual(canvas, { width: 390, height: 844 });
+  assert.equal(syncHalftoneCanvasSize(canvas, 390, 844, 1), false, "an unchanged canvas is not repainted");
+  assert.equal(syncHalftoneCanvasSize(canvas, 844, 390, 2), true, "resize and device-pixel ratio changes repaint the static field");
+  assert.deepEqual(canvas, { width: 1688, height: 780 });
+});
+
+test("the signed-in shell has no auth halftone", () => {
+  const shell = renderToStaticMarkup(<Shell hub={createSampleShell()} renderPlace={samplePlace} />);
+  assert.doesNotMatch(shell, /auth-halftone/);
 });
 
 test("each step enables Continue only when it can go on", () => {
@@ -144,8 +256,54 @@ test("step 2: the username at the Space address, the strength meter and the mess
   assert.match(taken, /data-testid="suggest-dana.whitfield"/);
   assert.doesNotMatch(taken, /data-testid="username-ok"/);
   const mism = html({ stage: "steps", step: 1, ...FILLED, pw2: "nope" });
-  assert.match(mism, /The passwords do not match\./);
+  assert.match(mism, /Make both passwords match to continue\./);
   assert.match(html({ stage: "steps", step: 1, user: "9x" }), /Use 3 to 24 letters or digits, starting with a letter\./);
+});
+
+test("the clean account form keeps the approved promise, useful guidance, and local password controls", () => {
+  const create = html({ stage: "steps", step: 1, ...FILLED });
+  const signIn = html({ stage: "signin", si: "pw" });
+  assert.match(create, /Your space, your username and your password\. That is all it takes, on any device\./);
+  assert.match(create, /data-testid="password-visibility"/);
+  assert.match(create, />Show</);
+  assert.match(signIn, /data-testid="si-password-visibility"/);
+  assert.match(signIn, />Show</);
+  assert.match(create, /Keep your recovery code somewhere safe\. You need it to recover your private items after a password reset\./);
+  assert.match(html({ stage: "steps", step: 1, ...FILLED, pw2: "nope" }), /Make both passwords match to continue\./);
+});
+
+test("auth choices stay distinct and every phone row has a 44px touch target", () => {
+  const signIn = html({ stage: "signin", si: "pw" });
+  const ai = html({ stage: "steps", step: 3, ...FILLED });
+  assert.match(signIn, /data-testid="sign-in-sso"/);
+  assert.match(signIn, /data-testid="sign-in-github"/);
+  assert.doesNotMatch(tagOf(signIn, "sign-in-sso"), /GitHub/);
+  assert.match(signIn, /height:44px/);
+  assert.match(ai, /min-height:56px/);
+});
+
+test("every compact phone control keeps a 44px hit target without enlarging its visual", () => {
+  const device = html({ stage: "steps", step: 2, ...FILLED });
+  const sheet = html({ stage: "steps", step: 2, ...FILLED, rec: "new", sheet: true, code: "K7QM-4TXD-92HB-WPLE" });
+  const signIn = html({ stage: "signin", si: "pw" });
+  for (const id of ["next", "trust", "saved", "copy-code", "si-password-visibility"]) {
+    const out = id === "next" || id === "si-password-visibility" ? signIn : id === "trust" ? device : sheet;
+    assert.match(tagOf(out, id), /(?:min-)?height:44px/, id);
+  }
+  assert.match(signIn, /height:32px/, "the visual button stays compact within its larger hit target");
+  assert.match(device, /height:31px/, "the switch stays visually compact within its larger hit target");
+});
+
+test("GitHub-only sign-in does not render an empty single sign-on section", () => {
+  const githubOnly = renderToStaticMarkup(<JoinFlow invite={{ ...INVITE, sso: [], github: true }} initial={{ stage: "signin" }} hold />);
+  assert.match(githubOnly, /data-testid="sign-in-github"/);
+  assert.doesNotMatch(githubOnly, /Single sign-on|data-testid="sign-in-sso"/);
+});
+
+test("taken usernames give a truthful fallback when no suggestions are available", () => {
+  const out = renderToStaticMarkup(<JoinFlow invite={{ ...INVITE, names: { first: "", last: "" } }} initial={{ stage: "steps", step: 1, ...FILLED, user: "irfad" }} isTaken={rules.isTaken} hold />);
+  assert.match(out, /@irfad is taken\. Choose a different username\./);
+  assert.doesNotMatch(out, /Try one of the suggestions below\.|data-testid="suggestions"/);
 });
 
 test("step 3: this device, and the recovery code sheet with the code and the box", () => {
@@ -200,7 +358,7 @@ test("an expired invite says who to ask and offers their address", () => {
 
 test("sign-in lists single sign-on and GitHub and no passkey; the second factor asks for six digits", () => {
   const pw = html({ stage: "signin", si: "pw" });
-  for (const text of ["Sign in to Northwind", "Username", "Password", "Or continue with", "Google", "Okta", "OpenID Connect", "GitHub"]) assert.ok(pw.includes(text), text);
+  for (const text of ["Sign in to Northwind", "Username", "Password", "Single sign-on", "Google", "Okta", "OpenID Connect", "GitHub"]) assert.ok(pw.includes(text), text);
   assert.doesNotMatch(pw, /passkey/i);
   assert.match(pw, /disabled/, "Continue waits for a username and password");
   const noGithub = renderToStaticMarkup(<JoinFlow invite={{ ...INVITE, github: false, sso: [] }} initial={{ stage: "signin" }} hold />);

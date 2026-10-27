@@ -3,6 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
+import { screensById } from "../../../../../../generated/screens.ts";
 import Home from "../index.tsx";
 import { homeBSlots } from "./index.ts";
 import { dismissChecklist, startAsk, unstar } from "./actions.ts";
@@ -32,6 +33,15 @@ test("the sections run: checklist on top, then Needs you down to Routines, then 
   const done = html(createSampleHomeB("northwind"));
   assert.ok(!has(done, 'data-testid="s-first"'), "a finished checklist leaves the page");
   assert.ok(at(done, 'data-testid="s-routines"') < at(done, 'data-testid="s-today"') && at(done, 'data-testid="s-today"') < at(done, 'data-testid="s-starred"') && at(done, 'data-testid="s-starred"') < at(done, 'data-testid="s-ask"'));
+});
+
+test("the production Home checklist is driven by its server projection, not a timer", () => {
+  assert.equal(screensById.get("home.checklist")?.queries["checklist"]?.cap, "home.checklist");
+  assert.equal(screensById.get("spaces.onboarding")?.queries["checklist"]?.cap, "spaces.onboarding.get");
+  const h = createSampleHomeB("firstrun", { aiConnected: true });
+  assert.ok(has(html(h), ">1 of 6<"));
+  h.setDone("photo_and_title", true);
+  assert.ok(has(html(h), ">2 of 6<"), "the rendered Home card reflects its refreshed server-backed checklist data");
 });
 
 test("Today shows the day in order with Now, Next and Join, and the past event is quiet without a Join", () => {

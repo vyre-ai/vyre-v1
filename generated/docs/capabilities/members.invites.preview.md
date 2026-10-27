@@ -1,6 +1,6 @@
 # members.invites.preview
 
-Join page: the Space name and logo, who invited, expiry and key fingerprint for a code
+Join page: the public Space routing id, name and logo, who invited, expiry and display fingerprint for a code
 
 | | |
 |---|---|
@@ -33,6 +33,7 @@ type In = {
 
 ```ts
 type Out = {
+  spaceId: string;
   spaceName: string;
   logoFileId?: string;
   invitedBy: string;
@@ -65,6 +66,7 @@ type Out = {
     "invitedBy": "example",
     "logoFileId": "fil_a1b2c3",
     "role": "example",
+    "spaceId": "spc_a1b2c3",
     "spaceName": "example"
   }
 }

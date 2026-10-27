@@ -72,7 +72,7 @@ test("the join page preview shows the Space, who invited, the role and the finge
   const h = harness();
   const { code, invite: inv } = await invite(h);
   const view = await handlers["members.invites.preview"](h.anon, { code });
-  assert.deepEqual(view, { spaceName: "Maya Studio", invitedBy: "Ada", role: "Member", expiresAt: inv.expiresAt, fingerprint: "ab12 cd34 ef56 7890" });
+  assert.deepEqual(view, { spaceId: "spc_test", spaceName: "Maya Studio", invitedBy: "Ada", role: "Member", expiresAt: inv.expiresAt, fingerprint: "ab12 cd34 ef56 7890" });
   // people type codes: lower case, no dash and stray spaces all work
   assert.equal((await handlers["members.invites.preview"](h.anon, { code: ` ${code.toLowerCase().replace("-", " ")} ` })).spaceName, "Maya Studio");
   await assert.rejects(handlers["members.invites.preview"](h.anon, { code: "ZZZZ-ZZZZ" }), (e) => codeOf(e) === "auth.invalid_code");
