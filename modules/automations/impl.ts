@@ -3,13 +3,14 @@
 import { handlers } from "./handlers/index.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import { chooseScheduleRecovery, runDueSchedules, SCHEDULE_EVERY_MS } from "./schedule/live.ts";
-import type { AutoCtx } from "./projections.ts";
 import type { ChoiceLimits, ScheduleChoiceKey } from "./schedule/schedule.ts";
 
 export { handlers };
 export { accessDiff, canView, structuralIssues, validateDefinition, webhookSecretMatches } from "./handlers/defs.ts";
-import { loadRunPlan } from "./handlers/triggers.ts";
+import { loadRunPlan, startRun } from "./handlers/triggers.ts";
 export { consumeEvent, dropReason, fireOne, loadRunPlan, matches, startRun, triggerPayload } from "./handlers/triggers.ts";
+import { findAutomation, findRunLink, listChildLinks, listScopedChildren, saveRunLink } from "./projections.ts";
+import type { AutoCtx, RunScope } from "./projections.ts";
 
 /**
  * Host calls for the removal wizard (members.owned, host/src/seams/people.ts): what a person owns here and what happens to it. The host runs them with this module's ctx, so no other module reads these tables.
@@ -26,6 +27,31 @@ export const hostCalls = {
   "automations.run_plan": (ctx: Ctx, i: { runId: string }) => {
     const p = loadRunPlan(ctx, i.runId);
     return p ? { link: p.link, definition: p.definition, vault: p.vault } : null;
+  },
+  /** One lane or one loop iteration. Pins the parent's definition version. The same key returns the same Run. */
+  "automations.spawn_child": async (ctx: Ctx, i: { parentRunId: string; key: string; scope: RunScope; hold?: boolean }) => {
+    const parent = loadRunPlan(ctx, i.parentRunId);
+    if (!parent) return null;
+    const a = findAutomation(ctx.db, parent.link.automationId);
+    if (!a) return null;
+    const runId = await startRun(ctx as unknown as AutoCtx, a, {
+      trigger: parent.link.trigger, payload: parent.link.payload, test: parent.link.test, depth: parent.link.depth,
+      origin: parent.link.origin, eventId: parent.link.eventId, version: parent.link.version, parentRun: parent.link.runId,
+      key: i.key, principal: parent.link.principal, scope: i.scope, hold: i.hold === true,
+    });
+    return { runId };
+  },
+  "automations.child_links": (ctx: Ctx, i: { parentRunId: string; containerNodeId?: string }) => {
+    const links = listChildLinks(ctx.db, i.parentRunId).filter((l) => !i.containerNodeId || l.scope?.containerNodeId === i.containerNodeId);
+    return links.map((l) => ({ runId: l.runId, parentRun: l.parentRun ?? null, scope: l.scope ?? null }));
+  },
+  "automations.child_index": (ctx: Ctx) =>
+    listScopedChildren(ctx.db).map((l) => ({ runId: l.runId, parentRun: l.parentRun ?? null, scope: l.scope ?? null })),
+  "automations.patch_scope": (ctx: Ctx, i: { runId: string; scope: RunScope }) => {
+    const link = findRunLink(ctx.db, i.runId);
+    if (!link) return { ok: false };
+    saveRunLink(ctx.db, { ...link, scope: i.scope });
+    return { ok: true };
   },
   "automations.owned_by": (ctx: Ctx, i: { person: string }) => ({
     automations: kept(rows(ctx, `SELECT "id", "name" FROM automations_defs WHERE "owner_id" = ? AND "deleted_at" IS NULL`, i.person), "automation", "name"),

@@ -192,25 +192,50 @@ export function findGroup(db: Db, id: string): GroupRow | undefined { return lis
 
 // ---- Runs started ----
 
+/** Where a child Run sits inside its parent. `held` is a loop iteration waiting for a free concurrency slot. */
+export interface RunScope {
+  containerNodeId: string;
+  laneId?: string;
+  iterationIndex?: number;
+  iterationKey?: string;
+  item?: unknown;
+  held?: boolean;
+}
 export interface RunLink {
   runId: string; automationId: string; version: number; trigger: string; test: boolean; payload: unknown; depth: number; origin?: string; eventId?: string;
-  principal: { kind: "person" | "service"; id: string }; parentRun?: string; startedAt: number;
+  principal: { kind: "person" | "service"; id: string }; parentRun?: string; startedAt: number; scope?: RunScope;
 }
-export function saveRunLink(db: Db, l: RunLink): void {
-  db.run(
-    `INSERT OR REPLACE INTO automations_runs (run_id, automation_id, version, trigger_key, test, payload, depth, origin, event_id, principal_kind, principal_id, parent_run, started_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    l.runId, l.automationId, l.version, l.trigger, l.test ? 1 : 0, js(l.payload ?? null), l.depth, nul(l.origin), nul(l.eventId), l.principal.kind, l.principal.id, nul(l.parentRun), l.startedAt,
-  );
+function scopeOf(v: unknown): RunScope | undefined {
+  const s = json<RunScope | undefined>(v, undefined);
+  if (!s || typeof s !== "object" || Array.isArray(s) || typeof s.containerNodeId !== "string") return undefined;
+  return s;
 }
-export function findRunLink(db: Db, runId: string): RunLink | undefined {
-  const r = (db.all("SELECT * FROM automations_runs WHERE run_id = ?", runId) as Raw[])[0];
-  if (!r) return undefined;
+function rowToRunLink(r: Raw): RunLink {
   return clean({
     runId: r.run_id as string, automationId: r.automation_id as string, version: num(r.version) ?? 1, trigger: r.trigger_key as string, test: num(r.test) === 1,
     payload: json<unknown>(r.payload, null), depth: num(r.depth) ?? 0, origin: str(r.origin), eventId: str(r.event_id),
     principal: { kind: r.principal_kind as "person" | "service", id: r.principal_id as string }, parentRun: str(r.parent_run), startedAt: num(r.started_at) ?? 0,
+    scope: scopeOf(r.scope),
   }) as RunLink;
+}
+export function saveRunLink(db: Db, l: RunLink): void {
+  db.run(
+    `INSERT OR REPLACE INTO automations_runs (run_id, automation_id, version, trigger_key, test, payload, depth, origin, event_id, principal_kind, principal_id, parent_run, started_at, scope)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    l.runId, l.automationId, l.version, l.trigger, l.test ? 1 : 0, js(l.payload ?? null), l.depth, nul(l.origin), nul(l.eventId), l.principal.kind, l.principal.id, nul(l.parentRun), l.startedAt,
+    l.scope === undefined ? null : js(l.scope),
+  );
+}
+export function findRunLink(db: Db, runId: string): RunLink | undefined {
+  const r = (db.all("SELECT * FROM automations_runs WHERE run_id = ?", runId) as Raw[])[0];
+  return r ? rowToRunLink(r) : undefined;
+}
+export function listChildLinks(db: Db, parentRunId: string): RunLink[] {
+  return (db.all("SELECT * FROM automations_runs WHERE parent_run = ? ORDER BY started_at ASC, run_id ASC", parentRunId) as Raw[]).map(rowToRunLink);
+}
+/** Every child link that carries a scope. Recover uses this to find a parent parked on children that already finished. */
+export function listScopedChildren(db: Db): RunLink[] {
+  return (db.all("SELECT * FROM automations_runs WHERE parent_run IS NOT NULL AND scope IS NOT NULL ORDER BY started_at ASC, run_id ASC") as Raw[]).map(rowToRunLink);
 }
 
 // ---- Space-automation principal ----

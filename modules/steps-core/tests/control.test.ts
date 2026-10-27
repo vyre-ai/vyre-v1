@@ -160,84 +160,76 @@ test("Stop ends the Run; failed makes it a failure with the message", async () =
 
 // ---- Parallel join ----
 
-test("Parallel starts every lane at once and ends when all have finished", async () => {
-  const started: string[] = [];
-  const done: string[] = [];
-  const gates = new Map<string, () => void>();
-  const h = harness({}, {
-    lane: (n) => { started.push(n); return new Promise<void>((res) => { gates.set(n, () => { done.push(n); res(); }); }); },
-  });
-  const p = runStep(h.env, node("par", "parallel", { branches: ["mail", "sms", "task"] }), callOf());
-  await Promise.resolve();
-  assert.deepEqual(started, ["mail", "sms", "task"], "all lanes started before any finished");
-  gates.get("sms")!(); gates.get("mail")!();
-  let settled = false;
-  void p.then(() => { settled = true; });
-  await new Promise((r) => setImmediate(r));
-  assert.equal(settled, false, "one lane is still going");
-  gates.get("task")!();
-  assert.deepEqual((await p).output, { finished: ["mail", "sms", "task"] });
+const lane = (id: string, status: string, error?: string) => ({ id, laneId: id, status, ...(error ? { error } : {}) });
+
+test("Parallel waits while a lane is open and finishes when every lane has", async () => {
+  const h = harness();
+  const open = await runStep(h.env, node("par", "parallel", {}), callOf({ children: [lane("mail", "succeeded"), lane("sms", "running"), lane("task", "succeeded")] }));
+  assert.equal(open.wait?.event?.event, "run.child_terminal");
+  const done = await runStep(h.env, node("par", "parallel", {}), callOf({ children: [lane("mail", "succeeded"), lane("sms", "succeeded"), lane("task", "succeeded")] }));
+  assert.deepEqual(done.output, { finished: ["mail", "sms", "task"] });
+  assert.deepEqual((await runStep(h.env, node("par", "parallel", {}), callOf({ children: [] }))).output, { finished: [] });
 });
 
-test("a failed lane fails the step by name, after the others have finished", async () => {
-  let slowDone = false;
-  const h = harness({}, {
-    lane: async (n) => {
-      if (n === "bad") throw new Error("the mailbox is gone");
-      await new Promise((r) => setTimeout(r, 5));
-      if (n === "slow") slowDone = true;
-    },
-  });
-  await assert.rejects(runStep(h.env, node("par", "parallel", { branches: ["bad", "slow"] }), callOf()), (e) => {
+test("a failed lane fails the step by name once the others are terminal", async () => {
+  const h = harness();
+  const still = await runStep(h.env, node("par", "parallel", {}), callOf({ children: [lane("bad", "failed", "the mailbox is gone"), lane("slow", "running")] }));
+  assert.ok(still.wait, "the step waits until every lane is terminal");
+  await assert.rejects(runStep(h.env, node("par", "parallel", {}), callOf({ children: [lane("bad", "failed", "the mailbox is gone"), lane("slow", "succeeded")] })), (e) => {
     assert.equal(codeOf(e), "run.branch_failed");
     assert.equal((e as Error).message, "The lane bad did not finish: the mailbox is gone");
     return true;
   });
-  assert.equal(slowDone, true, "the step waited for the other lane");
-  const two = harness({}, { lane: async () => { throw new Error("x"); } });
-  await assert.rejects(runStep(two.env, node("par", "parallel", { branches: ["a", "b"] }), callOf()), (e) => /2 lanes did not finish/.test((e as Error).message));
+  await assert.rejects(runStep(h.env, node("par", "parallel", {}), callOf({ children: [lane("a", "failed", "x"), lane("b", "failed", "x")] })), (e) => /2 lanes did not finish/.test((e as Error).message));
 });
 
 test("Parallel waiting for any ends at the first lane to finish, and fails only when none does", async () => {
-  const h = harness({}, { lane: (n) => (n === "fast" ? Promise.resolve() : new Promise<void>(() => undefined)) });
-  assert.deepEqual((await runStep(h.env, node("par", "parallel", { branches: ["slow", "fast"], waitFor: "any" }), callOf())).output, { finished: ["fast"] });
-  const none = harness({}, { lane: async (n) => { throw new Error(`${n} broke`); } });
-  await assert.rejects(runStep(none.env, node("par", "parallel", { branches: ["a", "b"], waitFor: "any" }), callOf()), (e) => /No lane finished: a broke/.test((e as Error).message));
-  await refused(runStep(harness().env, node("par", "parallel", { branches: ["a", "b"] }), callOf()), "run.no_lanes");
+  const h = harness();
+  const early = await runStep(h.env, node("par", "parallel", { waitFor: "any" }), callOf({ children: [lane("slow", "running"), lane("fast", "succeeded")] }));
+  assert.ok(early.wait, "siblings still have to become terminal");
+  assert.deepEqual((await runStep(h.env, node("par", "parallel", { waitFor: "any" }), callOf({ children: [lane("slow", "stopped"), lane("fast", "succeeded")] }))).output, { finished: ["fast"] });
+  await assert.rejects(runStep(h.env, node("par", "parallel", { waitFor: "any" }), callOf({ children: [lane("a", "failed", "a broke"), lane("b", "failed", "b broke")] })), (e) => /No lane finished: a broke/.test((e as Error).message));
+  await refused(runStep(harness().env, node("par", "parallel", {}), callOf()), "run.no_lanes");
 });
 
 // ---- Loop ----
 
-test("Loop runs the body for each item and keeps the results in order", async () => {
-  const seen: string[] = [];
-  const h = harness({}, { body: async (item, i) => { seen.push(`${i}:${(item as { id: string }).id}`); return { sent: (item as { id: string }).id }; } });
-  const r = await runStep(h.env, node("l", "loop", { items: "steps.find.out.rows" }), callOf({ outputs: { find: { rows: [{ id: "a" }, { id: "b" }, { id: "c" }] } } }));
-  assert.deepEqual(r.output, { iterations: 3, results: [{ sent: "a" }, { sent: "b" }, { sent: "c" }] });
-  assert.deepEqual(seen, ["0:a", "1:b", "2:c"], "one at a time by default");
+test("Loop names each item and joins child Runs in order", async () => {
+  const h = harness();
+  const rows = [{ id: "a" }, { id: "b" }, { id: "c" }];
+  const prep = await runStep(h.env, node("l", "loop", { items: "steps.find.out.rows" }), callOf({ prepare: true, outputs: { find: { rows } } }));
+  assert.deepEqual(prep.prepare?.iterations.map((it) => it.iterationKey), ["a", "b", "c"]);
+  const dup = await runStep(h.env, node("l", "loop", { items: "trigger.rows" }), callOf({ prepare: true, trigger: { rows: [{ id: "a" }, { id: "a" }] } }));
+  assert.deepEqual(dup.prepare?.iterations.map((it) => it.iterationKey), ["a", "1:a"]);
+  const kids = prep.prepare!.iterations.map((it) => ({ id: it.iterationKey, iterationKey: it.iterationKey, iterationIndex: it.iterationIndex, status: "succeeded", runId: `run_${it.iterationKey}` }));
+  const joined = await runStep(h.env, node("l", "loop", { items: "steps.find.out.rows" }), callOf({ outputs: { find: { rows } }, children: kids }));
+  assert.deepEqual(joined.output, { iterations: 3, results: kids.map((k) => ({ iterationKey: k.iterationKey, status: "succeeded", runId: k.runId })) });
   const none = await runStep(h.env, node("l", "loop", { items: "trigger.rows" }), callOf({ trigger: { rows: [] } }));
   assert.deepEqual(none.output, { iterations: 0, results: [] });
-  const tpl = await runStep(h.env, node("l", "loop", { items: "{{ trigger.rows }}" }), callOf({ trigger: { rows: [{ id: "x" }] } }));
-  assert.equal((tpl.output as { iterations: number }).iterations, 1);
+  const tpl = await runStep(h.env, node("l", "loop", { items: "{{ trigger.rows }}" }), callOf({ prepare: true, trigger: { rows: [{ id: "x" }] } }));
+  assert.equal(tpl.prepare?.iterations.length, 1);
+  const waiting = await runStep(h.env, node("l", "loop", { items: "trigger.rows" }), callOf({ trigger: { rows: [{ id: "a" }] }, children: [{ id: "a", iterationKey: "a", iterationIndex: 0, status: "waiting", held: true }] }));
+  assert.equal(waiting.wait?.on, "child runs");
 });
 
-test("Loop concurrency is a ceiling: no more bodies run together than the step allows", async () => {
-  let live = 0, peak = 0;
-  const h = harness({}, { body: async () => { live++; peak = Math.max(peak, live); await new Promise((r) => setTimeout(r, 3)); live--; return null; } });
-  const items = Array.from({ length: 12 }, (_v, i) => ({ id: i }));
-  await runStep(h.env, node("l", "loop", { items: "trigger.items", concurrency: 4 }), callOf({ trigger: { items } }));
-  assert.equal(peak, 4);
-});
-
-test("Loop refuses a list over its limit instead of cutting it short, a list that is not a list, and a body that fails", async () => {
-  const h = harness({}, { body: async (_i, k) => { if (k === 2) throw new Error("no address"); return k; } });
+test("Loop refuses a list over its limit, a limit above 1000, a value that is not a list, and a failed item", async () => {
+  const h = harness();
   const trigger = { items: [1, 2, 3, 4] };
   await assert.rejects(runStep(h.env, node("l", "loop", { items: "trigger.items", maxIterations: 3 }), callOf({ trigger })), (e) => {
     assert.equal(codeOf(e), "run.loop_too_large");
     assert.match((e as Error).message, /4 items and the loop allows 3/);
     return true;
   });
+  await assert.rejects(runStep(h.env, node("l", "loop", { items: "trigger.items", maxIterations: 1001 }), callOf({ trigger: { items: [1] } })), (e) => {
+    assert.equal(codeOf(e), "run.loop_too_large");
+    return true;
+  });
+  const overDefault = Array.from({ length: 501 }, (_v, i) => i);
+  await refused(runStep(h.env, node("l", "loop", { items: "trigger.items" }), callOf({ trigger: { items: overDefault } })), "run.loop_too_large");
   await refused(runStep(h.env, node("l", "loop", { items: "trigger.n" }), callOf({ trigger: { n: 5 } })), "validation.bad_input");
-  await assert.rejects(runStep(h.env, node("l", "loop", { items: "trigger.items" }), callOf({ trigger })), (e) => {
+  await assert.rejects(runStep(h.env, node("l", "loop", { items: "trigger.items" }), callOf({
+    trigger, children: [0, 1, 2, 3].map((i) => ({ id: String(i), iterationKey: String(i), iterationIndex: i, status: i === 2 ? "failed" : "succeeded", ...(i === 2 ? { error: "no address" } : {}) })),
+  })), (e) => {
     assert.equal(codeOf(e), "run.loop_failed");
     assert.equal((e as Error).message, "Item 3 of 4 failed: no address");
     return true;
@@ -320,6 +312,30 @@ test("a Wait that wakes before its time waits again; the start time is kept acro
   h.advance(HOUR);
   const done = await runStep(h.env, node("w", "wait", { forDuration: "1h" }), callOf({ startedAt: start, resumed: true }));
   assert.equal((done.output as { resumedBy: string }).resumedBy, "duration");
+});
+
+test("a milestone that is already past succeeds without parking, and a future one follows its anchor", async () => {
+  const h = harness();
+  const past = await runStep(h.env, node("w", "wait", { at: h.now() - HOUR, direction: "after" }), callOf());
+  assert.deepEqual(past.output, { missed: true, skipTimeSensitive: true, reason: "milestone_passed" });
+  assert.equal(past.wait, undefined);
+  const ahead = h.now() + 5 * HOUR;
+  const parked = await runStep(h.env, node("w", "wait", { at: ahead, offset: "1h", direction: "before", anchorId: "evt_1", timezone: "UTC" }), callOf());
+  assert.equal(parked.wait?.at, ahead - HOUR);
+  assert.deepEqual(parked.wait?.event, { event: "calendar_event.updated", filter: { eventId: "evt_1" } });
+  assert.equal(parked.wait?.anchorId, "evt_1");
+  const zone = await runStep(h.env, node("w", "wait", { at: "2026-01-15T09:00", timezone: "America/New_York", direction: "after" }), callOf());
+  assert.equal(zone.wait?.at, Date.UTC(2026, 0, 15, 14, 0, 0));
+  let startsAt = ahead + 2 * HOUR;
+  h.callee("calendar.get_event", () => ({ event: { startsAt } }));
+  const moved = await runStep(h.env, node("w", "wait", { anchorId: "evt_1", offset: "0m", direction: "after" }), callOf({ resumed: true, priorAt: ahead }));
+  assert.equal(moved.wait?.at, startsAt);
+  startsAt = h.now() - DAY;
+  const missed = await runStep(h.env, node("w", "wait", { anchorId: "evt_1", direction: "after" }), callOf({ resumed: true, priorAt: ahead }));
+  assert.deepEqual(missed.output, { missed: true, skipTimeSensitive: true, reason: "milestone_passed" });
+  h.callee("calendar.get_event", () => { throw new Error("calendar down"); });
+  const kept = await runStep(h.env, node("w", "wait", { anchorId: "evt_1", direction: "after" }), callOf({ resumed: true, priorAt: h.now() + HOUR }));
+  assert.equal(kept.wait?.at, h.now() + HOUR);
 });
 
 test("Wait for a Journey stage parks on the stage event and ends with whether it timed out", async () => {
@@ -428,14 +444,13 @@ test("steps.test runs one step: a read for real, anything else from its sample",
 
 // ---- a whole plan, the way a ported flow runs ----
 
-test("a plan end to end: find, loop over the rows, branch on a score, wait for a reply, ask for approval, stop", async () => {
-  const sent: string[] = [];
+test("a plan end to end: find, an empty loop, branch on a score, wait for a reply, ask for approval, stop", async () => {
   const h = harness({ "records.query": () => ({ rows: [{ id: "rec_a", score: 3 }, { id: "rec_b", score: 9 }], total: 2 }) });
-  h.env.body = async (item) => { sent.push((item as { id: string }).id); return null; };
   const tasks = tasksWorld(h);
+  // The loop body is a child Run. This in-process plan has an empty list, so the coordinator finishes and the rest of the plan continues.
   const plan = [
     node("find", "records.find", { type: "contact" }),
-    node("each", "loop", { items: "steps.find.out.rows" }),
+    node("each", "loop", { items: [] }),
     node("pick", "paths", { paths: [{ name: "Hot", when: "max(steps.find.out.rows[0].score, steps.find.out.rows[1].score) > 8" }], otherwise: true }, { branches: [{ label: "hot", to: "reply" }, { label: "otherwise", to: "end" }] }),
     node("reply", "wait", { event: { event: "email.received" }, timeout: "3d" }),
     node("ok", "approval", { title: "Call them?", approver: { kind: "person", id: "usr_maya" } }),
@@ -444,7 +459,7 @@ test("a plan end to end: find, loop over the rows, branch on a score, wait for a
   const run = await new MiniRun(h, plan).run();
   assert.deepEqual(run.trail, ["find", "each", "pick"]);
   assert.equal(run.state, "waiting");
-  assert.deepEqual(sent, ["rec_a", "rec_b"]);
+  assert.deepEqual(run.outputs.each, { iterations: 0, results: [] });
   await run.event("email.received", {});
   assert.equal(run.state, "waiting");
   assert.equal(run.wait!.reason, "approval");
