@@ -1,19 +1,20 @@
-// The desktop adapter keeps the Tauri bridge at the session boundary. It turns
-// validated native links into the same URL-backed flows used by the browser;
-// it never gives the React app a general native invoke surface.
-import { makeBridge, shellInvoke, shellListen } from "../../../../desktop/src/bridge.ts";
-import type { Bridge, DesktopDeepLink, Unlisten } from "../../../../desktop/src/bridge.ts";
+// The desktop adapter keeps the narrow validated bridge at the session boundary.
+// It turns native links into the same URL-backed flows used by the browser.
+import { shellDesktopLinkBridge } from "../../../../../client/src/connection/desktop-link.ts";
+import type { DesktopDeepLink, DesktopLinkBridge, Unlisten } from "../../../../../client/src/connection/desktop-link.ts";
 import { makeBundle, wipe } from "../../../../../client/src/crypto/keys.ts";
 import type { JoinValues } from "../../join/JoinFlow.tsx";
-import { openVerifiedSession } from "./stored.ts";
+import { openVerifiedSession, writeStored } from "./stored.ts";
 import type { StoredSession, VerifiedSpace } from "./stored.ts";
+
+export type { DesktopDeepLink } from "../../../../../client/src/connection/desktop-link.ts";
 
 export type DesktopRoute =
   | { kind: "signin"; address: string }
   | { kind: "pair"; address: string; code: string }
   | { kind: "join"; address: string; code: string; fingerprint: string };
 
-export type DesktopBootstrapBridge = Pick<Bridge, "bootstrap" | "listenLinks">;
+export type DesktopBootstrapBridge = DesktopLinkBridge;
 
 /** The anonymous pre-auth caller is deliberately the only network surface these flows receive. */
 export type AnonymousCall = (capability: string, input: unknown) => Promise<unknown>;
@@ -64,13 +65,11 @@ function fallbackRecoveryCode(): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-function sessionToken(value: unknown): { token: string; epoch?: number } | null {
+function sessionToken(value: unknown): string | null {
   const response = object(value);
   const session = response && object(response["session"]);
   const token = session && text(session["token"]);
-  if (!token) return null;
-  const epoch = session["epoch"];
-  return { token, ...(typeof epoch === "number" && Number.isInteger(epoch) && epoch >= 0 ? { epoch } : {}) };
+  return token;
 }
 
 function needsSecondFactor(value: unknown): boolean {
@@ -83,18 +82,18 @@ async function preauth(call: AnonymousCall, capability: string, input: unknown, 
 
 async function verifyAndPersist(baseUrl: string, answer: unknown, expectedSpaceId: string | undefined, deps: Omit<DesktopSessionDeps, "anonymous">): Promise<StoredSession> {
   if (needsSecondFactor(answer)) throw new Error("Finish second-factor sign-in in your Space, then try again.");
-  const session = sessionToken(answer);
-  if (!session) throw new Error("The Space did not return a session. Try again.");
+  const token = sessionToken(answer);
+  if (!token) throw new Error("The Space did not return a session. Try again.");
   let saved: StoredSession | undefined;
   const stored = await openVerifiedSession({
     baseUrl,
-    token: session.token,
+    token,
     ...(expectedSpaceId ? { continuity: { id: expectedSpaceId } } : {}),
-    open: () => deps.open(session.token),
-    getSpace: () => deps.getSpace(session.token),
+    open: () => deps.open(token),
+    getSpace: () => deps.getSpace(token),
     persist: (candidate) => {
-      saved = { ...candidate, ...(session.epoch === undefined ? {} : { syncEpoch: session.epoch }) };
-      deps.persist?.(saved);
+      saved = candidate;
+      (deps.persist ?? writeStored)(saved);
     },
   });
   return saved ?? stored;
@@ -160,9 +159,7 @@ export async function acceptDesktopJoin(join: PreviewedDesktopJoin, values: Join
 
 /** The typed bridge is present only in the packaged desktop shell. */
 export function desktopBridge(): DesktopBootstrapBridge | null {
-  const invoke = shellInvoke();
-  const listen = shellListen();
-  return invoke && listen ? makeBridge(invoke, listen) : null;
+  return shellDesktopLinkBridge();
 }
 
 /** Delivers bootstrap before live links, preserving the bridge's established order. */

@@ -11,7 +11,7 @@ import { createRemoteScreenHooks, stableJson } from "./remote-hooks.ts";
 import { openRealSession, targetHash } from "./session.ts";
 import { clearStored, openVerifiedSession, readStored, signInAndVerify, spaceAddress, verifyStoredSession, writeStored } from "./stored.ts";
 import { acceptDesktopJoin, consumeDesktopBootstrap, previewDesktopJoin, redeemDesktopPair, routeDesktopLink } from "./desktop.ts";
-import type { DesktopDeepLink } from "../../../../desktop/src/bridge.ts";
+import type { DesktopDeepLink } from "./desktop.ts";
 import type { KeyValueStore } from "./stored.ts";
 
 const ROUTES: RouteRow[] = [
@@ -468,9 +468,29 @@ test("desktop pairing redeems anonymously, verifies the Space, then persists wit
     persist: (s) => { persisted = s; },
   });
   assert.deepEqual(calls, [{ cap: "identity.pair_redeem", input: { code: "pair-code", deviceName: "Vyre desktop", deviceClass: "desktop" } }]);
-  assert.deepEqual(stored, { baseUrl: "https://northwind.vyre.run", token: "vst_pair", def: { spaceId: "spc_nw", name: "Northwind" }, personId: "usr_1", marker: "current-display-marker", syncEpoch: 4 });
+  assert.deepEqual(stored, { baseUrl: "https://northwind.vyre.run", token: "vst_pair", def: { spaceId: "spc_nw", name: "Northwind" }, personId: "usr_1", marker: "current-display-marker" });
   assert.deepEqual(persisted, stored);
   assert.equal("keys" in stored, false, "pairing ciphertext never reaches ordinary session storage");
+});
+
+test("desktop pair persists verified sessions by default and leaves the sync epoch to the hello handshake", async () => {
+  const store = memoryStore();
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  Object.defineProperty(globalThis, "localStorage", { value: store, configurable: true });
+  try {
+    const route = routeDesktopLink({ action: "pair", params: { address: "https://northwind.vyre.run", code: "pair-code" } });
+    assert.ok(route && route.kind === "pair");
+    const stored = await redeemDesktopPair(route, {
+      anonymous: async () => ({ status: "ok", session: { token: "vst_pair", epoch: 9 } }),
+      open: async () => ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_1" }, close: () => undefined } as never),
+      getSpace: async () => ({ id: "spc_nw", marker: "current-display-marker" }),
+    });
+    assert.equal(stored.syncEpoch, undefined);
+    assert.deepEqual(readStored(store, "https://northwind.vyre.run"), stored);
+  } finally {
+    if (previous) Object.defineProperty(globalThis, "localStorage", previous);
+    else Reflect.deleteProperty(globalThis, "localStorage");
+  }
 });
 
 test("desktop joining previews first and accepts with a real Space-key bundle", async () => {
@@ -509,6 +529,30 @@ test("desktop joining never persists when the post-accept authenticated Space di
     persist: () => { writes++; },
   }), /Space no longer matches/);
   assert.equal(writes, 0);
+});
+
+test("desktop join persists the verified session by default, never the identity epoch", async () => {
+  const store = memoryStore();
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  Object.defineProperty(globalThis, "localStorage", { value: store, configurable: true });
+  try {
+    const route = routeDesktopLink({ action: "join", params: { address: "https://northwind.vyre.run", code: "invite-code", fp: "display-only" } });
+    assert.ok(route && route.kind === "join");
+    const anonymous = async (cap: string): Promise<unknown> => cap === "members.invites.preview"
+      ? { spaceId: "spc_nw", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 1, fingerprint: "server-display-marker" }
+      : { status: "ok", session: { token: "vst_join", epoch: 11 } };
+    const invite = await previewDesktopJoin(route, anonymous);
+    const stored = await acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", trustDevice: true, ai: { choice: "none" } }, {
+      anonymous,
+      open: async () => ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_dana" }, close: () => undefined } as never),
+      getSpace: async () => ({ id: "spc_nw", marker: "authenticated-marker" }),
+    });
+    assert.equal(stored.syncEpoch, undefined);
+    assert.deepEqual(readStored(store, "https://northwind.vyre.run"), stored);
+  } finally {
+    if (previous) Object.defineProperty(globalThis, "localStorage", previous);
+    else Reflect.deleteProperty(globalThis, "localStorage");
+  }
 });
 
 test("desktop pair and invite failures redact one-time codes", async () => {
