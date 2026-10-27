@@ -272,7 +272,7 @@ jobs:
   budget-tag:
     permissions: { contents: read, actions: read }
     # Sign waits for a person to approve, so the budget is measured to the live gate and the deploy, not to publish and smoke.
-    needs: [guard, package, suite, client, kits, images, heavy, security, native, desktop, desktop-release-files, live, deploy]
+    needs: [live, deploy]
     if: always()
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
