@@ -27,21 +27,25 @@ function mcpServer(answer: (args: Record<string, unknown>) => { isError?: boolea
   return { server, seen };
 }
 
-/** Run the fake CLI once with one prompt and return the text of its reply. */
-async function ask(prompt: string, mcpConfig: unknown): Promise<string> {
+/** Run one persistent fake CLI with the prompts and return each reply in order. */
+async function askMany(prompts: readonly string[], mcpConfig: unknown): Promise<string[]> {
   const child = spawn(process.execPath, [FAKE, "claude", "-p", "--mcp-config", JSON.stringify(mcpConfig)], { env: { ...process.env, VYRE_MCP_TOKEN: TOKEN }, stdio: ["pipe", "pipe", "inherit"] });
-  child.stdin.write(`${JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text: prompt }] } })}\n`);
+  for (const prompt of prompts) child.stdin.write(`${JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text: prompt }] } })}\n`);
   let out = "";
   child.stdout.setEncoding("utf8");
   const done = new Promise<void>((ok) => {
-    child.stdout.on("data", (d: string) => { out += d; if (out.includes('"type":"result"')) { child.stdin.end(); ok(); } });
+    child.stdout.on("data", (d: string) => {
+      out += d;
+      if (out.split("\n").filter((l) => l.includes('"type":"result"')).length >= prompts.length) { child.stdin.end(); ok(); }
+    });
     child.on("exit", () => ok());
   });
   await done;
   child.kill();
-  const result = out.split("\n").filter((l) => l.includes('"type":"result"')).map((l) => JSON.parse(l) as { result: string })[0];
-  return result?.result ?? "";
+  return out.split("\n").filter((l) => l.includes('"type":"result"')).map((l) => (JSON.parse(l) as { result: string }).result);
 }
+
+const ask = async (prompt: string, mcpConfig: unknown): Promise<string> => (await askMany([prompt], mcpConfig))[0] ?? "";
 
 test("send over a loopback URL calls mail_send with the address and the bearer token, and reports the answer", async () => {
   const { server, seen } = mcpServer((a) => ({ text: `queued for ${(a["to"] as Array<{ address: string }>)[0]!.address}` }));
@@ -67,6 +71,18 @@ test("a refused or held call is reported as refused with the tool's own words, a
   } finally { await new Promise<void>((ok) => held.server.close(() => ok())); }
   assert.match(await ask("send pat@acme.test", { mcpServers: {} }), /^mcp error: there is no vyre MCP server/);
   assert.equal(await ask("send", { mcpServers: {} }), "mcp error: say who to send to");
+});
+
+test("two identical send turns use distinct idempotency keys", async () => {
+  const held = mcpServer(() => ({ isError: true, text: "held for approval" }));
+  await new Promise<void>((ok) => held.server.listen(0, "127.0.0.1", ok));
+  try {
+    const url = `http://127.0.0.1:${(held.server.address() as { port: number }).port}/mcp`;
+    await askMany(["send pat@acme.test mbx_one", "send pat@acme.test mbx_one"], { mcpServers: { vyre: { type: "http", url, headers: {} } } });
+    const keys = held.seen.filter((s) => s.body["method"] === "tools/call").map((s) => ((s.body["params"] as { arguments: Record<string, unknown> }).arguments["idempotencyKey"]));
+    assert.equal(keys.length, 2);
+    assert.notEqual(keys[0], keys[1]);
+  } finally { await new Promise<void>((ok) => held.server.close(() => ok())); }
 });
 
 test("the hello scenario is unchanged", async () => {
