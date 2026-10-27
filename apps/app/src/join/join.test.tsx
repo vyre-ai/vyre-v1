@@ -4,11 +4,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Checklist } from "./Checklist.tsx";
+import { HalftoneField, syncHalftoneCanvasSize } from "./HalftoneField.tsx";
 import { JoinFlow, makeRecoveryCode } from "./JoinFlow.tsx";
 import { aiOptions } from "./ConnectAI.tsx";
 import { DARK, LIGHT, paletteOf } from "./palette.ts";
 import { RUN_STEPS, createSpaceResolutionGate, initialState, meter, normalizeSpaceAddress, reduce, resolveSpaceInvite, signInValid, strength, suggestions, usernameOk, valid, welcomeGreeting } from "./logic.ts";
 import type { Action, FlowState, JoinInvite } from "./logic.ts";
+import { Shell } from "../shell/spaces/Shell.tsx";
+import { createSampleShell, samplePlace } from "../shell/spaces/sample.tsx";
 
 const INVITE: JoinInvite = {
   space: "Northwind", host: "northwind", by: "Irfad Imtiaz", role: "Member", email: "irfad@northwind.example", names: { first: "Dana", last: "Whitfield" }, deviceName: "Dana's MacBook",
@@ -116,6 +119,30 @@ test("a fresh connection starts at the one-column Welcome back screen before cre
   assert.doesNotMatch(out, /Sign in to Northwind/, "credentials wait for a verified Space");
   assert.equal(out.match(/data-testid="join-panel"/g)?.length, 1);
   assert.equal(out.match(/data-testid="step-/g)?.length, 1);
+});
+
+test("auth-only halftone gives Welcome its full field and keeps forms calm", () => {
+  const welcome = html({ stage: "connect" });
+  const form = html({ stage: "signin" });
+  const still = renderToStaticMarkup(<HalftoneField intensity="calm" reducedMotion />);
+  assert.equal(welcome.match(/data-testid="auth-halftone"/g)?.length, 1);
+  assert.match(welcome, /data-intensity="full"/);
+  assert.match(form, /data-testid="auth-halftone"[^>]*data-intensity="calm"/);
+  assert.match(still, /data-static="true"/);
+});
+
+test("the static halftone resizes its backing canvas for viewport and display changes", () => {
+  const canvas = { width: 0, height: 0 };
+  assert.equal(syncHalftoneCanvasSize(canvas, 390, 844, 1), true);
+  assert.deepEqual(canvas, { width: 390, height: 844 });
+  assert.equal(syncHalftoneCanvasSize(canvas, 390, 844, 1), false, "an unchanged canvas is not repainted");
+  assert.equal(syncHalftoneCanvasSize(canvas, 844, 390, 2), true, "resize and device-pixel ratio changes repaint the static field");
+  assert.deepEqual(canvas, { width: 1688, height: 780 });
+});
+
+test("the signed-in shell has no auth halftone", () => {
+  const shell = renderToStaticMarkup(<Shell hub={createSampleShell()} renderPlace={samplePlace} />);
+  assert.doesNotMatch(shell, /auth-halftone/);
 });
 
 test("each step enables Continue only when it can go on", () => {

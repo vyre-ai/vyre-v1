@@ -5,6 +5,8 @@ import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Dimensions } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
 import { Avatar } from "../../../../ui/src/Avatar/index.tsx";
+import { HalftoneField } from "./HalftoneField.tsx";
+import type { HalftoneIntensity } from "./HalftoneField.tsx";
 import { FONT, MONO, paletteOf, useJoinMode } from "./palette.ts";
 import type { JoinMode, JoinPalette } from "./palette.ts";
 
@@ -47,7 +49,7 @@ export const PHONE_MAX = 640;
 
 // ---- the frame: wash, panel, body, bar
 
-export function JoinFrame({ children, mode }: { children: ReactNode; mode?: JoinMode }) {
+export function JoinFrame({ children, mode, halftoneIntensity = "calm" }: { children: ReactNode; mode?: JoinMode; halftoneIntensity?: HalftoneIntensity }) {
   const detected = useJoinMode();
   const m = mode ?? detected;
   const { width } = useViewport();
@@ -57,9 +59,10 @@ export function JoinFrame({ children, mode }: { children: ReactNode; mode?: Join
     <ThemeCtx.Provider value={theme}>
       <View
         testID="join-frame"
-        style={{ flex: 1, minHeight: "100%" as unknown as number, backgroundColor: phone ? theme.p.panel : theme.p.back, alignItems: "center", justifyContent: "center", padding: phone ? 0 : 24 }}
+        style={{ flex: 1, minHeight: "100%" as unknown as number, position: "relative", overflow: "hidden", backgroundColor: phone ? theme.p.panel : theme.p.back, alignItems: "center", justifyContent: "center", padding: phone ? 0 : 24 }}
       >
-        {children}
+        <HalftoneField intensity={halftoneIntensity} palette={theme.p} />
+        <View style={{ width: "100%", height: "100%", alignItems: "center", justifyContent: "center", zIndex: 1 }}>{children}</View>
       </View>
     </ThemeCtx.Provider>
   );

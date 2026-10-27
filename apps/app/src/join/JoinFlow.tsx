@@ -171,5 +171,5 @@ export function JoinFlow(props: JoinFlowProps) {
         newCode={props.newCode ?? makeRecoveryCode} onEmail={props.onEmail} onOpen={props.onOpen}
       />
     );
-  return <JoinFrame {...(props.mode ? { mode: props.mode } : {})}>{page}</JoinFrame>;
+  return <JoinFrame {...(props.mode ? { mode: props.mode } : {})} halftoneIntensity={state.stage === "connect" ? "full" : "calm"}>{page}</JoinFrame>;
 }

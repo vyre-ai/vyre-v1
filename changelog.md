@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Auth: added a bounded, motion-aware halftone field for the welcome and onboarding surfaces; it stays calm behind credential forms and never enters the signed-in shell.
 - Auth: added the 0.6.8-style Welcome back / Connect a Space screen, HTTPS Space address normalization, and verified asynchronous handoff into existing credentials.
 - Contracts: manifest types and builder DSL (packages/contracts), frozen declarations for the 72 modules plus 4 connectors and 4 Kits (manifests/), vyre-gen generator (tools/gen) with drift check, typecheck and generated contract tests.
 - CI skeleton: affected-only selector, per-file capped test runner, pass cache by import closure hash, push/main/release/spike workflows.
