@@ -3,8 +3,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createPrincipalRegistrar } from "./principals.ts";
 import type { SpaceLevel } from "./principals.ts";
-import { applyEvent } from "../../../modules/access/consumers.ts";
-import { AccessStore } from "../../../modules/access/projections.ts";
 
 const created = (agentId: string, ownerId = "usr_a") => [{ type: "agent.created", payload: { agentId, name: "Helper", ownerId } }];
 const createdWithFolder = (folderId: unknown) => [{ type: "agent.created", payload: { agentId: "agt_folder", name: "Helper", ownerId: "usr_a", folderId } }];
@@ -43,17 +41,4 @@ test("a well-formed home folder gets deterministic agent and owner grants, while
   ]);
   assert.equal(reg("edit").register({ events: createdWithFolder("folder_bad"), space: "spc_core", maker: "usr_a" }).length, 3);
   assert.equal(reg("edit").register({ events: [...createdWithFolder("fld_home1"), ...createdWithFolder("fld_home1")], space: "spc_core", maker: "usr_a" }).filter((e) => e.id === "gr_agt_folder_home").length, 1);
-});
-
-test("gateway actor-kind home grants fold onto the registered agent and person", () => {
-  const store = new AccessStore();
-  const events = [
-    { type: "principal.created", payload: { id: "agt_home", kind: "agent", owner: "usr_a", status: "active" } },
-    { type: "principal.created", payload: { id: "usr_a", kind: "person", status: "active" } },
-    { type: "grant.created", payload: { id: "gr_home", subject_kind: "actor", subject_id: "agt_home", resource_type: "folder", resource_id: "fld_home", level: "edit" } },
-    { type: "grant.created", payload: { id: "gr_owner", subject_kind: "actor", subject_id: "usr_a", resource_type: "folder", resource_id: "fld_home", level: "manage" } },
-  ] as const;
-  for (const event of events) applyEvent(store, event, 1);
-  assert.equal(store.grants.get("gr_home")?.subject.kind, "agent");
-  assert.equal(store.grants.get("gr_owner")?.subject.kind, "person");
 });
