@@ -1,13 +1,13 @@
 // The step panel: opens beside the canvas when a card is selected. A name, the account the step was given, the step's own fields (one text field per input, in words), the AI step's key
 // and backup, what happens when the step fails, and the problems the check found for this step. Every change goes through `onChange` as a new definition, so Undo and Save see it like any other edit.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { AskVyre } from "../ask/AskVyre.tsx";
 import type { AskBundle } from "../ask/bundle.ts";
-import { accountMenu, applyAccount } from "../connect/accounts.ts";
+import { accountDefaultInput, accountMenu, applyAccount } from "../connect/accounts.ts";
 import type { AccountOption } from "../connect/accounts.ts";
 import { DataShelf, MappingFix, SectionRow, commitTyped, nodeIdSet } from "../builder/marks.tsx";
 import { StepTest } from "../builder/StepTest.tsx";
@@ -57,6 +57,22 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
   const { element, show: openMenu } = useMenu();
   const [advanced, setAdvanced] = useState(false);
   const [jsonError, setJsonError] = useState<string | null>(null);
+  const wroteDefault = useRef("");
+  useEffect(() => {
+    if (!node) return;
+    const next = accountDefaultInput({
+      input: node.input ?? {},
+      nodes: def.nodes.filter((item) => item.id !== node.id).map((item) => ({ input: item.input ?? {} })),
+      accounts,
+      ...(inputSchema !== undefined ? { schema: inputSchema } : {}),
+      ...(lastPicks ? { last: lastPicks } : {}),
+    });
+    if (!next) return;
+    const mark = `${node.id}:${JSON.stringify(next)}`;
+    if (wroteDefault.current === mark) return;
+    wroteDefault.current = mark;
+    onChange(updateStep(def, node.id, { input: next }));
+  }, [node, def, accounts, inputSchema, lastPicks, onChange]);
   const prior = def.nodes.filter((item) => node ? def.nodes.indexOf(item) < def.nodes.indexOf(node) : true).map((item) => ({ id: item.id, title: item.title ?? titleOfKey(item.key), output: samples[item.id] })).filter((item) => item.output !== undefined);
   const errorEntries = (): MenuEntry[] => {
     const out: MenuEntry[] = [];

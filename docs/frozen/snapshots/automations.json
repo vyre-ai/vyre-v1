@@ -1,6 +1,7 @@
 {
   "module": "automations",
   "capabilities": {
+    "automations.account_picks@1": "39e8825f8f8e21441d37d7ad51bb2b5f128b5634736366e65046d0f0e5d13af1",
     "automations.alerts.get@1": "a0531742c4f5ec3da0457f75e6989db8dad80d1af9a3fb77af216a0cf04a8212",
     "automations.alerts.set@1": "769ec17ca456259041900fbe502dcbe7d7cfcb1ded0dd9dbd2d2d812e10d323e",
     "automations.create@1": "34c60216a6ae2b1e1cf67301558a6bdcddf375a20941015ea0e73851f3589231",

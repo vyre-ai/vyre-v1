@@ -126,3 +126,17 @@ test("create and update store the pick, and a step with no id can read it as las
   await h.call("automations.update", { automationId: id, name: "Renamed only" }, alice);
   assert.equal(picks(h).find((row) => row.app === "hubspot")?.account_id, "con_kept");
 });
+
+test("account_picks returns the stored app and id and nothing else", async () => {
+  const h = harness();
+  await h.call("automations.create", create({
+    name: "Mailbox",
+    definition: {
+      triggers: [{ key: "manual" }],
+      nodes: [node("m", "send_email", { to: "a@example.com", subject: "Hi", body: "Hello", mailboxId: "mbx_main" })],
+    },
+  }), alice);
+  assert.deepEqual(await h.call("automations.account_picks", {}, alice), {
+    picks: [{ app: "mail", accountId: "mbx_main" }],
+  });
+});

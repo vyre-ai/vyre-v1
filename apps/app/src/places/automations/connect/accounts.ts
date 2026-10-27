@@ -129,6 +129,82 @@ export function applyAccount(input: Record<string, unknown>, field: AccountField
   return next;
 }
 
+/** The next step input when a real account is checked and this field has no id yet. Undefined means do not write. */
+export function accountDefaultInput(spec: {
+  input: Record<string, unknown>;
+  schema?: unknown;
+  nodes?: readonly { input: Record<string, unknown> }[];
+  accounts?: readonly AccountOption[];
+  last?: Readonly<Record<string, string>>;
+}): Record<string, unknown> | undefined {
+  const menu = accountMenu(spec);
+  if (!menu) return undefined;
+  if (textId(spec.input[menu.field])) return undefined;
+  const checked = menu.items.find((item) => item.checked);
+  if (!checked?.account) return undefined;
+  return applyAccount(spec.input, menu.field, checked.account);
+}
+
+function rowsOf(out: unknown, key: string): unknown[] | null {
+  if (!out || typeof out !== "object" || Array.isArray(out)) return null;
+  const value = (out as Record<string, unknown>)[key];
+  return Array.isArray(value) ? value : null;
+}
+
+function recordOf(row: unknown): Record<string, unknown> | undefined {
+  return row && typeof row === "object" && !Array.isArray(row) ? row as Record<string, unknown> : undefined;
+}
+
+/** failing, error, and disconnected are not a new default. syncing stays usable. */
+function shownState(kind: "connection" | "mail", state: string): string {
+  if (kind === "connection" && state === "failing") return "needs_reconnect";
+  if (kind === "mail" && (state === "error" || state === "disconnected")) return "needs_reconnect";
+  if (kind === "mail" && state === "syncing") return "active";
+  return state;
+}
+
+/** Connection and mailbox rows become account options. A bad list is null. A bad row is skipped. No secrets are copied. */
+export function accountsFromVault(connectionsOut: unknown, mailboxesOut: unknown): AccountOption[] | null {
+  const connections = rowsOf(connectionsOut, "connections");
+  const mailboxes = rowsOf(mailboxesOut, "mailboxes");
+  if (!connections || !mailboxes) return null;
+  const accounts: AccountOption[] = [];
+  for (const row of connections) {
+    const rec = recordOf(row);
+    if (!rec) continue;
+    const id = textId(rec["connectionId"]);
+    const app = textId(rec["connector"]);
+    const state = textId(rec["state"]);
+    if (!id || !app || !state) continue;
+    accounts.push({ app, id, title: textId(rec["title"]) ?? id, state: shownState("connection", state) });
+  }
+  for (const row of mailboxes) {
+    const rec = recordOf(row);
+    if (!rec) continue;
+    const id = textId(rec["id"]);
+    const state = textId(rec["state"]);
+    if (!id || !state) continue;
+    accounts.push({ app: "mail", id, title: textId(rec["title"]) ?? textId(rec["address"]) ?? id, state: shownState("mail", state) });
+  }
+  return accounts;
+}
+
+/** Last picks keyed by app. A bad list is null. Ids only. */
+export function picksByApp(out: unknown): Record<string, string> | null {
+  const picks = rowsOf(out, "picks");
+  if (!picks) return null;
+  const last: Record<string, string> = {};
+  for (const row of picks) {
+    const rec = recordOf(row);
+    if (!rec) continue;
+    const app = textId(rec["app"]);
+    const accountId = textId(rec["accountId"]);
+    if (!app || !accountId) continue;
+    last[app] = accountId;
+  }
+  return last;
+}
+
 export function accountMenu(spec: {
   input: Record<string, unknown>;
   schema?: unknown;

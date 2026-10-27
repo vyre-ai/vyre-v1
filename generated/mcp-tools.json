@@ -3974,6 +3974,21 @@
     },
     {
       "blocks": [],
+      "cap": "automations.account_picks",
+      "deferred": false,
+      "description": "The last account this person picked for each app",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "automations_account_picks",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.alerts.get",
       "deferred": false,
       "description": "Read error alerts: who, when and where, and the escalation chain",

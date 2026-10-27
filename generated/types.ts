@@ -1851,6 +1851,13 @@ export type AuditVerifyOut = {
   checked: number;
   firstBadSeq?: number;
 };
+export type AutomationsAccountPicksIn = Record<string, unknown>;
+export type AutomationsAccountPicksOut = {
+  picks: Array<{
+      app: string;
+      accountId: string;
+    }>;
+};
 export type AutomationsAlertsGetIn = {
   automationId: string;
 };
@@ -26748,6 +26755,7 @@ export interface CapMap {
   "audit.get": { in: AuditGetIn; out: AuditGetOut };
   "audit.list": { in: AuditListIn; out: AuditListOut };
   "audit.verify": { in: AuditVerifyIn; out: AuditVerifyOut };
+  "automations.account_picks": { in: AutomationsAccountPicksIn; out: AutomationsAccountPicksOut };
   "automations.alerts.get": { in: AutomationsAlertsGetIn; out: AutomationsAlertsGetOut };
   "automations.alerts.set": { in: AutomationsAlertsSetIn; out: AutomationsAlertsSetOut };
   "automations.create": { in: AutomationsCreateIn; out: AutomationsCreateOut };

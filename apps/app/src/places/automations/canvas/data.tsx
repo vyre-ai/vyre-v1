@@ -36,6 +36,8 @@ export interface AutomationsData {
   keys: readonly KeyChoice[];
   /** Accounts the parent already loaded. The step picker lists these and does not fetch. */
   accounts?: readonly AccountOption[];
+  /** Last explicit pick for this person, keyed by app. Absent when the parent did not load one. */
+  lastPicks?: Readonly<Record<string, string>>;
   /** Set when the place loaded providers.list. Absent on sample data that already supplies keys. */
   keysStatus?: KeysStatus;
   nav: AutomationsNav;

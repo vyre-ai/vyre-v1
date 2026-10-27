@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Automations: the step lists the accounts a person can use, writes a default id when the step has none, and does not pick a mailbox or number the step did not name.
 - Automations: a step keeps the account id it was given. A new step can start from the only account, a sibling step, or the last explicit pick, and a later edit does not switch that id to a different account.
 - Automations: Parallel lanes and Loop iterations each run as their own child Run, pinned to the parent definition version, with a durable coordinator wait and a concurrency cap for loops.
 - Automations: a Wait can use a relative milestone. A milestone that has already passed skips later outward steps and still runs record updates. An unfinished milestone recalculates when its calendar event changes, and a cancellation does not replay a step that already succeeded.

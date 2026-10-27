@@ -157,6 +157,7 @@ export function stubs(ctx: CallCtx) {
       verify: call("audit.verify"),
     },
     automations: {
+      account_picks: call("automations.account_picks"),
       alerts: {
         get: call("automations.alerts.get"),
         set: call("automations.alerts.set"),
