@@ -979,6 +979,98 @@
       ],
       "type": "object"
     },
+    "s_098317b0f5": {
+      "properties": {
+        "alerts": {
+          "$ref": "#/$defs/s_564b5d059b"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "definition": {
+          "$ref": "#/$defs/s_0cb9bb9338"
+        },
+        "description": {
+          "type": "string"
+        },
+        "followers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "groupId": {
+          "examples": [
+            "agr_a1b2c3"
+          ],
+          "pattern": "^agr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "id": {
+          "examples": [
+            "aut_a1b2c3"
+          ],
+          "pattern": "^aut_[a-z0-9]+$",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "personal",
+            "space"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ownerId": {
+          "type": "string"
+        },
+        "pausedReason": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "on",
+            "off",
+            "draft",
+            "paused"
+          ],
+          "type": "string"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "version": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "ownerId",
+        "status",
+        "version",
+        "definition",
+        "followers",
+        "alerts",
+        "createdAt",
+        "updatedAt"
+      ],
+      "type": "object"
+    },
     "s_0a70adf1b7": {
       "properties": {
         "detail": {
@@ -1163,6 +1255,183 @@
         "objectId",
         "amount",
         "currency"
+      ],
+      "type": "object"
+    },
+    "s_0cb9bb9338": {
+      "properties": {
+        "allowSelfTrigger": {
+          "type": "boolean"
+        },
+        "nodes": {
+          "items": {
+            "properties": {
+              "ai": {
+                "properties": {
+                  "agentId": {
+                    "examples": [
+                      "agt_a1b2c3"
+                    ],
+                    "pattern": "^agt_[a-z0-9]+$",
+                    "type": "string"
+                  },
+                  "approver": {
+                    "$ref": "#/$defs/s_f05a3f77df"
+                  },
+                  "assigned": {
+                    "$ref": "#/$defs/s_f05a3f77df"
+                  },
+                  "backupKeyId": {
+                    "type": "string"
+                  },
+                  "escalateTo": {
+                    "$ref": "#/$defs/s_f05a3f77df"
+                  },
+                  "keyId": {
+                    "type": "string"
+                  },
+                  "nudgeMinutes": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "reviewer": {
+                    "$ref": "#/$defs/s_f05a3f77df"
+                  },
+                  "timeoutMinutes": {
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
+              },
+              "branches": {
+                "items": {
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "when": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "to"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "id": {
+                "examples": [
+                  "step_1"
+                ],
+                "type": "string"
+              },
+              "input": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "key": {
+                "description": "A StepDef key",
+                "examples": [
+                  "records.update"
+                ],
+                "type": "string"
+              },
+              "next": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "onError": {
+                "properties": {
+                  "codes": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "max": {
+                    "maximum": 10,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "mode": {
+                    "enum": [
+                      "fail",
+                      "continue",
+                      "retry",
+                      "route",
+                      "skip",
+                      "substitute"
+                    ],
+                    "type": "string"
+                  },
+                  "output": {
+                    "description": "Any JSON value"
+                  },
+                  "route": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "mode"
+                ],
+                "type": "object"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "key",
+              "input"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "start": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "triggers": {
+          "items": {
+            "properties": {
+              "config": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "filter": {
+                "description": "Any JSON value"
+              },
+              "key": {
+                "examples": [
+                  "record_change"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "triggers",
+        "nodes"
       ],
       "type": "object"
     },
@@ -6731,98 +7000,6 @@
           "type": "string"
         }
       },
-      "type": "object"
-    },
-    "s_57bcaa3fe4": {
-      "properties": {
-        "alerts": {
-          "$ref": "#/$defs/s_564b5d059b"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "definition": {
-          "$ref": "#/$defs/s_d0091da2d3"
-        },
-        "description": {
-          "type": "string"
-        },
-        "followers": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "groupId": {
-          "examples": [
-            "agr_a1b2c3"
-          ],
-          "pattern": "^agr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "id": {
-          "examples": [
-            "aut_a1b2c3"
-          ],
-          "pattern": "^aut_[a-z0-9]+$",
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "personal",
-            "space"
-          ],
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "ownerId": {
-          "type": "string"
-        },
-        "pausedReason": {
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "on",
-            "off",
-            "draft",
-            "paused"
-          ],
-          "type": "string"
-        },
-        "updatedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "version": {
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "kind",
-        "ownerId",
-        "status",
-        "version",
-        "definition",
-        "followers",
-        "alerts",
-        "createdAt",
-        "updatedAt"
-      ],
       "type": "object"
     },
     "s_584a30adf4": {
@@ -13921,6 +14098,17 @@
       ],
       "type": "object"
     },
+    "s_c0345bdf62": {
+      "properties": {
+        "automation": {
+          "$ref": "#/$defs/s_098317b0f5"
+        }
+      },
+      "required": [
+        "automation"
+      ],
+      "type": "object"
+    },
     "s_c0bb60860c": {
       "properties": {
         "sections": {
@@ -14706,172 +14894,6 @@
         "type": "object"
       },
       "type": "array"
-    },
-    "s_d0091da2d3": {
-      "properties": {
-        "allowSelfTrigger": {
-          "type": "boolean"
-        },
-        "nodes": {
-          "items": {
-            "properties": {
-              "ai": {
-                "properties": {
-                  "agentId": {
-                    "examples": [
-                      "agt_a1b2c3"
-                    ],
-                    "pattern": "^agt_[a-z0-9]+$",
-                    "type": "string"
-                  },
-                  "approver": {
-                    "$ref": "#/$defs/s_f05a3f77df"
-                  },
-                  "assigned": {
-                    "$ref": "#/$defs/s_f05a3f77df"
-                  },
-                  "backupKeyId": {
-                    "type": "string"
-                  },
-                  "escalateTo": {
-                    "$ref": "#/$defs/s_f05a3f77df"
-                  },
-                  "keyId": {
-                    "type": "string"
-                  },
-                  "nudgeMinutes": {
-                    "minimum": 1,
-                    "type": "integer"
-                  },
-                  "reviewer": {
-                    "$ref": "#/$defs/s_f05a3f77df"
-                  },
-                  "timeoutMinutes": {
-                    "minimum": 1,
-                    "type": "integer"
-                  }
-                },
-                "type": "object"
-              },
-              "branches": {
-                "items": {
-                  "properties": {
-                    "label": {
-                      "type": "string"
-                    },
-                    "to": {
-                      "type": "string"
-                    },
-                    "when": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "label",
-                    "to"
-                  ],
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              "id": {
-                "examples": [
-                  "step_1"
-                ],
-                "type": "string"
-              },
-              "input": {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              "key": {
-                "description": "A StepDef key",
-                "examples": [
-                  "records.update"
-                ],
-                "type": "string"
-              },
-              "next": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "onError": {
-                "properties": {
-                  "max": {
-                    "maximum": 10,
-                    "minimum": 1,
-                    "type": "integer"
-                  },
-                  "mode": {
-                    "enum": [
-                      "fail",
-                      "continue",
-                      "retry",
-                      "route"
-                    ],
-                    "type": "string"
-                  },
-                  "route": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "mode"
-                ],
-                "type": "object"
-              },
-              "title": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "key",
-              "input"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "start": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "triggers": {
-          "items": {
-            "properties": {
-              "config": {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              "filter": {
-                "description": "Any JSON value"
-              },
-              "key": {
-                "examples": [
-                  "record_change"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "key"
-            ],
-            "type": "object"
-          },
-          "minItems": 1,
-          "type": "array"
-        }
-      },
-      "required": [
-        "triggers",
-        "nodes"
-      ],
-      "type": "object"
     },
     "s_d01938f009": {
       "properties": {
@@ -17361,17 +17383,6 @@
       "required": [
         "on",
         "channelId"
-      ],
-      "type": "object"
-    },
-    "s_f845a71a23": {
-      "properties": {
-        "automation": {
-          "$ref": "#/$defs/s_57bcaa3fe4"
-        }
-      },
-      "required": [
-        "automation"
       ],
       "type": "object"
     },
@@ -29300,8 +29311,12 @@
                     "example"
                   ],
                   "onError": {
+                    "codes": [
+                      "example"
+                    ],
                     "max": 1,
                     "mode": "fail",
+                    "output": {},
                     "route": "example"
                   },
                   "title": "example"
@@ -29395,8 +29410,12 @@
                       "example"
                     ],
                     "onError": {
+                      "codes": [
+                        "example"
+                      ],
                       "max": 1,
                       "mode": "fail",
+                      "output": {},
                       "route": "example"
                     },
                     "title": "example"
@@ -29434,7 +29453,7 @@
       "input": {
         "properties": {
           "definition": {
-            "$ref": "#/$defs/s_d0091da2d3"
+            "$ref": "#/$defs/s_0cb9bb9338"
           },
           "description": {
             "type": "string"
@@ -29475,7 +29494,7 @@
       "module": "automations",
       "name": "automations.create",
       "output": {
-        "$ref": "#/$defs/s_f845a71a23"
+        "$ref": "#/$defs/s_c0345bdf62"
       },
       "permission": "automations.personal",
       "resource": {
@@ -29894,8 +29913,12 @@
                       "example"
                     ],
                     "onError": {
+                      "codes": [
+                        "example"
+                      ],
                       "max": 1,
                       "mode": "fail",
+                      "output": {},
                       "route": "example"
                     },
                     "title": "example"
@@ -29950,7 +29973,7 @@
       "module": "automations",
       "name": "automations.get",
       "output": {
-        "$ref": "#/$defs/s_f845a71a23"
+        "$ref": "#/$defs/s_c0345bdf62"
       },
       "permission": null,
       "resource": {
@@ -30570,8 +30593,12 @@
                       "example"
                     ],
                     "onError": {
+                      "codes": [
+                        "example"
+                      ],
                       "max": 1,
                       "mode": "fail",
+                      "output": {},
                       "route": "example"
                     },
                     "title": "example"
@@ -30636,7 +30663,7 @@
       "module": "automations",
       "name": "automations.make_personal_copy",
       "output": {
-        "$ref": "#/$defs/s_f845a71a23"
+        "$ref": "#/$defs/s_c0345bdf62"
       },
       "permission": "automations.personal",
       "resource": {
@@ -30744,8 +30771,12 @@
                       "example"
                     ],
                     "onError": {
+                      "codes": [
+                        "example"
+                      ],
                       "max": 1,
                       "mode": "fail",
+                      "output": {},
                       "route": "example"
                     },
                     "title": "example"
@@ -30788,7 +30819,7 @@
       "name": "automations.move",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_f845a71a23"
+        "$ref": "#/$defs/s_c0345bdf62"
       },
       "permission": null,
       "resource": {
@@ -30998,8 +31029,12 @@
                       "example"
                     ],
                     "onError": {
+                      "codes": [
+                        "example"
+                      ],
                       "max": 1,
                       "mode": "fail",
+                      "output": {},
                       "route": "example"
                     },
                     "title": "example"
@@ -31104,7 +31139,7 @@
       "output": {
         "properties": {
           "automation": {
-            "$ref": "#/$defs/s_57bcaa3fe4"
+            "$ref": "#/$defs/s_098317b0f5"
           },
           "diff": {
             "$ref": "#/$defs/s_4860ff32a0"
@@ -31317,8 +31352,12 @@
                       "example"
                     ],
                     "onError": {
+                      "codes": [
+                        "example"
+                      ],
                       "max": 1,
                       "mode": "fail",
+                      "output": {},
                       "route": "example"
                     },
                     "title": "example"
@@ -31380,7 +31419,7 @@
       "module": "automations",
       "name": "automations.restore_version",
       "output": {
-        "$ref": "#/$defs/s_f845a71a23"
+        "$ref": "#/$defs/s_c0345bdf62"
       },
       "permission": null,
       "resource": {
@@ -31856,8 +31895,12 @@
                       "example"
                     ],
                     "onError": {
+                      "codes": [
+                        "example"
+                      ],
                       "max": 1,
                       "mode": "fail",
+                      "output": {},
                       "route": "example"
                     },
                     "title": "example"
@@ -31915,7 +31958,7 @@
       "module": "automations",
       "name": "automations.set_enabled",
       "output": {
-        "$ref": "#/$defs/s_f845a71a23"
+        "$ref": "#/$defs/s_c0345bdf62"
       },
       "permission": null,
       "resource": {
@@ -32408,8 +32451,12 @@
                       "example"
                     ],
                     "onError": {
+                      "codes": [
+                        "example"
+                      ],
                       "max": 1,
                       "mode": "fail",
+                      "output": {},
                       "route": "example"
                     },
                     "title": "example"
@@ -32463,7 +32510,7 @@
       "module": "automations",
       "name": "automations.undelete",
       "output": {
-        "$ref": "#/$defs/s_f845a71a23"
+        "$ref": "#/$defs/s_c0345bdf62"
       },
       "permission": null,
       "resource": {
@@ -32539,8 +32586,12 @@
                     "example"
                   ],
                   "onError": {
+                    "codes": [
+                      "example"
+                    ],
                     "max": 1,
                     "mode": "fail",
+                    "output": {},
                     "route": "example"
                   },
                   "title": "example"
@@ -32632,8 +32683,12 @@
                       "example"
                     ],
                     "onError": {
+                      "codes": [
+                        "example"
+                      ],
                       "max": 1,
                       "mode": "fail",
+                      "output": {},
                       "route": "example"
                     },
                     "title": "example"
@@ -32678,7 +32733,7 @@
             "type": "string"
           },
           "definition": {
-            "$ref": "#/$defs/s_d0091da2d3"
+            "$ref": "#/$defs/s_0cb9bb9338"
           },
           "description": {
             "type": "string"
@@ -32699,7 +32754,7 @@
       "module": "automations",
       "name": "automations.update",
       "output": {
-        "$ref": "#/$defs/s_f845a71a23"
+        "$ref": "#/$defs/s_c0345bdf62"
       },
       "permission": null,
       "resource": {
@@ -32770,8 +32825,12 @@
                     "example"
                   ],
                   "onError": {
+                    "codes": [
+                      "example"
+                    ],
                     "max": 1,
                     "mode": "fail",
+                    "output": {},
                     "route": "example"
                   },
                   "title": "example"
@@ -32807,7 +32866,7 @@
       "input": {
         "properties": {
           "definition": {
-            "$ref": "#/$defs/s_d0091da2d3"
+            "$ref": "#/$defs/s_0cb9bb9338"
           },
           "kind": {
             "enum": [

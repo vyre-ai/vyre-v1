@@ -4340,6 +4340,12 @@
                     },
                     "onError": {
                       "properties": {
+                        "codes": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
                         "max": {
                           "maximum": 10,
                           "minimum": 1,
@@ -4350,9 +4356,14 @@
                             "fail",
                             "continue",
                             "retry",
-                            "route"
+                            "route",
+                            "skip",
+                            "substitute"
                           ],
                           "type": "string"
+                        },
+                        "output": {
+                          "description": "Any JSON value"
                         },
                         "route": {
                           "type": "string"
@@ -5486,6 +5497,12 @@
                     },
                     "onError": {
                       "properties": {
+                        "codes": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
                         "max": {
                           "maximum": 10,
                           "minimum": 1,
@@ -5496,9 +5513,14 @@
                             "fail",
                             "continue",
                             "retry",
-                            "route"
+                            "route",
+                            "skip",
+                            "substitute"
                           ],
                           "type": "string"
+                        },
+                        "output": {
+                          "description": "Any JSON value"
                         },
                         "route": {
                           "type": "string"
@@ -5768,6 +5790,12 @@
                     },
                     "onError": {
                       "properties": {
+                        "codes": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
                         "max": {
                           "maximum": 10,
                           "minimum": 1,
@@ -5778,9 +5806,14 @@
                             "fail",
                             "continue",
                             "retry",
-                            "route"
+                            "route",
+                            "skip",
+                            "substitute"
                           ],
                           "type": "string"
+                        },
+                        "output": {
+                          "description": "Any JSON value"
                         },
                         "route": {
                           "type": "string"
