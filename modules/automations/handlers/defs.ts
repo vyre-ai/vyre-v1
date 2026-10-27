@@ -63,6 +63,8 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
     if (!s) continue;
     const have = { ...(n.ai ?? {}), ...n.input } as Record<string, unknown>;
     for (const k of requiredOf(s.input)) if (!present(have[k])) out.push(issue("error", `${s.title} needs ${k}.`, n.id));
+    if (n.key === "send_email" && !present(have["mailboxId"])) out.push(issue("error", "Send an email needs a mailbox.", n.id));
+    if (n.key === "send_sms" && !present(have["numberId"])) out.push(issue("error", "Send a text needs a number.", n.id));
     if (s.kind === "ai" && !n.ai?.agentId && !n.ai?.keyId && !present(have.agentId) && !present(have.keyId)) out.push(issue("error", `${s.title} needs an agent or a key.`, n.id));
     if (n.onError?.mode === "route" && !n.onError.route) out.push(issue("error", "On error: route needs a step to go to.", n.id));
   }

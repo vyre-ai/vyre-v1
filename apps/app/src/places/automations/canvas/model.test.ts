@@ -10,7 +10,7 @@ import { LEAD_FOLLOW_UP } from "../sidebar/sample.ts";
 
 const linear = (): Definition => ({
   triggers: [{ key: "schedule" }], start: ["a"],
-  nodes: [{ id: "a", key: "records.find", input: { type: "person" }, next: ["b"] }, { id: "b", key: "send_email", input: { to: "x@y.z" }, next: ["c"] }, { id: "c", key: "stop", input: {} }],
+  nodes: [{ id: "a", key: "records.find", input: { type: "person" }, next: ["b"] }, { id: "b", key: "send_email", input: { to: "x@y.z", mailboxId: "mbx_main" }, next: ["c"] }, { id: "c", key: "stop", input: {} }],
 });
 
 /** Three paths that come back together: a, then paths p with three lanes, then z. */
@@ -125,6 +125,8 @@ test("the local check names what is missing, in words, against the step", () => 
   const out = sortedIssues(check(d));
   assert.ok(out.every((i, n) => n === 0 || out[n - 1]!.severity !== "warning" || i.severity === "warning"), "errors come first");
   assert.ok(out.some((i) => i.nodeId === "h" && /needs a title/.test(i.message)), "Create a task needs a title");
+  assert.ok(check({ triggers: [{ key: "manual" }], nodes: [{ id: "m", key: "send_email", input: { to: "a@b.c" } }] }).some((i) => /needs a mailbox/.test(i.message)));
+  assert.ok(check({ triggers: [{ key: "manual" }], nodes: [{ id: "s", key: "send_sms", input: { to: "+1" } }] }).some((i) => /needs a number/.test(i.message)));
   assert.ok(out.some((i) => i.nodeId === "p" && /needs its condition/.test(i.message)));
   assert.ok(check({ triggers: [], nodes: [] }).some((i) => /Add a trigger/.test(i.message)));
   assert.ok(check({ triggers: [{ key: "webhook" }], nodes: [] }, "personal").some((i) => /Team Space/.test(i.message)), "a webhook needs a Team Space");

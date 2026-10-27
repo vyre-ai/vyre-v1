@@ -2,6 +2,7 @@
 
 ## Unreleased
 - Automations: a step can retry, skip, substitute, stop, or route on a named error code. Skip and substitute do not run the step again. The step menu offers each of those.
+- Automations: Send an email and Send a text cannot be turned on until the step names its mailbox or number.
 - Automations: the step lists the accounts a person can use, writes a default id when the step has none, and does not pick a mailbox or number the step did not name.
 - Automations: Ask Vyre redacts bearer tokens, key literals, and JWTs inside the error text before the agent sees it.
 - Automations: a step keeps the account id it was given. A new step can start from the only account, a sibling step, or the last explicit pick, and a later edit does not switch that id to a different account.

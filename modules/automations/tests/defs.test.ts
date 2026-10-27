@@ -32,7 +32,7 @@ test("missing inputs are named per step", async () => {
   const r = await validate(h, { triggers: trig, nodes: [node("a", "records.update", { type: "contact" }), node("b", "send_email", { to: "x@example.com", subject: "Hi", body: "Hello" })] });
   assert.equal(r.ok, false);
   const msgs = r.issues.filter((i) => i.severity === "error").map((i) => `${i.nodeId}: ${i.message}`);
-  assert.deepEqual(msgs.sort(), ["a: Update a record needs patch.", "a: Update a record needs recordId."]);
+  assert.deepEqual(msgs.sort(), ["a: Update a record needs patch.", "a: Update a record needs recordId.", "b: Send an email needs a mailbox."]);
   assert.ok(r.issues.some((i) => i.nodeId === "b" && i.severity === "warning"), "b is not reached from a");
 });
 
@@ -205,7 +205,7 @@ test("Promote refuses until the subscription keys are replaced, then makes a Spa
 
 test("a promoted Automation runs as its own Service principal with only the vault names it was confirmed with", async () => {
   const h = harness();
-  const id = (await h.call("automations.create", create({ definition: { triggers: trig, nodes: [node("m", "send_email", { to: "a@example.com", subject: "s", body: "Key #Resend_Key" })] } }), alice)).automation.id as string;
+  const id = (await h.call("automations.create", create({ definition: { triggers: trig, nodes: [node("m", "send_email", { to: "a@example.com", subject: "s", body: "Key #Resend_Key", mailboxId: "mbx_main" })] } }), alice)).automation.id as string;
   await h.call("automations.set_enabled", { automationId: id, enabled: true }, alice);
   const personal = await h.call("automations.run", { automationId: id }, alice);
   assert.deepEqual(loadRunPlan({ db: h.db }, personal.runId)!.link.principal, { kind: "person", id: alice.id });

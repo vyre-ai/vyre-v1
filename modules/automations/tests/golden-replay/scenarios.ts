@@ -140,7 +140,7 @@ export const SCENARIOS: Record<string, Scenario> = {
       names.clear();
       const h = harness();
       const mk = (id: string, next?: string[]) => node(id, "records.update", ok, next ? { next } : {});
-      const mail = node("after", "send_email", { to: "a@example.com", subject: "Hello", body: "Hi" });
+      const mail = node("after", "send_email", { to: "a@example.com", subject: "Hello", body: "Hi", mailboxId: "mbx_main" });
       const cases: Record<string, Definition> = {
         decide: { triggers: [{ key: "manual" }], nodes: [node("d", "if", { condition: "trigger.n > 1" }, { branches: [{ label: "yes", to: "big" }, { label: "no", to: "small" }] }), mk("big", ["after"]), mk("small", ["after"]), mail] },
         repeat: { triggers: [{ key: "manual" }], nodes: [node("each", "loop", { items: "trigger.names" }, { next: ["mk"] }), mk("mk", ["each"])] },
