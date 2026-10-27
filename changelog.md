@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Automations: a step keeps the account id it was given. A new step can start from the only account, a sibling step, or the last explicit pick, and a later edit does not switch that id to a different account.
 - Automations: a schedule that is on starts its due ticks through automations.fire, once each. The first look sets the cursor to now. A backlog over the cap pauses that schedule only and opens one Needs You request, and a recovery choice can run the selected ticks without repeating them.
 - Automations: store one cron, time zone and missed policy for a schedule, with friendly presets, a plain-language summary and the next five runs.
 - Automations: backfill each missed tick under lookback, cap, spacing and overlap limits. A backlog over the cap pauses that schedule only and opens one deduplicated Needs You request.
