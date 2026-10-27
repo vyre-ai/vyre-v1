@@ -10,6 +10,8 @@ import { createLiveLink, socketBase, socketPath } from "./live.ts";
 import { createRemoteScreenHooks, stableJson } from "./remote-hooks.ts";
 import { openRealSession, targetHash } from "./session.ts";
 import { clearStored, readStored, spaceAddress, writeStored } from "./stored.ts";
+import { consumeDesktopBootstrap, routeDesktopLink } from "./desktop.ts";
+import type { DesktopDeepLink } from "../../../../desktop/src/bridge.ts";
 import type { KeyValueStore } from "./stored.ts";
 
 const ROUTES: RouteRow[] = [
@@ -312,10 +314,38 @@ test("stored: a session is kept, read back, and cleared; junk reads as no sessio
   assert.equal(readStored(store), null);
 });
 
-test("stored: the Space address is ?space= when it is a URL, else the page origin", () => {
+test("stored: the Space address is HTTP(S), never the packaged shell origin", () => {
   assert.equal(spaceAddress({ origin: "http://127.0.0.1:3000", search: "?space=http%3A%2F%2F10.0.0.2%3A7777%2F" }), "http://10.0.0.2:7777");
   assert.equal(spaceAddress({ origin: "https://northwind.vyre.run", search: "" }), "https://northwind.vyre.run");
   assert.equal(spaceAddress({ origin: "https://x.test", search: "?space=javascript:alert(1)" }), "https://x.test");
+  assert.equal(spaceAddress({ origin: "tauri://localhost", search: "" }), null);
+  assert.equal(spaceAddress({ origin: "tauri://localhost", search: "?space=tauri%3A%2F%2Flocalhost" }), null);
+});
+
+test("desktop bootstrap routes its pending link before live links and unsubscribes safely", async () => {
+  let live: ((link: DesktopDeepLink) => void) | undefined;
+  let unlistened = 0;
+  const seen: unknown[] = [];
+  const stop = await consumeDesktopBootstrap({
+    bootstrap: async () => ({ info: {} as never, pendingLink: { action: "join", params: { address: "https://northwind.vyre.run", code: "one-time-code", fp: "ab12" } } }),
+    listenLinks: async (listener) => { live = listener; return () => { unlistened++; }; },
+  }, (route) => seen.push(route));
+  live?.({ action: "signin", params: { address: "https://northwind.vyre.run" } });
+  assert.deepEqual(seen, [
+    { kind: "join", address: "https://northwind.vyre.run", code: "one-time-code", fingerprint: "ab12" },
+    { kind: "signin", address: "https://northwind.vyre.run" },
+  ]);
+  stop();
+  stop();
+  assert.equal(unlistened, 1);
+});
+
+test("desktop links only route verified Space addresses into the existing flows", () => {
+  assert.deepEqual(routeDesktopLink({ action: "open", params: { address: "http://127.0.0.1:7777" } }), { kind: "signin", address: "http://127.0.0.1:7777" });
+  assert.deepEqual(routeDesktopLink({ action: "pair", params: { address: "https://northwind.vyre.run", code: "pairing-code" } }), { kind: "signin", address: "https://northwind.vyre.run", pairCode: "pairing-code" });
+  assert.equal(routeDesktopLink({ action: "join", params: { address: "http://127.0.0.1:7777", code: "one-time-code", fp: "ab12" } }), null, "join links require HTTPS");
+  assert.equal(routeDesktopLink({ action: "join", params: { address: "https://northwind.vyre.run", code: "", fp: "ab12" } }), null);
+  assert.equal(routeDesktopLink({ action: "signin", params: { address: "tauri://localhost" } }), null);
 });
 
 test("hooks: a read that fails leaves the query loading, with the error available to the place that asked", async () => {

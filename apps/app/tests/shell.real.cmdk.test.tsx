@@ -132,3 +132,9 @@ test("the real SessionGate draws its blank frame before a stored session is read
   const out = renderToStaticMarkup(<SessionGate baseUrl="http://space.test" />);
   assert.ok(typeof out === "string");
 });
+
+test("the packaged shell with no stored Space offers Connect a Space, not tauri as a host", () => {
+  const out = renderToStaticMarkup(<SessionGate baseUrl={null} />).replaceAll("<!-- -->", "");
+  assert.ok(out.includes("Connect a Space"));
+  assert.ok(!out.includes("tauri"));
+});

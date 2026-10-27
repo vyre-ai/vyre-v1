@@ -33,10 +33,18 @@ export function clearStored(store: KeyValueStore | undefined = browserStore()): 
   try { store?.removeItem(KEY); } catch { /* blocked storage */ }
 }
 
-/** The Space's address for this page: `?space=` when given (a test or a second server), else the origin the page was served from. */
+function httpAddress(value: string): string | null {
+  try {
+    const parsed = new URL(value);
+    return (parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.host ? parsed.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The Space's HTTP(S) address for this page: `?space=` when given, else the served origin. Packaged `tauri://` is never a Space. */
 export function spaceAddress(loc: { origin: string; search: string } | undefined = (globalThis as { location?: { origin: string; search: string } }).location): string | null {
   if (!loc) return null;
   const q = new URLSearchParams(loc.search).get("space");
-  if (q && /^https?:\/\//.test(q)) return q.replace(/\/+$/, "");
-  return loc.origin && loc.origin !== "null" ? loc.origin : null;
+  return (q ? httpAddress(q) : null) ?? httpAddress(loc.origin);
 }

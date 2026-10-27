@@ -29,6 +29,8 @@ import { openRealSession } from "./session.ts";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
 import { clearStored, readStored, spaceAddress, writeStored } from "./stored.ts";
 import type { StoredSession } from "./stored.ts";
+import { consumeDesktopBootstrap, desktopBridge } from "./desktop.ts";
+import type { DesktopRoute } from "./desktop.ts";
 
 /** The phone shell (and mobile/shell with it) loads only when the window is a phone's, so desktop never pays for it. */
 const PhoneHost = lazy(() => import("./PhoneHost.tsx").then((m) => ({ default: m.PhoneHost })));
@@ -85,6 +87,17 @@ function SignInScreen({ baseUrl, onSignedIn, notice }: { baseUrl: string; onSign
     return "ok";
   }, [anonymous, baseUrl, onSignedIn]);
   return <JoinFlow invite={invite} initial={{ stage: "signin", ...(notice ? { error: SIGNED_OUT_LINE } : {}) }} onSignIn={signIn} />;
+}
+
+function ConnectSpaceWelcome(): ReactElement {
+  return <States kind="empty" title="Connect a Space" icon="search" />;
+}
+
+/** The native join URL has already been validated by the bridge. Task 4 consumes its code for members.accept; this boundary retains it without rendering or logging it. */
+function DesktopJoinScreen({ route }: { route: Extract<DesktopRoute, { kind: "join" }> }): ReactElement {
+  const invite: JoinInvite = useMemo(() => ({ space: hostOf(route.address), host: hostOf(route.address), by: "", role: "", fingerprint: route.fingerprint, sso: [], github: false, adminKey: false }), [route.address, route.fingerprint]);
+  void route.code;
+  return <JoinFlow invite={invite} />;
 }
 
 export interface ShellHostProps {
@@ -215,6 +228,8 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const [phase, setPhase] = useState<Phase>({ kind: "signin" });
   const [ready, setReady] = useState(false);
   const [notice, setNotice] = useState(false);
+  const [desktopRoute, setDesktopRoute] = useState<DesktopRoute | null>(null);
+  const bridge = useMemo(() => desktopBridge(), []);
 
   // Read the stored session after mount, never during the first render: the static export pre-renders the sign-in markup and must match it.
   useEffect(() => {
@@ -223,13 +238,33 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     setReady(true);
   }, [baseUrl]);
 
+  // Bootstrap also installs the native listener before draining its pending link.
+  // The alive gate makes an unmount between either await harmless.
+  useEffect(() => {
+    if (!bridge) return undefined;
+    let alive = true;
+    let unlisten: (() => void) | undefined;
+    void consumeDesktopBootstrap(bridge, (route) => {
+      if (!alive) return;
+      setDesktopRoute(route);
+      setNotice(false);
+      setPhase({ kind: "signin" });
+    }).then((off) => {
+      if (alive) unlisten = off;
+      else off();
+    }).catch(() => undefined);
+    return () => { alive = false; unlisten?.(); };
+  }, [bridge]);
+
   const signedOut = useCallback((why?: "manual") => { clearStored(); setNotice(why !== "manual"); setPhase({ kind: "signin" }); }, []);
   const signedIn = useCallback((stored: StoredSession) => setPhase({ kind: "shell", stored }), []);
 
-  if (!ready) return <View style={styles.fill} />;
+  if (!ready) return baseUrl ? <View style={styles.fill} /> : <ConnectSpaceWelcome />;
   if (phase.kind === "shell") return <ShellHost stored={phase.stored} open={open} onSignedOut={signedOut} onHub={onHub} voice={props.voice} />;
-  if (!baseUrl) return <States kind="error" message="No Space to connect to" cause="This page has no address for a Space." next="Open it from your Space's address" />;
-  return <SignInScreen baseUrl={baseUrl} onSignedIn={signedIn} notice={notice} />;
+  if (desktopRoute?.kind === "join") return <DesktopJoinScreen route={desktopRoute} />;
+  const activeAddress = desktopRoute?.address ?? baseUrl;
+  if (!activeAddress) return <ConnectSpaceWelcome />;
+  return <SignInScreen baseUrl={activeAddress} onSignedIn={signedIn} notice={notice} />;
 }
 
 const styles = StyleSheet.create({
