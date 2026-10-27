@@ -216,6 +216,24 @@ test("boot fails closed when a reconciliation event id belongs to different data
   }
 });
 
+test("boot collection sees grant.revoked and does not recreate an imported agent grant", async () => {
+  const agent = "agt_import4", grant = "gr_import4";
+  const dir = seededDir([
+    { id: "evt_import_agent_4", type: "agent.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_import", vis: "space", entity: "agent", entity_id: agent, payload: { agentId: agent, name: "Imported", ownerId: "usr_mia" } },
+    { id: "evt_import_grant_4", type: "grant.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_import", vis: "space", entity: "grant", entity_id: grant, payload: { id: grant, subject_kind: "actor", subject_id: agent, resource_type: "space", resource_id: CORE_SPACE, level: "edit" } },
+    { id: "evt_import_revoke_4", type: "grant.revoked", sv: 1, trace_id: "c0".repeat(16), actor: "svc_import", vis: "space", entity: "grant", entity_id: grant, payload: { grantId: grant, subject: { kind: "agent", id: agent }, resource: { type: "space", id: CORE_SPACE } } },
+  ]);
+  const d = await boot(dir);
+  try {
+    const events = await d.log!.read({ limit: 5000 });
+    assert.equal(events.some((event) => event.type === "grant.created" && event.entity_id === `gnt_${agent.slice(4)}space`), false);
+    assert.equal(d.db!.all("SELECT 1 FROM access_grants WHERE id IN (?, ?)", grant, `gnt_${agent.slice(4)}space`).length, 0, "access.sync preserves the revocation");
+  } finally {
+    await d.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("the live socket answers example.echo on the same server with the same trace id in the response, the numbered event and the log", async () => {
   const dir = seededDir();
   const d = await boot(dir);

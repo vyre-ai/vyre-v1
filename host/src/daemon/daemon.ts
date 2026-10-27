@@ -126,8 +126,11 @@ const stableJson = (value: unknown): string => JSON.stringify(value, (_key, item
     ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b)))
     : item,
 );
-const sameRepairEvent = (stored: { type: string; entity?: string; entity_id?: string; payload: unknown }, intended: { type: string; entity?: string; entity_id?: string; payload: unknown }): boolean =>
-  stored.type === intended.type && stored.entity === intended.entity && stored.entity_id === intended.entity_id && stableJson(repairPayload(stored.payload)) === stableJson(intended.payload);
+export const repairEventMatches = (stored: { id: string; type: string; sv: number; trace_id: string; actor: string; vis: string; entity?: string; entity_id?: string; on_behalf?: string; device?: string; run_id?: string; cause?: string; origin?: string; depth: number; fields?: readonly string[]; label: number; enc: number; key_id?: string; nonce?: string; payload: unknown }, intended: { id?: string; type: string; sv: number; trace_id: string; actor: string; vis: string; entity?: string; entity_id?: string; on_behalf?: string; device?: string; run_id?: string; cause?: string; origin?: string; depth?: number; fields?: readonly string[]; label?: number; enc?: number; key_id?: string; nonce?: string; payload: unknown }): boolean =>
+  stored.id === intended.id && stored.type === intended.type && stored.sv === intended.sv && stored.trace_id === intended.trace_id && stored.actor === intended.actor && stored.vis === intended.vis &&
+  stored.entity === intended.entity && stored.entity_id === intended.entity_id && stored.on_behalf === intended.on_behalf && stored.device === intended.device && stored.run_id === intended.run_id &&
+  stored.cause === intended.cause && stored.origin === intended.origin && stored.depth === (intended.depth ?? 0) && stableJson(stored.fields) === stableJson(intended.fields) &&
+  stored.label === (intended.label ?? 0) && stored.enc === (intended.enc ?? 0) && stored.key_id === intended.key_id && stored.nonce === intended.nonce && stableJson(repairPayload(stored.payload)) === stableJson(intended.payload);
 
 const refusingVault: VaultPort = {
   secret: () => Promise.reject(new Error("The Vault is not live on this server.")),
@@ -370,7 +373,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       for (let after = 0; ;) {
         const page = await log.read({ after, limit: 5000 });
         for (const e of page) {
-          if (e.type === "resource.created" || e.type === "principal.created" || e.type === "principal.role_set" || e.type === "grant.created" || e.type.startsWith("agent.")) agentAccessEvents.push(e);
+          if (e.type === "resource.created" || e.type === "principal.created" || e.type === "principal.role_set" || e.type === "grant.created" || e.type === "grant.revoked" || e.type.startsWith("agent.")) agentAccessEvents.push(e);
           access.fold(e);
           if (isAccessEvent(e.type)) accessPending.push(toAccessEvent(e));
           if (e.type === "space.created") { sawSpace = true; if (e.id.startsWith("evt_boot_")) hostMadeSpace = true; }
@@ -390,7 +393,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         const appendRepair = async (event: Parameters<LogClient["appendResult"]>[0]) => {
           const repaired = await log.appendResult(event);
           if (!repaired.ok) throw new Error(`could not reconcile agent access ${event.entity_id ?? event.id ?? "event"}: ${repaired.message}`);
-          if (repaired.duplicate && !sameRepairEvent(repaired.event, event)) throw new Error(`reconciliation event ID collision for ${event.id ?? "event"}`);
+          if (repaired.duplicate && !repairEventMatches(repaired.event, event)) throw new Error(`reconciliation event ID collision for ${event.id ?? "event"}`);
           return repaired;
         };
         for (const row of missingAgentResources({ space, events: agentAccessEvents })) {

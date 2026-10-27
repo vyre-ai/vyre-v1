@@ -44,7 +44,6 @@ const grantShape = (p: Record<string, unknown>): GrantShape | null => {
       : "";
   return subject !== "" && resource !== "" ? { subject, resource, ...(typeof p["level"] === "string" ? { level: p["level"] } : {}) } : null;
 };
-const sameGrant = (a: GrantShape, b: GrantShape): boolean => a.subject === b.subject && a.resource === b.resource && a.level === b.level;
 const sameSubjectResource = (a: GrantShape, b: GrantShape): boolean => a.subject === b.subject && a.resource === b.resource;
 
 /**
@@ -99,7 +98,9 @@ export function missingAgentPrincipalEvents(a: { space: string; events: readonly
       const id = agentGrantId(birth.id, purpose);
       const intended = grantShape({ id, ...payload });
       if (!intended) return;
-      const hasLiveEquivalent = [...liveGrants.values()].some((grant) => sameGrant(grant, intended));
+      // A different level is deliberate state until an explicit level-change policy
+      // exists; boot must never add a second grant that widens a legacy restriction.
+      const hasLiveEquivalent = [...liveGrants.values()].some((grant) => sameSubjectResource(grant, intended));
       const wasRevoked = revokedGrantIds.has(id) || revokedGrantShapes.some((grant) => sameSubjectResource(grant, intended));
       if (!hasLiveEquivalent && !wasRevoked) out.push({ type: "grant.created", entity: "grant", id, payload: { id, ...payload } });
     };

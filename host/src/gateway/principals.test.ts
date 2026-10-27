@@ -85,6 +85,13 @@ test("legacy semantic grants and their revocations prevent duplicate or resurrec
   assert.equal(revoked.filter((e) => e.type === "grant.created").length, 0, "a revoked semantic grant is not recreated under a new id");
 });
 
+test("a live lower-level legacy Space grant is preserved rather than widened by reconciliation", () => {
+  const birth = { type: "agent.created", payload: { agentId: "agt_legacy5", ownerId: "usr_owner" } };
+  const limited = { type: "grant.created", payload: { id: "gr_legacy_view", subject_kind: "actor", subject_id: "agt_legacy5", resource_type: "space", resource_id: "spc_core", level: "view" } };
+  const out = missingAgentPrincipalEvents({ space: "spc_core", levelOf: () => "edit", events: [birth, limited] });
+  assert.equal(out.filter((e) => e.type === "grant.created").length, 0, "boot preserves an intentional lower grant without an explicit level-change policy");
+});
+
 test("a replay of the same repaired agent access events appends nothing", () => {
   const birth = { type: "agent.created", payload: { agentId: "agt_replay1", ownerId: "usr_owner" } };
   const repaired = missingAgentPrincipalEvents({ space: "spc_core", levelOf: () => "edit", events: [birth] });
