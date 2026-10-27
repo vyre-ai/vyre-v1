@@ -8,11 +8,13 @@ import { createLiveLink, socketUrl } from "./live.ts";
 import type { SocketLike } from "./live.ts";
 import { createRemoteScreenHooks, stableJson } from "./remote-hooks.ts";
 import { openRealSession, targetHash } from "./session.ts";
-import { clearStored, openVerifiedSession, readStored, spaceAddress, writeStored } from "./stored.ts";
+import { clearStored, openVerifiedSession, readStored, signInAndVerify, spaceAddress, verifyStoredSession, writeStored } from "./stored.ts";
 import type { KeyValueStore } from "./stored.ts";
 
 const ROUTES: RouteRow[] = [
   { method: "POST", path: "/v1/identity/whoami", cap: "identity.whoami", v: 1 },
+  { method: "POST", path: "/v1/identity/sign_in_options", cap: "identity.sign_in_options", v: 1 },
+  { method: "POST", path: "/v1/identity/sign_in", cap: "identity.sign_in", v: 1 },
   { method: "GET", path: "/v1/spaces/get", cap: "spaces.get", v: 1 },
   { method: "GET", path: "/v1/spaces/switcher", cap: "spaces.switcher", v: 1 },
   { method: "GET", path: "/v1/files/list", cap: "files.list", v: 1 },
@@ -324,6 +326,38 @@ test("stored: clearing one Space preserves every other saved Space", () => {
   assert.equal(readStored(store, "https://harbor.test")?.token, "hb");
 });
 
+test("the anonymous sign-in route discovers options before normal password sign-in, never spaces.get", async () => {
+  const gw = gateway({
+    "POST /v1/identity/sign_in_options": (seen) => {
+      assert.equal(seen.headers["authorization"], undefined, "options are safe before authentication");
+      return { body: { data: { name: "Northwind", fingerprint: "display-only", password: true, github: true, sso: [{ key: "google", title: "Google" }], secondFactorRequired: false } } };
+    },
+    "POST /v1/identity/sign_in": (seen) => {
+      assert.equal(seen.headers["authorization"], undefined);
+      return { body: { data: { status: "ok", session: { token: "vst_1" } } } };
+    },
+    "GET /v1/spaces/get": (seen) => {
+      assert.equal(seen.headers["authorization"], "Bearer vst_1", "the Space is read only after authentication");
+      return { body: { data: SPACE } };
+    },
+  });
+  const anonymous = createCapCaller({ baseUrl: "https://northwind.test", token: () => null, fetch: gw.fetch, routes: async () => ROUTES });
+  const authenticated = createCapCaller({ baseUrl: "https://northwind.test", token: () => "vst_1", fetch: gw.fetch, routes: async () => ROUTES });
+  const opened = { def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_1" }, close: () => undefined } as never;
+  const result = await signInAndVerify({
+    baseUrl: "https://northwind.test",
+    discover: async () => anonymous("identity.sign_in_options", {}) as never,
+    signIn: async () => anonymous("identity.sign_in", { username: "dana", password: "harbor-lamp", deviceName: "Web browser", deviceClass: "web" }) as never,
+    open: async () => opened,
+    getSpace: async () => ((await authenticated("spaces.get", {})) as typeof SPACE).space,
+    persist: () => undefined,
+  });
+  assert.equal(result.status, "ok");
+  assert.deepEqual(gw.seen.map((s) => s.url), ["/v1/identity/sign_in_options", "/v1/identity/sign_in", "/v1/spaces/get"]);
+  assert.equal(result.options.name, "Northwind");
+  assert.equal(result.stored?.fingerprint, "ab", "a first sign-in trusts its authenticated fingerprint, not the anonymous display value");
+});
+
 test("verification persists only after the opened session and both Space proofs agree", async () => {
   const calls: string[] = [];
   const writes: unknown[] = [];
@@ -361,6 +395,17 @@ test("verification rejects a fingerprint mismatch without persisting the session
     persist: () => { writes++; },
   }), /identity changed/i);
   assert.deepEqual([writes, closed], [0, 1]);
+});
+
+test("a returning session rejects a changed authenticated fingerprint and closes before shell use", async () => {
+  let closed = 0;
+  const stored = { baseUrl: "https://northwind.test", token: "vst_1", def: { spaceId: "spc_nw", name: "Northwind" } as never, personId: "usr_1", fingerprint: "fp_saved" };
+  await assert.rejects(verifyStoredSession({
+    stored,
+    open: async () => ({ def: stored.def, me: { id: "usr_1" }, close: () => { closed++; } }),
+    getSpace: async () => ({ id: "spc_nw", fingerprint: "fp_changed" }),
+  }), /identity changed/i);
+  assert.equal(closed, 1);
 });
 
 test("stored: the Space address is ?space= when it is a URL, else the page origin", () => {

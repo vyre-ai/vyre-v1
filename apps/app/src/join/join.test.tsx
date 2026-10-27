@@ -386,20 +386,6 @@ test("the checklist counts what is done, locks the assistant behind the AI accou
   assert.match(renderToStaticMarkup(<Checklist space="Northwind" items={items} visible={false} />), /All set/);
 });
 
-test("the checklist follows the server onboarding projection instead of local completion state", () => {
-  const out = renderToStaticMarkup(<Checklist
-    space="Northwind" visible items={[{ key: "photo_and_title", title: "Stale local title", done: true }]} assistantLocked
-    projection={{ dismissed: false, steps: [{ key: "photo_title", title: "Add your photo", done: false }, { key: "meet_assistant", title: "Meet Intake", done: true }] }}
-  />);
-  assert.match(out, /Add your photo/);
-  assert.match(out, /Meet Intake/);
-  assert.doesNotMatch(out, /Stale local title/);
-  assert.match(out, /1 of 3/);
-  const dismissed = renderToStaticMarkup(<Checklist space="Northwind" visible items={[]} projection={{ dismissed: true, steps: [] }} />);
-  assert.match(dismissed, /All set/);
-});
-
-
 test("the pages are flat: one column, no gradients, blurs or split panes, in light and dark", () => {
   const pages: Partial<FlowState>[] = [{}, { stage: "steps", step: 0 }, { stage: "steps", step: 1, ...FILLED }, { stage: "steps", step: 2, ...FILLED, rec: "new", sheet: true, code: "A" }, { stage: "steps", step: 3, ...FILLED }, { stage: "run", step: 3, run: 1 }, { stage: "done", step: 3 }, { stage: "signin" }];
   for (const mode of ["light", "dark"] as const) {

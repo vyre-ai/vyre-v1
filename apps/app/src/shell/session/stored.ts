@@ -8,7 +8,11 @@ export interface StoredSession { baseUrl: string; token: string; def: SpaceDef; 
 export interface KeyValueStore { getItem(k: string): string | null; setItem(k: string, v: string): void; removeItem(k: string): void }
 
 export interface VerifiedSpace { id: string; fingerprint: string }
+export interface SpacePin { id?: string; fingerprint?: string }
 interface OpenedSession { def: Pick<SpaceDef, "spaceId">; me: { id: string }; close(): void }
+
+export interface SignInOptions { name: string; fingerprint: string; password: boolean; github: boolean; sso: Array<{ key: string; title: string }>; secondFactorRequired: boolean }
+export interface SignInAnswer { status: "ok" | "second_factor_required"; session?: { token: string } }
 
 const browserStore = (): KeyValueStore | undefined => (globalThis as { localStorage?: KeyValueStore }).localStorage;
 
@@ -54,17 +58,45 @@ export function clearStored(store: KeyValueStore | undefined = browserStore(), b
 
 /** Opens a signed-in session first, then persists only if the preflight and authenticated Space proofs agree. */
 export async function openVerifiedSession<T extends OpenedSession>({ baseUrl, token, expected, open, getSpace, persist = writeStored }: {
-  baseUrl: string; token: string; expected: VerifiedSpace; open: () => Promise<T>; getSpace: () => Promise<VerifiedSpace>; persist?: (stored: StoredSession) => void;
+  baseUrl: string; token: string; expected?: SpacePin; open: () => Promise<T>; getSpace: () => Promise<VerifiedSpace>; persist?: (stored: StoredSession) => void;
 }): Promise<StoredSession> {
   const real = await open();
   try {
     const actual = await getSpace();
-    if (real.def.spaceId !== expected.id || actual.id !== expected.id || actual.fingerprint !== expected.fingerprint) throw new Error("This Space's identity changed. Check its address and try again.");
+    if (real.def.spaceId !== actual.id || (expected?.id !== undefined && actual.id !== expected.id) || (expected?.fingerprint !== undefined && actual.fingerprint !== expected.fingerprint)) throw new Error("This Space's identity changed. Check its address and try again.");
     const stored: StoredSession = { baseUrl, token, def: real.def as SpaceDef, personId: real.me.id, fingerprint: actual.fingerprint };
     persist(stored);
     return stored;
   } finally {
     real.close();
+  }
+}
+
+/** A first sign-in treats the anonymous fingerprint as display-only; a trusted pin may be supplied by an invite or existing device record. */
+export async function signInAndVerify<T extends OpenedSession>({ baseUrl, trusted, discover, signIn, open, getSpace, persist }: {
+  baseUrl: string; trusted?: SpacePin; discover: () => Promise<SignInOptions>; signIn: () => Promise<SignInAnswer>; open: () => Promise<T>; getSpace: () => Promise<VerifiedSpace>; persist?: (stored: StoredSession) => void;
+}): Promise<{ status: "second_factor_required"; options: SignInOptions } | { status: "ok"; options: SignInOptions; stored: StoredSession }> {
+  const options = await discover();
+  const answer = await signIn();
+  if (answer.status === "second_factor_required") return { status: answer.status, options };
+  const token = answer.session?.token;
+  if (!token) throw new Error("The Space did not return a session. Try again.");
+  const stored = await openVerifiedSession({ baseUrl, token, expected: trusted, open, getSpace, ...(persist ? { persist } : {}) });
+  return { status: "ok", options, stored };
+}
+
+/** A remembered Space is trusted only when the newly opened authenticated identity still has its stored fingerprint. */
+export async function verifyStoredSession<T extends OpenedSession>({ stored, open, getSpace }: {
+  stored: StoredSession; open: () => Promise<T>; getSpace: (session: T) => Promise<VerifiedSpace>;
+}): Promise<T> {
+  const real = await open();
+  try {
+    const actual = await getSpace(real);
+    if (real.def.spaceId !== actual.id || actual.id !== stored.def.spaceId || actual.fingerprint !== stored.fingerprint) throw new Error("This Space's identity changed. Check its address and try again.");
+    return real;
+  } catch (error) {
+    real.close();
+    throw error;
   }
 }
 

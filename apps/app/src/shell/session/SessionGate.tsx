@@ -23,8 +23,8 @@ import { openPhone } from "./phone.ts";
 import type { LoadVoiceDevice, Phone } from "./phone.ts";
 import { openRealSession } from "./session.ts";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
-import { clearStored, openVerifiedSession, readStored, spaceAddress } from "./stored.ts";
-import type { StoredSession } from "./stored.ts";
+import { clearStored, readStored, signInAndVerify, spaceAddress, verifyStoredSession } from "./stored.ts";
+import type { SignInOptions, StoredSession } from "./stored.ts";
 
 export interface SessionGateProps {
   /** Overrides, for tests: where the Space is, and how a session opens. */
@@ -48,25 +48,39 @@ const hostOf = (baseUrl: string): string => baseUrl.replace(/^https?:\/\//, "").
 
 function SignInScreen({ baseUrl, open, onSignedIn }: { baseUrl: string; open: NonNullable<SessionGateProps["open"]>; onSignedIn: (s: StoredSession) => void }): ReactElement {
   useEffect(() => { mark("app.usable"); }, []);
-  const invite: JoinInvite = useMemo(() => ({ space: hostOf(baseUrl), host: hostOf(baseUrl), by: "", role: "", sso: [], github: false, adminKey: false }), [baseUrl]);
   const anonymous = useMemo(() => createCapCaller({ baseUrl, token: () => null }), [baseUrl]);
+  const [options, setOptions] = useState<SignInOptions | null>(null);
+  useEffect(() => {
+    let active = true;
+    void (anonymous("identity.sign_in_options", {}) as Promise<SignInOptions>).then((found) => { if (active) setOptions(found); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [anonymous]);
+  const invite: JoinInvite = useMemo(() => ({
+    space: options?.name ?? hostOf(baseUrl), host: hostOf(baseUrl), by: "", role: "", fingerprint: options?.fingerprint,
+    sso: options?.sso.map((provider) => provider.title) ?? [], github: options?.github ?? false, adminKey: false,
+  }), [baseUrl, options]);
   const signIn = useCallback(async (v: { username: string; password: string; code?: string }): Promise<"ok" | "second_factor_required"> => {
-    const preflight = (await anonymous("spaces.get", {})) as { space: { id: string; fingerprint: string } };
-    const out = (await anonymous("identity.sign_in", {
-      username: v.username, password: v.password, deviceName: "Web browser", deviceClass: "web", ...(v.code ? { totp: v.code } : {}),
-    })) as { status: "ok" | "second_factor_required"; session?: { token: string } };
-    if (out.status === "second_factor_required") return "second_factor_required";
-    const token = out.session?.token;
-    if (!token) throw new Error("The Space did not return a session. Try again.");
-    const authenticated = createCapCaller({ baseUrl, token: () => token });
-    const stored = await openVerifiedSession({
-      baseUrl, token, expected: preflight.space,
-      open: () => open({ baseUrl, token }),
-      getSpace: async () => ((await authenticated("spaces.get", {})) as { space: { id: string; fingerprint: string } }).space,
+    let token: string | null = null;
+    const result = await signInAndVerify({
+      baseUrl,
+      discover: async () => options ?? (await anonymous("identity.sign_in_options", {}) as SignInOptions),
+      signIn: async () => {
+        const out = (await anonymous("identity.sign_in", {
+          username: v.username, password: v.password, deviceName: "Web browser", deviceClass: "web", ...(v.code ? { totp: v.code } : {}),
+        })) as { status: "ok" | "second_factor_required"; session?: { token: string } };
+        token = out.session?.token ?? null;
+        return out;
+      },
+      open: () => open({ baseUrl, token: token ?? "" }),
+      getSpace: async () => {
+        const authenticated = createCapCaller({ baseUrl, token: () => token });
+        return ((await authenticated("spaces.get", {})) as { space: { id: string; fingerprint: string } }).space;
+      },
     });
-    onSignedIn(stored);
+    if (result.status === "second_factor_required") return result.status;
+    onSignedIn(result.stored);
     return "ok";
-  }, [anonymous, baseUrl, onSignedIn, open]);
+  }, [anonymous, baseUrl, onSignedIn, open, options]);
   return <JoinFlow invite={invite} initial={{ stage: "signin" }} onSignIn={signIn} />;
 }
 
@@ -102,7 +116,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     let off = false;
     let opened: RealSession | null = null;
     setFailed(null);
-    open({ baseUrl: stored.baseUrl, token: stored.token, navigate: (p, hash) => navRef.current?.go(p, hash),
+    const options: OpenSessionOptions = { baseUrl: stored.baseUrl, token: stored.token, navigate: (p, hash) => navRef.current?.go(p, hash),
       shell: (screen) => {
         const h = navRef.current;
         if (!h) return;
@@ -110,7 +124,12 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
         else if (screen === "shell.new-tab") h.newTab();
         else h.flash("Switch Spaces from the tile at the top of the rail");
       },
-      onSignedOut })
+      onSignedOut };
+    verifyStoredSession({
+      stored,
+      open: () => open(options),
+      getSpace: async (s) => ((await s.call("spaces.get", {})) as { space: { id: string; fingerprint: string } }).space,
+    })
       .then((s) => {
         if (off) { s.close(); return; }
         opened = s;
@@ -118,7 +137,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
       })
       .catch((e: unknown) => {
         if (off) return;
-        if (e instanceof CapError && e.status === 401) { onSignedOut(); return; }
+        if ((e instanceof CapError && e.status === 401) || (e instanceof Error && /identity changed/i.test(e.message))) { onSignedOut(); return; }
         setFailed(e instanceof Error && e.message ? e.message : "The Space did not answer.");
       });
     return () => { off = true; opened?.close(); setSession(null); };
