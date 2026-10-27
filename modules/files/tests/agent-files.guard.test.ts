@@ -17,7 +17,7 @@ const run = handlers as unknown as H;
 function world() {
   const sql = new DatabaseSync(":memory:");
   for (const f of readdirSync(dir).filter((x) => x.endsWith(".sql")).sort()) sql.exec(readFileSync(join(dir, f), "utf8"));
-  configureFilesHost({ resources: { ensure: async () => {} } });
+  configureFilesHost({ resources: { ensure: async () => {}, setLabel: async () => {} } });
   let clock = 1_790_000_000_000;
   const ctx = {
     space: "spc_t", principal: { kind: "person", id: "usr_a" }, trace: { traceId: "t".repeat(32), spanId: "s".repeat(16) }, origin: "api", depth: 0, now: () => (clock += 1000),

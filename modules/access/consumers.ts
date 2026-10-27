@@ -8,7 +8,7 @@ import type { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
 import { isElevatedRole } from "../../kernel/src/authorize/snapshot.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { AccessStore, EVERYONE, changed, labelOf, storeOf } from "./projections.ts";
-import type { AccessCtx, Cond, GrantRec, Level, PKind, Ref, Status, SubjectKind } from "./projections.ts";
+import type { AccessCtx, Cond, GrantRec, Label, Level, PKind, Ref, Status, SubjectKind } from "./projections.ts";
 
 export interface LogEvent { seq: number; type: string; payload: unknown }
 
@@ -199,6 +199,18 @@ export const hostCalls = {
     const store = storeOf(actx);
     apply(actx, store, input.events);
     return withRoleGrants(store.snapshot(), store, actx.space);
+  },
+  /** Files has already authorized folder.settings; this internal seam keeps Personal Spaces out of the public Team-only labels.set gate. */
+  "access.set_resource_label": (ctx: Ctx, input: { resource: { type: string; id: string }; label: Label }): boolean => {
+    if (ctx.origin !== "hook" || ctx.depth !== 0) throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only the server itself may do that." });
+    const actx = ctx as unknown as AccessCtx;
+    const store = storeOf(actx);
+    const resource = store.resources.get(input.resource.id);
+    if (!resource || resource.type !== input.resource.type) return false;
+    if (resource.label === input.label) return false;
+    resource.label = input.label;
+    changed(actx, store, "label");
+    return true;
   },
   /** Ruling 88: a resource changes owner (an agent's folder follows its owner). The previous owner keeps nothing on it: their direct grants on the resource go too. Answers whether anything moved. */
   "access.transfer_ownership": (ctx: Ctx, input: { resource: { type: string; id: string }; from: string; to: string }): boolean => {
