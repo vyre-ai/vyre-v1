@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import { StyleSheet, View, useWindowDimensions } from "react-native";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import { JoinFlow } from "../../join/JoinFlow.tsx";
+import type { JoinValues } from "../../join/JoinFlow.tsx";
 import type { JoinInvite } from "../../join/logic.ts";
 import { mark } from "../../startup/marks.ts";
 import { CmdK, NewTabSearch } from "../cmdk/CmdK.tsx";
@@ -29,7 +30,7 @@ import { openRealSession } from "./session.ts";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
 import { clearStored, readStored, signInAndVerify, spaceAddress, verifyStoredSession, writeStored } from "./stored.ts";
 import type { SignInOptions, StoredSession } from "./stored.ts";
-import { consumeDesktopBootstrap, desktopBridge } from "./desktop.ts";
+import { acceptDesktopJoin, consumeDesktopBootstrap, desktopBridge, previewDesktopJoin, redeemDesktopPair } from "./desktop.ts";
 import type { DesktopRoute } from "./desktop.ts";
 
 /** The phone shell (and mobile/shell with it) loads only when the window is a phone's, so desktop never pays for it. */
@@ -118,11 +119,63 @@ function ConnectSpaceWelcome(): ReactElement {
   return <States kind="empty" title="Connect a Space" icon="search" />;
 }
 
-/** Desktop joins are resolved through the pre-auth capability before JoinFlow receives an invite. */
-function DesktopJoinScreen({ route }: { route: Extract<DesktopRoute, { kind: "join" }> }): ReactElement {
-  const invite: JoinInvite = useMemo(() => ({ space: hostOf(route.address), host: hostOf(route.address), by: "", role: "", fingerprint: route.fingerprint, sso: [], github: false, adminKey: false }), [route.address, route.fingerprint]);
-  void route.code;
-  return <JoinFlow invite={invite} />;
+async function authenticatedSpace(baseUrl: string, token: string): Promise<{ id: string; marker: string }> {
+  const authenticated = createCapCaller({ baseUrl, token: () => token });
+  const space = ((await authenticated("spaces.get", {})) as { space: { id: string; fingerprint: string } }).space;
+  return { id: space.id, marker: space.fingerprint };
+}
+
+/** Pair codes are redeemed only once, then verified with whoami and spaces.get before the shell receives a stored session. Ciphertext returned by pairing never unlocks Mine. */
+function DesktopPairScreen({ route, open, onSignedIn }: { route: Extract<DesktopRoute, { kind: "pair" }>; open: NonNullable<SessionGateProps["open"]>; onSignedIn: (s: StoredSession) => void }): ReactElement {
+  const [failed, setFailed] = useState(false);
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    let alive = true;
+    const anonymous = createCapCaller({ baseUrl: route.address, token: () => null });
+    void redeemDesktopPair(route, {
+      anonymous,
+      open: (token) => open({ baseUrl: route.address, token }),
+      getSpace: (token) => authenticatedSpace(route.address, token),
+    }).then((stored) => { if (alive) onSignedIn(stored); }).catch(() => { if (alive) setFailed(true); });
+    return () => { alive = false; };
+  }, [onSignedIn, open, route]);
+  return failed
+    ? <States kind="error" message="Couldn’t finish pairing" cause="The pairing link is unavailable or expired." />
+    : <States kind="empty" title="Pairing this desktop" icon="search" />;
+}
+
+/** Desktop joins preview the public routing id before displaying the invite, then seal a new Space key to it and re-check it after the anonymous accept. */
+function DesktopJoinScreen({ route, open, onSignedIn }: { route: Extract<DesktopRoute, { kind: "join" }>; open: NonNullable<SessionGateProps["open"]>; onSignedIn: (s: StoredSession) => void }): ReactElement {
+  const anonymous = useMemo(() => createCapCaller({ baseUrl: route.address, token: () => null }), [route.address]);
+  const [join, setJoin] = useState<Awaited<ReturnType<typeof previewDesktopJoin>> | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    setJoin(null);
+    setFailed(false);
+    void previewDesktopJoin(route, anonymous).then((found) => { if (alive) setJoin(found); }).catch(() => { if (alive) setFailed(true); });
+    return () => { alive = false; };
+  }, [anonymous, attempt, route]);
+  const onJoin = useCallback(async (values: JoinValues): Promise<void> => {
+    if (!join) throw new Error("This invite is unavailable. Ask for a new one.");
+    try {
+      const stored = await acceptDesktopJoin(join, values, {
+        anonymous,
+        open: (token) => open({ baseUrl: route.address, token }),
+        getSpace: (token) => authenticatedSpace(route.address, token),
+      });
+      onSignedIn(stored);
+    } catch {
+      throw new Error("Could not finish joining this Space. Try again.");
+    }
+  }, [anonymous, join, onSignedIn, open, route.address]);
+  if (failed) return <States kind="error" message="Couldn’t open this invite" cause="The invite is unavailable or expired." retryable onRetry={() => setAttempt((n) => n + 1)} />;
+  if (!join) return <States kind="empty" title="Preparing your invite" icon="search" />;
+  const invite: JoinInvite = { space: join.preview.spaceName, host: hostOf(route.address), by: join.preview.invitedBy, role: join.preview.role, fingerprint: join.preview.fingerprint, sso: [], github: false, adminKey: false };
+  return <JoinFlow invite={invite} onJoin={onJoin} />;
 }
 
 export interface ShellHostProps {
@@ -294,7 +347,8 @@ export function SessionGate(props: SessionGateProps): ReactElement {
 
   if (!ready) return baseUrl ? <View style={styles.fill} /> : <ConnectSpaceWelcome />;
   if (phase.kind === "shell") return <ShellHost stored={phase.stored} open={open} onSignedOut={(why) => signedOut(why, phase.stored.baseUrl)} onHub={onHub} voice={props.voice} />;
-  if (desktopRoute?.kind === "join") return <DesktopJoinScreen route={desktopRoute} />;
+  if (desktopRoute?.kind === "pair") return <DesktopPairScreen key={`${desktopRoute.address}:${desktopRoute.code}`} route={desktopRoute} open={open} onSignedIn={signedIn} />;
+  if (desktopRoute?.kind === "join") return <DesktopJoinScreen key={`${desktopRoute.address}:${desktopRoute.code}`} route={desktopRoute} open={open} onSignedIn={signedIn} />;
   const activeAddress = desktopRoute?.address ?? baseUrl;
   if (!activeAddress) return <ConnectSpaceWelcome />;
   return <SignInScreen baseUrl={activeAddress} open={open} onSignedIn={signedIn} notice={notice} />;

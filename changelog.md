@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Desktop: redeem pair links and accept invite links through the real anonymous contracts, seal new Space keys to the previewed public Space id, and persist only after authenticated Space-ID agreement; paired-device key ciphertext stays out of ordinary session storage.
+- Members: expose the invite preview's public Space routing id to pending and anonymous callers without exposing the one-time code.
 - Desktop: route typed bootstrap and live deep links into the existing Connect, Sign in, and Join flows; packaged `tauri://localhost` now shows Connect a Space instead of posing as a Space.
 - Desktop: make the native deep-link activation handoff atomic and keep one page-lifetime bridge subscription that buffers links between consumer callbacks.
 - Desktop: retain deep links delivered while bootstrap drains the native pending-link slot, so page subscription cannot miss them.

@@ -10,7 +10,7 @@ import { createLiveLink, socketBase, socketPath } from "./live.ts";
 import { createRemoteScreenHooks, stableJson } from "./remote-hooks.ts";
 import { openRealSession, targetHash } from "./session.ts";
 import { clearStored, openVerifiedSession, readStored, signInAndVerify, spaceAddress, verifyStoredSession, writeStored } from "./stored.ts";
-import { consumeDesktopBootstrap, routeDesktopLink } from "./desktop.ts";
+import { acceptDesktopJoin, consumeDesktopBootstrap, previewDesktopJoin, redeemDesktopPair, routeDesktopLink } from "./desktop.ts";
 import type { DesktopDeepLink } from "../../../../desktop/src/bridge.ts";
 import type { KeyValueStore } from "./stored.ts";
 
@@ -450,10 +450,77 @@ test("desktop bootstrap routes its pending link before live links and unsubscrib
 
 test("desktop links only route verified Space addresses into the existing flows", () => {
   assert.deepEqual(routeDesktopLink({ action: "open", params: { address: "http://127.0.0.1:7777" } }), { kind: "signin", address: "http://127.0.0.1:7777" });
-  assert.deepEqual(routeDesktopLink({ action: "pair", params: { address: "https://northwind.vyre.run", code: "pairing-code" } }), { kind: "signin", address: "https://northwind.vyre.run", pairCode: "pairing-code" });
+  assert.deepEqual(routeDesktopLink({ action: "pair", params: { address: "https://northwind.vyre.run", code: "pairing-code" } }), { kind: "pair", address: "https://northwind.vyre.run", code: "pairing-code" });
   assert.equal(routeDesktopLink({ action: "join", params: { address: "http://127.0.0.1:7777", code: "one-time-code", fp: "ab12" } }), null, "join links require HTTPS");
   assert.equal(routeDesktopLink({ action: "join", params: { address: "https://northwind.vyre.run", code: "", fp: "ab12" } }), null);
   assert.equal(routeDesktopLink({ action: "signin", params: { address: "tauri://localhost" } }), null);
+});
+
+test("desktop pairing redeems anonymously, verifies the Space, then persists without key ciphertext", async () => {
+  const route = routeDesktopLink({ action: "pair", params: { address: "https://northwind.vyre.run", code: "pair-code" } });
+  assert.ok(route && route.kind === "pair");
+  const calls: { cap: string; input: unknown }[] = [];
+  let persisted: unknown;
+  const stored = await redeemDesktopPair(route, {
+    anonymous: async (cap, input) => { calls.push({ cap, input }); return { status: "ok", session: { token: "vst_pair", epoch: 4 }, keys: { privateKeyWrapped: "ciphertext" } }; },
+    open: async (token) => ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_1" }, close: () => undefined, token } as never),
+    getSpace: async () => ({ id: "spc_nw", marker: "current-display-marker" }),
+    persist: (s) => { persisted = s; },
+  });
+  assert.deepEqual(calls, [{ cap: "identity.pair_redeem", input: { code: "pair-code", deviceName: "Vyre desktop", deviceClass: "desktop" } }]);
+  assert.deepEqual(stored, { baseUrl: "https://northwind.vyre.run", token: "vst_pair", def: { spaceId: "spc_nw", name: "Northwind" }, personId: "usr_1", marker: "current-display-marker", syncEpoch: 4 });
+  assert.deepEqual(persisted, stored);
+  assert.equal("keys" in stored, false, "pairing ciphertext never reaches ordinary session storage");
+});
+
+test("desktop joining previews first and accepts with a real Space-key bundle", async () => {
+  const route = routeDesktopLink({ action: "join", params: { address: "https://northwind.vyre.run", code: "invite-code", fp: "untrusted-link-display" } });
+  assert.ok(route && route.kind === "join");
+  const calls: { cap: string; input: Record<string, unknown> }[] = [];
+  const anonymous = async (cap: string, input: unknown): Promise<unknown> => {
+    calls.push({ cap, input: input as Record<string, unknown> });
+    if (cap === "members.invites.preview") return { spaceId: "spc_nw", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 1, fingerprint: "server-display-marker" };
+    return { status: "ok", session: { token: "vst_join", epoch: 2 } };
+  };
+  const invite = await previewDesktopJoin(route, anonymous);
+  const stored = await acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", trustDevice: true, ai: { choice: "none" } }, {
+    anonymous,
+    open: async () => ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_dana" }, close: () => undefined } as never),
+    getSpace: async () => ({ id: "spc_nw", marker: "authenticated-marker" }),
+    persist: () => undefined,
+  });
+  assert.equal(invite.preview.fingerprint, "server-display-marker", "the link fingerprint is never a trust pin");
+  const accept = calls.find((c) => c.cap === "invites.accept_create_account")!;
+  assert.equal(accept.input["code"], "invite-code");
+  assert.equal((accept.input["keys"] as { spaceKeys: unknown[] }).spaceKeys.length, 1);
+  assert.equal("personKey" in (accept.input["keys"] as object), false, "only wrapped key material leaves the client");
+  assert.equal(stored.marker, "authenticated-marker");
+});
+
+test("desktop joining never persists when the post-accept authenticated Space differs from the preview", async () => {
+  const route = routeDesktopLink({ action: "join", params: { address: "https://northwind.vyre.run", code: "invite-code", fp: "display-only" } });
+  assert.ok(route && route.kind === "join");
+  const invite = await previewDesktopJoin(route, async () => ({ spaceId: "spc_preview", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 1, fingerprint: "server-display-marker" }));
+  let writes = 0;
+  await assert.rejects(acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", trustDevice: true, ai: { choice: "none" } }, {
+    anonymous: async () => ({ status: "ok", session: { token: "vst_join" } }),
+    open: async () => ({ def: { spaceId: "spc_authenticated", name: "Elsewhere" }, me: { id: "usr_dana" }, close: () => undefined } as never),
+    getSpace: async () => ({ id: "spc_authenticated", marker: "authenticated-marker" }),
+    persist: () => { writes++; },
+  }), /Space no longer matches/);
+  assert.equal(writes, 0);
+});
+
+test("desktop pair and invite failures redact one-time codes", async () => {
+  const pair = routeDesktopLink({ action: "pair", params: { address: "https://northwind.vyre.run", code: "pair-secret" } });
+  const join = routeDesktopLink({ action: "join", params: { address: "https://northwind.vyre.run", code: "invite-secret", fp: "display-only" } });
+  assert.ok(pair && pair.kind === "pair");
+  assert.ok(join && join.kind === "join");
+  await assert.rejects(redeemDesktopPair(pair, {
+    anonymous: async () => { throw new Error("pair-secret was refused"); },
+    open: async () => { throw new Error("not reached"); }, getSpace: async () => ({ id: "", marker: "" }),
+  }), (error: unknown) => error instanceof Error && !error.message.includes("pair-secret"));
+  await assert.rejects(previewDesktopJoin(join, async () => { throw new Error("invite-secret was refused"); }), (error: unknown) => error instanceof Error && !error.message.includes("invite-secret"));
 });
 
 test("hooks: a read that fails leaves the query loading, with the error available to the place that asked", async () => {

@@ -10,7 +10,7 @@ Requires: access, home.
 - [members.invites.create](../capabilities/members.invites.create.md): Invite a person: role, groups, the agents, projects and channels they start in, expiry; returns the link (address, one-time code, Space key fingerprint)
 - [members.invites.extend](../capabilities/members.invites.extend.md): Give an open invite a new expiry
 - [members.invites.list](../capabilities/members.invites.list.md): List invites
-- [members.invites.preview](../capabilities/members.invites.preview.md): Join page: the Space name and logo, who invited, expiry and key fingerprint for a code
+- [members.invites.preview](../capabilities/members.invites.preview.md): Join page: the public Space routing id, name and logo, who invited, expiry and display fingerprint for a code
 - [members.invites.revoke](../capabilities/members.invites.revoke.md): Revoke an open invite
 - [members.reactivate](../capabilities/members.reactivate.md): Reactivate a suspended person
 - [members.remove](../capabilities/members.remove.md): Remove a person with the wizard plan: reassign owned things, pause routines, revoke mailbox connections, rotate the Space key epoch

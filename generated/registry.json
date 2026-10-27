@@ -106491,6 +106491,7 @@
             "invitedBy": "example",
             "logoFileId": "fil_a1b2c3",
             "role": "example",
+            "spaceId": "spc_a1b2c3",
             "spaceName": "example"
           }
         }
@@ -106539,11 +106540,19 @@
           "role": {
             "type": "string"
           },
+          "spaceId": {
+            "examples": [
+              "spc_a1b2c3"
+            ],
+            "pattern": "^spc_[a-z0-9]+$",
+            "type": "string"
+          },
           "spaceName": {
             "type": "string"
           }
         },
         "required": [
+          "spaceId",
           "spaceName",
           "invitedBy",
           "role",
@@ -106558,7 +106567,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "Join page: the Space name and logo, who invited, expiry and key fingerprint for a code",
+      "summary": "Join page: the public Space routing id, name and logo, who invited, expiry and display fingerprint for a code",
       "surfaces": {
         "http": "auto"
       },

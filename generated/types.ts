@@ -15523,6 +15523,7 @@ export type MembersInvitesPreviewIn = {
   code: string;
 };
 export type MembersInvitesPreviewOut = {
+  spaceId: string;
   spaceName: string;
   logoFileId?: string;
   invitedBy: string;
