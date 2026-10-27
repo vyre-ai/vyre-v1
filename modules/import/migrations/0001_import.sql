@@ -30,3 +30,66 @@ CREATE TABLE IF NOT EXISTS "import_key" (
   "cap" TEXT NOT NULL,
   "result" TEXT NOT NULL
 );
+
+-- Local Codex and Claude Code history is copied, never mounted.  These are
+-- deliberately separate from the temporary tabular import session above: an
+-- imported conversation is archival data with source provenance and must not
+-- be changed when the source history later changes or disappears.
+CREATE TABLE IF NOT EXISTS "import_session_source" (
+  "spaceId" TEXT NOT NULL,
+  "owner" TEXT NOT NULL,
+  "destinationScope" TEXT NOT NULL,
+  "sourceKey" TEXT NOT NULL,
+  "provider" TEXT NOT NULL,
+  "disconnectedAt" INTEGER,
+  "createdAt" INTEGER NOT NULL,
+  PRIMARY KEY("spaceId", "owner", "destinationScope", "sourceKey")
+);
+CREATE TABLE IF NOT EXISTS "import_project_binding" (
+  "spaceId" TEXT NOT NULL,
+  "owner" TEXT NOT NULL,
+  "destinationScope" TEXT NOT NULL,
+  "identityKey" TEXT NOT NULL,
+  "projectId" TEXT NOT NULL,
+  "createdAt" INTEGER NOT NULL,
+  PRIMARY KEY("spaceId", "owner", "destinationScope", "identityKey")
+);
+CREATE TABLE IF NOT EXISTS "import_conversation" (
+  "conversationId" TEXT PRIMARY KEY,
+  "spaceId" TEXT NOT NULL,
+  "sourceKey" TEXT NOT NULL,
+  "sourceSessionId" TEXT NOT NULL,
+  "provider" TEXT NOT NULL,
+  "owner" TEXT NOT NULL,
+  "destinationScope" TEXT NOT NULL,
+  "projectId" TEXT,
+  "destinationKind" TEXT NOT NULL,
+  "identityKey" TEXT,
+  "title" TEXT,
+  "startedAt" INTEGER NOT NULL,
+  "importedAt" INTEGER NOT NULL,
+  "immutable" INTEGER NOT NULL DEFAULT 1,
+  "continuedThreadId" TEXT,
+  UNIQUE("spaceId", "owner", "destinationScope", "sourceKey", "sourceSessionId")
+);
+CREATE TABLE IF NOT EXISTS "import_message" (
+  "messageId" TEXT PRIMARY KEY,
+  "conversationId" TEXT NOT NULL,
+  "sourceKey" TEXT NOT NULL,
+  "sourceMessageId" TEXT NOT NULL,
+  "provider" TEXT NOT NULL,
+  "role" TEXT NOT NULL,
+  "text" TEXT NOT NULL,
+  "at" INTEGER NOT NULL,
+  "immutable" INTEGER NOT NULL DEFAULT 1,
+  UNIQUE("conversationId", "sourceMessageId")
+);
+CREATE TABLE IF NOT EXISTS "import_session_conflict" (
+  "conflictId" TEXT PRIMARY KEY,
+  "conversationId" TEXT NOT NULL,
+  "sourceMessageId" TEXT NOT NULL,
+  "incomingText" TEXT NOT NULL,
+  "detectedAt" INTEGER NOT NULL,
+  UNIQUE("conversationId", "sourceMessageId")
+);
+CREATE INDEX IF NOT EXISTS "import_conversation_owner" ON "import_conversation" ("spaceId", "owner", "destinationScope", "importedAt");

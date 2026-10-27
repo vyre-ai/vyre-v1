@@ -155,7 +155,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === self) {
     const slow = JSON.parse(fs.readFileSync(path.join(repo, "test/slow.json"), "utf8"));
     const perf = new Set<string>(slow.filter((e: { perf?: boolean }) => e.perf === true).map((e: { file: string }) => e.file));
     // Ruling 55: --perf-only is every perf file (the hourly perf run); --no-perf drops them (the full main run); otherwise a perf file runs only when its code changed.
-    const picked2 = process.argv.includes("--perf-only") ? [...perf].filter((f) => tracked.has(f)) : process.argv.includes("--no-perf") ? picked.filter((f) => !perf.has(f)) : picked;
+    const picked2 = process.argv.includes("--perf-only") ? [...perf].filter((f) => tracked.has(f)) : process.argv.includes("--affected-perf") ? picked.filter((f) => perf.has(f)) : process.argv.includes("--no-perf") ? picked.filter((f) => !perf.has(f)) : picked;
     const files = dropUnaffectedPerf(picked2, changedPaths, perf, tracked, (f) => fs.readFileSync(path.join(repo, f), "utf8"), process.argv.includes("--perf-always") || process.argv.includes("--perf-only"));
     console.log(JSON.stringify({ ...result, matrix: toMatrix(shardFiles(files, timings, slow, { ...(maxArg ? { max: maxArg } : {}), read: (f) => fs.readFileSync(path.join(repo, f), "utf8") })) }));
   } else console.log(JSON.stringify(result));
