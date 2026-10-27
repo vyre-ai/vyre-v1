@@ -114,6 +114,10 @@ test("the macOS desktop release path verifies, mounts, installs and exercises th
   assert.match(smoke, /test\("the installed shell relaunches after a clean exit"/);
   assert.doesNotMatch(smoke, /if \(RELAUNCH\) await exerciseBuiltShell/,
     "the relaunch needs its own Node test timeout instead of sharing the first-launch 60 second budget");
+  assert.match(smoke, /tell application id \\"ai\.vyre\.desktop\\" to quit/,
+    "macOS smoke must exercise the app's normal quit lifecycle before relaunching");
+  assert.match(smoke, /awaitSidecarStop/,
+    "the first launch must prove its packaged sidecar stopped before the relaunch begins");
 });
 
 test("no npm install, docker pull or curl outside prewarm", () => {
