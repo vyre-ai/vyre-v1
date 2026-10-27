@@ -7,7 +7,7 @@ import { Checklist } from "./Checklist.tsx";
 import { JoinFlow, makeRecoveryCode } from "./JoinFlow.tsx";
 import { aiOptions } from "./ConnectAI.tsx";
 import { DARK, LIGHT, paletteOf } from "./palette.ts";
-import { RUN_STEPS, initialState, meter, reduce, signInValid, strength, suggestions, usernameOk, valid } from "./logic.ts";
+import { RUN_STEPS, createSpaceResolutionGate, initialState, meter, normalizeSpaceAddress, reduce, resolveSpaceInvite, signInValid, strength, suggestions, usernameOk, valid, welcomeGreeting } from "./logic.ts";
 import type { Action, FlowState, JoinInvite } from "./logic.ts";
 
 const INVITE: JoinInvite = {
@@ -31,6 +31,91 @@ test("password strength, usernames and suggestions follow the rules", () => {
   assert.deepEqual(suggestions("Dana", "Whitfield", "irfad", (u) => !TAKEN.includes(u)), ["dana.whitfield", "danaw", "dana-ops"]);
   assert.deepEqual(suggestions("", "", "x", () => true), []);
   assert.deepEqual(suggestions("Maya", "Chen", "maya", (u) => u !== "maya.chen"), ["mayac", "maya-ops"]);
+});
+
+test("Space addresses require HTTPS outside explicit local development", () => {
+  assert.equal(normalizeSpaceAddress(" northwind.example "), "https://northwind.example");
+  assert.equal(normalizeSpaceAddress("HTTPS://Northwind.Example/path/"), "https://northwind.example/path");
+  assert.equal(normalizeSpaceAddress("http://localhost:3000/"), "http://localhost:3000");
+  assert.equal(normalizeSpaceAddress("http://127.0.0.1:3000/"), "http://127.0.0.1:3000");
+  assert.equal(normalizeSpaceAddress("http://[::1]:3000/"), "http://[::1]:3000");
+  for (const address of ["", "http://northwind.example", "tauri://localhost", "file:///Users/irfad", "vyre://join", "mailto:hello@example.com"]) {
+    assert.equal(normalizeSpaceAddress(address), null, address);
+  }
+});
+
+test("the Welcome greeting is deterministic for morning, afternoon, and evening", () => {
+  assert.equal(welcomeGreeting(0), "Good morning");
+  assert.equal(welcomeGreeting(12), "Good afternoon");
+  assert.equal(welcomeGreeting(18), "Good evening");
+});
+
+test("the connect reducer owns the address, failure, and distinct resolved destinations", () => {
+  let s = initialState(INVITE, { stage: "connect" });
+  s = step(s, { t: "set", patch: { spaceAddress: "northwind.example" } });
+  assert.equal(s.spaceAddress, "northwind.example");
+  s = step(s, { t: "space_resolving", intent: "signin" });
+  assert.equal(s.spaceResolving, true);
+  s = step(s, { t: "space_failed", message: "Could not verify this Space." });
+  assert.deepEqual([s.spaceResolving, s.spaceError], [false, "Could not verify this Space."]);
+  s = step(s, { t: "space_resolving", intent: "signin" }, { t: "space_resolved" });
+  assert.equal(s.stage, "signin");
+  s = step(initialState(INVITE, { stage: "connect" }), { t: "space_resolving", intent: "onboarding" }, { t: "space_resolved" });
+  assert.equal(s.stage, "accept");
+});
+
+test("a Space resolver receives only the normalized address and must return before credentials can open", async () => {
+  const calls: string[] = [];
+  const resolved = resolveSpaceInvite(" Northwind.Example ", async (address) => {
+    calls.push(address);
+    return INVITE;
+  });
+  assert.deepEqual(calls, ["https://northwind.example"], "the connection begins with a normalized address");
+  assert.equal(await resolved, INVITE, "the verified invite arrives asynchronously");
+  await assert.rejects(resolveSpaceInvite("tauri://localhost", async () => INVITE), /valid https/i);
+});
+
+test("editing a Space address invalidates its stale deferred response and lets the new address resolve", async () => {
+  let releaseA!: (invite: JoinInvite) => void;
+  let releaseB!: (invite: JoinInvite) => void;
+  let releaseUnmounted!: (invite: JoinInvite) => void;
+  const a = new Promise<JoinInvite>((resolve) => { releaseA = resolve; });
+  const b = new Promise<JoinInvite>((resolve) => { releaseB = resolve; });
+  const unmounted = new Promise<JoinInvite>((resolve) => { releaseUnmounted = resolve; });
+  const gate = createSpaceResolutionGate();
+  let invite = INVITE;
+  let stage: "connect" | "signin" = "connect";
+  const commit = (request: number, resolved: JoinInvite): void => {
+    if (!gate.isCurrent(request)) return;
+    invite = resolved;
+    stage = "signin";
+  };
+  const requestA = gate.begin();
+  void a.then((resolved) => commit(requestA, resolved));
+  gate.invalidate();
+  releaseA({ ...INVITE, space: "Alpha" });
+  await a;
+  assert.deepEqual([invite.space, stage], ["Northwind", "connect"], "editing to Space B prevents stale Space A from opening credentials");
+  const requestB = gate.begin();
+  void b.then((resolved) => commit(requestB, resolved));
+  releaseB({ ...INVITE, space: "Beta" });
+  await b;
+  assert.deepEqual([invite.space, stage], ["Beta", "signin"], "the edited Space can resolve after invalidating the old request");
+  const requestUnmounted = gate.begin();
+  void unmounted.then((resolved) => commit(requestUnmounted, resolved));
+  gate.dispose();
+  releaseUnmounted({ ...INVITE, space: "Gone" });
+  await unmounted;
+  assert.equal(invite.space, "Beta", "unmounted flows never commit a verified Space");
+});
+
+test("a fresh connection starts at the one-column Welcome back screen before credentials", () => {
+  const out = html({ stage: "connect" });
+  for (const text of ["Welcome back", "Connect a Space", "Space address", "Sign in", "Get started"]) assert.ok(out.includes(text), text);
+  assert.match(out, /data-testid="space-address"/);
+  assert.doesNotMatch(out, /Sign in to Northwind/, "credentials wait for a verified Space");
+  assert.equal(out.match(/data-testid="join-panel"/g)?.length, 1);
+  assert.equal(out.match(/data-testid="step-/g)?.length, 1);
 });
 
 test("each step enables Continue only when it can go on", () => {
