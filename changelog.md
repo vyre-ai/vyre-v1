@@ -2,6 +2,7 @@
 
 ## Unreleased
 - Computer CI: clean up the hostile home-mirror escape fixture inside its container ownership context whether reconciliation leaves a symlink or replaces it with a real directory, without following the external target, and normalize the container command separator before checking mirrored file contents.
+- Golden Flow 7: provision its agent with the explicit least-privilege `comms.agent_send` role and verify a Resend sending domain before approval, so the Gate regression exercises the production authorization and provider path instead of relying on missing bootstrap grants.
 - MCP/Gate: mount the live MCP runtime on the daemon's actual `/mcp` endpoint, advertise the bound loopback port to CLI engines, intersect outside Engineer tools with the live `engineer.mcp` permission, and return transport failures under the caller's JSON-RPC id so tool turns cannot hang.
 - Desktop CI: give the installed-app relaunch its own bounded smoke-test lifecycle, use real macOS application-quit and Windows window-close paths, and require each packaged sidecar to stop so screenshot time and orphan processes cannot hide restart failures.
 - PWA: add the production web manifest, Android/iPhone icons, Apple standalone metadata, safe-area viewport contract, truthful offline/update service-worker behavior, and an explicit Chromium iPhone-width smoke that labels standalone as simulated until the owner completes a physical iPhone Add to Home Screen pass.
