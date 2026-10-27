@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import type { ReactElement } from "react";
 import { holdKeyOnOwnNode } from "../../../../client/src/gateway/local-key.ts";
-import { makeBundle, wipe } from "../../../../client/src/crypto/keys.ts";
+import { loadCryptoKeys } from "../../../../client/src/crypto/load.ts";
 import { makeRecoveryCode } from "../join/JoinFlow.tsx";
 import { createCapCaller } from "../shell/session/caps.ts";
 import { openRealSession } from "../shell/session/session.ts";
@@ -23,6 +23,7 @@ export function ClaimRoute({ token, onDone, onSignIn }: { token: string; onDone(
   // A link without the Space id (#s=) is not the link the server printed.
   if (!spaceId) return <ClaimOwner space={spaceNameOf(hash)} newCode={makeRecoveryCode} onClaim={async () => undefined} dead="invalid" onSignIn={onSignIn} />;
   const claim = async (v: { name: string; username: string; password: string; recoveryCode: string }): Promise<void> => {
+    const { makeBundle, wipe } = await loadCryptoKeys();
     const claimed = await claimOwner(
       { call, makeBundle: (password, recoveryCode, id) => makeBundle(password, recoveryCode, { spaceId: id }), holdKey: (t, key) => holdKeyOnOwnNode(baseUrl, t, key), wipe },
       { token, spaceId, name: v.name, username: v.username, password: v.password, recoveryCode: v.recoveryCode, deviceName: "Web browser" },

@@ -41,3 +41,31 @@ test("Metro inlines requires, so a module the first screen never touches is not 
   assert.match(cfg, /inlineRequires:\s*true/);
   assert.match(cfg, /getDefaultConfig\(__dirname\)/, "it extends Expo's own config");
 });
+
+test("all startup paths share one deferred Argon2 loader", () => {
+  const root = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "..");
+  const files = ["apps/app/src/claim/ClaimRoute.tsx", "apps/app/src/shell/session/SessionGate.tsx", "apps/app/src/shell/session/desktop.ts"];
+  for (const file of files) {
+    const src = fs.readFileSync(path.join(root, file), "utf8");
+    assert.doesNotMatch(src, /(?:from|import\()[^\n]*crypto\/keys\.ts/, `${file} must not pull the 265 KB Argon2 implementation into a shared startup chunk`);
+    assert.match(src, /loadCryptoKeys/, `${file} uses the single on-demand loader`);
+  }
+  const loader = fs.readFileSync(path.join(root, "client/src/crypto/load.ts"), "utf8");
+  assert.match(loader, /import\("\.\/keys\.ts"\)/, "the audited key implementation remains behind one dynamic boundary");
+});
+
+test("agent portraits do not put the DiceBear catalog in the startup chunk", () => {
+  const root = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "..");
+  const avatar = fs.readFileSync(path.join(root, "ui/src/Avatar/index.tsx"), "utf8");
+  assert.doesNotMatch(avatar, /(?:from|export \{)[^\n]*\.\/notionists\.ts/, "Avatar must render its lightweight fallback without statically loading the 386 KB portrait catalog");
+  assert.match(avatar, /loadNotionists/, "the full portrait still loads after first paint");
+  const loader = fs.readFileSync(path.join(root, "ui/src/Avatar/load.ts"), "utf8");
+  assert.match(loader, /import\("\.\/notionists\.ts"\)/, "the catalog remains behind one dynamic boundary");
+});
+
+test("the signed-in shell is not parsed before the session gate finds a stored session", () => {
+  const root = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "..");
+  const gate = fs.readFileSync(path.join(root, "apps/app/src/shell/session/SessionGate.tsx"), "utf8");
+  for (const eager of ["../spaces/Shell.tsx", "../cmdk/CmdK.tsx", "./PlaceHost.tsx"]) assert.doesNotMatch(gate, new RegExp(`from ["']${eager.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`));
+  assert.match(gate, /lazy\(\(\) => import\("\.\/ShellHost\.tsx"\)/, "the authenticated shell has one explicit lazy boundary");
+});
