@@ -1,5 +1,5 @@
-// The step panel: opens beside the canvas when a card is selected. A name, the step's own fields (one text field per input, in words), the AI step's key and backup, what happens
-// when the step fails, and the problems the check found for this step. Every change goes through `onChange` as a new definition, so Undo and Save see it like any other edit.
+// The step panel: opens beside the canvas when a card is selected. A name, the account the step was given, the step's own fields (one text field per input, in words), the AI step's key
+// and backup, what happens when the step fails, and the problems the check found for this step. Every change goes through `onChange` as a new definition, so Undo and Save see it like any other edit.
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -7,6 +7,8 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { AskVyre } from "../ask/AskVyre.tsx";
 import type { AskBundle } from "../ask/bundle.ts";
+import { accountMenu, applyAccount } from "../connect/accounts.ts";
+import type { AccountOption } from "../connect/accounts.ts";
 import { DataShelf, MappingFix, SectionRow, commitTyped, nodeIdSet } from "../builder/marks.tsx";
 import { StepTest } from "../builder/StepTest.tsx";
 import { isPreviewKey, PREVIEW_NOTE } from "../catalog/model.ts";
@@ -26,7 +28,7 @@ function withKey(ai: DefNode["ai"], field: "keyId" | "backupKeyId", id: string |
 }
 const show = (v: unknown): string => (typeof v === "string" ? v : v === undefined || v === null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
 
-export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onChange, onClose, onDelete, testID = "inspector", embedded = false, section = "configure", onSection, samples = {}, version = 0, onStoreSample, onAsk, keysStatus }: {
+export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onChange, onClose, onDelete, testID = "inspector", embedded = false, section = "configure", onSection, samples = {}, version = 0, onStoreSample, onAsk, keysStatus, accounts = [], inputSchema, lastPicks }: {
   def: Definition;
   node: DefNode | null;
   trigger: DefTrigger | null;
@@ -45,6 +47,12 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
   onStoreSample?(nodeId: string, output: unknown): void;
   onAsk?(bundle: AskBundle): void;
   keysStatus?: KeysStatus;
+  /** Accounts the parent already loaded. Empty shows "No accounts yet" and does not invent one. */
+  accounts?: readonly AccountOption[];
+  /** Catalog input schema for this step. Omit when the catalog has not loaded. */
+  inputSchema?: unknown;
+  /** Last explicit pick for this person, keyed by app. Omit when the parent has none. */
+  lastPicks?: Readonly<Record<string, string>>;
 }): ReactElement {
   const { element, show: openMenu } = useMenu();
   const [advanced, setAdvanced] = useState(false);
@@ -111,6 +119,13 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
     );
   }
   const kind = kindOfKey(node.key);
+  const accountPick = accountMenu({
+    input: node.input ?? {},
+    nodes: def.nodes.filter((item) => item.id !== node.id).map((item) => ({ input: item.input ?? {} })),
+    accounts,
+    ...(inputSchema !== undefined ? { schema: inputSchema } : {}),
+    ...(lastPicks ? { last: lastPicks } : {}),
+  });
   const inputKeys = Object.keys(node.input ?? {});
   const fields: ReactElement[] = [];
   const branches = node.branches ?? [];
@@ -128,6 +143,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
     }
   }
   for (const k of inputKeys) {
+    if (accountPick && (k === "connectionId" || k === "mailboxId" || (accountPick.field === "connectionId" && k === "connector"))) continue;
     fields.push(<Field key={`${node.id}-${k}`} label={humanize(k)} value={show(node.input[k])} testID={`field-${k}`} onCommit={(t) => {
       const cur = node.input[k];
       const presence = presenceOf(true, cur);
@@ -151,6 +167,24 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
         {isPreviewKey(node.key) ? <Text style={i.hint}>{PREVIEW_NOTE}</Text> : null}
         <Pressable accessibilityRole="button" testID="toggle-advanced" onPress={() => setAdvanced((on) => !on)} style={pointer}><Text style={i.hint}>{advanced ? "Basic" : "Advanced"}</Text></Pressable>
         <Field label="Name" value={node.title ?? ""} placeholder={titleOfKey(node.key)} testID="field-title" onCommit={(t) => onChange(updateStep(def, node.id, { title: t }))} />
+        {accountPick ? (
+          <Choice
+            label="Account"
+            value={accountPick.value}
+            testID="choose-account"
+            onOpen={(x, y) => {
+              const entries: MenuEntry[] = [];
+              for (const item of accountPick.items) {
+                const onSelect = (): void => {
+                  if (!item.account) return;
+                  onChange(updateStep(def, node.id, { input: applyAccount(node.input ?? {}, accountPick.field, item.account) }));
+                };
+                entries.push(item.checked ? { label: item.label, checked: true, onSelect } : { label: item.label, onSelect });
+              }
+              openMenu(entries, x, y, "other");
+            }}
+          />
+        ) : null}
         {advanced ? (
           <Field label="Input" value={JSON.stringify(node.input ?? {}, null, 2)} testID="field-input-json" onCommit={(t) => {
             try {
@@ -162,7 +196,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
           }} />
         ) : fields}
         {jsonError ? <Text style={i.hint}>{jsonError}</Text> : null}
-        {inputKeys.length === 0 && kind === "plain" && !advanced ? <Text style={i.hint}>Nothing is set on this step yet. Add what it needs in the fields the check names below.</Text> : null}
+        {inputKeys.length === 0 && kind === "plain" && !advanced && !accountPick ? <Text style={i.hint}>Nothing is set on this step yet. Add what it needs in the fields the check names below.</Text> : null}
         {kind === "ai" ? (
           <View style={i.group}>
             <Text style={i.groupHead}>Key</Text>

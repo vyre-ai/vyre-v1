@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Automations: a step keeps the account id it was given. A new step can start from the only account, a sibling step, or the last explicit pick, and a later edit does not switch that id to a different account.
 - Automations: Parallel lanes and Loop iterations each run as their own child Run, pinned to the parent definition version, with a durable coordinator wait and a concurrency cap for loops.
 - Automations: a Wait can use a relative milestone. A milestone that has already passed skips later outward steps and still runs record updates. An unfinished milestone recalculates when its calendar event changes, and a cancellation does not replay a step that already succeeded.
 - Automations: a person can answer one schedule backlog from Needs You. Run first N and run latest N start those live runs, skip backlog resumes without them, change limits stays paused, and keep paused stays paused. The same ticks are not started twice.

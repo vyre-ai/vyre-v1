@@ -373,6 +373,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
     }
   }
   const inspect = panel && sel !== null && (selected !== null || trigSel);
+  const stepSchema = selected && catalog.phase === "ready" ? catalog.steps.find((step) => step.key === selected.key)?.input : undefined;
   // Runs tab: the step graph sits beside the run list, read only, at the size that fits its column, lit by the run being shown
   const still: CardHandlers = { onSelect: () => undefined, onOpen: () => undefined, onMenu: () => undefined, onAdd: () => undefined, onKey: () => undefined };
   const graphCards: ReactElement[] = [];
@@ -483,7 +484,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
                   version={a.version}
                   onStoreSample={(id, output) => setSamples((cur) => ({ ...cur, [id]: output }))}
                   def={def} node={selected} trigger={trigSel && sel?.trigger !== null && sel?.trigger !== undefined ? def.triggers[sel.trigger] ?? null : null} triggerIndex={trigSel ? sel?.trigger ?? null : null}
-                  issues={issues} keys={data.keys} {...(data.keysStatus ? { keysStatus: data.keysStatus } : {})} onChange={edit} onClose={() => select(null)} onDelete={() => { if (sel && sel.id !== "trigger") { edit(removeStep(def, sel.id)); select(null); } }}
+                  issues={issues} keys={data.keys} {...(data.keysStatus ? { keysStatus: data.keysStatus } : {})} {...(data.accounts ? { accounts: data.accounts } : {})} {...(stepSchema !== undefined ? { inputSchema: stepSchema } : {})} onChange={edit} onClose={() => select(null)} onDelete={() => { if (sel && sel.id !== "trigger") { edit(removeStep(def, sel.id)); select(null); } }}
                   onAsk={(bundle) => data.nav.ask(a.id, bundle)}
                 />
               </SidePane>

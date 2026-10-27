@@ -10,6 +10,7 @@ import {
   allAutomations, clean, defaultAlerts, emitAuto, findGroup, getAutomation, isOwner, listGroups, listVersions, markDeleted, markRestored, me, newId, newSecret, out, page,
   raise, readPolicy, saveAutomation, saveVersion, touch, versionById,
 } from "../projections.ts";
+import { rememberAccountPicks } from "../accounts.ts";
 import type { Alerts, AutoCtx, Automation, Definition, Grant, Node, Policy } from "../projections.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -193,6 +194,7 @@ export async function create(ctx: AutoCtx, input: In): Promise<unknown> {
   });
   saveAutomation(ctx.db, a);
   saveVersion(ctx, a, "Created");
+  rememberAccountPicks(ctx.db, owner, def, now);
   emitAuto(ctx, "automation.created", a.id, { name: a.name, kind: a.kind });
   return { automation: out(a) };
 }
@@ -222,7 +224,10 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   }
   if (fields.length === 0) return { automation: out(a) };
   touch(ctx, a);
-  if (definitionChanged) saveVersion(ctx, a);
+  if (definitionChanged) {
+    saveVersion(ctx, a);
+    rememberAccountPicks(ctx.db, me(ctx), a.definition, ctx.now());
+  }
   emitAuto(ctx, "automation.updated", a.id, { version: a.version, fields });
   return { automation: out(a) };
 }

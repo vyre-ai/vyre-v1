@@ -4,6 +4,7 @@ import { createContext, useContext, useMemo, useSyncExternalStore } from "react"
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
 import type { AskBundle } from "../ask/bundle.ts";
+import type { AccountOption } from "../connect/accounts.ts";
 import type { ConnectTarget } from "../connect/route.ts";
 import type { KeyChoice } from "./model.ts";
 
@@ -33,6 +34,8 @@ export interface AutomationsData {
   name(id: string): string;
   /** The sign-ins and API keys shared with this person, for an AI step's key and backup. */
   keys: readonly KeyChoice[];
+  /** Accounts the parent already loaded. The step picker lists these and does not fetch. */
+  accounts?: readonly AccountOption[];
   /** Set when the place loaded providers.list. Absent on sample data that already supplies keys. */
   keysStatus?: KeysStatus;
   nav: AutomationsNav;
