@@ -180,10 +180,14 @@ test("desktop bootstrap returns only typed shell status and the one pending Vyre
   assert.deepEqual(calls, ["desktop_info", "take_pending_link"]);
 });
 
-test("desktop bootstrap keeps a link delivered while its pending link is drained until the page subscribes", async () => {
-  let nativeListener: ((event: { payload: unknown }) => void) | undefined;
-  const received: DesktopDeepLink[] = [];
-  const link: DesktopDeepLink = { action: "join", params: { code: "one-time-code" } };
+test("desktop link handoff is ordered, bounded, replaceable, and can relisten", async () => {
+  const nativeListeners = new Set<(event: { payload: unknown }) => void>();
+  const nativeEvents: string[] = [];
+  let nativeSubscriptions = 0;
+  let nativeUnsubscribes = 0;
+  const emit = (link: DesktopDeepLink): void => {
+    for (const listener of nativeListeners) listener({ payload: link });
+  };
   const info: DesktopInfo = {
     app: "vyre-desktop", version: "1.0.0-rc.1", platform: "macos", arch: "aarch64",
     sidecar: { phase: "ready", url: "http://127.0.0.1:41233", version: "1.0.0-rc.1", restarts: 0, error: null },
@@ -191,35 +195,61 @@ test("desktop bootstrap keeps a link delivered while its pending link is drained
   const bridge = makeBridge(async (command) => {
     if (command === "desktop_info") return info;
     if (command === "take_pending_link") {
-      nativeListener?.({ payload: link });
+      for (let i = 0; i < 17; i++) emit({ action: "join", params: { code: String(i) } });
       return null;
     }
     return undefined;
-  }, async (_event, listener) => {
-    nativeListener = listener;
-    return () => {};
+  }, async (event, listener) => {
+    nativeSubscriptions++;
+    nativeEvents.push(event);
+    nativeListeners.add(listener);
+    return () => {
+      nativeUnsubscribes++;
+      nativeListeners.delete(listener);
+    };
   });
 
   assert.deepEqual(await bridge.bootstrap(), { info, pendingLink: null });
-  await bridge.listenLinks((delivered) => received.push(delivered));
+  const first: DesktopDeepLink[] = [];
+  const staleUnlisten = await bridge.listenLinks((delivered) => first.push(delivered));
+  assert.deepEqual(first.map((link) => link.params["code"]), Array.from({ length: 16 }, (_, i) => String(i + 1)));
 
-  assert.deepEqual(received, [link]);
+  emit({ action: "open", params: { address: "https://first.vyre.run" } });
+  const second: DesktopDeepLink[] = [];
+  const unlisten = await bridge.listenLinks((delivered) => second.push(delivered));
+  emit({ action: "open", params: { address: "https://second.vyre.run" } });
+  staleUnlisten();
+  emit({ action: "open", params: { address: "https://still-second.vyre.run" } });
+
+  assert.deepEqual(first.filter((link) => link.action === "open").map((link) => link.params["address"]), ["https://first.vyre.run"]);
+  assert.deepEqual(second.map((link) => link.params["address"]), ["https://second.vyre.run", "https://still-second.vyre.run"]);
+  assert.equal(nativeSubscriptions, 1);
+  assert.equal(nativeUnsubscribes, 0);
+
+  unlisten();
+  assert.equal(nativeUnsubscribes, 1);
+  const third: DesktopDeepLink[] = [];
+  const finalUnlisten = await bridge.listenLinks((delivered) => third.push(delivered));
+  emit({ action: "open", params: { address: "https://third.vyre.run" } });
+
+  assert.equal(nativeSubscriptions, 2);
+  assert.deepEqual(nativeEvents, ["vyre://deep-link", "vyre://deep-link"]);
+  assert.deepEqual(third.map((link) => link.params["address"]), ["https://third.vyre.run"]);
+  finalUnlisten();
 });
 
-test("desktop link delivery subscribes only to the Vyre deep-link event and returns Tauri's unlisten function", async () => {
-  const calls: string[] = [];
+test("desktop link delivery refuses control characters in decoded parameters", async () => {
   const received: DesktopDeepLink[] = [];
-  const unlisten = (): void => {};
-  const bridge = makeBridge(async () => undefined, async (event, handler) => {
-    calls.push(event);
-    handler({ payload: { action: "open", params: { address: "https://acme.vyre.run" } } });
-    handler({ payload: { action: "delete", params: { address: "https://evil.example" } } });
-    return unlisten;
+  const bridge = makeBridge(async () => undefined, async (_event, listener) => {
+    listener({ payload: { action: "join", params: { code: "safe" } } });
+    listener({ payload: { action: "join", params: { code: "bad\ncode" } } });
+    listener({ payload: { action: "delete", params: { code: "safe" } } });
+    return () => {};
   });
 
-  assert.equal(await bridge.listenLinks((link) => received.push(link)), unlisten);
-  assert.deepEqual(calls, ["vyre://deep-link"]);
-  assert.deepEqual(received, [{ action: "open", params: { address: "https://acme.vyre.run" } }]);
+  await bridge.listenLinks((link) => received.push(link));
+
+  assert.deepEqual(received, [{ action: "join", params: { code: "safe" } }]);
 });
 
 // ---- the app's update channel --------------------------------------------------------------------------------------------------------

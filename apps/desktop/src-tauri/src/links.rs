@@ -79,6 +79,8 @@ pub fn parse(url: &str) -> Option<DeepLink> {
         if key.is_empty()
             || key.len() > MAX_PARAM_KEY_LEN
             || value.len() > MAX_PARAM_VALUE_LEN
+            || key.chars().any(char::is_control)
+            || value.chars().any(char::is_control)
             || params.len() >= MAX_PARAMS
             || matches!(key.as_str(), "__proto__" | "constructor" | "prototype")
             || params.contains_key(&key)
@@ -136,6 +138,7 @@ mod tests {
         assert!(parse(&format!("vyre://join?code={}", "x".repeat(MAX_PARAM_VALUE_LEN + 1))).is_none());
         assert!(parse("vyre://join?code=first&code=second").is_none());
         assert!(parse("vyre://join?__proto__=x").is_none());
+        assert!(parse("vyre://join?code=one%0Atime").is_none());
     }
 
     #[test]

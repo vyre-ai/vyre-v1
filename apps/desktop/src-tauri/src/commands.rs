@@ -8,16 +8,37 @@
 use crate::links::DeepLink;
 use crate::sidecar::{self, Shared, Status};
 use serde::Serialize;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 pub const LINK_EVENT: &str = "vyre://deep-link";
 
+#[derive(Default)]
+pub struct LinkHandoff {
+    page_listening: bool,
+    pending: Option<DeepLink>,
+}
+
+impl LinkHandoff {
+    fn activate_and_take(&mut self) -> Option<DeepLink> {
+        self.page_listening = true;
+        self.pending.take()
+    }
+
+    /// Stores before delivery begins, or returns the link for emission afterwards.
+    fn deliver(&mut self, link: DeepLink) -> Option<DeepLink> {
+        if self.page_listening {
+            Some(link)
+        } else {
+            self.pending = Some(link);
+            None
+        }
+    }
+}
+
 pub struct AppState {
     pub sidecar: Shared,
-    pub pending: Mutex<Option<DeepLink>>,
-    pub page_listening: AtomicBool,
+    pub links: Mutex<LinkHandoff>,
     pub native: crate::native::NativeState,
 }
 
@@ -43,8 +64,7 @@ pub fn desktop_info(app: AppHandle, state: State<'_, AppState>) -> Info {
 
 #[tauri::command]
 pub fn take_pending_link(state: State<'_, AppState>) -> Option<DeepLink> {
-    state.page_listening.store(true, Ordering::SeqCst);
-    state.pending.lock().ok().and_then(|mut p| p.take())
+    state.links.lock().ok().and_then(|mut links| links.activate_and_take())
 }
 
 /// A link reached the shell: emit it when the page is listening, else keep the newest for take_pending_link.
@@ -52,10 +72,9 @@ pub fn deliver(app: &AppHandle, link: DeepLink) {
     // The action only. The parameters carry one-time codes and never go to a log.
     println!("vyre-desktop: deep link {} received", link.action);
     let state = app.state::<AppState>();
-    if state.page_listening.load(Ordering::SeqCst) {
+    let emit = state.links.lock().ok().and_then(|mut links| links.deliver(link));
+    if let Some(link) = emit {
         let _ = app.emit(LINK_EVENT, link);
-    } else if let Ok(mut p) = state.pending.lock() {
-        *p = Some(link);
     }
 }
 
@@ -65,4 +84,48 @@ pub fn page_report(kind: String, text: String) {
     let kind: String = kind.chars().filter(|c| c.is_ascii_alphanumeric()).take(16).collect();
     let text: String = text.chars().filter(|c| !c.is_control()).take(200).collect();
     println!("vyre-desktop: page {kind}: {text}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+    use std::sync::{Arc, Barrier, Mutex};
+    use std::thread;
+
+    fn link(code: &str) -> DeepLink {
+        DeepLink { action: "join".to_string(), params: BTreeMap::from([("code".to_string(), code.to_string())]) }
+    }
+
+    #[test]
+    fn concurrent_delivery_and_activation_are_lossless() {
+        for _ in 0..64 {
+            let handoff = Arc::new(Mutex::new(LinkHandoff::default()));
+            let start = Arc::new(Barrier::new(3));
+            let expected = link("one-time-code");
+
+            let delivering = {
+                let handoff = handoff.clone();
+                let start = start.clone();
+                let link = expected.clone();
+                thread::spawn(move || {
+                    start.wait();
+                    handoff.lock().unwrap().deliver(link)
+                })
+            };
+            let activating = {
+                let handoff = handoff.clone();
+                let start = start.clone();
+                thread::spawn(move || {
+                    start.wait();
+                    handoff.lock().unwrap().activate_and_take()
+                })
+            };
+
+            start.wait();
+            let delivered = delivering.join().unwrap();
+            let pending = activating.join().unwrap();
+            assert_eq!(delivered.into_iter().chain(pending).collect::<Vec<_>>(), vec![expected]);
+        }
+    }
 }

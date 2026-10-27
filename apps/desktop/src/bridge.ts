@@ -40,7 +40,7 @@ export type Bridge = {
   setBadge(count: number): Promise<void>;
   /** The packaged shell's status and a deep link that arrived before the page loaded. */
   bootstrap(): Promise<{ info: DesktopInfo; pendingLink: DesktopDeepLink | null }>;
-  /** Receives only validated Vyre deep links; resolves to Tauri's unsubscribe function. */
+  /** Receives only validated Vyre deep links; a later listener replaces this callback. */
   listenLinks(listener: (link: DesktopDeepLink) => void): Promise<Unlisten>;
 };
 
@@ -49,6 +49,7 @@ const sidecarPhases = new Set<DesktopInfo["sidecar"]["phase"]>(["starting", "rea
 const maxLinkParams = 16;
 const maxLinkParamKeyLength = 64;
 const maxLinkParamValueLength = 2048;
+const maxPendingDeliveredLinks = 16;
 
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -60,6 +61,10 @@ function text(value: unknown): string | null {
 
 function nullableText(value: unknown): string | null | undefined {
   return value === null || typeof value === "string" ? value : undefined;
+}
+
+function hasControlCharacters(value: string): boolean {
+  return /[\u0000-\u001F\u007F-\u009F]/u.test(value);
 }
 
 function desktopInfo(value: unknown): DesktopInfo | null {
@@ -87,7 +92,7 @@ function deepLink(value: unknown): DesktopDeepLink | null {
   if (entries.length > maxLinkParams) return null;
   const params: Record<string, string> = {};
   for (const [key, param] of entries) {
-    if (!key || key.length > maxLinkParamKeyLength || param === undefined || typeof param !== "string" || param.length > maxLinkParamValueLength || key === "__proto__" || key === "constructor" || key === "prototype") return null;
+    if (!key || key.length > maxLinkParamKeyLength || param === undefined || typeof param !== "string" || param.length > maxLinkParamValueLength || hasControlCharacters(key) || hasControlCharacters(param) || key === "__proto__" || key === "constructor" || key === "prototype") return null;
     params[key] = param;
   }
   return { action: action as DesktopDeepLink["action"], params };
@@ -97,14 +102,24 @@ export function makeBridge(invoke: Invoke, listen: Listen): Bridge {
   let pendingDeliveredLinks: DesktopDeepLink[] = [];
   let linkListener: ((link: DesktopDeepLink) => void) | undefined;
   let linkSubscription: Promise<Unlisten> | undefined;
+  let listenerGeneration = 0;
+
+  const holdLink = (link: DesktopDeepLink): void => {
+    if (pendingDeliveredLinks.length === maxPendingDeliveredLinks) pendingDeliveredLinks.shift();
+    pendingDeliveredLinks.push(link);
+  };
 
   const subscribeToLinks = (): Promise<Unlisten> => {
     if (!linkSubscription) {
-      linkSubscription = listen("vyre://deep-link", (event) => {
+      const subscription = listen("vyre://deep-link", (event) => {
         const link = deepLink(event.payload);
         if (!link) return;
         if (linkListener) linkListener(link);
-        else pendingDeliveredLinks.push(link);
+        else holdLink(link);
+      });
+      linkSubscription = subscription;
+      void subscription.catch(() => {
+        if (linkSubscription === subscription) linkSubscription = undefined;
       });
     }
     return linkSubscription;
@@ -138,9 +153,16 @@ export function makeBridge(invoke: Invoke, listen: Listen): Bridge {
     },
     async listenLinks(listener) {
       const unlisten = await subscribeToLinks();
+      const generation = ++listenerGeneration;
       linkListener = listener;
       for (const link of pendingDeliveredLinks.splice(0)) listener(link);
-      return unlisten;
+      return () => {
+        if (generation !== listenerGeneration) return;
+        listenerGeneration++;
+        linkListener = undefined;
+        linkSubscription = undefined;
+        unlisten();
+      };
     },
   };
 }

@@ -13,7 +13,6 @@ mod native;
 mod sidecar;
 
 use commands::AppState;
-use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager, RunEvent};
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -118,7 +117,7 @@ pub fn run() {
                 native::on_focus(window.app_handle());
             }
         })
-        .manage(AppState { sidecar: shared.clone(), pending: Mutex::new(None), page_listening: AtomicBool::new(false), native: native::NativeState::default() })
+        .manage(AppState { sidecar: shared.clone(), links: Mutex::new(commands::LinkHandoff::default()), native: native::NativeState::default() })
         .invoke_handler(tauri::generate_handler![
             commands::desktop_info,
             commands::take_pending_link,
