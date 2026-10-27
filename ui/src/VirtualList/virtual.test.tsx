@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Row } from "../Row/index.tsx";
-import { VirtualList, rowOffsets, windowFor } from "./index.tsx";
+import { SCROLL_BUFFER_PX, VirtualList, rowOffsets, windowFor } from "./index.tsx";
 
 const rows = Array.from({ length: 10000 }, (_, i) => ({ id: `r${i}`, title: `Row ${i}` }));
 
@@ -66,15 +66,16 @@ test("window lookup over 10,000 rows is cheap (p95 under 1 ms)", () => {
 test("a 10,000-row Files fling keeps one buffered window across most animation frames", () => {
   const offsets = rowOffsets(10000, 38);
   const viewport = 640;
+  const scrollingOverscan = Math.ceil(SCROLL_BUFFER_PX / 38);
   let current = windowFor(offsets, 0, viewport);
   let changes = 0;
   for (let frame = 1; frame <= 600; frame++) {
     const top = frame * 120;
-    const next = windowFor(offsets, top, viewport, 72, current);
+    const next = windowFor(offsets, top, viewport, scrollingOverscan, current);
     if (next !== current) changes++;
     current = next;
     const visible = windowFor(offsets, top, viewport, 0);
     assert.ok(current.start <= visible.start && current.end >= visible.end, `frame ${frame} remains covered`);
   }
-  assert.ok(changes < 30, `${changes} React window updates during 600 animation frames`);
+  assert.ok(changes <= 17, `${changes} React window updates during 600 animation frames`);
 });

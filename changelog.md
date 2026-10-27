@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Virtual lists: increase the fast-scroll buffer and cap React window replacements below 3% of fling frames, restoring p95 frame-time headroom for complex Inbox and Files rows while preserving visible-row coverage.
 - Release CI: give real signing, practice signing, and publication 30-minute bounded windows for the measured 127 MB desktop artifact download and release-asset transfer.
 - Files performance: keep the web virtual-list window buffered across a fast fling and reuse one versioned sample snapshot for thumbnail reads, restoring the 10,000-file list to the 16.7 ms frame budget without dropping rows or changing grid behavior.
 - Web startup: defer the authenticated shell, password-key implementation, and generated agent portrait catalog until they are needed, reducing the signed-out production entry from 2.42 MB to 1.74 MB raw without relaxing the 1.5-second phone budget.

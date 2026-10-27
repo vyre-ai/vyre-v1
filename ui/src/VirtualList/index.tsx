@@ -11,7 +11,7 @@ import type { VirtualListProps, VirtualWindow } from "./props.ts";
 export type { VirtualListProps, VirtualWindow, RowHeight } from "./props.ts";
 
 const OVERSCAN = 4;
-const SCROLL_BUFFER_PX = 2736; // 72 Files rows: fewer than 5% of frames replace the React window during the 120 px/frame perf fling.
+export const SCROLL_BUFFER_PX = 4560; // 120 Files rows: fewer than 3% of frames replace the React window during the 120 px/frame perf fling.
 const ESTIMATE = 44;
 const DEFAULT_VIEWPORT = 640;
 
