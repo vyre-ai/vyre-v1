@@ -214615,11 +214615,20 @@
         "scheduledFor": 1760000000000
       },
       "source": {
+        "capMax": 500,
         "ifMissed": [
           "skip",
-          "run_once"
+          "run_once",
+          "backfill_each_tick"
         ],
-        "schedule": true
+        "lookbackMaxDays": 30,
+        "overlap": [
+          "queue",
+          "skip_while_active",
+          "bounded_concurrency"
+        ],
+        "schedule": true,
+        "spacing": true
       },
       "title": "On a schedule"
     },
