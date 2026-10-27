@@ -10,6 +10,7 @@ function rig() {
   let active = 0, peak = 0;
   const call = (name: string, input: unknown): Promise<unknown> => {
     if (name === "runs.interrupted") return Promise.resolve(["run_old1", "run_old2"]);
+    if (name !== "runs.drive_run") return Promise.resolve([]);
     const id = (input as { runId: string }).runId;
     started.push(id);
     active += 1; peak = Math.max(peak, active);

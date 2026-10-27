@@ -8,7 +8,7 @@
 // DECISION: step cap lives in the engine (opts.maxSteps, default 500); runs.record_step has no cap field and only refuses a runaway log (HARD_STEP_ROWS).
 import {
   DEFAULT_WAIT_MS, HARD_STEP_ROWS, allSteps, allWaits, clean, clearWait, countRuns, countStepRows, emitRun, engineHealth, findRun, findStep, idemKeyFor, isActive,
-  isTerminalStep, latestSteps, listRuns, manageRun, newRunId, newSpanId, newThreadId, page, patchExtra, raise, readExtra, readTrigger, runOut, saveRun, saveStep, saveWait, seeRun, stepOut, touch,
+  isTerminalStep, latestSteps, listRuns, manageRun, newRunId, newSpanId, newThreadId, page, patchExtra, raise, readExtra, readTrigger, readWait, runOut, saveRun, saveStep, saveWait, seeRun, stepOut, touch,
 } from "../projections.ts";
 import { isSystemCall, isTrustedService } from "../../../lib/trust.ts";
 import type { Db, ResourceRef, Run, RunKind, RunStatus, RunsCtx, StepRow, StepState, WaitReason, WaitRow } from "../projections.ts";
@@ -168,7 +168,26 @@ export async function finishRun(ctx: RunsCtx, run: Run, status: "succeeded" | "f
     emitRun(ctx, "run.failed", run.id, { kind: run.kind, step: err.step, code: err.code, message: err.message, owner: run.owner, consecutive });
     await needsYou(ctx, run, err.message);
   }
+  noteParent(ctx, run);
   return run;
+}
+
+// A child can finish while its parent is still inside the coordinator step, before that step has parked. Remember the parent until the wait is recorded.
+const childSettled = new Set<string>();
+
+function noteParent(ctx: RunsCtx, run: Run): void {
+  const parentId = run.parentRun;
+  if (!parentId) return;
+  const parent = findRun(ctx.db, parentId);
+  if (!parent || !isActive(parent.status)) return;
+  if (parent.status === "waiting") {
+    const on = readWait(ctx.db, parent.id)?.on as { event?: string } | undefined;
+    if (on?.event === "run.child_terminal") {
+      try { resumeRun(ctx, parent, parent.waitReason); } catch { /* already resumed */ }
+    }
+    return;
+  }
+  childSettled.add(parentId);
 }
 
 /** A failed Run lands in the owner's Needs you as an Unblock task (spec 2.13). Sandbox Runs (test mode, replay) stay quiet. Best effort. */
@@ -336,6 +355,15 @@ async function endWait(ctx: RunsCtx, run: Run, summary: string, timedOut: boolea
   resumeRun(ctx, run);
 }
 
+/** A calendar delete ends only the wait that is bound to that event. cancelOn has no filter, so this is separate from it. */
+function anchorDeleted(w: WaitRow, ev: { type: string; payload?: unknown }): boolean {
+  if (ev.type !== "calendar_event.deleted") return false;
+  const on = w.on as { anchorId?: string; filter?: { eventId?: string } } | undefined;
+  const anchor = on?.anchorId ?? on?.filter?.eventId;
+  if (!anchor) return false;
+  return (ev.payload as { eventId?: unknown } | null)?.eventId === anchor;
+}
+
 /** The event consumer for waiting Runs: a matching event wakes the Run; a cancel-on event stops it. Call once per event from the trigger consumer. */
 export async function wake(ctx: RunsCtx, ev: { type: string; payload?: unknown }): Promise<string[]> {
   const woken: string[] = [];
@@ -344,7 +372,7 @@ export async function wake(ctx: RunsCtx, ev: { type: string; payload?: unknown }
     if (!run || run.status !== "waiting") continue;
     const cancel = w.cancelOn as { events?: string[] } | string[] | undefined;
     const cancelEvents = Array.isArray(cancel) ? cancel : cancel?.events;
-    if (cancelEvents?.includes(ev.type)) { await finishRun(ctx, run, "stopped", { by: "system", reason: `Canceled by ${ev.type}.` }); continue; }
+    if (cancelEvents?.includes(ev.type) || anchorDeleted(w, ev)) { await finishRun(ctx, run, "stopped", { by: "system", reason: `Canceled by ${ev.type}.` }); continue; }
     if (matches(w, { type: ev.type, payload: ev.payload })) {
       const on = w.on as { run?: string } | undefined;
       await endWait(ctx, run, on?.run ? `Run ${on.run} ${ev.type.slice("run.".length)}.` : `Matched ${ev.type}.`, false);
@@ -389,6 +417,8 @@ export interface PlanStep {
   effects?: "read" | "write" | "outward";
   /** output a sandbox records instead of running an outward step (StepDef.sample) */
   sample?: unknown;
+  /** next step when this one is skipped and does not run; null ends the run */
+  next?: string | null;
 }
 export interface StepResult {
   output?: unknown;
@@ -410,6 +440,8 @@ export interface StepWait {
   timeoutAt?: number;
   /** events that cancel the wait and stop the Run */
   cancelOn?: string[];
+  /** calendar event a milestone wait follows */
+  anchorId?: string;
 }
 export interface StepCall {
   attempt: number;
@@ -423,6 +455,8 @@ export interface StepCall {
   resumed: boolean;
   /** when this step first started; kept across waits and crashes so a Wait can tell a time that came from a timeout */
   startedAt: number;
+  /** wake time stored on the waiting step row, so a milestone can keep it when the anchor cannot be re-read */
+  priorAt?: number;
 }
 export type Executor = (step: PlanStep, call: StepCall) => Promise<StepResult>;
 export interface DriveOptions {
@@ -502,6 +536,19 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
       cur = last.nextStep === undefined ? plan[idx + 1]?.id : last.nextStep ?? undefined;
       continue;
     }
+    // Skip before any running row, so a crash cannot send an outward step the milestone already passed.
+    if (!last && step.effects === "outward" && milestoneSkip(outputs)) {
+      const key = idemKeyFor(runId, cur, 1);
+      const output = { skipped: true, reason: "milestone_passed" };
+      saveStep(ctx.db, {
+        runId, step: cur, attempt: 1, state: "skipped", inputRef: `in:${key}`, inputJson: JSON.stringify(step.input ?? null),
+        outputRef: `out:${key}`, outputJson: JSON.stringify(output), idemKey: key, startedAt: ctx.now(), endedAt: ctx.now(), traceSpan: newSpanId(),
+        ...(step.next !== undefined ? { nextStep: step.next } : {}),
+      });
+      outputs[cur] = output;
+      cur = step.next !== undefined ? step.next ?? undefined : plan[idx + 1]?.id;
+      continue;
+    }
     if (executed >= maxSteps) return failRun(ctx, run, { code: "run.step_cap", message: `The run went past ${maxSteps} steps and was stopped.`, step: cur });
 
     let attempt = 1;
@@ -519,6 +566,8 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
     }
     const key = idemKeyFor(runId, cur, attempt);
     const startedAt = last?.startedAt !== undefined && resumed ? last.startedAt : ctx.now();
+    const priorSnap = resumed ? parseJson(last?.outputJson) as { at?: unknown } | undefined : undefined;
+    const priorAt = typeof priorSnap?.at === "number" ? priorSnap.at : undefined;
     const inputJson = JSON.stringify(step.input ?? null);
     saveStep(ctx.db, {
       runId, step: cur, attempt, state: "running", inputRef: `in:${key}`, inputJson, idemKey: key, startedAt,
@@ -532,7 +581,7 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
     try {
       const stubbed = sandbox && (step.effects === "outward" || (replaying && step.effects === "write"));
       if (stubbed) result = { output: step.id in recorded ? recorded[step.id] : step.sample };
-      else result = await exec(step, { attempt, key, input: step.input, outputs: { ...outputs }, sandbox, resumed, startedAt });
+      else result = await exec(step, { attempt, key, input: step.input, outputs: { ...outputs }, sandbox, resumed, startedAt, ...(priorAt !== undefined ? { priorAt } : {}) });
     } catch (e) {
       const c = caught(e);
       const policy = step.retry ?? NO_RETRY;
@@ -560,8 +609,14 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
 
     run = findRun(ctx.db, runId)!;
     if (result.wait) {
-      saveStep(ctx.db, { ...rowOf(ctx.db, runId, cur, attempt), state: "waiting" });
+      const snap = result.wait.at !== undefined ? JSON.stringify({ at: result.wait.at }) : undefined;
+      saveStep(ctx.db, { ...rowOf(ctx.db, runId, cur, attempt), state: "waiting", ...(snap ? { outputJson: snap } : {}) });
       if (isActive(run.status) && run.status !== "waiting") await markWaiting(ctx, run, { reason: result.wait.reason, taskId: result.wait.taskId, on: result.wait.on, wait: waitExtras(result.wait) });
+      if (result.wait.event?.event === "run.child_terminal" && childSettled.delete(runId)) {
+        const fresh = findRun(ctx.db, runId);
+        if (fresh?.status === "waiting") resumeRun(ctx, fresh, result.wait.reason);
+        continue;
+      }
       return { status: "waiting" };
     }
     const outputJson = result.output === undefined ? undefined : JSON.stringify(result.output);
@@ -581,8 +636,20 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
 }
 
 /** The parts of a step's wait that the consumers read: what to wake on (`on`), when to give up (`untilAt`) and what cancels it. */
+/** The newest missed milestone skips outward steps until a later Wait completes in the future. */
+function milestoneSkip(outputs: Record<string, unknown>): boolean {
+  let skip = false;
+  for (const v of Object.values(outputs)) {
+    if (!v || typeof v !== "object") continue;
+    const o = v as { missed?: unknown; reason?: unknown; resumedBy?: unknown };
+    if (o.missed === true && o.reason === "milestone_passed") skip = true;
+    else if (typeof o.resumedBy === "string" && o.missed !== true) skip = false;
+  }
+  return skip;
+}
+
 function waitExtras(w: StepWait): Partial<WaitRow> {
-  const on = clean({ event: w.event?.event, filter: w.event?.filter, at: w.at });
+  const on = clean({ event: w.event?.event, filter: w.event?.filter, at: w.at, anchorId: w.anchorId });
   return clean({
     ...(Object.keys(on).length ? { on } : {}), untilAt: w.timeoutAt, cancelOn: w.cancelOn && w.cancelOn.length ? w.cancelOn : undefined,
   }) as Partial<WaitRow>;

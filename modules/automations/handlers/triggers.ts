@@ -9,7 +9,7 @@ import { validateDefinition } from "./defs.ts";
 import {
   allAutomations, clean, emitAuto, findRunLink, getAutomation, me, principalFor, raise, readPolicy, saveRunLink, touch, vaultAllowlist, versionDefinition,
 } from "../projections.ts";
-import type { AutoCtx, Automation, Definition, Policy, RunLink, TriggerRef } from "../projections.ts";
+import type { AutoCtx, Automation, Definition, Policy, RunLink, RunScope, TriggerRef } from "../projections.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -20,6 +20,9 @@ export type DropReason = "self_trigger" | "depth_limit" | "paused" | "filter_err
 export interface StartOpts {
   trigger: string; payload: unknown; test: boolean; depth: number; origin?: string | undefined; eventId?: string | undefined; version?: number | undefined;
   parentRun?: string | undefined; key: string; principal?: { kind: "person" | "service"; id: string } | undefined;
+  scope?: RunScope | undefined;
+  /** Park the new Run before anyone is told it started, so a loop slot does not run ahead of the concurrency cap. */
+  hold?: boolean | undefined;
 }
 
 /** Create the Run through runs.start, pin the version and principal, say so. Repeating the same key returns the same Run and emits nothing. */
@@ -34,9 +37,11 @@ export async function startRun(ctx: AutoCtx, a: Automation, o: StartOpts): Promi
   if (findRunLink(ctx.db, started.runId)) return started.runId;
   const link: RunLink = clean({
     runId: started.runId, automationId: a.id, version, trigger: o.trigger, test: o.test, payload: o.payload, depth: o.depth, origin: o.origin, eventId: o.eventId,
-    principal: o.principal ?? principalFor(a), parentRun: o.parentRun, startedAt: ctx.now(),
+    principal: o.principal ?? principalFor(a), parentRun: o.parentRun, startedAt: ctx.now(), scope: o.scope,
   }) as RunLink;
   saveRunLink(ctx.db, link);
+  // A held iteration is waiting before run_started, so the drive consumer finds it parked and leaves it there.
+  if (o.hold) await ctx.call("runs.mark_waiting", { runId: started.runId, reason: "background", on: "a loop slot" });
   emitAuto(ctx, "automation.run_started", a.id, clean({ runId: started.runId, trigger: o.trigger, version, test: o.test, depth: o.depth, origin: o.origin }));
   return started.runId;
 }

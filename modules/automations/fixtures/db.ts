@@ -1,6 +1,6 @@
 // A real SQLite database (node:sqlite, in memory) behind the same table guard the host uses for ctx.db, plus a ctx that checks what the invoke pipeline checks:
 // inputs, outputs and event payloads against the generated validators, and that a capability emits only events it declares. `runs` is a small stand-in for the runs module.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { scopedDb } from "../../../host/src/ctx/db.ts";
 import { mintId } from "../../../lib/ids.ts";
 import { registry } from "../../../generated/registry.ts";
@@ -12,7 +12,9 @@ import type { Caller } from "./seed.ts";
 
 // Boundary B2 keeps the node:sqlite module out of the import lines of modules: only the host builds a ctx and opens databases.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
-const migration = readFileSync(new URL("../migrations/0001_automations.sql", import.meta.url), "utf8");
+const migrationDir = new URL("../migrations/", import.meta.url);
+const migration = readdirSync(migrationDir).filter((f) => f.endsWith(".sql")).sort()
+  .map((f) => readFileSync(new URL(f, migrationDir), "utf8")).join("\n");
 export const TRACE = "0123456789abcdef0123456789abcdef";
 const IDEM_KEYED = new Set(["automations.create", "automations.make_personal_copy", "automations.run", "automations.fire", "automations.groups.create"]);
 

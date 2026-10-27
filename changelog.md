@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Automations: Parallel lanes and Loop iterations each run as their own child Run, pinned to the parent definition version, with a durable coordinator wait and a concurrency cap for loops.
+- Automations: a Wait can use a relative milestone. A milestone that has already passed skips later outward steps and still runs record updates. An unfinished milestone recalculates when its calendar event changes, and a cancellation does not replay a step that already succeeded.
 - Release: gate tag publication on the exact-tag macOS desktop build, publish its verified ad-hoc-signed DMG with a SHA-256 sidecar, and leave Windows as CI-only coverage.
 - Gateway: reconcile legacy/imported `agent.created` births missing resource and principal access events at boot, preserving the named owner and deterministic grants without allowing follow-up agent events to claim resources.
 - Gateway: limit legacy agent-access repair to the owner-capped Space grant; defer home-folder grants to the agents module, preserve historical grant revocations, and fail boot on a conflicting deterministic repair event id.
