@@ -12,6 +12,7 @@ import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const OWNER_TOKEN = "tok-usr_olivia";
 
 test("booting twice on one data directory registers the Files root folders once and fails on nothing", async () => {
   const core = bootCore();
@@ -44,4 +45,44 @@ test("booting twice on one data directory registers the Files root folders once 
   try {
     assert.deepEqual(count(second), one, "a second boot adds nothing");
   } finally { await second.stop(); }
+});
+
+test("folder sensitivity changes through the production host path in a Personal Space", async () => {
+  const core = bootCore();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-files-personal-label-"));
+  core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
+  fs.copyFileSync(core.file, path.join(dir, "events.db"));
+  core.close();
+  const d = await startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0", "--space-kind", "personal"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux", hostname: "files-personal", free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    session: (h) => (/^Bearer tok-usr_olivia$/.test(String(h["authorization"] ?? "")) ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "files-personal" } : null),
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
+  });
+  const post = async (route: string, body: unknown): Promise<{ status: number; body: Record<string, unknown> }> => {
+    const response = await fetch(`${d.url}${route}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${OWNER_TOKEN}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) });
+    return { status: response.status, body: JSON.parse(await response.text()) as Record<string, unknown> };
+  };
+  try {
+    const tree = await post("/v1/files/tree", {});
+    assert.equal(tree.status, 200, JSON.stringify(tree.body));
+    const roots = ((tree.body["data"] as { roots: Array<{ key: string; folderId?: string }> }).roots);
+    const personal = roots.find((root) => root.key === "personal")?.folderId;
+    assert.ok(personal);
+    const made = await post("/v1/files/folder/create", { idempotencyKey: "personal-label-folder", parentId: personal, name: "Private" });
+    assert.equal(made.status, 200, JSON.stringify(made.body));
+    const folderId = ((made.body["data"] as { folder: { folderId: string } }).folder.folderId);
+    const changed = await post("/v1/files/folder/settings", { folderId, label: "restricted" });
+    assert.equal(changed.status, 200, JSON.stringify(changed.body));
+    const resource = d.db!.all("SELECT label FROM access_resources WHERE id = ?", folderId)[0] as { label?: string } | undefined;
+    assert.equal(resource?.label, "restricted", "the Files setting updates the Access source of truth");
+  } finally { await d.stop(); }
 });

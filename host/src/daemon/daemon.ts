@@ -696,6 +696,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               if (!r.ok) throw new Error(`could not register the folder: ${r.message}`);
               if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
             },
+            setLabel: async (f: { id: string; type: "folder"; label: "public" | "internal" | "confidential" | "restricted" }) => {
+              const changed = await hookRunner.call("access.set_resource_label", { resource: { type: f.type, id: f.id }, label: f.label });
+              if (changed !== true && access.snap.resource(f.id)?.label !== f.label) throw new Error(`could not update the folder label: ${f.id}`);
+              await syncAccess();
+            },
           },
         }),
         // forms and campaigns build their public links from the address people reach this Space at; unset, the links stay relative

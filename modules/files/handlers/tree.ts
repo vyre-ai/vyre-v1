@@ -10,6 +10,7 @@ import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts
 import { mintUuid } from "../../../lib/ids.ts";
 import { dropRecent, touchRecent } from "../projections.ts";
 import { sharedCount } from "./lists.ts";
+import { setFolderLabel } from "./host.ts";
 
 export const TRASH_MS = 30 * 24 * 60 * 60 * 1000;
 export const MAX_INLINE = 256 * 1024;
@@ -293,9 +294,15 @@ function liveFile(ctx: Ctx, id: string): Row {
 }
 
 function childCounts(ctx: Ctx, folderId: string): { fileCount: number; folderCount: number } {
-  const folders = many(ctx, "SELECT * FROM files_folder WHERE parent_id = ? AND deleted_at IS NULL", folderId);
-  const files = many(ctx, "SELECT * FROM files_file WHERE folder_id = ? AND deleted_at IS NULL", folderId);
+  const folders = many(ctx, "SELECT * FROM files_folder WHERE parent_id = ? AND deleted_at IS NULL", folderId)
+    .filter((row) => canView(ctx, "folder", row));
+  const files = many(ctx, "SELECT * FROM files_file WHERE folder_id = ? AND deleted_at IS NULL", folderId)
+    .filter((row) => canView(ctx, "file", row));
   return { fileCount: files.length, folderCount: folders.length };
+}
+
+function canView(ctx: Ctx, type: "file" | "folder", row: Row): boolean {
+  return ctx.authorize({ perm: null, level: "view" }, { type, id: String(row.id) }).effect === "allow";
 }
 
 export function fileOut(row: Row): FileOut {
@@ -661,7 +668,7 @@ function recentCount(ctx: Ctx): number {
   let n = 0;
   for (const row of rows) {
     const file = one(ctx, "SELECT * FROM files_file WHERE id = ?", row.file_id);
-    if (file && isNull(file.deleted_at)) n += 1;
+    if (file && isNull(file.deleted_at) && canView(ctx, "file", file)) n += 1;
   }
   return n;
 }
@@ -679,10 +686,10 @@ function trashTop(ctx: Ctx): { files: Row[]; folders: Row[] } {
     if (!trashFresh(ctx, num(row.deleted_at))) continue;
     if (String(row.kind) === "file") {
       const file = one(ctx, "SELECT * FROM files_file WHERE id = ?", row.id);
-      if (file) files.push(file);
+      if (file && canView(ctx, "file", file)) files.push(file);
     } else {
       const folder = one(ctx, "SELECT * FROM files_folder WHERE id = ?", row.id);
-      if (folder) folders.push(folder);
+      if (folder && canView(ctx, "folder", folder)) folders.push(folder);
     }
   }
   return { files, folders };
@@ -758,6 +765,12 @@ async function filesList(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]; 
     folderRows = [];
   }
 
+  // Listing a container is not permission to reveal every child in it. Children
+  // carry their own label and grants, so filter each row through the same Access
+  // snapshot used by direct files.get/read calls before pagination and counts.
+  folderRows = folderRows.filter((row) => canView(ctx, "folder", row));
+  fileRows = fileRows.filter((row) => canView(ctx, "file", row));
+
   type Item = { kind: "folder" | "file"; id: string; name: string; updatedAt: number; size: number; sortKind: string; row: Row };
   let items: Item[] = [
     ...folderRows.map((row) => ({ kind: "folder" as const, id: String(row.id), name: String(row.name), updatedAt: num(row.updated_at), size: 0, sortKind: "folder", row })),
@@ -792,7 +805,7 @@ async function filesRecent(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]
   for (const row of rows) {
     if (files.length >= limit) break;
     const file = one(ctx, "SELECT * FROM files_file WHERE id = ?", row.file_id);
-    if (!file || !isNull(file.deleted_at)) continue;
+    if (!file || !isNull(file.deleted_at) || !canView(ctx, "file", file)) continue;
     files.push(fileOutC(ctx, file));
   }
   return { files };
@@ -1079,6 +1092,7 @@ async function folderSettings(ctx: Ctx, input: unknown): Promise<{ folder: Folde
   if (labelName !== undefined) {
     const rank = LABEL_RANK[labelName];
     if (rank === undefined) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "label" });
+    await setFolderLabel(String(row.id), labelName as "public" | "internal" | "confidential" | "restricted");
     label = rank;
     fields.push("label");
   }
