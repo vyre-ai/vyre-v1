@@ -3,6 +3,7 @@ name: affected-perf
 on:
   push:
     branches-ignore: [main, 'gh-readonly-queue/**']
+  merge_group:
   workflow_dispatch:
 
 concurrency:
@@ -44,3 +45,18 @@ jobs:
           files: ${{ matrix.files }}
           slow: ${{ matrix.slow }}
           runner: ${{ matrix.runner }}
+  gate:
+    name: affected-perf-gate
+    needs: [select, perf]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Affected perf coverage completed
+        env:
+          SELECT: ${{ needs.select.result }}
+          PERF: ${{ needs.perf.result }}
+          COUNT: ${{ needs.select.outputs.count }}
+        run: |
+          test "$SELECT" = success
+          if [ "$COUNT" != 0 ]; then test "$PERF" = success; fi
