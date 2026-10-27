@@ -22,7 +22,7 @@ test("the header shows the name, the Space, why it needs attention and the actio
   assert.ok(has(out, "New lead follow-up"));
   assert.ok(has(out, ">Space<"), "kind");
   assert.ok(has(out, "Needs the Twilio key"), "why it is paused");
-  assert.ok(has(out, "Connect Twilio"), "the action that fixes it");
+  assert.ok(!has(out, "Connect Twilio"), "a paused reason without a service does not open a connection");
   for (const label of ["Paused", "Test run", "Ask", "Show the side pane", "More"]) assert.ok(has(out, label), label);
   assert.ok(!has(out, String.fromCharCode(0x2014)), "no em dash in any copy");
 });
@@ -131,7 +131,7 @@ test("the Versions tab lists versions with who and why; the Runs tab lists runs"
   const s = createSampleAutomations(northwind);
   const v = html(s, "aut_lead", { initialTab: "versions" });
   assert.ok(has(v, 'data-testid="versions-list"'));
-  assert.ok(has(v, "Version 5, running") && has(v, "Added the text branch for leads with a mobile number") && has(v, "Maya Chen"));
+  assert.ok(has(v, "Version 5, current definition") && has(v, "Added the text branch for leads with a mobile number") && has(v, "Maya Chen"));
   assert.ok(has(v, "Restore"), "older versions can be restored");
   const r = html(s, "aut_lead", { initialTab: "runs" });
   assert.ok(has(r, 'data-testid="runs-list"'));

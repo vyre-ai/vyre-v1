@@ -5,9 +5,16 @@ import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
+import { AskVyre } from "../ask/AskVyre.tsx";
+import type { AskBundle } from "../ask/bundle.ts";
+import { DataShelf, MappingFix, SectionRow, commitTyped, nodeIdSet } from "../builder/marks.tsx";
+import { StepTest } from "../builder/StepTest.tsx";
+import { isPreviewKey, PREVIEW_NOTE } from "../catalog/model.ts";
+import { presenceOf } from "../values/typed.ts";
 import { Glyph } from "./icons.tsx";
 import { ERROR_MODES, keyChoices, kindOfKey, setBranch, setTriggerConfig, titleOfKey, updateStep, triggerMeta } from "./model.ts";
 import type { DefNode, DefTrigger, Definition, Issue, KeyChoice } from "./model.ts";
+import type { KeysStatus } from "./data.tsx";
 import { IconButton, pointer, s as ps, webOnly } from "./parts.tsx";
 
 const humanize = (k: string): string => k.replace(/([A-Z])/g, " $1").replace(/[_.]+/g, " ").replace(/^./, (x) => x.toUpperCase());
@@ -19,7 +26,7 @@ function withKey(ai: DefNode["ai"], field: "keyId" | "backupKeyId", id: string |
 }
 const show = (v: unknown): string => (typeof v === "string" ? v : v === undefined || v === null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
 
-export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onChange, onClose, onDelete, testID = "inspector" }: {
+export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onChange, onClose, onDelete, testID = "inspector", embedded = false, section = "configure", onSection, samples = {}, version = 0, onStoreSample, onAsk, keysStatus }: {
   def: Definition;
   node: DefNode | null;
   trigger: DefTrigger | null;
@@ -30,8 +37,19 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
   onClose(): void;
   onDelete(): void;
   testID?: string;
+  embedded?: boolean;
+  section?: "configure" | "data" | "test";
+  onSection?(next: "configure" | "data" | "test"): void;
+  samples?: Readonly<Record<string, unknown>>;
+  version?: number;
+  onStoreSample?(nodeId: string, output: unknown): void;
+  onAsk?(bundle: AskBundle): void;
+  keysStatus?: KeysStatus;
 }): ReactElement {
   const { element, show: openMenu } = useMenu();
+  const [advanced, setAdvanced] = useState(false);
+  const [jsonError, setJsonError] = useState<string | null>(null);
+  const prior = def.nodes.filter((item) => node ? def.nodes.indexOf(item) < def.nodes.indexOf(node) : true).map((item) => ({ id: item.id, title: item.title ?? titleOfKey(item.key), output: samples[item.id] })).filter((item) => item.output !== undefined);
   const errorEntries = (): MenuEntry[] => {
     const out: MenuEntry[] = [];
     if (!node) return out;
@@ -65,16 +83,28 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
     if (trigger && triggerIndex !== null) {
       for (const [k, v] of Object.entries(trigger.config ?? {})) {
         if (k === "label") continue;
-        configFields.push(<Field key={k} label={humanize(k)} value={show(v)} onCommit={(t) => onChange(setTriggerConfig(def, triggerIndex, k, t))} />);
+        configFields.push(<Field key={k} label={humanize(k)} value={show(v)} onCommit={(t) => {
+          const presence = presenceOf(true, v);
+          const nextPresence = presence === "null" && t === "" ? "null" : presence === "empty" && t === "" ? "empty" : "value";
+          onChange(setTriggerConfig(def, triggerIndex, k, commitTyped(v, t, nextPresence)));
+        }} />);
       }
     }
     return (
-      <View style={i.pane} testID={testID} accessibilityLabel="Trigger settings">
+      <View style={embedded ? [i.pane, i.embedded] : i.pane} testID={testID} accessibilityLabel="Trigger settings">
         <Head title={meta?.title ?? "Trigger"} sub="Trigger" onClose={onClose} />
         <ScrollView contentContainerStyle={i.body}>
-          {trigger ? <Text style={i.hint}>{`This is trigger ${(triggerIndex ?? 0) + 1} of ${def.triggers.length}. Any one of them starts a run.`}</Text> : <Text style={i.hint}>Every trigger is listed on the card. Any one starts a run.</Text>}
-          {configFields}
-          <Problems list={mine} />
+          <SectionRow section={section} onSection={(next) => onSection?.(next)} />
+          {section === "data" ? <DataShelf triggerSample={samples["trigger"]} steps={prior} /> : null}
+          {section === "test" ? <Text style={i.hint}>Pick a step to test it.</Text> : null}
+          {section === "configure" ? (
+            <>
+              {trigger && isPreviewKey(trigger.key, "trigger") ? <Text style={i.hint}>{PREVIEW_NOTE}</Text> : null}
+              {trigger ? <Text style={i.hint}>{`This is trigger ${(triggerIndex ?? 0) + 1} of ${def.triggers.length}. Any one of them starts a run.`}</Text> : <Text style={i.hint}>Every trigger is listed on the card. Any one starts a run.</Text>}
+              {configFields}
+              <Problems list={mine} />
+            </>
+          ) : null}
         </ScrollView>
         {element}
       </View>
@@ -98,21 +128,51 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
     }
   }
   for (const k of inputKeys) {
-    fields.push(<Field key={`${node.id}-${k}`} label={humanize(k)} value={show(node.input[k])} testID={`field-${k}`} onCommit={(t) => onChange(updateStep(def, node.id, { input: { ...node.input, [k]: t } }))} />);
+    fields.push(<Field key={`${node.id}-${k}`} label={humanize(k)} value={show(node.input[k])} testID={`field-${k}`} onCommit={(t) => {
+      const cur = node.input[k];
+      const presence = presenceOf(true, cur);
+      const nextPresence = presence === "null" && t === "" ? "null" : presence === "empty" && t === "" ? "empty" : "value";
+      const next = commitTyped(cur, t, nextPresence);
+      const input = { ...node.input };
+      if (next === undefined) delete input[k];
+      else input[k] = next;
+      onChange(updateStep(def, node.id, { input }));
+    }} />);
   }
   return (
-    <View style={i.pane} testID={testID} accessibilityLabel={`${node.title ?? titleOfKey(node.key)} settings`}>
+    <View style={embedded ? [i.pane, i.embedded] : i.pane} testID={testID} accessibilityLabel={`${node.title ?? titleOfKey(node.key)} settings`}>
       <Head title={node.title ?? titleOfKey(node.key)} sub={titleOfKey(node.key)} onClose={onClose} />
       <ScrollView contentContainerStyle={i.body} keyboardShouldPersistTaps="handled">
+        <SectionRow section={section} onSection={(next) => onSection?.(next)} />
+        {section === "data" ? <DataShelf triggerSample={samples["trigger"]} steps={prior} /> : null}
+        {section === "test" ? <StepTest stepKey={node.key} nodeId={node.id} input={node.input ?? {}} version={version} onUseOutput={(output) => onStoreSample?.(node.id, output)} /> : null}
+        {section === "configure" ? (
+          <>
+        {isPreviewKey(node.key) ? <Text style={i.hint}>{PREVIEW_NOTE}</Text> : null}
+        <Pressable accessibilityRole="button" testID="toggle-advanced" onPress={() => setAdvanced((on) => !on)} style={pointer}><Text style={i.hint}>{advanced ? "Basic" : "Advanced"}</Text></Pressable>
         <Field label="Name" value={node.title ?? ""} placeholder={titleOfKey(node.key)} testID="field-title" onCommit={(t) => onChange(updateStep(def, node.id, { title: t }))} />
-        {fields}
-        {inputKeys.length === 0 && kind === "plain" ? <Text style={i.hint}>Nothing is set on this step yet. Add what it needs in the fields the check names below.</Text> : null}
+        {advanced ? (
+          <Field label="Input" value={JSON.stringify(node.input ?? {}, null, 2)} testID="field-input-json" onCommit={(t) => {
+            try {
+              const parsed: unknown = JSON.parse(t);
+              if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) { setJsonError("That is not valid JSON."); return; }
+              setJsonError(null);
+              onChange(updateStep(def, node.id, { input: parsed as Record<string, unknown> }));
+            } catch { setJsonError("That is not valid JSON."); }
+          }} />
+        ) : fields}
+        {jsonError ? <Text style={i.hint}>{jsonError}</Text> : null}
+        {inputKeys.length === 0 && kind === "plain" && !advanced ? <Text style={i.hint}>Nothing is set on this step yet. Add what it needs in the fields the check names below.</Text> : null}
         {kind === "ai" ? (
           <View style={i.group}>
             <Text style={i.groupHead}>Key</Text>
-            <Choice label="Runs on" value={keyName(node.ai?.keyId)} testID="choose-key" onOpen={(x, y) => pick(x, y, (id) => onChange(updateStep(def, node.id, { ai: withKey(node.ai, "keyId", id) })), "No key")} />
-            <Choice label="Backup" value={keyName(node.ai?.backupKeyId).replace("Choose a key", "No backup")} testID="choose-backup" onOpen={(x, y) => pick(x, y, (id) => onChange(updateStep(def, node.id, { ai: withKey(node.ai, "backupKeyId", id) })), "No backup")} />
-            <Text style={i.hint}>A lost key falls back to the backup, then the run waits in your Needs you. It never fails silently.</Text>
+            {keysStatus === "empty" || keysStatus === "unavailable" ? <Text style={i.hint}>No keys yet</Text> : (
+              <>
+                <Choice label="Runs on" value={keyName(node.ai?.keyId)} testID="choose-key" onOpen={(x, y) => pick(x, y, (id) => onChange(updateStep(def, node.id, { ai: withKey(node.ai, "keyId", id) })), "No key")} />
+                <Choice label="Backup" value={keyName(node.ai?.backupKeyId).replace("Choose a key", "No backup")} testID="choose-backup" onOpen={(x, y) => pick(x, y, (id) => onChange(updateStep(def, node.id, { ai: withKey(node.ai, "backupKeyId", id) })), "No backup")} />
+                <Text style={i.hint}>A lost key falls back to the backup, then the run waits in your Needs you. It never fails silently.</Text>
+              </>
+            )}
           </View>
         ) : null}
         <View style={i.group}>
@@ -131,11 +191,15 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
             />
           ) : null}
         </View>
+        <MappingFix nodeIds={nodeIdSet(def)} value={node.input} />
         <Problems list={mine} />
+        {mine.some((item) => item.severity === "error") ? <AskVyre bundle={{ resource: "builder", nodeId: node.id, stepKey: node.key, definitionVersion: version, message: mine.find((item) => item.severity === "error")?.message ?? "" }} {...(onAsk ? { onOpen: onAsk } : {})} /> : null}
         <Pressable accessibilityRole="button" accessibilityLabel="Delete this step" testID="delete-step" onPress={onDelete} style={[i.del, pointer]}>
           <Glyph name="x" size={13} color="var(--danger)" />
           <Text style={i.delText}>Delete this step</Text>
         </Pressable>
+          </>
+        ) : null}
       </ScrollView>
       {element}
     </View>
@@ -218,6 +282,7 @@ void ps;
 
 const i = StyleSheet.create({
   pane: { width: 300, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
+  embedded: { width: "100%" as unknown as number, flex: 1, borderLeftWidth: 0 },
   head: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, height: 52, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   title: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   sub: { fontSize: 11.5, color: "var(--ink-3)" as string },

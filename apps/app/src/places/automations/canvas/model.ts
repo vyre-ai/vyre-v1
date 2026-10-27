@@ -17,7 +17,7 @@ export type IconKey =
   | "bolt" | "clock" | "hook" | "inbox" | "mail" | "chat" | "sheet" | "ci" | "meeting" | "stage" | "reply" | "button" | "hand" | "record"
   | "search" | "plus" | "edit" | "task" | "send" | "phone" | "ai" | "journey" | "hourglass" | "branch" | "parallel" | "loop" | "stop" | "shield" | "sign" | "code";
 
-/** The step palette as the canvas groups it. Titles match the manifest steps-core catalogue. */
+/** Glyphs and fallback titles for cards already on the canvas. The add menu loads automations.steps.list. This list is not the product catalog. */
 export const STEP_PALETTE: readonly { key: string; title: string; group: string; icon: IconKey }[] = [
   { key: "records.find", title: "Find records", group: "Data", icon: "search" },
   { key: "records.create", title: "Create a record", group: "Data", icon: "plus" },
@@ -657,7 +657,7 @@ export function setBranch(n: DefNode, index: number, patch: Partial<NonNullable<
   return out;
 }
 
-export function setTriggerConfig(def: Definition, index: number, key: string, value: string): Definition {
+export function setTriggerConfig(def: Definition, index: number, key: string, value: unknown): Definition {
   const triggers: Definition["triggers"] = [];
   def.triggers.forEach((t, i) => triggers.push(i === index ? { ...t, config: { ...(t.config ?? {}), [key]: value } } : t));
   return { ...def, triggers };

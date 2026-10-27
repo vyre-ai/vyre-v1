@@ -123,14 +123,13 @@ export function RunLines({ run, lines, name, me, actions, canRetry, openThoughts
                 <View style={c.acts}>
                   <QuietButton label="Retry step" icon="retry" tone="accent" testID="retry-step" onPress={actions.retryStep} />
                   <QuietButton label="Skip step" testID="skip-step" onPress={actions.skipStep} />
-                  <QuietButton label="Stop" tone="danger" testID="stop-failed" onPress={actions.stopRun} />
                 </View>
               ) : null}
               <View style={c.errx}>
                 <Text style={c.mono}>{run.traceId}</Text>
                 <QuietButton label="Copy trace id" testID="copy-trace" onPress={actions.copyTrace} />
                 <QuietButton label="Edit step" testID="edit-step" onPress={() => actions.editStep(l.step)} />
-                <QuietButton label="Replay" testID="replay" onPress={(e) => { const p = pressPoint(e); actions.replayMenu(p.x, p.y); }} />
+                <QuietButton label="Replay in sandbox" testID="replay" onPress={(e) => { const p = pressPoint(e); actions.replayMenu(p.x, p.y); }} />
               </View>
             </View>
             <Text style={c.tm}>{lineTime(l.offset, run)}</Text>

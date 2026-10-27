@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- Automations: load the step and trigger catalog from the runtime, mark AI, code, and schedule as Preview, and keep Parallel and Loop as ordinary flow steps in the menu.
+- Automations: open Promote from the canvas menu, route Connect from a structured service, and mount Settings with provider keys or an honest empty state.
+- Automations: paint a selected run from its step log, drop Stop on a finished run, and keep sandbox replay separate from a confirmed live re-run.
+- Automations: register the sidebar in the shared slot, and offer Ask Vyre a scrubbed error context that leaves out secrets.
 - Automations: add the shared VAL admission rule, Ask Vyre scrubber, cohort migration preview, connector trust ladder, and per-step failure policy. Preview capabilities cannot publish as stable. Ask Vyre context drops secrets, auth headers, and cookies. Active Runs stay pinned until a safe cohort is selected. Publishing does not move them.
 - Automations: a draft may contain an AI step, Run code, or a schedule trigger, and turning that Automation on is refused until those steps run on the live host.
 - PWA: add the production web manifest, Android/iPhone icons, Apple standalone metadata, safe-area viewport contract, truthful offline/update service-worker behavior, and an explicit Chromium iPhone-width smoke that labels standalone as simulated until the owner completes a physical iPhone Add to Home Screen pass.

@@ -13,6 +13,8 @@ import { STATUS_WORD, buildLines, durationSeconds, failedStep, runTitle, stamp, 
 import type { Run, RunLine, RunStep, ThreadMessage, UndoPreview } from "./model.ts";
 import { MainHead, QuietButton, Tile, pointer, statusColor, statusGlyph, webOnly } from "./parts.tsx";
 import type { KeyEventLike } from "./parts.tsx";
+import { LiveRerun } from "./LiveRerun.tsx";
+import { SANDBOX_REPLAY_LABEL } from "./ledger.ts";
 import { RunLines } from "./RunLines.tsx";
 import { UndoPanel } from "./RunUndo.tsx";
 import { each } from "./each.ts";
@@ -107,7 +109,8 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
       {run.definitionVersion !== undefined ? <Text style={s.ver}>{`v${run.definitionVersion}`}</Text> : null}
       <View style={{ flex: 1 }} />
       {isActive(run) ? <QuietButton label="Stop" icon="stop" tone="danger" testID="stop-run" onPress={(e) => { const p = pressPoint(e); show([{ head: "Stop this run?" }, { label: "Stop", danger: true, onSelect: () => void actions.stop(run) }, { label: "Cancel" }], p.x, p.y, "other"); }} /> : null}
-      {!isActive(run) ? <QuietButton label="Replay" icon="retry" testID="replay-run" onPress={(e) => { const p = pressPoint(e); replayMenu(p.x, p.y); }} /> : null}
+      {!isActive(run) ? <QuietButton label={SANDBOX_REPLAY_LABEL} icon="retry" testID="replay-run" onPress={(e) => { const p = pressPoint(e); replayMenu(p.x, p.y); }} /> : null}
+      {!isActive(run) ? <LiveRerun run={run} stepKeys={steps.map((step) => step.step)} /> : null}
       {!isActive(run) ? <QuietButton label="Undo this run" icon="undo" testID="undo-run" onPress={() => void openUndo()} /> : null}
     </View>
   );

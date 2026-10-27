@@ -251,7 +251,7 @@ export function createSampleAutomations(space: SampleSpace = northwind): SampleA
   };
   const nav: AutomationsNav = {
     openAutomation: (id) => void opened.push(`automation:${id}`), openJourney: (id) => void opened.push(`journey:${id}`), newJourney: () => void opened.push("new-journey"), openFailedRuns: () => void opened.push("failed"),
-    openRun: (id) => void opened.push(`run:${id}`), ask: (id) => void opened.push(`ask:${id}`), connect: (s) => void opened.push(`connect:${s}`),
+    openRun: (id) => void opened.push(`run:${id}`), ask: (id) => void opened.push(`ask:${id}`), connect: (target) => void opened.push(`connect:${target.service}`),
   };
   const data: AutomationsData = {
     screens,
