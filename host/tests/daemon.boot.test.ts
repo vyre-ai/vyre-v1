@@ -7,6 +7,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { bootCore, CORE_SPACE } from "../../fixtures/seed/core/index.ts";
+import { authorize } from "../../kernel/src/authorize/index.ts";
+import type { NewEvent } from "../../kernel/src/log/types.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
@@ -14,6 +16,7 @@ import { processUnit } from "../src/supervisor/index.ts";
 import { loadConfig, readInfo } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
+import { buildAccess } from "../src/daemon/access.ts";
 import type { NetworkPort } from "../src/daemon/commands.ts";
 import { openDb } from "../src/daemon/sqlite.ts";
 
@@ -27,8 +30,10 @@ const echoHandler = (ctx: { emit(n: never, s: string, p: unknown): unknown }, in
 const tmp = (p: string): string => fs.mkdtempSync(path.join(os.tmpdir(), p));
 
 /** A data directory holding a copy of the seeded core Space's events.db. */
-function seededDir(): string {
+function seededDir(extra: NewEvent[] = []): string {
   const core = bootCore();
+  const appended = core.store.appendBatch(extra);
+  if (appended.some((r) => !r.ok)) throw new Error("could not build the seeded test log");
   const dir = tmp("vyre-daemon-boot-");
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
   fs.copyFileSync(core.file, path.join(dir, "events.db"));
@@ -177,6 +182,56 @@ test("vyred boots on the seeded Space from modules.json, answers example.echo wi
   }
   assert.equal(readInfo(d.paths), null, "stopping removes the pid and info files");
   await assert.rejects(() => fetch(`${d.url}/healthz`), "and the port is closed");
+});
+
+test("boot repairs an imported agent birth without access events and makes the agent authorizable", async () => {
+  const agent = "agt_import1";
+  const dir = seededDir([{ id: "evt_import_agent", type: "agent.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_import", vis: "space", entity: "agent", entity_id: agent, payload: { agentId: agent, name: "Imported", ownerId: "usr_mia", folderId: "fld_root" } }]);
+  const d = await boot(dir);
+  try {
+    const events = await d.log!.read({ limit: 5000 });
+    assert.deepEqual(events.filter((e) => e.entity_id === agent).map((e) => e.type), ["agent.created", "resource.created", "principal.created", "principal.role_set"]);
+    const syncedPrincipal = one(d, "SELECT kind, owner FROM access_principals WHERE id = ?", agent);
+    assert.equal(syncedPrincipal["kind"], "agent", "access.sync receives the repaired principal");
+    assert.equal(syncedPrincipal["owner"], "usr_mia");
+    assert.equal(one(d, "SELECT level FROM access_grants WHERE id = ?", `gnt_${agent.slice(4)}space`)["level"], "edit", "access.sync receives the owner-capped Space grant");
+    const access = buildAccess(events);
+    assert.equal(authorize(access, { principal: agent, actingFor: "usr_mia", action: { perm: null, level: "view" }, resource: { type: "agent", id: agent } }).effect, "allow");
+  } finally {
+    await d.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("boot fails closed when a reconciliation event id belongs to different data", async () => {
+  const agent = "agt_import2";
+  const dir = seededDir([
+    { id: "evt_import_agent_2", type: "agent.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_import", vis: "space", entity: "agent", entity_id: agent, payload: { agentId: agent, name: "Imported", ownerId: "usr_mia" } },
+    { id: `evt_agent_access_principal_created_${agent}`, type: "example.said", sv: 1, trace_id: "c0".repeat(16), actor: "svc_import", vis: "space", entity: "example", entity_id: "collision", payload: { wrong: true } },
+  ]);
+  try {
+    await assert.rejects(() => boot(dir), /reconciliation event ID collision/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("boot collection sees grant.revoked and does not recreate an imported agent grant", async () => {
+  const agent = "agt_import4", grant = "gr_import4";
+  const dir = seededDir([
+    { id: "evt_import_agent_4", type: "agent.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_import", vis: "space", entity: "agent", entity_id: agent, payload: { agentId: agent, name: "Imported", ownerId: "usr_mia" } },
+    { id: "evt_import_grant_4", type: "grant.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_import", vis: "space", entity: "grant", entity_id: grant, payload: { id: grant, subject_kind: "actor", subject_id: agent, resource_type: "space", resource_id: CORE_SPACE, level: "edit" } },
+    { id: "evt_import_revoke_4", type: "grant.revoked", sv: 1, trace_id: "c0".repeat(16), actor: "svc_import", vis: "space", entity: "grant", entity_id: grant, payload: { grantId: grant, subject: { kind: "agent", id: agent }, resource: { type: "space", id: CORE_SPACE } } },
+  ]);
+  const d = await boot(dir);
+  try {
+    const events = await d.log!.read({ limit: 5000 });
+    assert.equal(events.some((event) => event.type === "grant.created" && event.entity_id === `gnt_${agent.slice(4)}space`), false);
+    assert.equal(d.db!.all("SELECT 1 FROM access_grants WHERE id IN (?, ?)", grant, `gnt_${agent.slice(4)}space`).length, 0, "access.sync preserves the revocation");
+  } finally {
+    await d.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("the live socket answers example.echo on the same server with the same trace id in the response, the numbered event and the log", async () => {

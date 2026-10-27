@@ -1,14 +1,97 @@
 name: desktop
-# Desktop shell builds. Never blocks server or web going live.
+
 on:
   workflow_call:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - "apps/desktop/**"
+      - "apps/app/**"
+      - ".github/workflows/desktop.yml"
+      - "package-lock.json"
+  push:
+    branches: [main]
+    paths:
+      - "apps/desktop/**"
+      - "apps/app/**"
+      - ".github/workflows/desktop.yml"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
 jobs:
   desktop:
-    runs-on: [self-hosted, linux, v1]
-    timeout-minutes: 25
-    continue-on-error: true
+    name: desktop (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
-      - name: desktop stage
-        run: echo "desktop stage placeholder, desktop shell builds land with the apps lane"
+        with:
+          ref: ${{ github.sha }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            apps/desktop/src-tauri/target
+          key: desktop-${{ runner.os }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.toml') }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Export the web shell and stage the sidecar
+        working-directory: apps/desktop
+        run: |
+          npm run web
+          npm run stage
+      - name: Rust unit tests
+        run: cargo test --lib --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - name: License policy
+        run: |
+          cargo install cargo-deny --locked
+          cargo deny --manifest-path apps/desktop/src-tauri/Cargo.toml check licenses bans
+      - name: Build the shell
+        working-directory: apps/desktop
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            rm -rf src-tauri/target/release/bundle/macos src-tauri/target/release/bundle/dmg
+            npm run build:mac
+          else
+            npm run build:win
+          fi
+      - name: Verify the ad-hoc signature
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          app=apps/desktop/src-tauri/target/release/bundle/macos/Vyre.app
+          codesign --verify --deep --strict "$app"
+          codesign -dvvv "$app" 2>&1 | tee proof-codesign.txt
+          grep -F "Signature=adhoc" proof-codesign.txt
+          shopt -s nullglob
+          dmgs=(apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg)
+          [ "${#dmgs[@]}" -eq 1 ] || { echo "expected exactly one DMG, found ${#dmgs[@]}"; exit 1; }
+          hdiutil verify "${dmgs[0]}"
+      - name: Exercise the packaged shell and capture it
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then APP="$PWD/apps/desktop/src-tauri/target/release/bundle/macos/Vyre.app/Contents/MacOS/vyre-desktop"; else APP="$PWD/apps/desktop/src-tauri/target/release/vyre-desktop.exe"; fi
+          apps/desktop/src-tauri/ci/run-shell.sh "$APP" "$PWD/out"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-${{ runner.os }}
+          path: |
+            out
+            proof-codesign.txt
+            apps/desktop/src-tauri/target/release/bundle/dmg
+            apps/desktop/src-tauri/target/release/bundle/nsis
+          if-no-files-found: warn

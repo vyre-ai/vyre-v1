@@ -17,7 +17,7 @@ const CURSOR = "seed_cursor";
 
 /** the event names access.sync folds; the host sends only these */
 export const ACCESS_EVENTS = [
-  "role.defined", "principal.created", "principal.role_set", "group.member_added", "resource.created", "grant.created",
+  "role.defined", "principal.created", "principal.role_set", "group.member_added", "resource.created", "grant.created", "grant.revoked",
   "principal.suspended", "principal.reactivated", "member.removed",
 ] as const;
 
@@ -116,6 +116,11 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number): boolean
       const g = seededGrant(store, p, at);
       if (!g || store.grants.has(g.id)) return false;
       store.grants.set(g.id, g);
+      return true;
+    }
+    case "grant.revoked": {
+      const id = str(p["grantId"]);
+      if (!id || !store.grants.delete(id)) return false;
       return true;
     }
     case "principal.suspended": return setStatus(store, str(p["principalId"]), "suspended");

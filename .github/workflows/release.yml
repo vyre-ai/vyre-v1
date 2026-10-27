@@ -124,6 +124,26 @@ jobs:
     uses: ./.github/workflows/native.yml
   desktop:
     uses: ./.github/workflows/desktop.yml
+  desktop-release-files:
+    needs: [package, desktop]
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: release-files, path: dist }
+      - uses: actions/download-artifact@v4
+        with: { name: desktop-macOS, path: desktop-artifact }
+      - name: Include exactly one macOS DMG and its checksum
+        run: |
+          set -euo pipefail
+          mapfile -d '' dmgs < <(find desktop-artifact -type f -name '*.dmg' -print0)
+          [ "${#dmgs[@]}" -eq 1 ] || { echo "expected exactly one DMG, found ${#dmgs[@]}"; exit 1; }
+          dmg_name=$(basename "${dmgs[0]}")
+          case "$dmg_name" in *$'\n'*|*$'\r'*) echo "invalid DMG name"; exit 1 ;; esac
+          cp "${dmgs[0]}" "dist/$dmg_name"
+          (cd dist && sha256sum "$dmg_name" > "$dmg_name.sha256" && sha256sum -c "$dmg_name.sha256")
+      - uses: actions/upload-artifact@v4
+        with: { name: release-files-desktop, path: dist, if-no-files-found: error, retention-days: 7 }
   live:
     needs: [guard, package, suite, client, kits, images, heavy, security]
     runs-on: [self-hosted, linux, v1]
@@ -131,7 +151,7 @@ jobs:
     steps:
       - run: echo "live gate passed"
   sign:
-    needs: [guard, package, live]
+    needs: [guard, desktop-release-files, live]
     if: needs.guard.outputs.dryrun != 'true'
     # The only job that ever holds the real key. It has a runner label of its own that no other workflow names (scripts/release/runner-label.test.ts fails if one does), on a host that runs
     # nothing else, and it runs in a container that is removed when the job ends. Never on the shared CI runners: code from an earlier PR job could have changed them.
@@ -148,7 +168,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
-        with: { name: release-files, path: dist }
+        with: { name: release-files-desktop, path: dist }
       - name: The release key the servers have compiled in
         id: key
         run: |
@@ -168,7 +188,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: release-signed, path: dist, if-no-files-found: error, retention-days: 7 }
   sign-dryrun:
-    needs: [guard, package]
+    needs: [guard, desktop-release-files]
     if: needs.guard.outputs.dryrun == 'true'
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 10
@@ -178,7 +198,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
-        with: { name: release-files, path: dist }
+        with: { name: release-files-desktop, path: dist }
       - id: sign
         env:
           CHANNEL: ${{ needs.guard.outputs.channel }}
@@ -252,7 +272,7 @@ jobs:
   budget-tag:
     permissions: { contents: read, actions: read }
     # Sign waits for a person to approve, so the budget is measured to the live gate and the deploy, not to publish and smoke.
-    needs: [guard, package, suite, client, kits, images, heavy, security, native, desktop, live, deploy]
+    needs: [guard, package, suite, client, kits, images, heavy, security, native, desktop, desktop-release-files, live, deploy]
     if: always()
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5

@@ -40,14 +40,20 @@ function startSidecar(dataDir: string): Promise<Running> {
   });
 }
 
-async function stopSidecar(r: Running): Promise<void> {
+async function stopSidecar(r: Running, dataDir: string): Promise<void> {
   if (r.child.exitCode !== null) return;
   r.child.removeAllListeners("exit");
   const done = new Promise<void>((resolve) => r.child.once("exit", () => resolve()));
-  r.child.kill("SIGTERM");
-  const timer = setTimeout(() => r.child.kill("SIGKILL"), 5000);
-  await done;
-  clearTimeout(timer);
+  const denied = await fetch(`${r.url}/local/daemon/stop`, { method: "POST" });
+  assert.equal(denied.status, 401, "the loopback shutdown endpoint needs the local admin token");
+  const token = fs.readFileSync(path.join(dataDir, "admin.token"), "utf8").trim();
+  const stopped = await fetch(`${r.url}/local/daemon/stop`, { method: "POST", headers: { authorization: `Bearer ${token}` } });
+  assert.equal(stopped.status, 202, "the loopback admin endpoint accepts a graceful shutdown");
+  await Promise.race([done, new Promise<void>((resolve) => setTimeout(resolve, 5000))]);
+  if (r.child.exitCode === null) {
+    if (process.platform === "win32" && r.child.pid) spawnSync("taskkill", ["/PID", String(r.child.pid), "/T", "/F"], { stdio: "ignore", timeout: 5000 });
+    else r.child.kill("SIGKILL");
+  }
 }
 
 /** Same check as sidecar.rs: any 200 from /healthz. */
@@ -73,13 +79,16 @@ test("the sidecar starts on a free loopback port, answers /healthz and keeps its
       assert.equal(h.body.space ?? null, null);
       token = fs.readFileSync(path.join(data, "admin.token"), "utf8").trim();
       assert.ok(token.length >= 32, "the local admin token was created");
-      assert.equal(fs.statSync(path.join(data, "admin.token")).mode & 0o077, 0, "owner-only file");
+      // POSIX mode bits are not an ACL check on Windows (Node reports synthetic
+      // permission bits there); the restart token identity check below remains
+      // the cross-platform persistence proof.
+      if (process.platform !== "win32") assert.equal(fs.statSync(path.join(data, "admin.token")).mode & 0o077, 0, "owner-only file");
       const info = JSON.parse(fs.readFileSync(path.join(data, "vyred.json"), "utf8")) as { url: string; pid: number };
       assert.equal(info.url, first.url);
       assert.equal(info.pid, first.child.pid);
       fs.writeFileSync(path.join(data, "replica-marker.txt"), "kept");
     } finally {
-      await stopSidecar(first);
+      await stopSidecar(first, data);
     }
     assert.equal(fs.existsSync(path.join(data, "vyred.json")), false, "a clean stop clears the info file");
     await assert.rejects(fetch(`${first.url}/healthz`), "nothing answers once it is stopped");
@@ -91,7 +100,7 @@ test("the sidecar starts on a free loopback port, answers /healthz and keeps its
       assert.equal(fs.readFileSync(path.join(data, "admin.token"), "utf8").trim(), token, "same token after restart: the data directory is the identity");
       assert.equal(fs.readFileSync(path.join(data, "replica-marker.txt"), "utf8"), "kept");
     } finally {
-      await stopSidecar(second);
+      await stopSidecar(second, data);
     }
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

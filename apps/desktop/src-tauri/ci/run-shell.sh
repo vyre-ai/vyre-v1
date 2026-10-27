@@ -16,7 +16,9 @@ export VYRE_SHELL_APP="$APP" VYRE_SHELL_HOLD_MS=25000
   if [ "$RUNNER_OS" = "macOS" ]; then osascript -e 'tell application "System Events" to set frontmost of first process whose name is "vyre-desktop" to true' >/dev/null 2>&1 || true; sleep 2; fi
   shot "$OUT/$RUNNER_OS-shell.png"; sleep 3; shot "$OUT/$RUNNER_OS-shell-2.png" ) &
 SHOT_PID=$!
-node --test --test-reporter=spec apps/desktop/tests/shell.heavy.test.ts 2>&1 | tee "$OUT/shell-heavy.log"
+trap 'kill "$SHOT_PID" 2>/dev/null || true; if [ "$RUNNER_OS" = "Windows" ]; then timeout 10 taskkill //F //IM vyre-desktop.exe >/dev/null 2>&1 || true; timeout 10 taskkill //F //IM vyred.exe >/dev/null 2>&1 || true; else pkill -f vyre-desktop >/dev/null 2>&1 || true; pkill -x vyred >/dev/null 2>&1 || true; fi' EXIT INT TERM
+node --test --test-force-exit --test-timeout=60000 --test-reporter=spec apps/desktop/tests/shell.heavy.test.ts 2>&1 | tee "$OUT/shell-heavy.log"
 RC=${PIPESTATUS[0]}
-wait "$SHOT_PID" 2>/dev/null
+if [ "$RC" -ne 0 ]; then kill "$SHOT_PID" 2>/dev/null || true; fi
+wait "$SHOT_PID" 2>/dev/null || true
 exit "$RC"
