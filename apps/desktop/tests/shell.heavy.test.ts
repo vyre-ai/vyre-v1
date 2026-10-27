@@ -113,7 +113,9 @@ test("a sidecar line from another address is not trusted", () => {
 });
 
 const APP = process.env["VYRE_SHELL_APP"];
-test("the built shell starts, reaches its sidecar and takes a vyre:// link", { skip: !APP && "VYRE_SHELL_APP is set only in the desktop job on a built app" }, async () => {
+const RELAUNCH = process.env["VYRE_SHELL_RELAUNCH"] === "1";
+
+async function exerciseBuiltShell(takeLink: boolean): Promise<void> {
   const app = spawn(APP as string, [], { env: { ...process.env, VYRE_SHELL_BANNER: "1" } });
   let out = "";
   app.stdout.on("data", (c: Buffer) => { out += c.toString("utf8"); });
@@ -130,18 +132,29 @@ test("the built shell starts, reaches its sidecar and takes a vyre:// link", { s
   try {
     const ready = await until(/vyre-desktop: sidecar ready at (http:\/\/127\.0\.0\.1:\d+)/, 60_000);
     assert.equal((await healthz(ready[1])).status, 200);
-    const opener = process.platform === "darwin" ? ["open"] : process.platform === "win32" ? ["cmd", "/c", "start", ""] : ["xdg-open"];
-    const r = spawnSync(opener[0], [...opener.slice(1), "vyre://open?address=acme.example.com"], { encoding: "utf8" });
-    assert.equal(r.status, 0, r.stderr);
-    await until(/vyre-desktop: deep link open received/, 20_000);
+    if (takeLink) {
+      const opener = process.platform === "darwin" ? ["open"] : process.platform === "win32" ? ["cmd", "/c", "start", ""] : ["xdg-open"];
+      const r = spawnSync(opener[0], [...opener.slice(1), "vyre://open?address=acme.example.com"], { encoding: "utf8" });
+      assert.equal(r.status, 0, r.stderr);
+      await until(/vyre-desktop: deep link open received/, 20_000);
+    }
     const page = await until(/vyre-desktop: page rendered: (\d+) chars at (?:tauri:\/\/localhost|https?:\/\/tauri\.localhost)/, 20_000);
     console.log(`page: ${page[0]}`);
-    assert.doesNotMatch(out, /acme\.example\.com/, "link parameters never reach the log");
+    if (takeLink) assert.doesNotMatch(out, /acme\.example\.com/, "link parameters never reach the log");
     // The desktop job takes its screenshot of the running window during this hold.
     await new Promise((r) => setTimeout(r, Number(process.env["VYRE_SHELL_HOLD_MS"] ?? "0")));
   } finally {
-    app.kill();
+    if (app.exitCode === null) {
+      const stopped = new Promise<void>((resolve) => app.once("exit", () => resolve()));
+      app.kill();
+      await Promise.race([stopped, new Promise<void>((_, reject) => setTimeout(() => reject(new Error("built shell did not exit")), 10_000))]);
+    }
   }
+}
+
+test("the built shell starts, reaches its sidecar and takes a vyre:// link", { skip: !APP && "VYRE_SHELL_APP is set only in the desktop job on a built app" }, async () => {
+  await exerciseBuiltShell(true);
+  if (RELAUNCH) await exerciseBuiltShell(false);
 });
 
 // Final run on the last commit of P-L10_03: the app test above runs in the desktop job (VYRE_SHELL_APP); this file reports its own ok line.
