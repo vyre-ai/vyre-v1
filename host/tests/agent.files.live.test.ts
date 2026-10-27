@@ -74,6 +74,14 @@ test("an agent's AGENT.md and agent.toml cannot be deleted, moved or renamed thr
     assert.equal(other.status, 200, JSON.stringify(other.json));
     const otherId = (d.db!.all("SELECT id FROM agents_agent WHERE name = 'Other'")[0] as unknown as { id: string }).id;
     const check = async (kind: string, id: string, level: string): Promise<{ effect: string; reason?: string }> => {
+      if (kind === "agent" && id === agentId.id && level === "view") {
+        console.log("agent-home-access-diagnostic", JSON.stringify({
+          folderId,
+          principal: d.db!.all("SELECT id, kind, status FROM access_principals WHERE id = ?", id),
+          resource: d.db!.all("SELECT id, type, parent_id, owner_id FROM access_resources WHERE id = ?", folderId),
+          grants: d.db!.all("SELECT id, subjectKind, subjectId, resourceType, resourceId, level FROM access_grants WHERE resourceId = ?", folderId),
+        }));
+      }
       const r = await post(d, "/v1/access/check", { principal: { kind, id }, action: { perm: "files.read", level }, resource: { type: "folder", id: folderId } }, token);
       assert.equal(r.status, 200, JSON.stringify(r.json));
       return r.json.data.decision;
