@@ -27,16 +27,6 @@ export interface ImportCtx {
   db: Db;
   emit(name: EventName, subject: string, payload: unknown): unknown;
   call?(cap: string, input: unknown, opts?: { idempotencyKey?: string }): Promise<unknown>;
-  /**
-   * The shell owns the user's space directory and cross-space invoke path.  An
-   * import never guesses that its ambient Space is Personal: it asks this port
-   * for an authorized concrete destination, then re-enters there before any
-   * archive, Project, binding, or continuation write.
-   */
-  sessionDestination?: {
-    resolve(owner: string, request: { kind: "personal" } | { kind: "team"; spaceId: string }): Promise<{ kind: "personal" | "team"; spaceId: string }>;
-    invoke(spaceId: string, cap: "sessions.import" | "sessions.continue", input: unknown): Promise<unknown>;
-  };
   http?(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<{ status: number; text(): Promise<string> }>;
   log: { warn(msg: string, attrs?: Record<string, unknown>): void };
 }

@@ -98,16 +98,8 @@ export async function sessionsImport(ctx: ImportCtx, raw: In): Promise<unknown> 
 export async function sessionsContinue(ctx: ImportCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
   if (typeof input.destinationSpaceId !== "string" || input.destinationSpaceId === "") raise(ctx, "validation.bad_input", "Choose the destination Space that owns this imported conversation.");
-  if (input.destinationScope !== "personal" && input.destinationScope !== "team") raise(ctx, "validation.bad_input", "Choose the destination scope that owns this imported conversation.");
-  if (!ctx.sessionDestination) raise(ctx, "internal.unexpected", "The destination Space router is not available right now.");
-  const routed = await ctx.sessionDestination.resolve(me(ctx), input.destinationScope === "personal" ? { kind: "personal" } : { kind: "team", spaceId: input.destinationSpaceId });
-  if (routed.spaceId !== input.destinationSpaceId || routed.kind !== input.destinationScope) {
-    raise(ctx, "validation.not_found", "That imported conversation does not exist.");
-  }
-  if (routed.spaceId !== ctx.space) {
-    return ctx.sessionDestination.invoke(routed.spaceId, "sessions.continue", input);
-  }
-  const row = (ctx.db.all("SELECT conversationId, projectId, continuedThreadId FROM import_conversation WHERE conversationId = ? AND owner = ? AND spaceId = ? AND destinationScope = ?", input.conversationId, me(ctx), routed.spaceId, routed.kind) as Array<Record<string, unknown>>)[0];
+  if (input.destinationScope !== "personal" || input.destinationSpaceId !== ctx.space) raise(ctx, "validation.not_found", "That imported conversation does not exist.");
+  const row = (ctx.db.all("SELECT conversationId, projectId, continuedThreadId FROM import_conversation WHERE conversationId = ? AND owner = ? AND spaceId = ? AND destinationScope = ?", input.conversationId, me(ctx), ctx.space, "personal") as Array<Record<string, unknown>>)[0];
   if (!row) raise(ctx, "validation.not_found", "That imported conversation does not exist.");
   if (row["continuedThreadId"]) return { threadId: String(row["continuedThreadId"]), linkedFrom: String(row["conversationId"]) };
   if (typeof input.agentId !== "string" || !input.agentId.startsWith("agt_")) raise(ctx, "validation.bad_input", "Choose an agent to continue this session.");

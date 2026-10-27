@@ -13,8 +13,6 @@ export interface HostServicesOptions {
   blobs?: BlobStore;
   /** The Vault's filler for one call (spec 2.20). Omitted: ctx.vault keeps refusing, which is right until the Vault module is live. */
   vault?: (seed: CtxSeed, cap: Parameters<NonNullable<InvokeDeps["services"]>>[1]) => Ctx["vault"];
-  /** Session-import destinations are resolved and invoked by the host, never by a module or renderer. */
-  sessionDestination?: (seed: CtxSeed, cap: Parameters<NonNullable<InvokeDeps["services"]>>[1]) => Ctx["sessionDestination"];
 }
 
 export function hostServices(o: HostServicesOptions): NonNullable<InvokeDeps["services"]> {
@@ -24,7 +22,6 @@ export function hostServices(o: HostServicesOptions): NonNullable<InvokeDeps["se
     schedule: o.queue.forCtx(seed),
     ...(o.blobs ? { blobs: o.blobs.forModule((cap as { module?: string }).module ?? cap.name.split(".")[0]!, seed.trace?.traceId) } : {}),
     ...(o.vault ? { vault: o.vault(seed, cap) } : {}),
-    ...(o.sessionDestination ? { sessionDestination: o.sessionDestination(seed, cap) } : {}),
   });
 }
 

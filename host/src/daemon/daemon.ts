@@ -33,7 +33,7 @@ import { createGateway, indexRoutes } from "../gateway.ts";
 import { withEventIds } from "../ids.ts";
 import type { GatewayDeps, RouteRec } from "../gateway.ts";
 import { createInvoke, createRateLimiter, fail, indexCapabilities, makeError, personalMatrix } from "../invoke.ts";
-import type { AuditRow, CtxSeed, Handler, Invoke, InvokeDeps } from "../invoke.ts";
+import type { AuditRow, Handler, Invoke, InvokeDeps } from "../invoke.ts";
 import { fileExportsImporter, fileImporter, fileSeamImporter, loadHost, readModuleList } from "../loader.ts";
 import type { RegistryLike } from "../loader.ts";
 import { LogSink } from "../logsink/index.ts";
@@ -141,17 +141,6 @@ export interface DaemonOptions {
   probes?: { diskEncrypted?: () => Promise<ProbeResult>; indexLag?: () => number | null };
   /** The Personal Space gate (the sync module's createPersonalHost(...).gate) asked first for every capability; omitted on a Team Space. */
   personal?: InvokeDeps["personal"];
-  /**
-   * The platform directory and transport for a consented local-session import.
-   * It resolves Personal from the authenticated person and verifies Team access,
-   * then invokes the target Space with the originating identity and trace.
-   */
-  sessionDestination?: {
-    resolve(a: { owner: string; request: { kind: "personal" } | { kind: "team"; spaceId: string }; seed: CtxSeed }): Promise<{ kind: "personal" | "team"; spaceId: string }>;
-    invoke(a: { spaceId: string; cap: "sessions.import" | "sessions.continue"; input: unknown; seed: CtxSeed }): Promise<unknown>;
-  };
-  /** Production composition must refuse to start a live session import without its router. Test hosts may leave it off. */
-  requireSessionDestination?: boolean;
   /** more supervised services: Caddy, the vault filler, the Chrome bridge, local turns */
   services?: ServiceSpec[];
   /** capabilities, routes, handlers and event names beyond the generated registry (tests register example.echo; later lanes register host-only calls) */
@@ -216,8 +205,6 @@ export interface Daemon {
   projections: ProjectionRunner | null;
   sink: LogSink;
   log: LogClient | null;
-  /** Platform composition only: a desktop router re-enters another known daemon with the original CtxSeed. */
-  invoke?: Invoke;
   /** run probes now (all by default), write them, and return the results */
   runProbes(names?: readonly ProbeName[]): Promise<Partial<Record<ProbeName, ProbeResult>>>;
   /** do every open restart and network command now */
@@ -272,7 +259,6 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let chainBroken = false;
   let verified = { seq: 0, hash: "" };
   let hub: LiveHub | null = null;
-  let composedInvoke: Invoke | undefined;
   let hubFactory: (() => LiveHub) | null = null;
   let routeIndex: ((method: string, path: string) => RouteRec | undefined) | null = null;
   let capIndex: ReturnType<typeof indexCapabilities> | null = null;
@@ -485,10 +471,6 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         services: hostServices({
           base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)), seal, queue: scheduleQueue, blobs,
           vault: (seed) => createVaultService((c, i, sd) => invokeRef(c, i, sd), spaceId, seed),
-          ...(o.sessionDestination ? { sessionDestination: (seed) => ({
-            resolve: (owner, request) => o.sessionDestination!.resolve({ owner, request, seed }),
-            invoke: (destinationSpaceId, cap, input) => o.sessionDestination!.invoke({ spaceId: destinationSpaceId, cap, input, seed }),
-          }) } : {}),
         }),
         idem, rate: createRateLimiter(), now, log: sinkLog,
         ...(gate ? { gate } : {}),
@@ -528,7 +510,6 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         onSpan: (s) => sink.span({ trace_id: s.traceId, span_id: s.spanId, parent: s.parent ?? null, name: s.name, at: s.startedAt, dur_us: s.ms * 1000, attrs: { cap: s.cap, status: s.status } }),
       });
-      composedInvoke = invoke;
 
       // A job the host itself scheduled (a webhook retry from the events consumer) runs as the host service, which authorize does not know: it is pre-authorized like the hook that scheduled it.
       const runAsScheduled = invokeRunner(invoke);
@@ -1021,7 +1002,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
   let stopped = false;
   return {
-    url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge, ...(composedInvoke ? { invoke: composedInvoke } : {}),
+    url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge,
     runProbes, pollCommands: runCommands,
     async stop() {
       if (stopped) return;
