@@ -7,6 +7,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { bootCore, CORE_SPACE } from "../../fixtures/seed/core/index.ts";
+import { authorize } from "../../kernel/src/authorize/index.ts";
+import type { NewEvent } from "../../kernel/src/log/types.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
@@ -14,6 +16,7 @@ import { processUnit } from "../src/supervisor/index.ts";
 import { loadConfig, readInfo } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
+import { buildAccess } from "../src/daemon/access.ts";
 import type { NetworkPort } from "../src/daemon/commands.ts";
 import { openDb } from "../src/daemon/sqlite.ts";
 
@@ -27,8 +30,10 @@ const echoHandler = (ctx: { emit(n: never, s: string, p: unknown): unknown }, in
 const tmp = (p: string): string => fs.mkdtempSync(path.join(os.tmpdir(), p));
 
 /** A data directory holding a copy of the seeded core Space's events.db. */
-function seededDir(): string {
+function seededDir(extra: NewEvent[] = []): string {
   const core = bootCore();
+  const appended = core.store.appendBatch(extra);
+  if (appended.some((r) => !r.ok)) throw new Error("could not build the seeded test log");
   const dir = tmp("vyre-daemon-boot-");
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
   fs.copyFileSync(core.file, path.join(dir, "events.db"));
@@ -177,6 +182,21 @@ test("vyred boots on the seeded Space from modules.json, answers example.echo wi
   }
   assert.equal(readInfo(d.paths), null, "stopping removes the pid and info files");
   await assert.rejects(() => fetch(`${d.url}/healthz`), "and the port is closed");
+});
+
+test("boot repairs an imported agent birth without access events and makes the agent authorizable", async () => {
+  const agent = "agt_import1";
+  const dir = seededDir([{ id: "evt_import_agent", type: "agent.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_import", vis: "space", entity: "agent", entity_id: agent, payload: { agentId: agent, name: "Imported", ownerId: "usr_mia", folderId: "fld_root" } }]);
+  const d = await boot(dir);
+  try {
+    const events = await d.log!.read({ limit: 5000 });
+    assert.deepEqual(events.filter((e) => e.entity_id === agent).map((e) => e.type), ["agent.created", "resource.created", "principal.created", "principal.role_set"]);
+    const access = buildAccess(events);
+    assert.equal(authorize(access, { principal: agent, actingFor: "usr_mia", action: { perm: null, level: "view" }, resource: { type: "agent", id: agent } }).effect, "allow");
+  } finally {
+    await d.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("the live socket answers example.echo on the same server with the same trace id in the response, the numbered event and the log", async () => {

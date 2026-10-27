@@ -87,8 +87,8 @@ import type { LiveHub, SyncHubPort } from "../ws.ts";
 import { bootstrapSpace, mintOwner } from "./bootstrap.ts";
 import { createAccess, isAccessEvent, isMemberOrGuest, toAccessEvent, touchesAccess } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
-import { createResourceRegistrar } from "../gateway/resources.ts";
-import { createPrincipalRegistrar } from "../gateway/principals.ts";
+import { createResourceRegistrar, missingAgentResources } from "../gateway/resources.ts";
+import { createPrincipalRegistrar, missingAgentPrincipalEvents } from "../gateway/principals.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
 import type { HookRunner, ModuleHooks } from "./consumers.ts";
@@ -354,9 +354,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const first = await log.verify();
       if (first.ok) verified = { seq: first.seq, hash: first.head }; else chainBroken = true;
       sink.log({ space, level: first.ok ? 20 : 40, msg: "events.verified", place: "boot", result: first.ok ? "ok" : "broken", attrs: first.ok ? { seq: first.seq } : { at: first.at, why: first.why } });
+      const agentAccessEvents: { type: string; payload: unknown }[] = [];
       for (let after = 0; ;) {
         const page = await log.read({ after, limit: 5000 });
         for (const e of page) {
+          if (e.type === "resource.created" || e.type === "principal.created" || e.type === "principal.role_set" || e.type === "grant.created" || e.type.startsWith("agent.")) agentAccessEvents.push(e);
           access.fold(e);
           if (isAccessEvent(e.type)) accessPending.push(toAccessEvent(e));
           if (e.type === "space.created") { sawSpace = true; if (e.id.startsWith("evt_boot_")) hostMadeSpace = true; }
@@ -368,6 +370,40 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (!sawSpace) {
         const made = await bootstrapSpace(log, { space, name: cfg.spaceName ?? space, owner: mintOwner(cfg.owner) });
         if (made) { hostMadeSpace = true; for (const e of made.events) { access.fold(e); accessPending.push(toAccessEvent(e)); } }
+      }
+      // Before the generic registrar existed, imported and prototype logs could have a valid
+      // agent.created without its access resource. Repair only from that birth event, never
+      // from an arbitrary later event (which may run as svc_host and has no owner authority).
+      if (!chainBroken) {
+        for (const row of missingAgentResources({ space, events: agentAccessEvents })) {
+          const repaired = await log.appendResult({
+            id: `evt_res_${row.id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: row.id, payload: row,
+          });
+          if (!repaired.ok) throw new Error(`could not reconcile agent resource ${row.id}: ${repaired.message}`);
+          if (!repaired.duplicate) {
+            access.fold(repaired.event);
+            accessPending.push(toAccessEvent(repaired.event));
+            sink.log({ space, level: 20, msg: "access.agent_resource_reconciled", place: "boot", entity: "agent", entity_id: row.id, attrs: { owner: row.owner_id } });
+          }
+        }
+        const levelOf = (person: string, scope: string): "edit" | "view" | "none" => {
+          const may = (level: "edit" | "view"): boolean => authorize(access.snap, { principal: person, action: { perm: null, level }, resource: { type: "space", id: scope } }).effect === "allow";
+          return may("edit") ? "edit" : may("view") ? "view" : "none";
+        };
+        // Prototype/import logs predate both registrars.  The immutable agent.created
+        // payload, not a subsequent host event, is the authority for every repair.
+        for (const repairedEvent of missingAgentPrincipalEvents({ space, events: agentAccessEvents, levelOf })) {
+          const repaired = await log.appendResult({
+            id: `evt_agent_access_${repairedEvent.type.replace(".", "_")}_${repairedEvent.id}`,
+            type: repairedEvent.type, sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: repairedEvent.entity, entity_id: repairedEvent.id, payload: repairedEvent.payload,
+          });
+          if (!repaired.ok) throw new Error(`could not reconcile agent access ${repairedEvent.id}: ${repaired.message}`);
+          if (!repaired.duplicate) {
+            access.fold(repaired.event);
+            accessPending.push(toAccessEvent(repaired.event));
+            sink.log({ space, level: 20, msg: "access.agent_principal_reconciled", place: "boot", entity: "agent", entity_id: repairedEvent.id });
+          }
+        }
       }
       headSeq = (await log.currentHead()).seq;
 

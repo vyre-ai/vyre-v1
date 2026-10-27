@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Gateway: reconcile legacy/imported `agent.created` births missing resource and principal access events at boot, preserving the named owner and deterministic grants without allowing follow-up agent events to claim resources.
 - Gateway: only `agent.created` may register an agent access resource, preventing concurrent host follow-up events from assigning it to `svc_host`.
 - Desktop: stop the local sidecar through its loopback admin endpoint before process fallback, so Windows removes `vyred.json` on a requested shutdown.
 - Desktop smoke: use Windows Ctrl-Break for graceful sidecar shutdown, preserving the cleanup and restart proof before bounded force cleanup.
