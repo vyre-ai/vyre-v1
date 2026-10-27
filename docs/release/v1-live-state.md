@@ -12,6 +12,12 @@
 
 ## Current state — 27 October 2026 PKT
 
+### Locked v1 scope
+
+- Vault itself ships in v1. Its existing screens and capabilities are release-blocking and must pass the RC walk.
+- Only external Vault credential import, including 1Password-style import and equivalent third-party migrations, is deferred to v1.1.
+- Sites remains deferred to v1.1 under ruling 93 unless the owner explicitly changes that decision.
+
 - **Merged:** PR #517 fixed the real-app Mail/Automations React #185 navigation loop. Full CI and production-export screenshot capture passed.
 - **Merged PR #721:** atomic agent-home grants, reassignment correction, and scheduler readiness landed on `main` as `3d8ef650`. Fresh CI and independent review passed. GitHub does not allow the author to approve their own PR; owner authorized the compliant reviewed admin merge rather than a branch-protection mutation. Advance dependent #715 from this mainline.
 - **Merged PR #715:** Files mirror landed as `465d6423` after rebasing from #721 and passing full CI/review. Mirror invokes now resolve the agent's live owner on every pass, use the owner ID as `actingFor`, and have focused reassign/missing-owner regression coverage.
