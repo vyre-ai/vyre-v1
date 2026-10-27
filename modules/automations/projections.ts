@@ -13,7 +13,15 @@ export interface AiBlock {
   timeoutMinutes?: number; nudgeMinutes?: number; escalateTo?: Assignee;
 }
 export interface Branch { label: string; to: string; when?: string }
-export interface OnError { mode: "fail" | "continue" | "retry" | "route"; max?: number; route?: string }
+// Same shape as StepOnError in lib/step-failure.ts. fail stops the run. continue records the error and goes on.
+// retry lets the engine try again. skip and substitute go on without another attempt. route goes to another step, optionally only for listed codes.
+export interface OnError {
+  mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+  max?: number;
+  route?: string;
+  codes?: string[];
+  output?: unknown;
+}
 export interface Node {
   id: string; key: string; title?: string; input: Record<string, unknown>; next?: string[]; branches?: Branch[]; onError?: OnError; ai?: AiBlock;
 }

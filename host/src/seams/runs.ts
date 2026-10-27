@@ -2,16 +2,20 @@
 // their host calls, so it builds what `drive` needs and hands it over through setRunsHost:
 //   plan  the Automation's pinned definition (automations.run_plan), start node first, each node a PlanStep with the effects of its step kind
 //   exec  one step at a time through steps-core (steps-core.run_step), called AS the Run's principal: a person's Automation acts with that person's access, a Space Automation with its own
-// The definition's own error rule is applied here: retry runs the step again with a backoff, continue goes on with the error as the step's output, route goes to the named step.
+// The definition's own error rule is applied here through failureResult. Retry throws so the engine runs the step again with a backoff. Continue records the error and goes on.
+// Skip records a skipped step and goes on. Substitute goes on with the configured output. Neither runs the effect again. Route goes to the named step when it exists,
+// and only for a listed error code when codes is set. Stop, a missing route, and a code that is not listed fail the run.
 // Parallel and Loop are coordinators. Each lane and each iteration is its own child Run. Inner nodes are not on the parent plan.
 import { registry } from "../../../generated/registry.ts";
+import { clampRetry, failureResult } from "../../../lib/step-failure.ts";
+import type { StepOnError } from "../../../lib/step-failure.ts";
 import { codeForReason } from "../routes/errors.ts";
 
 type Row = Record<string, unknown>;
 interface Branch { label?: string; to?: string }
 interface GNode {
   id: string; key: string; input: Record<string, unknown>; next?: string[]; branches?: Branch[];
-  onError?: { mode: "fail" | "continue" | "retry" | "route"; max?: number; route?: string };
+  onError?: StepOnError;
 }
 interface Scope {
   containerNodeId: string; laneId?: string; iterationIndex?: number; iterationKey?: string; item?: unknown; held?: boolean;
@@ -265,7 +269,10 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
     const ids = new Set(ordered.map((n) => n.id));
     return ordered.map((n) => {
       const kind = STEPS.get(n.key);
-      const retry = n.onError?.mode === "retry" ? { max: Math.max(1, n.onError.max ?? 3), backoff: "exp" as const, baseMs: 1000 } : undefined;
+      const requested = n.onError?.max;
+      const retry = n.onError?.mode === "retry"
+        ? { max: clampRetry(typeof requested === "number" && Number.isFinite(requested) ? requested : 3), backoff: "exp" as const, baseMs: 1000 }
+        : undefined;
       const next = clippedNext(by, n, ids);
       return {
         id: n.id, key: n.key, input: n.input, effects: kind?.effects ?? "write",
@@ -382,11 +389,10 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
       } catch (raw) {
         const e = refusal(raw);
         if (e !== raw) throw e;   // a person who is no longer let in fails the Run whatever the step's own error rule says
-        const mode = node.onError?.mode;
-        const message = (e as { error?: { message?: string }; message?: string })?.error?.message ?? (e as Error).message ?? "The step failed.";
-        if (mode === "continue") return { output: { error: message } };
-        if (mode === "route" && node.onError?.route && by.has(node.onError.route)) return { output: { error: message }, next: node.onError.route };
-        throw e;
+        const decided = failureResult(node.onError, e);
+        if (decided === "throw" || decided === "retry") throw e;
+        if (decided.next !== undefined && !by.has(decided.next)) throw e;
+        return decided;
       }
     };
     return { plan, exec };
