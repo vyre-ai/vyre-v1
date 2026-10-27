@@ -107,6 +107,7 @@ test("native stays non-blocking for live while the macOS desktop artifact gates 
   const assembled = rel.jobs.find((j) => j.name === "desktop-release-files");
   assert.ok(assembled, "release assembles the desktop artifact");
   assert.deepEqual(assembled.needs, ["package", "desktop"]);
+  assert.match(assembled.text, /^ {4}timeout-minutes: 15$/m, "the 125 MB desktop artifact has enough time to download and verify");
   assert.match(assembled.text, /name: desktop-macOS, path: desktop-artifact/);
   assert.match(assembled.text, /exactly one DMG/);
   assert.match(assembled.text, /sha256sum/);
