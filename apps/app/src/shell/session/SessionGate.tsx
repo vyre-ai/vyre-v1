@@ -27,8 +27,8 @@ import { openPhone } from "./phone.ts";
 import type { LoadVoiceDevice, Phone } from "./phone.ts";
 import { openRealSession } from "./session.ts";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
-import { clearStored, readStored, spaceAddress, writeStored } from "./stored.ts";
-import type { StoredSession } from "./stored.ts";
+import { clearStored, readStored, signInAndVerify, spaceAddress, verifyStoredSession, writeStored } from "./stored.ts";
+import type { SignInOptions, StoredSession } from "./stored.ts";
 import { consumeDesktopBootstrap, desktopBridge } from "./desktop.ts";
 import type { DesktopRoute } from "./desktop.ts";
 
@@ -67,25 +67,50 @@ async function unlockOwnKey(baseUrl: string, token: string, password: string, ke
 /** The calm line after the Space ended the session (a 401, a purge): one sentence on the sign-in page, never a blank or a frozen place. */
 export const SIGNED_OUT_LINE = "You were signed out. Sign in again to continue.";
 
-function SignInScreen({ baseUrl, onSignedIn, notice }: { baseUrl: string; onSignedIn: (s: StoredSession) => void; notice?: boolean }): ReactElement {
+/** Sign-in options may name this Space and show its display marker. Provider buttons wait for complete handlers. */
+export function signInInvite(baseUrl: string, options: SignInOptions | null): JoinInvite {
+  return {
+    space: options?.name ?? hostOf(baseUrl), host: hostOf(baseUrl), by: "", role: "", fingerprint: options?.fingerprint,
+    sso: [], github: false, adminKey: false,
+  };
+}
+
+function SignInScreen({ baseUrl, open, onSignedIn, notice }: { baseUrl: string; open: NonNullable<SessionGateProps["open"]>; onSignedIn: (s: StoredSession) => void; notice?: boolean }): ReactElement {
   useEffect(() => { mark("app.usable"); }, []);
-  const invite: JoinInvite = useMemo(() => ({ space: hostOf(baseUrl), host: hostOf(baseUrl), by: "", role: "", sso: [], github: false, adminKey: false }), [baseUrl]);
   const anonymous = useMemo(() => createCapCaller({ baseUrl, token: () => null }), [baseUrl]);
+  const [options, setOptions] = useState<SignInOptions | null>(null);
+  useEffect(() => {
+    let active = true;
+    void (anonymous("identity.sign_in_options", {}) as Promise<SignInOptions>).then((found) => { if (active) setOptions(found); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [anonymous]);
+  const invite = useMemo(() => signInInvite(baseUrl, options), [baseUrl, options]);
   const signIn = useCallback(async (v: { username: string; password: string; code?: string }): Promise<"ok" | "second_factor_required"> => {
-    const out = (await anonymous("identity.sign_in", {
-      username: v.username, password: v.password, deviceName: "Web browser", deviceClass: "web", ...(v.code ? { totp: v.code } : {}),
-    })) as { status: "ok" | "second_factor_required"; session?: { token: string }; keys?: { personKeyByPassword: string; personKeyByRecovery?: string; publicKey: string; privateKeyWrapped: string } };
-    if (out.status === "second_factor_required") return "second_factor_required";
-    const token = out.session?.token;
-    if (!token) throw new Error("The Space did not return a session. Try again.");
-    if (out.keys) await unlockOwnKey(baseUrl, token, v.password, out.keys);
-    const real = await openRealSession({ baseUrl, token });
-    const stored: StoredSession = { baseUrl, token, def: real.def, personId: real.me.id };
-    real.close();
-    writeStored(stored);
-    onSignedIn(stored);
+    let token: string | null = null;
+    let keys: { personKeyByPassword: string; personKeyByRecovery?: string; publicKey: string; privateKeyWrapped: string } | undefined;
+    const result = await signInAndVerify({
+      baseUrl,
+      discover: async () => options ?? (await anonymous("identity.sign_in_options", {}) as SignInOptions),
+      signIn: async () => {
+        const out = (await anonymous("identity.sign_in", {
+          username: v.username, password: v.password, deviceName: "Web browser", deviceClass: "web", ...(v.code ? { totp: v.code } : {}),
+        })) as { status: "ok" | "second_factor_required"; session?: { token: string }; keys?: typeof keys };
+        token = out.session?.token ?? null;
+        keys = out.keys;
+        if (out.status === "ok" && token && keys) await unlockOwnKey(baseUrl, token, v.password, keys);
+        return out;
+      },
+      open: () => open({ baseUrl, token: token ?? "" }),
+      getSpace: async () => {
+        const authenticated = createCapCaller({ baseUrl, token: () => token });
+        const space = ((await authenticated("spaces.get", {})) as { space: { id: string; fingerprint: string } }).space;
+        return { id: space.id, marker: space.fingerprint };
+      },
+    });
+    if (result.status === "second_factor_required") return result.status;
+    onSignedIn(result.stored);
     return "ok";
-  }, [anonymous, baseUrl, onSignedIn]);
+  }, [anonymous, baseUrl, onSignedIn, open, options]);
   return <JoinFlow invite={invite} initial={{ stage: "signin", ...(notice ? { error: SIGNED_OUT_LINE } : {}) }} onSignIn={signIn} />;
 }
 
@@ -93,7 +118,7 @@ function ConnectSpaceWelcome(): ReactElement {
   return <States kind="empty" title="Connect a Space" icon="search" />;
 }
 
-/** The native join URL has already been validated by the bridge. Task 4 consumes its code for members.accept; this boundary retains it without rendering or logging it. */
+/** Desktop joins are resolved through the pre-auth capability before JoinFlow receives an invite. */
 function DesktopJoinScreen({ route }: { route: Extract<DesktopRoute, { kind: "join" }> }): ReactElement {
   const invite: JoinInvite = useMemo(() => ({ space: hostOf(route.address), host: hostOf(route.address), by: "", role: "", fingerprint: route.fingerprint, sso: [], github: false, adminKey: false }), [route.address, route.fingerprint]);
   void route.code;
@@ -137,7 +162,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     let off = false;
     let opened: RealSession | null = null;
     setFailed(null);
-    open({ baseUrl: stored.baseUrl, token: stored.token, ...(stored.syncEpoch !== undefined ? { syncEpoch: stored.syncEpoch } : {}), onSyncEpoch: (e) => { const now = readStored(); if (now && now.token === stored.token) writeStored({ ...now, syncEpoch: e }); }, navigate: (p, hash) => { if (phoneGo.current) phoneGo.current(p, hash); else navRef.current?.go(p, hash); },
+    const options: OpenSessionOptions = { baseUrl: stored.baseUrl, token: stored.token, ...(stored.syncEpoch !== undefined ? { syncEpoch: stored.syncEpoch } : {}), onSyncEpoch: (e) => { const now = readStored(undefined, stored.baseUrl); if (now && now.token === stored.token) writeStored({ ...now, syncEpoch: e }); }, navigate: (p, hash) => { if (phoneGo.current) phoneGo.current(p, hash); else navRef.current?.go(p, hash); },
       shell: (screen) => {
         const h = navRef.current;
         if (!h) return;
@@ -145,7 +170,15 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
         else if (screen === "shell.new-tab") h.newTab();
         else h.flash("Switch Spaces from the tile at the top of the rail");
       },
-      onSignedOut })
+      onSignedOut };
+    verifyStoredSession({
+      stored,
+      open: () => open(options),
+      getSpace: async (s) => {
+        const space = ((await s.call("spaces.get", {})) as { space: { id: string; fingerprint: string } }).space;
+        return { id: space.id, marker: space.fingerprint };
+      },
+    })
       .then((s) => {
         if (off) { s.close("superseded before it opened"); return; }
         opened = s;
@@ -153,7 +186,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
       })
       .catch((e: unknown) => {
         if (off) return;
-        if (e instanceof CapError && e.status === 401) { onSignedOut(); return; }
+        if ((e instanceof CapError && e.status === 401) || (e instanceof Error && /no longer matches/i.test(e.message))) { onSignedOut(); return; }
         setFailed(e instanceof Error && e.message ? e.message : "The Space did not answer.");
       });
     return () => { off = true; opened?.close("shell effect cleanup"); setSession(null); };
@@ -233,8 +266,8 @@ export function SessionGate(props: SessionGateProps): ReactElement {
 
   // Read the stored session after mount, never during the first render: the static export pre-renders the sign-in markup and must match it.
   useEffect(() => {
-    const stored = readStored();
-    if (stored && (!baseUrl || stored.baseUrl === baseUrl)) setPhase({ kind: "shell", stored });
+    const stored = readStored(undefined, baseUrl ?? undefined);
+    if (stored) setPhase({ kind: "shell", stored });
     setReady(true);
   }, [baseUrl]);
 
@@ -256,15 +289,15 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     return () => { alive = false; unlisten?.(); };
   }, [bridge]);
 
-  const signedOut = useCallback((why?: "manual") => { clearStored(); setNotice(why !== "manual"); setPhase({ kind: "signin" }); }, []);
+  const signedOut = useCallback((why?: "manual", selected?: string) => { clearStored(undefined, selected); setNotice(why !== "manual"); setPhase({ kind: "signin" }); }, []);
   const signedIn = useCallback((stored: StoredSession) => setPhase({ kind: "shell", stored }), []);
 
   if (!ready) return baseUrl ? <View style={styles.fill} /> : <ConnectSpaceWelcome />;
-  if (phase.kind === "shell") return <ShellHost stored={phase.stored} open={open} onSignedOut={signedOut} onHub={onHub} voice={props.voice} />;
+  if (phase.kind === "shell") return <ShellHost stored={phase.stored} open={open} onSignedOut={(why) => signedOut(why, phase.stored.baseUrl)} onHub={onHub} voice={props.voice} />;
   if (desktopRoute?.kind === "join") return <DesktopJoinScreen route={desktopRoute} />;
   const activeAddress = desktopRoute?.address ?? baseUrl;
   if (!activeAddress) return <ConnectSpaceWelcome />;
-  return <SignInScreen baseUrl={activeAddress} onSignedIn={signedIn} notice={notice} />;
+  return <SignInScreen baseUrl={activeAddress} open={open} onSignedIn={signedIn} notice={notice} />;
 }
 
 const styles = StyleSheet.create({

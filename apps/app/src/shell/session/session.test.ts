@@ -9,13 +9,15 @@ import { fakeServer, settle } from "../../../../../client/src/connection/testing
 import { createLiveLink, socketBase, socketPath } from "./live.ts";
 import { createRemoteScreenHooks, stableJson } from "./remote-hooks.ts";
 import { openRealSession, targetHash } from "./session.ts";
-import { clearStored, readStored, spaceAddress, writeStored } from "./stored.ts";
+import { clearStored, openVerifiedSession, readStored, signInAndVerify, spaceAddress, verifyStoredSession, writeStored } from "./stored.ts";
 import { consumeDesktopBootstrap, routeDesktopLink } from "./desktop.ts";
 import type { DesktopDeepLink } from "../../../../desktop/src/bridge.ts";
 import type { KeyValueStore } from "./stored.ts";
 
 const ROUTES: RouteRow[] = [
   { method: "POST", path: "/v1/identity/whoami", cap: "identity.whoami", v: 1 },
+  { method: "POST", path: "/v1/identity/sign_in_options", cap: "identity.sign_in_options", v: 1 },
+  { method: "POST", path: "/v1/identity/sign_in", cap: "identity.sign_in", v: 1 },
   { method: "GET", path: "/v1/spaces/get", cap: "spaces.get", v: 1 },
   { method: "GET", path: "/v1/spaces/switcher", cap: "spaces.switcher", v: 1 },
   { method: "GET", path: "/v1/files/list", cap: "files.list", v: 1 },
@@ -305,13 +307,120 @@ test("stored: a session is kept, read back, and cleared; junk reads as no sessio
   const store = memoryStore();
   assert.equal(readStored(store), null);
   const def = { spaceId: "spc_nw", name: "Northwind" } as never;
-  writeStored({ baseUrl: "http://s.test", token: "t", def, personId: "usr_1" }, store);
+  writeStored({ baseUrl: "http://s.test", token: "t", def, personId: "usr_1", marker: "fp" }, store);
   assert.equal(readStored(store)?.token, "t");
   store.setItem("vyre.session.v1", "{not json");
   assert.equal(readStored(store), null);
-  writeStored({ baseUrl: "http://s.test", token: "t", def, personId: "usr_1" }, store);
+  writeStored({ baseUrl: "http://s.test", token: "t", def, personId: "usr_1", marker: "fp" }, store);
   clearStored(store);
   assert.equal(readStored(store), null);
+});
+
+test("stored: clearing one Space preserves every other saved Space", () => {
+  const store = memoryStore();
+  const def = { spaceId: "spc_nw", name: "Northwind" } as never;
+  const harbor = { ...def, spaceId: "spc_hb", name: "Harbor" };
+  writeStored({ baseUrl: "https://northwind.test", token: "nw", def, personId: "usr_1", marker: "northwind-marker" }, store);
+  writeStored({ baseUrl: "https://harbor.test", token: "hb", def: harbor, personId: "usr_1", marker: "harbor-marker" }, store);
+  clearStored(store, "https://northwind.test");
+  assert.equal(readStored(store, "https://northwind.test"), null);
+  assert.equal(readStored(store, "https://harbor.test")?.token, "hb");
+});
+
+test("the anonymous sign-in route discovers options before normal password sign-in, never spaces.get", async () => {
+  const gw = gateway({
+    "POST /v1/identity/sign_in_options": (seen) => {
+      assert.equal(seen.headers["authorization"], undefined, "options are safe before authentication");
+      return { body: { data: { name: "Northwind", fingerprint: "display-only", password: true, github: true, sso: [{ key: "google", title: "Google" }], secondFactorRequired: false } } };
+    },
+    "POST /v1/identity/sign_in": (seen) => {
+      assert.equal(seen.headers["authorization"], undefined);
+      return { body: { data: { status: "ok", session: { token: "vst_1" } } } };
+    },
+    "GET /v1/spaces/get": (seen) => {
+      assert.equal(seen.headers["authorization"], "Bearer vst_1", "the Space is read only after authentication");
+      return { body: { data: SPACE } };
+    },
+  });
+  const anonymous = createCapCaller({ baseUrl: "https://northwind.test", token: () => null, fetch: gw.fetch, routes: async () => ROUTES });
+  const authenticated = createCapCaller({ baseUrl: "https://northwind.test", token: () => "vst_1", fetch: gw.fetch, routes: async () => ROUTES });
+  const opened = { def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_1" }, close: () => undefined } as never;
+  const result = await signInAndVerify({
+    baseUrl: "https://northwind.test",
+    discover: async () => anonymous("identity.sign_in_options", {}) as never,
+    signIn: async () => anonymous("identity.sign_in", { username: "dana", password: "harbor-lamp", deviceName: "Web browser", deviceClass: "web" }) as never,
+    open: async () => opened,
+    getSpace: async () => {
+      const space = ((await authenticated("spaces.get", {})) as typeof SPACE).space;
+      return { id: space.id, marker: space.fingerprint };
+    },
+    persist: () => undefined,
+  });
+  assert.equal(result.status, "ok");
+  assert.deepEqual(gw.seen.map((s) => s.url), ["/v1/identity/sign_in_options", "/v1/identity/sign_in", "/v1/spaces/get"]);
+  assert.equal(result.options.name, "Northwind");
+  assert.equal(result.stored?.marker, "ab", "a first sign-in stores the authenticated continuity marker, not the anonymous display value");
+});
+
+test("verification persists only after the opened session and authenticated Space IDs agree", async () => {
+  const calls: string[] = [];
+  const writes: unknown[] = [];
+  const real = { def: { spaceId: "spc_nw" }, me: { id: "usr_1" }, close: () => { calls.push("close"); } } as never;
+  const stored = await openVerifiedSession({
+    baseUrl: "https://northwind.test", token: "vst_1", continuity: { id: "spc_nw", marker: "marker_1" },
+    open: async () => { calls.push("open:whoami+spaces.get"); return real; },
+    getSpace: async () => { calls.push("get:spaces.get"); return { id: "spc_nw", marker: "marker_1" }; },
+    persist: (candidate) => writes.push(candidate),
+  });
+  assert.deepEqual(calls, ["open:whoami+spaces.get", "get:spaces.get", "close"]);
+  assert.equal(writes.length, 1, "storage waits for identity.whoami and both spaces.get checks");
+  assert.equal(stored.marker, "marker_1");
+});
+
+test("verification never persists when identity.whoami cannot open the real session", async () => {
+  let writes = 0;
+  await assert.rejects(openVerifiedSession({
+    baseUrl: "https://northwind.test", token: "vst_1", continuity: { id: "spc_nw" },
+    open: async () => { throw new Error("identity.whoami rejected the session"); },
+    getSpace: async () => ({ id: "spc_nw", marker: "marker_1" }),
+    persist: () => { writes++; },
+  }), /whoami rejected/i);
+  assert.equal(writes, 0);
+});
+
+test("verification rejects a continuity-marker mismatch without persisting the session", async () => {
+  let writes = 0;
+  let closed = 0;
+  const real = { def: { spaceId: "spc_nw" }, me: { id: "usr_1" }, close: () => { closed++; } } as never;
+  await assert.rejects(openVerifiedSession({
+    baseUrl: "https://northwind.test", token: "vst_1", continuity: { id: "spc_nw", marker: "marker_expected" },
+    open: async () => real,
+    getSpace: async () => ({ id: "spc_nw", marker: "marker_other" }),
+    persist: () => { writes++; },
+  }), /no longer matches/i);
+  assert.deepEqual([writes, closed], [0, 1]);
+});
+
+test("a returning session rejects a changed continuity marker and closes before shell use", async () => {
+  let closed = 0;
+  const stored = { baseUrl: "https://northwind.test", token: "vst_1", def: { spaceId: "spc_nw", name: "Northwind" } as never, personId: "usr_1", marker: "marker_saved" };
+  await assert.rejects(verifyStoredSession({
+    stored,
+    open: async () => ({ def: stored.def, me: { id: "usr_1" }, close: () => { closed++; } }),
+    getSpace: async () => ({ id: "spc_nw", marker: "marker_changed" }),
+  }), /no longer matches/i);
+  assert.equal(closed, 1);
+});
+
+test("verification blocks persistence when authenticated Space IDs differ", async () => {
+  let writes = 0;
+  await assert.rejects(openVerifiedSession({
+    baseUrl: "https://northwind.test", token: "vst_1",
+    open: async () => ({ def: { spaceId: "spc_nw" }, me: { id: "usr_1" }, close: () => undefined } as never),
+    getSpace: async () => ({ id: "spc_other", marker: "marker_1" }),
+    persist: () => { writes++; },
+  }), /no longer matches/i);
+  assert.equal(writes, 0);
 });
 
 test("stored: the Space address is HTTP(S), never the packaged shell origin", () => {
@@ -321,7 +430,6 @@ test("stored: the Space address is HTTP(S), never the packaged shell origin", ()
   assert.equal(spaceAddress({ origin: "tauri://localhost", search: "" }), null);
   assert.equal(spaceAddress({ origin: "tauri://localhost", search: "?space=tauri%3A%2F%2Flocalhost" }), null);
 });
-
 test("desktop bootstrap routes its pending link before live links and unsubscribes safely", async () => {
   let live: ((link: DesktopDeepLink) => void) | undefined;
   let unlistened = 0;

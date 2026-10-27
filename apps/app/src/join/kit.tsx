@@ -1,10 +1,12 @@
 // Join building blocks, in the pattern of a system setup assistant (spec 3.13): one centred column, an app icon, system type, grouped inset lists,
 // a Back / progress / Continue bar and the system accent. Flat: no gradients, no blurs, no decorative splits. Every block paints from the join palette.
-import { Children, cloneElement, createContext, createElement, isValidElement, useContext, useMemo, useSyncExternalStore } from "react";
+import { Children, cloneElement, createContext, createElement, isValidElement, useContext, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Dimensions } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
 import { Avatar } from "../../../../ui/src/Avatar/index.tsx";
+import { HalftoneField } from "./HalftoneField.tsx";
+import type { HalftoneIntensity } from "./HalftoneField.tsx";
 import { FONT, MONO, paletteOf, useJoinMode } from "./palette.ts";
 import type { JoinMode, JoinPalette } from "./palette.ts";
 
@@ -47,7 +49,7 @@ export const PHONE_MAX = 640;
 
 // ---- the frame: wash, panel, body, bar
 
-export function JoinFrame({ children, mode }: { children: ReactNode; mode?: JoinMode }) {
+export function JoinFrame({ children, mode, halftoneIntensity = "calm" }: { children: ReactNode; mode?: JoinMode; halftoneIntensity?: HalftoneIntensity }) {
   const detected = useJoinMode();
   const m = mode ?? detected;
   const { width } = useViewport();
@@ -57,9 +59,10 @@ export function JoinFrame({ children, mode }: { children: ReactNode; mode?: Join
     <ThemeCtx.Provider value={theme}>
       <View
         testID="join-frame"
-        style={{ flex: 1, minHeight: "100%" as unknown as number, backgroundColor: phone ? theme.p.panel : theme.p.back, alignItems: "center", justifyContent: "center", padding: phone ? 0 : 24 }}
+        style={{ flex: 1, minHeight: "100%" as unknown as number, position: "relative", overflow: "hidden", backgroundColor: phone ? theme.p.panel : theme.p.back, alignItems: "center", justifyContent: "center", padding: phone ? 0 : 24 }}
       >
-        {children}
+        <HalftoneField intensity={halftoneIntensity} palette={theme.p} />
+        <View style={{ width: "100%", height: "100%", alignItems: "center", justifyContent: "center", zIndex: 1 }}>{children}</View>
       </View>
     </ThemeCtx.Provider>
   );
@@ -130,7 +133,7 @@ export function ErrorLine({ children, testID }: { children: ReactNode; testID?: 
 export function TextButton({ label, onPress, testID, small, disabled }: { label: string; onPress?: () => void; testID?: string; small?: boolean; disabled?: boolean }) {
   const { p } = useJoin();
   return (
-    <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} testID={testID} style={({ hovered, pressed }: { hovered?: boolean; pressed?: boolean }) => ({ opacity: pressed ? 0.55 : hovered ? 0.75 : 1, paddingHorizontal: 2, borderRadius: 4 })}>
+    <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} testID={testID} style={({ hovered, pressed }: { hovered?: boolean; pressed?: boolean }) => ({ minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.55 : hovered ? 0.75 : 1, borderRadius: 4 })}>
       <Text style={[base(p), { color: p.blue, fontSize: small ? 13 : 15, lineHeight: small ? 18 : 21 }]}>{label}</Text>
     </Pressable>
   );
@@ -141,10 +144,12 @@ export function Button({ label, onPress, disabled, large, testID }: { label: str
     <Pressable
       accessibilityRole="button" aria-disabled={!!disabled} disabled={disabled} onPress={onPress} testID={testID}
       style={({ hovered, pressed }: { hovered?: boolean; pressed?: boolean }) => ({
-        height: large ? 36 : 32, paddingHorizontal: large ? 22 : 18, borderRadius: 8, backgroundColor: p.blue, justifyContent: "center", flexShrink: 0, opacity: disabled ? 0.4 : pressed ? 0.92 : hovered ? 0.94 : 1,
+        minHeight: 44, justifyContent: "center", flexShrink: 0, opacity: disabled ? 0.4 : pressed ? 0.92 : hovered ? 0.94 : 1,
       })}
     >
-      <Text numberOfLines={1} style={[base(p), { color: "#FFFFFF", fontSize: large ? 14 : 13, fontWeight: "600" }]}>{label}</Text>
+      <View style={{ height: large ? 36 : 32, paddingHorizontal: large ? 22 : 18, borderRadius: 8, backgroundColor: p.blue, justifyContent: "center" }}>
+        <Text numberOfLines={1} style={[base(p), { color: "#FFFFFF", fontSize: large ? 14 : 13, fontWeight: "600" }]}>{label}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -233,19 +238,28 @@ function FormRow({ label, children, divider, testID, labelWidth = 112, small }: 
 }
 
 export function FieldRow({
-  label, value, onChange, placeholder, secure, testID, autoComplete, mono, keyboard, maxLength, divider, onSubmit, spaced,
+  label, value, onChange, placeholder, secure, revealable, visibilityTestID, testID, autoComplete, mono, keyboard, maxLength, divider, onSubmit, spaced,
 }: RowProps & {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string; secure?: boolean; autoComplete?: string; mono?: boolean; keyboard?: "numeric"; maxLength?: number; onSubmit?: () => void; spaced?: boolean;
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; secure?: boolean; revealable?: boolean; visibilityTestID?: string; autoComplete?: string; mono?: boolean; keyboard?: "numeric"; maxLength?: number; onSubmit?: () => void; spaced?: boolean;
 }) {
   const { p } = useJoin();
+  const [visible, setVisible] = useState(false);
   return (
     <FormRow label={label} divider={divider}>
       <TextInput
         testID={testID} accessibilityLabel={label} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={p.tx2}
-        secureTextEntry={secure} autoCapitalize="none" autoCorrect={false} spellCheck={false} maxLength={maxLength} inputMode={keyboard}
+        secureTextEntry={secure && !visible} autoCapitalize="none" autoCorrect={false} spellCheck={false} maxLength={maxLength} inputMode={keyboard}
         {...(autoComplete ? ({ autoComplete } as object) : {})} onSubmitEditing={onSubmit}
         style={[base(p), noOutline, { flex: 1, minWidth: 0, height: "100%" as unknown as number, textAlign: "right", color: p.tx, padding: 0 }, mono ? { fontFamily: MONO } : null, spaced ? { letterSpacing: 3 } : null]}
       />
+      {secure && revealable ? (
+        <Pressable
+          accessibilityRole="button" accessibilityLabel={visible ? "Hide password" : "Show password"} onPress={() => setVisible((current) => !current)} testID={visibilityTestID}
+          style={({ pressed }: { pressed?: boolean }) => ({ minWidth: 44, height: 44, marginRight: -12, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.55 : 1 })}
+        >
+          <Text style={[base(p), { color: p.blue, fontSize: 13, fontWeight: "500" }]}>{visible ? "Hide" : "Show"}</Text>
+        </Pressable>
+      ) : null}
     </FormRow>
   );
 }
@@ -291,8 +305,10 @@ function OptionView({ title, help, checked, onPress, divider, testID }: RowProps
 export function Switch({ on, onChange, label, testID }: { on: boolean; onChange: (v: boolean) => void; label: string; testID?: string }) {
   const { p } = useJoin();
   return (
-    <Pressable accessibilityRole="switch" accessibilityLabel={label} aria-checked={on} onPress={() => onChange(!on)} testID={testID} style={{ width: 51, height: 31, borderRadius: 16, backgroundColor: on ? p.green : p.sw }}>
-      <View style={{ position: "absolute", top: 2, left: on ? 22 : 2, width: 27, height: 27, borderRadius: 14, backgroundColor: "#fff", ...shadow("0 3px 8px rgba(0,0,0,.15), 0 1px 1px rgba(0,0,0,.16), 0 3px 1px rgba(0,0,0,.1)") }} />
+    <Pressable accessibilityRole="switch" accessibilityLabel={label} aria-checked={on} onPress={() => onChange(!on)} testID={testID} style={{ width: 51, minHeight: 44, justifyContent: "center" }}>
+      <View style={{ width: 51, height: 31, borderRadius: 16, backgroundColor: on ? p.green : p.sw }}>
+        <View style={{ position: "absolute", top: 2, left: on ? 22 : 2, width: 27, height: 27, borderRadius: 14, backgroundColor: "#fff", ...shadow("0 3px 8px rgba(0,0,0,.15), 0 1px 1px rgba(0,0,0,.16), 0 3px 1px rgba(0,0,0,.1)") }} />
+      </View>
     </Pressable>
   );
 }
@@ -408,7 +424,7 @@ export function Sheet({ children, label, onDismiss }: { children: ReactNode; lab
 export function CheckBox({ checked, onChange, label, testID }: { checked: boolean; onChange: (v: boolean) => void; label: string; testID?: string }) {
   const { p } = useJoin();
   return (
-    <Pressable accessibilityRole="checkbox" aria-checked={checked} onPress={() => onChange(!checked)} testID={testID} style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 18 }}>
+    <Pressable accessibilityRole="checkbox" aria-checked={checked} onPress={() => onChange(!checked)} testID={testID} style={{ flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44, marginTop: 18 }}>
       <View style={[{ width: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: p.tx2 }, checked ? { backgroundColor: p.blue, borderColor: p.blue } : null]}>
         {checked ? <Check size={11} color="#fff" /> : null}
       </View>
