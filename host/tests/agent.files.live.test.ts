@@ -70,16 +70,21 @@ test("an agent's AGENT.md and agent.toml cannot be deleted, moved or renamed thr
 
     // ruling 99: an agent must act for its owner at the invocation boundary; a raw access.check for the agent alone is refused.
     const agentId = d.db!.all("SELECT id FROM agents_agent WHERE name = 'Scout'")[0] as unknown as { id: string };
+    const ownerId = (d.db!.all("SELECT ownerId FROM agents_agent WHERE id = ?", agentId.id)[0] as unknown as { ownerId: string }).ownerId;
     const other = await post(d, "/v1/agents/create", { name: "Other", role: "Another agent.", idempotencyKey: "agent-files-other" }, token);
     assert.equal(other.status, 200, JSON.stringify(other.json));
     const otherId = (d.db!.all("SELECT id FROM agents_agent WHERE name = 'Other'")[0] as unknown as { id: string }).id;
-    const check = async (kind: string, id: string, level: string): Promise<{ effect: string; reason?: string }> => {
-      const r = await post(d, "/v1/access/check", { principal: { kind, id }, action: { perm: "files.read", level }, resource: { type: "folder", id: folderId } }, token);
+    const check = async (kind: string, id: string, level: string, actingFor?: string): Promise<{ effect: string; reason?: string }> => {
+      const r = await post(d, "/v1/access/check", { principal: { kind, id }, ...(actingFor ? { actingFor } : {}), action: { perm: "files.read", level }, resource: { type: "folder", id: folderId } }, token);
       assert.equal(r.status, 200, JSON.stringify(r.json));
       return r.json.data.decision;
     };
-    assert.equal((await check("agent", agentId.id, "view")).effect, "deny", "an agent without actingFor cannot access a home");
-    assert.equal((await check("agent", otherId, "view")).effect, "deny", "another agent has no access to it");
+    const raw = await check("agent", agentId.id, "view");
+    assert.deepEqual(raw, { effect: "deny", reason: "agent_needs_actor" }, "an agent without actingFor cannot access a home");
+    assert.equal((await check("agent", agentId.id, "view", ownerId)).effect, "allow", "the agent lists its own home for its owner");
+    assert.equal((await check("agent", agentId.id, "edit", ownerId)).effect, "allow", "and edits it");
+    assert.equal((await check("agent", agentId.id, "manage", ownerId)).effect, "deny", "but cannot share it out");
+    assert.equal((await check("agent", otherId, "view", ownerId)).effect, "deny", "another agent has no access to it");
 
     // a file lost underneath Files (a restore from an old backup, a hand edit of the database): the next start puts it back from the record
     d.db!.run("UPDATE files_file SET deleted_at = ? WHERE id = ?", Date.now(), agentMdFileId);
