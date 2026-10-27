@@ -80,7 +80,13 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
     for (const m of ERROR_MODES) {
       out.push({
         label: m.label, checked: (node.onError?.mode ?? "fail") === m.mode,
-        onSelect: () => onChange(updateStep(def, node.id, { onError: { mode: m.mode, ...(m.mode === "retry" ? { max: node.onError?.max ?? 3 } : {}), ...(m.mode === "route" && node.onError?.route ? { route: node.onError.route } : {}) } })),
+        onSelect: () => onChange(updateStep(def, node.id, { onError: {
+          mode: m.mode,
+          ...(m.mode === "retry" ? { max: node.onError?.max ?? 3 } : {}),
+          ...(m.mode === "route" && node.onError?.route ? { route: node.onError.route } : {}),
+          ...(m.mode === "route" && node.onError?.codes?.length ? { codes: [...node.onError.codes] } : {}),
+          ...(m.mode === "substitute" && node.onError?.output !== undefined ? { output: node.onError.output } : {}),
+        } })),
       });
     }
     return out;
@@ -88,7 +94,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
   const routeEntries = (): MenuEntry[] => {
     const out: MenuEntry[] = [];
     if (!node) return out;
-    for (const n of def.nodes) if (n.id !== node.id) out.push({ label: n.title ?? titleOfKey(n.key), onSelect: () => onChange(updateStep(def, node.id, { onError: { mode: "route", route: n.id } })) });
+    for (const n of def.nodes) if (n.id !== node.id) out.push({ label: n.title ?? titleOfKey(n.key), onSelect: () => onChange(updateStep(def, node.id, { onError: { mode: "route", route: n.id, ...(node.onError?.codes?.length ? { codes: [...node.onError.codes] } : {}) } })) });
     return out;
   };
   const mine = issues.filter((i) => (node ? i.nodeId === node.id : i.nodeId === "trigger"));
@@ -229,21 +235,43 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
           <Text style={i.groupHead}>If this step fails</Text>
           <Choice
             label="Then"
-            value={ERROR_MODES.find((m) => m.mode === (node.onError?.mode ?? "fail"))!.label}
+            value={ERROR_MODES.find((m) => m.mode === (node.onError?.mode ?? "fail"))?.label ?? "Stop the run"}
             testID="choose-error"
             onOpen={(x, y) => openMenu(errorEntries(), x, y, "other")}
           />
           {node.onError?.mode === "retry" ? <Field label="Tries" value={String(node.onError.max ?? 3)} testID="field-retries" onCommit={(t) => onChange(updateStep(def, node.id, { onError: { mode: "retry", max: Math.max(1, Math.min(10, Number.parseInt(t, 10) || 3)) } }))} /> : null}
-          {node.onError?.mode === "route" ? (
-            <Choice
-              label="Go to" value={def.nodes.find((n) => n.id === node.onError?.route)?.title ?? (node.onError.route ? titleOfKey(def.nodes.find((n) => n.id === node.onError?.route)?.key ?? "") : "Choose a step")} testID="choose-route"
-              onOpen={(x, y) => openMenu(routeEntries(), x, y, "other")}
+          {node.onError?.mode === "substitute" ? (
+            <Field
+              label="Result" testID="field-substitute" value={node.onError.output === undefined ? "" : JSON.stringify(node.onError.output)} placeholder="{\"ok\":false}"
+              onCommit={(t) => {
+                const trimmed = t.trim();
+                if (!trimmed) { onChange(updateStep(def, node.id, { onError: { mode: "substitute" } })); return; }
+                let output: unknown = t;
+                try { output = JSON.parse(t); } catch { output = t; }
+                onChange(updateStep(def, node.id, { onError: { mode: "substitute", output } }));
+              }}
             />
+          ) : null}
+          {node.onError?.mode === "route" ? (
+            <>
+              <Choice
+                label="Go to" value={def.nodes.find((n) => n.id === node.onError?.route)?.title ?? (node.onError.route ? titleOfKey(def.nodes.find((n) => n.id === node.onError?.route)?.key ?? "") : "Choose a step")} testID="choose-route"
+                onOpen={(x, y) => openMenu(routeEntries(), x, y, "other")}
+              />
+              <Field
+                label="Only these errors" testID="field-error-codes" value={(node.onError.codes ?? []).join(", ")} placeholder="Any error"
+                onCommit={(t) => {
+                  const codes = t.split(",").map((part) => part.trim()).filter((part) => part.length > 0);
+                  const route = node.onError?.route;
+                  onChange(updateStep(def, node.id, { onError: { mode: "route", ...(route ? { route } : {}), ...(codes.length > 0 ? { codes } : {}) } }));
+                }}
+              />
+            </>
           ) : null}
         </View>
         <MappingFix nodeIds={nodeIdSet(def)} value={node.input} />
         <Problems list={mine} />
-        {mine.some((item) => item.severity === "error") ? <AskVyre bundle={{ resource: "builder", nodeId: node.id, stepKey: node.key, definitionVersion: version, message: mine.find((item) => item.severity === "error")?.message ?? "" }} {...(onAsk ? { onOpen: onAsk } : {})} /> : null}
+        {mine.some((item) => item.severity === "error") ? <AskVyre bundle={{ resource: "automation", nodeId: node.id, stepKey: node.key, definitionVersion: version, message: mine.find((item) => item.severity === "error")?.message ?? "" }} {...(onAsk ? { onOpen: onAsk } : {})} /> : null}
         <Pressable accessibilityRole="button" accessibilityLabel="Delete this step" testID="delete-step" onPress={onDelete} style={[i.del, pointer]}>
           <Glyph name="x" size={13} color="var(--danger)" />
           <Text style={i.delText}>Delete this step</Text>

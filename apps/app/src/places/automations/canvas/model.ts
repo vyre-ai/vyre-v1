@@ -648,7 +648,12 @@ export function keyChoices(keys: readonly KeyChoice[], none: string, set: (id: s
 }
 
 export const ERROR_MODES = [
-  { mode: "fail", label: "Stop the run" }, { mode: "continue", label: "Carry on" }, { mode: "retry", label: "Try again" }, { mode: "route", label: "Go to another step" },
+  { mode: "fail", label: "Stop the run" },
+  { mode: "continue", label: "Carry on" },
+  { mode: "retry", label: "Try again" },
+  { mode: "skip", label: "Skip this step" },
+  { mode: "substitute", label: "Use another result" },
+  { mode: "route", label: "Go to another step" },
 ] as const;
 
 export function setBranch(n: DefNode, index: number, patch: Partial<NonNullable<DefNode["branches"]>[number]>): NonNullable<DefNode["branches"]> {

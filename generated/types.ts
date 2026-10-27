@@ -1955,9 +1955,11 @@ export type AutomationsCreateIn = {
             when?: string;
           }>;
         onError?: {
-          mode: "fail" | "continue" | "retry" | "route";
+          mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
           max?: number;
           route?: string;
+          codes?: Array<string>;
+          output?: unknown;
         };
         ai?: {
           agentId?: string;
@@ -2019,9 +2021,11 @@ export type AutomationsCreateOut = {
               when?: string;
             }>;
           onError?: {
-            mode: "fail" | "continue" | "retry" | "route";
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
             max?: number;
             route?: string;
+            codes?: Array<string>;
+            output?: unknown;
           };
           ai?: {
             agentId?: string;
@@ -2142,9 +2146,11 @@ export type AutomationsGetOut = {
               when?: string;
             }>;
           onError?: {
-            mode: "fail" | "continue" | "retry" | "route";
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
             max?: number;
             route?: string;
+            codes?: Array<string>;
+            output?: unknown;
           };
           ai?: {
             agentId?: string;
@@ -2303,9 +2309,11 @@ export type AutomationsMakePersonalCopyOut = {
               when?: string;
             }>;
           onError?: {
-            mode: "fail" | "continue" | "retry" | "route";
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
             max?: number;
             route?: string;
+            codes?: Array<string>;
+            output?: unknown;
           };
           ai?: {
             agentId?: string;
@@ -2394,9 +2402,11 @@ export type AutomationsMoveOut = {
               when?: string;
             }>;
           onError?: {
-            mode: "fail" | "continue" | "retry" | "route";
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
             max?: number;
             route?: string;
+            codes?: Array<string>;
+            output?: unknown;
           };
           ai?: {
             agentId?: string;
@@ -2510,9 +2520,11 @@ export type AutomationsPromoteOut = {
               when?: string;
             }>;
           onError?: {
-            mode: "fail" | "continue" | "retry" | "route";
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
             max?: number;
             route?: string;
+            codes?: Array<string>;
+            output?: unknown;
           };
           ai?: {
             agentId?: string;
@@ -2623,9 +2635,11 @@ export type AutomationsRestoreVersionOut = {
               when?: string;
             }>;
           onError?: {
-            mode: "fail" | "continue" | "retry" | "route";
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
             max?: number;
             route?: string;
+            codes?: Array<string>;
+            output?: unknown;
           };
           ai?: {
             agentId?: string;
@@ -2753,9 +2767,11 @@ export type AutomationsSetEnabledOut = {
               when?: string;
             }>;
           onError?: {
-            mode: "fail" | "continue" | "retry" | "route";
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
             max?: number;
             route?: string;
+            codes?: Array<string>;
+            output?: unknown;
           };
           ai?: {
             agentId?: string;
@@ -2886,9 +2902,11 @@ export type AutomationsUndeleteOut = {
               when?: string;
             }>;
           onError?: {
-            mode: "fail" | "continue" | "retry" | "route";
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
             max?: number;
             route?: string;
+            codes?: Array<string>;
+            output?: unknown;
           };
           ai?: {
             agentId?: string;
@@ -2966,9 +2984,11 @@ export type AutomationsUpdateIn = {
             when?: string;
           }>;
         onError?: {
-          mode: "fail" | "continue" | "retry" | "route";
+          mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
           max?: number;
           route?: string;
+          codes?: Array<string>;
+          output?: unknown;
         };
         ai?: {
           agentId?: string;
@@ -3028,9 +3048,11 @@ export type AutomationsUpdateOut = {
               when?: string;
             }>;
           onError?: {
-            mode: "fail" | "continue" | "retry" | "route";
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
             max?: number;
             route?: string;
+            codes?: Array<string>;
+            output?: unknown;
           };
           ai?: {
             agentId?: string;
@@ -3105,9 +3127,11 @@ export type AutomationsValidateIn = {
             when?: string;
           }>;
         onError?: {
-          mode: "fail" | "continue" | "retry" | "route";
+          mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
           max?: number;
           route?: string;
+          codes?: Array<string>;
+          output?: unknown;
         };
         ai?: {
           agentId?: string;

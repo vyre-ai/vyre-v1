@@ -61,9 +61,11 @@ type Out = {
               when?: string;
             }>;
           onError?: {
-            mode: "fail" | "continue" | "retry" | "route";
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
             max?: number;
             route?: string;
+            codes?: Array<string>;
+            output?: unknown;
           };
           ai?: {
             agentId?: string;
@@ -207,8 +209,12 @@ type Out = {
               "example"
             ],
             "onError": {
+              "codes": [
+                "example"
+              ],
               "max": 1,
               "mode": "fail",
+              "output": {},
               "route": "example"
             },
             "title": "example"

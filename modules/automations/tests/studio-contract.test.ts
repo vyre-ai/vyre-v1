@@ -5,7 +5,7 @@ import type { CapabilityContract } from "../val.ts";
 import { askBundle, scrubDiagnostics } from "../ask-vyre.ts";
 import { planMigration, previewCohorts } from "../migration.ts";
 import type { MigrationNode, MigrationRun } from "../migration.ts";
-import { liveRerunWarning, normalizePolicy } from "../failure-policy.ts";
+import { failureResult, liveRerunWarning, normalizePolicy } from "../failure-policy.ts";
 import { promote, visibleInPalette, CONNECT_LIMIT } from "../trust.ts";
 
 const live: CapabilityContract = {
@@ -104,6 +104,25 @@ test("skip and substitute do not become a live retry, and a live rerun names out
   assert.equal(normalizePolicy({ action: "stop" }).engine.mode, "fail");
   assert.match(liveRerunWarning(["write", "outward"]) ?? "", /live rerun/i);
   assert.equal(liveRerunWarning(["read"]), null);
+});
+
+test("a failed step skips, substitutes, retries, or routes only for a listed code", () => {
+  const timeout = Object.assign(new Error("nope"), { error: { code: "provider.timeout", message: "the provider timed out" } });
+  const bad = Object.assign(new Error("bad"), { error: { code: "validation.bad_input", message: "bad input" } });
+
+  assert.deepEqual(failureResult({ mode: "skip" }, timeout), { output: { skipped: true, error: "the provider timed out" } });
+  assert.notEqual(failureResult({ mode: "skip" }, timeout), "retry");
+  assert.deepEqual(failureResult({ mode: "substitute", output: { ok: false } }, timeout), { output: { ok: false } });
+  assert.deepEqual(failureResult({ mode: "substitute" }, timeout), { output: { substituted: true } });
+  assert.equal(failureResult({ mode: "retry", max: 99 }, timeout), "retry");
+  assert.deepEqual(failureResult({ mode: "continue" }, timeout), { output: { error: "the provider timed out" } });
+  assert.deepEqual(failureResult({ mode: "route", route: "handler" }, bad), { output: { error: "bad input" }, next: "handler" });
+  assert.deepEqual(failureResult({ mode: "route", route: "handler", codes: [] }, bad), { output: { error: "bad input" }, next: "handler" });
+  assert.deepEqual(failureResult({ mode: "route", route: "handler", codes: ["provider.timeout"] }, timeout), { output: { error: "the provider timed out" }, next: "handler" });
+  assert.equal(failureResult({ mode: "route", route: "handler", codes: ["provider.timeout"] }, bad), "throw");
+  assert.equal(failureResult({ mode: "route", codes: ["provider.timeout"] }, timeout), "throw");
+  assert.equal(failureResult({ mode: "fail" }, timeout), "throw");
+  assert.equal(failureResult(undefined, timeout), "throw");
 });
 
 test("connector promotion is one reviewed step, and built-in is not self-serve", () => {

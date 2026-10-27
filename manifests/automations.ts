@@ -19,10 +19,18 @@ const aiBlock = t.obj({
   agentId: t.opt(id.agent), keyId: t.opt(t.str()), backupKeyId: t.opt(t.str()), assigned: t.opt(assignee), reviewer: t.opt(assignee), approver: t.opt(assignee),
   timeoutMinutes: t.opt(t.int({ minimum: 1 })), nudgeMinutes: t.opt(t.int({ minimum: 1 })), escalateTo: t.opt(assignee),
 });
+const anyJson = t.json();
 const node = t.obj({
   id: t.str({ examples: ['step_1'] }), key: t.str({ description: 'A StepDef key', examples: ['records.update'] }), title: t.opt(t.str()), input: t.rec(),
   next: t.opt(t.arr(t.str())), branches: t.opt(t.arr(t.obj({ label: t.str(), to: t.str(), when: t.opt(t.str()) }))),
-  onError: t.opt(t.obj({ mode: t.enm('fail', 'continue', 'retry', 'route'), max: t.opt(t.int({ minimum: 1, maximum: 10 })), route: t.opt(t.str()) })), ai: t.opt(aiBlock),
+  onError: t.opt(t.obj({
+    mode: t.enm('fail', 'continue', 'retry', 'route', 'skip', 'substitute'),
+    max: t.opt(t.int({ minimum: 1, maximum: 10 })),
+    route: t.opt(t.str()),
+    codes: t.opt(t.arr(t.str())),
+    output: t.opt(anyJson),
+  })),
+  ai: t.opt(aiBlock),
 });
 const definition = t.obj({
   triggers: t.arr(triggerRef, { minItems: 1 }), nodes: t.arr(node), start: t.opt(t.arr(t.str())), allowSelfTrigger: t.opt(t.bool()),
@@ -46,7 +54,6 @@ const accessDiff = t.obj({
   vaultNames: t.arr(t.str()), connections: t.arr(t.str()), keysToReplace: t.arr(t.obj({ stepId: t.str(), keyId: t.str(), reason: t.str() })),
 });
 const target = { automationId: id.automation };
-const anyJson = t.json();
 
 const recordFilter = t.obj({ type: id.recordType, op: t.opt(t.enm('created', 'updated', 'deleted')), fields: t.opt(t.arr(t.str())), where: t.opt(anyJson) });
 const rowFilter = t.obj({ fileId: id.file, sheet: t.opt(t.str()), op: t.opt(t.enm('added', 'changed')), columns: t.opt(t.arr(t.str())) });
