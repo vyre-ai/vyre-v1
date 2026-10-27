@@ -7,6 +7,9 @@ use std::collections::BTreeMap;
 
 pub const SCHEME: &str = "vyre";
 pub const MAX_LEN: usize = 4096;
+pub const MAX_PARAMS: usize = 16;
+pub const MAX_PARAM_KEY_LEN: usize = 64;
+pub const MAX_PARAM_VALUE_LEN: usize = 2048;
 pub const ACTIONS: [&str; 4] = ["join", "open", "pair", "signin"];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -73,7 +76,13 @@ pub fn parse(url: &str) -> Option<DeepLink> {
         };
         let key = decode(k)?;
         let value = decode(v)?;
-        if key.is_empty() || params.len() >= 16 {
+        if key.is_empty()
+            || key.len() > MAX_PARAM_KEY_LEN
+            || value.len() > MAX_PARAM_VALUE_LEN
+            || params.len() >= MAX_PARAMS
+            || matches!(key.as_str(), "__proto__" | "constructor" | "prototype")
+            || params.contains_key(&key)
+        {
             return None;
         }
         params.insert(key, value);
@@ -119,6 +128,14 @@ mod tests {
     fn at_most_sixteen_params() {
         let many: Vec<String> = (0..17).map(|i| format!("k{i}=v")).collect();
         assert!(parse(&format!("vyre://join?{}", many.join("&"))).is_none());
+    }
+
+    #[test]
+    fn parameters_are_bounded_and_unambiguous() {
+        assert!(parse(&format!("vyre://join?{}=v", "k".repeat(MAX_PARAM_KEY_LEN + 1))).is_none());
+        assert!(parse(&format!("vyre://join?code={}", "x".repeat(MAX_PARAM_VALUE_LEN + 1))).is_none());
+        assert!(parse("vyre://join?code=first&code=second").is_none());
+        assert!(parse("vyre://join?__proto__=x").is_none());
     }
 
     #[test]

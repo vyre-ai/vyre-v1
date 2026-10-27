@@ -85,8 +85,11 @@ pub fn run() {
 
     let app = tauri::Builder::default()
         // Must be first so a second launch is caught before anything else starts.
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             show_main(app);
+            if let Some(link) = links::from_args(argv) {
+                commands::deliver(app, link);
+            }
         }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())

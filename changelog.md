@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Desktop: expose typed bootstrap status and validated Vyre deep links through the narrow Tauri bridge, including second-instance launches.
 - Desktop: stop the local sidecar through its loopback admin endpoint before process fallback, so Windows removes `vyred.json` on a requested shutdown.
 - Desktop smoke: use Windows Ctrl-Break for graceful sidecar shutdown, preserving the cleanup and restart proof before bounded force cleanup.
 - Desktop smoke: apply the owner-only mode-bit check only on POSIX hosts while retaining cross-platform token persistence coverage.

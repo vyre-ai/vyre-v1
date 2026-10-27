@@ -9,6 +9,28 @@ import { badgeText } from "./notify.ts";
 
 export type Invoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
 
+export type DesktopDeepLink = {
+  action: "join" | "open" | "pair" | "signin";
+  params: Record<string, string>;
+};
+
+export type DesktopInfo = {
+  app: string;
+  version: string;
+  platform: string;
+  arch: string;
+  sidecar: {
+    phase: "starting" | "ready" | "restarting" | "failed" | "stopped";
+    url: string | null;
+    version: string | null;
+    restarts: number;
+    error: string | null;
+  };
+};
+
+export type Unlisten = () => void;
+export type Listen = (event: "vyre://deep-link", listener: (event: { payload: unknown }) => void) => Promise<Unlisten>;
+
 export type Bridge = {
   /** Shows an OS banner when the rules allow it. Resolves true when one was shown. */
   notify(n: NotificationInput, opts: { windowFocused: boolean; showContent?: boolean }): Promise<boolean>;
@@ -16,9 +38,62 @@ export type Bridge = {
   pick(req: PickRequest): Promise<string[]>;
   /** The Needs you count for the tray and the dock. */
   setBadge(count: number): Promise<void>;
+  /** The packaged shell's status and a deep link that arrived before the page loaded. */
+  bootstrap(): Promise<{ info: DesktopInfo; pendingLink: DesktopDeepLink | null }>;
+  /** Receives only validated Vyre deep links; resolves to Tauri's unsubscribe function. */
+  listenLinks(listener: (link: DesktopDeepLink) => void): Promise<Unlisten>;
 };
 
-export function makeBridge(invoke: Invoke): Bridge {
+const deepLinkActions = new Set<DesktopDeepLink["action"]>(["join", "open", "pair", "signin"]);
+const sidecarPhases = new Set<DesktopInfo["sidecar"]["phase"]>(["starting", "ready", "restarting", "failed", "stopped"]);
+const maxLinkParams = 16;
+const maxLinkParamKeyLength = 64;
+const maxLinkParamValueLength = 2048;
+
+function record(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function text(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function nullableText(value: unknown): string | null | undefined {
+  return value === null || typeof value === "string" ? value : undefined;
+}
+
+function desktopInfo(value: unknown): DesktopInfo | null {
+  const got = record(value);
+  const sidecar = record(got?.["sidecar"]);
+  const app = text(got?.["app"]);
+  const version = text(got?.["version"]);
+  const platform = text(got?.["platform"]);
+  const arch = text(got?.["arch"]);
+  const phase = text(sidecar?.["phase"]);
+  const url = nullableText(sidecar?.["url"]);
+  const sidecarVersion = nullableText(sidecar?.["version"]);
+  const error = nullableText(sidecar?.["error"]);
+  const restarts = sidecar?.["restarts"];
+  if (!app || !version || !platform || !arch || !phase || !sidecarPhases.has(phase as DesktopInfo["sidecar"]["phase"]) || url === undefined || sidecarVersion === undefined || error === undefined || typeof restarts !== "number" || !Number.isSafeInteger(restarts) || restarts < 0) return null;
+  return { app, version, platform, arch, sidecar: { phase: phase as DesktopInfo["sidecar"]["phase"], url, version: sidecarVersion, restarts, error } };
+}
+
+function deepLink(value: unknown): DesktopDeepLink | null {
+  const got = record(value);
+  const action = text(got?.["action"]);
+  const rawParams = record(got?.["params"]);
+  if (!action || !deepLinkActions.has(action as DesktopDeepLink["action"]) || !rawParams) return null;
+  const entries = Object.entries(rawParams);
+  if (entries.length > maxLinkParams) return null;
+  const params: Record<string, string> = {};
+  for (const [key, param] of entries) {
+    if (!key || key.length > maxLinkParamKeyLength || param === undefined || typeof param !== "string" || param.length > maxLinkParamValueLength || key === "__proto__" || key === "constructor" || key === "prototype") return null;
+    params[key] = param;
+  }
+  return { action: action as DesktopDeepLink["action"], params };
+}
+
+export function makeBridge(invoke: Invoke, listen: Listen): Bridge {
   return {
     async notify(n, opts) {
       const os = osNotification(n, opts);
@@ -34,10 +109,31 @@ export function makeBridge(invoke: Invoke): Bridge {
     async setBadge(count) {
       await invoke("set_badge", { count: Math.max(0, Math.floor(Number.isFinite(count) ? count : 0)), text: badgeText(count) });
     },
+    async bootstrap() {
+      const [rawInfo, rawPendingLink] = await Promise.all([invoke("desktop_info"), invoke("take_pending_link")]);
+      const info = desktopInfo(rawInfo);
+      if (!info) throw new Error("desktop shell returned invalid bootstrap info");
+      const pendingLink = rawPendingLink === null ? null : deepLink(rawPendingLink);
+      if (rawPendingLink !== null && !pendingLink) throw new Error("desktop shell returned invalid pending link");
+      return { info, pendingLink };
+    },
+    async listenLinks(listener) {
+      return listen("vyre://deep-link", (event) => {
+        const link = deepLink(event.payload);
+        if (link) listener(link);
+      });
+    },
   };
 }
 
 /** The shell's invoke when the page runs inside it; undefined in a browser. */
-export function shellInvoke(g: { __TAURI__?: { core?: { invoke?: Invoke } } } = globalThis as never): Invoke | undefined {
+type TauriGlobal = { __TAURI__?: { core?: { invoke?: Invoke }; event?: { listen?: Listen } } };
+
+export function shellInvoke(g: TauriGlobal = globalThis as never): Invoke | undefined {
   return g.__TAURI__?.core?.invoke;
+}
+
+/** The shell's event listener when the page runs inside it; undefined in a browser. */
+export function shellListen(g: TauriGlobal = globalThis as never): Listen | undefined {
+  return g.__TAURI__?.event?.listen;
 }

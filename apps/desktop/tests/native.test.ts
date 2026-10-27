@@ -10,7 +10,8 @@ import type { Banner, NotificationInput } from "../src/notify.ts";
 import { MAX_PICKED, checkPicked, cleanExtension, isAbsolutePath, pickOptions } from "../src/files.ts";
 import { trayAction, trayModel } from "../src/tray.ts";
 import { ChannelError, MINOR_TOLERANCE, appSupportedByServer, compareVersions, manifestUrl, parseChannelManifest, platformKey, selectAppUpdate } from "../src/channel.ts";
-import { makeBridge, shellInvoke } from "../src/bridge.ts";
+import { makeBridge, shellInvoke, shellListen } from "../src/bridge.ts";
+import type { DesktopDeepLink, DesktopInfo } from "../src/bridge.ts";
 
 const DESKTOP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TAURI = path.join(DESKTOP, "src-tauri");
@@ -142,7 +143,7 @@ test("what comes back from the dialog: absolute paths only, no '..', no duplicat
 test("the bridge sends only what the rules allow and checks what comes back", async () => {
   const calls: { c: string; a?: Record<string, unknown> }[] = [];
   const answers: Record<string, unknown> = { pick_paths: ["/ok/a.pdf", "relative.pdf", "/ok/a.pdf"] };
-  const b = makeBridge(async (c, a) => { calls.push({ c, a }); return answers[c]; });
+  const b = makeBridge(async (c, a) => { calls.push({ c, a }); return answers[c]; }, async () => () => {});
   assert.equal(await b.notify(note({ level: "badge" }), { windowFocused: false }), false);
   assert.equal(calls.length, 0, "a badge-level item never calls the shell");
   assert.equal(await b.notify(note(), { windowFocused: true }), false);
@@ -159,6 +160,40 @@ test("the bridge sends only what the rules allow and checks what comes back", as
   assert.equal(shellInvoke({}), undefined, "in a browser there is no shell");
   const fn = async (): Promise<unknown> => 1;
   assert.equal(shellInvoke({ __TAURI__: { core: { invoke: fn } } }), fn);
+  const listen = async (): Promise<() => void> => () => {};
+  assert.equal(shellListen({ __TAURI__: { event: { listen } } }), listen);
+});
+
+test("desktop bootstrap returns only typed shell status and the one pending Vyre deep link", async () => {
+  const calls: string[] = [];
+  const info: DesktopInfo = {
+    app: "vyre-desktop", version: "1.0.0-rc.1", platform: "macos", arch: "aarch64",
+    sidecar: { phase: "ready", url: "http://127.0.0.1:41233", version: "1.0.0-rc.1", restarts: 0, error: null },
+  };
+  const pending: DesktopDeepLink = { action: "join", params: { address: "https://acme.vyre.run", code: "one-time-code", fp: "abcd" } };
+  const bridge = makeBridge(async (command) => {
+    calls.push(command);
+    return command === "desktop_info" ? info : command === "take_pending_link" ? pending : undefined;
+  }, async () => () => {});
+
+  assert.deepEqual(await bridge.bootstrap(), { info, pendingLink: pending });
+  assert.deepEqual(calls, ["desktop_info", "take_pending_link"]);
+});
+
+test("desktop link delivery subscribes only to the Vyre deep-link event and returns Tauri's unlisten function", async () => {
+  const calls: string[] = [];
+  const received: DesktopDeepLink[] = [];
+  const unlisten = (): void => {};
+  const bridge = makeBridge(async () => undefined, async (event, handler) => {
+    calls.push(event);
+    handler({ payload: { action: "open", params: { address: "https://acme.vyre.run" } } });
+    handler({ payload: { action: "delete", params: { address: "https://evil.example" } } });
+    return unlisten;
+  });
+
+  assert.equal(await bridge.listenLinks((link) => received.push(link)), unlisten);
+  assert.deepEqual(calls, ["vyre://deep-link"]);
+  assert.deepEqual(received, [{ action: "open", params: { address: "https://acme.vyre.run" } }]);
 });
 
 // ---- the app's update channel --------------------------------------------------------------------------------------------------------
