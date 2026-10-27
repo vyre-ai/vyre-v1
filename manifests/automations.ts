@@ -119,6 +119,9 @@ export default defineManifest({
       emits: ['automation.enabled', 'automation.disabled', 'automation.updated', 'automation.run_started', 'automation.trigger_dropped'],
       tool: 'automations',
     }),
+    read('automations.account_picks', 'The last account this person picked for each app', {
+      in: {}, out: { picks: t.arr(t.obj({ app: t.str(), accountId: t.str() })) }, tool: 'automations',
+    }),
     write('automations.delete', 'Move an Automation to Trash', {
       in: target, out: { deleted: t.bool() }, on: ['automation', '/automationId'], level: 'manage', gate: { act: 'delete', when: "actor.kind != 'person'" }, emits: ['automation.deleted'], tool: 'automations',
     }),

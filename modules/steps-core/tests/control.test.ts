@@ -428,6 +428,32 @@ test("in a sandbox, steps that write or send answer with their sample and nothin
   assert.deepEqual(run.outputs.if, { result: true });
 });
 
+test("send_email and send_sms use only the id on the step", async () => {
+  const h = harness({
+    "mail.mailbox.list": () => ({ mailboxes: [{ id: "mbx_first" }] }),
+    "telephony.number.list": () => ({ numbers: [{ id: "num_first" }] }),
+    "mail.send": () => ({ messageId: "eml_1" }),
+    "telephony.send_sms": () => ({ smsId: "sms_1" }),
+  }, { defaults: { mailboxId: "mbx_default", numberId: "num_default" } });
+  await assert.rejects(runStep(h.env, node("mail", "send_email", { to: ["a@b.c"], subject: "s", body: "b" }), callOf()), (e) => {
+    assert.equal((e as Error).message, "Send an email needs a mailbox. Pick one in the step.");
+    return true;
+  });
+  await assert.rejects(runStep(h.env, node("sms", "send_sms", { to: "+1555", body: "hi" }), callOf()), (e) => {
+    assert.equal((e as Error).message, "Send a text needs a number. Pick one in the step.");
+    return true;
+  });
+  assert.deepEqual(h.log.map((c) => c.cap), []);
+  const mail = await runStep(h.env, node("mail", "send_email", { mailboxId: "mbx_named", to: ["a@b.c"], subject: "s", body: "b" }), callOf());
+  assert.equal(h.only("mail.send")[0]!.input.mailboxId, "mbx_named");
+  assert.deepEqual(mail.output, { messageId: "eml_1" });
+  const sms = await runStep(h.env, node("sms", "send_sms", { numberId: "num_named", to: "+1555", body: "hi" }), callOf());
+  assert.equal(h.only("telephony.send_sms")[0]!.input.numberId, "num_named");
+  assert.deepEqual(sms.output, { messageId: "sms_1" });
+  assert.equal(h.only("mail.mailbox.list").length, 0);
+  assert.equal(h.only("telephony.number.list").length, 0);
+});
+
 test("steps.test runs one step: a read for real, anything else from its sample", async () => {
   const h = harness();
   const r = await stepsTest(h.ctx, { key: "if", input: { condition: "input.n > 2" }, sample: { n: 5 } }) as { output: unknown; stubbed: boolean };

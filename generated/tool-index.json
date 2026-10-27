@@ -524,6 +524,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_account_picks",
+      "summary": "The last account this person picked for each app",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_alerts_get",
       "summary": "Read error alerts: who, when and where, and the escalation chain",
       "toolset": "automations"

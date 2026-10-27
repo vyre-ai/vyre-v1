@@ -1946,6 +1946,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/automations/account_picks",
+    "cap": "automations.account_picks",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/automations/alerts/get",
     "cap": "automations.alerts.get",
     "v": 1,

@@ -363,11 +363,6 @@ interface Adapter {
 const people = (v: unknown): { address: string }[] => (Array.isArray(v) ? v : v === undefined ? [] : [v]).map((a) => ({ address: String(a) }));
 const looksHtml = (s: string): boolean => /^\s*</.test(s);
 
-async function firstOf(env: StepEnv, cap: string, listKey: string): Promise<string | undefined> {
-  const r = (await env.ctx.call!(cap, {})) as Record<string, { id?: string }[] | undefined>;
-  return r?.[listKey]?.[0]?.id;
-}
-
 const ADAPTERS: Record<string, Adapter> = {
   "records.create": { cap: "records.create", output: (o) => ({ recordId: o?.record?.id ?? o?.recordId }) },
   "records.find": { cap: "records.query", output: (o) => ({ rows: o?.rows ?? [], count: o?.total ?? (o?.rows ?? []).length }) },
@@ -383,8 +378,8 @@ const ADAPTERS: Record<string, Adapter> = {
   },
   send_email: {
     cap: (i) => (i.draftOnly === true ? "mail.draft" : "mail.send"),
-    input: async (i, env, call) => {
-      const mailboxId = i.mailboxId ?? env.defaults?.mailboxId ?? (await firstOf(env, "mail.mailbox.list", "mailboxes"));
+    input: (i, _env, call) => {
+      const mailboxId = i.mailboxId;
       if (!mailboxId) throw stepError("validation.precondition_failed", "Send an email needs a mailbox. Pick one in the step.", false);
       const body = String(i.body ?? "");
       return {
@@ -396,8 +391,8 @@ const ADAPTERS: Record<string, Adapter> = {
   },
   send_sms: {
     cap: "telephony.send_sms",
-    input: async (i, env, call) => {
-      const numberId = i.numberId ?? env.defaults?.numberId ?? (await firstOf(env, "telephony.number.list", "numbers"));
+    input: (i, _env, call) => {
+      const numberId = i.numberId;
       if (!numberId) throw stepError("validation.precondition_failed", "Send a text needs a number. Pick one in the step.", false);
       return { numberId, to: i.to, body: i.body, ...(i.recordId ? { contactId: i.recordId } : {}), idempotencyKey: call.key };
     },

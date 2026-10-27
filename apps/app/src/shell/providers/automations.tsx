@@ -10,6 +10,8 @@ import { AutomationsDataProvider } from "../../places/automations/canvas/data.ts
 import type { AutomationsData, KeysStatus } from "../../places/automations/canvas/data.tsx";
 import type { KeyChoice } from "../../places/automations/canvas/model.ts";
 import { AutomationCanvas } from "../../places/automations/canvas/AutomationCanvas.tsx";
+import { accountsFromVault, picksByApp } from "../../places/automations/connect/accounts.ts";
+import type { AccountOption } from "../../places/automations/connect/accounts.ts";
 import { connectionRoute } from "../../places/automations/connect/route.ts";
 import { AllRuns, Dependencies, LiveEvents, NeedsYou, Packages } from "../../places/automations/operations/StudioViews.tsx";
 import { AutomationsSidebarSlot } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
@@ -19,8 +21,8 @@ import { nameOf } from "./misc-common.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
-export function automationsData(rt: ShellRuntime, nav: AutomationsData["nav"], keys: readonly KeyChoice[] = [], keysStatus?: KeysStatus): AutomationsData {
-  return { screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name }, name: nameOf(rt), keys, ...(keysStatus ? { keysStatus } : {}), nav, clock: () => ({ now: rt.clock().now }) };
+export function automationsData(rt: ShellRuntime, nav: AutomationsData["nav"], keys: readonly KeyChoice[] = [], keysStatus?: KeysStatus, accounts?: readonly AccountOption[], lastPicks?: Readonly<Record<string, string>>): AutomationsData {
+  return { screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name }, name: nameOf(rt), keys, ...(keysStatus ? { keysStatus } : {}), ...(accounts ? { accounts } : {}), ...(lastPicks ? { lastPicks } : {}), nav, clock: () => ({ now: rt.clock().now }) };
 }
 
 function Loading(): ReactElement {
@@ -34,6 +36,8 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const [view, setView] = useState<StudioView>("automations");
   const [keys, setKeys] = useState<readonly KeyChoice[]>([]);
   const [keysStatus, setKeysStatus] = useState<KeysStatus>("loading");
+  const [accounts, setAccounts] = useState<readonly AccountOption[]>([]);
+  const [lastPicks, setLastPicks] = useState<Readonly<Record<string, string>> | undefined>(undefined);
   const openId = picked ?? hashed;
   const missing = useMissing(rt.screens, "automations.canvas", "automation", openId ? { automationId: openId, route: { automationId: openId } } : null);
   useEffect(() => {
@@ -45,6 +49,30 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
       setKeys(parsed);
       setKeysStatus(parsed.length > 0 ? "ready" : "empty");
     }).catch(() => { if (live) { setKeys([]); setKeysStatus("unavailable"); } });
+    return () => { live = false; };
+  }, [rt]);
+  useEffect(() => {
+    let live = true;
+    void Promise.all([
+      rt.call("connections.list", { whose: "all" }),
+      rt.call("mail.mailbox.list", { scope: "all" }),
+      rt.call("automations.account_picks", {}),
+    ]).then(([connectionsOut, mailOut, picksOut]) => {
+      if (!live) return;
+      const nextAccounts = accountsFromVault(connectionsOut, mailOut);
+      const nextPicks = picksByApp(picksOut);
+      if (!nextAccounts || !nextPicks) {
+        setAccounts([]);
+        setLastPicks(undefined);
+        return;
+      }
+      setAccounts(nextAccounts);
+      setLastPicks(nextPicks);
+    }).catch(() => {
+      if (!live) return;
+      setAccounts([]);
+      setLastPicks(undefined);
+    });
     return () => { live = false; };
   }, [rt]);
   const data = useMemo(() => automationsData(rt, {
@@ -61,7 +89,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
       rt.open({ screen: route.screen, args: route.args });
     },
     openKeys: () => rt.open({ screen: "vault.providers" }),
-  }, keys, keysStatus), [rt, opened, keys, keysStatus]);
+  }, keys, keysStatus, accounts, lastPicks), [rt, opened, keys, keysStatus, accounts, lastPicks]);
   const main = view === "needs" ? <NeedsYou />
     : view === "runs" ? <AllRuns />
     : view === "events" ? <LiveEvents />

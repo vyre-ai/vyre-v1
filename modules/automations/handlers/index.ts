@@ -3,10 +3,12 @@ import {
   alertsGet, alertsSet, create, followersAdd, followersRemove, get, groupsCreate, groupsDelete, groupsList, groupsRename, list, makePersonalCopy, move, previewPromote, promote, remove,
   restoreVersion, setEnabled, stepsList, triggersList, undelete, update, validate, versions, webhookGet, webhookRotate,
 } from "./defs.ts";
+import { accountPicks } from "./accounts.ts";
 import { scheduleChoose } from "./schedule.ts";
 import { fire, replay, retry, run, stop, test } from "./triggers.ts";
 
 export const handlers = {
+  "automations.account_picks": accountPicks,
   "automations.alerts.get": alertsGet,
   "automations.alerts.set": alertsSet,
   "automations.create": create,

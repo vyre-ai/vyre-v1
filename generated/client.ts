@@ -157,6 +157,7 @@ export function createClient(transport: Transport) {
       verify: call("audit.verify", 1),
     },
     automations: {
+      account_picks: call("automations.account_picks", 1),
       alerts: {
         get: call("automations.alerts.get", 1),
         set: call("automations.alerts.set", 1),
