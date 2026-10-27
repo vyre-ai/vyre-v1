@@ -32,19 +32,16 @@ test("booting twice on one data directory registers the Files root folders once 
     fetch: caddyFetch,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
-  const resources = (d: Awaited<ReturnType<typeof boot>>): Array<{ id: string; type: string }> => d.db!.all("SELECT id, type FROM access_resources ORDER BY id") as Array<{ id: string; type: string }>;
   const count = (d: Awaited<ReturnType<typeof boot>>): { folders: number; rows: number } => ({
     folders: Number((d.db!.all("SELECT COUNT(*) AS n FROM access_resources WHERE type = 'folder'")[0] as { n: number }).n),
     rows: Number((d.db!.all("SELECT COUNT(*) AS n FROM access_resources")[0] as { n: number }).n),
   });
   const first = await boot();
   const one = count(first);
-  const firstResources = resources(first);
   await first.stop();
   assert.ok(one.folders > 0, "the Files root folders are in the access module's tables");
   const second = await boot();
   try {
-    if (count(second).rows !== one.rows) console.log("files-resource-restart-diagnostic", JSON.stringify({ before: firstResources, after: resources(second) }));
     assert.deepEqual(count(second), one, "a second boot adds nothing");
   } finally { await second.stop(); }
 });

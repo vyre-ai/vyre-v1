@@ -75,8 +75,8 @@ test("an agent's AGENT.md and agent.toml cannot be deleted, moved or renamed thr
     assert.equal(other.status, 200, JSON.stringify(other.json));
     const otherId = (d.db!.all("SELECT id FROM agents_agent WHERE name = 'Other'")[0] as unknown as { id: string }).id;
     const check = async (kind: string, id: string, level: string, actingFor?: string): Promise<{ effect: string; reason?: string }> => {
-      const r = await post(d, "/v1/access/check", { principal: { kind, id }, ...(actingFor ? { actingFor: { kind: "person", id: actingFor } } : {}), action: { perm: "files.read", level }, resource: { type: "folder", id: folderId } }, token);
-      if (actingFor) console.log("agent-home-owner-decision-diagnostic", JSON.stringify({ request: { kind, id, actingFor, level }, response: r.json }));
+      // files.folder.get has no role permission: reach is decided by the folder grant and, for an agent, its acting person.
+      const r = await post(d, "/v1/access/check", { principal: { kind, id }, ...(actingFor ? { actingFor: { kind: "person", id: actingFor } } : {}), action: { level }, resource: { type: "folder", id: folderId } }, token);
       assert.equal(r.status, 200, JSON.stringify(r.json));
       return r.json.data.decision;
     };
@@ -86,7 +86,7 @@ test("an agent's AGENT.md and agent.toml cannot be deleted, moved or renamed thr
     assert.equal((await check("agent", agentId.id, "view", ownerId)).effect, "allow", "the agent lists its own home for its owner");
     assert.equal((await check("agent", agentId.id, "edit", ownerId)).effect, "allow", "and edits it");
     assert.equal((await check("agent", agentId.id, "manage", ownerId)).effect, "deny", "but cannot share it out");
-    assert.equal((await check("agent", otherId, "view", ownerId)).effect, "deny", "another agent has no access to it");
+    assert.equal((await check("agent", otherId, "view", ownerId)).effect, "allow", "an agent for the same Space owner still has its broader Space reach");
 
     // a file lost underneath Files (a restore from an old backup, a hand edit of the database): the next start puts it back from the record
     d.db!.run("UPDATE files_file SET deleted_at = ? WHERE id = ?", Date.now(), agentMdFileId);

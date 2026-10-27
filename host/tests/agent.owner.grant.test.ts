@@ -64,7 +64,8 @@ test("the owner of a new agent reaches its folder from the start; after a reassi
     };
     const folderOwnerBefore = (await sharesOf("folder", agent.folderId)).filter((w) => w.startsWith("owner:"));
     assert.equal(folderOwnerBefore.length, 1);
-    assert.ok((await sharesOf("agent", agent.id)).includes(`owner:${first.id}`), "the agent resource is the named owner's from the start");
+    const agentSharesBefore = await sharesOf("agent", agent.id);
+    assert.ok(agentSharesBefore.includes(`owner:${first.id}`), `the agent resource is the named owner's from the start: ${agentSharesBefore.join(", ")}`);
     assert.ok((await sharesOf("folder", agent.folderId)).includes(`manage:${first.id}`) || (await sharesOf("folder", agent.folderId)).some((w) => w.endsWith(`:${first.id}`)), "and so is the folder (a Manage share)");
 
     // moving ownership drops grants, so it is the server's alone: nobody reaches it over the gateway, whoever they are
