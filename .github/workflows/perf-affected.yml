@@ -1,0 +1,46 @@
+name: affected-perf
+
+on:
+  push:
+    branches-ignore: [main, 'gh-readonly-queue/**']
+  workflow_dispatch:
+
+concurrency:
+  group: affected-perf-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  select:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.sel.outputs.matrix }}
+      count: ${{ steps.sel.outputs.count }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - id: sel
+        run: |
+          git fetch -q origin main
+          BASE="$(git merge-base origin/main HEAD)"
+          node scripts/ci-select.ts "$BASE" --matrix --affected-perf > select.json
+          node -e 'const r=JSON.parse(require("fs").readFileSync("select.json","utf8")); const o=process.env.GITHUB_OUTPUT; require("fs").appendFileSync(o,"matrix="+JSON.stringify(r.matrix)+"\ncount="+r.matrix.include.length+"\n")'
+  perf:
+    name: ${{ matrix.name }}
+    needs: select
+    if: needs.select.outputs.count != '0'
+    runs-on: [self-hosted, linux, v1-perf]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/run-shard
+        with:
+          files: ${{ matrix.files }}
+          slow: ${{ matrix.slow }}
+          runner: ${{ matrix.runner }}
