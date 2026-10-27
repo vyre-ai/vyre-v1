@@ -42,8 +42,8 @@ const files = fs.readdirSync(dir).filter((f) => /\.ya?ml$/.test(f)).sort();
 const all = files.map(parse);
 const wf = (n: string) => all.find((w) => w.file === `${n}.yml`)!;
 
-test("at most 20 workflow files, and the named stages exist", () => {
-  assert.ok(files.length <= 20, `${files.length} workflow files`);
+test("at most 21 workflow files, and the named stages exist", () => {
+  assert.ok(files.length <= 21, `${files.length} workflow files`);
   for (const n of ["check", "golden", "client", "kits", "images", "heavy", "native", "desktop", "security", "main", "release", "deploy", "nightly"]) assert.ok(wf(n), `${n}.yml`);
 });
 
@@ -70,8 +70,8 @@ test("budget jobs run if always() at 5, 10 and 25 minutes", () => {
   }
 });
 
-test("native and desktop continue on error and never gate live or merge-ok", () => {
-  for (const n of ["native", "desktop"]) for (const j of wf(n).jobs) assert.ok(j.continueOnError, `${n}.yml job ${j.name}`);
+test("native stays non-blocking for live while the macOS desktop artifact gates only publication", () => {
+  for (const j of wf("native").jobs) assert.ok(j.continueOnError, `native.yml job ${j.name}`);
   const gates = all.flatMap((w) => w.jobs.filter((j) => /^(live|merge-ok|deploy|check|golden|budget)$/.test(j.name)).map((j) => ({ w: w.file, j })));
   assert.ok(gates.some((g) => g.j.name === "live") && gates.some((g) => g.j.name === "merge-ok"));
   for (const { w, j } of gates) for (const dep of j.needs) assert.ok(!/^(native|desktop)$/.test(dep), `${w}: ${j.name} needs ${dep}`);
@@ -79,6 +79,19 @@ test("native and desktop continue on error and never gate live or merge-ok", () 
   const rel = wf("release");
   const reach = (n: string, seen = new Set<string>()): Set<string> => { for (const d of rel.jobs.find((j) => j.name === n)?.needs ?? []) if (!seen.has(d)) { seen.add(d); reach(d, seen); } return seen; };
   for (const g of ["live", "deploy"]) for (const bad of ["native", "desktop"]) assert.ok(!reach(g).has(bad), `${g} reaches ${bad}`);
+  const assembled = rel.jobs.find((j) => j.name === "desktop-release-files");
+  assert.ok(assembled, "release assembles the desktop artifact");
+  assert.deepEqual(assembled.needs, ["package", "desktop"]);
+  assert.match(assembled.text, /name: desktop-macOS, path: desktop-artifact/);
+  assert.match(assembled.text, /exactly one DMG/);
+  assert.match(assembled.text, /sha256sum/);
+  assert.match(assembled.text, /name: release-files-desktop/);
+  assert.doesNotMatch(assembled.text, /nsis/i, "Windows installers never enter the release payload");
+  for (const n of ["sign", "sign-dryrun"] as const) {
+    const job = rel.jobs.find((j) => j.name === n)!;
+    assert.ok(job.needs.includes("desktop-release-files"), `${n} waits for the macOS package`);
+    assert.match(job.text, /name: release-files-desktop, path: dist/);
+  }
 });
 
 test("no npm install, docker pull or curl outside prewarm", () => {
@@ -89,9 +102,11 @@ test("no npm install, docker pull or curl outside prewarm", () => {
     // Pinned forms are allowed anywhere: a pull of image@sha256:<digest> (or a helper that does that) and a curl in a job that also checks a literal sha256 with `sha256sum -c`.
     const lines = code.split("\n").filter((l) => bad.test(l));
     const pinned = (l: string) => (/docker pull/.test(l) && /@\$2|@sha256:[0-9a-f]{64}/.test(l)) || (/\bcurl /.test(l) && /sha256sum -c/.test(code) && /[0-9a-f]{64}/.test(code));
-    assert.ok(lines.every(pinned), `${w.file}: job ${j.name} installs or downloads`);
+    const lockedDesktopDeps = (l: string) => w.file === "desktop.yml" && j.name === "desktop" && /npm ci --no-audit --no-fund/.test(l);
+    assert.ok(lines.every((l) => pinned(l) || lockedDesktopDeps(l)), `${w.file}: job ${j.name} installs or downloads`);
   }
   assert.match(wf("nightly").text, /prewarm:/);
+  assert.match(wf("desktop").text, /npm ci --no-audit --no-fund/, "the packaged desktop build installs only the lockfile tree");
 });
 
 test("check, main and release run their shards through the one run-shard action: test-run.mjs for fast files, test-run.ts for the slow list, so the three cannot drift", () => {

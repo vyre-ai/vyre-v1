@@ -19,3 +19,11 @@ test("gateway actor-kind home grants fold onto the registered agent and person",
   assert.equal(store.grants.get("gr_external")?.subject.kind, "actor");
   assert.deepEqual(store.snapshot().grantsOn("fld_home")?.map((g) => g.row.subject_kind), ["actor", "actor", "actor"]);
 });
+
+test("access.sync removes a replayed grant.revoked", () => {
+  const store = new AccessStore();
+  applyEvent(store, { type: "grant.created", payload: { id: "gr_old", subject_kind: "actor", subject_id: "agt_home", resource_type: "space", resource_id: "spc_core", level: "edit" } }, 1);
+  assert.equal(store.grants.has("gr_old"), true);
+  applyEvent(store, { type: "grant.revoked", payload: { grantId: "gr_old" } }, 2);
+  assert.equal(store.grants.has("gr_old"), false);
+});

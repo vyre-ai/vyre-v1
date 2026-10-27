@@ -4,6 +4,7 @@ import { commit } from "./commit.ts";
 import { parseAirtable, parseCsv, parseExcel, parseGoogleSheets, parseNotion, suggestMapping } from "./parse.ts";
 import { preview } from "./preview.ts";
 import { discard, get, list, template } from "./session.ts";
+import { sessionsContinue, sessionsImport } from "./sessions.ts";
 
 export const handlers = {
   "import.commit": commit,
@@ -18,4 +19,6 @@ export const handlers = {
   "import.preview": preview,
   "import.suggest_mapping": suggestMapping,
   "import.template": template,
+  "sessions.import": sessionsImport,
+  "sessions.continue": sessionsContinue,
 };

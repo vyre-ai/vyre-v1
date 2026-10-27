@@ -87,8 +87,8 @@ import type { LiveHub, SyncHubPort } from "../ws.ts";
 import { bootstrapSpace, mintOwner } from "./bootstrap.ts";
 import { createAccess, isAccessEvent, isMemberOrGuest, toAccessEvent, touchesAccess } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
-import { createResourceRegistrar } from "../gateway/resources.ts";
-import { createPrincipalRegistrar } from "../gateway/principals.ts";
+import { createResourceRegistrar, missingAgentResources } from "../gateway/resources.ts";
+import { createPrincipalRegistrar, missingAgentPrincipalEvents } from "../gateway/principals.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
 import type { HookRunner, ModuleHooks } from "./consumers.ts";
@@ -116,6 +116,21 @@ export const CODE_ROOT = path.resolve(HERE, "../../..");
 const registryHash = sha256b64(fs.readFileSync(new URL("../../../generated/registry.json", import.meta.url)));
 const ZERO_TRACE = "0".repeat(32);
 const RING = 5000;
+
+const repairPayload = (payload: unknown): unknown => {
+  if (!(payload instanceof Uint8Array)) return payload;
+  try { return JSON.parse(new TextDecoder().decode(payload)); } catch { return undefined; }
+};
+const stableJson = (value: unknown): string => JSON.stringify(value, (_key, item) =>
+  item !== null && typeof item === "object" && !Array.isArray(item)
+    ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b)))
+    : item,
+);
+export const repairEventMatches = (stored: { id: string; type: string; sv: number; trace_id: string; span_id?: string; actor: string; vis: string; entity?: string; entity_id?: string; on_behalf?: string; device?: string; run_id?: string; cause?: string; origin?: string; depth: number; fields?: readonly string[]; label: number; enc: number; key_id?: string; nonce?: string; payload: unknown }, intended: { id?: string; type: string; sv: number; trace_id: string; span_id?: string; actor: string; vis: string; entity?: string; entity_id?: string; on_behalf?: string; device?: string; run_id?: string; cause?: string; origin?: string; depth?: number; fields?: readonly string[]; label?: number; enc?: number; key_id?: string; nonce?: string; payload: unknown }): boolean =>
+  stored.id === intended.id && stored.type === intended.type && stored.sv === intended.sv && stored.trace_id === intended.trace_id && stored.span_id === intended.span_id && stored.actor === intended.actor && stored.vis === intended.vis &&
+  stored.entity === intended.entity && stored.entity_id === intended.entity_id && stored.on_behalf === intended.on_behalf && stored.device === intended.device && stored.run_id === intended.run_id &&
+  stored.cause === intended.cause && stored.origin === intended.origin && stored.depth === (intended.depth ?? 0) && stableJson(stored.fields) === stableJson(intended.fields) &&
+  stored.label === (intended.label ?? 0) && stored.enc === (intended.enc ?? 0) && stored.key_id === intended.key_id && stored.nonce === intended.nonce && stableJson(repairPayload(stored.payload)) === stableJson(intended.payload);
 
 const refusingVault: VaultPort = {
   secret: () => Promise.reject(new Error("The Vault is not live on this server.")),
@@ -354,9 +369,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const first = await log.verify();
       if (first.ok) verified = { seq: first.seq, hash: first.head }; else chainBroken = true;
       sink.log({ space, level: first.ok ? 20 : 40, msg: "events.verified", place: "boot", result: first.ok ? "ok" : "broken", attrs: first.ok ? { seq: first.seq } : { at: first.at, why: first.why } });
+      const agentAccessEvents: { type: string; payload: unknown }[] = [];
       for (let after = 0; ;) {
         const page = await log.read({ after, limit: 5000 });
         for (const e of page) {
+          if (e.type === "resource.created" || e.type === "principal.created" || e.type === "principal.role_set" || e.type === "grant.created" || e.type === "grant.revoked" || e.type.startsWith("agent.")) agentAccessEvents.push(e);
           access.fold(e);
           if (isAccessEvent(e.type)) accessPending.push(toAccessEvent(e));
           if (e.type === "space.created") { sawSpace = true; if (e.id.startsWith("evt_boot_")) hostMadeSpace = true; }
@@ -368,6 +385,44 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (!sawSpace) {
         const made = await bootstrapSpace(log, { space, name: cfg.spaceName ?? space, owner: mintOwner(cfg.owner) });
         if (made) { hostMadeSpace = true; for (const e of made.events) { access.fold(e); accessPending.push(toAccessEvent(e)); } }
+      }
+      // Before the generic registrar existed, imported and prototype logs could have a valid
+      // agent.created without its access resource. Repair only from that birth event, never
+      // from an arbitrary later event (which may run as svc_host and has no owner authority).
+      if (!chainBroken) {
+        const appendRepair = async (event: Parameters<LogClient["appendResult"]>[0]) => {
+          const repaired = await log.appendResult(event);
+          if (!repaired.ok) throw new Error(`could not reconcile agent access ${event.entity_id ?? event.id ?? "event"}: ${repaired.message}`);
+          if (repaired.duplicate && !repairEventMatches(repaired.event, event)) throw new Error(`reconciliation event ID collision for ${event.id ?? "event"}`);
+          return repaired;
+        };
+        for (const row of missingAgentResources({ space, events: agentAccessEvents })) {
+          const repaired = await appendRepair({
+            id: `evt_res_${row.id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: row.id, payload: row,
+          });
+          if (!repaired.duplicate) {
+            access.fold(repaired.event);
+            accessPending.push(toAccessEvent(repaired.event));
+            sink.log({ space, level: 20, msg: "access.agent_resource_reconciled", place: "boot", entity: "agent", entity_id: row.id, attrs: { owner: row.owner_id } });
+          }
+        }
+        const levelOf = (person: string, scope: string): "edit" | "view" | "none" => {
+          const may = (level: "edit" | "view"): boolean => authorize(access.snap, { principal: person, action: { perm: null, level }, resource: { type: "space", id: scope } }).effect === "allow";
+          return may("edit") ? "edit" : may("view") ? "view" : "none";
+        };
+        // Prototype/import logs predate both registrars.  The immutable agent.created
+        // payload, not a subsequent host event, is the authority for every repair.
+        for (const repairedEvent of missingAgentPrincipalEvents({ space, events: agentAccessEvents, levelOf })) {
+          const repaired = await appendRepair({
+            id: `evt_agent_access_${repairedEvent.type.replace(".", "_")}_${repairedEvent.id}`,
+            type: repairedEvent.type, sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: repairedEvent.entity, entity_id: repairedEvent.id, payload: repairedEvent.payload,
+          });
+          if (!repaired.duplicate) {
+            access.fold(repaired.event);
+            accessPending.push(toAccessEvent(repaired.event));
+            sink.log({ space, level: 20, msg: "access.agent_principal_reconciled", place: "boot", entity: "agent", entity_id: repairedEvent.id });
+          }
+        }
       }
       headSeq = (await log.currentHead()).seq;
 
@@ -485,7 +540,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const wrapped: Handler = (ctx, input) => h({ ...ctx, call: (name, callInput, opts) => (name === "sync.epoch.bump" ? system(name, callInput, ctx.trace) : ctx.call(name, callInput, opts)) } as typeof ctx, input);
           return wrapped;
         })()),
-        services: hostServices({ base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)), seal, queue: scheduleQueue, blobs, vault: (seed) => createVaultService((c, i, sd) => invokeRef(c, i, sd), spaceId, seed) }),
+        services: hostServices({
+          base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)), seal, queue: scheduleQueue, blobs,
+          vault: (seed) => createVaultService((c, i, sd) => invokeRef(c, i, sd), spaceId, seed),
+        }),
         idem, rate: createRateLimiter(), now, log: sinkLog,
         ...(gate ? { gate } : {}),
         personal,

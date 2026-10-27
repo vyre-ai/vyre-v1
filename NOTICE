@@ -1,3 +1,6 @@
+Vyre
+Copyright 2026 Clearfield Labs, Inc.
+
 Vyre is licensed under the Apache License, Version 2.0 (LICENSE).
 
 Files copied from Vyre 0.6.9 carry a header comment "from vyre 0.6.9 <path>@<sha>" until the cleanup pass removes it.

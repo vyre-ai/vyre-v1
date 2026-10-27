@@ -1,6 +1,19 @@
 # Changelog
 
 ## Unreleased
+- Release: gate tag publication on the exact-tag macOS desktop build, publish its verified ad-hoc-signed DMG with a SHA-256 sidecar, and leave Windows as CI-only coverage.
+- Gateway: reconcile legacy/imported `agent.created` births missing resource and principal access events at boot, preserving the named owner and deterministic grants without allowing follow-up agent events to claim resources.
+- Gateway: limit legacy agent-access repair to the owner-capped Space grant; defer home-folder grants to the agents module, preserve historical grant revocations, and fail boot on a conflicting deterministic repair event id.
+- Gateway: include revoked grants in boot reconciliation history, preserve any existing agent Space grant without widening it, and validate every deterministic repair-envelope field, including `span_id`, on duplicate ids.
+- Gateway: only `agent.created` may register an agent access resource, preventing concurrent host follow-up events from assigning it to `svc_host`.
+- CI: run affected perf coverage in a serialized, dedicated workflow so push checks do not time out waiting on the shared perf-host disk lock.
+- CI: gate pull requests and merge-queue batches on the serialized affected-perf result; a missing or failed affected perf shard cannot merge.
+- Add consent-gated, idempotent Codex and Claude Code session import with immutable provenance, project identity binding, and linked live-chat continuation.
+- Scope session sources, imported conversations, and project bindings to their owner and Space; default imports to Personal and require explicit confirmed Team destination selection.
+- Resolve every session-import destination to an authorized concrete Space before writing; Personal defaults cannot land in an ambient Team, confirmed Team imports name their target, and continuation follows that target.
+- Wire destination resolution and routed invocation through the real host context, preserving the authenticated principal, acting-for identity, and trace across the destination boundary.
+- Add the platform-owned two-daemon destination provider: it resolves an owner’s Personal endpoint, validates Team membership at the target, and re-enters that daemon with the original invocation seed.
+- Scope the v1 release candidate to Personal Space session import only; Team routing is explicitly deferred to v1.1.
 - Desktop: consume successful one-time pair and join routes before later sign-out, keep sessions address-scoped, defer personal-key unlock until session verification, and restrict Space traffic to HTTPS except local loopback development endpoints.
 - Desktop: redeem pair links and accept invite links through the real anonymous contracts, seal new Space keys to the previewed public Space id, and persist only after authenticated Space-ID agreement; paired-device key ciphertext stays out of ordinary session storage.
 - Members: expose the invite preview's public Space routing id to pending and anonymous callers without exposing the one-time code.

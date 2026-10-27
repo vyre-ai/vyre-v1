@@ -22139,6 +22139,42 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/sessions/continue",
+    "cap": "sessions.continue",
+    "v": 1,
+    "module": "import",
+    "effects": "write",
+    "permission": "chats.private",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/sessions/import",
+    "cap": "sessions.import",
+    "v": 1,
+    "module": "import",
+    "effects": "write",
+    "permission": "chats.private",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/settings/copy_profile",
     "cap": "settings.copy_profile",
     "v": 1,

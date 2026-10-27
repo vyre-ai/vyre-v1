@@ -34,8 +34,8 @@ The budget is not at risk from these numbers, but they are measured on placehold
 
 1. `kernel/tests/gsia.seal.test.ts:102` "a short key is refused" fails on the tag commit. Someone owning kernel/ must look; it blocks a real tag.
 2. `golden/harness.test.ts` and `fixtures/seed/small/small.seed.test.ts` take over 30 s on a loaded fast shard (32 s). They belong on the slow list (ruling 52, scripts/slow-check.ts), or the tag must run golden through `golden.yml` only.
-3. release.yml has no lineage, sign, publish or smoke job, and deploy.yml, native.yml, desktop.yml, heavy.yml, images.yml, kits.yml, client.yml and security.yml are placeholders that echo. docs/release/runbook.md says which steps do not exist yet.
-4. The GitHub Environment `release` does not exist on vyre-ai/vyre-v1 (the one owner action in the runbook).
+3. This historical run predates the current release workflow. `release.yml` now has lineage, signing, publishing and smoke stages, and `desktop.yml` builds the ad-hoc-signed macOS DMG used by the release payload. The current gaps are the `release` Environment/key, real deploy, and mobile artifacts; see docs/release/runbook.md.
+4. The historical run predated the now-configured GitHub Environment `release`, its protected signing secret, required reviewer, and online signing/build runners. A real release has not run yet.
 
 ## Not run, by instruction
 

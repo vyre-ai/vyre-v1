@@ -19,6 +19,11 @@ export function foldEvent(snap: AccessSnapshot, e: FoldableEvent): void {
     case "group.member_added": snap.addMember(body<{ group: string; member: string }>(e)); return;
     case "resource.created": snap.putResource(body<ResourceRow>(e)); return;
     case "grant.created": snap.putGrant(body<GrantRow>(e)); return;
+    case "grant.revoked": {
+      const grantId = body<{ grantId?: unknown }>(e).grantId;
+      if (typeof grantId === "string") snap.revokeGrant(grantId);
+      return;
+    }
     default: return;
   }
 }
@@ -31,7 +36,7 @@ export function buildAccess(events: readonly FoldableEvent[]): AccessSnapshot {
 
 /** The events the access module folds into its store (modules/access/consumers.ts ACCESS_EVENTS). */
 const MODULE_EVENTS = new Set([
-  "role.defined", "principal.created", "principal.role_set", "group.member_added", "resource.created", "grant.created",
+  "role.defined", "principal.created", "principal.role_set", "group.member_added", "resource.created", "grant.created", "grant.revoked",
   "principal.suspended", "principal.reactivated", "member.removed",
 ]);
 export const isAccessEvent = (type: string): boolean => MODULE_EVENTS.has(type);

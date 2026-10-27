@@ -34,6 +34,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/cache@v4
         with:
@@ -61,10 +63,24 @@ jobs:
       - name: Build the shell
         working-directory: apps/desktop
         run: |
-          if [ "$RUNNER_OS" = "macOS" ]; then npm run build:mac; else npm run build:win; fi
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            rm -rf src-tauri/target/release/bundle/macos src-tauri/target/release/bundle/dmg
+            npm run build:mac
+          else
+            npm run build:win
+          fi
       - name: Verify the ad-hoc signature
         if: runner.os == 'macOS'
-        run: codesign -dv --verbose=2 apps/desktop/src-tauri/target/release/bundle/macos/Vyre.app 2>&1 | tee proof-codesign.txt
+        run: |
+          set -euo pipefail
+          app=apps/desktop/src-tauri/target/release/bundle/macos/Vyre.app
+          codesign --verify --deep --strict "$app"
+          codesign -dvvv "$app" 2>&1 | tee proof-codesign.txt
+          grep -F "Signature=adhoc" proof-codesign.txt
+          shopt -s nullglob
+          dmgs=(apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg)
+          [ "${#dmgs[@]}" -eq 1 ] || { echo "expected exactly one DMG, found ${#dmgs[@]}"; exit 1; }
+          hdiutil verify "${dmgs[0]}"
       - name: Exercise the packaged shell and capture it
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then APP="$PWD/apps/desktop/src-tauri/target/release/bundle/macos/Vyre.app/Contents/MacOS/vyre-desktop"; else APP="$PWD/apps/desktop/src-tauri/target/release/vyre-desktop.exe"; fi
