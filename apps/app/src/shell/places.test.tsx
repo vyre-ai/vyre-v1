@@ -106,9 +106,10 @@ test("before the Space's runtime exists a place draws its loading frame, never a
 
 test("a place whose list is empty says so with the shared empty state", async () => {
   const { rt, sample } = runtimeFor("northwind", true);
-  (sample.replica as unknown as Loose).resolve("sites.list", () => ({ sites: [] }));
+  // the Apps place draws its own Forms list first and says so in its own words when it is empty
+  (sample.replica as unknown as Loose).resolve("forms.list", () => ({ forms: [] }));
   const out = await mount("sites", rt);
-  assert.ok(out.includes("No sites or apps yet."));
+  assert.ok(out.includes("No forms yet. Make one with New."));
   assert.ok(!out.includes("Northwind website"));
   assert.deepEqual(listItems({ files: [] }), []);
 });
