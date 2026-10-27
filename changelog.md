@@ -3,7 +3,7 @@
 ## Unreleased
 - Gateway: reconcile legacy/imported `agent.created` births missing resource and principal access events at boot, preserving the named owner and deterministic grants without allowing follow-up agent events to claim resources.
 - Gateway: limit legacy agent-access repair to the owner-capped Space grant; defer home-folder grants to the agents module, preserve historical grant revocations, and fail boot on a conflicting deterministic repair event id.
-- Gateway: include revoked grants in boot reconciliation history, preserve any existing agent Space grant without widening it, and validate every deterministic repair-envelope field on duplicate ids.
+- Gateway: include revoked grants in boot reconciliation history, preserve any existing agent Space grant without widening it, and validate every deterministic repair-envelope field, including `span_id`, on duplicate ids.
 - Gateway: only `agent.created` may register an agent access resource, preventing concurrent host follow-up events from assigning it to `svc_host`.
 - Desktop: stop the local sidecar through its loopback admin endpoint before process fallback, so Windows removes `vyred.json` on a requested shutdown.
 - Desktop smoke: use Windows Ctrl-Break for graceful sidecar shutdown, preserving the cleanup and restart proof before bounded force cleanup.

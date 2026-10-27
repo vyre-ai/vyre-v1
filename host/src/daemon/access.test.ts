@@ -17,3 +17,9 @@ test("repair duplicate validation rejects a changed deterministic envelope field
   const stored = { ...intended, actor: "svc_import", depth: 0, label: 0, enc: 0 };
   assert.equal(repairEventMatches(stored, intended), false);
 });
+
+test("repair duplicate validation rejects a changed span_id", () => {
+  const intended = { id: "evt_agent_access_principal_created_agt_demo", type: "principal.created", sv: 1, trace_id: "c0".repeat(16), span_id: "span_repair", actor: "svc_host", vis: "space", entity: "principal", entity_id: "agt_demo", payload: { id: "agt_demo" } };
+  const stored = { ...intended, span_id: "span_collision", depth: 0, label: 0, enc: 0 };
+  assert.equal(repairEventMatches(stored, intended), false);
+});
