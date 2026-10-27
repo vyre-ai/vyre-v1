@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- CI: run affected perf coverage in a serialized, dedicated workflow so push checks do not time out waiting on the shared perf-host disk lock.
+- CI: gate pull requests and merge-queue batches on the serialized affected-perf result; a missing or failed affected perf shard cannot merge.
 - Add consent-gated, idempotent Codex and Claude Code session import with immutable provenance, project identity binding, and linked live-chat continuation.
 - Scope session sources, imported conversations, and project bindings to their owner and Space; default imports to Personal and require explicit confirmed Team destination selection.
 - Resolve every session-import destination to an authorized concrete Space before writing; Personal defaults cannot land in an ambient Team, confirmed Team imports name their target, and continuation follows that target.
