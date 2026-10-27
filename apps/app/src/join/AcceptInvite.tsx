@@ -166,13 +166,13 @@ function SignInStep({ invite, state, dispatch, rules }: Pick<AcceptInviteProps, 
   return (
     <Step id="signin-details" dir={state.dir}>
       <AppIcon kind="person" />
-      <Title title="Your sign-in" />
+      <Title title="Your sign-in" sub="Your space, your username and your password. That is all it takes, on any device." />
       <Group>
         <Username state={state} invite={invite} ok={ok} onChange={(v) => set({ user: v })} onSubmit={next} />
-        <FieldRow testID="password" label="Password" value={state.pw} onChange={(v) => set({ pw: v })} placeholder="Required" secure autoComplete="new-password" onSubmit={next} />
-        <FieldRow testID="confirm" label="Confirm" value={state.pw2} onChange={(v) => set({ pw2: v })} placeholder="Required" secure autoComplete="new-password" onSubmit={next} />
+        <FieldRow testID="password" label="Password" value={state.pw} onChange={(v) => set({ pw: v })} placeholder="Required" secure revealable visibilityTestID="password-visibility" autoComplete="new-password" onSubmit={next} />
+        <FieldRow testID="confirm" label="Confirm" value={state.pw2} onChange={(v) => set({ pw2: v })} placeholder="Required" secure revealable visibilityTestID="confirm-visibility" autoComplete="new-password" onSubmit={next} />
       </Group>
-      {u && !ok ? <ErrorLine testID="username-error">{taken ? `@${u} is taken.` : "Use 3 to 24 letters or digits, starting with a letter."}</ErrorLine> : mism ? <ErrorLine testID="mismatch">The passwords do not match.</ErrorLine> : null}
+      {u && !ok ? <ErrorLine testID="username-error">{taken ? `@${u} is taken. Try one of the suggestions below.` : "Use 3 to 24 letters or digits, starting with a letter."}</ErrorLine> : mism ? <ErrorLine testID="mismatch">Make both passwords match to continue.</ErrorLine> : null}
       {sugg.length ? (
         <View testID="suggestions" style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 8, marginHorizontal: 16, alignItems: "center" }}>
           <Text style={[baseText(p), { fontSize: 13, color: p.tx2 }]}>Try</Text>
@@ -180,7 +180,7 @@ function SignInStep({ invite, state, dispatch, rules }: Pick<AcceptInviteProps, 
         </View>
       ) : null}
       <Meter level={meter(strength(state.pw))} />
-      <Foot>Vyre never sees your password. If you forget it, an admin can reset it, but your private items are lost unless you keep a recovery code. You are offered one on the device step.</Foot>
+      <Foot>Vyre never sees your password. Keep your recovery code somewhere safe. You need it to recover your private items after a password reset.</Foot>
     </Step>
   );
 }
@@ -287,4 +287,3 @@ export function AcceptInvite(props: AcceptInviteProps) {
     </>
   );
 }
-

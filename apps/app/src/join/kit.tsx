@@ -1,6 +1,6 @@
 // Join building blocks, in the pattern of a system setup assistant (spec 3.13): one centred column, an app icon, system type, grouped inset lists,
 // a Back / progress / Continue bar and the system accent. Flat: no gradients, no blurs, no decorative splits. Every block paints from the join palette.
-import { Children, cloneElement, createContext, createElement, isValidElement, useContext, useMemo, useSyncExternalStore } from "react";
+import { Children, cloneElement, createContext, createElement, isValidElement, useContext, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Dimensions } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
@@ -236,19 +236,28 @@ function FormRow({ label, children, divider, testID, labelWidth = 112, small }: 
 }
 
 export function FieldRow({
-  label, value, onChange, placeholder, secure, testID, autoComplete, mono, keyboard, maxLength, divider, onSubmit, spaced,
+  label, value, onChange, placeholder, secure, revealable, visibilityTestID, testID, autoComplete, mono, keyboard, maxLength, divider, onSubmit, spaced,
 }: RowProps & {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string; secure?: boolean; autoComplete?: string; mono?: boolean; keyboard?: "numeric"; maxLength?: number; onSubmit?: () => void; spaced?: boolean;
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; secure?: boolean; revealable?: boolean; visibilityTestID?: string; autoComplete?: string; mono?: boolean; keyboard?: "numeric"; maxLength?: number; onSubmit?: () => void; spaced?: boolean;
 }) {
   const { p } = useJoin();
+  const [visible, setVisible] = useState(false);
   return (
     <FormRow label={label} divider={divider}>
       <TextInput
         testID={testID} accessibilityLabel={label} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={p.tx2}
-        secureTextEntry={secure} autoCapitalize="none" autoCorrect={false} spellCheck={false} maxLength={maxLength} inputMode={keyboard}
+        secureTextEntry={secure && !visible} autoCapitalize="none" autoCorrect={false} spellCheck={false} maxLength={maxLength} inputMode={keyboard}
         {...(autoComplete ? ({ autoComplete } as object) : {})} onSubmitEditing={onSubmit}
         style={[base(p), noOutline, { flex: 1, minWidth: 0, height: "100%" as unknown as number, textAlign: "right", color: p.tx, padding: 0 }, mono ? { fontFamily: MONO } : null, spaced ? { letterSpacing: 3 } : null]}
       />
+      {secure && revealable ? (
+        <Pressable
+          accessibilityRole="button" accessibilityLabel={visible ? "Hide password" : "Show password"} onPress={() => setVisible((current) => !current)} testID={visibilityTestID}
+          style={({ pressed }: { pressed?: boolean }) => ({ minWidth: 44, height: 44, marginRight: -12, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.55 : 1 })}
+        >
+          <Text style={[base(p), { color: p.blue, fontSize: 13, fontWeight: "500" }]}>{visible ? "Hide" : "Show"}</Text>
+        </Pressable>
+      ) : null}
     </FormRow>
   );
 }

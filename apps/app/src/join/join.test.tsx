@@ -256,8 +256,30 @@ test("step 2: the username at the Space address, the strength meter and the mess
   assert.match(taken, /data-testid="suggest-dana.whitfield"/);
   assert.doesNotMatch(taken, /data-testid="username-ok"/);
   const mism = html({ stage: "steps", step: 1, ...FILLED, pw2: "nope" });
-  assert.match(mism, /The passwords do not match\./);
+  assert.match(mism, /Make both passwords match to continue\./);
   assert.match(html({ stage: "steps", step: 1, user: "9x" }), /Use 3 to 24 letters or digits, starting with a letter\./);
+});
+
+test("the clean account form keeps the approved promise, useful guidance, and local password controls", () => {
+  const create = html({ stage: "steps", step: 1, ...FILLED });
+  const signIn = html({ stage: "signin", si: "pw" });
+  assert.match(create, /Your space, your username and your password\. That is all it takes, on any device\./);
+  assert.match(create, /data-testid="password-visibility"/);
+  assert.match(create, />Show</);
+  assert.match(signIn, /data-testid="si-password-visibility"/);
+  assert.match(signIn, />Show</);
+  assert.match(create, /Keep your recovery code somewhere safe\. You need it to recover your private items after a password reset\./);
+  assert.match(html({ stage: "steps", step: 1, ...FILLED, pw2: "nope" }), /Make both passwords match to continue\./);
+});
+
+test("auth choices stay distinct and every phone row has a 44px touch target", () => {
+  const signIn = html({ stage: "signin", si: "pw" });
+  const ai = html({ stage: "steps", step: 3, ...FILLED });
+  assert.match(signIn, /data-testid="sign-in-sso"/);
+  assert.match(signIn, /data-testid="sign-in-github"/);
+  assert.doesNotMatch(tagOf(signIn, "sign-in-sso"), /GitHub/);
+  assert.match(signIn, /height:44px/);
+  assert.match(ai, /min-height:56px/);
 });
 
 test("step 3: this device, and the recovery code sheet with the code and the box", () => {
@@ -312,7 +334,7 @@ test("an expired invite says who to ask and offers their address", () => {
 
 test("sign-in lists single sign-on and GitHub and no passkey; the second factor asks for six digits", () => {
   const pw = html({ stage: "signin", si: "pw" });
-  for (const text of ["Sign in to Northwind", "Username", "Password", "Or continue with", "Google", "Okta", "OpenID Connect", "GitHub"]) assert.ok(pw.includes(text), text);
+  for (const text of ["Sign in to Northwind", "Username", "Password", "Single sign-on", "Google", "Okta", "OpenID Connect", "GitHub"]) assert.ok(pw.includes(text), text);
   assert.doesNotMatch(pw, /passkey/i);
   assert.match(pw, /disabled/, "Continue waits for a username and password");
   const noGithub = renderToStaticMarkup(<JoinFlow invite={{ ...INVITE, github: false, sso: [] }} initial={{ stage: "signin" }} hold />);

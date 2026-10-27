@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Auth: brought the 0.6.8 account-form language into v1 with local password visibility, actionable account guidance, separated SSO and GitHub choices, and 44px-or-larger touch rows.
 - Auth: added a bounded, motion-aware halftone field for the welcome and onboarding surfaces; it stays calm behind credential forms and never enters the signed-in shell.
 - Auth: added the 0.6.8-style Welcome back / Connect a Space screen, HTTPS Space address normalization, and verified asynchronous handoff into existing credentials.
 - Contracts: manifest types and builder DSL (packages/contracts), frozen declarations for the 72 modules plus 4 connectors and 4 Kits (manifests/), vyre-gen generator (tools/gen) with drift check, typecheck and generated contract tests.

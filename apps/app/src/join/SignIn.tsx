@@ -64,16 +64,16 @@ export function SignIn({ invite, state, dispatch, busy, onSubmit, onSso, onGithu
           <Title title={`Sign in to ${invite.space}`} />
           <Group>
             <Name state={state} host={invite.host} dispatch={dispatch} onSubmit={go} />
-            <FieldRow testID="si-password" label="Password" value={state.siPw} onChange={(v) => dispatch({ t: "set", patch: { siPw: v } })} placeholder="Required" secure autoComplete="current-password" onSubmit={go} />
+            <FieldRow testID="si-password" label="Password" value={state.siPw} onChange={(v) => dispatch({ t: "set", patch: { siPw: v } })} placeholder="Required" secure revealable visibilityTestID="si-password-visibility" autoComplete="current-password" onSubmit={go} />
           </Group>
           {state.error ? <ErrorLine testID="join-error">{state.error}</ErrorLine> : null}
           {invite.sso.length || invite.github ? (
             <>
-              <Caption>Or continue with</Caption>
-              <Group top={0} testID="sign-in-options">
+              <Caption>Single sign-on</Caption>
+              <Group top={0} testID="sign-in-sso">
                 {invite.sso.map((n) => <Row kind="action" key={n} testID={`sso-${n.toLowerCase()}`} label={n} note="OpenID Connect" onPress={() => onSso?.(n)} />)}
-                {invite.github ? <Row kind="action" testID="github" label="GitHub" note="Linked account" onPress={onGithub} /> : null}
               </Group>
+              {invite.github ? <><Caption>GitHub</Caption><Group top={0} testID="sign-in-github"><Row kind="action" testID="github" label="GitHub" note="Linked account" onPress={onGithub} /></Group></> : null}
             </>
           ) : null}
         </Step>
@@ -81,4 +81,3 @@ export function SignIn({ invite, state, dispatch, busy, onSubmit, onSso, onGithu
     </Panel>
   );
 }
-
