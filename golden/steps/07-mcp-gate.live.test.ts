@@ -3,18 +3,20 @@
 // parked by the Gate rather than hanging on an unmounted/default endpoint.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bootFlowSpace, expectStatus } from "./02-space.ts";
-import { LIVE_FOR_GATE_REPLY } from "./07-agent-gate.ts";
+import { expectStatus } from "./02-space.ts";
+import { addVerifiedSendingDomain, allowAgentSending, bootAgentGateSpace, LIVE_FOR_GATE_REPLY } from "./07-agent-gate.ts";
 
 const hex = async (text: string): Promise<string> => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))), (b) => b.toString(16).padStart(2, "0")).join("");
 
 test("the daemon MCP endpoint initializes and an agent tool call reaches the Gate", async () => {
-  const s = await bootFlowSpace(LIVE_FOR_GATE_REPLY);
+  const s = await bootAgentGateSpace(LIVE_FOR_GATE_REPLY);
   try {
     const admin = s.d.token;
+    await addVerifiedSendingDomain(s, admin, "mcp-live");
     const agent = expectStatus(await s.call("agents.create", admin, { idempotencyKey: "mcp-live-agent", name: "Mailer", role: "Writes mail" }), 200, "agents.create").agent.agentId as string;
+    await allowAgentSending(s, admin, agent, "mcp-live");
     const thread = expectStatus(await s.call("chat.start", admin, { idempotencyKey: "mcp-live-chat", kind: "chat", agentIds: [agent] }), 200, "chat.start").thread.threadId as string;
-    const made = expectStatus(await s.call("mail.mailbox.create", admin, { idempotencyKey: "mcp-live-mailbox", kind: "agent", address: "mcp-live@seed.example.test", title: "Mailer", agentId: agent }), 200, "mail.mailbox.create").mailbox;
+    const made = expectStatus(await s.call("mail.mailbox.create", admin, { idempotencyKey: "mcp-live-mailbox", kind: "agent", address: "mcp-live@send.agent-gate.test", title: "Mailer", agentId: agent }), 200, "mail.mailbox.create").mailbox;
     const mailboxId = (made.mailboxId ?? made.id) as string;
 
     const token = "vys_mcp_live_driver_token_0123456789";
@@ -40,5 +42,9 @@ test("the daemon MCP endpoint initializes and an agent tool call reaches the Gat
     const holds = expectStatus(await s.call("gate.holds.list", admin, { states: ["held"] }), 200, "gate.holds.list").holds;
     assert.equal(holds.length, 1);
     assert.equal(holds[0].capName, "mail.send");
+    expectStatus(await s.call("tasks.act", admin, { taskId: holds[0].taskId, action: "approve" }), 200, "tasks.act");
+    const sent = expectStatus(await s.call("mail.message.list", admin, { mailboxId, direction: "out" }), 200, "mail.message.list").messages as { status: string }[];
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0]?.status, "sent");
   } finally { await s.stop(); }
 });
