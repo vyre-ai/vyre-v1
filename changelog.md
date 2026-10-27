@@ -1,7 +1,7 @@
 # Changelog
 
 ## Unreleased
-- Desktop CI: give the installed-app relaunch its own bounded smoke-test lifecycle, use the real macOS quit path, and require the first packaged sidecar to stop before relaunch so screenshot time and orphan processes cannot hide restart failures.
+- Desktop CI: give the installed-app relaunch its own bounded smoke-test lifecycle, use real macOS application-quit and Windows window-close paths, and require each packaged sidecar to stop so screenshot time and orphan processes cannot hide restart failures.
 - PWA: add the production web manifest, Android/iPhone icons, Apple standalone metadata, safe-area viewport contract, truthful offline/update service-worker behavior, and an explicit Chromium iPhone-width smoke that labels standalone as simulated until the owner completes a physical iPhone Add to Home Screen pass.
 - Release: gate tag publication on the exact-tag macOS desktop build; mount its verified ad-hoc-signed DMG, copy the app into a fresh install location, launch and relaunch it with sidecar smoke coverage, then publish the DMG with a SHA-256 sidecar. Windows remains CI-only coverage.
 - Gateway: reconcile legacy/imported `agent.created` births missing resource and principal access events at boot, preserving the named owner and deterministic grants without allowing follow-up agent events to claim resources.

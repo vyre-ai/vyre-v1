@@ -132,16 +132,27 @@ async function awaitSidecarStop(url: string): Promise<void> {
   throw new Error(`the packaged sidecar at ${url} stayed live after its app exited`);
 }
 
+function requestNormalQuit(app: ChildProcess): void {
+  if (process.platform === "darwin") {
+    const quit = spawnSync("osascript", ["-e", "tell application id \"ai.vyre.desktop\" to quit"], { encoding: "utf8" });
+    assert.equal(quit.status, 0, `normal macOS app quit failed: ${quit.stderr}`);
+    return;
+  }
+  if (process.platform === "win32") {
+    assert.ok(app.pid, "the packaged Windows shell has a process id");
+    const script = `$p = Get-Process -Id ${String(app.pid)} -ErrorAction Stop; if ($p.MainWindowHandle -eq 0) { exit 2 }; if (-not $p.CloseMainWindow()) { exit 3 }`;
+    const quit = spawnSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", script], { encoding: "utf8" });
+    assert.equal(quit.status, 0, `normal Windows window close failed: ${quit.stderr}`);
+    return;
+  }
+  throw new Error(`normal packaged-shell quit is unsupported on ${process.platform}`);
+}
+
 async function stopBuiltShell(app: ChildProcess, sidecarUrl: string | null, out: string): Promise<void> {
   if (app.exitCode === null) {
     const stopped = new Promise<void>((resolve) => app.once("exit", () => resolve()));
     try {
-      if (process.platform === "darwin") {
-        const quit = spawnSync("osascript", ["-e", "tell application id \"ai.vyre.desktop\" to quit"], { encoding: "utf8" });
-        assert.equal(quit.status, 0, `normal macOS app quit failed: ${quit.stderr}`);
-      } else {
-        app.kill();
-      }
+      requestNormalQuit(app);
       await Promise.race([stopped, new Promise<void>((_, reject) => setTimeout(() => reject(new Error(`built shell did not exit after normal quit:\n${out.slice(-2000)}`)), 10_000))]);
     } catch (error) {
       app.kill("SIGKILL");
