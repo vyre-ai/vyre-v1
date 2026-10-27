@@ -2,6 +2,7 @@
 
 ## Unreleased
 - Release: set the root package version to the intended `1.0.0-rc.1` candidate tag.
+- Gateway: generate contract-valid, revocable ids for an agent's Space and home grants.
 - Access: resolve gateway actor-kind home grants to their registered agent or person principal during projection.
 - Computer home mirrors now invoke agent file operations on behalf of the agent's current owner.
 - Scheduler: await the initial immediate repair tick before reporting the daemon started.

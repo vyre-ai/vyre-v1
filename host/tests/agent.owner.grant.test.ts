@@ -64,7 +64,8 @@ test("the owner of a new agent reaches its folder from the start; after a reassi
     };
     const folderOwnerBefore = (await sharesOf("folder", agent.folderId)).filter((w) => w.startsWith("owner:"));
     assert.equal(folderOwnerBefore.length, 1);
-    assert.ok((await sharesOf("agent", agent.id)).includes(`owner:${first.id}`), "the agent resource is the named owner's from the start");
+    const agentSharesBefore = await sharesOf("agent", agent.id);
+    assert.ok(agentSharesBefore.includes(`owner:${first.id}`), `the agent resource is the named owner's from the start: ${agentSharesBefore.join(", ")}`);
     assert.ok((await sharesOf("folder", agent.folderId)).includes(`manage:${first.id}`) || (await sharesOf("folder", agent.folderId)).some((w) => w.endsWith(`:${first.id}`)), "and so is the folder (a Manage share)");
 
     // moving ownership drops grants, so it is the server's alone: nobody reaches it over the gateway, whoever they are
@@ -80,7 +81,10 @@ test("the owner of a new agent reaches its folder from the start; after a reassi
     assert.equal(refused.status, 403, JSON.stringify(refused.body));
     const mine = await post(member.token, "/v1/agents/create", { name: "Mine Alone", idempotencyKey: "gf10-member-self" });
     assert.equal(mine.status, 200, JSON.stringify(mine.body));
-    assert.ok((await sharesOf("agent", mine.body.data.agent.agentId)).includes(`owner:${member.id}`), "and a member's own agent is theirs");
+    const mineId = mine.body.data.agent.agentId as string;
+    const mineShares = await sharesOf("agent", mineId);
+    const mineResource = d.db!.all("SELECT id, owner_id FROM access_resources WHERE id = ?", mineId);
+    assert.ok(mineShares.includes(`owner:${member.id}`), `and a member's own agent is theirs: id=${mineId} member=${member.id} resource=${JSON.stringify(mineResource)} shares=${mineShares.join(", ")}`);
 
     // a plain member's Space-wide Edit does not reach an agent's memory (ruling 88): their promotion waits and the agent's owner approves it. That owner is a Member (the memory
     // capabilities need Space-level Edit to be called at all); what makes the folder editable for them is owning the agent, not the Space grant.
