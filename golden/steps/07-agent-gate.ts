@@ -182,7 +182,9 @@ export async function runAgentGate(live: readonly string[], opts: Parameters<typ
       assert.equal(out.outcome, "dropped", `second timeout: ${short(out)}`);
     }, ["with no decision the hold escalates"]);
     // The agent's MCP turn has its own trace. This flow spans that trace and
-    // the person's task actions, so its contract reads the whole Space log.
-    return { events: await s.events(false), trail };
+    // the person's task actions, so read the Space log but return only the
+    // events this contract observes rather than unrelated bootstrap history.
+    const observed = new Set(["gate.requested", "task.escalated", "gate.expired"]);
+    return { events: (await s.events(false)).filter((event) => observed.has(event.type)), trail };
   } finally { await s.stop(); }
 }
