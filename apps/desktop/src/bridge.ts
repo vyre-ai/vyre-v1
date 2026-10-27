@@ -40,7 +40,7 @@ export type Bridge = {
   setBadge(count: number): Promise<void>;
   /** The packaged shell's status and a deep link that arrived before the page loaded. */
   bootstrap(): Promise<{ info: DesktopInfo; pendingLink: DesktopDeepLink | null }>;
-  /** Receives only validated Vyre deep links; a later listener replaces this callback. */
+  /** Receives only validated Vyre deep links; unlistening pauses callbacks while the bridge keeps buffering. */
   listenLinks(listener: (link: DesktopDeepLink) => void): Promise<Unlisten>;
 };
 
@@ -152,7 +152,7 @@ export function makeBridge(invoke: Invoke, listen: Listen): Bridge {
       return { info, pendingLink };
     },
     async listenLinks(listener) {
-      const unlisten = await subscribeToLinks();
+      await subscribeToLinks();
       const generation = ++listenerGeneration;
       linkListener = listener;
       for (const link of pendingDeliveredLinks.splice(0)) listener(link);
@@ -160,8 +160,6 @@ export function makeBridge(invoke: Invoke, listen: Listen): Bridge {
         if (generation !== listenerGeneration) return;
         listenerGeneration++;
         linkListener = undefined;
-        linkSubscription = undefined;
-        unlisten();
       };
     },
   };

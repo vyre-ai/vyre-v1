@@ -1,7 +1,7 @@
 # Changelog
 
 ## Unreleased
-- Desktop: make the native deep-link activation handoff atomic and let bridge listeners unsubscribe and relisten without losing their native subscription state.
+- Desktop: make the native deep-link activation handoff atomic and keep one page-lifetime bridge subscription that buffers links between consumer callbacks.
 - Desktop: retain deep links delivered while bootstrap drains the native pending-link slot, so page subscription cannot miss them.
 - Desktop: expose typed bootstrap status and validated Vyre deep links through the narrow Tauri bridge, including second-instance launches.
 - Desktop: stop the local sidecar through its loopback admin endpoint before process fallback, so Windows removes `vyred.json` on a requested shutdown.

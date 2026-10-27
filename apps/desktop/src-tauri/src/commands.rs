@@ -90,42 +90,27 @@ pub fn page_report(kind: String, text: String) {
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
-    use std::sync::{Arc, Barrier, Mutex};
-    use std::thread;
+    use std::sync::Mutex;
 
     fn link(code: &str) -> DeepLink {
         DeepLink { action: "join".to_string(), params: BTreeMap::from([("code".to_string(), code.to_string())]) }
     }
 
     #[test]
-    fn concurrent_delivery_and_activation_are_lossless() {
-        for _ in 0..64 {
-            let handoff = Arc::new(Mutex::new(LinkHandoff::default()));
-            let start = Arc::new(Barrier::new(3));
-            let expected = link("one-time-code");
+    fn delivery_before_activation_is_drained_from_the_mutex_owned_pending_slot() {
+        let handoff = Mutex::new(LinkHandoff::default());
+        let expected = link("one-time-code");
 
-            let delivering = {
-                let handoff = handoff.clone();
-                let start = start.clone();
-                let link = expected.clone();
-                thread::spawn(move || {
-                    start.wait();
-                    handoff.lock().unwrap().deliver(link)
-                })
-            };
-            let activating = {
-                let handoff = handoff.clone();
-                let start = start.clone();
-                thread::spawn(move || {
-                    start.wait();
-                    handoff.lock().unwrap().activate_and_take()
-                })
-            };
+        assert_eq!(handoff.lock().unwrap().deliver(expected.clone()), None);
+        assert_eq!(handoff.lock().unwrap().activate_and_take(), Some(expected));
+    }
 
-            start.wait();
-            let delivered = delivering.join().unwrap();
-            let pending = activating.join().unwrap();
-            assert_eq!(delivered.into_iter().chain(pending).collect::<Vec<_>>(), vec![expected]);
-        }
+    #[test]
+    fn activation_before_delivery_emits_without_using_the_pending_slot() {
+        let handoff = Mutex::new(LinkHandoff::default());
+        let expected = link("one-time-code");
+
+        assert_eq!(handoff.lock().unwrap().activate_and_take(), None);
+        assert_eq!(handoff.lock().unwrap().deliver(expected.clone()), Some(expected));
     }
 }

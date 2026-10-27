@@ -180,7 +180,7 @@ test("desktop bootstrap returns only typed shell status and the one pending Vyre
   assert.deepEqual(calls, ["desktop_info", "take_pending_link"]);
 });
 
-test("desktop link handoff is ordered, bounded, replaceable, and can relisten", async () => {
+test("desktop link handoff is ordered, bounded, replaceable, and stays subscribed between callbacks", async () => {
   const nativeListeners = new Set<(event: { payload: unknown }) => void>();
   const nativeEvents: string[] = [];
   let nativeSubscriptions = 0;
@@ -211,31 +211,31 @@ test("desktop link handoff is ordered, bounded, replaceable, and can relisten", 
 
   assert.deepEqual(await bridge.bootstrap(), { info, pendingLink: null });
   const first: DesktopDeepLink[] = [];
-  const staleUnlisten = await bridge.listenLinks((delivered) => first.push(delivered));
+  const unlistenA = await bridge.listenLinks((delivered) => first.push(delivered));
   assert.deepEqual(first.map((link) => link.params["code"]), Array.from({ length: 16 }, (_, i) => String(i + 1)));
 
   emit({ action: "open", params: { address: "https://first.vyre.run" } });
+  unlistenA();
+  emit({ action: "open", params: { address: "https://gap.vyre.run" } });
+
   const second: DesktopDeepLink[] = [];
-  const unlisten = await bridge.listenLinks((delivered) => second.push(delivered));
+  const unlistenB = await bridge.listenLinks((delivered) => second.push(delivered));
   emit({ action: "open", params: { address: "https://second.vyre.run" } });
-  staleUnlisten();
-  emit({ action: "open", params: { address: "https://still-second.vyre.run" } });
+
+  const third: DesktopDeepLink[] = [];
+  const unlistenC = await bridge.listenLinks((delivered) => third.push(delivered));
+  emit({ action: "open", params: { address: "https://third.vyre.run" } });
+  unlistenB();
+  emit({ action: "open", params: { address: "https://still-third.vyre.run" } });
 
   assert.deepEqual(first.filter((link) => link.action === "open").map((link) => link.params["address"]), ["https://first.vyre.run"]);
-  assert.deepEqual(second.map((link) => link.params["address"]), ["https://second.vyre.run", "https://still-second.vyre.run"]);
+  assert.deepEqual(second.map((link) => link.params["address"]), ["https://gap.vyre.run", "https://second.vyre.run"]);
+  assert.deepEqual(third.map((link) => link.params["address"]), ["https://third.vyre.run", "https://still-third.vyre.run"]);
   assert.equal(nativeSubscriptions, 1);
   assert.equal(nativeUnsubscribes, 0);
-
-  unlisten();
-  assert.equal(nativeUnsubscribes, 1);
-  const third: DesktopDeepLink[] = [];
-  const finalUnlisten = await bridge.listenLinks((delivered) => third.push(delivered));
-  emit({ action: "open", params: { address: "https://third.vyre.run" } });
-
-  assert.equal(nativeSubscriptions, 2);
-  assert.deepEqual(nativeEvents, ["vyre://deep-link", "vyre://deep-link"]);
-  assert.deepEqual(third.map((link) => link.params["address"]), ["https://third.vyre.run"]);
-  finalUnlisten();
+  assert.deepEqual(nativeEvents, ["vyre://deep-link"]);
+  unlistenC();
+  assert.equal(nativeUnsubscribes, 0);
 });
 
 test("desktop link delivery refuses control characters in decoded parameters", async () => {
