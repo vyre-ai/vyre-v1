@@ -192,6 +192,11 @@ test("l7 live: an invite made by the owner is accepted by a stranger through the
     assert.equal(made.status, 200, await made.clone().text());
     const link = ((await made.json()) as { data: { link: string } }).data.link;
     const code = decodeURIComponent(new URL(link).pathname.split("/").pop() ?? "");   // the fingerprint rides in the fragment
+    const invitePreview = await post(null, "/v1/members/invites/preview", { code });
+    assert.equal(invitePreview.status, 200, await invitePreview.clone().text());
+    const previewText = await invitePreview.text();
+    assert.ok(!previewText.includes(code), "the one-time code is never echoed by the pre-auth preview");
+    assert.equal((JSON.parse(previewText) as { data: { spaceId?: string } }).data.spaceId, "spc_core", "the public routing id lets the client seal its new Space key");
     const joined = await join(code, "newbie");
     assert.equal(joined.status, 200, await joined.clone().text());
     // offboarding (golden 9): the removal wizard lists what the joined member owns, a legal hold on them stops a delete, and lifting it lets the plan through
