@@ -31,6 +31,21 @@ const items = (entries: readonly MenuEntry[]): MenuItem[] => entries.filter(isIt
 const folder = (id: string): Partial<FilesState> => ({ where: { kind: "folder", id } });
 const row = (id: string, folderId = "fld_x"): FileRow => ({ fileId: id, folderId, name: id, kind: "pdf", mime: "", size: 1, version: 1, label: 1, ownerId: "u", createdAt: 0, updatedAt: 0, updatedBy: "u", thumb: false, holds: 0 });
 
+test("10,000-row sample thumbnail reads reuse one versioned files snapshot", () => {
+  const sample = createSampleFiles(northwind, { bulk: 10000 });
+  const rows = sample.replica.rows.bind(sample.replica);
+  let fileReads = 0;
+  sample.replica.rows = (table) => {
+    if (table === "files") fileReads++;
+    return rows(table);
+  };
+  for (let i = 0; i < 100; i++) {
+    const snap = sample.data.live("files.viewer_data", { fileId: `bulk${i * 4}` }).getSnapshot();
+    assert.equal(snap.status, "ready");
+  }
+  assert.equal(fileReads, 1, "new thumbnail rows do not clone all 10,000 files again");
+});
+
 test("screen: the sidebar lists Recent, Starred and Shared with me, then Knowledge, then Space with its folders (the Trash is in the more menu)", () => {
   const out = tree();
   const order = ["Recent", "Starred", "Shared with me", "Knowledge", "Memory", "Graph", "Space"].map((t) => at(out, `>${t}<`));

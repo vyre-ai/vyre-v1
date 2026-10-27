@@ -11,6 +11,7 @@ import type { VirtualListProps, VirtualWindow } from "./props.ts";
 export type { VirtualListProps, VirtualWindow, RowHeight } from "./props.ts";
 
 const OVERSCAN = 4;
+const SCROLL_BUFFER_PX = 2736; // 72 Files rows: fewer than 5% of frames replace the React window during the 120 px/frame perf fling.
 const ESTIMATE = 44;
 const DEFAULT_VIEWPORT = 640;
 
@@ -25,7 +26,7 @@ export function rowOffsets(count: number, rowHeight: number | "measure", measure
 }
 
 /** The rows to render for a scroll position: binary search on offsets, plus overscan. */
-export function windowFor(offsets: Float64Array, scrollTop: number, viewport: number, overscan = OVERSCAN): VirtualWindow {
+export function windowFor(offsets: Float64Array, scrollTop: number, viewport: number, overscan = OVERSCAN, current?: VirtualWindow): VirtualWindow {
   const count = offsets.length - 1;
   if (count <= 0) return { start: 0, end: 0 };
   const find = (y: number): number => {
@@ -40,6 +41,7 @@ export function windowFor(offsets: Float64Array, scrollTop: number, viewport: nu
   const top = Math.max(0, Math.min(scrollTop, offsets[count]));
   const first = find(top);
   const last = find(Math.max(0, Math.min(top + viewport, offsets[count]) - 1));
+  if (current && current.start <= first && current.end >= last + 1) return current;
   return { start: Math.max(0, first - overscan), end: Math.min(count, last + 1 + overscan) };
 }
 
@@ -62,6 +64,7 @@ function WindowedList<T>({ data, renderItem, rowHeight, window: controlled, keyO
     [data.length, rowHeight, version],
   );
   const computed = useMemo(() => windowFor(offsets, scrollTop.current, viewport), [offsets, viewport]);
+  const scrollingOverscan = Math.max(OVERSCAN, Math.ceil(SCROLL_BUFFER_PX / (typeof rowHeight === "number" ? rowHeight : ESTIMATE)));
   const win = controlled ?? (scrolled && scrolled.end <= data.length ? scrolled : computed);
   const total = offsets[data.length];
 
@@ -69,12 +72,16 @@ function WindowedList<T>({ data, renderItem, rowHeight, window: controlled, keyO
     const y = e.nativeEvent.contentOffset.y;
     scrollTop.current = y;
     // Re-render only when the set of rows changes, not on every scroll event.
-    const next = windowFor(offsets, y, e.nativeEvent.layoutMeasurement.height || viewport);
-    setScrolled((cur) => (cur && cur.start === next.start && cur.end === next.end ? cur : next));
+    const height = e.nativeEvent.layoutMeasurement.height || viewport;
+    setScrolled((cur) => {
+      const prior = cur ?? computed;
+      const next = windowFor(offsets, y, height, scrollingOverscan, prior);
+      return next === prior ? cur : next;
+    });
     const nearEnd = y + e.nativeEvent.layoutMeasurement.height >= total - 1;
     if (nearEnd && !ended.current) { ended.current = true; onEndReached?.(); }
     if (!nearEnd) ended.current = false;
-  }, [onEndReached, total, offsets, viewport]);
+  }, [onEndReached, total, offsets, viewport, computed, scrollingOverscan]);
 
   const onMeasure = useCallback((i: number, h: number) => {
     if (h > 0 && measured.current.get(i) !== h) { measured.current.set(i, h); setVersion((v) => v + 1); }
