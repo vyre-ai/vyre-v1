@@ -93,6 +93,7 @@ test("budget jobs run if always() at 5, 10 and 25 minutes", () => {
     assert.match(j!.text, /^ {4}if: always\(\)/m, `${job} if always`);
     assert.match(j!.text, new RegExp(`ci-budget\\.ts --kind ${kind}\\b`));
   }
+  assert.deepEqual(wf("release").jobs.find((j) => j.name === "budget-tag")!.needs, ["live", "deploy"], "tag budget stops at the live and deploy boundary, before desktop publication work");
 });
 
 test("native stays non-blocking for live while the macOS desktop artifact gates only publication", () => {
