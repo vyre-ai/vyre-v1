@@ -5,15 +5,11 @@
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { bootFlowSpace, expectStatus, short, Trail } from "./02-space.ts";
-import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
 export const LIVE_FOR_REPLY = ["vault", "engine", "agents", "files", "access", "devices", "tasks", "runs", "chat"];
 
-/** Why this is a todo today. Each line names the PR it waits on. */
-export const REPLY_GAPS: Gap[] = [
-  { packet: "L2 engine (steward)", lane: "L2", what: "in the l2-heavy job every step up to the message passes (account in the Vault, agent, chat, engine bound), but the agent never answers within 40 s: the thread is created private (the stored message reads enc 2) and the engine has no runtime key to open it, or the reply is not delivered; the steward's own chat.live test fails in the same job" },
-];
+export const REPLY_GAPS = [];
 
 const TOKEN = "sk-ant-oat01-GOLDENFAKE0123456789abcdefXYZ"; // secret-scan: fake
 
