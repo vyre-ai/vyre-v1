@@ -20219,6 +20219,58 @@ export type SearchRelatedOut = {
       updatedAt?: number;
     }>;
 };
+export type SessionsContinueIn = {
+  conversationId: string;
+  destinationSpaceId: string;
+  destinationScope: "personal";
+  agentId: string;
+  first?: string;
+};
+export type SessionsContinueOut = {
+  threadId: string;
+  linkedFrom: string;
+};
+export type SessionsImportIn = {
+  provider: "codex" | "claude_code";
+  sourceKey: string;
+  consent: {
+    previewedAt: number;
+    confirmedAt: number;
+  };
+  destination?: {
+    kind: "personal";
+  };
+  sessions: Array<{
+      sourceSessionId: string;
+      title?: string;
+      startedAt: number;
+      repo?: {
+        remote?: string;
+        root?: string;
+      };
+      messages: Array<{
+          sourceMessageId: string;
+          role: "user" | "assistant";
+          text: string;
+          at: number;
+        }>;
+    }>;
+  idempotencyKey: string;
+};
+export type SessionsImportOut = {
+  imported: number;
+  updated: number;
+  sessions: Array<{
+      conversationId: string;
+      provider: "codex" | "claude_code";
+      destination: {
+        kind: "project" | "imported_sessions";
+        projectId?: string;
+        scope: "personal";
+        spaceId: string;
+      };
+    }>;
+};
 export type SettingsCopyProfileIn = {
   fields: Array<"photo" | "name" | "handle" | "timezone" | "hours" | "contact">;
   values: Record<string, unknown>;
@@ -27773,6 +27825,8 @@ export interface CapMap {
   "search.recent.list": { in: SearchRecentListIn; out: SearchRecentListOut };
   "search.recent.record": { in: SearchRecentRecordIn; out: SearchRecentRecordOut };
   "search.related": { in: SearchRelatedIn; out: SearchRelatedOut };
+  "sessions.continue": { in: SessionsContinueIn; out: SessionsContinueOut };
+  "sessions.import": { in: SessionsImportIn; out: SessionsImportOut };
   "settings.copy_profile": { in: SettingsCopyProfileIn; out: SettingsCopyProfileOut };
   "settings.copy_source": { in: SettingsCopySourceIn; out: SettingsCopySourceOut };
   "settings.floor_set": { in: SettingsFloorSetIn; out: SettingsFloorSetOut };
@@ -30537,6 +30591,19 @@ export type SessionStartedPayload = {
   person: string;
   deviceId: string;
 };
+export type SessionsContinuedPayload = {
+  conversationId: string;
+  threadId: string;
+};
+export type SessionsImportedPayload = {
+  conversationId: string;
+  provider: "codex" | "claude_code";
+  sourceKey: string;
+  projectId?: string;
+  scope: "personal";
+  spaceId: string;
+  messages: number;
+};
 export type SettingsChangedPayload = {
   key: string;
   scope: "space" | "person";
@@ -31884,6 +31951,8 @@ export interface EventMap {
   "service.restarted": ServiceRestartedPayload;
   "session.revoked": SessionRevokedPayload;
   "session.started": SessionStartedPayload;
+  "sessions.continued": SessionsContinuedPayload;
+  "sessions.imported": SessionsImportedPayload;
   "settings.changed": SettingsChangedPayload;
   "settings.floor_changed": SettingsFloorChangedPayload;
   "sheet.row_appended": SheetRowAppendedPayload;
