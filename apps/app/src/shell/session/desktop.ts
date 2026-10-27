@@ -2,7 +2,7 @@
 // It turns native links into the same URL-backed flows used by the browser.
 import { shellDesktopLinkBridge } from "../../../../../client/src/connection/desktop-link.ts";
 import type { DesktopDeepLink, DesktopLinkBridge, Unlisten } from "../../../../../client/src/connection/desktop-link.ts";
-import { makeBundle, wipe } from "../../../../../client/src/crypto/keys.ts";
+import { loadCryptoKeys } from "../../../../../client/src/crypto/load.ts";
 import type { JoinValues } from "../../join/JoinFlow.tsx";
 import { openVerifiedSession, writeStored } from "./stored.ts";
 import type { StoredSession, VerifiedSpace } from "./stored.ts";
@@ -144,6 +144,7 @@ export async function previewDesktopJoin(route: Extract<DesktopRoute, { kind: "j
 
 /** Creates a real client key bundle, sends only wrapped fields, and persists only after post-accept Space-ID agreement. */
 export async function acceptDesktopJoin(join: PreviewedDesktopJoin, values: JoinValues, deps: DesktopSessionDeps): Promise<StoredSession> {
+  const { makeBundle, wipe } = await loadCryptoKeys();
   const made = await makeBundle(values.password, values.recoveryCode ?? fallbackRecoveryCode(), { spaceId: join.preview.spaceId });
   try {
     if (!made.spaceKeys?.length) throw new Error("This device could not create the Space key. Try again.");

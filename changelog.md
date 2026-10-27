@@ -3,6 +3,7 @@
 ## Unreleased
 - Release CI: give real signing, practice signing, and publication 30-minute bounded windows for the measured 127 MB desktop artifact download and release-asset transfer.
 - Files performance: keep the web virtual-list window buffered across a fast fling and reuse one versioned sample snapshot for thumbnail reads, restoring the 10,000-file list to the 16.7 ms frame budget without dropping rows or changing grid behavior.
+- Web startup: defer the authenticated shell, password-key implementation, and generated agent portrait catalog until they are needed, reducing the signed-out production entry from 2.42 MB to 1.74 MB raw without relaxing the 1.5-second phone budget.
 - Release CI: measure the 25-minute tag budget at the live-and-deploy boundary, without waiting for native and desktop publication artifacts that do not block the live gate.
 - Release CI: allow the desktop release assembly 15 minutes to download and verify the 125 MB macOS artifact instead of cancelling at the five-minute boundary.
 - Auth: verify and persist the authenticated Space marker after owner claim so the new session opens the shell, keep SSR and the first browser render address-neutral to prevent hydration errors, and update the real-app invalid-session proof for address-scoped session storage.
