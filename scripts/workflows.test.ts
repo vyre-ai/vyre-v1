@@ -94,6 +94,38 @@ test("native stays non-blocking for live while the macOS desktop artifact gates 
   }
 });
 
+test("the macOS desktop release path verifies, mounts, installs and exercises the DMG", () => {
+  const desktop = wf("desktop");
+  assert.doesNotMatch(files.join("\n"), /^mac\.yml$/m, "the removed server-installer workflow cannot stand in for a desktop DMG gate");
+  assert.match(desktop.text, /codesign --verify --deep --strict/);
+  assert.match(desktop.text, /Signature=adhoc/);
+  assert.match(desktop.text, /hdiutil verify/);
+  assert.match(desktop.text, /hdiutil attach/);
+  assert.match(desktop.text, /ditto /);
+  assert.match(desktop.text, /hdiutil detach/);
+  assert.match(desktop.text, /spctl --assess --type execute/);
+  assert.match(desktop.text, /run-shell\.sh/);
+  assert.match(desktop.text, /VYRE_SHELL_RELAUNCH=1/);
+  assert.match(wf("release").text, /name: desktop-macOS, path: desktop-artifact/);
+  const runner = fs.readFileSync(path.resolve(dir, "../../apps/desktop/src-tauri/ci/run-shell.sh"), "utf8");
+  const smoke = fs.readFileSync(path.resolve(dir, "../../apps/desktop/tests/shell.heavy.test.ts"), "utf8");
+  assert.match(runner, /VYRE_SHELL_RELAUNCH/);
+  assert.match(smoke, /VYRE_SHELL_RELAUNCH/);
+  assert.match(smoke, /test\("the installed shell relaunches after a clean exit"/);
+  assert.doesNotMatch(smoke, /if \(RELAUNCH\) await exerciseBuiltShell/,
+    "the relaunch needs its own Node test timeout instead of sharing the first-launch 60 second budget");
+  assert.match(smoke, /function requestNormalQuit/,
+    "platform-specific normal app shutdown belongs in one lifecycle helper");
+  assert.match(smoke, /tell application id \\"ai\.vyre\.desktop\\" to quit/,
+    "macOS smoke must exercise the app's normal quit lifecycle before relaunching");
+  assert.match(smoke, /CloseMainWindow\(\)/,
+    "Windows smoke must close the spawned process's real top-level window");
+  assert.match(smoke, /normal packaged-shell quit is unsupported/,
+    "unsupported platforms must fail explicitly rather than silently using a forceful signal");
+  assert.match(smoke, /awaitSidecarStop/,
+    "the first launch must prove its packaged sidecar stopped before the relaunch begins");
+});
+
 test("no npm install, docker pull or curl outside prewarm", () => {
   const bad = /\b(npm (ci|install|i)\b|docker pull|curl )/;
   for (const w of all) for (const j of w.jobs) {
