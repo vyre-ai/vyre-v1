@@ -38,7 +38,7 @@ function Tag({ field, value }: { field: FieldDef; value: string }): ReactElement
   const hue = opt?.color && /^\d+$/.test(opt.color) ? Number(opt.color) : hueOf(value);
   return (
     <View style={[styles.tag, { backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)` }]}>
-      <Text numberOfLines={1} style={[styles.tagText, { color: `color-mix(in srgb, hsl(${hue}, 65%, 50%) 60%, var(--ink))` }]}>{opt?.title ?? value}</Text>
+      <Text numberOfLines={1} style={[styles.tagText, { color: `light-dark(hsl(${hue} 52% 30%), hsl(${hue} 72% 80%))` }]}>{opt?.title ?? value}</Text>
     </View>
   );
 }
@@ -301,6 +301,7 @@ function webCell(field: FieldDef, row: RecordRow, names: (id: string) => string,
   if ((field.type === "choice" || field.type === "status") && typeof v === "string") {
     const opt = optionsOf(field).find((o) => o.key === v);
     const hue = opt?.color && /^\d+$/.test(opt.color) ? Number(opt.color) : hueOf(v);
+    // color-mix-ok: createElement span style, a real DOM node, not a react-native-web style
     return createElement("span", { className: "vrt-chip", style: { "--h": hue, backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)`, color: `color-mix(in srgb, hsl(${hue}, 65%, 50%) 60%, var(--ink))` } }, fit(opt?.title ?? v, width - 27, 6.2));
   }
   if (field.type === "checkbox") return v === true ? <Glyph name="check" size={14} color="var(--ink-2)" width={1.8} /> : null;

@@ -9,7 +9,7 @@ import path from "node:path";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ensureDeps, ensureChromium } from "./ensure-deps.mjs";
-import { parseArgs, SKINS, SIZES, MAX_EXPORT_S, protoHash, routeUrl, loadTargets, sideBySideHtml } from "./lib.mjs";
+import { parseArgs, SKINS, SIZES, MAX_EXPORT_S, protoHash, routeUrl, loadTargets, sideBySideHtml, parseExpect, expectVerdict } from "./lib.mjs";
 import { serve } from "./serve.mjs";
 import { measureScroll, withinBudget, SCROLL_P95_MS } from "./probes/scroll.mjs";
 import { traceScroll } from "./probes/trace.mjs";
@@ -60,6 +60,7 @@ const { chromium } = await import("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox", "--js-flags=--expose-gc"] });
 const rows = [];
 const scrollFailed = [];
+const expectFailed = [];
 try {
   for (const t of targets) for (const skin of skins) for (const [sizeName, vp] of sizes) {
     const dir = path.join(out, t.id); fs.mkdirSync(dir, { recursive: true });
@@ -89,6 +90,30 @@ try {
     fs.rmSync(cmp);
     rows.push(`| ${t.id} | ${skin} | ${sizeName} ${vp.width}x${vp.height} | ${t.id}/${stem}-side-by-side.png |`);
     console.log(`shot ${t.id} ${skin} ${sizeName}`);
+  }
+  // expect (P-UI_18): a target with "expect": [{ "selector": "<css>", "min": N, "name": "<label>" }] is loaded once on the desktop size (first skin) and each selector is counted after waitFor and the
+  // same 800 ms settle. A correctness assertion, so it runs with --no-probes too. A slow data load gets up to 10 s per row before the count is judged; a blank screen that drew nothing fails.
+  if (!args["probes-only"]) for (const t of targets) if (t.expect) {
+    const rowsToCheck = parseExpect(t.expect);
+    let ctx;
+    try {
+      ctx = await browser.newContext({ viewport: SIZES.desktop, deviceScaleFactor: 1, colorScheme: skins[0] === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
+      const page = await ctx.newPage();
+      await page.goto(routeUrl(real.origin, t.route, skins[0] || "paper"), { waitUntil: "load", timeout: 60000 });
+      if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 30000 }).catch(() => {});
+      await page.waitForTimeout(800);
+      for (const e of rowsToCheck) {
+        await page.waitForFunction(({ selector, min }) => document.querySelectorAll(selector).length >= min, e, { timeout: 10000 }).catch(() => {});
+        const count = await page.evaluate((selector) => document.querySelectorAll(selector).length, e.selector);
+        const v = expectVerdict(count, e.min, t.id, e.name);
+        console.log(`METRIC ${JSON.stringify({ name: "expect", target: t.id, label: e.name, selector: e.selector, min: e.min, count, ok: v.ok })}`);
+        if (!v.ok) { console.error(v.message); expectFailed.push(`${t.id} ${e.name}`); }
+      }
+    } catch (err) {
+      for (const e of rowsToCheck) console.log(`METRIC ${JSON.stringify({ name: "expect", target: t.id, label: e.name, selector: e.selector, min: e.min, error: String(err?.message ?? err).split("\n")[0], ok: false })}`);
+      console.error(`expect failed: ${t.id} could not load: ${String(err?.message ?? err).split("\n")[0]}`);
+      expectFailed.push(`${t.id} load`);
+    } finally { await ctx?.close(); }
   }
   // Scroll probe (ruling 29): a target with "scroll": { "selector": "<css>" } is scrolled top to bottom and its p95 frame interval checked.
   // A probe that throws (a selector that never appears) is a failed probe of that target, not the end of the run: every target is measured, every METRIC prints, and the run fails at the end.
@@ -127,6 +152,7 @@ fs.writeFileSync(path.join(out, "index.md"), `# Side-by-side screenshots\n\nExpo
 // Every gate is judged before the run ends, so one red never hides the next measure: the failures are collected and the process exits at the end.
 let failedGate = false;
 if (scrollFailed.length) { console.error(`scroll probe over budget: ${scrollFailed.join(", ")}`); failedGate = true; }
+if (expectFailed.length) { console.error(`expect failed on: ${expectFailed.join(", ")}`); failedGate = true; }
 if (exportSeconds > maxExport) { console.error(`web export took ${exportSeconds.toFixed(1)} s, over ${maxExport} s`); failedGate = true; }
 console.log(`${rows.length} side-by-side images in ${out}`);
 

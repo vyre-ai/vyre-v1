@@ -160,6 +160,7 @@ export function derive(palette: Palette, dark: boolean): TokenSet {
     "--hover": `rgba(${t},${dark ? 0.05 : 0.045})`,
     "--press": `rgba(${t},${dark ? 0.09 : 0.08})`,
     "--sel": `rgba(${t},${dark ? 0.08 : 0.075})`,
+    // color-mix-ok: CSS custom property value, resolved by the browser
     "--sel-strong": `color-mix(in srgb, ${c.ink} ${dark ? 11 : 8}%, ${c.win})`,
     "--line": `rgba(${t},${dark ? 0.07 : 0.08})`,
     "--line-2": `rgba(${t},${dark ? 0.12 : 0.13})`,

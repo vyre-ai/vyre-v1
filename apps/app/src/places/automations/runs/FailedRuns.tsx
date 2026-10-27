@@ -76,7 +76,7 @@ export function FailedRuns({ scope = "mine", selectedRunId = null }: FailedRunsP
 const f = StyleSheet.create({
   frame: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   col: { flex: 1, minHeight: 0, width: "100%", maxWidth: 820, alignSelf: "center", paddingHorizontal: 28, paddingTop: 22 },
-  tile: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "color-mix(in srgb, var(--danger) 14%, transparent)" as string },
+  tile: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundImage: "linear-gradient(color-mix(in srgb, var(--danger) 14%, transparent), color-mix(in srgb, var(--danger) 14%, transparent))" as unknown as undefined },
   skRow: { height: 32, marginBottom: 12, borderRadius: 9, backgroundColor: "var(--sunk)" as string },
   blank: { alignItems: "center", paddingTop: 60, gap: 10 },
   big: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },

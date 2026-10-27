@@ -39,13 +39,15 @@ export const BTN: CSSProperties = { border: "1px solid var(--line)", background:
 export const BTN_PRIMARY: CSSProperties = { ...BTN, border: "1px solid var(--accent)", background: "var(--accent)", color: "var(--accent-ink)" };
 
 /** Status paints a bar: a wash of the status colour with a line of it, never a filled block. */
+// color-mix-ok: bar fills are DOM div backgrounds in the Plan view, not react-native-web styles
+const wash = (c: string, pct: number): string => `color-mix(in srgb, var(--${c}) ${pct}%, var(--win))`;
 export const BAR: Record<PlanStatus, { bg: string; line: string }> = {
   todo: { bg: "var(--sunk)", line: "var(--ink-4)" },
-  doing: { bg: "color-mix(in srgb, var(--accent) 14%, var(--win))", line: "var(--accent)" },
-  blocked: { bg: "color-mix(in srgb, var(--warn) 16%, var(--win))", line: "var(--warn)" },
-  review: { bg: "color-mix(in srgb, var(--accent) 10%, var(--win))", line: "var(--accent)" },
-  approval: { bg: "color-mix(in srgb, var(--accent) 10%, var(--win))", line: "var(--accent)" },
-  done: { bg: "color-mix(in srgb, var(--ok) 14%, var(--win))", line: "var(--ok)" },
+  doing: { bg: wash("accent", 14), line: "var(--accent)" },
+  blocked: { bg: wash("warn", 16), line: "var(--warn)" },
+  review: { bg: wash("accent", 10), line: "var(--accent)" },
+  approval: { bg: wash("accent", 10), line: "var(--accent)" },
+  done: { bg: wash("ok", 14), line: "var(--ok)" },
 };
 
 const SVG = (children: string, size = 13): string => `<svg viewBox="0 0 16 16" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${children}</svg>`;

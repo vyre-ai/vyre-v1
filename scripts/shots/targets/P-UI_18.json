@@ -1,0 +1,171 @@
+{
+  "targets": [
+    {
+      "id": "P-UI_18-expect-L9b_22-chats-sidebar",
+      "route": "/m/P-L9b_22",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='chats-sidebar']",
+      "expect": [
+        {
+          "selector": ".vyre-row[data-testid^='row-n:']",
+          "min": 3,
+          "name": "sidebar Needs you rows"
+        },
+        {
+          "selector": ".vyre-row[data-testid^='row-f:']",
+          "min": 2,
+          "name": "sidebar agent rows"
+        },
+        {
+          "selector": ".vyre-row[data-testid^='row-c:']",
+          "min": 3,
+          "name": "sidebar chat rows"
+        }
+      ],
+      "note": "The expect assertions of P-L9b_22-chats-sidebar run on this packet's own branch (a packet branch shoots only its own targets); same route and prototype state as that target."
+    },
+    {
+      "id": "P-UI_18-expect-L9b_22-chats-needs",
+      "route": "/m/P-L9b_22?screen=needs",
+      "proto": "chat,needs,{skin}",
+      "waitFor": "[data-testid='needs-you']",
+      "expect": [
+        {
+          "selector": ".vyre-row[data-testid^='row-need-']",
+          "min": 7,
+          "name": "Needs you rows"
+        }
+      ],
+      "note": "The expect assertions of P-L9b_22-chats-needs run on this packet's own branch (a packet branch shoots only its own targets); same route and prototype state as that target."
+    },
+    {
+      "id": "P-UI_18-expect-L9e_01c-files-header",
+      "route": "/m/P-L9e_01c?where=pj_rivera",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='files-new']",
+      "expect": [
+        {
+          "selector": ".vyre-row[data-testid^='row-line:']",
+          "min": 3,
+          "name": "Files list rows"
+        }
+      ],
+      "note": "The expect assertions of P-L9e_01c-files-header run on this packet's own branch (a packet branch shoots only its own targets); same route and prototype state as that target."
+    },
+    {
+      "id": "P-UI_18-expect-L9e_01c-files-sidebar",
+      "route": "/m/P-L9e_01c?where=pj_rivera",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='row-folder-fld_agents']",
+      "expect": [
+        {
+          "selector": ".vyre-row[data-testid^='row-folder-fld_ag_']",
+          "min": 5,
+          "name": "sidebar Agents folder rows"
+        },
+        {
+          "selector": ".vyre-row[data-testid^='row-folder-fld_pj_']",
+          "min": 2,
+          "name": "sidebar Projects folder rows"
+        }
+      ],
+      "note": "The expect assertions of P-L9e_01c-files-sidebar run on this packet's own branch (a packet branch shoots only its own targets); same route and prototype state as that target."
+    },
+    {
+      "id": "P-UI_18-expect-L9d_22-records-sidebar",
+      "route": "/m/P-L9d_22",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='records-count']",
+      "expect": [
+        {
+          "selector": "[data-testid^='rec-cl_']",
+          "min": 10,
+          "name": "Clients table rows"
+        },
+        {
+          "selector": ".vyre-row[data-testid^='row-nav:type:']",
+          "min": 4,
+          "name": "sidebar record type rows"
+        }
+      ],
+      "note": "The expect assertions of P-L9d_22-records-sidebar run on this packet's own branch (a packet branch shoots only its own targets); same route and prototype state as that target."
+    },
+    {
+      "id": "P-UI_18-tint-P-L9_33-call-pill",
+      "route": "/m/P-L9_33?state=live",
+      "proto": "inbox,at:callaway,{skin}",
+      "waitFor": "[data-testid='call-title-pill']",
+      "note": "Mirror of P-L9_33-call-pill: proves the recoloured tint on this surface against the prototype (P-UI_18)."
+    },
+    {
+      "id": "P-UI_18-tint-P-L9c_03-calendar-week",
+      "route": "/m/P-L9c_03",
+      "proto": "inbox,at:calendar,{skin}",
+      "waitFor": "[data-testid='event:e_lease_call']",
+      "note": "Mirror of P-L9c_03-calendar-week: proves the recoloured tint on this surface against the prototype (P-UI_18)."
+    },
+    {
+      "id": "P-UI_18-tint-P-L9c_03-calendar-availability",
+      "route": "/m/P-L9c_03?people=maya,omar",
+      "proto": "inbox,at:calendar,{skin}",
+      "waitFor": "[data-testid='cal-avail-bar']",
+      "note": "Mirror of P-L9c_03-calendar-availability: proves the recoloured tint on this surface against the prototype (P-UI_18)."
+    },
+    {
+      "id": "P-UI_18-tint-P-L9c_04-unmatched",
+      "route": "/m/P-L9c_04",
+      "proto": "inbox,at:unmatched,{skin}",
+      "waitFor": "[data-testid='unmatched-unk']",
+      "note": "Mirror of P-L9c_04-unmatched: proves the recoloured tint on this surface against the prototype (P-UI_18)."
+    },
+    {
+      "id": "P-UI_18-tint-P-L9e_01c-files-staged",
+      "route": "/m/P-L9e_01c?where=pj_rivera",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='staged-banner']",
+      "note": "Mirror of P-L9e_01c-files-staged: proves the recoloured tint on this surface against the prototype (P-UI_18)."
+    },
+    {
+      "id": "P-UI_18-tint-P-L9e_01c-files-conflict",
+      "route": "/m/P-L9e_01c?where=pj_rivera",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='conflict-tag']",
+      "note": "Mirror of P-L9e_01c-files-conflict: proves the recoloured tint on this surface against the prototype (P-UI_18)."
+    },
+    {
+      "id": "P-UI_18-tint-P-L9b_23-agent-page",
+      "route": "/m/P-L9b_23?screen=agent&tab=chats",
+      "proto": "chat,at:demo-agent-threads,{skin}",
+      "waitFor": "[data-testid='agent-page']",
+      "note": "Mirror of P-L9b_23-agent-page: proves the recoloured tint on this surface against the prototype (P-UI_18)."
+    },
+    {
+      "id": "P-UI_18-tint-P-L9f_02-failed-runs",
+      "route": "/m/P-L9f_02?view=failed&space=northwind",
+      "proto": "automations,at:failed,{skin}",
+      "waitFor": "[data-testid='failed-runs']",
+      "note": "Mirror of P-L9f_02-failed-runs: proves the recoloured tint on this surface against the prototype (P-UI_18)."
+    },
+    {
+      "id": "P-UI_18-tint-P-L9f_02c-runs-failed",
+      "route": "/m/P-L9f_02c?view=failed",
+      "proto": "automations,at:run,{skin}",
+      "waitFor": "[data-testid='run-graph']",
+      "note": "Mirror of P-L9f_02c-runs-failed: proves the recoloured tint on this surface against the prototype (P-UI_18)."
+    },
+    {
+      "id": "P-UI_18-tint-P-L9d_01d-table",
+      "route": "/m/P-L9d_01d",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='records-count']",
+      "note": "Mirror of P-L9d_01d-table: proves the recoloured tint on this surface against the prototype (P-UI_18)."
+    },
+    {
+      "id": "P-UI_18-tint-P-UI_04-ask-closed",
+      "route": "/m/P-UI_04?part=closed",
+      "proto": "vault,{skin}",
+      "waitFor": "[data-testid='ask-main']",
+      "note": "Mirror of P-UI_04-ask-closed: proves the recoloured tint on this surface against the prototype (P-UI_18)."
+    }
+  ]
+}

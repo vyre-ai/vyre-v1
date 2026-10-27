@@ -168,7 +168,7 @@ const s = StyleSheet.create({
   listBox: { flex: 1, paddingHorizontal: 6, paddingTop: 6 },
   slot: { height: ROW },
   block: { height: 56, flexDirection: "row", alignItems: "center", paddingLeft: 8, paddingRight: 12, borderRadius: 6 },
-  over: { backgroundColor: "color-mix(in srgb, var(--accent) 16%, transparent)" as string },
+  over: { backgroundImage: "linear-gradient(color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--accent) 16%, transparent))" as unknown as undefined },
   face: { marginRight: 12 },
   text: { flex: 1, minWidth: 0 },
   name: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string },

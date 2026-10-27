@@ -76,6 +76,7 @@ test("lint checks changed files only and finishes within 10 s", () => {
     "list-sections",
     "no-content-in-logs",
     "no-em-dash-or-section-sign",
+    "no-color-mix",
   ]);
   const bad = `export const view = items.map((item) => <View>{item.name}</View>);\n`;
   const files = [];

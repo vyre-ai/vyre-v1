@@ -5,6 +5,11 @@
       "route": "/m/P-L9b_22",
       "proto": "chat,{skin}",
       "waitFor": "[data-testid='chats-sidebar']",
+      "expect": [
+        { "selector": ".vyre-row[data-testid^='row-n:']", "min": 3, "name": "sidebar Needs you rows" },
+        { "selector": ".vyre-row[data-testid^='row-f:']", "min": 2, "name": "sidebar agent rows" },
+        { "selector": ".vyre-row[data-testid^='row-c:']", "min": 3, "name": "sidebar chat rows" }
+      ],
       "note": "The real Chats place in the shell with its sidebar in the shared place sidebar: the Chats title, collapse button and Search chats field from the slot, then Needs you, Agents, Channels and Chats with Rivera intake open. On a phone the sidebar is the list before the chat. The prototype side is its Chats place in the same skin."
     },
     {
@@ -12,6 +17,9 @@
       "route": "/m/P-L9b_22?screen=needs",
       "proto": "chat,needs,{skin}",
       "waitFor": "[data-testid='needs-you']",
+      "expect": [
+        { "selector": ".vyre-row[data-testid^='row-need-']", "min": 7, "name": "Needs you rows" }
+      ],
       "note": "The Needs you page opened from the sidebar's Needs you row, beside the shared place sidebar."
     }
   ]

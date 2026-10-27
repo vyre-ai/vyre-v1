@@ -5,6 +5,9 @@
       "route": "/m/P-L9e_01c?where=pj_rivera",
       "proto": "files,{skin}",
       "waitFor": "[data-testid='files-new']",
+      "expect": [
+        { "selector": ".vyre-row[data-testid^='row-line:']", "min": 3, "name": "Files list rows" }
+      ],
       "note": "The Rivera matter folder: back and forward arrows, the path, Sort and the list/grid switch, Upload, the filled New button, the more menu and the side-pane toggle; Kind as plain text and Made by as a face on every line, beside the shared place sidebar. The prototype side is its Files place on the same folder in the same skin."
     },
     {
@@ -19,6 +22,10 @@
       "route": "/m/P-L9e_01c?where=pj_rivera",
       "proto": "files,{skin}",
       "waitFor": "[data-testid='row-folder-fld_agents']",
+      "expect": [
+        { "selector": ".vyre-row[data-testid^='row-folder-fld_ag_']", "min": 5, "name": "sidebar Agents folder rows" },
+        { "selector": ".vyre-row[data-testid^='row-folder-fld_pj_']", "min": 2, "name": "sidebar Projects folder rows" }
+      ],
       "note": "The sidebar in the shared place sidebar: title and search, Recent, Starred with its count, Shared with me, Knowledge (Memory, Graph), then Space with All files, the Agents folders with each agent's face, the Projects folders and the Space's other folders. The prototype side is its Files place in the same skin, on the same folder."
     },
     {

@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 // @ts-expect-error plain .mjs helper without types
-import { parseArgs, protoHash, routeUrl, loadTargets, sideBySideHtml, countWrongFrames, budgetOf } from "./lib.mjs";
+import { parseArgs, protoHash, routeUrl, loadTargets, sideBySideHtml, countWrongFrames, budgetOf, parseExpect, expectVerdict } from "./lib.mjs";
 
 test("parseArgs reads values and flags", () => {
   assert.deepEqual(parseArgs(["--target", "sample", "--skip-export", "--out", "x"]), { target: "sample", "skip-export": true, out: "x" });
@@ -51,4 +51,29 @@ test("budgets.json has the theme_flash row with its probe", () => {
   assert.equal(row.wrong_frames_max, 0);
   assert.ok(fs.existsSync(new URL("../../" + row.probe, import.meta.url)), "probe file exists");
   assert.throws(() => budgetOf(b, "nope"), /no row nope/);
+});
+
+test("an expect list gets a name per row and a bad row is refused", () => {
+  assert.deepEqual(parseExpect([{ selector: "[data-testid^=row]", min: 7, name: "rows" }, { selector: ".x", min: 0 }]), [
+    { selector: "[data-testid^=row]", min: 7, name: "rows" },
+    { selector: ".x", min: 0, name: ".x" },
+  ]);
+  assert.throws(() => parseExpect({}), /list/);
+  assert.throws(() => parseExpect([{ min: 1 }]), /needs a selector/);
+  assert.throws(() => parseExpect([{ selector: "a", min: -1 }]), /integer min/);
+  assert.throws(() => parseExpect([{ selector: "a", min: 1.5 }]), /integer min/);
+});
+
+test("expectVerdict passes at the minimum and names the shortfall below it", () => {
+  assert.deepEqual(expectVerdict(7, 7, "t", "rows"), { ok: true, message: "" });
+  assert.equal(expectVerdict(9, 7).ok, true);
+  assert.deepEqual(expectVerdict(2, 7, "P-L9b_22-chats-needs", "needs rows"), { ok: false, message: "expect failed: P-L9b_22-chats-needs needs rows had 2 of at least 7" });
+  assert.equal(expectVerdict(0, 1).ok, false);
+  assert.equal(expectVerdict(Number.NaN, 0).ok, false);
+});
+
+test("a target with a bad expect list fails to load, naming the target", () => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "shots-"));
+  fs.writeFileSync(path.join(d, "targets.json"), JSON.stringify({ targets: [{ id: "a", route: "/", proto: "x", expect: [{ selector: "", min: 1 }] }] }));
+  assert.throws(() => loadTargets(d), /target a: expect\[0\] needs a selector/);
 });

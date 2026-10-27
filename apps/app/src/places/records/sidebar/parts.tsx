@@ -138,7 +138,9 @@ export function TypeTile({ icon, hue, syncedFrom, size = 18 }: { icon: IconName;
     return createElement("span", { "aria-hidden": true, "data-testid": `brand-${syncedFrom}`, style: { width: size, height: size, borderRadius: "28%", background: brand.color, display: "grid", placeItems: "center", flex: "none" } },
       createElement("svg", { viewBox: "0 0 24 24", width: "64%", height: "64%", fill: "#fff" }, createElement("path", { d: brand.path })));
   }
+  // color-mix-ok: createElement span style, a real DOM node
   return createElement("span", { "aria-hidden": true, style: { width: size, height: size, borderRadius: 5, display: "grid", placeItems: "center", flex: "none", background: `color-mix(in srgb, hsl(${hue}, 70%, 55%) 20%, transparent)` } },
+    // color-mix-ok: Glyph draws an inline svg through createElement, so the colour reaches the DOM
     createElement(Glyph, { name: icon, size: 12, color: `color-mix(in srgb, hsl(${hue}, 70%, 48%) 75%, var(--ink))`, width: 1.5 }));
 }
 
