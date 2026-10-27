@@ -224,7 +224,7 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     const copy = await until("the conflict copy in Files", async () => (await filesIn(folderId)).files.find((f) => f.name === "both (from computer).txt"));
     assert.equal(await textOf(copy.fileId), "computer wrote this");
     assert.equal(await textOf(both.fileId), "vyre wrote this", "Files kept the original path");
-    assert.equal((await until("the computer shows Files' version", async () => { const t = await onDisk("both.txt"); return t === "vyre wrote this" ? t : null; })).length > 0, true);
+    assert.equal((await until("the computer shows Files' version", async () => { const t = await onDisk("both.txt"); return t?.trim() === "vyre wrote this" ? t : null; })).length > 0, true);
     const tasks = await call(d, "tasks.list", { scope: "all" });
     assert.ok(JSON.stringify(tasks.data).includes("A file changed in two places: both.txt"), "the agent's owner has a task for the conflict");
 
