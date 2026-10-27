@@ -5,6 +5,7 @@
 // DECISION: automations.run (manual start) is named so that no capability name is a prefix of another; run history is runs.list with the automation as subject.
 // record_change lists record.created, record.updated and record.deleted; spreadsheet_row lists sheet.row_appended and sheet.row_updated; the filter narrows by op and field.
 // DECISION: webhook triggers post to /hooks/automation/<automationId>/<secret>; they are Team Space only (personalOk false), as are the caps that read or rotate the URL.
+// DECISION: a schedule trigger stores one cron, a time zone and a missed policy. backfill_each_tick is capped at 30 days and 500 runs; a larger backlog pauses that schedule only.
 // Triggers that cover several events (record_change, spreadsheet_row, email_received) list them in TriggerDef.source.events.
 import { create, defineManifest, ev, list, read, screen, setting, t, trigger, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, runStarted, subjectRef, versionRow } from './_common.ts';
@@ -179,8 +180,14 @@ export default defineManifest({
   triggers: [
     trigger('record_change', 'A record changes', { events: ['record.created', 'record.updated', 'record.deleted'], filter: recordFilter },
       { record: t.rec(), recordId: id.record, type: id.recordType, op: t.enm('created', 'updated', 'deleted'), fields: t.arr(t.str()), changed: t.opt(t.rec()), version: t.opt(t.int()) }),
-    trigger('schedule', 'On a schedule', { schedule: true, ifMissed: ['skip', 'run_once'] },
-      { firedAt: t.ts(), scheduledFor: t.ts(), missed: t.bool(), cron: t.opt(t.str()) }),
+    trigger('schedule', 'On a schedule', {
+      schedule: true,
+      ifMissed: ['skip', 'run_once', 'backfill_each_tick'],
+      lookbackMaxDays: 30,
+      capMax: 500,
+      spacing: true,
+      overlap: ['queue', 'skip_while_active', 'bounded_concurrency'],
+    }, { firedAt: t.ts(), scheduledFor: t.ts(), missed: t.bool(), cron: t.opt(t.str()) }),
     trigger('webhook', 'A webhook is received', { webhook: true, path: '/hooks/automation/{automationId}' },
       { headers: t.rec(t.str()), query: t.rec(t.str()), body: anyJson, receivedAt: t.ts() }),
     trigger('form_submit', 'A form is submitted', { event: 'form.submitted' },
