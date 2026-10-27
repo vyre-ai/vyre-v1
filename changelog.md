@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Access: resolve gateway actor-kind home grants to their registered agent or person principal during projection.
 - Computer home mirrors now invoke agent file operations on behalf of the agent's current owner.
 - Scheduler: await the initial immediate repair tick before reporting the daemon started.
 - Fix: keep the missing-item fallback snapshot stable so Mail and Automations do not enter a production React render loop before an item is selected; reset place failures on route changes.
