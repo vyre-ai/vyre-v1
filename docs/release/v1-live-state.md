@@ -10,7 +10,7 @@
 4. After compaction, do not restart discovery. Read this checkpoint, `docs/superpowers/specs/2026-10-27-v1-release-candidate-contract.md`, and `/Users/irfad/Claude/Orgs/Vyre/team/v1/HANDOVER-2026-10-27.md`, then inspect the named PRs and runs.
 5. Report real artifacts and exact blockers. Do not describe a lane as complete until its required CI and review gates pass.
 
-## Current state — 27 October 2026 PKT
+## Current state: 27 October 2026 PKT
 
 - **Merged:** PR #517 fixed the real-app Mail/Automations React #185 navigation loop. Full CI and production-export screenshot capture passed.
 - **Merged PR #721:** atomic agent-home grants, reassignment correction, and scheduler readiness landed on `main` as `3d8ef650`. Fresh CI and independent review passed. GitHub does not allow the author to approve their own PR; owner authorized the compliant reviewed admin merge rather than a branch-protection mutation. Advance dependent #715 from this mainline.
