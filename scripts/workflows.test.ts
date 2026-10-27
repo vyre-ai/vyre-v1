@@ -51,6 +51,29 @@ test("every job that runs steps has timeout-minutes", () => {
   for (const w of all) for (const j of w.jobs) if (!j.uses) assert.ok(j.timeout, `${w.file}: job ${j.name} has no timeout-minutes`);
 });
 
+test("shots shards the complete visual suite and publishes release evidence through one canonical artifact", () => {
+  const shots = wf("shots");
+  const capture = shots.jobs.find((j) => j.name === "shots")!;
+  const evidence = shots.jobs.find((j) => j.name === "release-evidence")!;
+  const aggregate = shots.jobs.find((j) => j.name === "aggregate-shots")!;
+  assert.ok(capture && evidence && aggregate, "capture, release evidence and aggregation jobs exist");
+  assert.match(capture.text, /fromJSON\(startsWith\(github\.ref_name, 'build\/P-'\)/);
+  assert.match(capture.text, /\[0,1,2,3,4,5,6,7,8,9,10,11\]/);
+  assert.match(capture.text, /--shard-index "\$\{\{ matrix\.shard \}\}" --shard-total "\$SHARD_TOTAL"/);
+  assert.match(capture.text, /name: shots-part-\$\{\{ matrix\.shard \}\}/);
+  assert.doesNotMatch(capture.text, /pwa-mobile|real-app\.e2e/, "release evidence does not wait behind visual shards");
+  assert.deepEqual(evidence.needs, [], "release evidence starts independently");
+  assert.match(evidence.text, /pwa-mobile\/evidence\.json/);
+  assert.match(evidence.text, /pwa-mobile\/iphone-390x844-standalone-simulated\.png/);
+  assert.deepEqual(aggregate.needs, ["shots", "release-evidence"]);
+  assert.match(aggregate.text, /pattern: shots-part-\*/);
+  assert.match(aggregate.text, /name: shots-evidence/);
+  assert.match(aggregate.text, /merge-index\.mjs/);
+  assert.match(aggregate.text, /name: shots\s*$/m);
+  assert.match(aggregate.text, /if-no-files-found: error/);
+  assert.equal(shots.jobs.reduce((count, job) => count + (job.text.match(/name: shots\s*$/gm) ?? []).length, 0), 1, "only aggregation publishes the canonical shots artifact");
+});
+
 test("check, golden and budget are real jobs in check.yml, budget runs if always() at 5 minutes", () => {
   const c = wf("check");
   for (const n of ["check", "golden", "budget"]) assert.ok(c.jobs.find((j) => j.name === n), `check.yml job ${n}`);

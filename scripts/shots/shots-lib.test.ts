@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 // @ts-expect-error plain .mjs helper without types
-import { parseArgs, protoHash, routeUrl, loadTargets, sideBySideHtml, countWrongFrames, budgetOf } from "./lib.mjs";
+import { parseArgs, protoHash, routeUrl, loadTargets, shardTargets, shardIndexName, mergeShotIndexes, sideBySideHtml, countWrongFrames, budgetOf } from "./lib.mjs";
 
 test("parseArgs reads values and flags", () => {
   assert.deepEqual(parseArgs(["--target", "sample", "--skip-export", "--out", "x"]), { target: "sample", "skip-export": true, out: "x" });
@@ -33,6 +33,37 @@ test("the shipped targets.json is valid", () => {
   const t = loadTargets(path.dirname(new URL(import.meta.url).pathname));
   assert.ok(t.length >= 1);
   for (const x of t) assert.ok(x.proto.includes("{skin}"), `${x.id} prototype hash takes the skin`);
+});
+
+test("twelve screenshot shards cover every target once without overlap", () => {
+  const targets = loadTargets(path.dirname(new URL(import.meta.url).pathname));
+  const shards = Array.from({ length: 12 }, (_, index) => shardTargets(targets, index, 12));
+  const ids = shards.flat().map((t: { id: string }) => t.id);
+  assert.equal(ids.length, targets.length);
+  assert.equal(new Set(ids).size, targets.length);
+  assert.deepEqual([...ids].sort(), targets.map((t: { id: string }) => t.id).sort());
+  assert.ok(Math.max(...shards.map((s) => s.length)) - Math.min(...shards.map((s) => s.length)) <= 1);
+});
+
+test("screenshot shard selection is deterministic and rejects invalid coordinates", () => {
+  const targets = Array.from({ length: 8 }, (_, id) => ({ id }));
+  assert.deepEqual(shardTargets(targets, 1, 3).map((t: { id: number }) => t.id), [1, 4, 7]);
+  assert.deepEqual(shardTargets(targets, 1, 3), shardTargets(targets, 1, 3));
+  assert.throws(() => shardTargets(targets, -1, 3), /shard index/);
+  assert.throws(() => shardTargets(targets, 3, 3), /shard index/);
+  assert.throws(() => shardTargets(targets, 0, 0), /shard total/);
+});
+
+test("shard indexes merge into one canonical screenshot index", () => {
+  assert.equal(shardIndexName(0, 1), "index.md");
+  assert.equal(shardIndexName(2, 12), "index-shard-02-of-12.md");
+  const first = "# Side-by-side screenshots\n\nExport: 1.0 s\n\n| target | skin | size | file |\n|---|---|---|---|\n| b | paper | phone | b.png |\n";
+  const second = "# Side-by-side screenshots\n\nExport: 2.0 s\n\n| target | skin | size | file |\n|---|---|---|---|\n| a | graphite | desktop | a.png |\n";
+  const merged = mergeShotIndexes([first, second], 2);
+  assert.match(merged, /^# Side-by-side screenshots/m);
+  assert.match(merged, /2 shards/);
+  assert.ok(merged.indexOf("| a |") < merged.indexOf("| b |"), "canonical rows are stable");
+  assert.throws(() => mergeShotIndexes([first], 2), /expected 2 shard indexes, found 1/);
 });
 
 test("side-by-side page shows both images with captions", () => {

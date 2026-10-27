@@ -9,7 +9,7 @@ import path from "node:path";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ensureDeps, ensureChromium } from "./ensure-deps.mjs";
-import { parseArgs, SKINS, SIZES, MAX_EXPORT_S, protoHash, routeUrl, loadTargets, sideBySideHtml } from "./lib.mjs";
+import { parseArgs, SKINS, SIZES, MAX_EXPORT_S, protoHash, routeUrl, loadTargets, shardTargets, shardIndexName, sideBySideHtml } from "./lib.mjs";
 import { serve } from "./serve.mjs";
 import { measureScroll, withinBudget, SCROLL_P95_MS } from "./probes/scroll.mjs";
 import { traceScroll } from "./probes/trace.mjs";
@@ -34,7 +34,10 @@ if (want === "P-UI_14" || args["probes-only"]) {
 }
 
 // A packet id (P-L9b_02) selects that packet's targets, whose ids start with it; "all" runs everything.
-const targets = loadTargets(HERE).filter((t) => want === "all" || t.id === want || (want.startsWith("P-") && t.id.startsWith(want + "-")));
+const selectedTargets = loadTargets(HERE).filter((t) => want === "all" || t.id === want || (want.startsWith("P-") && t.id.startsWith(want + "-")));
+const shardIndex = args["shard-index"] === undefined ? 0 : Number(args["shard-index"]);
+const shardTotal = args["shard-total"] === undefined ? 1 : Number(args["shard-total"]);
+const targets = shardTargets(selectedTargets, shardIndex, shardTotal);
 // A packet branch with no screenshot targets of its own (a backend packet that merged main) has nothing to shoot.
 if (!targets.length && want.startsWith("P-")) { console.log(`no targets for ${want}: nothing to shoot`); process.exit(0); }
 if (!targets.length) { console.error(`no target ${want}`); process.exit(1); }
@@ -123,7 +126,7 @@ try {
     }
   }
 } finally { await browser.close(); real.close(); proto.close(); }
-fs.writeFileSync(path.join(out, "index.md"), `# Side-by-side screenshots\n\nExport: ${exportSeconds ? exportSeconds.toFixed(1) + " s" : "skipped"} (budget ${maxExport} s)\n\n| target | skin | size | file |\n|---|---|---|---|\n${rows.join("\n")}\n`);
+fs.writeFileSync(path.join(out, shardIndexName(shardIndex, shardTotal)), `# Side-by-side screenshots\n\nExport: ${exportSeconds ? exportSeconds.toFixed(1) + " s" : "skipped"} (budget ${maxExport} s)\n\n| target | skin | size | file |\n|---|---|---|---|\n${rows.join("\n")}\n`);
 // Every gate is judged before the run ends, so one red never hides the next measure: the failures are collected and the process exits at the end.
 let failedGate = false;
 if (scrollFailed.length) { console.error(`scroll probe over budget: ${scrollFailed.join(", ")}`); failedGate = true; }
