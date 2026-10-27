@@ -191,10 +191,27 @@ test("boot repairs an imported agent birth without access events and makes the a
   try {
     const events = await d.log!.read({ limit: 5000 });
     assert.deepEqual(events.filter((e) => e.entity_id === agent).map((e) => e.type), ["agent.created", "resource.created", "principal.created", "principal.role_set"]);
+    const syncedPrincipal = one(d, "SELECT kind, owner FROM access_principals WHERE id = ?", agent);
+    assert.equal(syncedPrincipal["kind"], "agent", "access.sync receives the repaired principal");
+    assert.equal(syncedPrincipal["owner"], "usr_mia");
+    assert.equal(one(d, "SELECT level FROM access_grants WHERE id = ?", `gnt_${agent.slice(4)}space`)["level"], "edit", "access.sync receives the owner-capped Space grant");
     const access = buildAccess(events);
     assert.equal(authorize(access, { principal: agent, actingFor: "usr_mia", action: { perm: null, level: "view" }, resource: { type: "agent", id: agent } }).effect, "allow");
   } finally {
     await d.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("boot fails closed when a reconciliation event id belongs to different data", async () => {
+  const agent = "agt_import2";
+  const dir = seededDir([
+    { id: "evt_import_agent_2", type: "agent.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_import", vis: "space", entity: "agent", entity_id: agent, payload: { agentId: agent, name: "Imported", ownerId: "usr_mia" } },
+    { id: `evt_agent_access_principal_created_${agent}`, type: "example.said", sv: 1, trace_id: "c0".repeat(16), actor: "svc_import", vis: "space", entity: "example", entity_id: "collision", payload: { wrong: true } },
+  ]);
+  try {
+    await assert.rejects(() => boot(dir), /reconciliation event ID collision/);
+  } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

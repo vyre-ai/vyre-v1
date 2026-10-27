@@ -117,6 +117,18 @@ const registryHash = sha256b64(fs.readFileSync(new URL("../../../generated/regis
 const ZERO_TRACE = "0".repeat(32);
 const RING = 5000;
 
+const repairPayload = (payload: unknown): unknown => {
+  if (!(payload instanceof Uint8Array)) return payload;
+  try { return JSON.parse(new TextDecoder().decode(payload)); } catch { return undefined; }
+};
+const stableJson = (value: unknown): string => JSON.stringify(value, (_key, item) =>
+  item !== null && typeof item === "object" && !Array.isArray(item)
+    ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b)))
+    : item,
+);
+const sameRepairEvent = (stored: { type: string; entity?: string; entity_id?: string; payload: unknown }, intended: { type: string; entity?: string; entity_id?: string; payload: unknown }): boolean =>
+  stored.type === intended.type && stored.entity === intended.entity && stored.entity_id === intended.entity_id && stableJson(repairPayload(stored.payload)) === stableJson(intended.payload);
+
 const refusingVault: VaultPort = {
   secret: () => Promise.reject(new Error("The Vault is not live on this server.")),
   signRs256: () => Promise.reject(new Error("The Vault is not live on this server.")),
@@ -375,11 +387,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // agent.created without its access resource. Repair only from that birth event, never
       // from an arbitrary later event (which may run as svc_host and has no owner authority).
       if (!chainBroken) {
+        const appendRepair = async (event: Parameters<LogClient["appendResult"]>[0]) => {
+          const repaired = await log.appendResult(event);
+          if (!repaired.ok) throw new Error(`could not reconcile agent access ${event.entity_id ?? event.id ?? "event"}: ${repaired.message}`);
+          if (repaired.duplicate && !sameRepairEvent(repaired.event, event)) throw new Error(`reconciliation event ID collision for ${event.id ?? "event"}`);
+          return repaired;
+        };
         for (const row of missingAgentResources({ space, events: agentAccessEvents })) {
-          const repaired = await log.appendResult({
+          const repaired = await appendRepair({
             id: `evt_res_${row.id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: row.id, payload: row,
           });
-          if (!repaired.ok) throw new Error(`could not reconcile agent resource ${row.id}: ${repaired.message}`);
           if (!repaired.duplicate) {
             access.fold(repaired.event);
             accessPending.push(toAccessEvent(repaired.event));
@@ -393,11 +410,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // Prototype/import logs predate both registrars.  The immutable agent.created
         // payload, not a subsequent host event, is the authority for every repair.
         for (const repairedEvent of missingAgentPrincipalEvents({ space, events: agentAccessEvents, levelOf })) {
-          const repaired = await log.appendResult({
+          const repaired = await appendRepair({
             id: `evt_agent_access_${repairedEvent.type.replace(".", "_")}_${repairedEvent.id}`,
             type: repairedEvent.type, sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: repairedEvent.entity, entity_id: repairedEvent.id, payload: repairedEvent.payload,
           });
-          if (!repaired.ok) throw new Error(`could not reconcile agent access ${repairedEvent.id}: ${repaired.message}`);
           if (!repaired.duplicate) {
             access.fold(repaired.event);
             accessPending.push(toAccessEvent(repaired.event));
