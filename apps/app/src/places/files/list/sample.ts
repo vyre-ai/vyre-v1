@@ -148,7 +148,14 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
   }
   replica.put("files", files);
 
-  const allFiles = (): Seeded[] => replica.rows("files") as unknown as Seeded[];
+  let filesSnapshot: { version: number; rows: Seeded[] } | null = null;
+  const allFiles = (): Seeded[] => {
+    const version = replica.version();
+    if (filesSnapshot?.version === version) return filesSnapshot.rows;
+    const rows = replica.rows("files") as unknown as Seeded[];
+    filesSnapshot = { version, rows };
+    return rows;
+  };
   const allFolders = (): FolderSeedRow[] => replica.rows("folders") as unknown as FolderSeedRow[];
   const live = (x: Seeded): boolean => x.deletedAt === undefined;
   const folderRow = (x: FolderSeed): FolderRow => {

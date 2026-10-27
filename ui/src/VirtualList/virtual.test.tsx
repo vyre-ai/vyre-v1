@@ -62,3 +62,19 @@ test("window lookup over 10,000 rows is cheap (p95 under 1 ms)", () => {
   times.sort((a, b) => a - b);
   assert.ok(times[Math.floor(times.length * 0.95)] < 1, `p95 ${times[Math.floor(times.length * 0.95)]} ms`);
 });
+
+test("a 10,000-row Files fling keeps one buffered window across most animation frames", () => {
+  const offsets = rowOffsets(10000, 38);
+  const viewport = 640;
+  let current = windowFor(offsets, 0, viewport);
+  let changes = 0;
+  for (let frame = 1; frame <= 600; frame++) {
+    const top = frame * 120;
+    const next = windowFor(offsets, top, viewport, 72, current);
+    if (next !== current) changes++;
+    current = next;
+    const visible = windowFor(offsets, top, viewport, 0);
+    assert.ok(current.start <= visible.start && current.end >= visible.end, `frame ${frame} remains covered`);
+  }
+  assert.ok(changes < 30, `${changes} React window updates during 600 animation frames`);
+});
