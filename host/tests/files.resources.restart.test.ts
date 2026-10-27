@@ -47,7 +47,7 @@ test("booting twice on one data directory registers the Files root folders once 
   } finally { await second.stop(); }
 });
 
-test("folder sensitivity changes through the production host path in a Personal Space", async () => {
+test("folder sensitivity and large host uploads work through production paths in a Personal Space", async () => {
   const core = bootCore();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-files-personal-label-"));
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
@@ -84,5 +84,16 @@ test("folder sensitivity changes through the production host path in a Personal 
     assert.equal(changed.status, 200, JSON.stringify(changed.body));
     const resource = d.db!.all("SELECT label FROM access_resources WHERE id = ?", folderId)[0] as { label?: string } | undefined;
     assert.equal(resource?.label, "restricted", "the Files setting updates the Access source of truth");
+
+    const bytes = Buffer.alloc(2 * 1024 * 1024, 0x5a);
+    const slot = await post("/v1/files/upload_url", { size: bytes.length });
+    assert.equal(slot.status, 200, JSON.stringify(slot.body));
+    const upload = slot.body["data"] as { blobId: string; url: string };
+    const token = new URL(upload.url, "http://vyred").searchParams.get("token");
+    assert.ok(token);
+    await d.hooks!.call("files.put_upload", { blobId: upload.blobId, token, base64: bytes.toString("base64") });
+    const madeLarge = await post("/v1/files/create", { idempotencyKey: "personal-large-file", folderId, name: "dl.bin", content: { blobId: upload.blobId } });
+    assert.equal(madeLarge.status, 200, JSON.stringify(madeLarge.body));
+    assert.equal(((madeLarge.body["data"] as { file: { size: number } }).file.size), bytes.length);
   } finally { await d.stop(); }
 });

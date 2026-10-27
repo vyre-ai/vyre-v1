@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Files: bind the large-upload helper used by host calls so agent-computer downloads above the direct-write limit reach Files intact instead of failing before blob storage.
 - Files: propagate folder sensitivity changes into Access through a Personal-safe host seam, and filter listings, nested counts, tree and Trash badges, Trash rows, and Recent through live view authorization so restricted material disappears from agent computer mirrors without leaking its presence.
 - Computer CI: clean up the hostile home-mirror escape fixture inside its container ownership context whether reconciliation leaves a symlink or replaces it with a real directory, without following the external target, and normalize the container command separator before checking mirrored file contents.
 - Golden Flow 7: give each persistent fake-CLI send turn a distinct idempotency key, explicitly test a second independent Gate hold, and drive its role escalation and final drop at the scheduled test instants.
