@@ -310,11 +310,11 @@ function fakeGithub(existing: string[] = []) {
 
 test("publish attaches every signed file to a new release, and never replaces a release that exists", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pub-"));
-  for (const f of ["stable.json", "stable.json.sig", "vyre.tgz", "feed.json", "releases.json"]) fs.writeFileSync(path.join(dir, f), f);
+  for (const f of ["stable.json", "stable.json.sig", "vyre.tgz", "Vyre_1.0.0_aarch64.dmg", "Vyre_1.0.0_aarch64.dmg.sha256", "feed.json", "releases.json"]) fs.writeFileSync(path.join(dir, f), f);
   const gh = fakeGithub();
   const r = await publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0", dir, prerelease: false, notes: "n", fetch: gh.fetch });
-  assert.deepEqual(r.attached, ["stable.json", "stable.json.sig", "vyre.tgz"], "feed.json and releases.json are build files, not release files");
-  assert.deepEqual(gh.uploads, ["stable.json", "stable.json.sig", "vyre.tgz"]);
+  assert.deepEqual(r.attached, ["Vyre_1.0.0_aarch64.dmg", "Vyre_1.0.0_aarch64.dmg.sha256", "stable.json", "stable.json.sig", "vyre.tgz"], "feed.json and releases.json are build files, not release files");
+  assert.deepEqual(gh.uploads, ["Vyre_1.0.0_aarch64.dmg", "Vyre_1.0.0_aarch64.dmg.sha256", "stable.json", "stable.json.sig", "vyre.tgz"]);
   await assert.rejects(publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0", dir, prerelease: false, notes: "n", fetch: fakeGithub(["v1.0.0"]).fetch }), /already has a release/);
 });
 
