@@ -76,6 +76,10 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
       for (const ev of a.events) {
         const s = subjects.get(ev.type);
         if (!s) continue;
+        // Agent follow-up events are also scoped to their agent. They must never create a
+        // missing access resource: a concurrent host consumer would otherwise claim it as
+        // svc_host before the agent.created commit reaches the access snapshot.
+        if (s.type === "agent" && ev.type !== "agent.created") continue;
         const id = pointer(ev.payload, s.id);
         if (typeof id !== "string" || !idFits(s.type, id) || seen.has(id) || deps.exists(id)) continue;
         seen.add(id);

@@ -119,3 +119,23 @@ test("registrar: a birth event that names an ownerId makes that person the owner
   const rec = createResourceRegistrar({ events: [{ name: "record.created", subject: { type: "record", id: "/recordId" } }], exists: (id) => id === "spc_1" });
   assert.equal(rec.register({ cap: { name: "records.create", resource: { type: "space" } }, input: {}, space: "spc_1", owner: "usr_admin", events: [ev("record.created", { recordId: REC, ownerId: "usr_mia" })] })[0]?.owner_id, "usr_admin");
 });
+
+test("registrar: an agent follow-up event cannot claim an agent before agent.created does", () => {
+  const events: SubjectDef[] = [
+    { name: "agent.created", subject: { type: "agent", id: "/agentId" } },
+    { name: "agent.config_changed", subject: { type: "agent", id: "/agentId" } },
+  ];
+  const r = createResourceRegistrar({ events, exists: () => false });
+  const cap = { name: "host.hook.call.agents.config_watch", resource: { type: "space" } };
+  const agentId = "agt_a1b2c3";
+
+  assert.deepEqual(
+    r.register({ cap, input: {}, space: "spc_1", owner: "svc_host", events: [ev("agent.config_changed", { agentId, fields: ["model"], by: "svc_host" })] }),
+    [],
+    "only agent.created may register an agent resource",
+  );
+  assert.equal(
+    r.register({ cap: { name: "agents.create", resource: { type: "space" } }, input: {}, space: "spc_1", owner: "usr_mia", events: [ev("agent.created", { agentId, ownerId: "usr_mia" })] })[0]?.owner_id,
+    "usr_mia",
+  );
+});

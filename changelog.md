@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Gateway: only `agent.created` may register an agent access resource, preventing concurrent host follow-up events from assigning it to `svc_host`.
 - Desktop: stop the local sidecar through its loopback admin endpoint before process fallback, so Windows removes `vyred.json` on a requested shutdown.
 - Desktop smoke: use Windows Ctrl-Break for graceful sidecar shutdown, preserving the cleanup and restart proof before bounded force cleanup.
 - Desktop smoke: apply the owner-only mode-bit check only on POSIX hosts while retaining cross-platform token persistence coverage.
