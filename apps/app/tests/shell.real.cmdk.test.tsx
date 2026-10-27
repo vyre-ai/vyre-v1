@@ -130,7 +130,7 @@ test("choosing a hit opens its place; Cmd-Enter opens it in a new tab; the open 
 });
 
 test("the real SessionGate draws its blank frame before a stored session is read", () => {
-  const out = renderToStaticMarkup(<SessionGate baseUrl="http://space.test" />);
+  const out = renderToStaticMarkup(<SessionGate baseUrl="https://space.test" />);
   assert.ok(typeof out === "string");
 });
 

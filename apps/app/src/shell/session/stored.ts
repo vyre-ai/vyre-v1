@@ -50,6 +50,11 @@ export function readStored(store: KeyValueStore | undefined = browserStore(), ba
   return baseUrl ? all[baseUrl] ?? null : Object.values(all)[0] ?? null;
 }
 
+/** The gate never carries a prior Space across an address change. */
+export function phaseForStoredAddress<T>(stored: T | null): { kind: "signin" } | { kind: "shell"; stored: T } {
+  return stored ? { kind: "shell", stored } : { kind: "signin" };
+}
+
 export function writeStored(s: StoredSession, store: KeyValueStore | undefined = browserStore()): void {
   try { store?.setItem(KEY, JSON.stringify({ sessions: { ...sessions(store), [s.baseUrl]: s } })); } catch { /* blocked storage: the session lasts until the page closes */ }
 }
@@ -81,8 +86,8 @@ export async function openVerifiedSession<T extends OpenedSession>({ baseUrl, to
 }
 
 /** A first sign-in displays anonymous options, then records only the authenticated Space response for later continuity checks. */
-export async function signInAndVerify<T extends OpenedSession>({ baseUrl, continuity, discover, signIn, open, getSpace, persist }: {
-  baseUrl: string; continuity?: SpaceContinuityHint; discover: () => Promise<SignInOptions>; signIn: () => Promise<SignInAnswer>; open: () => Promise<T>; getSpace: () => Promise<VerifiedSpace>; persist?: (stored: StoredSession) => void;
+export async function signInAndVerify<T extends OpenedSession>({ baseUrl, continuity, discover, signIn, open, getSpace, persist, afterVerified }: {
+  baseUrl: string; continuity?: SpaceContinuityHint; discover: () => Promise<SignInOptions>; signIn: () => Promise<SignInAnswer>; open: () => Promise<T>; getSpace: () => Promise<VerifiedSpace>; persist?: (stored: StoredSession) => void; afterVerified?: (stored: StoredSession) => Promise<void> | void;
 }): Promise<{ status: "second_factor_required"; options: SignInOptions } | { status: "ok"; options: SignInOptions; stored: StoredSession }> {
   const options = await discover();
   const answer = await signIn();
@@ -90,6 +95,7 @@ export async function signInAndVerify<T extends OpenedSession>({ baseUrl, contin
   const token = answer.session?.token;
   if (!token) throw new Error("The Space did not return a session. Try again.");
   const stored = await openVerifiedSession({ baseUrl, token, continuity, open, getSpace, ...(persist ? { persist } : {}) });
+  await afterVerified?.(stored);
   return { status: "ok", options, stored };
 }
 
@@ -108,10 +114,12 @@ export async function verifyStoredSession<T extends OpenedSession>({ stored, ope
   }
 }
 
-function httpAddress(value: string): string | null {
+/** HTTPS is required away from this device; local daemon and development endpoints may use loopback HTTP. */
+export function spaceEndpoint(value: string): string | null {
   try {
     const parsed = new URL(value);
-    return (parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.host ? parsed.origin : null;
+    const loopback = parsed.hostname.toLowerCase() === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]" || parsed.hostname === "::1";
+    return parsed.host && (parsed.protocol === "https:" || (parsed.protocol === "http:" && loopback)) ? parsed.origin : null;
   } catch {
     return null;
   }
@@ -121,5 +129,5 @@ function httpAddress(value: string): string | null {
 export function spaceAddress(loc: { origin: string; search: string } | undefined = (globalThis as { location?: { origin: string; search: string } }).location): string | null {
   if (!loc) return null;
   const q = new URLSearchParams(loc.search).get("space");
-  return (q ? httpAddress(q) : null) ?? httpAddress(loc.origin);
+  return q === null ? spaceEndpoint(loc.origin) : spaceEndpoint(q);
 }

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Desktop: consume successful one-time pair and join routes before later sign-out, keep sessions address-scoped, defer personal-key unlock until session verification, and restrict Space traffic to HTTPS except local loopback development endpoints.
 - Desktop: redeem pair links and accept invite links through the real anonymous contracts, seal new Space keys to the previewed public Space id, and persist only after authenticated Space-ID agreement; paired-device key ciphertext stays out of ordinary session storage.
 - Members: expose the invite preview's public Space routing id to pending and anonymous callers without exposing the one-time code.
 - Desktop: route typed bootstrap and live deep links into the existing Connect, Sign in, and Join flows; packaged `tauri://localhost` now shows Connect a Space instead of posing as a Space.

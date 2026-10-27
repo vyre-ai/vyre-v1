@@ -49,7 +49,8 @@ function address(value: string | undefined, httpsOnly = false): string | null {
   if (!value) return null;
   try {
     const parsed = new URL(value);
-    if ((parsed.protocol !== "http:" && parsed.protocol !== "https:") || (httpsOnly && parsed.protocol !== "https:") || !parsed.host) return null;
+    const loopback = parsed.hostname.toLowerCase() === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]" || parsed.hostname === "::1";
+    if ((parsed.protocol !== "https:" && (parsed.protocol !== "http:" || !loopback)) || (httpsOnly && parsed.protocol !== "https:") || !parsed.host) return null;
     return parsed.origin;
   } catch {
     return null;
@@ -111,6 +112,11 @@ export function routeDesktopLink(link: DesktopDeepLink): DesktopRoute | null {
   const fingerprint = link.params["fp"];
   const verifiedSpace = address(link.params["address"], true);
   return verifiedSpace && code && fingerprint ? { kind: "join", address: verifiedSpace, code, fingerprint } : null;
+}
+
+/** One-time pair and join links become an ordinary sign-in address after success, so sign-out cannot replay their codes. */
+export function consumeDesktopRoute(route: DesktopRoute | null): DesktopRoute | null {
+  return route?.kind === "pair" || route?.kind === "join" ? { kind: "signin", address: route.address } : route;
 }
 
 /** Pairing spends the anonymous one-time code, then requires whoami and spaces.get before storing a session. Returned key ciphertext is intentionally ignored: Mine remains locked. */

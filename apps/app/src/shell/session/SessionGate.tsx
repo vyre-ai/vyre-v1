@@ -28,9 +28,9 @@ import { openPhone } from "./phone.ts";
 import type { LoadVoiceDevice, Phone } from "./phone.ts";
 import { openRealSession } from "./session.ts";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
-import { clearStored, readStored, signInAndVerify, spaceAddress, verifyStoredSession, writeStored } from "./stored.ts";
+import { clearStored, phaseForStoredAddress, readStored, signInAndVerify, spaceAddress, spaceEndpoint, verifyStoredSession, writeStored } from "./stored.ts";
 import type { SignInOptions, StoredSession } from "./stored.ts";
-import { acceptDesktopJoin, consumeDesktopBootstrap, desktopBridge, previewDesktopJoin, redeemDesktopPair } from "./desktop.ts";
+import { acceptDesktopJoin, consumeDesktopBootstrap, consumeDesktopRoute, desktopBridge, previewDesktopJoin, redeemDesktopPair } from "./desktop.ts";
 import type { DesktopRoute } from "./desktop.ts";
 
 /** The phone shell (and mobile/shell with it) loads only when the window is a phone's, so desktop never pays for it. */
@@ -98,7 +98,6 @@ function SignInScreen({ baseUrl, open, onSignedIn, notice }: { baseUrl: string; 
         })) as { status: "ok" | "second_factor_required"; session?: { token: string }; keys?: typeof keys };
         token = out.session?.token ?? null;
         keys = out.keys;
-        if (out.status === "ok" && token && keys) await unlockOwnKey(baseUrl, token, v.password, keys);
         return out;
       },
       open: () => open({ baseUrl, token: token ?? "" }),
@@ -107,6 +106,7 @@ function SignInScreen({ baseUrl, open, onSignedIn, notice }: { baseUrl: string; 
         const space = ((await authenticated("spaces.get", {})) as { space: { id: string; fingerprint: string } }).space;
         return { id: space.id, marker: space.fingerprint };
       },
+      afterVerified: async (stored) => { if (keys) await unlockOwnKey(baseUrl, stored.token, v.password, keys); },
     });
     if (result.status === "second_factor_required") return result.status;
     onSignedIn(result.stored);
@@ -308,19 +308,28 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
 }
 
 export function SessionGate(props: SessionGateProps): ReactElement {
-  const baseUrl = props.baseUrl === undefined ? spaceAddress() : props.baseUrl;
+  const baseUrl = props.baseUrl === undefined ? spaceAddress() : props.baseUrl === null ? null : spaceEndpoint(props.baseUrl);
   const open = props.open ?? openRealSession;
   const onHub = props.onHub ?? noHub;
   const [phase, setPhase] = useState<Phase>({ kind: "signin" });
   const [ready, setReady] = useState(false);
+  const [loadedAddress, setLoadedAddress] = useState<string | null | undefined>(undefined);
+  const previousAddress = useRef<string | null | undefined>(undefined);
   const [notice, setNotice] = useState(false);
   const [desktopRoute, setDesktopRoute] = useState<DesktopRoute | null>(null);
   const bridge = useMemo(() => desktopBridge(), []);
 
   // Read the stored session after mount, never during the first render: the static export pre-renders the sign-in markup and must match it.
   useEffect(() => {
+    const changed = previousAddress.current !== undefined && previousAddress.current !== baseUrl;
+    previousAddress.current = baseUrl;
+    if (changed) {
+      setNotice(false);
+      setDesktopRoute(null);
+    }
     const stored = readStored(undefined, baseUrl ?? undefined);
-    if (stored) setPhase({ kind: "shell", stored });
+    setPhase(phaseForStoredAddress(stored));
+    setLoadedAddress(baseUrl);
     setReady(true);
   }, [baseUrl]);
 
@@ -344,11 +353,13 @@ export function SessionGate(props: SessionGateProps): ReactElement {
 
   const signedOut = useCallback((why?: "manual", selected?: string) => { clearStored(undefined, selected); setNotice(why !== "manual"); setPhase({ kind: "signin" }); }, []);
   const signedIn = useCallback((stored: StoredSession) => setPhase({ kind: "shell", stored }), []);
+  const signedInFromDesktop = useCallback((stored: StoredSession) => { setDesktopRoute((route) => consumeDesktopRoute(route)); setPhase({ kind: "shell", stored }); }, []);
 
+  if (loadedAddress !== baseUrl) return baseUrl ? <View style={styles.fill} /> : <ConnectSpaceWelcome />;
   if (!ready) return baseUrl ? <View style={styles.fill} /> : <ConnectSpaceWelcome />;
   if (phase.kind === "shell") return <ShellHost stored={phase.stored} open={open} onSignedOut={(why) => signedOut(why, phase.stored.baseUrl)} onHub={onHub} voice={props.voice} />;
-  if (desktopRoute?.kind === "pair") return <DesktopPairScreen key={`${desktopRoute.address}:${desktopRoute.code}`} route={desktopRoute} open={open} onSignedIn={signedIn} />;
-  if (desktopRoute?.kind === "join") return <DesktopJoinScreen key={`${desktopRoute.address}:${desktopRoute.code}`} route={desktopRoute} open={open} onSignedIn={signedIn} />;
+  if (desktopRoute?.kind === "pair") return <DesktopPairScreen key={`${desktopRoute.address}:${desktopRoute.code}`} route={desktopRoute} open={open} onSignedIn={signedInFromDesktop} />;
+  if (desktopRoute?.kind === "join") return <DesktopJoinScreen key={`${desktopRoute.address}:${desktopRoute.code}`} route={desktopRoute} open={open} onSignedIn={signedInFromDesktop} />;
   const activeAddress = desktopRoute?.address ?? baseUrl;
   if (!activeAddress) return <ConnectSpaceWelcome />;
   return <SignInScreen baseUrl={activeAddress} open={open} onSignedIn={signedIn} notice={notice} />;

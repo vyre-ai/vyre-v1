@@ -9,8 +9,8 @@ import { fakeServer, settle } from "../../../../../client/src/connection/testing
 import { createLiveLink, socketBase, socketPath } from "./live.ts";
 import { createRemoteScreenHooks, stableJson } from "./remote-hooks.ts";
 import { openRealSession, targetHash } from "./session.ts";
-import { clearStored, openVerifiedSession, readStored, signInAndVerify, spaceAddress, verifyStoredSession, writeStored } from "./stored.ts";
-import { acceptDesktopJoin, consumeDesktopBootstrap, previewDesktopJoin, redeemDesktopPair, routeDesktopLink } from "./desktop.ts";
+import { clearStored, openVerifiedSession, phaseForStoredAddress, readStored, signInAndVerify, spaceAddress, verifyStoredSession, writeStored } from "./stored.ts";
+import { acceptDesktopJoin, consumeDesktopBootstrap, consumeDesktopRoute, previewDesktopJoin, redeemDesktopPair, routeDesktopLink } from "./desktop.ts";
 import type { DesktopDeepLink } from "./desktop.ts";
 import type { KeyValueStore } from "./stored.ts";
 
@@ -327,6 +327,21 @@ test("stored: clearing one Space preserves every other saved Space", () => {
   assert.equal(readStored(store, "https://harbor.test")?.token, "hb");
 });
 
+test("an address transition loads only that address's session", () => {
+  const store = memoryStore();
+  const alpha = { spaceId: "spc_alpha", name: "Alpha" } as never;
+  const beta = { spaceId: "spc_beta", name: "Beta" } as never;
+  writeStored({ baseUrl: "https://alpha.test", token: "alpha", def: alpha, personId: "usr_alpha", marker: "alpha" }, store);
+
+  const noBeta = phaseForStoredAddress(readStored(store, "https://beta.test"));
+  assert.deepEqual(noBeta, { kind: "signin" }, "B without a stored session cannot retain A's shell");
+
+  writeStored({ baseUrl: "https://beta.test", token: "beta", def: beta, personId: "usr_beta", marker: "beta" }, store);
+  const savedBeta = phaseForStoredAddress(readStored(store, "https://beta.test"));
+  assert.equal(savedBeta.kind, "shell");
+  if (savedBeta.kind === "shell") assert.equal(savedBeta.stored.def.spaceId, "spc_beta", "the next address loads only its own session");
+});
+
 test("the anonymous sign-in route discovers options before normal password sign-in, never spaces.get", async () => {
   const gw = gateway({
     "POST /v1/identity/sign_in_options": (seen) => {
@@ -360,6 +375,33 @@ test("the anonymous sign-in route discovers options before normal password sign-
   assert.deepEqual(gw.seen.map((s) => s.url), ["/v1/identity/sign_in_options", "/v1/identity/sign_in", "/v1/spaces/get"]);
   assert.equal(result.options.name, "Northwind");
   assert.equal(result.stored?.marker, "ab", "a first sign-in stores the authenticated continuity marker, not the anonymous display value");
+});
+
+test("personal-key work runs only after a password session is verified and persisted", async () => {
+  let unlocks = 0;
+  let writes = 0;
+  await assert.rejects(signInAndVerify({
+    baseUrl: "https://northwind.test",
+    discover: async () => ({ name: "Northwind", fingerprint: "display", password: true, github: false, sso: [], secondFactorRequired: false }),
+    signIn: async () => ({ status: "ok", session: { token: "vst_1" } }),
+    open: async () => { throw new Error("whoami failed"); },
+    getSpace: async () => ({ id: "spc_nw", marker: "marker" }),
+    persist: () => { writes++; },
+    afterVerified: async () => { unlocks++; },
+  }), /whoami failed/);
+  assert.deepEqual([writes, unlocks], [0, 0], "a token alone never unlocks the local person key");
+
+  const result = await signInAndVerify({
+    baseUrl: "https://northwind.test",
+    discover: async () => ({ name: "Northwind", fingerprint: "display", password: true, github: false, sso: [], secondFactorRequired: false }),
+    signIn: async () => ({ status: "ok", session: { token: "vst_2" } }),
+    open: async () => ({ def: { spaceId: "spc_nw", name: "Northwind" }, me: { id: "usr_1" }, close: () => undefined } as never),
+    getSpace: async () => ({ id: "spc_nw", marker: "marker" }),
+    persist: () => { writes++; },
+    afterVerified: async () => { unlocks++; },
+  });
+  assert.equal(result.status, "ok");
+  assert.deepEqual([writes, unlocks], [1, 1]);
 });
 
 test("verification persists only after the opened session and authenticated Space IDs agree", async () => {
@@ -424,9 +466,12 @@ test("verification blocks persistence when authenticated Space IDs differ", asyn
 });
 
 test("stored: the Space address is HTTP(S), never the packaged shell origin", () => {
-  assert.equal(spaceAddress({ origin: "http://127.0.0.1:3000", search: "?space=http%3A%2F%2F10.0.0.2%3A7777%2F" }), "http://10.0.0.2:7777");
+  assert.equal(spaceAddress({ origin: "http://127.0.0.1:3000", search: "?space=http%3A%2F%2F10.0.0.2%3A7777%2F" }), null, "LAN HTTP never carries credentials");
+  assert.equal(spaceAddress({ origin: "http://127.0.0.1:3000", search: "?space=http%3A%2F%2Flocalhost%3A7777%2F" }), "http://localhost:7777");
+  assert.equal(spaceAddress({ origin: "http://127.0.0.1:3000", search: "?space=http%3A%2F%2F127.0.0.1%3A7777%2F" }), "http://127.0.0.1:7777");
+  assert.equal(spaceAddress({ origin: "http://127.0.0.1:3000", search: "?space=http%3A%2F%2F%5B%3A%3A1%5D%3A7777%2F" }), "http://[::1]:7777");
   assert.equal(spaceAddress({ origin: "https://northwind.vyre.run", search: "" }), "https://northwind.vyre.run");
-  assert.equal(spaceAddress({ origin: "https://x.test", search: "?space=javascript:alert(1)" }), "https://x.test");
+  assert.equal(spaceAddress({ origin: "https://x.test", search: "?space=javascript:alert(1)" }), null);
   assert.equal(spaceAddress({ origin: "tauri://localhost", search: "" }), null);
   assert.equal(spaceAddress({ origin: "tauri://localhost", search: "?space=tauri%3A%2F%2Flocalhost" }), null);
 });
@@ -450,7 +495,9 @@ test("desktop bootstrap routes its pending link before live links and unsubscrib
 
 test("desktop links only route verified Space addresses into the existing flows", () => {
   assert.deepEqual(routeDesktopLink({ action: "open", params: { address: "http://127.0.0.1:7777" } }), { kind: "signin", address: "http://127.0.0.1:7777" });
+  assert.deepEqual(routeDesktopLink({ action: "signin", params: { address: "http://localhost:7777" } }), { kind: "signin", address: "http://localhost:7777" });
   assert.deepEqual(routeDesktopLink({ action: "pair", params: { address: "https://northwind.vyre.run", code: "pairing-code" } }), { kind: "pair", address: "https://northwind.vyre.run", code: "pairing-code" });
+  for (const action of ["open", "signin", "pair"] as const) assert.equal(routeDesktopLink({ action, params: { address: "http://10.0.0.2:7777", ...(action === "pair" ? { code: "never-send" } : {}) } }), null, `${action} never sends a credential or code over LAN HTTP`);
   assert.equal(routeDesktopLink({ action: "join", params: { address: "http://127.0.0.1:7777", code: "one-time-code", fp: "ab12" } }), null, "join links require HTTPS");
   assert.equal(routeDesktopLink({ action: "join", params: { address: "https://northwind.vyre.run", code: "", fp: "ab12" } }), null);
   assert.equal(routeDesktopLink({ action: "signin", params: { address: "tauri://localhost" } }), null);
@@ -471,6 +518,7 @@ test("desktop pairing redeems anonymously, verifies the Space, then persists wit
   assert.deepEqual(stored, { baseUrl: "https://northwind.vyre.run", token: "vst_pair", def: { spaceId: "spc_nw", name: "Northwind" }, personId: "usr_1", marker: "current-display-marker" });
   assert.deepEqual(persisted, stored);
   assert.equal("keys" in stored, false, "pairing ciphertext never reaches ordinary session storage");
+  assert.deepEqual(consumeDesktopRoute(route), { kind: "signin", address: "https://northwind.vyre.run" }, "after the successful pair, a sign-out has only the ordinary sign-in route, never the consumed code");
 });
 
 test("desktop pair persists verified sessions by default and leaves the sync epoch to the hello handshake", async () => {
@@ -515,6 +563,7 @@ test("desktop joining previews first and accepts with a real Space-key bundle", 
   assert.equal((accept.input["keys"] as { spaceKeys: unknown[] }).spaceKeys.length, 1);
   assert.equal("personKey" in (accept.input["keys"] as object), false, "only wrapped key material leaves the client");
   assert.equal(stored.marker, "authenticated-marker");
+  assert.deepEqual(consumeDesktopRoute(route), { kind: "signin", address: "https://northwind.vyre.run" }, "after the successful join, a sign-out has only the ordinary sign-in route, never the consumed code");
 });
 
 test("desktop joining never persists when the post-accept authenticated Space differs from the preview", async () => {
