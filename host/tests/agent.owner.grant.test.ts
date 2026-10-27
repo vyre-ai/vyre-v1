@@ -81,7 +81,10 @@ test("the owner of a new agent reaches its folder from the start; after a reassi
     assert.equal(refused.status, 403, JSON.stringify(refused.body));
     const mine = await post(member.token, "/v1/agents/create", { name: "Mine Alone", idempotencyKey: "gf10-member-self" });
     assert.equal(mine.status, 200, JSON.stringify(mine.body));
-    assert.ok((await sharesOf("agent", mine.body.data.agent.agentId)).includes(`owner:${member.id}`), "and a member's own agent is theirs");
+    const mineId = mine.body.data.agent.agentId as string;
+    const mineShares = await sharesOf("agent", mineId);
+    const mineResource = d.db!.all("SELECT id, owner_id FROM access_resources WHERE id = ?", mineId);
+    assert.ok(mineShares.includes(`owner:${member.id}`), `and a member's own agent is theirs: id=${mineId} member=${member.id} resource=${JSON.stringify(mineResource)} shares=${mineShares.join(", ")}`);
 
     // a plain member's Space-wide Edit does not reach an agent's memory (ruling 88): their promotion waits and the agent's owner approves it. That owner is a Member (the memory
     // capabilities need Space-level Edit to be called at all); what makes the folder editable for them is owning the agent, not the Space grant.
