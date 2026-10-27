@@ -75,6 +75,18 @@ export async function addVerifiedSendingDomain(s: FlowSpace, admin: string, key:
   assert.equal((checked.domain ?? checked).verified, true, `the domain verifies: ${short(checked)}`);
 }
 
+export async function configureSendEscalation(s: FlowSpace, admin: string): Promise<void> {
+  expectStatus(await s.call("gate.rules.set", admin, {
+    act: "send", scope: "space", mode: "hold", onTimeout: "escalate", escalateTo: "role",
+  }), 200, "gate.rules.set");
+}
+
+/** FlowSpace has a fixed production-like clock. Move only this test hold to its
+ * scheduled instant before exercising the scheduler-owned expiry capability. */
+export function makeHoldDue(s: FlowSpace, holdId: string): void {
+  s.d.db!.run("UPDATE gate_holds SET expires_at = 0 WHERE id = ?", holdId);
+}
+
 /** Agent sends are high-risk: the asker must explicitly give the agent an
  * assignable role carrying comms.agent_send before Gate approval can resume it. */
 export async function allowAgentSending(s: FlowSpace, admin: string, agent: string, key: string): Promise<void> {
@@ -124,6 +136,7 @@ export async function runAgentGate(live: readonly string[], opts: Parameters<typ
       expectStatus(await s.call("providers.set_space_use", admin, { idempotencyKey: "golden-7g-spaceuse", providerId: provider.id, allow: true }), 200, "providers.set_space_use");
     });
     await trail.step("a sending domain is added and verifies", async () => addVerifiedSendingDomain(s, admin, "golden-7g"));
+    await trail.step("unanswered sends escalate to the admin role", async () => configureSendEscalation(s, admin));
     const agent = await trail.step("an agent exists", async () => expectStatus(await s.call("agents.create", admin, { idempotencyKey: "golden-7g-agent", name: "Mailer", role: "Writes the weekly note" }), 200, "agents.create").agent.agentId as string);
     await trail.step("she allows the agent to send outside", async () => allowAgentSending(s, admin, agent!, "golden-7g"), ["an agent exists"]);
     const thread = await trail.step("she starts a chat with it and the engine is bound", async () => {
@@ -159,10 +172,12 @@ export async function runAgentGate(live: readonly string[], opts: Parameters<typ
       return held(1);
     }, ["she approves and the send goes out once"]);
     await trail.step("with no decision the hold escalates", async () => {
+      makeHoldDue(s, second!.id);
       const out = expectStatus(await s.call("gate.expire", admin, { holdId: second!.id }), 200, "gate.expire");
       assert.equal(out.outcome, "escalated", `first timeout: ${short(out)}`);
     }, ["a second send is held and left alone"]);
     await trail.step("with still no decision it expires and the send is dropped", async () => {
+      makeHoldDue(s, second!.id);
       const out = expectStatus(await s.call("gate.expire", admin, { holdId: second!.id }), 200, "gate.expire");
       assert.equal(out.outcome, "dropped", `second timeout: ${short(out)}`);
     }, ["with no decision the hold escalates"]);
