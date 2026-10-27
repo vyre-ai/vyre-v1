@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Desktop CI: give the installed-app relaunch its own bounded smoke-test lifecycle so first-launch screenshot time cannot consume the relaunch proof's timeout.
 - Release: gate tag publication on the exact-tag macOS desktop build; mount its verified ad-hoc-signed DMG, copy the app into a fresh install location, launch and relaunch it with sidecar smoke coverage, then publish the DMG with a SHA-256 sidecar. Windows remains CI-only coverage.
 - Gateway: reconcile legacy/imported `agent.created` births missing resource and principal access events at boot, preserving the named owner and deterministic grants without allowing follow-up agent events to claim resources.
 - Gateway: limit legacy agent-access repair to the owner-capped Space grant; defer home-folder grants to the agents module, preserve historical grant revocations, and fail boot on a conflicting deterministic repair event id.

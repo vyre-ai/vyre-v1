@@ -141,8 +141,9 @@ async function exerciseBuiltShell(takeLink: boolean): Promise<void> {
     const page = await until(/vyre-desktop: page rendered: (\d+) chars at (?:tauri:\/\/localhost|https?:\/\/tauri\.localhost)/, 20_000);
     console.log(`page: ${page[0]}`);
     if (takeLink) assert.doesNotMatch(out, /acme\.example\.com/, "link parameters never reach the log");
-    // The desktop job takes its screenshot of the running window during this hold.
-    await new Promise((r) => setTimeout(r, Number(process.env["VYRE_SHELL_HOLD_MS"] ?? "0")));
+    // The desktop job takes its screenshot of the first running window during this hold.
+    // The relaunch already proves sidecar health and rendering, so it can exit immediately.
+    if (takeLink) await new Promise((r) => setTimeout(r, Number(process.env["VYRE_SHELL_HOLD_MS"] ?? "0")));
   } finally {
     if (app.exitCode === null) {
       const stopped = new Promise<void>((resolve) => app.once("exit", () => resolve()));
@@ -154,7 +155,10 @@ async function exerciseBuiltShell(takeLink: boolean): Promise<void> {
 
 test("the built shell starts, reaches its sidecar and takes a vyre:// link", { skip: !APP && "VYRE_SHELL_APP is set only in the desktop job on a built app" }, async () => {
   await exerciseBuiltShell(true);
-  if (RELAUNCH) await exerciseBuiltShell(false);
+});
+
+test("the installed shell relaunches after a clean exit", { skip: !APP ? "VYRE_SHELL_APP is set only in the desktop job on a built app" : !RELAUNCH && "VYRE_SHELL_RELAUNCH enables the installed-app proof" }, async () => {
+  await exerciseBuiltShell(false);
 });
 
 // Final run on the last commit of P-L10_03: the app test above runs in the desktop job (VYRE_SHELL_APP); this file reports its own ok line.

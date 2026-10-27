@@ -111,6 +111,9 @@ test("the macOS desktop release path verifies, mounts, installs and exercises th
   const smoke = fs.readFileSync(path.resolve(dir, "../../apps/desktop/tests/shell.heavy.test.ts"), "utf8");
   assert.match(runner, /VYRE_SHELL_RELAUNCH/);
   assert.match(smoke, /VYRE_SHELL_RELAUNCH/);
+  assert.match(smoke, /test\("the installed shell relaunches after a clean exit"/);
+  assert.doesNotMatch(smoke, /if \(RELAUNCH\) await exerciseBuiltShell/,
+    "the relaunch needs its own Node test timeout instead of sharing the first-launch 60 second budget");
 });
 
 test("no npm install, docker pull or curl outside prewarm", () => {
