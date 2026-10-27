@@ -47,6 +47,7 @@ impl Status {
 pub struct Sidecar {
     pub status: Mutex<Option<Status>>,
     child: Mutex<Option<CommandChild>>,
+    admin_token: Mutex<Option<String>>,
     stopping: Mutex<bool>,
     starts: Mutex<Vec<Instant>>,
 }
@@ -101,6 +102,27 @@ pub fn healthy(url: &str) -> bool {
     text.starts_with("HTTP/1.1 200")
 }
 
+/// Ask the daemon itself to close its stores and remove its coordination file.
+/// This is deliberately a loopback-only, token-authenticated control call; on
+/// Windows a process kill cannot deliver Node's graceful signal handler.
+fn graceful_stop(url: &str, token: &str) -> bool {
+    let addr = match host_port(url) {
+        Some(a) => a,
+        None => return false,
+    };
+    let mut s = match TcpStream::connect_timeout(&addr, Duration::from_millis(800)) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    let _ = s.set_read_timeout(Some(Duration::from_millis(1500)));
+    let _ = s.set_write_timeout(Some(Duration::from_millis(1500)));
+    let request = format!("POST /local/daemon/stop HTTP/1.1\r\nHost: {addr}\r\nAuthorization: Bearer {token}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+    if s.write_all(request.as_bytes()).is_err() { return false; }
+    let mut text = String::new();
+    let _ = s.read_to_string(&mut text);
+    text.starts_with("HTTP/1.1 202")
+}
+
 /// Where the daemon's program lives: VYRE_RUNTIME_DIR (dev), else the bundled `runtime` resource.
 fn runtime_dir(app: &AppHandle) -> Result<PathBuf, String> {
     if let Ok(dir) = std::env::var("VYRE_RUNTIME_DIR") {
@@ -143,10 +165,19 @@ pub fn start(app: &AppHandle, shared: &Shared, restarts: usize) {
     st.restarts = restarts;
     set(app, shared, st);
 
+    let data = match app.path().app_data_dir() {
+        Ok(dir) => dir.join("vyred"),
+        Err(e) => {
+            let mut st = Status::new(Phase::Failed);
+            st.restarts = restarts;
+            st.error = Some(e.to_string());
+            set(app, shared, st);
+            return;
+        }
+    };
     let launched = (|| -> Result<_, String> {
         let runtime = runtime_dir(app)?;
         let entry = runtime.join("host").join("src").join("daemon").join("main.ts");
-        let data = app.path().app_data_dir().map_err(|e| e.to_string())?.join("vyred");
         std::fs::create_dir_all(&data).map_err(|e| e.to_string())?;
         let args = vec![
             entry.to_string_lossy().to_string(),
@@ -191,7 +222,8 @@ pub fn start(app: &AppHandle, shared: &Shared, restarts: usize) {
                             version = parse_version(line);
                             url = Some(u.clone());
                             let (a, s, v) = (app2.clone(), shared2.clone(), version.clone());
-                            std::thread::spawn(move || wait_ready(&a, &s, u, v, restarts));
+                            let data = data.clone();
+                            std::thread::spawn(move || wait_ready(&a, &s, u, v, restarts, data));
                         }
                     }
                 }
@@ -219,10 +251,13 @@ pub fn start(app: &AppHandle, shared: &Shared, restarts: usize) {
     });
 }
 
-fn wait_ready(app: &AppHandle, shared: &Shared, url: String, version: Option<String>, restarts: usize) {
+fn wait_ready(app: &AppHandle, shared: &Shared, url: String, version: Option<String>, restarts: usize, data: PathBuf) {
     let begun = Instant::now();
     while begun.elapsed() < HEALTH_WAIT {
         if healthy(&url) {
+            if let Ok(token) = std::fs::read_to_string(data.join("admin.token")) {
+                if let Ok(mut saved) = shared.admin_token.lock() { *saved = Some(token.trim().to_string()); }
+            }
             let mut st = Status::new(Phase::Ready);
             st.url = Some(url);
             st.version = version;
@@ -248,6 +283,11 @@ pub fn current(shared: &Shared) -> Status {
 pub fn stop(shared: &Shared) {
     if let Ok(mut s) = shared.stopping.lock() {
         *s = true;
+    }
+    let status = current(shared);
+    let token = shared.admin_token.lock().ok().and_then(|t| t.clone());
+    if status.url.as_deref().zip(token.as_deref()).map(|(url, token)| graceful_stop(url, token)).unwrap_or(false) {
+        return;
     }
     if let Ok(mut c) = shared.child.lock() {
         if let Some(child) = c.take() {

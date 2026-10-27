@@ -7,8 +7,10 @@ import type { ResourceRow } from "../../kernel/src/authorize/index.ts";
 import { createInvoke, indexCapabilities } from "../src/invoke.ts";
 import type { CommitBatch, CtxSeed, Handler } from "../src/invoke.ts";
 import { HostError } from "../src/routes/errors.ts";
-import { createResourceRegistrar, idFits, KNOWN_TYPES } from "../src/gateway/resources.ts";
+import { createResourceRegistrar, idFits, KNOWN_TYPES, missingAgentResources } from "../src/gateway/resources.ts";
 import type { SubjectDef } from "../src/gateway/resources.ts";
+import { createPrincipalRegistrar } from "../src/gateway/principals.ts";
+import { foldEvent } from "../src/daemon/access.ts";
 import { registry } from "../../generated/registry.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
@@ -118,4 +120,97 @@ test("registrar: a birth event that names an ownerId makes that person the owner
   // only types that opt in: a record whose event happens to carry an ownerId stays the caller's
   const rec = createResourceRegistrar({ events: [{ name: "record.created", subject: { type: "record", id: "/recordId" } }], exists: (id) => id === "spc_1" });
   assert.equal(rec.register({ cap: { name: "records.create", resource: { type: "space" } }, input: {}, space: "spc_1", owner: "usr_admin", events: [ev("record.created", { recordId: REC, ownerId: "usr_mia" })] })[0]?.owner_id, "usr_admin");
+});
+
+test("registrar: an agent follow-up event cannot claim an agent before agent.created does", () => {
+  const events: SubjectDef[] = [
+    { name: "agent.created", subject: { type: "agent", id: "/agentId" } },
+    { name: "agent.config_changed", subject: { type: "agent", id: "/agentId" } },
+  ];
+  const r = createResourceRegistrar({ events, exists: () => false });
+  const cap = { name: "host.hook.call.agents.config_watch", resource: { type: "space" } };
+  const agentId = "agt_a1b2c3";
+
+  assert.deepEqual(
+    r.register({ cap, input: {}, space: "spc_1", owner: "svc_host", events: [ev("agent.config_changed", { agentId, fields: ["model"], by: "svc_host" })] }),
+    [],
+    "only agent.created may register an agent resource",
+  );
+  assert.equal(
+    r.register({ cap: { name: "agents.create", resource: { type: "space" } }, input: {}, space: "spc_1", owner: "usr_mia", events: [ev("agent.created", { agentId, ownerId: "usr_mia" })] })[0]?.owner_id,
+    "usr_mia",
+  );
+});
+
+test("reconciliation: a historical agent birth missing resource.created is restored with its named owner", () => {
+  const agentId = "agt_a1b2c3";
+  assert.deepEqual(
+    missingAgentResources({
+      space: "spc_1",
+      events: [
+        ev("agent.created", { agentId, ownerId: "usr_mia", name: "Intake" }),
+        ev("agent.config_changed", { agentId, fields: ["model"], by: "svc_host" }),
+      ],
+    }),
+    [{ id: agentId, type: "agent", parent_id: "spc_1", label: 0, owner_id: "usr_mia", holds: 0 }],
+  );
+});
+
+test("reconciliation: reads a stored import/replay payload and ignores malformed owner records", () => {
+  const encode = (v: unknown): Uint8Array => new TextEncoder().encode(JSON.stringify(v));
+  assert.deepEqual(
+    missingAgentResources({ space: "spc_1", events: [{ type: "agent.created", payload: encode({ agentId: "agt_a1b2c3", ownerId: "usr_mia" }) }] }),
+    [{ id: "agt_a1b2c3", type: "agent", parent_id: "spc_1", label: 0, owner_id: "usr_mia", holds: 0 }],
+  );
+  assert.deepEqual(
+    missingAgentResources({ space: "spc_1", events: [{ type: "agent.created", payload: encode({ agentId: "agt_a1b2c4", ownerId: "svc_host" }) }] }),
+    [],
+    "a replay cannot invent an owner from a host follow-up identity",
+  );
+});
+
+test("reconciliation: existing resources are retained, and a restored historical agent is repaired", () => {
+  const agentId = "agt_a1b2c3";
+  const birth = ev("agent.created", { agentId, ownerId: "usr_mia", name: "Intake" });
+  assert.deepEqual(
+    missingAgentResources({ space: "spc_1", events: [birth, ev("resource.created", { id: agentId, type: "agent", parent_id: "spc_1", owner_id: "usr_mia", label: 0, holds: 0 })] }),
+    [],
+    "the normal create commit already has the resource",
+  );
+  assert.deepEqual(
+    missingAgentResources({ space: "spc_1", events: [birth, ev("agent.deleted", { agentId }), ev("agent.restored", { agentId })] }),
+    [{ id: agentId, type: "agent", parent_id: "spc_1", label: 0, owner_id: "usr_mia", holds: 0 }],
+    "restore repairs a missing historical resource",
+  );
+});
+
+test("pipeline: agent creation registers its named owner resource before the agent access principal", async () => {
+  const snap = new AccessSnapshot();
+  snap.putRole({ id: "rol_owner", clearance: 4, perms: ["agents.create"], name: "Owner" });
+  snap.putPrincipal({ id: "usr_admin", kind: "person", status: "active", name: "Admin" });
+  snap.putPrincipal({ id: "usr_mia", kind: "person", status: "active", name: "Mia" });
+  snap.addPrincipalRole({ holder: "usr_admin", role: "rol_owner" });
+  snap.addPrincipalRole({ holder: "usr_mia", role: "rol_owner" });
+  snap.putResource({ id: "spc_1", type: "space", parent_id: null, label: 0, owner_id: "usr_admin", holds: 0 });
+  snap.putGrant({ id: "g_admin", subject_kind: "actor", subject_id: "usr_admin", resource_type: "space", resource_id: "spc_1", level: "manage", by: "usr_admin" });
+  snap.putGrant({ id: "g_mia", subject_kind: "actor", subject_id: "usr_mia", resource_type: "space", resource_id: "spc_1", level: "manage", by: "usr_admin" });
+  const agentId = "agt_a1b2c3";
+  const commits: CommitBatch[] = [];
+  const invoke = createInvoke({
+    caps: indexCapabilities([cap({ name: "agents.create", resource: { type: "space" }, permission: "agents.create", emits: ["agent.created"] })]), validateInput: () => [], authorize: (r) => authorize(snap, r),
+    handler: () => (ctx) => { ctx.emit("agent.created" as never, `agent/${agentId}`, { agentId, name: "Intake", ownerId: "usr_mia", folderId: "fld_home" }); return { agentId }; },
+    resources: createResourceRegistrar({ events: [{ name: "agent.created", subject: { type: "agent", id: "/agentId" } }], exists: (id) => snap.resource(id) !== undefined }),
+    principals: createPrincipalRegistrar({ exists: (id) => snap.info(id) !== null, levelOf: () => "edit" }),
+    commit: async (batch) => {
+      commits.push(batch);
+      const stored = batch.events.map((e, i) => ({ ...e, seq: i + 1 }) as EventEnvelope);
+      for (const e of stored) foldEvent(snap, e);
+      return stored;
+    },
+  });
+  await invoke("agents.create", { name: "Intake" }, { space: "spc_1", principal: { kind: "person", id: "usr_admin" } });
+  assert.deepEqual(commits[0]!.events.map((e) => e.type), ["agent.created", "resource.created", "principal.created", "principal.role_set", "grant.created", "grant.created", "grant.created"]);
+  assert.equal(snap.resource(agentId)?.owner_id, "usr_mia");
+  assert.equal(snap.info(agentId)?.p.kind, "agent");
+  assert.equal(authorize(snap, { principal: agentId, actingFor: "usr_mia", action: { perm: null, level: "view" }, resource: { type: "agent", id: agentId } }).effect, "allow");
 });

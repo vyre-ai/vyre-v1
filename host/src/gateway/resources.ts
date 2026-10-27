@@ -62,6 +62,42 @@ export interface RegistrarDeps {
   exists(id: string): boolean;
 }
 
+type EventLike = Pick<EventEnvelope, "type" | "payload">;
+const recordOf = (value: unknown): Record<string, unknown> => {
+  if (value instanceof Uint8Array) {
+    try { return JSON.parse(new TextDecoder().decode(value)) as Record<string, unknown>; } catch { return {}; }
+  }
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+};
+
+/**
+ * Older/imported logs can contain an `agent.created` birth from before the generic
+ * resource registrar was present. Rebuild the missing access rows only from that
+ * authoritative birth event; a later agent event is never allowed to invent one.
+ * Deleted agents stay absent unless a later restore makes the original birth live.
+ */
+export function missingAgentResources(a: { space: string; events: readonly EventLike[] }): ResourceRow[] {
+  const births = new Map<string, ResourceRow>();
+  const registered = new Set<string>();
+  const deleted = new Set<string>();
+  for (const event of a.events) {
+    const p = recordOf(event.payload);
+    if (event.type === "resource.created" && p["type"] === "agent" && typeof p["id"] === "string") {
+      registered.add(p["id"]);
+      continue;
+    }
+    const id = typeof p["agentId"] === "string" ? p["agentId"] : "";
+    if (event.type === "agent.created") {
+      const owner = typeof p["ownerId"] === "string" ? p["ownerId"] : "";
+      if (idFits("agent", id) && /^usr_[a-z0-9]+$/.test(owner) && !births.has(id)) {
+        births.set(id, { id, type: "agent", parent_id: a.space, label: 0, owner_id: owner, holds: 0 });
+      }
+    } else if (event.type === "agent.deleted" && idFits("agent", id)) deleted.add(id);
+    else if (event.type === "agent.restored" && idFits("agent", id)) deleted.delete(id);
+  }
+  return [...births.values()].filter((row) => !registered.has(row.id) && !deleted.has(row.id));
+}
+
 export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar {
   const subjects = new Map<string, SubjectDef["subject"]>();
   for (const e of deps.events) if (e.subject.type !== "entity" && !ENDS.test(e.name)) subjects.set(e.name, e.subject);
@@ -76,6 +112,10 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
       for (const ev of a.events) {
         const s = subjects.get(ev.type);
         if (!s) continue;
+        // Agent follow-up events are also scoped to their agent. They must never create a
+        // missing access resource: a concurrent host consumer would otherwise claim it as
+        // svc_host before the agent.created commit reaches the access snapshot.
+        if (s.type === "agent" && ev.type !== "agent.created") continue;
         const id = pointer(ev.payload, s.id);
         if (typeof id !== "string" || !idFits(s.type, id) || seen.has(id) || deps.exists(id)) continue;
         seen.add(id);
