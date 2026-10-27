@@ -2,6 +2,7 @@
 
 ## Unreleased
 - Web startup: keep the native FlashList runtime behind Metro's native platform boundary, preserving the existing windowed web list while removing native-only code from the production web entry.
+- Files performance: bound each web virtual-list boundary swap to a small row batch, avoiding the 33 ms commit spikes caused by mounting dozens of rich Files rows at once, and invalidate cached windows when measured-row reflow moves the viewport beyond them.
 - Release CI: give real signing, practice signing, and publication 30-minute bounded windows for the measured 127 MB desktop artifact download and release-asset transfer.
 - Files performance: keep the web virtual-list window buffered across a fast fling and reuse one versioned sample snapshot for thumbnail reads, restoring the 10,000-file list to the 16.7 ms frame budget without dropping rows or changing grid behavior.
 - Web startup: defer the authenticated shell, password-key implementation, and generated agent portrait catalog until they are needed, reducing the signed-out production entry from 2.42 MB to 1.74 MB raw without relaxing the 1.5-second phone budget.

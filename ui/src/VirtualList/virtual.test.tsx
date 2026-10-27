@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Row } from "../Row/index.tsx";
-import { VirtualList, rowOffsets, windowFor } from "./index.tsx";
+import { renderWindowFor, VirtualList, rowOffsets, scrollWindowFor, windowFor } from "./index.tsx";
 
 const rows = Array.from({ length: 10000 }, (_, i) => ({ id: `r${i}`, title: `Row ${i}` }));
 
@@ -70,11 +70,57 @@ test("a 10,000-row Files fling keeps one buffered window across most animation f
   let changes = 0;
   for (let frame = 1; frame <= 600; frame++) {
     const top = frame * 120;
-    const next = windowFor(offsets, top, viewport, 72, current);
+    const next = scrollWindowFor(offsets, top, viewport, 38, current);
     if (next !== current) changes++;
     current = next;
     const visible = windowFor(offsets, top, viewport, 0);
     assert.ok(current.start <= visible.start && current.end >= visible.end, `frame ${frame} remains covered`);
   }
-  assert.ok(changes < 30, `${changes} React window updates during 600 animation frames`);
+  assert.ok(changes < 180, `${changes} React window updates during 600 animation frames`);
+});
+
+test("a Files fling bounds the rows mounted by each scrolling window update", () => {
+  const offsets = rowOffsets(10000, 38);
+  const viewport = 640;
+  let current = windowFor(offsets, 0, viewport);
+  let changes = 0;
+  let maxEntered = 0;
+  for (let frame = 1; frame <= 600; frame++) {
+    const top = frame * 120;
+    const next = scrollWindowFor(offsets, top, viewport, 38, current);
+    if (next !== current) {
+      changes++;
+      const overlap = Math.max(0, Math.min(current.end, next.end) - Math.max(current.start, next.start));
+      maxEntered = Math.max(maxEntered, next.end - next.start - overlap);
+    }
+    current = next;
+    const visible = windowFor(offsets, top, viewport, 0);
+    assert.ok(current.start <= visible.start && current.end >= visible.end, `frame ${frame} remains covered`);
+  }
+  assert.ok(maxEntered <= 16, `mounted at most 16 new rows per update, saw ${maxEntered}`);
+  assert.ok(changes < 180, `${changes} React window updates during 600 animation frames`);
+});
+
+test("measured rows invalidate a cached scroll window when reflow moves the viewport beyond it", () => {
+  const estimated = rowOffsets(10000, "measure");
+  const current = scrollWindowFor(estimated, 2000, 640, "measure");
+  const measured = new Map<number, number>();
+  for (let i = current.start; i < current.end; i++) measured.set(i, 28);
+  const reflowed = rowOffsets(10000, "measure", measured);
+  const visible = windowFor(reflowed, 2000, 640, 0);
+  assert.ok(current.end < visible.end, "the cached estimated window no longer covers the reflowed viewport");
+  const resolved = renderWindowFor(reflowed, 2000, 640, current);
+  assert.notDeepEqual(resolved, current);
+  assert.ok(resolved.start <= visible.start && resolved.end >= visible.end, "the render window covers the viewport immediately after reflow");
+});
+
+test("scroll windows cover the viewport in both directions", () => {
+  const offsets = rowOffsets(10000, 38);
+  let current = windowFor(offsets, 72000, 640);
+  for (let frame = 599; frame >= 0; frame--) {
+    const top = frame * 120;
+    current = scrollWindowFor(offsets, top, 640, 38, current);
+    const visible = windowFor(offsets, top, 640, 0);
+    assert.ok(current.start <= visible.start && current.end >= visible.end, `reverse frame ${frame} remains covered`);
+  }
 });
