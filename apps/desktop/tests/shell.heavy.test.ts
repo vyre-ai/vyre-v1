@@ -73,7 +73,10 @@ test("the sidecar starts on a free loopback port, answers /healthz and keeps its
       assert.equal(h.body.space ?? null, null);
       token = fs.readFileSync(path.join(data, "admin.token"), "utf8").trim();
       assert.ok(token.length >= 32, "the local admin token was created");
-      assert.equal(fs.statSync(path.join(data, "admin.token")).mode & 0o077, 0, "owner-only file");
+      // POSIX mode bits are not an ACL check on Windows (Node reports synthetic
+      // permission bits there); the restart token identity check below remains
+      // the cross-platform persistence proof.
+      if (process.platform !== "win32") assert.equal(fs.statSync(path.join(data, "admin.token")).mode & 0o077, 0, "owner-only file");
       const info = JSON.parse(fs.readFileSync(path.join(data, "vyred.json"), "utf8")) as { url: string; pid: number };
       assert.equal(info.url, first.url);
       assert.equal(info.pid, first.child.pid);

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Desktop smoke: apply the owner-only mode-bit check only on POSIX hosts while retaining cross-platform token persistence coverage.
 - Desktop smoke: bound Windows sidecar shutdown and prevent failed heavy tests from hanging CI.
 - Desktop CI: bound packaged-shell readiness and guarantee Windows process cleanup on exit.
 - CI: replace the desktop placeholder with blocking macOS and Windows packaging, Rust tests, policy checks, packaged-shell smoke coverage, and captured proof artifacts.
