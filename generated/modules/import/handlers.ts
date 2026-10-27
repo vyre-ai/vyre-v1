@@ -17,4 +17,6 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "import.preview": Handler<"import.preview", X>;
   "import.suggest_mapping": Handler<"import.suggest_mapping", X>;
   "import.template": Handler<"import.template", X>;
+  "sessions.continue": Handler<"sessions.continue", X>;
+  "sessions.import": Handler<"sessions.import", X>;
 }

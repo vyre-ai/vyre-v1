@@ -11,8 +11,8 @@ import { CSV, MAPPING, makeXlsx, run, stage } from "../fixtures/seed.ts";
 
 const mine = registry.capabilities.filter((c) => c.module === "import");
 
-test("the handler table covers exactly the 12 capabilities of the import manifest", () => {
-  assert.equal(mine.length, 12);
+test("the handler table covers exactly the 14 capabilities of the import manifest", () => {
+  assert.equal(mine.length, 14);
   assert.deepEqual(Object.keys(handlers).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof handlers[c.name], "function", c.name);
 });
@@ -26,6 +26,10 @@ interface Scenario { cap: string; setup?: (hn: Harness) => Promise<any> | any; r
 const staged = (hn: Harness) => stage(hn);
 const previewed = async (hn: Harness) => { const importId = await stage(hn); const p = await run(hn, "import.preview", { importId, type: "contact", mapping: MAPPING }); return { importId, previewToken: p.previewToken as string }; };
 const TOKEN = "vit_key";
+const localSession = {
+  provider: "codex", sourceKey: "codex:contract", consent: { previewedAt: 1_760_000_000_000, confirmedAt: 1_760_000_000_001 },
+  sessions: [{ sourceSessionId: "contract", title: "Contract", startedAt: 1_760_000_000_000, repo: { remote: "git@github.com:vyre-ai/vyre-v1.git", root: "/work/vyre-v1" }, messages: [{ sourceMessageId: "m1", role: "user", text: "Hello", at: 1_760_000_000_000 }] }],
+};
 const airtable = (hn: Harness, status = 200): void => {
   hn.world.secrets.set(TOKEN, "k");
   hn.world.routes.push(
@@ -61,6 +65,10 @@ const scenarios: Scenario[] = [
   { cap: "import.discard", run: (hn) => run(hn, "import.discard", { importId: "imp_none" }), expect: "validation.bad_input" },
   { cap: "import.template", run: (hn) => run(hn, "import.template", { type: "contact" }) },
   { cap: "import.template", run: (hn) => run(hn, "import.template", { type: "nothing" }), expect: "validation.not_found" },
+  { cap: "sessions.import", run: (hn) => run(hn, "sessions.import", localSession) },
+  { cap: "sessions.import", run: (hn) => run(hn, "sessions.import", { ...localSession, consent: { previewedAt: 1 } }), expect: "validation.precondition_failed" },
+  { cap: "sessions.continue", setup: async (hn) => (await run(hn, "sessions.import", localSession)).sessions[0].conversationId, run: (hn, conversationId) => run(hn, "sessions.continue", { conversationId, destinationSpaceId: "spc_importtest", destinationScope: "personal", agentId: "agt_intake" }) },
+  { cap: "sessions.continue", run: (hn) => run(hn, "sessions.continue", { conversationId: "isc_none", destinationSpaceId: "spc_importtest", destinationScope: "personal", agentId: "agt_intake" }), expect: "validation.not_found" },
 ];
 
 test("every path through every capability: answers match the schema, errors are declared, events are declared and match their schemas", async () => {

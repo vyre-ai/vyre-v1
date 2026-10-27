@@ -38685,6 +38685,211 @@
     },
     {
       "blocks": [],
+      "cap": "sessions.continue",
+      "deferred": false,
+      "description": "Start a separate live Vyre chat linked to an immutable imported conversation; it never writes back to the local provider store",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "conversationId": {
+            "examples": [
+              "isc_a1b2c3"
+            ],
+            "pattern": "^isc_[a-z0-9]+$",
+            "type": "string"
+          },
+          "destinationScope": {
+            "enum": [
+              "personal"
+            ],
+            "type": "string"
+          },
+          "destinationSpaceId": {
+            "examples": [
+              "spc_a1b2c3"
+            ],
+            "pattern": "^spc_[a-z0-9]+$",
+            "type": "string"
+          },
+          "first": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "conversationId",
+          "destinationSpaceId",
+          "destinationScope",
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "sessions_continue",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sessions.import",
+      "deferred": false,
+      "description": "Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply only visible user and assistant text",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "consent": {
+            "properties": {
+              "confirmedAt": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              "previewedAt": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "previewedAt",
+              "confirmedAt"
+            ],
+            "type": "object"
+          },
+          "destination": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "personal"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "provider": {
+            "enum": [
+              "codex",
+              "claude_code"
+            ],
+            "type": "string"
+          },
+          "sessions": {
+            "items": {
+              "properties": {
+                "messages": {
+                  "items": {
+                    "properties": {
+                      "at": {
+                        "description": "Milliseconds since the Unix epoch",
+                        "examples": [
+                          1760000000000
+                        ],
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "role": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ],
+                        "type": "string"
+                      },
+                      "sourceMessageId": {
+                        "type": "string"
+                      },
+                      "text": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "sourceMessageId",
+                      "role",
+                      "text",
+                      "at"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "repo": {
+                  "properties": {
+                    "remote": {
+                      "type": "string"
+                    },
+                    "root": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "sourceSessionId": {
+                  "type": "string"
+                },
+                "startedAt": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "sourceSessionId",
+                "startedAt",
+                "messages"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "sourceKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "sourceKey",
+          "consent",
+          "sessions",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "sessions_import",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "settings.copy_profile",
       "deferred": false,
       "description": "Apply values read from another Space to my profile here; the title is never copied",
