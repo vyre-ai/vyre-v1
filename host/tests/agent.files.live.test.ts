@@ -83,6 +83,7 @@ test("an agent's AGENT.md and agent.toml cannot be deleted, moved or renamed thr
         }));
       }
       const r = await post(d, "/v1/access/check", { principal: { kind, id }, action: { perm: "files.read", level }, resource: { type: "folder", id: folderId } }, token);
+      if (kind === "agent" && id === agentId.id && level === "view") console.log("agent-home-decision-diagnostic", JSON.stringify(r.json));
       assert.equal(r.status, 200, JSON.stringify(r.json));
       return r.json.data.decision;
     };
