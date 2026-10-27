@@ -25,7 +25,7 @@ Assert `bootstrap()` invokes `desktop_info` and `take_pending_link`, returns typ
 
 - [ ] **Step 2: Run focused tests and verify RED**
 
-Run: `node --import tsx --test apps/desktop/tests/native.test.ts`
+Run: `node scripts/test-run.mjs --files apps/desktop/tests/native.test.ts`
 
 Run: `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml links`
 
@@ -37,7 +37,7 @@ Add `DesktopInfo`, `DesktopDeepLink`, `bootstrap`, and `listenLinks` types/metho
 
 - [ ] **Step 4: Run focused tests and verify GREEN**
 
-Run: `node --import tsx --test apps/desktop/tests/native.test.ts`
+Run: `node scripts/test-run.mjs --files apps/desktop/tests/native.test.ts`
 
 Run: `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml`
 
@@ -65,7 +65,7 @@ Render `SessionGate` at `tauri://localhost` with no stored session and assert `C
 
 - [ ] **Step 2: Run focused tests and verify RED**
 
-Run: `node --import tsx --test apps/app/src/shell/session/session.test.ts apps/app/tests/shell.real.cmdk.test.tsx`
+Run: `node scripts/test-run.mjs --files apps/app/src/shell/session/session.test.ts apps/app/tests/shell.real.cmdk.test.tsx`
 
 Expected: FAIL because `spaceAddress()` still returns the Tauri origin.
 
@@ -75,7 +75,7 @@ Make `spaceAddress()` accept only HTTP(S). Add a desktop adapter that calls the 
 
 - [ ] **Step 4: Run focused tests and verify GREEN**
 
-Run: `node --import tsx --test apps/app/src/shell/session/session.test.ts apps/app/tests/shell.real.cmdk.test.tsx`
+Run: `node scripts/test-run.mjs --files apps/app/src/shell/session/session.test.ts apps/app/tests/shell.real.cmdk.test.tsx`
 
 Expected: PASS.
 
@@ -99,7 +99,7 @@ Require the captured first launch to show `Connect a Space`, reject `Sign in to 
 
 - [ ] **Step 2: Run the platform-neutral test and verify RED**
 
-Run: `node --import tsx --test apps/desktop/tests/shell.heavy.test.ts`
+Run: `node scripts/test-run.mjs --files apps/desktop/tests/shell.heavy.test.ts`
 
 Expected: FAIL on the new packaged bootstrap assertion.
 
@@ -109,7 +109,7 @@ Teach the harness to pass a fixture deep link through the same launch/second-ins
 
 - [ ] **Step 4: Run local tests and dispatch both platform jobs**
 
-Run: `node --import tsx --test apps/desktop/tests/native.test.ts apps/desktop/tests/shell.heavy.test.ts`
+Run: `node scripts/test-run.mjs --files apps/desktop/tests/native.test.ts apps/desktop/tests/shell.heavy.test.ts`
 
 Run: `gh workflow run desktop.yml --ref codex/v1-desktop-space-bootstrap`
 

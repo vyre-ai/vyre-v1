@@ -33,7 +33,7 @@ assert.equal(normalizeSpaceAddress("tauri:\/\/localhost"), null);
 
 - [ ] **Step 2: Run the focused test and verify RED**
 
-Run: `node --import tsx --test apps/app/src/join/join.test.tsx`
+Run: `node scripts/test-run.mjs --files apps/app/src/join/join.test.tsx`
 
 Expected: FAIL because `connect`, `Welcome`, and `normalizeSpaceAddress` do not exist.
 
@@ -43,7 +43,7 @@ Add `connect` to `Stage`, store `spaceAddress`, and add `space_resolved` / `spac
 
 - [ ] **Step 4: Run the focused test and verify GREEN**
 
-Run: `node --import tsx --test apps/app/src/join/join.test.tsx`
+Run: `node scripts/test-run.mjs --files apps/app/src/join/join.test.tsx`
 
 Expected: PASS.
 
@@ -74,7 +74,7 @@ assert.doesNotMatch(shell, /auth-halftone/);
 
 - [ ] **Step 2: Run the focused test and verify RED**
 
-Run: `node --import tsx --test apps/app/src/join/join.test.tsx`
+Run: `node scripts/test-run.mjs --files apps/app/src/join/join.test.tsx`
 
 Expected: FAIL because `HalftoneField` is absent.
 
@@ -84,7 +84,7 @@ Create a web canvas with bounded dots, one animation frame loop, visibility paus
 
 - [ ] **Step 4: Run focused tests and a screenshot pass**
 
-Run: `node --import tsx --test apps/app/src/join/join.test.tsx`
+Run: `node scripts/test-run.mjs --files apps/app/src/join/join.test.tsx`
 
 Run: `npm run shots -- --match join`
 
@@ -112,7 +112,7 @@ Assert the flow includes `Your space, your username and your password. That is a
 
 - [ ] **Step 2: Run the focused test and verify RED**
 
-Run: `node --import tsx --test apps/app/src/join/join.test.tsx`
+Run: `node scripts/test-run.mjs --files apps/app/src/join/join.test.tsx`
 
 Expected: FAIL on the new copy and visibility control.
 
@@ -122,7 +122,7 @@ Keep the current one-column `Group`, `Row`, `Bar`, and v1 state machine. Adjust 
 
 - [ ] **Step 4: Verify desktop, phone, dark, light, and reduced-motion variants**
 
-Run: `node --import tsx --test apps/app/src/join/join.test.tsx`
+Run: `node scripts/test-run.mjs --files apps/app/src/join/join.test.tsx`
 
 Run: `npm run shots -- --match join`
 
@@ -151,7 +151,7 @@ Prove the client does not write a session until `identity.whoami` and `spaces.ge
 
 - [ ] **Step 2: Run the focused tests and verify RED**
 
-Run: `node --import tsx --test apps/app/src/shell/session/session.test.ts apps/app/tests/shell.real.cmdk.test.tsx apps/app/src/join/join.test.tsx`
+Run: `node scripts/test-run.mjs --files apps/app/src/shell/session/session.test.ts apps/app/tests/shell.real.cmdk.test.tsx apps/app/src/join/join.test.tsx`
 
 Expected: FAIL on connection-state and selected-Space assertions.
 
@@ -161,7 +161,7 @@ Resolve each address with anonymous `spaces.get`/invite preview as allowed, sign
 
 - [ ] **Step 4: Run focused tests and affected selection**
 
-Run: `node --import tsx --test apps/app/src/shell/session/session.test.ts apps/app/tests/shell.real.cmdk.test.tsx apps/app/src/join/join.test.tsx`
+Run: `node scripts/test-run.mjs --files apps/app/src/shell/session/session.test.ts apps/app/tests/shell.real.cmdk.test.tsx apps/app/src/join/join.test.tsx`
 
 Run: `npm run check`
 
