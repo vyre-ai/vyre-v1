@@ -17,6 +17,9 @@ export const AGENT_ROLE = "rol_member";
 export const AGENT_ROLE_LOW = "rol_guest";
 export type SpaceLevel = "edit" | "view" | "none";
 
+/** Contract-valid, deterministic ids for grants synthesized from an agent birth. */
+const grantId = (agentId: string, purpose: "space" | "home" | "owner"): string => `gnt_${agentId.slice(4)}${purpose}`;
+
 export function createPrincipalRegistrar(deps: { exists(id: string): boolean; /** what the person may do on the Space itself */ levelOf(person: string, space: string): SpaceLevel }): PrincipalRegistrar {
   return {
     register(a) {
@@ -24,7 +27,7 @@ export function createPrincipalRegistrar(deps: { exists(id: string): boolean; /*
       const seen = new Set<string>();
       for (const ev of a.events) {
         if (ev.type !== "agent.created") continue;
-        const p = ev.payload as { agentId?: unknown; name?: unknown; ownerId?: unknown } | null;
+        const p = ev.payload as { agentId?: unknown; name?: unknown; ownerId?: unknown; folderId?: unknown } | null;
         const id = typeof p?.agentId === "string" ? p.agentId : "";
         const owner = typeof p?.ownerId === "string" ? p.ownerId : "";
         if (!/^agt_[a-z0-9]+$/.test(id) || owner === "" || seen.has(id) || deps.exists(id)) continue;
@@ -33,7 +36,15 @@ export function createPrincipalRegistrar(deps: { exists(id: string): boolean; /*
         const level = deps.levelOf(a.maker, a.space);
         out.push({ type: "principal.created", entity: "principal", id, payload: { id, kind: "agent", owner, status: "active", name } });
         out.push({ type: "principal.role_set", entity: "principal", id, payload: { holder: id, role: level === "edit" ? AGENT_ROLE : AGENT_ROLE_LOW } });
-        if (level !== "none") out.push({ type: "grant.created", entity: "grant", id: `gr_${id}`, payload: { id: `gr_${id}`, subject_kind: "actor", subject_id: id, resource_type: "space", resource_id: a.space, level, by: a.maker } });
+        if (level !== "none") {
+          const gid = grantId(id, "space");
+          out.push({ type: "grant.created", entity: "grant", id: gid, payload: { id: gid, subject_kind: "actor", subject_id: id, resource_type: "space", resource_id: a.space, level, by: a.maker } });
+        }
+        if (typeof p?.folderId === "string" && /^fld_[a-z0-9]+$/.test(p.folderId)) {
+          const home = grantId(id, "home"), ownerGrant = grantId(id, "owner");
+          out.push({ type: "grant.created", entity: "grant", id: home, payload: { id: home, subject_kind: "actor", subject_id: id, resource_type: "folder", resource_id: p.folderId, level: "edit", by: a.maker } });
+          out.push({ type: "grant.created", entity: "grant", id: ownerGrant, payload: { id: ownerGrant, subject_kind: "actor", subject_id: owner, resource_type: "folder", resource_id: p.folderId, level: "manage", by: a.maker } });
+        }
       }
       return out;
     },

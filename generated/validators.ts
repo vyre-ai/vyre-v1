@@ -67100,10 +67100,12 @@ if (g4304 === 'object') { const o4304 = x4304 as Record<string, unknown>;
 if (!("agentId" in o4304)) e.push(p + "/agentId" + ': required');
 if (!("name" in o4304)) e.push(p + "/name" + ': required');
 if (!("ownerId" in o4304)) e.push(p + "/ownerId" + ': required');
+if (!("folderId" in o4304)) e.push(p + "/folderId" + ': required');
 if (!("templateVersion" in o4304)) e.push(p + "/templateVersion" + ': required');
 if ("agentId" in o4304) lf(o4304["agentId"], p + "/agentId", e, L12);
 if ("name" in o4304) lf(o4304["name"], p + "/name", e, L2);
 if ("ownerId" in o4304) lf(o4304["ownerId"], p + "/ownerId", e, L20);
+if ("folderId" in o4304) lf(o4304["folderId"], p + "/folderId", e, L2);
 if ("templateVersion" in o4304) lf(o4304["templateVersion"], p + "/templateVersion", e, L13);
 }
 }

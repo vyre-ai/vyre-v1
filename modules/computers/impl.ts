@@ -25,6 +25,9 @@ import { tarFiles } from "../../sandbox/src/tar.ts";
 import { createDockerApi, unixSocketHttp } from "../../sandbox/src/docker.ts";
 import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/docker.ts";
 import { handlers as table } from "./handlers/index.ts";
+import { createHomeSync } from "./handlers/home.ts";
+import { createContainerHomeFs } from "./handlers/home-fs.ts";
+import type { HomeDeps, HomeSync } from "./handlers/home.ts";
 import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
 import { bindFill, bindHost } from "./projections.ts";
@@ -75,6 +78,8 @@ export interface DockerHostOptions {
   /** How long start waits for agentd to answer. Default 30 s. */
   startTimeoutMs?: number;
   user?: { uid: number; gid: number };
+  /** The agent's home on the computer mirrors its folder in Files (handlers/home.ts): calls as the agent, how often to look, and where the manifest of what was last synced is kept. */
+  home?: { deps: HomeDeps; intervalMs?: number; manifest(agentId: string): string };
   sleep?: (ms: number) => Promise<void>;
 }
 
@@ -175,6 +180,27 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
     try { return JSON.parse(text) as T; } catch { throw new Error(`agentd ${action} answered with something that is not JSON`); }
   }
 
+  // the home mirror: one HomeSync per computer, a pass before it starts, one every few seconds while it runs, and a last one after it stops
+  const homes = new Map<string, { sync: HomeSync; timer: ReturnType<typeof setInterval> | null }>();
+  function homeOf(computerId: string, agentId: string | undefined): { sync: HomeSync; timer: ReturnType<typeof setInterval> | null } | null {
+    if (!o.home || !o.http || !agentId || !o.filesRoot?.(agentId)) return null;
+    let h = homes.get(computerId);
+    if (!h) {
+      const fsView = createContainerHomeFs({ http: o.http, container: nameOf(computerId), image: o.image ?? DEFAULT_COMPUTER_IMAGE, user: { uid: o.user?.uid ?? 10001, gid: o.user?.gid ?? 10001 } });
+      h = { sync: createHomeSync({ agentId, computerId, fs: fsView, manifest: o.home.manifest(agentId) }, o.home.deps), timer: null };
+      homes.set(computerId, h);
+    }
+    return h;
+  }
+  async function homePass(computerId: string, agentId: string | undefined): Promise<void> {
+    const h = homeOf(computerId, agentId);
+    if (!h) return;
+    try {
+      const r = await h.sync.pass();
+      if (r.down + r.up + r.conflicts + r.removed + r.suggested + r.refused.length > 0) o.home?.deps.log("info", "computers.home.pass", { computer: computerId, ...r, refused: r.refused.slice(0, 10) });
+    } catch (e) { o.home?.deps.log("warn", "computers.home.pass_failed", { computer: computerId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); }
+  }
+
   const host: ComputerHost & ToolHost = {
     kind: o.kind ?? "server",
     async create(a) {
@@ -189,11 +215,14 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
     async start(a) {
       const name = nameOf(a.computerId);
       if (o.profile) await o.profile.unseal(a.computerId);
+      await homePass(a.computerId, a.agentId);
       await o.api.containerStart(name);
       const deadline = Date.now() + (o.startTimeoutMs ?? 30_000);
       for (;;) {
         try {
           await ctl(a.computerId, "configure", { tabLimit: a.tabLimit });
+          const h = homeOf(a.computerId, a.agentId);
+          if (h && !h.timer) { h.timer = setInterval(() => { void homePass(a.computerId, a.agentId); }, o.home?.intervalMs ?? 3000); h.timer.unref?.(); }
           return;
         } catch (e) {
           if (Date.now() >= deadline) throw new Error(`agentd did not answer in time: ${e instanceof Error ? e.message : "unknown"}`);
@@ -207,7 +236,10 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       if (a.reason !== "remove") {
         try { sessions = (await ctl<{ sessions?: SessionInfo[] }>(a.computerId, "sessions")).sessions; } catch { /* the last list stays */ }
       }
+      const home = homes.get(a.computerId);
+      if (home?.timer) { clearInterval(home.timer); home.timer = null; }
       await o.api.containerStop(name, 10);
+      if (a.reason !== "remove") await homePass(a.computerId, a.agentId);
       if (o.profile && a.reason !== "remove") await o.profile.seal(a.computerId);
       return sessions ? { sessions } : {};
     },
@@ -286,6 +318,9 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       let answer: unknown;
       try { answer = JSON.parse(r.stdout.trim() || "{}"); } catch { throw new ToolError("unavailable", "agentd answered the tool with something that is not JSON"); }
       if (typeof answer !== "object" || answer === null || Array.isArray(answer)) throw new ToolError("unavailable", "agentd answered the tool with something that is not an object");
+      // a tool may have changed files in the home: mirror them now rather than at the next pass
+      const home = homes.get(a.computerId);
+      if (home) void home.sync.pass().catch((e: unknown) => { o.home?.deps.log("warn", "computers.home.pass_failed", { computer: a.computerId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); });
       return answer as ToolAnswer;
     },
     async health() {
@@ -313,6 +348,8 @@ export interface ComputersHostConfig {
   image?: string;
   filesRoot?: (agentId: string) => string | null;
   startTimeoutMs?: number;
+  /** The agent's home mirror: calls as the agent principal, the upload of large files, how often a pass runs, where each agent's manifest lives, and a log. */
+  home?: { callAs: HomeDeps["callAs"]; putBytes: HomeDeps["putBytes"]; intervalMs?: number; manifest(agentId: string): string; log?: HomeDeps["log"] };
 }
 
 export function setComputerHost(c: ComputersHostConfig | null): void {
@@ -323,6 +360,7 @@ export function setComputerHost(c: ComputersHostConfig | null): void {
     ...(c.image !== undefined ? { image: c.image } : {}),
     ...(c.filesRoot !== undefined ? { filesRoot: c.filesRoot } : {}),
     ...(c.startTimeoutMs !== undefined ? { startTimeoutMs: c.startTimeoutMs } : {}),
+    ...(c.home ? { home: { deps: { callAs: c.home.callAs, putBytes: c.home.putBytes, now: Date.now, log: c.home.log ?? (() => undefined) }, ...(c.home.intervalMs !== undefined ? { intervalMs: c.home.intervalMs } : {}), manifest: c.home.manifest } } : {}),
   }));
 }
 

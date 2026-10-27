@@ -56,9 +56,9 @@ export interface ComputerHost {
   /** Create the container (stopped) and its profile disk. */
   create(a: { computerId: string; agentId: string; tabLimit: number; idleSleepMinutes: number }): Promise<{ diskBytes?: number }>;
   /** Unseal the profile disk and start the container; resolves when agentd answers. */
-  start(a: { computerId: string; tabLimit: number }): Promise<void>;
+  start(a: { computerId: string; tabLimit: number; agentId?: string }): Promise<void>;
   /** Seal the profile disk and stop the container. Returns the signed-in sites it saw, for the list that must be there while the computer sleeps. */
-  stop(a: { computerId: string; reason: "idle" | "requested" | "remove" }): Promise<{ sessions?: SessionInfo[]; diskBytes?: number }>;
+  stop(a: { computerId: string; reason: "idle" | "requested" | "remove"; agentId?: string }): Promise<{ sessions?: SessionInfo[]; diskBytes?: number }>;
   /** Remove the container and its profile disk. */
   remove(computerId: string): Promise<void>;
   probe(computerId: string): Promise<Probe>;
