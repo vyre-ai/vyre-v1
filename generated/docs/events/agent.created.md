@@ -21,6 +21,7 @@ type Payload = {
   agentId: string;
   name: string;
   ownerId: string;
+  folderId: string;
   templateVersion: number;
 };
 ```

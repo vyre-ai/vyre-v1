@@ -24,7 +24,10 @@ export interface BlobRouteDeps {
   session(headers: Record<string, string | undefined>): BlobCaller | null | Promise<BlobCaller | null>;
   /** may this caller read this resource (level view or above) */
   allow(caller: BlobCaller, resource: BlobResource): boolean | Promise<boolean>;
+  /** Store the bytes of an upload slot (files.upload_url): PUT /spaces/<space>/blobs/<id>?token=<token>. The slot's one-time token is the authority; the caller must be signed in. */
+  put?(a: { blobId: string; token: string; bytes: Uint8Array; caller: BlobCaller }): Promise<{ hash: string; size: number }>;
 }
+const MAX_PUT = 25 * 1024 * 1024 + 1024;
 
 const PATH = /^\/spaces\/([^/]+)\/blobs\/(blb_[a-f0-9]{32})$/;
 const TRACE = "0".repeat(32);
@@ -66,6 +69,34 @@ export function createBlobRoute(deps: BlobRouteDeps): { handle(req: http.Incomin
     res.end(Buffer.from(got.bytes));
   }
 
+  async function upload(req: http.IncomingMessage, res: http.ServerResponse, space: string, id: string, token: string): Promise<void> {
+    const headers: Record<string, string | undefined> = {};
+    for (const [k, v] of Object.entries(req.headers)) headers[k] = Array.isArray(v) ? v.join(", ") : v;
+    const caller = await deps.session(headers);
+    if (!caller) return reply(res, "auth.unauthenticated", 401);
+    if (space !== deps.space || caller.space !== deps.space) return reply(res, "validation.not_found", 404, "There is no such Space here.");
+    if (!deps.put || token === "") return reply(res, "validation.bad_input", 405, "Blobs are read with GET.", { allow: "GET, HEAD" });
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const c of req) {
+      size += (c as Buffer).length;
+      if (size > MAX_PUT) { reply(res, "validation.too_large", 413, "This file is over the size limit."); req.destroy(); return; }
+      chunks.push(c as Buffer);
+    }
+    try {
+      const out = await deps.put({ blobId: id, token, bytes: new Uint8Array(Buffer.concat(chunks)), caller });
+      const body = JSON.stringify({ data: out });
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(body), "cache-control": "no-store" });
+      res.end(body);
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      if (code === "validation.not_found") return reply(res, "validation.not_found", 404, "That upload is not in this Space.");
+      if (code === "validation.too_large") return reply(res, "validation.too_large", 413, "This file is over the size limit.");
+      if (code === "validation.precondition_failed" || code === "validation.bad_input") return reply(res, "validation.bad_input", 400, "That upload was not accepted.");
+      return reply(res, "internal.unexpected", 500);
+    }
+  }
+
   return {
     handle(req, res) {
       const url = new URL(req.url ?? "/", "http://vyred");
@@ -76,6 +107,10 @@ export function createBlobRoute(deps: BlobRouteDeps): { handle(req: http.Incomin
         return false;
       }
       const method = (req.method ?? "GET").toUpperCase();
+      if (method === "PUT" && deps.put) {
+        void upload(req, res, decodeURIComponent(m[1] as string), m[2] as string, url.searchParams.get("token") ?? "").catch(() => { if (!res.headersSent) reply(res, "internal.unexpected", 500); else res.end(); });
+        return true;
+      }
       if (method !== "GET" && method !== "HEAD") { reply(res, "validation.bad_input", 405, "Blobs are read with GET.", { allow: "GET, HEAD" }); return true; }
       void serve(req, res, method, decodeURIComponent(m[1] as string), m[2] as string).catch(() => {
         if (!res.headersSent) reply(res, "internal.unexpected", 500);

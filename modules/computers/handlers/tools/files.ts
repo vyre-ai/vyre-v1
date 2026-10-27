@@ -1,5 +1,6 @@
-// The Files tools of an agent computer (spec 2.7, 2.16): list, read, write, move and delete in the agent's Files folder as the computer sees it, bound at ~/Vyre. One copy, no sync: what the
-// computer writes is what the Files module shows, and what Files holds is what the computer reads. The path rules are checked here, before agentd, and agentd checks them again at the folder.
+// The Files tools of an agent computer (spec 2.7, 2.16): list, read, write, move and delete in the agent's Files folder as the computer sees it, bound at ~/Vyre. The folder is a mirror of the agent's folder in
+// the Files module, kept together by the daemon as the agent (handlers/home.ts): a file written here reaches Files within seconds and a change in Files reaches the computer within seconds. Files is the
+// source of truth, so a conflict keeps Files' version at the path and the computer's beside it. The path rules are checked here, before agentd, and agentd checks them again at the folder.
 // Delete asks the Gate unless the actor is a person (manifest); the folder's own review rules (ruling 33) apply to the write the same way they do to any other writer.
 import { raise } from "../../projections.ts";
 import type { CompCtx } from "../../projections.ts";

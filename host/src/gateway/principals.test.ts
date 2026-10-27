@@ -5,6 +5,7 @@ import { createPrincipalRegistrar } from "./principals.ts";
 import type { SpaceLevel } from "./principals.ts";
 
 const created = (agentId: string, ownerId = "usr_a") => [{ type: "agent.created", payload: { agentId, name: "Helper", ownerId } }];
+const createdWithFolder = (folderId: unknown) => [{ type: "agent.created", payload: { agentId: "agt_folder", name: "Helper", ownerId: "usr_a", folderId } }];
 const reg = (level: SpaceLevel, known: string[] = []) => createPrincipalRegistrar({ exists: (id) => known.includes(id), levelOf: () => level });
 
 test("an agent made by someone who may edit the Space is a Member with an edit grant, owned by its owner", () => {
@@ -30,4 +31,14 @@ test("an agent that is already a principal, a repeated event, and an event that 
   assert.equal(reg("edit").register({ events: [...created("agt_4abc"), ...created("agt_4abc")], space: "s", maker: "usr_a" }).filter((e) => e.type === "principal.created").length, 1);
   assert.deepEqual(reg("edit").register({ events: [{ type: "agent.updated", payload: { agentId: "agt_5abc" } }], space: "s", maker: "usr_a" }), []);
   assert.deepEqual(reg("edit").register({ events: created("not-an-agent-id"), space: "s", maker: "usr_a" }), []);
+});
+
+test("a well-formed home folder gets deterministic agent and owner grants, while malformed folders do not", () => {
+  const out = reg("edit").register({ events: createdWithFolder("fld_home1"), space: "spc_core", maker: "usr_a" });
+  assert.deepEqual(out.slice(-2).map((e) => [e.id, e.payload["subject_id"], e.payload["resource_id"], e.payload["level"]]), [
+    ["gr_agt_folder_home", "agt_folder", "fld_home1", "edit"],
+    ["gr_agt_folder_owner", "usr_a", "fld_home1", "manage"],
+  ]);
+  assert.equal(reg("edit").register({ events: createdWithFolder("folder_bad"), space: "spc_core", maker: "usr_a" }).length, 3);
+  assert.equal(reg("edit").register({ events: [...createdWithFolder("fld_home1"), ...createdWithFolder("fld_home1")], space: "spc_core", maker: "usr_a" }).filter((e) => e.id === "gr_agt_folder_home").length, 1);
 });

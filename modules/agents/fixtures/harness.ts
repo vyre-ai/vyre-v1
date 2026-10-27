@@ -21,7 +21,7 @@ type Handler = (input: any, opts?: { idempotencyKey?: string }) => unknown;
 const fail = (code: string, message: string): never => { throw Object.assign(new Error(message), { error: { code, message } }); };
 
 interface FileVersion { versionId: string; n: number; text: string; by: string; at: number; reason?: string }
-interface FakeFile { fileId: string; folderId: string; name: string; versions: FileVersion[] }
+interface FakeFile { fileId: string; folderId: string; name: string; versions: FileVersion[]; deletedAt?: number }
 interface FakeFolder { folderId: string; parentId?: string; name: string; deleted: boolean }
 
 /** Files in memory: the capabilities agents calls, with the rules that matter to it (names unique in a folder, a version per save, a lint on agent.toml). */
@@ -29,13 +29,16 @@ export function fakeFiles(clock: { t: number }) {
   const folders = new Map<string, FakeFolder>();
   const files = new Map<string, FakeFile>();
   const keys = new Map<string, unknown>();
-  const calls: Array<{ cap: string; input: unknown }> = [];
+  /** Agent principals access knows, whether or not the agents module has a record for them (the seed writes some straight to the log). */
+  const homeGrants: Array<{ resource: { type: string; id: string }; subject: { kind: string; id: string }; level: string; source?: string }> = [];
+  const principals: Array<{ id: string; kind: "agent" | "actor"; name: string; owner?: string; status: "active" | "removed" }> = [];
+  const calls: Array<{ cap: string; input: unknown; opts?: { idempotencyKey?: string } }> = [];
   const settings: Record<string, unknown> = {};
   let n = 0;
   const next = (prefix: string): string => `${prefix}_${(++n).toString(36).padStart(6, "0")}`;
   const path = (id: string): string => { const f = folders.get(id)!; return f.parentId ? `${path(f.parentId)}/${f.name}` : f.name; };
   const folderOut = (f: FakeFolder) => ({ folderId: f.folderId, ...(f.parentId ? { parentId: f.parentId } : {}), name: f.name, path: path(f.folderId) });
-  const fileOut = (f: FakeFile) => ({ fileId: f.fileId, folderId: f.folderId, name: f.name, version: f.versions.length });
+  const fileOut = (f: FakeFile) => ({ fileId: f.fileId, folderId: f.folderId, name: f.name, version: f.versions.length, ...(f.deletedAt !== undefined ? { deletedAt: f.deletedAt } : {}) });
   const addVersion = (f: FakeFile, text: string, by: string, reason?: string): FileVersion => {
     const v: FileVersion = { versionId: next("ver"), n: f.versions.length + 1, text, by, at: clock.t, ...(reason !== undefined ? { reason } : {}) };
     f.versions.push(v);
@@ -71,7 +74,7 @@ export function fakeFiles(clock: { t: number }) {
     "files.create": (i, o) => {
       const k = o?.idempotencyKey ? `fi:${o.idempotencyKey}` : undefined;
       if (k && keys.has(k)) return keys.get(k);
-      if ([...files.values()].some((f) => f.folderId === i.folderId && f.name === i.name)) fail("validation.duplicate", "a file with that name exists");
+      if ([...files.values()].some((f) => f.deletedAt === undefined && f.folderId === i.folderId && f.name === i.name)) fail("validation.duplicate", "a file with that name exists");
       const f: FakeFile = { fileId: next("fil"), folderId: i.folderId, name: i.name, versions: [] };
       files.set(f.fileId, f);
       addVersion(f, i.content?.text ?? "", "usr_system", "Created");
@@ -79,10 +82,28 @@ export function fakeFiles(clock: { t: number }) {
       if (k) keys.set(k, out);
       return out;
     },
+    "access.share": (i) => {
+      const g = homeGrants.find((x) => x.resource.id === i.resource.id && x.subject.kind === i.subject.kind && x.subject.id === i.subject.id && x.source === i.source);
+      if (g) g.level = i.level; else homeGrants.push({ resource: i.resource, subject: i.subject, level: i.level, source: i.source });
+      return { grant: { id: next("gnt") } };
+    },
+    "access.shares_of": (i) => ({ shares: homeGrants.filter((x) => x.resource.id === i.resource.id).map((g) => ({ grant: { ...g, id: "gnt_x", conditions: {}, by: "usr_x", createdAt: clock.t }, through: "direct" })) }),
+    "access.principals.list": (i) => ({ principals: principals.filter((p) => i.kind === undefined || p.kind === i.kind).map((p) => ({ ...p, roles: [], groups: [], createdAt: clock.t })) }),
+    "files.get": (i) => ({ file: fileOut(file(i.fileId)) }),
+    "files.delete": (i) => { file(i.fileId).deletedAt = clock.t; return { deleted: true }; },
+    "files.restore": (i) => { const f = file(i.fileId); delete f.deletedAt; if (i.toFolderId) f.folderId = i.toFolderId; return { file: fileOut(f) }; },
+    "files.move": (i) => {
+      const f = file(i.fileId);
+      const name = i.name ?? f.name;
+      if ([...files.values()].some((x) => x.fileId !== f.fileId && x.deletedAt === undefined && x.folderId === i.toFolderId && x.name === name)) fail("validation.duplicate", "a file with that name exists");
+      f.folderId = i.toFolderId;
+      f.name = name;
+      return { file: fileOut(f) };
+    },
     "files.list": (i) => {
       const parent = i.folder as string | undefined;
       return {
-        files: parent === undefined ? [] : [...files.values()].filter((f) => f.folderId === parent).map(fileOut),
+        files: parent === undefined ? [] : [...files.values()].filter((f) => f.folderId === parent && f.deletedAt === undefined).map(fileOut),
         folders: [...folders.values()].filter((f) => !f.deleted && (parent === undefined ? f.parentId === undefined : f.parentId === parent)).map(folderOut),
       };
     },
@@ -114,7 +135,7 @@ export function fakeFiles(clock: { t: number }) {
   };
 
   return {
-    root: agentsRoot, folders, files, calls, handlers,
+    root: agentsRoot, folders, files, calls, handlers, principals, homeGrants,
     answer(cap: string, f: Handler) { handlers[cap] = f; },
     setting(key: string, value: unknown) { settings[key] = value; },
     folderNamed(name: string, parent?: string): FakeFolder | undefined { return [...folders.values()].find((f) => !f.deleted && f.name === name && f.parentId === parent); },
@@ -193,7 +214,7 @@ export function harness(o: HarnessOptions = {}) {
     db,
     emit(name, subject, payload) { emitted.push({ name, subject, payload: payload as Record<string, unknown> }); return null; },
     async call(cap, input, opts) {
-      world.calls.push({ cap, input });
+      world.calls.push({ cap, input, opts });
       const f = world.handlers[cap];
       if (!f) throw Object.assign(new Error(`${cap} is not available`), { error: { code: "internal.unavailable", message: `${cap} is not available` } });
       return f(input, opts);

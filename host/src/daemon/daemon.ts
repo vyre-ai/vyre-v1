@@ -38,6 +38,16 @@ import { fileExportsImporter, fileImporter, fileSeamImporter, loadHost, readModu
 import type { RegistryLike } from "../loader.ts";
 import { LogSink } from "../logsink/index.ts";
 import { nodePlatform } from "../platform/index.ts";
+
+export function createAgentHomeCaller(a: { db: { all(sql: string, ...args: unknown[]): unknown[] }; spaceId: string; invoke: Invoke }) {
+  return async (agentId: string, cap: string, input: unknown): Promise<unknown> => {
+    const owner = a.db.all("SELECT ownerId FROM agents_agent WHERE id = ? AND deletedAt IS NULL", agentId)[0] as { ownerId?: string } | undefined;
+    if (!owner?.ownerId) throw new Error("agent has no active owner");
+    const r = await a.invoke(cap, input, { space: a.spaceId, principal: { kind: "agent", id: agentId }, actingFor: owner.ownerId, origin: "computers" });
+    if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
+    return r.output;
+  };
+}
 import type { FetchLike } from "../ctx/http.ts";
 import type { Platform } from "../platform/index.ts";
 import * as probes from "../platform/probes.ts";
@@ -164,6 +174,8 @@ export interface DaemonOptions {
   } & Partial<Omit<SeamDeps, "vault" | "drivers" | "owners">>;
   /** The address an agent computer reaches this daemon at (its container is not on localhost). Default http://host.docker.internal:<port>. */
   computersBaseUrl?: string;
+  /** How often an agent computer mirrors its home with Files while it runs (tests set it long and trigger passes by waking and sleeping). Default 3 s. */
+  computersHomeIntervalMs?: number;
   /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan). Omitted: a CLI engine refuses to start. */
   engineSandbox?: unknown;
   /** Tests: swap a CLI engine's program for a command, and expose extra read-only folders in its sandbox (modules/engine runtime `cli`). */
@@ -615,7 +627,21 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           mint: (sessionId: string) => issueSessionToken(db!, sessionId, now),
           end: (sessionId: string) => { db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", now(), sessionId); },
         }),
-        setComputerHost: () => createComputersHost({ dataDir: paths.root }),
+        setComputerHost: () => createComputersHost({
+          dataDir: paths.root,
+          // the home mirror runs as the agent: the same pipeline as any call, so access, review rules and the scrubber apply
+          callAs: createAgentHomeCaller({ db: db!, spaceId, invoke }),
+          // large files go to the Files module in process: the slot's one-time token from files.upload_url is the only authority, and no session or bearer is involved
+          putBytes: async (url, bytes) => {
+            const u = new URL(url, "http://vyred");
+            const m = /^\/spaces\/([^/]+)\/blobs\/(blb_[a-f0-9]{32})$/.exec(u.pathname);
+            const slot = u.searchParams.get("token");
+            if (!m || !slot || decodeURIComponent(m[1] as string) !== spaceId) throw new Error("that is not an upload slot of this Space");
+            await hooks!.call("files.put_upload", { blobId: m[2], token: slot, base64: Buffer.from(bytes).toString("base64") });
+          },
+          log: (level, msg, attrs) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "computers", ...(attrs ? { attrs } : {}) }),
+          ...(o.computersHomeIntervalMs !== undefined ? { homeIntervalMs: o.computersHomeIntervalMs } : {}),
+        }),
         // the Vault channel of agent computers (P-L2_21): agentd posts one #Handle.field at a time to /computers/fill with its own token; without a Vault the channel is not offered
         setComputersFill: (d) => d.vault ? createComputersFillHost({
           space: spaceId, invoke, vault: d.vault, now,
@@ -763,6 +789,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         space: spaceId, store: blobs,
         session: async (h) => { const s = await session(h); return s ? { space: s.space, principal: s.principal, ...(s.actingFor ? { actingFor: s.actingFor } : {}) } : null; },
         allow: (c, r) => !staleFor(c.principal.id) && authorize(access.snap, { principal: c.principal.id, ...(c.actingFor ? { actingFor: c.actingFor } : {}), action: { perm: null, level: "view" }, resource: { type: r.type, id: r.id } }).effect === "allow",
+        // the bytes of an upload slot (files.upload_url): the Files module seals them; the slot's one-time token is the authority
+        put: async (a) => (await hookRunner.call("files.put_upload", { blobId: a.blobId, token: a.token, base64: Buffer.from(a.bytes).toString("base64") })) as { hash: string; size: number },
       });
       // the landing page of a portal invitation or sign-in link (P-L8_17): sites is deferred, so the Space host serves it; null while the portal module is not live
       const peekLink = loaded.moduleExports.get("portal")?.["peekLink"] as ((ctx: { db: unknown }, now: number, siteId: string, token: string) => Promise<never>) | undefined;
@@ -898,7 +926,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     scheduler.add({ name: "schedule.tick", schedule: { everyMs: o.intervals?.tick ?? 1000 }, run: async () => { await queue?.tick(); } });
     scheduler.add({ name: "projections.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await projections?.pump(); } });
     scheduler.add({ name: "hooks.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await hooks?.pump(); } });   // the backstop for a consumer that failed, and for events committed by another process
-    for (const p of hooks?.periodic ?? []) scheduler.add({ name: `hook.${p.name}`, schedule: { everyMs: p.everyMs }, run: async () => { await hooks?.runPeriodic(p.name); } });
+    for (const p of hooks?.periodic ?? []) scheduler.add({ name: `hook.${p.name}`, schedule: { everyMs: p.everyMs, ...(p.immediate ? { immediate: true } : {}) }, run: async () => { await hooks?.runPeriodic(p.name); } });
     scheduler.add({ name: "idempotency.purge", schedule: { daily: { hour: 4, minute: 0 } }, run: async () => { await log?.purgeIdempotency(); } });
   }
 
@@ -941,8 +969,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     });
     return { exited, stop: () => h.close() };
   };
-  const schedulerUnit = (): Promise<RunningUnit> => {
-    scheduler.start();
+  const schedulerUnit = async (): Promise<RunningUnit> => {
+    await scheduler.start();
     return Promise.resolve({ exited: new Promise<UnitExit>(() => {}), stop: () => scheduler.stop() });
   };
 
@@ -1010,4 +1038,3 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     },
   };
 }
-
