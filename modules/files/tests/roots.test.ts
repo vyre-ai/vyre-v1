@@ -16,7 +16,7 @@ function world() {
   const sql = new DatabaseSync(":memory:");
   for (const f of readdirSync(dir).filter((x) => x.endsWith(".sql")).sort()) sql.exec(readFileSync(join(dir, f), "utf8"));
   const ensured: { id: string; parentId: string | null; ownerId?: string }[] = [];
-  configureFilesHost({ resources: { ensure: async (r) => { ensured.push({ id: r.id, parentId: r.parentId, ...(r.ownerId ? { ownerId: r.ownerId } : {}) }); } } });
+  configureFilesHost({ resources: { ensure: async (r) => { ensured.push({ id: r.id, parentId: r.parentId, ...(r.ownerId ? { ownerId: r.ownerId } : {}) }); }, setLabel: async () => {} } });
   const ctxFor = (who: string): Ctx => ({
     space: "spc_t", principal: { kind: "person", id: who }, trace: { traceId: "t".repeat(32), spanId: "s".repeat(16) }, origin: "api", depth: 0, now: () => 1_790_000_000_000,
     db: { all: (q: string, ...a: unknown[]) => sql.prepare(q).all(...(a as never[])) as unknown[], run: (q: string, ...a: unknown[]) => ({ changes: Number(sql.prepare(q).run(...(a as never[])).changes) }) },
