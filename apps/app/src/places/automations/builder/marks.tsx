@@ -1,4 +1,4 @@
-// Preview is a product mark, not a catalog flag. AI, code, and schedule stay visibly unfinished.
+// Preview is a product mark, not a catalog flag. AI and code stay visibly unfinished.
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";

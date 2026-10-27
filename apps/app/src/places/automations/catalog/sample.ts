@@ -32,8 +32,13 @@ export const SAMPLE_STEPS: readonly CatalogStep[] = SAMPLE_STEP_ROWS.map((row) =
   };
 });
 
-export const SAMPLE_TRIGGERS: readonly CatalogTrigger[] = [
-  { key: "record_change", title: "A record changes", availability: "available" },
-  { key: "schedule", title: "On a schedule", availability: "preview", note: PREVIEW_NOTE },
-  { key: "manual", title: "Run by hand", availability: "available" },
-];
+export const SAMPLE_TRIGGERS: readonly CatalogTrigger[] = (
+  [
+    { key: "record_change", title: "A record changes" },
+    { key: "schedule", title: "On a schedule" },
+    { key: "manual", title: "Run by hand" },
+  ] as const
+).map((row) => {
+  const availability = availabilityFor(row.key, "trigger");
+  return { key: row.key, title: row.title, availability, ...(availability === "preview" ? { note: PREVIEW_NOTE } : {}) };
+});

@@ -96,8 +96,8 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
 }
 const hasErrors = (issues: readonly Issue[]): boolean => issues.some((i) => i.severity === "error");
 
-// AI, Code, and scheduled starts are visible in the builder but the live host cannot run them yet.
-// A draft may contain them. Turning the Automation on may not.
+// AI and Run code are visible in the builder. The live host has no executor for them yet.
+// A draft may contain them. Turning the Automation on may not. A schedule can be turned on.
 const PREVIEW_STEPS = new Set(["ai", "code"]);
 export function previewLiveIssues(def: Definition): Issue[] {
   const out: Issue[] = [];
@@ -105,9 +105,6 @@ export function previewLiveIssues(def: Definition): Issue[] {
     if (!PREVIEW_STEPS.has(n.key)) continue;
     const title = n.key === "ai" ? "AI step" : "Run code";
     out.push(issue("error", `${title} is a preview and cannot be turned on.`, n.id));
-  }
-  if (def.triggers.some((t) => t.key === "schedule")) {
-    out.push(issue("error", "On a schedule is a preview until a schedule can start runs. Remove it before turning this Automation on."));
   }
   return out;
 }

@@ -86,6 +86,15 @@ test("a preview step can be saved and cannot be turned on", async () => {
   await refused(h.call("automations.set_enabled", { automationId: id, enabled: true }, alice), "validation.precondition_failed", "preview");
 });
 
+test("a schedule can be turned on", async () => {
+  const h = harness();
+  const id = (await h.call("automations.create", create({
+    definition: goodDefinition({ triggers: [{ key: "schedule", config: { cron: "0 9 * * 1-5", timezone: "UTC", missed: "skip" } }] }),
+  }), alice)).automation.id as string;
+  const on = await h.call("automations.set_enabled", { automationId: id, enabled: true }, alice);
+  assert.equal(on.automation.status, "on");
+});
+
 test("an AI step needs an agent or a key; a Personal Space cannot use a webhook trigger", async () => {
   const h = harness();
   const bare = await validate(h, { triggers: trig, nodes: [node("a", "ai", { prompt: "Summarise" })] });
