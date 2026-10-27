@@ -13,7 +13,7 @@ export interface JoinInvite {
   by: string;
   role: string;
   email?: string;
-  /** the Space key fingerprint, shown on the first step so the person can compare it */
+  /** server-supplied display marker, shown only as a continuity hint and never used to authenticate a Space */
   fingerprint?: string;
   /** names a person starts with, when the invite carries them */
   names?: { first: string; last: string };

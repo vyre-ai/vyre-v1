@@ -306,11 +306,11 @@ test("stored: a session is kept, read back, and cleared; junk reads as no sessio
   const store = memoryStore();
   assert.equal(readStored(store), null);
   const def = { spaceId: "spc_nw", name: "Northwind" } as never;
-  writeStored({ baseUrl: "http://s.test", token: "t", def, personId: "usr_1", fingerprint: "fp" }, store);
+  writeStored({ baseUrl: "http://s.test", token: "t", def, personId: "usr_1", marker: "fp" }, store);
   assert.equal(readStored(store)?.token, "t");
   store.setItem("vyre.session.v1", "{not json");
   assert.equal(readStored(store), null);
-  writeStored({ baseUrl: "http://s.test", token: "t", def, personId: "usr_1", fingerprint: "fp" }, store);
+  writeStored({ baseUrl: "http://s.test", token: "t", def, personId: "usr_1", marker: "fp" }, store);
   clearStored(store);
   assert.equal(readStored(store), null);
 });
@@ -319,8 +319,8 @@ test("stored: clearing one Space preserves every other saved Space", () => {
   const store = memoryStore();
   const def = { spaceId: "spc_nw", name: "Northwind" } as never;
   const harbor = { ...def, spaceId: "spc_hb", name: "Harbor" };
-  writeStored({ baseUrl: "https://northwind.test", token: "nw", def, personId: "usr_1", fingerprint: "northwind-fp" }, store);
-  writeStored({ baseUrl: "https://harbor.test", token: "hb", def: harbor, personId: "usr_1", fingerprint: "harbor-fp" }, store);
+  writeStored({ baseUrl: "https://northwind.test", token: "nw", def, personId: "usr_1", marker: "northwind-marker" }, store);
+  writeStored({ baseUrl: "https://harbor.test", token: "hb", def: harbor, personId: "usr_1", marker: "harbor-marker" }, store);
   clearStored(store, "https://northwind.test");
   assert.equal(readStored(store, "https://northwind.test"), null);
   assert.equal(readStored(store, "https://harbor.test")?.token, "hb");
@@ -349,63 +349,77 @@ test("the anonymous sign-in route discovers options before normal password sign-
     discover: async () => anonymous("identity.sign_in_options", {}) as never,
     signIn: async () => anonymous("identity.sign_in", { username: "dana", password: "harbor-lamp", deviceName: "Web browser", deviceClass: "web" }) as never,
     open: async () => opened,
-    getSpace: async () => ((await authenticated("spaces.get", {})) as typeof SPACE).space,
+    getSpace: async () => {
+      const space = ((await authenticated("spaces.get", {})) as typeof SPACE).space;
+      return { id: space.id, marker: space.fingerprint };
+    },
     persist: () => undefined,
   });
   assert.equal(result.status, "ok");
   assert.deepEqual(gw.seen.map((s) => s.url), ["/v1/identity/sign_in_options", "/v1/identity/sign_in", "/v1/spaces/get"]);
   assert.equal(result.options.name, "Northwind");
-  assert.equal(result.stored?.fingerprint, "ab", "a first sign-in trusts its authenticated fingerprint, not the anonymous display value");
+  assert.equal(result.stored?.marker, "ab", "a first sign-in stores the authenticated continuity marker, not the anonymous display value");
 });
 
-test("verification persists only after the opened session and both Space proofs agree", async () => {
+test("verification persists only after the opened session and authenticated Space IDs agree", async () => {
   const calls: string[] = [];
   const writes: unknown[] = [];
   const real = { def: { spaceId: "spc_nw" }, me: { id: "usr_1" }, close: () => { calls.push("close"); } } as never;
   const stored = await openVerifiedSession({
-    baseUrl: "https://northwind.test", token: "vst_1", expected: { id: "spc_nw", fingerprint: "fp_1" },
+    baseUrl: "https://northwind.test", token: "vst_1", continuity: { id: "spc_nw", marker: "marker_1" },
     open: async () => { calls.push("open:whoami+spaces.get"); return real; },
-    getSpace: async () => { calls.push("get:spaces.get"); return { id: "spc_nw", fingerprint: "fp_1" }; },
+    getSpace: async () => { calls.push("get:spaces.get"); return { id: "spc_nw", marker: "marker_1" }; },
     persist: (candidate) => writes.push(candidate),
   });
   assert.deepEqual(calls, ["open:whoami+spaces.get", "get:spaces.get", "close"]);
   assert.equal(writes.length, 1, "storage waits for identity.whoami and both spaces.get checks");
-  assert.equal(stored.fingerprint, "fp_1");
+  assert.equal(stored.marker, "marker_1");
 });
 
 test("verification never persists when identity.whoami cannot open the real session", async () => {
   let writes = 0;
   await assert.rejects(openVerifiedSession({
-    baseUrl: "https://northwind.test", token: "vst_1", expected: { id: "spc_nw", fingerprint: "fp_1" },
+    baseUrl: "https://northwind.test", token: "vst_1", continuity: { id: "spc_nw" },
     open: async () => { throw new Error("identity.whoami rejected the session"); },
-    getSpace: async () => ({ id: "spc_nw", fingerprint: "fp_1" }),
+    getSpace: async () => ({ id: "spc_nw", marker: "marker_1" }),
     persist: () => { writes++; },
   }), /whoami rejected/i);
   assert.equal(writes, 0);
 });
 
-test("verification rejects a fingerprint mismatch without persisting the session", async () => {
+test("verification rejects a continuity-marker mismatch without persisting the session", async () => {
   let writes = 0;
   let closed = 0;
   const real = { def: { spaceId: "spc_nw" }, me: { id: "usr_1" }, close: () => { closed++; } } as never;
   await assert.rejects(openVerifiedSession({
-    baseUrl: "https://northwind.test", token: "vst_1", expected: { id: "spc_nw", fingerprint: "fp_expected" },
+    baseUrl: "https://northwind.test", token: "vst_1", continuity: { id: "spc_nw", marker: "marker_expected" },
     open: async () => real,
-    getSpace: async () => ({ id: "spc_nw", fingerprint: "fp_other" }),
+    getSpace: async () => ({ id: "spc_nw", marker: "marker_other" }),
     persist: () => { writes++; },
-  }), /identity changed/i);
+  }), /no longer matches/i);
   assert.deepEqual([writes, closed], [0, 1]);
 });
 
-test("a returning session rejects a changed authenticated fingerprint and closes before shell use", async () => {
+test("a returning session rejects a changed continuity marker and closes before shell use", async () => {
   let closed = 0;
-  const stored = { baseUrl: "https://northwind.test", token: "vst_1", def: { spaceId: "spc_nw", name: "Northwind" } as never, personId: "usr_1", fingerprint: "fp_saved" };
+  const stored = { baseUrl: "https://northwind.test", token: "vst_1", def: { spaceId: "spc_nw", name: "Northwind" } as never, personId: "usr_1", marker: "marker_saved" };
   await assert.rejects(verifyStoredSession({
     stored,
     open: async () => ({ def: stored.def, me: { id: "usr_1" }, close: () => { closed++; } }),
-    getSpace: async () => ({ id: "spc_nw", fingerprint: "fp_changed" }),
-  }), /identity changed/i);
+    getSpace: async () => ({ id: "spc_nw", marker: "marker_changed" }),
+  }), /no longer matches/i);
   assert.equal(closed, 1);
+});
+
+test("verification blocks persistence when authenticated Space IDs differ", async () => {
+  let writes = 0;
+  await assert.rejects(openVerifiedSession({
+    baseUrl: "https://northwind.test", token: "vst_1",
+    open: async () => ({ def: { spaceId: "spc_nw" }, me: { id: "usr_1" }, close: () => undefined } as never),
+    getSpace: async () => ({ id: "spc_other", marker: "marker_1" }),
+    persist: () => { writes++; },
+  }), /no longer matches/i);
+  assert.equal(writes, 0);
 });
 
 test("stored: the Space address is ?space= when it is a URL, else the page origin", () => {

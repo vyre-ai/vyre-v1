@@ -1,7 +1,7 @@
 # Changelog
 
 ## Unreleased
-- Auth: discover sign-in choices through anonymous `identity.sign_in_options`, use authenticated Space identity for first-sign-in trust-on-first-use, verify remembered Space fingerprints before retaining the shell, and retain other Space sessions after a 401.
+- Auth: discover a Space name and display marker through anonymous `identity.sign_in_options`, enforce authenticated Space-ID continuity before storing or reopening a session, hide unsupported SSO/GitHub actions, and retain other Space sessions after a 401.
 - Auth: brought the 0.6.8 account-form language into v1 with local password visibility, actionable account guidance, separated SSO and GitHub choices, and 44px-or-larger touch rows.
 - Auth: expanded compact auth controls to 44px hit targets, omitted empty SSO sections, and made unavailable username suggestions truthful.
 - Auth: added a bounded, motion-aware halftone field for the welcome and onboarding surfaces; it stays calm behind credential forms and never enters the signed-in shell.
