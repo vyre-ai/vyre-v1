@@ -6,6 +6,7 @@ import { memo, useCallback, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Platform, ScrollView, View } from "react-native";
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from "react-native";
+import { NativeList } from "./NativeList";
 import type { VirtualListProps, VirtualWindow } from "./props.ts";
 
 export type { VirtualListProps, VirtualWindow, RowHeight } from "./props.ts";
@@ -129,17 +130,3 @@ const Cell = memo(function Cell<T>({ item, index, top, height, render, onMeasure
     </View>
   );
 }) as unknown as <T>(props: CellProps<T>) => ReactNode;
-
-function NativeList<T>({ data, renderItem, rowHeight, keyOf, onEndReached }: VirtualListProps<T>) {
-  // Loaded only on native: the flash-list module needs the native view manager.
-  const { FlashList } = require("@shopify/flash-list") as typeof import("@shopify/flash-list");
-  return (
-    <FlashList
-      data={data as T[]}
-      renderItem={({ item, index }: { item: T; index: number }) => renderItem(item, index) as ReactNode}
-      keyExtractor={(item: T, index: number) => (keyOf ? keyOf(item, index) : String(index))}
-      overrideItemLayout={typeof rowHeight === "number" ? (layout: { size?: number }) => { layout.size = rowHeight; } : undefined}
-      onEndReached={onEndReached}
-    />
-  );
-}
