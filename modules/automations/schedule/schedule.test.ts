@@ -261,6 +261,23 @@ test("the host seam fires automations.fire in order and does not open a second N
   assert.equal(repeat.created, false);
   assert.equal(calls.length, before + created.length);
 
+  const heldFail = new Set<string>();
+  const claimFail = {
+    claim(id: string): boolean { if (heldFail.has(id)) return false; heldFail.add(id); return true; },
+    release(id: string): void { heldFail.delete(id); },
+  };
+  let boom = true;
+  const failing = async (cap: string, input: Record<string, unknown>): Promise<unknown> => {
+    if (cap === SCHEDULE_FIRE_CAPABILITY && boom) throw new Error("fire failed");
+    return { runId: "run_after" };
+  };
+  const broken = await startScheduledTicks(failing, [ticks[0]!], { now: utc(2026, 1, 5, 14, 30), claim: claimFail });
+  assert.equal(broken.started.length, 0);
+  assert.equal(broken.failed?.tickId, ticks[0]!.tickId);
+  boom = false;
+  const retried = await startScheduledTicks(failing, [ticks[0]!], { now: utc(2026, 1, 5, 14, 30), claim: claimFail });
+  assert.equal(retried.started.length, 1);
+
   const keys = await loadOpenScheduleKeys(async () => ({
     tasks: [
       { state: "todo", source: { id: "automation-schedule:aut_a" } },

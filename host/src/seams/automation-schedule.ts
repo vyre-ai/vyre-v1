@@ -27,9 +27,10 @@ export interface ScheduledTickPlan {
 
 export type ScheduleHostCall = (cap: string, input: Record<string, unknown>) => Promise<unknown>;
 
-/** Durable claim. Return false when this tick id was already claimed, even if that run never finished. */
+/** Durable claim. Return false when this tick id was already claimed. `release` undoes a claim when the fire throws, so a failed tick can be tried again. */
 export interface TickClaimStore {
   claim(tickId: string): boolean | Promise<boolean>;
+  release?(tickId: string): void | Promise<void>;
 }
 
 export interface StartTicksOptions {
@@ -73,7 +74,7 @@ export async function startScheduledTicks(call: ScheduleHostCall, ticks: readonl
     };
     if (opts.cron !== undefined) payload.cron = opts.cron;
     try {
-      await call(SCHEDULE_FIRE_CAPABILITY, {
+      const out = await call(SCHEDULE_FIRE_CAPABILITY, {
         automationId: tick.automationId,
         trigger: "schedule",
         payload,
@@ -81,7 +82,13 @@ export async function startScheduledTicks(call: ScheduleHostCall, ticks: readonl
         origin: "schedule",
         idempotencyKey: tick.tickId,
       });
+      const dropped = out && typeof out === "object" && "dropped" in out ? (out as { dropped?: unknown }).dropped : undefined;
+      if (typeof dropped === "string" && dropped.length > 0) {
+        await opts.claim.release?.(tick.tickId);
+        return { started, ignored, failed: { tickId: tick.tickId, message: `dropped:${dropped}` } };
+      }
     } catch (e) {
+      await opts.claim.release?.(tick.tickId);
       return { started, ignored, failed: { tickId: tick.tickId, message: e instanceof Error ? e.message : String(e) } };
     }
     started.push(tick);

@@ -2,6 +2,9 @@
 // `consumeEvent` is the trigger consumer the host runs for every event; `loadRunPlan` is what the executor reads for a Run of an Automation.
 import { handlers } from "./handlers/index.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
+import { chooseScheduleRecovery, runDueSchedules, SCHEDULE_EVERY_MS } from "./schedule/live.ts";
+import type { AutoCtx } from "./projections.ts";
+import type { ChoiceLimits, ScheduleChoiceKey } from "./schedule/schedule.ts";
 
 export { handlers };
 export { accessDiff, canView, structuralIssues, validateDefinition, webhookSecretMatches } from "./handlers/defs.ts";
@@ -15,6 +18,9 @@ export { consumeEvent, dropReason, fireOne, loadRunPlan, matches, startRun, trig
 type Row = Record<string, unknown>;
 const rows = (ctx: Ctx, sql: string, ...a: unknown[]): Row[] => { try { return ctx.db.all(sql, ...a) as Row[]; } catch { return []; } };
 const kept = (r: Row[], type: string, title: string) => ({ count: r.length, sample: r.slice(0, 5).map((x) => ({ type, id: String(x["id"]), title: String(x[title] ?? x["id"]) })), ids: r.slice(0, 500).map((x) => String(x["id"])) });
+export const periodic = {
+  "automations.schedule_tick": { everyMs: SCHEDULE_EVERY_MS, run: (ctx: Ctx) => runDueSchedules(ctx as AutoCtx) },
+};
 export const hostCalls = {
   /** What the executor needs for a Run of an Automation (P-L6_24): the pinned definition, what started it, who it acts as, the vault names it may use. Nothing when the Run is not an Automation's. */
   "automations.run_plan": (ctx: Ctx, i: { runId: string }) => {
@@ -31,7 +37,11 @@ export const hostCalls = {
       if (i.action === "reassign" && i.to) return ctx.db.run(`UPDATE automations_defs SET "owner_id" = ?, "updated_at" = ? WHERE "owner_id" = ? AND "deleted_at" IS NULL`, i.to, now, i.person).changes;
       if (i.action === "pause") return ctx.db.run(`UPDATE automations_defs SET "status" = 'paused', "paused_reason" = ?, "updated_at" = ? WHERE "owner_id" = ? AND "deleted_at" IS NULL AND "status" <> 'paused'`, "The owner was removed", now, i.person).changes;
       if (i.action === "delete") return ctx.db.run(`UPDATE automations_defs SET "deleted_at" = ?, "updated_at" = ? WHERE "owner_id" = ? AND "deleted_at" IS NULL`, now, now, i.person).changes;
+      return 0;
     } catch { /* no table yet: nothing to move */ }
     return 0;
   },
+  /** Apply one schedule recovery choice. The Needs You request points here. */
+  "automations.schedule_choose": (ctx: Ctx, i: { automationId: string; choice: ScheduleChoiceKey; n?: number; limits?: ChoiceLimits }) =>
+    chooseScheduleRecovery(ctx as AutoCtx, i),
 };
