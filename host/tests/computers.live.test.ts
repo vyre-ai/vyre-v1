@@ -209,7 +209,9 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     const inEscape = await filesIn(escDir.data.folder.folderId as string);
     assert.ok(!inEscape.files.some((f) => f.name === "host-secret.txt"), "nothing was read through the link into Files");
     assert.ok(!(await filesIn(folderId)).files.some((f) => f.name === "host-secret.txt"), "the host file is not in the agent's folder either");
-    fs.rmSync(path.join(dir, "computers", agentId, "Vyre", "escape"), { force: true });
+    const removedEscape = await inBox(`rm -rf -- ${HOME}/escape`);
+    assert.equal(removedEscape.code, 0, `cleaning up the escape fixture failed: ${removedEscape.out}`);
+    assert.deepEqual(fs.readdirSync(hostTmp), ["host-secret.txt"], "cleanup did not follow the link to its host target");
     fs.rmSync(hostTmp, { recursive: true, force: true });
 
     // both sides edit the same file between two passes: Files keeps the path, the computer's version lands beside it, and the owner gets a task
