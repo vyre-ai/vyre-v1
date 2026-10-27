@@ -50,6 +50,8 @@ test("the sidecar is the bundled vyred binary plus the staged runtime, and the p
   assert.match(side, /"--role"[\s\S]*"device"/);
   assert.match(side, /"--port"[\s\S]*"0"/, "a free loopback port, read back from the daemon's own line");
   assert.match(side, /host.*src.*daemon.*main\.ts|join\("host"\)\.join\("src"\)\.join\("daemon"\)\.join\("main\.ts"\)/s);
+  assert.match(side, /POST \/local\/daemon\/stop/, "the shell asks its authenticated loopback daemon to stop before killing it");
+  assert.match(side, /admin\.token/, "the shutdown request uses the private local admin token");
   assert.match(lib, /RunEvent::Exit[\s\S]*sidecar::stop/);
   assert.ok(fs.existsSync(path.join(REPO, "host/src/daemon/main.ts")), "the entry the shell runs exists");
 });

@@ -239,6 +239,8 @@ const bearer = (h: string | undefined): string | null => {
   return m ? m[1]! : null;
 };
 
+const loopback = (address: string | undefined): boolean => address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
+
 export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const cfg = o.config;
   const now = o.now ?? Date.now;
@@ -276,6 +278,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let capIndex: ReturnType<typeof indexCapabilities> | null = null;
   let boundPort = cfg.port;
   let claim: { url: string; expiresAt: number } | null = null;
+  // Assigned once the daemon object exists. The local route acknowledges before
+  // shutdown so its caller never races the HTTP response with server.close().
+  let requestStop: () => void = () => {};
   let gateway: ReturnType<typeof createGateway> | null = null;
   let blobRoute: ReturnType<typeof createBlobRoute> | null = null;
   let portalLinkRoute: ReturnType<typeof createPortalLinkRoute> | null = null;
@@ -956,7 +961,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       health, coerce,
       gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),
     });
-    server.on("request", (req, res) => { if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return; listener(req, res); });
+    server.on("request", (req, res) => {
+      const stop = req.method === "POST" && req.url === "/local/daemon/stop";
+      if (stop) {
+        if (!loopback(req.socket.remoteAddress) || !sameToken(bearer(req.headers.authorization) ?? "", token)) {
+          res.writeHead(401, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+          res.end(JSON.stringify({ error: { code: "auth.unauthenticated", message: "Authentication is required." } }));
+          return;
+        }
+        res.writeHead(202, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        res.end(JSON.stringify({ data: { stopping: true } }));
+        res.once("finish", () => { setImmediate(requestStop); });
+        return;
+      }
+      if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
+      listener(req, res);
+    });
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error): void => reject(err);
       server.once("error", onError);
@@ -1026,15 +1046,18 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   }
 
   let stopped = false;
+  const stop = async (): Promise<void> => {
+    if (stopped) return;
+    stopped = true;
+    sink.log({ space: space ?? "-", level: 20, msg: "daemon.stopping", place: "boot" });
+    for (const c of closers.reverse()) await Promise.resolve(c()).catch(() => {});
+    clearInfo(paths);
+  };
+  requestStop = () => { void stop(); };
+
   return {
     url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge,
     runProbes, pollCommands: runCommands,
-    async stop() {
-      if (stopped) return;
-      stopped = true;
-      sink.log({ space: space ?? "-", level: 20, msg: "daemon.stopping", place: "boot" });
-      for (const c of closers.reverse()) await Promise.resolve(c()).catch(() => {});
-      clearInfo(paths);
-    },
+    stop,
   };
 }
