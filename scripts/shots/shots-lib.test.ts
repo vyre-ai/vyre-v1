@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 // @ts-expect-error plain .mjs helper without types
 import { parseArgs, protoHash, routeUrl, loadTargets, shardTargets, shardIndexName, mergeShotIndexes, sideBySideHtml, countWrongFrames, budgetOf } from "./lib.mjs";
 
@@ -59,11 +60,29 @@ test("shard indexes merge into one canonical screenshot index", () => {
   assert.equal(shardIndexName(2, 12), "index-shard-02-of-12.md");
   const first = "# Side-by-side screenshots\n\nExport: 1.0 s\n\n| target | skin | size | file |\n|---|---|---|---|\n| b | paper | phone | b.png |\n";
   const second = "# Side-by-side screenshots\n\nExport: 2.0 s\n\n| target | skin | size | file |\n|---|---|---|---|\n| a | graphite | desktop | a.png |\n";
-  const merged = mergeShotIndexes([first, second], 2);
+  const merged = mergeShotIndexes([
+    { name: "index-shard-00-of-2.md", text: first },
+    { name: "index-shard-01-of-2.md", text: second },
+  ], 2);
   assert.match(merged, /^# Side-by-side screenshots/m);
   assert.match(merged, /2 shards/);
   assert.ok(merged.indexOf("| a |") < merged.indexOf("| b |"), "canonical rows are stable");
-  assert.throws(() => mergeShotIndexes([first], 2), /expected 2 shard indexes, found 1/);
+  assert.throws(() => mergeShotIndexes([{ name: "index-shard-00-of-2.md", text: first }], 2), /expected shard indexes/);
+  assert.throws(() => mergeShotIndexes([
+    { name: "index-shard-00-of-3.md", text: first },
+    { name: "index-shard-01-of-3.md", text: second },
+  ], 2), /expected shard indexes/);
+  assert.throws(() => mergeShotIndexes([
+    { name: "index-shard-00-of-2.md", text: first },
+    { name: "index-shard-00-of-2.md", text: second },
+  ], 2), /expected shard indexes/);
+});
+
+test("a packet without visual targets emits an empty uploadable index", () => {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), "shots-empty-"));
+  execFileSync(process.execPath, [new URL("./shots.mjs", import.meta.url).pathname, "--target", "P-NO_VISUAL_TARGETS", "--out", out, "--skip-export", "--no-probes", "--shard-index", "0", "--shard-total", "1"]);
+  assert.ok(fs.existsSync(path.join(out, "index.md")));
+  assert.match(fs.readFileSync(path.join(out, "index.md"), "utf8"), /0 side-by-side images/);
 });
 
 test("side-by-side page shows both images with captions", () => {

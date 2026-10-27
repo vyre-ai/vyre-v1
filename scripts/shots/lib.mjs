@@ -71,8 +71,10 @@ export function shardIndexName(index, total) {
 export function mergeShotIndexes(indexes, expectedShards) {
   const expected = Number(expectedShards);
   if (!Number.isInteger(expected) || expected < 1) throw new Error(`expected shard count must be a positive integer, got ${expectedShards}`);
-  if (indexes.length !== expected) throw new Error(`expected ${expected} shard indexes, found ${indexes.length}`);
-  const rows = indexes.flatMap((text) => String(text).split("\n").filter((line) => /^\| /.test(line) && !/^\| target /.test(line) && !/^\|---/.test(line))).sort();
+  const names = expected === 1 ? ["index.md"] : Array.from({ length: expected }, (_, index) => shardIndexName(index, expected));
+  const actual = indexes.map(({ name }) => name).sort();
+  if (JSON.stringify(actual) !== JSON.stringify(names)) throw new Error(`expected shard indexes ${names.join(", ")}; found ${actual.join(", ") || "none"}`);
+  const rows = indexes.flatMap(({ text }) => String(text).split("\n").filter((line) => /^\| /.test(line) && !/^\| target /.test(line) && !/^\|---/.test(line))).sort();
   return `# Side-by-side screenshots\n\nMerged from ${expected} shards.\n\n| target | skin | size | file |\n|---|---|---|---|\n${rows.join("\n")}\n`;
 }
 

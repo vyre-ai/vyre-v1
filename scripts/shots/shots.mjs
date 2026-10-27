@@ -39,7 +39,13 @@ const shardIndex = args["shard-index"] === undefined ? 0 : Number(args["shard-in
 const shardTotal = args["shard-total"] === undefined ? 1 : Number(args["shard-total"]);
 const targets = shardTargets(selectedTargets, shardIndex, shardTotal);
 // A packet branch with no screenshot targets of its own (a backend packet that merged main) has nothing to shoot.
-if (!targets.length && want.startsWith("P-")) { console.log(`no targets for ${want}: nothing to shoot`); process.exit(0); }
+if (!targets.length && want.startsWith("P-")) {
+  fs.rmSync(out, { recursive: true, force: true });
+  fs.mkdirSync(out, { recursive: true });
+  fs.writeFileSync(path.join(out, shardIndexName(shardIndex, shardTotal)), "# Side-by-side screenshots\n\n0 side-by-side images.\n\n| target | skin | size | file |\n|---|---|---|---|\n");
+  console.log(`no targets for ${want}: wrote an empty screenshot index`);
+  process.exit(0);
+}
 if (!targets.length) { console.error(`no target ${want}`); process.exit(1); }
 
 await ensureDeps(REPO);
