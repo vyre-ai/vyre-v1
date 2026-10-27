@@ -2,6 +2,7 @@
 
 ## Unreleased
 - Automations: add the shared VAL admission rule, Ask Vyre scrubber, cohort migration preview, connector trust ladder, and per-step failure policy. Preview capabilities cannot publish as stable. Ask Vyre context drops secrets, auth headers, and cookies. Active Runs stay pinned until a safe cohort is selected. Publishing does not move them.
+- Automations: a draft may contain an AI step, Run code, or a schedule trigger, and turning that Automation on is refused until those steps run on the live host.
 - PWA: add the production web manifest, Android/iPhone icons, Apple standalone metadata, safe-area viewport contract, truthful offline/update service-worker behavior, and an explicit Chromium iPhone-width smoke that labels standalone as simulated until the owner completes a physical iPhone Add to Home Screen pass.
 - Release: gate tag publication on the exact-tag macOS desktop build, publish its verified ad-hoc-signed DMG with a SHA-256 sidecar, and leave Windows as CI-only coverage.
 - Gateway: reconcile legacy/imported `agent.created` births missing resource and principal access events at boot, preserving the named owner and deterministic grants without allowing follow-up agent events to claim resources.

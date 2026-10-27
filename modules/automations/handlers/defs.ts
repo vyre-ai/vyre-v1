@@ -96,6 +96,22 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
 }
 const hasErrors = (issues: readonly Issue[]): boolean => issues.some((i) => i.severity === "error");
 
+// AI, Code, and scheduled starts are visible in the builder but the live host cannot run them yet.
+// A draft may contain them. Turning the Automation on may not.
+const PREVIEW_STEPS = new Set(["ai", "code"]);
+export function previewLiveIssues(def: Definition): Issue[] {
+  const out: Issue[] = [];
+  for (const n of def.nodes) {
+    if (!PREVIEW_STEPS.has(n.key)) continue;
+    const title = n.key === "ai" ? "AI step" : "Run code";
+    out.push(issue("error", `${title} is a preview and cannot be turned on.`, n.id));
+  }
+  if (def.triggers.some((t) => t.key === "schedule")) {
+    out.push(issue("error", "On a schedule is a preview until a schedule can start runs. Remove it before turning this Automation on."));
+  }
+  return out;
+}
+
 // ---- reads ----
 
 export async function get(ctx: AutoCtx, input: In): Promise<unknown> {
@@ -197,7 +213,9 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   let definitionChanged = false;
   if (input.definition !== undefined && !same(input.definition, a.definition)) {
     checkStructure(ctx, input.definition);
-    if (a.status === "on" && hasErrors(validateDefinition(input.definition, readPolicy(ctx.db)))) {
+    const policy = readPolicy(ctx.db);
+    const blocking = [...validateDefinition(input.definition, policy), ...(a.status === "on" ? previewLiveIssues(input.definition) : [])];
+    if (a.status === "on" && hasErrors(blocking)) {
       raise(ctx, "validation.precondition_failed", "Turn the automation off before saving a definition with errors.", { reason: "invalid_definition" });
     }
     a.definition = input.definition;
@@ -216,8 +234,12 @@ export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   if (input.enabled) {
     if (a.status === "on") return { automation: out(a) };
-    const issues = validateDefinition(a.definition, readPolicy(ctx.db));
-    if (hasErrors(issues)) raise(ctx, "validation.precondition_failed", issues.find((i) => i.severity === "error")!.message, { reason: "invalid_definition", issues });
+    const issues = [...validateDefinition(a.definition, readPolicy(ctx.db)), ...previewLiveIssues(a.definition)];
+    if (hasErrors(issues)) {
+      const preview = previewLiveIssues(a.definition);
+      const reason = preview.length > 0 ? "preview" : "invalid_definition";
+      raise(ctx, "validation.precondition_failed", issues.find((i) => i.severity === "error")!.message, { reason, issues });
+    }
     a.status = "on";
     delete a.pausedReason;
     touch(ctx, a);
@@ -260,7 +282,8 @@ export async function restoreVersion(ctx: AutoCtx, input: In): Promise<unknown> 
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   const v = versionById(ctx.db, a.id, input.versionId);
   if (!v) raise(ctx, "validation.not_found", "That version does not exist.", { reason: "no_version" });
-  if (a.status === "on" && hasErrors(validateDefinition(v.definition, readPolicy(ctx.db)))) {
+  const restored = [...validateDefinition(v.definition, readPolicy(ctx.db)), ...(a.status === "on" ? previewLiveIssues(v.definition) : [])];
+  if (a.status === "on" && hasErrors(restored)) {
     raise(ctx, "validation.precondition_failed", "Turn the automation off before restoring a version with errors.", { reason: "invalid_definition" });
   }
   a.definition = v.definition;

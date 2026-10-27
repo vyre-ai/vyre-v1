@@ -78,6 +78,14 @@ test("a path that loops back is an error unless it goes through a Loop step", as
   assert.equal(good.ok, true);
 });
 
+test("a preview step can be saved and cannot be turned on", async () => {
+  const h = harness();
+  const id = (await h.call("automations.create", create({ definition: { triggers: trig, nodes: [node("a", "ai", { prompt: "Summarise" }, { ai: { agentId: "agt_helper" } })] } }), alice)).automation.id as string;
+  const saved = await h.call("automations.get", { automationId: id }, alice);
+  assert.equal(saved.automation.definition.nodes[0].key, "ai");
+  await refused(h.call("automations.set_enabled", { automationId: id, enabled: true }, alice), "validation.precondition_failed", "preview");
+});
+
 test("an AI step needs an agent or a key; a Personal Space cannot use a webhook trigger", async () => {
   const h = harness();
   const bare = await validate(h, { triggers: trig, nodes: [node("a", "ai", { prompt: "Summarise" })] });
