@@ -80,7 +80,8 @@ test("an agent's AGENT.md and agent.toml cannot be deleted, moved or renamed thr
       return r.json.data.decision;
     };
     const raw = await check("agent", agentId.id, "view");
-    assert.deepEqual(raw, { effect: "deny", reason: "agent_needs_actor" }, "an agent without actingFor cannot access a home");
+    assert.equal(raw.effect, "deny", "an agent without actingFor cannot access a home");
+    assert.equal(raw.reason, "agent_needs_actor");
     assert.equal((await check("agent", agentId.id, "view", ownerId)).effect, "allow", "the agent lists its own home for its owner");
     assert.equal((await check("agent", agentId.id, "edit", ownerId)).effect, "allow", "and edits it");
     assert.equal((await check("agent", agentId.id, "manage", ownerId)).effect, "deny", "but cannot share it out");
