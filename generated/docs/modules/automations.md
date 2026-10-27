@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (32)
+## Capabilities (33)
 
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
 - [automations.alerts.set](../capabilities/automations.alerts.set.md): Set error alerts: who, when (every failure or after N in a row), where (Needs you, DM, channel), and the escalation chain
@@ -27,6 +27,7 @@ Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, recor
 - [automations.restore_version](../capabilities/automations.restore_version.md): Restore an Automation to an earlier version (saved as a new version)
 - [automations.retry](../capabilities/automations.retry.md): Retry a failed run of this Automation from the start or from a step
 - [automations.run](../capabilities/automations.run.md): Run an Automation now with a payload (the manual trigger or a button)
+- [automations.schedule_choose](../capabilities/automations.schedule_choose.md): Apply one recovery choice to a schedule whose backlog is over its cap
 - [automations.set_enabled](../capabilities/automations.set_enabled.md): Turn an Automation on or off
 - [automations.steps.list](../capabilities/automations.steps.list.md): The step palette: every step kind with category, input and output schema, effects and Gate act
 - [automations.stop](../capabilities/automations.stop.md): Stop one run of an Automation, or all its running runs and pause it

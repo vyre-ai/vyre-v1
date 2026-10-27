@@ -22,6 +22,7 @@
     "automations.restore_version@1": "1a8691a1ccd703e0efb703ee41174afafd07626c201a9e76f6a4f27d531a87a5",
     "automations.retry@1": "062d3f77eec8c9d426ca3d16e75a523db9855667cd75d9e231f0466cbcbc6c9d",
     "automations.run@1": "9af66c377507ffa6daad1195c5529507e0c2d21e4c45e8078d9ccdeb87e4f001",
+    "automations.schedule_choose@1": "4476f00e4a1c0e69688a4a3f15bca8886e8ec95600bc37e393716a576c59f3b6",
     "automations.set_enabled@1": "fa22a605274d2ed3f5be5fe626ea5f80a223ca520500f377206d1549872fde44",
     "automations.steps.list@1": "c3aab234caf4eef8e707e89f6d1ae044975b4e8b485ad6c6d949fc5f18750743",
     "automations.stop@1": "0982ffb6da7e549a04fafef760c81c9d2dfbbefb88ba433a618c1d21e48f856e",

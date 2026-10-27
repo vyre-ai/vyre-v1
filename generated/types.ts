@@ -2691,6 +2691,28 @@ export type AutomationsRunIn = {
 export type AutomationsRunOut = {
   runId: string;
 };
+export type AutomationsScheduleChooseIn = {
+  automationId: string;
+  choice: "run_first_n" | "run_latest_n" | "skip_backlog_and_resume" | "change_limits" | "keep_paused";
+  n?: number;
+  limits?: {
+    lookbackMs?: number;
+    cap?: number;
+    spacingMs?: number;
+    overlap?: "queue" | "skip_while_active" | "bounded_concurrency";
+    concurrency?: number;
+  };
+};
+export type AutomationsScheduleChooseOut = {
+  ok: boolean;
+  started: Array<{
+      automationId: string;
+      tickId: string;
+      runId: string;
+    }>;
+  paused: boolean;
+  error?: string;
+};
 export type AutomationsSetEnabledIn = {
   automationId: string;
   enabled: boolean;
@@ -26747,6 +26769,7 @@ export interface CapMap {
   "automations.restore_version": { in: AutomationsRestoreVersionIn; out: AutomationsRestoreVersionOut };
   "automations.retry": { in: AutomationsRetryIn; out: AutomationsRetryOut };
   "automations.run": { in: AutomationsRunIn; out: AutomationsRunOut };
+  "automations.schedule_choose": { in: AutomationsScheduleChooseIn; out: AutomationsScheduleChooseOut };
   "automations.set_enabled": { in: AutomationsSetEnabledIn; out: AutomationsSetEnabledOut };
   "automations.steps.list": { in: AutomationsStepsListIn; out: AutomationsStepsListOut };
   "automations.stop": { in: AutomationsStopIn; out: AutomationsStopOut };

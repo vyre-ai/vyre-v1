@@ -184,6 +184,7 @@ export function stubs(ctx: CallCtx) {
       restore_version: call("automations.restore_version"),
       retry: call("automations.retry"),
       run: call("automations.run"),
+      schedule_choose: call("automations.schedule_choose"),
       set_enabled: call("automations.set_enabled"),
       steps: {
         list: call("automations.steps.list"),

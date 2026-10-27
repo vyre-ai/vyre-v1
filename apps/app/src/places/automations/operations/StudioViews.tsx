@@ -1,10 +1,12 @@
 // Place views that are not the builder. Each one is a real call or an honest empty screen. No invented rows.
 import { useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AskVyre } from "../ask/AskVyre.tsx";
 import { CONFIG, useAutomationsData, useScreenQuery } from "../canvas/data.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { choiceStartsRuns, readChoiceResult, scheduleRequestFromTask } from "./recovery.ts";
+import type { ScheduleChoiceKey } from "./recovery.ts";
 
 type RunsOut = CapMap["runs.list"]["out"];
 
@@ -46,22 +48,82 @@ function Status({ state }: { state: Phase<unknown> }): ReactElement | null {
     return (
       <View style={v.stack}>
         <Text style={v.err}>{state.message}</Text>
-        <AskVyre bundle={{ resource: "automations", message: state.message }} />
+        <AskVyre bundle={{ resource: "automation", message: state.message }} />
       </View>
     );
   }
   return null;
 }
 
+interface NeedsRow { id: string; title: string; reason: string; task: unknown }
+
+function ScheduleChoices({ task }: { task: unknown }): ReactElement | null {
+  const request = scheduleRequestFromTask(task);
+  const data = useAutomationsData();
+  const [count, setCount] = useState("1");
+  const [cap, setCap] = useState("");
+  const [pending, setPending] = useState<ScheduleChoiceKey | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (!request) return null;
+  async function send(key: ScheduleChoiceKey): Promise<void> {
+    if (busy) return;
+    const body: { automationId: string; choice: ScheduleChoiceKey; n?: number; limits?: { cap: number } } = { automationId: request!.automationId, choice: key };
+    if (choiceStartsRuns(key)) {
+      const n = Number.parseInt(count, 10);
+      if (!Number.isInteger(n) || n < 1 || n > 500) { setNote("Enter how many, from 1 to 500."); return; }
+      body.n = n;
+      if (pending !== key) { setPending(key); setNote("This starts live runs for the ticks you chose. Completed work is not repeated."); return; }
+    }
+    if (key === "change_limits") {
+      const next = Number.parseInt(cap, 10);
+      if (!Number.isInteger(next) || next < 1 || next > 500) { setNote("Enter a cap from 1 to 500."); return; }
+      body.limits = { cap: next };
+    }
+    setBusy(true);
+    setPending(null);
+    try {
+      const result = readChoiceResult(await data.call("automations.schedule_choose", body));
+      if (!result) setNote("The schedule did not answer.");
+      else if (!result.ok) setNote(result.error ?? "That choice was not applied.");
+      else if (result.started > 0) setNote(`Started ${result.started} runs.`);
+      else if (result.paused) setNote("This schedule stays paused.");
+      else setNote("The backlog was skipped and the schedule is on.");
+    } catch (e: unknown) {
+      setNote(e instanceof Error ? e.message : "That choice was not applied.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <View style={v.stack} testID="schedule-recovery">
+      {choiceStartsRuns(request.choices[0]?.key ?? "") || request.choices.some((choice) => choiceStartsRuns(choice.key)) ? (
+        <TextInput value={count} onChangeText={setCount} keyboardType="number-pad" accessibilityLabel="How many missed runs" testID="schedule-count" style={v.input} />
+      ) : null}
+      {request.choices.some((choice) => choice.key === "change_limits") ? (
+        <TextInput value={cap} onChangeText={setCap} keyboardType="number-pad" placeholder="Cap" accessibilityLabel="Backfill cap" testID="schedule-cap" style={v.input} />
+      ) : null}
+      <View style={v.choices}>
+        {request.choices.map((choice) => (
+          <Pressable key={choice.key} accessibilityRole="button" disabled={busy} testID={`schedule-${choice.key}`} onPress={() => void send(choice.key)} style={v.choice}>
+            <Text style={v.row}>{pending === choice.key ? "Confirm live runs" : choice.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+      {note ? <Text style={v.dim}>{note}</Text> : null}
+    </View>
+  );
+}
+
 export function NeedsYou(): ReactElement {
   const state = useCall("tasks.needs_you", {}, (out) => {
     if (!out || typeof out !== "object" || !Array.isArray((out as { items?: unknown }).items)) return null;
-    const items: { id: string; title: string; reason: string }[] = [];
+    const items: NeedsRow[] = [];
     for (const row of (out as { items: unknown[] }).items) {
       if (!row || typeof row !== "object") continue;
       const rec = row as { task?: { id?: unknown; title?: unknown }; reason?: unknown };
       if (!rec.task || typeof rec.task.id !== "string" || typeof rec.task.title !== "string" || typeof rec.reason !== "string") continue;
-      items.push({ id: rec.task.id, title: rec.task.title, reason: rec.reason });
+      items.push({ id: rec.task.id, title: rec.task.title, reason: rec.reason, task: rec.task });
     }
     return items;
   });
@@ -69,7 +131,12 @@ export function NeedsYou(): ReactElement {
     <Frame testID="needs-you" title="Needs you">
       <Status state={state} />
       {state.phase === "ready" && state.value.length === 0 ? <Text style={v.dim}>Nothing needs you</Text> : null}
-      {state.phase === "ready" ? state.value.map((item) => <Text key={item.id} style={v.row}>{`${item.title} · ${item.reason}`}</Text>) : null}
+      {state.phase === "ready" ? state.value.map((item) => (
+        <View key={item.id} style={v.stack}>
+          <Text style={v.row}>{`${item.title} · ${item.reason}`}</Text>
+          <ScheduleChoices task={item.task} />
+        </View>
+      )) : null}
     </Frame>
   );
 }
@@ -134,4 +201,7 @@ const v = StyleSheet.create({
   err: { fontSize: 13, lineHeight: 18, color: "var(--danger)" as string },
   row: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string },
   stack: { gap: 8 },
+  choices: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  choice: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "var(--surface-2)" as string },
+  input: { fontSize: 13, color: "var(--ink)" as string, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 8, padding: 8, maxWidth: 160 },
 });

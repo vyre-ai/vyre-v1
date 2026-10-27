@@ -2344,6 +2344,25 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/automations/schedule_choose",
+    "cap": "automations.schedule_choose",
+    "v": 1,
+    "module": "automations",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "automation",
+      "id": "/automationId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/automations/set_enabled",
     "cap": "automations.set_enabled",
     "v": 1,

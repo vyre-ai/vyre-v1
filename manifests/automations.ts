@@ -96,6 +96,29 @@ export default defineManifest({
       in: { ...target, enabled: t.bool() }, out: { automation: row }, on: ['automation', '/automationId'], emits: ['automation.enabled', 'automation.disabled'], tool: 'automations',
       errors: ['validation.precondition_failed'],
     }),
+    write('automations.schedule_choose', 'Apply one recovery choice to a schedule whose backlog is over its cap', {
+      in: {
+        ...target,
+        choice: t.enm('run_first_n', 'run_latest_n', 'skip_backlog_and_resume', 'change_limits', 'keep_paused'),
+        n: t.opt(t.int({ minimum: 1, maximum: 500 })),
+        limits: t.opt(t.obj({
+          lookbackMs: t.opt(t.int({ minimum: 0, maximum: 30 * 24 * 60 * 60 * 1000 })),
+          cap: t.opt(t.int({ minimum: 1, maximum: 500 })),
+          spacingMs: t.opt(t.int({ minimum: 0 })),
+          overlap: t.opt(t.enm('queue', 'skip_while_active', 'bounded_concurrency')),
+          concurrency: t.opt(t.int({ minimum: 1, maximum: 20 })),
+        })),
+      },
+      out: {
+        ok: t.bool(),
+        started: t.arr(t.obj({ automationId: id.automation, tickId: t.str(), runId: id.run })),
+        paused: t.bool(),
+        error: t.opt(t.str()),
+      },
+      on: ['automation', '/automationId'],
+      emits: ['automation.enabled', 'automation.disabled', 'automation.updated', 'automation.run_started', 'automation.trigger_dropped'],
+      tool: 'automations',
+    }),
     write('automations.delete', 'Move an Automation to Trash', {
       in: target, out: { deleted: t.bool() }, on: ['automation', '/automationId'], level: 'manage', gate: { act: 'delete', when: "actor.kind != 'person'" }, emits: ['automation.deleted'], tool: 'automations',
     }),

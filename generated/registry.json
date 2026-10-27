@@ -31592,6 +31592,183 @@
       "effects": "write",
       "emits": [
         "automation.enabled",
+        "automation.disabled",
+        "automation.updated",
+        "automation.run_started",
+        "automation.trigger_dropped"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "automationId": "aut_a1b2c3",
+            "choice": "run_first_n",
+            "limits": {
+              "cap": 1,
+              "concurrency": 1,
+              "lookbackMs": 1,
+              "overlap": "queue",
+              "spacingMs": 1
+            },
+            "n": 1
+          },
+          "name": "example",
+          "output": {
+            "error": "example",
+            "ok": true,
+            "paused": true,
+            "started": [
+              {
+                "automationId": "aut_a1b2c3",
+                "runId": "run_a1b2c3",
+                "tickId": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "choice": {
+            "enum": [
+              "run_first_n",
+              "run_latest_n",
+              "skip_backlog_and_resume",
+              "change_limits",
+              "keep_paused"
+            ],
+            "type": "string"
+          },
+          "limits": {
+            "properties": {
+              "cap": {
+                "maximum": 500,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "concurrency": {
+                "maximum": 20,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "lookbackMs": {
+                "maximum": 2592000000,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "overlap": {
+                "enum": [
+                  "queue",
+                  "skip_while_active",
+                  "bounded_concurrency"
+                ],
+                "type": "string"
+              },
+              "spacingMs": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          },
+          "n": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "automationId",
+          "choice"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "automations",
+      "name": "automations.schedule_choose",
+      "output": {
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "started": {
+            "items": {
+              "properties": {
+                "automationId": {
+                  "examples": [
+                    "aut_a1b2c3"
+                  ],
+                  "pattern": "^aut_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "runId": {
+                  "examples": [
+                    "run_a1b2c3"
+                  ],
+                  "pattern": "^run_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "tickId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "automationId",
+                "tickId",
+                "runId"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "ok",
+          "started",
+          "paused"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/automationId",
+        "type": "automation"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Apply one recovery choice to a schedule whose backlog is over its cap",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "automation.enabled",
         "automation.disabled"
       ],
       "errors": [

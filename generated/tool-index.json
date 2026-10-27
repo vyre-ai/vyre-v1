@@ -644,6 +644,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_schedule_choose",
+      "summary": "Apply one recovery choice to a schedule whose backlog is over its cap",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_set_enabled",
       "summary": "Turn an Automation on or off",
       "toolset": "automations"

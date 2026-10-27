@@ -5046,6 +5046,80 @@
     },
     {
       "blocks": [],
+      "cap": "automations.schedule_choose",
+      "deferred": false,
+      "description": "Apply one recovery choice to a schedule whose backlog is over its cap",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "choice": {
+            "enum": [
+              "run_first_n",
+              "run_latest_n",
+              "skip_backlog_and_resume",
+              "change_limits",
+              "keep_paused"
+            ],
+            "type": "string"
+          },
+          "limits": {
+            "properties": {
+              "cap": {
+                "maximum": 500,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "concurrency": {
+                "maximum": 20,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "lookbackMs": {
+                "maximum": 2592000000,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "overlap": {
+                "enum": [
+                  "queue",
+                  "skip_while_active",
+                  "bounded_concurrency"
+                ],
+                "type": "string"
+              },
+              "spacingMs": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          },
+          "n": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "automationId",
+          "choice"
+        ],
+        "type": "object"
+      },
+      "name": "automations_schedule_choose",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.set_enabled",
       "deferred": false,
       "description": "Turn an Automation on or off",

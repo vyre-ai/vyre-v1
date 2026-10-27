@@ -1,8 +1,9 @@
-// One handler per automations capability (32). Definitions, versions, Groups, alerts, followers, webhook and Promote live in defs.ts; Runs and triggers in triggers.ts.
+// One handler per automations capability. Definitions, versions, Groups, alerts, followers, webhook and Promote live in defs.ts; Runs and triggers in triggers.ts.
 import {
   alertsGet, alertsSet, create, followersAdd, followersRemove, get, groupsCreate, groupsDelete, groupsList, groupsRename, list, makePersonalCopy, move, previewPromote, promote, remove,
   restoreVersion, setEnabled, stepsList, triggersList, undelete, update, validate, versions, webhookGet, webhookRotate,
 } from "./defs.ts";
+import { scheduleChoose } from "./schedule.ts";
 import { fire, replay, retry, run, stop, test } from "./triggers.ts";
 
 export const handlers = {
@@ -27,6 +28,7 @@ export const handlers = {
   "automations.restore_version": restoreVersion,
   "automations.retry": retry,
   "automations.run": run,
+  "automations.schedule_choose": scheduleChoose,
   "automations.set_enabled": setEnabled,
   "automations.steps.list": stepsList,
   "automations.stop": stop,
