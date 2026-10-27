@@ -8,7 +8,7 @@ import { createLiveLink, socketUrl } from "./live.ts";
 import type { SocketLike } from "./live.ts";
 import { createRemoteScreenHooks, stableJson } from "./remote-hooks.ts";
 import { openRealSession, targetHash } from "./session.ts";
-import { clearStored, readStored, spaceAddress, writeStored } from "./stored.ts";
+import { clearStored, openVerifiedSession, readStored, spaceAddress, writeStored } from "./stored.ts";
 import type { KeyValueStore } from "./stored.ts";
 
 const ROUTES: RouteRow[] = [
@@ -304,13 +304,63 @@ test("stored: a session is kept, read back, and cleared; junk reads as no sessio
   const store = memoryStore();
   assert.equal(readStored(store), null);
   const def = { spaceId: "spc_nw", name: "Northwind" } as never;
-  writeStored({ baseUrl: "http://s.test", token: "t", def, personId: "usr_1" }, store);
+  writeStored({ baseUrl: "http://s.test", token: "t", def, personId: "usr_1", fingerprint: "fp" }, store);
   assert.equal(readStored(store)?.token, "t");
   store.setItem("vyre.session.v1", "{not json");
   assert.equal(readStored(store), null);
-  writeStored({ baseUrl: "http://s.test", token: "t", def, personId: "usr_1" }, store);
+  writeStored({ baseUrl: "http://s.test", token: "t", def, personId: "usr_1", fingerprint: "fp" }, store);
   clearStored(store);
   assert.equal(readStored(store), null);
+});
+
+test("stored: clearing one Space preserves every other saved Space", () => {
+  const store = memoryStore();
+  const def = { spaceId: "spc_nw", name: "Northwind" } as never;
+  const harbor = { ...def, spaceId: "spc_hb", name: "Harbor" };
+  writeStored({ baseUrl: "https://northwind.test", token: "nw", def, personId: "usr_1", fingerprint: "northwind-fp" }, store);
+  writeStored({ baseUrl: "https://harbor.test", token: "hb", def: harbor, personId: "usr_1", fingerprint: "harbor-fp" }, store);
+  clearStored(store, "https://northwind.test");
+  assert.equal(readStored(store, "https://northwind.test"), null);
+  assert.equal(readStored(store, "https://harbor.test")?.token, "hb");
+});
+
+test("verification persists only after the opened session and both Space proofs agree", async () => {
+  const calls: string[] = [];
+  const writes: unknown[] = [];
+  const real = { def: { spaceId: "spc_nw" }, me: { id: "usr_1" }, close: () => { calls.push("close"); } } as never;
+  const stored = await openVerifiedSession({
+    baseUrl: "https://northwind.test", token: "vst_1", expected: { id: "spc_nw", fingerprint: "fp_1" },
+    open: async () => { calls.push("open:whoami+spaces.get"); return real; },
+    getSpace: async () => { calls.push("get:spaces.get"); return { id: "spc_nw", fingerprint: "fp_1" }; },
+    persist: (candidate) => writes.push(candidate),
+  });
+  assert.deepEqual(calls, ["open:whoami+spaces.get", "get:spaces.get", "close"]);
+  assert.equal(writes.length, 1, "storage waits for identity.whoami and both spaces.get checks");
+  assert.equal(stored.fingerprint, "fp_1");
+});
+
+test("verification never persists when identity.whoami cannot open the real session", async () => {
+  let writes = 0;
+  await assert.rejects(openVerifiedSession({
+    baseUrl: "https://northwind.test", token: "vst_1", expected: { id: "spc_nw", fingerprint: "fp_1" },
+    open: async () => { throw new Error("identity.whoami rejected the session"); },
+    getSpace: async () => ({ id: "spc_nw", fingerprint: "fp_1" }),
+    persist: () => { writes++; },
+  }), /whoami rejected/i);
+  assert.equal(writes, 0);
+});
+
+test("verification rejects a fingerprint mismatch without persisting the session", async () => {
+  let writes = 0;
+  let closed = 0;
+  const real = { def: { spaceId: "spc_nw" }, me: { id: "usr_1" }, close: () => { closed++; } } as never;
+  await assert.rejects(openVerifiedSession({
+    baseUrl: "https://northwind.test", token: "vst_1", expected: { id: "spc_nw", fingerprint: "fp_expected" },
+    open: async () => real,
+    getSpace: async () => ({ id: "spc_nw", fingerprint: "fp_other" }),
+    persist: () => { writes++; },
+  }), /identity changed/i);
+  assert.deepEqual([writes, closed], [0, 1]);
 });
 
 test("stored: the Space address is ?space= when it is a URL, else the page origin", () => {
@@ -318,4 +368,3 @@ test("stored: the Space address is ?space= when it is a URL, else the page origi
   assert.equal(spaceAddress({ origin: "https://northwind.vyre.run", search: "" }), "https://northwind.vyre.run");
   assert.equal(spaceAddress({ origin: "https://x.test", search: "?space=javascript:alert(1)" }), "https://x.test");
 });
-

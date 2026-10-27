@@ -5,9 +5,24 @@
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../ui/src/Row/index.tsx";
+import type { CapMap } from "../../../../generated/types.ts";
 
 export type ChecklistKey = "photo_and_title" | "connect_mailbox_and_calendar" | "meet_assistant" | "open_first_project" | "import";
 export interface ChecklistItem { key: ChecklistKey; title: string; done: boolean }
+export type OnboardingProjection = CapMap["spaces.onboarding.get"]["out"];
+
+const projectionKeys: Record<OnboardingProjection["steps"][number]["key"], ChecklistKey> = {
+  photo_title: "photo_and_title",
+  connect_mailbox: "connect_mailbox_and_calendar",
+  meet_assistant: "meet_assistant",
+  first_project: "open_first_project",
+  import: "import",
+};
+
+/** The server owns checklist completion; local items are only the offline fallback. */
+export function projectionItems(projection: OnboardingProjection): ChecklistItem[] {
+  return projection.steps.map((step) => ({ key: projectionKeys[step.key], title: step.title, done: step.done }));
+}
 
 const WORDS: Record<ChecklistKey, { sub: (space: string) => string; action: string }> = {
   photo_and_title: { sub: (space) => `Next to your name in ${space}`, action: "Add" },
@@ -20,6 +35,8 @@ const WORDS: Record<ChecklistKey, { sub: (space: string) => string; action: stri
 export interface ChecklistProps {
   space: string;
   items: ChecklistItem[];
+  /** Authoritative completion state from spaces.onboarding.get. */
+  projection?: OnboardingProjection;
   /** false once dismissed or finished */
   visible: boolean;
   /** the assistant is locked until an AI account is connected */
@@ -38,9 +55,12 @@ function Circle({ done }: { done: boolean }): ReactElement {
   return <View style={[s.circle, done && s.circleDone]} testID={done ? "check-done" : "check-open"}>{done ? <Text style={s.tick}>{"✓"}</Text> : null}</View>;
 }
 
-export function Checklist({ space, items, visible, assistantLocked, heading, dateLine, onGo, onDismiss }: ChecklistProps): ReactElement {
+export function Checklist({ space, items, projection, visible, assistantLocked, heading, dateLine, onGo, onDismiss }: ChecklistProps): ReactElement {
+  const projected = projectionItems(projection ?? { dismissed: false, steps: [] });
+  const sourceItems = projection ? projected : items;
+  const sourceVisible = projection ? !projection.dismissed : visible;
   const lines: Line[] = [{ key: "ai", title: "Connect an AI account", sub: "Your assistant stays locked until you do", done: !assistantLocked, locked: false, action: "Connect" }];
-  for (const it of items) {
+  for (const it of sourceItems) {
     const blocked = it.key === "meet_assistant" && !!assistantLocked && !it.done;
     lines.push({ key: it.key, title: it.title, sub: it.done ? "Done" : blocked ? "Connect an AI account first" : WORDS[it.key].sub(space), done: it.done, locked: blocked, action: WORDS[it.key].action });
   }
@@ -57,7 +77,7 @@ export function Checklist({ space, items, visible, assistantLocked, heading, dat
       />
     </View>,
   ));
-  const finished = !visible || (items.length > 0 && done === lines.length);
+  const finished = !sourceVisible || (sourceItems.length > 0 && done === lines.length);
   return (
     <View testID="join-checklist" style={s.page}>
       <View style={s.col}>

@@ -23,7 +23,7 @@ import { openPhone } from "./phone.ts";
 import type { LoadVoiceDevice, Phone } from "./phone.ts";
 import { openRealSession } from "./session.ts";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
-import { clearStored, readStored, spaceAddress, writeStored } from "./stored.ts";
+import { clearStored, openVerifiedSession, readStored, spaceAddress } from "./stored.ts";
 import type { StoredSession } from "./stored.ts";
 
 export interface SessionGateProps {
@@ -46,24 +46,27 @@ type Phase = { kind: "signin" } | { kind: "shell"; stored: StoredSession };
 const noHub = (): void => undefined;
 const hostOf = (baseUrl: string): string => baseUrl.replace(/^https?:\/\//, "").split(":")[0] ?? baseUrl;
 
-function SignInScreen({ baseUrl, onSignedIn }: { baseUrl: string; onSignedIn: (s: StoredSession) => void }): ReactElement {
+function SignInScreen({ baseUrl, open, onSignedIn }: { baseUrl: string; open: NonNullable<SessionGateProps["open"]>; onSignedIn: (s: StoredSession) => void }): ReactElement {
   useEffect(() => { mark("app.usable"); }, []);
   const invite: JoinInvite = useMemo(() => ({ space: hostOf(baseUrl), host: hostOf(baseUrl), by: "", role: "", sso: [], github: false, adminKey: false }), [baseUrl]);
   const anonymous = useMemo(() => createCapCaller({ baseUrl, token: () => null }), [baseUrl]);
   const signIn = useCallback(async (v: { username: string; password: string; code?: string }): Promise<"ok" | "second_factor_required"> => {
+    const preflight = (await anonymous("spaces.get", {})) as { space: { id: string; fingerprint: string } };
     const out = (await anonymous("identity.sign_in", {
       username: v.username, password: v.password, deviceName: "Web browser", deviceClass: "web", ...(v.code ? { totp: v.code } : {}),
     })) as { status: "ok" | "second_factor_required"; session?: { token: string } };
     if (out.status === "second_factor_required") return "second_factor_required";
     const token = out.session?.token;
     if (!token) throw new Error("The Space did not return a session. Try again.");
-    const real = await openRealSession({ baseUrl, token });
-    const stored: StoredSession = { baseUrl, token, def: real.def, personId: real.me.id };
-    real.close();
-    writeStored(stored);
+    const authenticated = createCapCaller({ baseUrl, token: () => token });
+    const stored = await openVerifiedSession({
+      baseUrl, token, expected: preflight.space,
+      open: () => open({ baseUrl, token }),
+      getSpace: async () => ((await authenticated("spaces.get", {})) as { space: { id: string; fingerprint: string } }).space,
+    });
     onSignedIn(stored);
     return "ok";
-  }, [anonymous, baseUrl, onSignedIn]);
+  }, [anonymous, baseUrl, onSignedIn, open]);
   return <JoinFlow invite={invite} initial={{ stage: "signin" }} onSignIn={signIn} />;
 }
 
@@ -178,18 +181,18 @@ export function SessionGate(props: SessionGateProps): ReactElement {
 
   // Read the stored session after mount, never during the first render: the static export pre-renders the sign-in markup and must match it.
   useEffect(() => {
-    const stored = readStored();
-    if (stored && (!baseUrl || stored.baseUrl === baseUrl)) setPhase({ kind: "shell", stored });
+    const stored = readStored(undefined, baseUrl ?? undefined);
+    if (stored) setPhase({ kind: "shell", stored });
     setReady(true);
   }, [baseUrl]);
 
-  const signedOut = useCallback(() => { clearStored(); setPhase({ kind: "signin" }); }, []);
+  const signedOut = useCallback((selected?: string) => { clearStored(undefined, selected); setPhase({ kind: "signin" }); }, []);
   const signedIn = useCallback((stored: StoredSession) => setPhase({ kind: "shell", stored }), []);
 
   if (!ready) return <View style={styles.fill} />;
-  if (phase.kind === "shell") return <ShellHost stored={phase.stored} open={open} onSignedOut={signedOut} onHub={onHub} voice={props.voice} />;
+  if (phase.kind === "shell") return <ShellHost stored={phase.stored} open={open} onSignedOut={() => signedOut(phase.stored.baseUrl)} onHub={onHub} voice={props.voice} />;
   if (!baseUrl) return <States kind="error" message="No Space to connect to" cause="This page has no address for a Space." next="Open it from your Space's address" />;
-  return <SignInScreen baseUrl={baseUrl} onSignedIn={signedIn} />;
+  return <SignInScreen baseUrl={baseUrl} open={open} onSignedIn={signedIn} />;
 }
 
 const styles = StyleSheet.create({
