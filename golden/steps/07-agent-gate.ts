@@ -10,7 +10,7 @@ import { setDefaultDns } from "../../modules/mail/handlers/extra/dns.ts";
 import type { FetchFn } from "../../host/src/platform/probes.ts";
 import type { SeamFetch } from "../../host/src/seams/ports.ts";
 
-export const LIVE_FOR_GATE_REPLY = ["vault", "engine", "agents", "files", "access", "devices", "tasks", "runs", "chat", "gate", "mail", "resend", "contacts-link"];
+export const LIVE_FOR_GATE_REPLY = ["vault", "engine", "agents", "files", "access", "devices", "tasks", "runs", "chat", "gate", "mail", "resend", "contacts-link", "notifications"];
 
 export const GATE_GAPS = [];
 
@@ -75,10 +75,10 @@ export async function addVerifiedSendingDomain(s: FlowSpace, admin: string, key:
   assert.equal((checked.domain ?? checked).verified, true, `the domain verifies: ${short(checked)}`);
 }
 
-export async function configureSendEscalation(s: FlowSpace, admin: string): Promise<void> {
-  expectStatus(await s.call("gate.rules.set", admin, {
-    act: "send", scope: "space", mode: "hold", onTimeout: "escalate", escalateTo: "role",
-  }), 200, "gate.rules.set");
+export async function configureApprovalDelegate(s: FlowSpace, admin: string): Promise<void> {
+  expectStatus(await s.call("notifications.delegate.set", admin, {
+    chain: [{ kind: "role", id: "rol_admin" }],
+  }), 200, "notifications.delegate.set");
 }
 
 /** FlowSpace has a fixed production-like clock. Move only this test hold to its
@@ -136,7 +136,7 @@ export async function runAgentGate(live: readonly string[], opts: Parameters<typ
       expectStatus(await s.call("providers.set_space_use", admin, { idempotencyKey: "golden-7g-spaceuse", providerId: provider.id, allow: true }), 200, "providers.set_space_use");
     });
     await trail.step("a sending domain is added and verifies", async () => addVerifiedSendingDomain(s, admin, "golden-7g"));
-    await trail.step("unanswered sends escalate to the admin role", async () => configureSendEscalation(s, admin));
+    await trail.step("she delegates unanswered approvals to the admin role", async () => configureApprovalDelegate(s, admin));
     const agent = await trail.step("an agent exists", async () => expectStatus(await s.call("agents.create", admin, { idempotencyKey: "golden-7g-agent", name: "Mailer", role: "Writes the weekly note" }), 200, "agents.create").agent.agentId as string);
     await trail.step("she allows the agent to send outside", async () => allowAgentSending(s, admin, agent!, "golden-7g"), ["an agent exists"]);
     const thread = await trail.step("she starts a chat with it and the engine is bound", async () => {
@@ -181,6 +181,8 @@ export async function runAgentGate(live: readonly string[], opts: Parameters<typ
       const out = expectStatus(await s.call("gate.expire", admin, { holdId: second!.id }), 200, "gate.expire");
       assert.equal(out.outcome, "dropped", `second timeout: ${short(out)}`);
     }, ["with no decision the hold escalates"]);
-    return { events: await s.events(), trail };
+    // The agent's MCP turn has its own trace. This flow spans that trace and
+    // the person's task actions, so its contract reads the whole Space log.
+    return { events: await s.events(false), trail };
   } finally { await s.stop(); }
 }

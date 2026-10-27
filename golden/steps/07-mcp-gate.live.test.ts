@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { expectStatus } from "./02-space.ts";
-import { addVerifiedSendingDomain, allowAgentSending, bootAgentGateSpace, configureSendEscalation, LIVE_FOR_GATE_REPLY, makeHoldDue } from "./07-agent-gate.ts";
+import { addVerifiedSendingDomain, allowAgentSending, bootAgentGateSpace, configureApprovalDelegate, LIVE_FOR_GATE_REPLY, makeHoldDue } from "./07-agent-gate.ts";
 
 const hex = async (text: string): Promise<string> => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))), (b) => b.toString(16).padStart(2, "0")).join("");
 
@@ -13,7 +13,7 @@ test("the daemon MCP endpoint initializes and an agent tool call reaches the Gat
   try {
     const admin = s.d.token;
     await addVerifiedSendingDomain(s, admin, "mcp-live");
-    await configureSendEscalation(s, admin);
+    await configureApprovalDelegate(s, admin);
     const agent = expectStatus(await s.call("agents.create", admin, { idempotencyKey: "mcp-live-agent", name: "Mailer", role: "Writes mail" }), 200, "agents.create").agent.agentId as string;
     await allowAgentSending(s, admin, agent, "mcp-live");
     const thread = expectStatus(await s.call("chat.start", admin, { idempotencyKey: "mcp-live-chat", kind: "chat", agentIds: [agent] }), 200, "chat.start").thread.threadId as string;
@@ -43,6 +43,9 @@ test("the daemon MCP endpoint initializes and an agent tool call reaches the Gat
     const holds = expectStatus(await s.call("gate.holds.list", admin, { states: ["held"] }), 200, "gate.holds.list").holds;
     assert.equal(holds.length, 1);
     assert.equal(holds[0].capName, "mail.send");
+    const requested = (await s.events(false)).filter((event) => event.type === "gate.requested");
+    assert.equal(requested.length, 1);
+    assert.notEqual(requested[0]?.traceId, s.trace, "the MCP-held call keeps its own trace");
     expectStatus(await s.call("tasks.act", admin, { taskId: holds[0].taskId, action: "approve" }), 200, "tasks.act");
     const sent = expectStatus(await s.call("mail.message.list", admin, { mailboxId, direction: "out" }), 200, "mail.message.list").messages as { status: string }[];
     assert.equal(sent.length, 1);
@@ -56,6 +59,7 @@ test("the daemon MCP endpoint initializes and an agent tool call reaches the Gat
     assert.notEqual(pending[0].id, holds[0].id);
     makeHoldDue(s, pending[0].id);
     assert.equal(expectStatus(await s.call("gate.expire", admin, { holdId: pending[0].id }), 200, "gate.expire").outcome, "escalated");
+    assert.ok((await s.events(false)).some((event) => event.type === "task.escalated"));
     makeHoldDue(s, pending[0].id);
     assert.equal(expectStatus(await s.call("gate.expire", admin, { holdId: pending[0].id }), 200, "gate.expire").outcome, "dropped");
     const unchanged = expectStatus(await s.call("mail.message.list", admin, { mailboxId, direction: "out" }), 200, "mail.message.list").messages;
