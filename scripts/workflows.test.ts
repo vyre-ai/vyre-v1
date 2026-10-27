@@ -58,7 +58,8 @@ test("shots shards the complete visual suite and publishes release evidence thro
   const aggregate = shots.jobs.find((j) => j.name === "aggregate-shots")!;
   assert.ok(capture && evidence && aggregate, "capture, release evidence and aggregation jobs exist");
   assert.match(capture.text, /fromJSON\(startsWith\(github\.ref_name, 'build\/P-'\)/);
-  assert.match(capture.text, /\[0,1,2,3,4,5,6,7,8,9,10,11\]/);
+  assert.match(capture.text, /\[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17\]/);
+  assert.match(capture.text, /'1' \|\| '18'/);
   assert.match(capture.text, /--shard-index "\$\{\{ matrix\.shard \}\}" --shard-total "\$SHARD_TOTAL"/);
   assert.match(capture.text, /name: shots-part-\$\{\{ matrix\.shard \}\}/);
   assert.doesNotMatch(capture.text, /pwa-mobile|real-app\.e2e/, "release evidence does not wait behind visual shards");
@@ -69,6 +70,7 @@ test("shots shards the complete visual suite and publishes release evidence thro
   assert.match(aggregate.text, /pattern: shots-part-\*/);
   assert.match(aggregate.text, /name: shots-evidence/);
   assert.match(aggregate.text, /merge-index\.mjs/);
+  assert.match(aggregate.text, /SHARD_TOTAL=18/);
   assert.match(aggregate.text, /name: shots\s*$/m);
   assert.match(aggregate.text, /if-no-files-found: error/);
   assert.equal(shots.jobs.reduce((count, job) => count + (job.text.match(/name: shots\s*$/gm) ?? []).length, 0), 1, "only aggregation publishes the canonical shots artifact");

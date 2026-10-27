@@ -36,9 +36,9 @@ test("the shipped targets.json is valid", () => {
   for (const x of t) assert.ok(x.proto.includes("{skin}"), `${x.id} prototype hash takes the skin`);
 });
 
-test("twelve screenshot shards cover every target once without overlap", () => {
+test("eighteen screenshot shards cover every target once without overlap", () => {
   const targets = loadTargets(path.dirname(new URL(import.meta.url).pathname));
-  const shards = Array.from({ length: 12 }, (_, index) => shardTargets(targets, index, 12));
+  const shards = Array.from({ length: 18 }, (_, index) => shardTargets(targets, index, 18));
   const ids = shards.flat().map((t: { id: string }) => t.id);
   assert.equal(ids.length, targets.length);
   assert.equal(new Set(ids).size, targets.length);
@@ -57,7 +57,7 @@ test("screenshot shard selection is deterministic and rejects invalid coordinate
 
 test("shard indexes merge into one canonical screenshot index", () => {
   assert.equal(shardIndexName(0, 1), "index.md");
-  assert.equal(shardIndexName(2, 12), "index-shard-02-of-12.md");
+  assert.equal(shardIndexName(2, 18), "index-shard-02-of-18.md");
   const first = "# Side-by-side screenshots\n\nExport: 1.0 s\n\n| target | skin | size | file |\n|---|---|---|---|\n| b | paper | phone | b.png |\n";
   const second = "# Side-by-side screenshots\n\nExport: 2.0 s\n\n| target | skin | size | file |\n|---|---|---|---|\n| a | graphite | desktop | a.png |\n";
   const merged = mergeShotIndexes([
