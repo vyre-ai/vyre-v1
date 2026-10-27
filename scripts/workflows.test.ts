@@ -121,6 +121,18 @@ test("native stays non-blocking for live while the macOS desktop artifact gates 
   }
 });
 
+test("release artifact transfer stages have a bounded thirty-minute window", () => {
+  const rel = wf("release");
+  for (const name of ["sign", "sign-dryrun", "publish"]) {
+    const job = rel.jobs.find((j) => j.name === name);
+    assert.ok(job, `release.yml job ${name}`);
+    assert.match(job!.text, /^ {4}timeout-minutes: 30$/m, `${name} allows the measured 127 MB artifact transfer plus its bounded work`);
+  }
+  assert.match(rel.jobs.find((j) => j.name === "sign")!.text, /name: release-files-desktop, path: dist/);
+  assert.match(rel.jobs.find((j) => j.name === "sign-dryrun")!.text, /name: release-files-desktop, path: dist/);
+  assert.match(rel.jobs.find((j) => j.name === "publish")!.text, /name: release-signed, path: dist/);
+});
+
 test("the macOS desktop release path verifies, mounts, installs and exercises the DMG", () => {
   const desktop = wf("desktop");
   assert.doesNotMatch(files.join("\n"), /^mac\.yml$/m, "the removed server-installer workflow cannot stand in for a desktop DMG gate");
