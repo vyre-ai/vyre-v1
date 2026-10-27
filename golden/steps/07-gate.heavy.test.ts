@@ -14,5 +14,5 @@ const skip: string | false = ON ? false : "needs VYRE_HEAVY_DOCKER=1 (the CLI ru
 
 test("golden 7: an agent's send is held by the Gate, approved once, and a second one expires", { skip, todo: todoOf(GATE_GAPS) }, async () => {
   const events = await steps();
-  assert.deepEqual(checkSequence(flow.events, events), [], `events: ${events.map((e) => e.type).join(", ")}`);
+  assert.deepEqual(checkSequence(flow.events, events, flow.tracePolicy), [], `events: ${events.map((e) => e.type).join(", ")}`);
 });

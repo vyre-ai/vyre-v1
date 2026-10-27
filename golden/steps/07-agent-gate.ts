@@ -4,21 +4,108 @@
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { bootFlowSpace, expectStatus, short, Trail } from "./02-space.ts";
-import type { Gap } from "./02-space.ts";
+import type { FlowSpace } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
+import { setDefaultDns } from "../../modules/mail/handlers/extra/dns.ts";
+import type { FetchFn } from "../../host/src/platform/probes.ts";
+import type { SeamFetch } from "../../host/src/seams/ports.ts";
 
-export const LIVE_FOR_GATE_REPLY = ["vault", "engine", "agents", "files", "access", "devices", "tasks", "runs", "chat", "gate", "mail"];
+export const LIVE_FOR_GATE_REPLY = ["vault", "engine", "agents", "files", "access", "devices", "tasks", "runs", "chat", "gate", "mail", "resend", "contacts-link", "notifications"];
 
-/** Why this is a todo today. Each line names the PR it waits on. */
-export const GATE_GAPS: Gap[] = [
-  { packet: "L2 engine (steward)", lane: "L2", what: "the same as the reply half: the agent never answers the 'send pat@acme.test <mailbox>' message, so no mail_send reaches the Gate and no hold appears within 40 s" },
-];
+export const GATE_GAPS = [];
 
 const TOKEN = "sk-ant-oat01-GOLDENFAKE0123456789abcdefXYZ"; // secret-scan: fake
+const DOMAIN = "send.agent-gate.test";
 type Hold = { id: string; taskId: string; state: string; capName?: string };
 
+type NetFetch = FetchFn & SeamFetch;
+type NetResponse = Awaited<ReturnType<FetchFn>> & Awaited<ReturnType<SeamFetch>>;
+const json = (status: number, body: unknown): Promise<NetResponse> => Promise.resolve({
+  ok: status < 300, status, headers: { get: () => null }, text: () => Promise.resolve(JSON.stringify(body)),
+  arrayBuffer: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(body)).buffer as ArrayBuffer),
+});
+
+/** Flow 7 crosses the provider boundary after approval, so its fake includes
+ * the same verified-domain precondition production requires. */
+export async function bootAgentGateSpace(live: readonly string[], opts: Parameters<typeof bootFlowSpace>[1] = {}): Promise<FlowSpace> {
+  const zone = new Map<string, string[]>();
+  const miss = (): never => { throw Object.assign(new Error("no data"), { code: "ENODATA" }); };
+  setDefaultDns({
+    txt: (name) => Promise.resolve(zone.get(name.toLowerCase()) ?? miss()),
+    cname: () => Promise.resolve(miss()),
+    mx: () => Promise.resolve(miss()),
+  });
+  let sent = 0;
+  const provider: NetFetch = (url, init) => {
+    const u = new URL(url);
+    const method = init?.method ?? "GET";
+    if (u.host !== "api.resend.com") return json(200, { apps: { http: {} } });
+    if (u.pathname === "/emails" && method === "POST") return json(200, { id: `re_gate_${++sent}` });
+    if (u.pathname === "/domains" && method === "POST") {
+      const records = [
+        { record: "SPF", type: "TXT", name: DOMAIN, value: "v=spf1 include:amazonses.com ~all", status: "not_started" },
+        { record: "DKIM", type: "TXT", name: `resend._domainkey.${DOMAIN}`, value: "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDfake", status: "not_started" },
+      ];
+      for (const record of records) zone.set(record.name, [record.value]);
+      zone.set(`_dmarc.${DOMAIN}`, ["v=DMARC1; p=none"]);
+      return json(200, { id: "dom_gate", name: DOMAIN, status: "not_started", records });
+    }
+    if (u.pathname.endsWith("/verify") && method === "POST") return json(200, { id: "dom_gate" });
+    if (u.pathname.startsWith("/domains/") && method === "GET") return json(200, {
+      id: "dom_gate", name: DOMAIN, status: "verified", records: [
+        { record: "SPF", type: "TXT", name: DOMAIN, value: "v=spf1 include:amazonses.com ~all", status: "verified" },
+        { record: "DKIM", type: "TXT", name: `resend._domainkey.${DOMAIN}`, value: "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDfake", status: "verified" },
+      ],
+    });
+    return json(200, { data: [] });
+  };
+  return bootFlowSpace(live, {
+    ...opts,
+    fetch: opts.fetch ?? provider,
+    vault: opts.vault ?? { secret: async (handle) => `fake-${handle.replace(/^#/, "")}`, signRs256: async () => "" },
+  });
+}
+
+export async function addVerifiedSendingDomain(s: FlowSpace, admin: string, key: string): Promise<void> {
+  const added = expectStatus(await s.call("mail.domain.add", admin, {
+    idempotencyKey: `${key}-domain`, name: DOMAIN, provider: "resend",
+  }), 200, "mail.domain.add");
+  const id = (added.domain?.id ?? added.domainId ?? added.id) as string;
+  const checked = expectStatus(await s.call("mail.domain.check", admin, { domainId: id }), 200, "mail.domain.check");
+  assert.equal((checked.domain ?? checked).verified, true, `the domain verifies: ${short(checked)}`);
+}
+
+export async function configureApprovalDelegate(s: FlowSpace, admin: string): Promise<void> {
+  expectStatus(await s.call("notifications.delegate.set", admin, {
+    chain: [{ kind: "role", id: "rol_admin" }],
+  }), 200, "notifications.delegate.set");
+}
+
+/** FlowSpace has a fixed production-like clock. Move only this test hold to its
+ * scheduled instant before exercising the scheduler-owned expiry capability. */
+export function makeHoldDue(s: FlowSpace, holdId: string): void {
+  s.d.db!.run("UPDATE gate_holds SET expires_at = 0 WHERE id = ?", holdId);
+}
+
+/** Agent sends are high-risk: the asker must explicitly give the agent an
+ * assignable role carrying comms.agent_send before Gate approval can resume it. */
+export async function allowAgentSending(s: FlowSpace, admin: string, agent: string, key: string): Promise<void> {
+  const made = expectStatus(await s.call("access.roles.create", admin, {
+    idempotencyKey: `${key}-role`, name: `Agent sender ${agent.slice(-6)}`, cloneFrom: "rol_guest", assignableToAgents: true,
+  }), 200, "access.roles.create").role as { id: string };
+  const preview = expectStatus(await s.call("access.roles.preview", admin, {
+    roleId: made.id, permissions: ["comms.agent_send"],
+  }), 200, "access.roles.preview") as { previewHash: string };
+  expectStatus(await s.call("access.roles.apply", admin, {
+    roleId: made.id, permissions: ["comms.agent_send"], previewHash: preview.previewHash,
+  }), 200, "access.roles.apply");
+  expectStatus(await s.call("access.roles.assign", admin, {
+    subject: { kind: "agent", id: agent }, roleId: made.id,
+  }), 200, "access.roles.assign");
+}
+
 export async function runAgentGate(live: readonly string[], opts: Parameters<typeof bootFlowSpace>[1] = {}): Promise<{ events: Observed[]; trail: Trail }> {
-  const s = await bootFlowSpace(live, opts);
+  const s = await bootAgentGateSpace(live, opts);
   const trail = new Trail();
   try {
     const admin = s.d.token;
@@ -48,16 +135,19 @@ export async function runAgentGate(live: readonly string[], opts: Parameters<typ
       const provider = expectStatus(await s.call("providers.subscription_complete", admin, { flowId: flow }), 200, "providers.subscription_complete").provider as { id: string };
       expectStatus(await s.call("providers.set_space_use", admin, { idempotencyKey: "golden-7g-spaceuse", providerId: provider.id, allow: true }), 200, "providers.set_space_use");
     });
+    await trail.step("a sending domain is added and verifies", async () => addVerifiedSendingDomain(s, admin, "golden-7g"));
+    await trail.step("she delegates unanswered approvals to the admin role", async () => configureApprovalDelegate(s, admin));
     const agent = await trail.step("an agent exists", async () => expectStatus(await s.call("agents.create", admin, { idempotencyKey: "golden-7g-agent", name: "Mailer", role: "Writes the weekly note" }), 200, "agents.create").agent.agentId as string);
+    await trail.step("she allows the agent to send outside", async () => allowAgentSending(s, admin, agent!, "golden-7g"), ["an agent exists"]);
     const thread = await trail.step("she starts a chat with it and the engine is bound", async () => {
       const id = expectStatus(await s.call("chat.start", admin, { idempotencyKey: "golden-7g-chat", kind: "chat", agentIds: [agent!] }), 200, "chat.start").thread.threadId as string;
       expectStatus(await s.call("engine.pool.status", admin, {}), 200, "engine.pool.status");
       return id;
-    }, ["an agent exists"]);
+    }, ["an agent exists", "she allows the agent to send outside"]);
     const mailbox = await trail.step("the agent has a mailbox to send from", async () => {
-      const m = expectStatus(await s.call("mail.mailbox.create", admin, { idempotencyKey: "golden-7g-mailbox", kind: "agent", address: "mailer@seed.example.test", title: "Mailer", agentId: agent! }), 200, "mail.mailbox.create").mailbox;
+      const m = expectStatus(await s.call("mail.mailbox.create", admin, { idempotencyKey: "golden-7g-mailbox", kind: "agent", address: `mailer@${DOMAIN}`, title: "Mailer", agentId: agent! }), 200, "mail.mailbox.create").mailbox;
       return (m.mailboxId ?? m.id) as string;
-    }, ["an agent exists"]);
+    }, ["an agent exists", "a sending domain is added and verifies"]);
     const ask = (key: string) => async (): Promise<void> => {
       expectStatus(await s.call("chat.post", admin, { idempotencyKey: key, threadId: thread!, body: `send pat@acme.test ${mailbox!}`, mentions: [{ kind: "agent", id: agent! }] }), 200, "chat.post");
     };
@@ -82,13 +172,19 @@ export async function runAgentGate(live: readonly string[], opts: Parameters<typ
       return held(1);
     }, ["she approves and the send goes out once"]);
     await trail.step("with no decision the hold escalates", async () => {
+      makeHoldDue(s, second!.id);
       const out = expectStatus(await s.call("gate.expire", admin, { holdId: second!.id }), 200, "gate.expire");
       assert.equal(out.outcome, "escalated", `first timeout: ${short(out)}`);
     }, ["a second send is held and left alone"]);
     await trail.step("with still no decision it expires and the send is dropped", async () => {
+      makeHoldDue(s, second!.id);
       const out = expectStatus(await s.call("gate.expire", admin, { holdId: second!.id }), 200, "gate.expire");
       assert.equal(out.outcome, "dropped", `second timeout: ${short(out)}`);
     }, ["with no decision the hold escalates"]);
-    return { events: await s.events(), trail };
+    // The agent's MCP turn has its own trace. This flow spans that trace and
+    // the person's task actions, so read the Space log but return only the
+    // events this contract observes rather than unrelated bootstrap history.
+    const observed = new Set(["gate.requested", "task.escalated", "gate.expired"]);
+    return { events: (await s.events(false)).filter((event) => observed.has(event.type)), trail };
   } finally { await s.stop(); }
 }

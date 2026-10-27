@@ -86,7 +86,11 @@ export async function openMcpBridge(m: { url: string; token: string }, o: McpBri
             if (sid) sessionId = sid;
             for (const out of replyLines(r.headers.get("content-type") ?? "", await r.text())) if (!c.destroyed) c.write(`${out}\n`);
           } catch {
-            if (!c.destroyed) c.write(`${JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32603, message: "The Vyre endpoint could not be reached." } })}\n`);
+            // Preserve the request id. MCP clients wait for the matching id; id:null
+            // turns an endpoint outage into a permanently running agent turn.
+            let id: unknown = null;
+            try { id = (JSON.parse(line) as { id?: unknown }).id ?? null; } catch { /* invalid JSON keeps null */ }
+            if (!c.destroyed) c.write(`${JSON.stringify({ jsonrpc: "2.0", id, error: { code: -32603, message: "The Vyre endpoint could not be reached." } })}\n`);
           } finally {
             pending--;
             settle();
