@@ -282,6 +282,30 @@ test("auth choices stay distinct and every phone row has a 44px touch target", (
   assert.match(ai, /min-height:56px/);
 });
 
+test("every compact phone control keeps a 44px hit target without enlarging its visual", () => {
+  const device = html({ stage: "steps", step: 2, ...FILLED });
+  const sheet = html({ stage: "steps", step: 2, ...FILLED, rec: "new", sheet: true, code: "K7QM-4TXD-92HB-WPLE" });
+  const signIn = html({ stage: "signin", si: "pw" });
+  for (const id of ["next", "trust", "saved", "copy-code", "si-password-visibility"]) {
+    const out = id === "next" || id === "si-password-visibility" ? signIn : id === "trust" ? device : sheet;
+    assert.match(tagOf(out, id), /(?:min-)?height:44px/, id);
+  }
+  assert.match(signIn, /height:32px/, "the visual button stays compact within its larger hit target");
+  assert.match(device, /height:31px/, "the switch stays visually compact within its larger hit target");
+});
+
+test("GitHub-only sign-in does not render an empty single sign-on section", () => {
+  const githubOnly = renderToStaticMarkup(<JoinFlow invite={{ ...INVITE, sso: [], github: true }} initial={{ stage: "signin" }} hold />);
+  assert.match(githubOnly, /data-testid="sign-in-github"/);
+  assert.doesNotMatch(githubOnly, /Single sign-on|data-testid="sign-in-sso"/);
+});
+
+test("taken usernames give a truthful fallback when no suggestions are available", () => {
+  const out = renderToStaticMarkup(<JoinFlow invite={{ ...INVITE, names: { first: "", last: "" } }} initial={{ stage: "steps", step: 1, ...FILLED, user: "irfad" }} isTaken={rules.isTaken} hold />);
+  assert.match(out, /@irfad is taken\. Choose a different username\./);
+  assert.doesNotMatch(out, /Try one of the suggestions below\.|data-testid="suggestions"/);
+});
+
 test("step 3: this device, and the recovery code sheet with the code and the box", () => {
   const dev = html({ stage: "steps", step: 2, ...FILLED });
   for (const text of ["Set up this device", "Device name", "Trust this device", "Recovery code", "Create…"]) assert.ok(dev.includes(text), text);

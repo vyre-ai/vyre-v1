@@ -133,7 +133,7 @@ export function ErrorLine({ children, testID }: { children: ReactNode; testID?: 
 export function TextButton({ label, onPress, testID, small, disabled }: { label: string; onPress?: () => void; testID?: string; small?: boolean; disabled?: boolean }) {
   const { p } = useJoin();
   return (
-    <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} testID={testID} style={({ hovered, pressed }: { hovered?: boolean; pressed?: boolean }) => ({ opacity: pressed ? 0.55 : hovered ? 0.75 : 1, paddingHorizontal: 2, borderRadius: 4 })}>
+    <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} testID={testID} style={({ hovered, pressed }: { hovered?: boolean; pressed?: boolean }) => ({ minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.55 : hovered ? 0.75 : 1, borderRadius: 4 })}>
       <Text style={[base(p), { color: p.blue, fontSize: small ? 13 : 15, lineHeight: small ? 18 : 21 }]}>{label}</Text>
     </Pressable>
   );
@@ -144,10 +144,12 @@ export function Button({ label, onPress, disabled, large, testID }: { label: str
     <Pressable
       accessibilityRole="button" aria-disabled={!!disabled} disabled={disabled} onPress={onPress} testID={testID}
       style={({ hovered, pressed }: { hovered?: boolean; pressed?: boolean }) => ({
-        height: large ? 36 : 32, paddingHorizontal: large ? 22 : 18, borderRadius: 8, backgroundColor: p.blue, justifyContent: "center", flexShrink: 0, opacity: disabled ? 0.4 : pressed ? 0.92 : hovered ? 0.94 : 1,
+        minHeight: 44, justifyContent: "center", flexShrink: 0, opacity: disabled ? 0.4 : pressed ? 0.92 : hovered ? 0.94 : 1,
       })}
     >
-      <Text numberOfLines={1} style={[base(p), { color: "#FFFFFF", fontSize: large ? 14 : 13, fontWeight: "600" }]}>{label}</Text>
+      <View style={{ height: large ? 36 : 32, paddingHorizontal: large ? 22 : 18, borderRadius: 8, backgroundColor: p.blue, justifyContent: "center" }}>
+        <Text numberOfLines={1} style={[base(p), { color: "#FFFFFF", fontSize: large ? 14 : 13, fontWeight: "600" }]}>{label}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -303,8 +305,10 @@ function OptionView({ title, help, checked, onPress, divider, testID }: RowProps
 export function Switch({ on, onChange, label, testID }: { on: boolean; onChange: (v: boolean) => void; label: string; testID?: string }) {
   const { p } = useJoin();
   return (
-    <Pressable accessibilityRole="switch" accessibilityLabel={label} aria-checked={on} onPress={() => onChange(!on)} testID={testID} style={{ width: 51, height: 31, borderRadius: 16, backgroundColor: on ? p.green : p.sw }}>
-      <View style={{ position: "absolute", top: 2, left: on ? 22 : 2, width: 27, height: 27, borderRadius: 14, backgroundColor: "#fff", ...shadow("0 3px 8px rgba(0,0,0,.15), 0 1px 1px rgba(0,0,0,.16), 0 3px 1px rgba(0,0,0,.1)") }} />
+    <Pressable accessibilityRole="switch" accessibilityLabel={label} aria-checked={on} onPress={() => onChange(!on)} testID={testID} style={{ width: 51, minHeight: 44, justifyContent: "center" }}>
+      <View style={{ width: 51, height: 31, borderRadius: 16, backgroundColor: on ? p.green : p.sw }}>
+        <View style={{ position: "absolute", top: 2, left: on ? 22 : 2, width: 27, height: 27, borderRadius: 14, backgroundColor: "#fff", ...shadow("0 3px 8px rgba(0,0,0,.15), 0 1px 1px rgba(0,0,0,.16), 0 3px 1px rgba(0,0,0,.1)") }} />
+      </View>
     </Pressable>
   );
 }
@@ -420,7 +424,7 @@ export function Sheet({ children, label, onDismiss }: { children: ReactNode; lab
 export function CheckBox({ checked, onChange, label, testID }: { checked: boolean; onChange: (v: boolean) => void; label: string; testID?: string }) {
   const { p } = useJoin();
   return (
-    <Pressable accessibilityRole="checkbox" aria-checked={checked} onPress={() => onChange(!checked)} testID={testID} style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 18 }}>
+    <Pressable accessibilityRole="checkbox" aria-checked={checked} onPress={() => onChange(!checked)} testID={testID} style={{ flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44, marginTop: 18 }}>
       <View style={[{ width: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: p.tx2 }, checked ? { backgroundColor: p.blue, borderColor: p.blue } : null]}>
         {checked ? <Check size={11} color="#fff" /> : null}
       </View>

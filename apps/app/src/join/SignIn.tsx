@@ -69,10 +69,7 @@ export function SignIn({ invite, state, dispatch, busy, onSubmit, onSso, onGithu
           {state.error ? <ErrorLine testID="join-error">{state.error}</ErrorLine> : null}
           {invite.sso.length || invite.github ? (
             <>
-              <Caption>Single sign-on</Caption>
-              <Group top={0} testID="sign-in-sso">
-                {invite.sso.map((n) => <Row kind="action" key={n} testID={`sso-${n.toLowerCase()}`} label={n} note="OpenID Connect" onPress={() => onSso?.(n)} />)}
-              </Group>
+              {invite.sso.length ? <><Caption>Single sign-on</Caption><Group top={0} testID="sign-in-sso">{invite.sso.map((n) => <Row kind="action" key={n} testID={`sso-${n.toLowerCase()}`} label={n} note="OpenID Connect" onPress={() => onSso?.(n)} />)}</Group></> : null}
               {invite.github ? <><Caption>GitHub</Caption><Group top={0} testID="sign-in-github"><Row kind="action" testID="github" label="GitHub" note="Linked account" onPress={onGithub} /></Group></> : null}
             </>
           ) : null}

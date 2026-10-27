@@ -172,7 +172,7 @@ function SignInStep({ invite, state, dispatch, rules }: Pick<AcceptInviteProps, 
         <FieldRow testID="password" label="Password" value={state.pw} onChange={(v) => set({ pw: v })} placeholder="Required" secure revealable visibilityTestID="password-visibility" autoComplete="new-password" onSubmit={next} />
         <FieldRow testID="confirm" label="Confirm" value={state.pw2} onChange={(v) => set({ pw2: v })} placeholder="Required" secure revealable visibilityTestID="confirm-visibility" autoComplete="new-password" onSubmit={next} />
       </Group>
-      {u && !ok ? <ErrorLine testID="username-error">{taken ? `@${u} is taken. Try one of the suggestions below.` : "Use 3 to 24 letters or digits, starting with a letter."}</ErrorLine> : mism ? <ErrorLine testID="mismatch">Make both passwords match to continue.</ErrorLine> : null}
+      {u && !ok ? <ErrorLine testID="username-error">{taken ? sugg.length ? `@${u} is taken. Try one of the suggestions below.` : `@${u} is taken. Choose a different username.` : "Use 3 to 24 letters or digits, starting with a letter."}</ErrorLine> : mism ? <ErrorLine testID="mismatch">Make both passwords match to continue.</ErrorLine> : null}
       {sugg.length ? (
         <View testID="suggestions" style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 8, marginHorizontal: 16, alignItems: "center" }}>
           <Text style={[baseText(p), { fontSize: 13, color: p.tx2 }]}>Try</Text>
