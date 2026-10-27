@@ -44,7 +44,9 @@ async function stopSidecar(r: Running): Promise<void> {
   if (r.child.exitCode !== null) return;
   r.child.removeAllListeners("exit");
   const done = new Promise<void>((resolve) => r.child.once("exit", () => resolve()));
-  r.child.kill("SIGTERM");
+  // Windows delivers SIGINT to a Node child more reliably than SIGTERM; both
+  // paths reach the daemon's graceful stop handler before force cleanup.
+  r.child.kill(process.platform === "win32" ? "SIGINT" : "SIGTERM");
   await Promise.race([done, new Promise<void>((resolve) => setTimeout(resolve, 5000))]);
   if (r.child.exitCode === null) {
     if (process.platform === "win32" && r.child.pid) spawnSync("taskkill", ["/PID", String(r.child.pid), "/T", "/F"], { stdio: "ignore", timeout: 5000 });
