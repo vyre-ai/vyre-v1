@@ -7,6 +7,7 @@
 - Wire destination resolution and routed invocation through the real host context, preserving the authenticated principal, acting-for identity, and trace across the destination boundary.
 - Add the platform-owned two-daemon destination provider: it resolves an owner’s Personal endpoint, validates Team membership at the target, and re-enters that daemon with the original invocation seed.
 - Scope the v1 release candidate to Personal Space session import only; Team routing is explicitly deferred to v1.1.
+- Release: set the root package version to the intended `1.0.0-rc.1` candidate tag.
 - Gateway: generate contract-valid, revocable ids for an agent's Space and home grants.
 - Access: resolve gateway actor-kind home grants to their registered agent or person principal during projection.
 - Computer home mirrors now invoke agent file operations on behalf of the agent's current owner.
