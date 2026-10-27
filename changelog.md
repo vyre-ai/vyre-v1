@@ -1,9 +1,9 @@
 # Changelog
 
 ## Unreleased
-
 - CI: run affected perf coverage in a serialized, dedicated workflow so push checks do not time out waiting on the shared perf-host disk lock.
 - CI: gate pull requests and merge-queue batches on the serialized affected-perf result; a missing or failed affected perf shard cannot merge.
+- Gateway: generate contract-valid, revocable ids for an agent's Space and home grants.
 - Access: resolve gateway actor-kind home grants to their registered agent or person principal during projection.
 - Computer home mirrors now invoke agent file operations on behalf of the agent's current owner.
 - Scheduler: await the initial immediate repair tick before reporting the daemon started.

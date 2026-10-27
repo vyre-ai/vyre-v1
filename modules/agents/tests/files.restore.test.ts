@@ -137,7 +137,10 @@ test("create gives the agent Edit on its own folder (not Manage) and its owner M
   const hn = harness();
   const a = await make(hn);
   const home = String(record(hn, a.agentId)["folderId"]);
-  assert.deepEqual(onHome(hn, home), [], "creation grants are emitted at the gateway commit boundary");
+  assert.deepEqual(onHome(hn, home), [
+    `agent:${a.agentId}:edit:agent:${a.agentId}`,
+    `person:${DANA}:manage:agent:${a.agentId}`,
+  ].sort(), "the harness reflects the grants emitted at the gateway commit boundary");
   assert.equal(shareCalls(hn).length, 0, "creation does not call access.share before the principal exists");
 });
 
