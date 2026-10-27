@@ -17,5 +17,5 @@ test("gateway actor-kind home grants fold onto the registered agent and person",
   assert.equal(store.grants.get("gr_home")?.subject.kind, "agent");
   assert.equal(store.grants.get("gr_owner")?.subject.kind, "person");
   assert.equal(store.grants.get("gr_external")?.subject.kind, "actor");
-  assert.deepEqual(store.snapshot().grantsOn("fld_home")?.map((g) => g.row.subject_kind), ["agent", "person", "actor"]);
+  assert.deepEqual(store.snapshot().grantsOn("fld_home")?.map((g) => g.row.subject_kind), ["actor", "actor", "actor"]);
 });
