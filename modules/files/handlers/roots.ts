@@ -3,15 +3,11 @@
 // same resource after a reboot), as it does for Kits. No event goes out and no read emits one: the roots are registered the first time any files capability runs for a caller, before its handler.
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { ensureReady } from "./tree.ts";
-
-export interface FilesHost {
-  resources: { ensure(r: { id: string; type: "folder"; parentId: string | null; ownerId?: string }): Promise<void> };
-}
-
-let configured: FilesHost | null = null;
+import { filesHost, setFilesHost } from "./host.ts";
+import type { FilesHost } from "./host.ts";
 /** The host calls this once at start. Null clears (and forgets what it registered). */
 export function configureFilesHost(h: FilesHost | null): void {
-  configured = h;
+  setFilesHost(h);
   registered.clear();
 }
 
@@ -23,7 +19,7 @@ type Row = Record<string, unknown>;
 /** Makes the Space roots and the caller's Personal root exist as access resources. Parents first, so a child never names a folder access does not know. */
 export async function registerRoots(ctx: Ctx): Promise<void> {
   ensureReady(ctx);   // every files capability makes the root rows, whether or not a host is there to register them
-  const host = configured;
+  const host = filesHost();
   if (!host) return;
   const rows = ctx.db.all(
     "SELECT id, parent_id, root_key, system_key, owner FROM files_folder WHERE (root_key IS NOT NULL OR system_key IS NOT NULL) AND deleted_at IS NULL ORDER BY length(path), path",
@@ -39,6 +35,8 @@ export async function registerRoots(ctx: Ctx): Promise<void> {
     registered.add(id);
   }
 }
+
+export type { FilesHost } from "./host.ts";
 
 type Handler = (ctx: Ctx, input: unknown) => Promise<unknown> | unknown;
 

@@ -30,6 +30,16 @@ test("a ready flow passes on the right events and fails on wrong order, missing 
   assert.equal(exitCode([split]), 1);
 });
 
+test("a flow may explicitly span traces without weakening the single-trace default", async () => {
+  const run = (o: Observed[]): LoadSteps => async () => async () => o;
+  const observed = [{ type: "x.one", traceId: "t1" }, { type: "x.two", traceId: "t2" }];
+  const multiple = defineFlow({ ...flow, tracePolicy: "multiple" });
+  assert.equal((await evaluate(multiple, mods("live", "live"), run(observed))).status, "pass");
+  assert.equal((await evaluate(flow, mods("live", "live"), run(observed))).status, "fail");
+  assert.match(checkSequence(flow.events, observed).join(), /expected one/);
+  assert.deepEqual(checkSequence(multiple.events, observed, multiple.tracePolicy), []);
+});
+
 test("a ready flow without a steps file, or whose steps throw, is red", async () => {
   assert.match((await evaluate(flow, mods("live", "live"), async () => null)).line, /^FAIL.*no steps file/);
   const boom = await evaluate(flow, mods("live", "live"), async () => async () => { throw new Error("boom"); });

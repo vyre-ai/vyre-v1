@@ -13,7 +13,7 @@ import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx, Sealed } from "../../../packages/contracts/src/ctx.ts";
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
 import { seed } from "../fixtures/seed.ts";
-import { handlers, putUploadedBytes } from "../impl.ts";
+import { configureFilesHost, handlers, putUploadedBytes } from "../impl.ts";
 import { inline } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -235,6 +235,53 @@ test("the migration and the entity schema are the tables the tree writes", () =>
   assert.equal(renamed.name, "Library");
   db.run("DELETE FROM files_folder WHERE id = ?", "fld_1");
   assert.equal(db.all("SELECT * FROM files_folder").length, 0);
+});
+
+test("folder sensitivity reaches Access while lists, counts and Recent omit children the caller cannot view", async () => {
+  const { ctx } = open();
+  const labels: Array<{ id: string; type: "folder"; label: string }> = [];
+  try {
+    const roots = await handlers["files.tree"](ctx, {});
+    const personalId = idOf(roots.roots.find((root) => root.key === "personal")?.folderId, "personal");
+    const secret = await handlers["files.folder.create"](ctx, { parentId: personalId, name: "Secret" });
+    const nested = await handlers["files.folder.create"](ctx, { parentId: secret.folder.folderId, name: "Nested" });
+    const note = await handlers["files.create"](ctx, { folderId: secret.folder.folderId, name: "private.txt", content: { text: "private" } });
+    const trashedFolder = await handlers["files.folder.create"](ctx, { parentId: personalId, name: "Trashed secret" });
+    const trashedFile = await handlers["files.create"](ctx, { folderId: personalId, name: "trashed-private.txt", content: { text: "private" } });
+    await handlers["files.folder.delete"](ctx, { folderId: trashedFolder.folder.folderId });
+    await handlers["files.delete"](ctx, { fileId: trashedFile.file.fileId });
+
+    configureFilesHost({ resources: { ensure: async () => {}, setLabel: async (r) => { labels.push(r); } } });
+    // The memory DB intentionally implements only the SQL under test; roots were already
+    // initialized above, so bypass their host registration query for this focused call.
+    await handlers["files.folder.settings"]({ ...ctx, db: { ...ctx.db, all: (sql, ...args) => sql.startsWith("SELECT id, parent_id") ? [] : ctx.db.all(sql, ...args) } }, { folderId: secret.folder.folderId, label: "restricted" });
+    assert.deepEqual(labels, [{ id: secret.folder.folderId, type: "folder", label: "restricted" }]);
+    configureFilesHost(null);
+
+    const hidden = new Set([secret.folder.folderId, nested.folder.folderId, note.file.fileId, trashedFolder.folder.folderId, trashedFile.file.fileId]);
+    ctx.authorize = (_action, resource) => hidden.has(resource.id)
+      ? { effect: "deny", reason: "test", decisionId: "dec_deny" }
+      : { effect: "allow", reason: "test", decisionId: "dec_allow" };
+    const listed = await handlers["files.list"](ctx, { folder: personalId });
+    assert.deepEqual(listed.folders, []);
+    assert.deepEqual(listed.files, []);
+    assert.equal(listed.total, 0);
+    assert.deepEqual((await handlers["files.recent"](ctx, {})).files, [], "Recent does not reveal a denied child");
+    const tree = await handlers["files.tree"](ctx, {});
+    assert.equal(tree.roots.find((root) => root.key === "personal")?.count, 0, "the root count includes only visible children");
+    assert.equal(tree.roots.find((root) => root.key === "trash")?.count, 0, "the Trash badge includes only visible children");
+    assert.deepEqual(await handlers["files.trash.list"](ctx, {}), { files: [], folders: [], total: 0 }, "Trash does not reveal denied roots");
+    const ownerView: Ctx = { ...ctx, authorize: () => ({ effect: "allow", reason: "test", decisionId: "dec_allow" }) };
+    const folder = await handlers["files.folder.get"](ownerView, { folderId: secret.folder.folderId });
+    ctx.authorize = (_action, resource) => resource.id === nested.folder.folderId || resource.id === note.file.fileId
+      ? { effect: "deny", reason: "test", decisionId: "dec_deny" }
+      : { effect: "allow", reason: "test", decisionId: "dec_allow" };
+    const callerView = await handlers["files.folder.get"](ctx, { folderId: secret.folder.folderId });
+    assert.deepEqual([folder.folder.folderCount, folder.folder.fileCount], [1, 1]);
+    assert.deepEqual([callerView.folder.folderCount, callerView.folder.fileCount], [0, 0], "folder counts exclude denied grandchildren");
+  } finally {
+    configureFilesHost(null);
+  }
 });
 
 test("tree roots, create, move, versions and path rewrite", async () => {

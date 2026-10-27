@@ -66,7 +66,11 @@ before(async () => {
 });
 after(async () => {
   if (ON) await runTmux(["kill-server"]);
-  fs.rmSync(work, { recursive: true, force: true });
+  // kill-server accepts the shutdown before every shell/control client has
+  // necessarily finished exiting. Those processes use `work` as HOME and can
+  // race one last write with recursive removal, which Linux reports as
+  // ENOTEMPTY. Node retries that transient class only when maxRetries is set.
+  fs.rmSync(work, { recursive: true, force: true, maxRetries: 20, retryDelay: 50 });
 });
 
 test("tmux: open makes a real session at the size and in the folder asked for", { skip }, async () => {

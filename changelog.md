@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- Terminal CI: retry removal of the real-tmux test home while server shells and control clients finish exiting, preventing a transient `ENOTEMPTY` after every behavior assertion has passed.
+- Files: bind the large-upload helper used by host calls so agent-computer downloads above the direct-write limit reach Files intact instead of failing before blob storage.
+- Files: propagate folder sensitivity changes into Access through a Personal-safe host seam, and filter listings, nested counts, tree and Trash badges, Trash rows, and Recent through live view authorization so restricted material disappears from agent computer mirrors without leaking its presence.
+- Computer CI: clean up the hostile home-mirror escape fixture inside its container ownership context whether reconciliation leaves a symlink or replaces it with a real directory, without following the external target, and normalize the container command separator before checking mirrored file contents.
+- Golden Flow 7: give each persistent fake-CLI send turn a distinct idempotency key, explicitly test a second independent Gate hold, and drive its delegated escalation and final drop at the scheduled test instants; the harness now has a typed multi-trace opt-in for this flow while every other flow remains single-trace by default.
+- Golden Flow 7: provision its agent with the explicit least-privilege `comms.agent_send` role and verify a Resend sending domain before approval, so the Gate regression exercises the production authorization and provider path instead of relying on missing bootstrap grants.
+- MCP/Gate: mount the live MCP runtime on the daemon's actual `/mcp` endpoint, advertise the bound loopback port to CLI engines, intersect outside Engineer tools with the live `engineer.mcp` permission, and return transport failures under the caller's JSON-RPC id so tool turns cannot hang.
 - Desktop CI: give the installed-app relaunch its own bounded smoke-test lifecycle, use real macOS application-quit and Windows window-close paths, and require each packaged sidecar to stop so screenshot time and orphan processes cannot hide restart failures.
 - PWA: add the production web manifest, Android/iPhone icons, Apple standalone metadata, safe-area viewport contract, truthful offline/update service-worker behavior, and an explicit Chromium iPhone-width smoke that labels standalone as simulated until the owner completes a physical iPhone Add to Home Screen pass.
 - Release: gate tag publication on the exact-tag macOS desktop build; mount its verified ad-hoc-signed DMG, copy the app into a fresh install location, launch and relaunch it with sidecar smoke coverage, then publish the DMG with a SHA-256 sidecar. Windows remains CI-only coverage.

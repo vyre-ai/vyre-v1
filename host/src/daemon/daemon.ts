@@ -71,6 +71,8 @@ import { createRunsHost } from "../seams/runs.ts";
 import type { WebhookAccept } from "../routes/webhooks.ts";
 import { sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { createLocalKeyRoute } from "../routes/local-key.ts";
+import { createMcpRoute } from "../routes/mcp.ts";
+import type { McpRuntime } from "../routes/mcp.ts";
 import { createKeyring } from "../seams/keyring.ts";
 import { createPeopleExtras, githubOAuthFromEnv } from "../seams/people.ts";
 import type { GithubOAuth } from "../seams/people.ts";
@@ -131,6 +133,11 @@ export const repairEventMatches = (stored: { id: string; type: string; sv: numbe
   stored.entity === intended.entity && stored.entity_id === intended.entity_id && stored.on_behalf === intended.on_behalf && stored.device === intended.device && stored.run_id === intended.run_id &&
   stored.cause === intended.cause && stored.origin === intended.origin && stored.depth === (intended.depth ?? 0) && stableJson(stored.fields) === stableJson(intended.fields) &&
   stored.label === (intended.label ?? 0) && stored.enc === (intended.enc ?? 0) && stored.key_id === intended.key_id && stored.nonce === intended.nonce && stableJson(repairPayload(stored.payload)) === stableJson(intended.payload);
+
+/** Outside MCP actors get Engineer tools only through the live Access decision used by every other surface. */
+export const mayUseEngineerMcp = (snap: AccessSnapshot, actorId: string, spaceId: string, now: number): boolean => authorize(snap, {
+  principal: actorId, action: { perm: "engineer.mcp", level: "use" }, resource: { type: "space", id: spaceId }, now,
+}).effect === "allow";
 
 const refusingVault: VaultPort = {
   secret: () => Promise.reject(new Error("The Vault is not live on this server.")),
@@ -292,6 +299,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let routeIndex: ((method: string, path: string) => RouteRec | undefined) | null = null;
   let capIndex: ReturnType<typeof indexCapabilities> | null = null;
   let boundPort = cfg.port;
+  let mcpRuntime: McpRuntime | null = null;
+  let startMcpRuntime: ((port: number) => void) | null = null;
+  let stopMcpRuntime: (() => void) | null = null;
   let claim: { url: string; expiresAt: number } | null = null;
   // Assigned once the daemon object exists. The local route acknowledges before
   // shutdown so its caller never races the HTTP response with server.close().
@@ -589,6 +599,30 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         ? invoke(call.cap, call.input, { space: call.space, principal: call.principal, preAuth: true, origin: "schedule", ...(call.traceId ? { trace: { traceId: call.traceId, spanId: "0".repeat(16) } } : {}) }).then(() => undefined)
         : runAsScheduled(call));
       invokeRef = invoke;
+      const mcpExports = loaded.moduleExports.get("mcp");
+      const makeMcp = mcpExports?.["createMcpRuntime"];
+      if (typeof makeMcp === "function") {
+        const unbindServer = mcpExports?.["bindServer"];
+        const unbindEndpoint = mcpExports?.["bindEndpoint"];
+        const unbindEngineerCheck = mcpExports?.["bindEngineerCheck"];
+        stopMcpRuntime = () => {
+          mcpRuntime = null;
+          if (typeof unbindServer === "function") unbindServer(null);
+          if (typeof unbindEndpoint === "function") unbindEndpoint(null);
+          if (typeof unbindEngineerCheck === "function") unbindEngineerCheck(null);
+        };
+        startMcpRuntime = (port) => {
+          stopMcpRuntime?.();
+          const local = `http://127.0.0.1:${port}/mcp`;
+          const address = cfg.address ? (/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`) : `http://${cfg.host}:${port}`;
+          mcpRuntime = (makeMcp as (o: Record<string, unknown>) => McpRuntime)({
+            db, space: spaceId, invoke: invokeRef, now,
+            endpoint: { url: `${address.replace(/\/$/, "")}/mcp`, loopbackUrl: local },
+            engineerCheck: (actorId: string) => mayUseEngineerMcp(access.snap, actorId, spaceId, now()),
+          });
+        };
+        closers.push(() => stopMcpRuntime?.());
+      }
       closers.push(() => hookRunner.pump().catch(() => {}));   // finish the pass in flight before the databases close
       closers.push(() => projectionRunner.pump().catch(() => {}));
       await hookRunner.start();
@@ -661,6 +695,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               });
               if (!r.ok) throw new Error(`could not register the folder: ${r.message}`);
               if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
+            },
+            setLabel: async (f: { id: string; type: "folder"; label: "public" | "internal" | "confidential" | "restricted" }) => {
+              const changed = await hookRunner.call("access.set_resource_label", { resource: { type: f.type, id: f.id }, label: f.label });
+              if (changed !== true && access.snap.resource(f.id)?.label !== f.label) throw new Error(`could not update the folder label: ${f.id}`);
+              await syncAccess();
             },
           },
         }),
@@ -1019,6 +1058,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       health, coerce,
       gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),
     });
+    const mcpRoute = createMcpRoute(() => mcpRuntime);
     server.on("request", (req, res) => {
       const stop = req.method === "POST" && req.url === "/local/daemon/stop";
       if (stop) {
@@ -1032,7 +1072,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         res.once("finish", () => { setImmediate(requestStop); });
         return;
       }
-      if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
+      if (mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {
@@ -1041,6 +1081,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       server.listen(boundPort, cfg.host, () => { server.off("error", onError); resolve(); });
     });
     boundPort = (server.address() as { port: number }).port;
+    startMcpRuntime?.(boundPort);
     const exited = new Promise<UnitExit>((resolve) => {
       server.once("close", () => resolve({ code: 0 }));
       server.on("error", (err) => resolve({ error: err.message }));
