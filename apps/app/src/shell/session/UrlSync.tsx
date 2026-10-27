@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "expo-router";
 import { useHubState } from "../spaces/context.tsx";
 import type { ShellHub } from "../spaces/hub.ts";
-import { railPlaceOf, routeIdOf } from "./PlaceHost.tsx";
+import { railPlaceOf, routeIdOf } from "./place-map.ts";
 
 const segment = (pathname: string): string => pathname.split("/")[1] ?? "";
 

@@ -1,4 +1,4 @@
-// The production root. Every place is registered behind its dynamic loader before the first route renders; the session gate shows sign-in or the shell with the Space's real data.
+// The production root. The session gate shows sign-in or lazily opens the shell with the Space's real data; signed-in place loaders register only when the shell opens a place.
 // The routes (index, [place]) still exist for the static export and deep links: the shell draws the place, and the address follows it (UrlSync).
 import { Suspense, lazy, useEffect, useState } from "react";
 import { usePathname, useRouter } from "expo-router";
@@ -8,9 +8,6 @@ import { hydrationBaseUrl } from "../src/shell/session/hydration.ts";
 import { UrlSync } from "../src/shell/session/UrlSync.tsx";
 import type { ShellHub } from "../src/shell/spaces/hub.ts";
 import { loadTwilioDevice } from "../src/shell/session/voice.ts";
-import { registerShellPlaces } from "../src/shell/places.ts";
-
-registerShellPlaces();
 
 /** /claim/<token>: the first screen on a fresh install (ruling 71). Loaded only when that address is opened. */
 const ClaimRoute = lazy(() => import("../src/claim/ClaimRoute.tsx").then((m) => ({ default: m.ClaimRoute })));

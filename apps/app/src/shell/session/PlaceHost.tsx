@@ -8,10 +8,13 @@ import type { PlaceHash } from "../hash/context.tsx";
 import { mark } from "../../startup/marks.ts";
 import { webUiStateStore } from "../../startup/persisted.ts";
 import { loaderFor } from "../../startup/places.ts";
-import { SHELL_PLACES, registerShellPlaces } from "../places.ts";
+import { registerShellPlaces } from "../places.ts";
 import { ShellRuntimeProvider } from "../providers/runtime.tsx";
 import type { ShellRuntime } from "../providers/runtime.tsx";
 import type { PlaceId } from "../rail/kits.ts";
+import { routeIdOf } from "./place-map.ts";
+
+export { railPlaceOf, routeIdOf } from "./place-map.ts";
 
 type PlaceComponent = LazyExoticComponent<ComponentType<{ place: string }>>;
 const lazies = new Map<string, PlaceComponent>();
@@ -24,17 +27,6 @@ function lazyFor(routeId: string): PlaceComponent {
     lazies.set(routeId, c);
   }
   return c;
-}
-
-/** The route id (src/startup/places.ts) of a rail place, or null for a place the shell has no screen for (console, join). */
-export function routeIdOf(place: PlaceId): string | null {
-  return SHELL_PLACES.find((p) => p.screens === place)?.id ?? null;
-}
-
-/** The rail place of a route id, for deep links. */
-export function railPlaceOf(routeId: string): PlaceId | null {
-  const p = SHELL_PLACES.find((x) => x.id === routeId);
-  return p ? (p.screens as PlaceId) : null;
 }
 
 /**

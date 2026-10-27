@@ -69,3 +69,16 @@ test("the signed-in shell is not parsed before the session gate finds a stored s
   for (const eager of ["../spaces/Shell.tsx", "../cmdk/CmdK.tsx", "./PlaceHost.tsx"]) assert.doesNotMatch(gate, new RegExp(`from ["']${eager.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`));
   assert.match(gate, /lazy\(\(\) => import\("\.\/ShellHost\.tsx"\)/, "the authenticated shell has one explicit lazy boundary");
 });
+
+test("the root layout does not register signed-in place graphs before the session gate", () => {
+  const root = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "..");
+  const layout = fs.readFileSync(path.join(root, "apps/app/app/_layout.tsx"), "utf8");
+  assert.doesNotMatch(layout, /registerShellPlaces/, "the signed-out root must not expose every provider graph");
+  assert.match(layout, /import \{ UrlSync \} from "\.\.\/src\/shell\/session\/UrlSync\.tsx"/, "URL synchronization is ready when the authenticated shell returns a hub");
+  assert.doesNotMatch(layout, /lazy\(\(\) => import\("\.\.\/src\/shell\/session\/UrlSync\.tsx"\)/, "URL synchronization must not lag behind the shell's first place");
+  const urlSync = fs.readFileSync(path.join(root, "apps/app/src/shell/session/UrlSync.tsx"), "utf8");
+  assert.doesNotMatch(urlSync, /PlaceHost/, "URL synchronization must not form a lazy cycle through the provider host");
+  assert.match(urlSync, /from "\.\/place-map\.ts"/, "URL synchronization imports only the provider-free route map");
+  const host = fs.readFileSync(path.join(root, "apps/app/src/shell/session/PlaceHost.tsx"), "utf8");
+  assert.match(host, /registerShellPlaces\(\);[\s\S]*loaderFor\(routeId\)/, "the signed-in host registers loaders immediately before resolving a place");
+});
