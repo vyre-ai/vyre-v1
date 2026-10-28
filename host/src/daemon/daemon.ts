@@ -33,7 +33,7 @@ import { deferredCaps, deferredModules } from "../routes/deferred.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
 import { createGateway, indexRoutes } from "../gateway.ts";
 import { withEventIds } from "../ids.ts";
-import type { GatewayDeps, RouteRec } from "../gateway.ts";
+import type { GatewayDeps, RouteRec, SessionInfo } from "../gateway.ts";
 import { createInvoke, createRateLimiter, fail, indexCapabilities, makeError, personalMatrix } from "../invoke.ts";
 import type { AuditRow, Handler, Invoke, InvokeDeps } from "../invoke.ts";
 import { fileExportsImporter, fileImporter, fileSeamImporter, loadHost, readModuleList } from "../loader.ts";
@@ -98,6 +98,7 @@ import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
 import type { HookRunner, ModuleHooks } from "./consumers.ts";
 import { createSpaceStore, spaceStoreDrivers, spaceStorePath } from "./store.ts";
+import { createViewAs } from "./view-as.ts";
 import { coreOf, createSyncEngine } from "./syncengine.ts";
 import { collectProjections, createProjectionRunner } from "./projections.ts";
 import type { ProjectionRunner } from "./projections.ts";
@@ -447,6 +448,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       let vaultImpl: (VaultPort & { pullExport?(exportId: string, token: string): string }) | null = null;
       const vaultPort: VaultPort = { secret: (h, sp) => (vaultImpl ?? refusingVault).secret(h, sp), signRs256: (h, sp, d) => (vaultImpl ?? refusingVault).signRs256(h, sp, d) };
       let peopleExtras: ReturnType<typeof createPeopleExtras> | null = null;   // set once the hook runner exists
+      let previews: ReturnType<typeof createViewAs> | null = null;
       let invokeRef: Invoke = () => Promise.reject(new Error("the invoke pipeline is not ready"));
       const hookRunner = createHookRunner({
         space, now, db,
@@ -551,9 +553,18 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           return authorize(access.snap, r);
         },
         membership: (principal, actingFor) => isMemberOrGuest(access.snap, principal) && (actingFor === undefined || isMemberOrGuest(access.snap, actingFor)),
+        preview: { read: (token, cap, input, trace) => {
+          if (!previews) throw fail("permission.no_grant", trace);
+          return previews.read(token, cap, input, trace);
+        } },
         resolveItem: (type, kind, value) => resolveVaultItem(db!, type, kind, value),
         handler: (cap, v) => whoamiWithDeferred(cap, (() => {
           const h = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);
+          if (h && cap === "access.view_as") return ((ctx, input) => h({ ...ctx, preview: { issue: (person: string) => {
+            const sid = (ctx as typeof ctx & { sessionId?: string }).sessionId;
+            if (!previews || ctx.principal.kind !== "person" || ctx.actingFor || !sid || !ctx.device) throw fail("permission.no_grant", ctx.trace.traceId, { message: "Sign in on a device to open a shared record preview." });
+            return previews.issue({ person: ctx.principal.id, sessionId: sid, device: ctx.device }, person, ctx.trace.traceId);
+          } } } as typeof ctx, input)) as Handler;
           if(h&&['logs.export','health.support_bundle','audit.export'].includes(cap))return ((ctx,input)=>h({...ctx,exports:ownedExports.forExecution(cap,ctx)} as typeof ctx,input)) as Handler;
           if(h&&['backup.export_start','backup.export_status'].includes(cap))return ((ctx,input)=>h({...ctx,ownerArchive:ownerArchives.forExecution(cap,ctx)} as typeof ctx,input)) as Handler;
           if(h&&(cap==='files.get'||cap==='files.read'))return (async(ctx,input)=>ownedExports.has(String((input as {fileId?:unknown})?.fileId??''))?ownedExports.read(cap,ctx,input):ownerArchives.has(String((input as {fileId?:unknown})?.fileId??''))?ownerArchives.read(cap,ctx,input):h(ctx,input)) as Handler;
@@ -870,17 +881,28 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // Identity comes from the bearer token alone (host/src/daemon/session.ts): a device session row gives the person and the device; the x-vyre-device header and ?device= are ignored.
       // The single admin token is the owner bootstrap path only (ensureAdminToken): it acts as the owner on the fixed device `local-admin`.
       const sessions = createSessionResolver({ db: db!, space: spaceId });
-      const identify = (t: string | null): { space: string; principal: { kind: "person"; id: string }; device: string } | null => {
+      previews = createViewAs({ space: spaceId, snapshot: () => access.snap, store: () => spaceStore.open().store, now,
+        sourceLive: source => {
+          if (!db || accessStale || access.snap.principal(source.person)?.status !== "active") return false;
+          try { return db.all(`SELECT 1 AS ok FROM identity_sessions i JOIN devices_session s ON s.id=i.id JOIN devices_device d ON d.id=s.device_id WHERE i.id=? AND i.person_id=? AND i.device_id=? AND i.revoked_at IS NULL AND i.expires_at>? AND s.kind='device' AND s.person=i.person_id AND s.device_id=i.device_id AND s.revoked_at IS NULL AND d.person=i.person_id AND d.revokedAt IS NULL AND d.deleted_at IS NULL`, source.sessionId, source.person, source.device, now()).length === 1; } catch { return false; }
+        },
+      });
+      const identify = (t: string | null): (SessionInfo & { device: string }) | null => {
         if (!t) return null;
         if (sameToken(t, token)) return { space: spaceId, principal: { kind: "person", id: owner() }, device: ADMIN_DEVICE };
         const s = sessions.resolve(t);
         // a session is only as good as the membership behind it: a suspended, removed or unknown person's live token stops working at once, and a fresh sign-in is needed after reactivation (suspend ends the person's devices)
         if (!s || access.snap.principal(s.person)?.status !== "active") return null;
-        return { space: s.space, principal: { kind: "person", id: s.person }, device: s.device };
+        return { space: s.space, principal: { kind: "person", id: s.person }, device: s.device, sessionId: s.sessionId };
       };
-      const session: GatewayDeps["session"] = o.session ?? ((headers) => identify(bearer(headers["authorization"])));
+      const session: GatewayDeps["session"] = o.session ?? ((headers) => {
+        const token = bearer(headers["authorization"]);
+        if (token?.startsWith("vas_")) { const preview = previews?.resolve(token); return preview ? { space: preview.space, principal: { kind: "person", id: preview.requester }, actingFor: preview.target, device: preview.device, sessionId: preview.sessionId, previewToken: token } : null; }
+        return identify(token);
+      });
       ownerOfSpace = () => access.owner() ?? cfg.owner ?? null;
       callerOf = async (h) => {
+        if (bearer(h["authorization"])?.startsWith("vas_")) return null;
         const who = await session(h);
         if (!who) return null;
         const token = bearer(h["authorization"]);
@@ -908,7 +930,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // GET /spaces/<space>/blobs/<id> (ruling 50): a blob is served to a caller who may read the resource its module stored it for
       blobRoute = createBlobRoute({
         space: spaceId, store: blobs,
-        session: async (h) => { const s = await session(h); return s ? { space: s.space, principal: s.principal, ...(s.actingFor ? { actingFor: s.actingFor } : {}) } : null; },
+        session: async (h) => { if (bearer(h["authorization"])?.startsWith("vas_")) return null; const s = await session(h); return s ? { space: s.space, principal: s.principal, ...(s.actingFor ? { actingFor: s.actingFor } : {}) } : null; },
         allow: (c, r) => !staleFor(c.principal.id) && authorize(access.snap, { principal: c.principal.id, ...(c.actingFor ? { actingFor: c.actingFor } : {}), action: { perm: null, level: "view" }, resource: { type: r.type, id: r.id } }).effect === "allow",
         // the bytes of an upload slot (files.upload_url): the Files module seals them; the slot's one-time token is the authority
         put: async (a) => (await hookRunner.call("files.put_upload", { blobId: a.blobId, token: a.token, base64: Buffer.from(a.bytes).toString("base64") })) as { hash: string; size: number },
@@ -1079,6 +1101,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     });
     const mcpRoute = createMcpRoute(() => mcpRuntime);
     server.on("request", (req, res) => {
+      if (bearer(req.headers.authorization)?.startsWith("vas_")) {
+        // Do not hand a preview to public share/forms, MCP, sync, uploads,
+        // exports or local credential routes, including one-time upload slots.
+        if ((req.url ?? "").startsWith("/v1/")) listener(req, res);
+        else { res.writeHead(401, { "content-type": "application/json", "cache-control": "no-store" }); res.end(JSON.stringify({ error: { code: "auth.unauthenticated", message: "This route is unavailable in a shared record preview." } })); }
+        return;
+      }
       const stop = req.method === "POST" && req.url === "/local/daemon/stop";
       if (stop) {
         if (!loopback(req.socket.remoteAddress) || !sameToken(bearer(req.headers.authorization) ?? "", token)) {

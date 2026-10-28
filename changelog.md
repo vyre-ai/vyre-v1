@@ -1,5 +1,7 @@
 # Changelog
 
+- Added a source-session-bound, ten-minute shared Records preview for View-as. The memory-only token permits a closed canonical read facade with requester/target grant intersection, row filtering, field redaction and label ceilings; it refuses Personal ancestry, module handlers, nested calls, writes, credentials, exports and other transports. Reads recheck authority after awaited storage and audit work; source sign-out, target suspension, expiry and restart invalidate previews. The normal Console preview control remains hidden until the isolated client is integrated.
+
 - Restored the 0.6.8 welcome composition: open halftone canvas, approved Vyre mark, large greeting and round Space connection field, with verified v1 connection and retry handling.
 
 - Fixed invited-account AI setup through the member acceptance contract so invite permissions apply before session verification: provider choice and Mine API-key storage follow verified join; subscription sign-in uses real completion, failures retry without accepting the invite twice, and raw keys never enter device storage. Preserved the authenticated device session during password changes while revoking other devices. Added working password and authenticator controls and truthful account-recovery guidance.

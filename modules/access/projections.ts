@@ -84,6 +84,7 @@ export interface Db {
   run(sql: string, ...args: unknown[]): { changes: number };
 }
 export interface AccessCtx {
+  preview?: { issue(person: string): { previewToken: string; expiresAt: number } };
   space: string;
   principal: { kind: string; id: string };
   trace: { traceId: string };
