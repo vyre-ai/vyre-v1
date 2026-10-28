@@ -160,10 +160,12 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       await page.getByRole("tab", { name: "Plan", exact: true }).click();
       await page.getByTestId("project-plan").waitFor({ timeout: 15_000 });
       await page.reload({ waitUntil: "load" });
+      await page.getByTestId("project-plan").waitFor({ timeout: 15_000 });
+      await page.goBack();
       await page.getByTestId("project-page").waitFor({ timeout: 15_000 });
       await page.goBack();
       await page.getByTestId("records-table").waitFor({ timeout: 15_000 });
-      await page.goto(`${web.origin}/records#screen=records.record-page&type=project&recordId=${project.recordId}`, { waitUntil: "load" });
+      await page.goto(`${web.origin}/records#subject=record:${project.recordId}&type=project&recordView=fields`, { waitUntil: "load" });
       await page.getByTestId("record-page").waitFor({ timeout: 15_000 });
       await page.goto(`${web.origin}/files#subject=folder:${project.folderId}`, { waitUntil: "load" });
       await page.getByText("release-route.md", { exact: true }).first().waitFor({ timeout: 15_000 });

@@ -16,6 +16,7 @@ import type { Overview, PlanOut, TabKey } from "./model.ts";
 
 export interface ProjectPageProps {
   projectId: string;
+  onTabChange?: (tab: TabKey) => void;
   /** The tab it opens on. */
   tab?: TabKey;
   /** The Plan's view when it opens on the Plan tab. */
@@ -24,10 +25,11 @@ export interface ProjectPageProps {
 
 type Load = { status: "loading" } | { status: "gone" } | { status: "ready"; overview: Overview; plan: PlanOut };
 
-export function ProjectPage({ projectId, tab: first = "overview", planView = "timeline" }: ProjectPageProps): ReactElement {
+export function ProjectPage({ projectId, tab: first = "overview", planView = "timeline", onTabChange }: ProjectPageProps): ReactElement {
   const d = useProjectPageData();
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [tab, setTab] = useState<TabKey>(first);
+  useEffect(() => setTab(first), [first]);
   const [note, setNote] = useState<string | null>(null);
   const say = useCallback((e: unknown): void => setNote(e instanceof Error ? e.message : "That did not work."), []);
 
@@ -86,7 +88,7 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
         <Text style={[s.stripText, p.lateTasks > 0 && s.late]} testID="project-late">{p.lateTasks > 0 ? `${p.lateTasks} late` : "None late"}</Text>
         <Text style={s.stripText}>{plural(p.memberCount, "person", "people")}</Text>
       </View>
-      <TabStrip tabs={TAB_SPECS} active={tab} onSelect={(k) => setTab(k as TabKey)} />
+      <TabStrip tabs={TAB_SPECS} active={tab} onSelect={(k) => { setTab(k as TabKey); onTabChange?.(k as TabKey); }} />
       {tab === "overview" ? <OverviewTab o={o} now={now} /> : null}
       {tab === "plan" ? (
         <View style={s.planBody} testID="project-plan">

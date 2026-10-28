@@ -34,7 +34,7 @@ function RecordsBody({ rt }: { rt: ShellRuntime }): ReactElement {
     const base = recordsData(rt);
     return { ...base, nav: { ...base.nav, openRecord: (recordId: string) => rt.open({ subject: { type: "record", id: recordId }, args: type ? { type } : {} }) } };
   }, [rt, type]);
-  return <RecordsDataProvider value={data}><View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}><RecordsSidebarSlot />{id ? <RecordDetail key={`${id}:${target.args.type ?? ""}`} rt={rt} recordId={id} {...(target.args.type ? { type: target.args.type } : {})} fields={target.screen === "records.record-page"} /> : <RecordViews {...(target.args.type ? { type: target.args.type } : {})} />}</View></RecordsDataProvider>;
+  return <RecordsDataProvider value={data}><View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}><RecordsSidebarSlot />{id ? <RecordDetail key={`${id}:${target.args.type ?? ""}`} rt={rt} recordId={id} {...(target.args.type ? { type: target.args.type } : {})} fields={target.screen === "records.record-page" || target.args.recordView === "fields"} tab={target.screen === "records.project-plan" || target.args.tab === "plan" ? "plan" : target.args.tab === "files" ? "files" : target.args.tab === "chat" ? "chat" : "overview"} /> : <RecordViews {...(target.args.type ? { type: target.args.type } : {})} />}</View></RecordsDataProvider>;
 }
 
 export default function RecordsPlace(_props: { place: string }): ReactElement {

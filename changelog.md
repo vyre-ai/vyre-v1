@@ -1,6 +1,6 @@
 # Changelog
 
-- Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links and reloads.
+- Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads.
 
 ## Unreleased
 - Web startup: import production Inbox, shell-phone, and sidebar components from their leaf modules so screenshot sample fixtures and the generated screen registry no longer enter the initial common bundle through UI barrels.

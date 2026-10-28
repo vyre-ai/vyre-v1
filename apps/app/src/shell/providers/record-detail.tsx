@@ -5,6 +5,7 @@ import { attemptKey } from "./files-review.ts";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import { RecordPage, RecordPageDataProvider } from "../../places/records/recordpage/index.ts";
 import type { RecordPageData } from "../../places/records/recordpage/index.ts";
+import type { TabKey } from "../../places/records/projectpage/model.ts";
 import { ProjectPage } from "../../places/records/projectpage/ProjectPage.tsx";
 import { ProjectPageDataProvider } from "../../places/records/projectpage/data.tsx";
 import type { ProjectPageData } from "../../places/records/projectpage/data.tsx";
@@ -24,7 +25,7 @@ export async function resolveRecordType(call: ShellRuntime["call"], recordId: st
   throw new Error("That record is unavailable or you do not have access.");
 }
 
-export function RecordDetail({ rt, recordId, type: hint, fields = false }: { rt: ShellRuntime; recordId: string; type?: string; fields?: boolean }): ReactElement {
+export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "overview" }: { rt: ShellRuntime; recordId: string; type?: string; fields?: boolean; tab?: TabKey }): ReactElement {
   const [resolved, setResolved] = useState<{ type?: string; recordId?: string; projectId?: string; error?: string }>({});
   const [actionError, setActionError] = useState("");
   useEffect(() => {
@@ -66,12 +67,12 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false }: { rt:
     openChannel: (id) => rt.open({ subject: { type: "channel", id } }), openThread: (id) => rt.open({ subject: { type: "thread", id } }),
     openFolder: (id) => rt.open({ subject: { type: "folder", id } }), openFile: (id) => rt.open({ subject: { type: "file", id } }),
     openRecord: (type, id) => rt.open({ subject: { type: "record", id }, args: { type } }),
-    openRecordPage: (type, id) => rt.open({ screen: "records.record-page", args: { type, recordId: id } }),
+    openRecordPage: (type, id) => rt.open({ subject: { type: "record", id }, args: { type, recordView: "fields" } }),
   } }), [rt]);
   if (actionError) return <States kind="error" message={actionError} retryable onRetry={() => setActionError("")} />;
   if (resolved.error) return <States kind="error" message={resolved.error} />;
   if (!resolved.type) return <States kind="empty" title="Opening record…" icon="records" />;
   return !fields && resolved.projectId !== undefined
-    ? <ProjectPageDataProvider value={projectData}><ProjectPage key={recordId} projectId={resolved.projectId!} /></ProjectPageDataProvider>
+    ? <ProjectPageDataProvider value={projectData}><ProjectPage key={recordId} projectId={resolved.projectId!} tab={tab} onTabChange={(next) => rt.open({ subject: { type: "project", id: resolved.projectId! }, args: { tab: next } })} /></ProjectPageDataProvider>
     : <RecordPageDataProvider value={data}><RecordPage key={`${resolved.type}:${recordId}`} type={resolved.type} recordId={resolved.recordId ?? recordId} /></RecordPageDataProvider>;
 }

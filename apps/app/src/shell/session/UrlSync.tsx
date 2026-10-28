@@ -13,7 +13,7 @@ export function UrlSync({ hub }: { hub: ShellHub }): null {
   const pushed = useRef<string | null>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !window.location) return;
     const read = (): void => {
       const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
       if (current === pushed.current) return;
@@ -27,7 +27,7 @@ export function UrlSync({ hub }: { hub: ShellHub }): null {
   }, [pathname, hub]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !window.location) return;
     const next = hubUrl(hub, window.location.search);
     const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     if (!next || next === current || next === pushed.current) return;
