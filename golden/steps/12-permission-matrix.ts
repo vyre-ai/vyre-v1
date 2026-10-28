@@ -1,6 +1,7 @@
 // Golden flow 12: the permission matrix (spec 2.3, 4.12, 4.13). Every built-in role against the permission catalogue; View as; a folder share, an item placed into then taken out of the shared
 // folder, a revoke, and an Ask for access that is approved and then retried. Through the gateway, real tokens, on the frozen `core` seed (Tess holds nothing except her view of one folder).
 import assert from "node:assert/strict";
+import { SEED_TEST_PASSWORD } from "../../testkit/src/seed-password.ts";
 import { PERMISSIONS } from "../../manifests/permissions.ts";
 import { bootFlowSpace, expectStatus, short, Trail } from "./02-space.ts";
 import type { Gap } from "./02-space.ts";
@@ -33,8 +34,16 @@ export async function runMatrix(live: readonly string[]): Promise<{ events: Obse
       }
     });
     await trail.step("View as previews a member and is audited", async () => {
-      const v = expectStatus(await s.call("access.view_as", admin, { person: "usr_noah" }), 200, "access.view_as");
+      const bootstrap = await s.call("access.view_as", admin, { person: "usr_noah" });
+      assert.equal(bootstrap.status, 403, "bootstrap authority is not a signed-in source device");
+      const signed = expectStatus(await s.call("identity.sign_in", null, { username: "olivia", password: SEED_TEST_PASSWORD, deviceName: "Golden preview source", deviceClass: "desktop" }), 200, "identity.sign_in");
+      const sourceToken = signed.session.token as string;
+      const v = expectStatus(await s.call("access.view_as", sourceToken, { person: "usr_noah" }), 200, "access.view_as");
       assert.ok(v.previewToken && v.expiresAt > Date.now(), `preview ${short(v)}`);
+      const rows = expectStatus(await s.call("records.query", v.previewToken, { type: "contact", limit: 1 }), 200, "preview records.query").rows;
+      assert.ok(Array.isArray(rows));
+      const audit = expectStatus(await s.call("audit.list", sourceToken, { q: "access.view_as", limit: 100 }), 200, "audit.list");
+      assert.ok(audit.rows.some((row: { action: string }) => row.action === "access.view_as"), "real source device preview is audited");
     });
     await trail.step("refusal: Tess cannot open View as", async () => {
       const r = await s.call("access.view_as", tess, { person: "usr_noah" });
