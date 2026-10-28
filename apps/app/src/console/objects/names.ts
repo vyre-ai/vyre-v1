@@ -6,7 +6,7 @@ const object=(value:unknown):Record<string,unknown>=>value!==null&&typeof value=
 export function useIdentityName(ref:{kind:string;id:string}):string{
  const data=useConsoleData();
  const field=ref.kind==="role"?"role":ref.kind==="group"?"group":"principal";
- const enabled=["role","group","person","agent","actor","service"].includes(ref.kind);
+ const enabled=!!ref.id&&["role","group","person","agent","actor","service"].includes(ref.kind);
  const input=ref.kind==="role"?{roleId:ref.id}:ref.kind==="group"?{groupId:ref.id}:{principal:ref};
  const read=useRead<Record<string,unknown>>(`access.${ref.kind==="role"?"roles":ref.kind==="group"?"groups":"principals"}.get`,input,{enabled});
  const name=object(read.data?.[field]).name;

@@ -1,3 +1,4 @@
+import {PersonLifecycle} from "./PersonLifecycle.tsx";
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
@@ -16,14 +17,13 @@ export function People(): ReactElement {
   const [role, setRole] = useState("");
   const [link, setLink] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
-  const [confirmSuspend, setConfirmSuspend] = useState(false);
   const action = useAction(people.refresh);
   if (!people.data || !roles.data) return <ReadState error={people.error ?? roles.error} retry={() => { people.refresh(); roles.refresh(); }} />;
   const rows: ReactElement[] = [];
-  for (const person of people.data.principals) rows.push(<Row key={person.id} id={`console-person-${person.id}`} title={person.name} note={`${person.status} · ${person.roles.map((id) => roles.data?.roles.find((r) => r.id === id)?.name ?? id).join(", ")}`} onPress={() => { setSelected(person.id); setConfirmSuspend(false); }} />);
+  for (const person of people.data.principals) rows.push(<Row key={person.id} id={`console-person-${person.id}`} title={person.name===person.id?"Person profile unavailable":person.name} note={`${person.status} · ${person.roles.map((id) => roles.data?.roles.find((r) => r.id === id)?.name ?? "Role").join(", ")}`} onPress={() => { setSelected(person.id); }} />);
   const roleRows: ReactElement[] = [];
   for (const item of roles.data.roles.filter(role=>role.id!=="rol_owner"&&role.id!=="owner"&&role.name.toLowerCase()!=="owner")) roleRows.push(<Row key={item.id} id={`invite-role-${item.id}`} title={item.name} selected={role === item.id} onPress={() => setRole(item.id)} />);
-  return <View testID="console-people"><Section title="People" count={rows.length}><Group>{rows.length ? rows : <Note>No people.</Note>}</Group></Section><Section title="Invite a person"><Group><Field label="Email (optional)" testID="console-invite-email" value={email} onChange={setEmail} />{roleRows}<Button label="Create invite" testID="console-invite-create" disabled={!role || action.busy} onPress={() => void action.run<CapMap["members.invites.create"]["out"]>("members.invites.create", { role, ...(email.trim() ? { email: email.trim() } : {}), idempotencyKey: attempt() }, "Invite created").then((out) => { if (out) setLink(out.link); })} />{link ? <><Note>Copy this one-time invite link:</Note><Text selectable testID="console-invite-link">{link}</Text></> : null}</Group></Section>{selected ? <Section title="Selected person"><PersonRoles personId={selected} /><Button label="Suspend…" danger onPress={() => setConfirmSuspend(true)} />{confirmSuspend ? <><Note>Suspending this person ends access and purges their devices on next contact.</Note><Actions><Button label="Cancel" onPress={() => setConfirmSuspend(false)} /><Button label="Confirm suspension" danger disabled={action.busy} onPress={() => void action.run("members.suspend", { personId: selected }, "Person suspended").then((out) => { if (out) setConfirmSuspend(false); })} /></Actions></> : null}</Section> : null}{action.note ? <Note>{action.note}</Note> : null}</View>;
+  return <View testID="console-people"><Section title="People" count={rows.length}><Group>{rows.length ? rows : <Note>No people.</Note>}</Group></Section><Section title="Invite a person"><Group><Field label="Email (optional)" testID="console-invite-email" value={email} onChange={setEmail} />{roleRows}<Button label="Create invite" testID="console-invite-create" disabled={!role || action.busy} onPress={() => void action.run<CapMap["members.invites.create"]["out"]>("members.invites.create", { role, ...(email.trim() ? { email: email.trim() } : {}), idempotencyKey: attempt() }, "Invite created").then((out) => { if (out) setLink(out.link); })} />{link ? <><Note>Copy this one-time invite link:</Note><Text selectable testID="console-invite-link">{link}</Text></> : null}</Group></Section>{selected ? <Section title="Selected person"><PersonRoles personId={selected} /><PersonLifecycle key={selected} personId={selected} refresh={people.refresh} /></Section> : null}{action.note ? <Note>{action.note}</Note> : null}</View>;
 }
 function PersonRoles({ personId }: { personId: string }): ReactElement {
   const data = useConsoleData();
