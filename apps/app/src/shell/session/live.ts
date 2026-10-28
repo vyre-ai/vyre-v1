@@ -68,8 +68,10 @@ export function webSocketDial(token: () => string | null): Dial {
     const frames: ((f: unknown) => void)[] = [];
     const closes: ((reason: string) => void)[] = [];
     let opened = false;
+    const aborted = (): void => { try { ws.close(1000, "superseded"); } catch { /* closed */ } };
     ws.onopen = () => {
       opened = true;
+      signal.removeEventListener("abort", aborted);
       resolve({
         send: (f) => ws.send(JSON.stringify(f)),
         close: (reason) => { try { ws.close(1000, reason); } catch { /* already closed */ } },
@@ -85,7 +87,8 @@ export function webSocketDial(token: () => string | null): Dial {
     };
     ws.onclose = () => { if (!opened) reject(new Error("closed before it opened")); for (const cb of closes) cb("closed"); };
     ws.onerror = () => { /* onclose follows */ };
-    signal.addEventListener("abort", () => { try { ws.close(1000, "superseded"); } catch { /* closed */ } }, { once: true });
+    signal.addEventListener("abort", aborted, { once: true });
+    if(signal.aborted)aborted();
   });
 }
 
