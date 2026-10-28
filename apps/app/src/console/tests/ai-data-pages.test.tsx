@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { aiDataPageFor } from "../../shell/providers/console.tsx";
 import { incidentDefaultFilters, mergeIncidentPages } from "../pages/Incidents.tsx";
 import { canEditOwnerFloor, gateRuleDraft, mergeGateAgents } from "../pages/GateRules.tsx";
+import { mergeReviewPages } from "../pages/AiSettings.tsx";
 
 test("Models and providers mounts a real Console page", () => {
   const page = aiDataPageFor("models");
@@ -30,4 +31,9 @@ test("a new agent Gate override inherits a real parent rule and owner floors sta
   assert.equal(canEditOwnerFloor(["rol_admin"]), false);
   const agent = (agentId: string, name: string) => ({ agentId, name }) as never;
   assert.deepEqual(mergeGateAgents([agent("agt_1", "One")], [agent("agt_1", "Updated"), agent("agt_2", "Two")]).map((row) => `${row.agentId}:${row.name}`), ["agt_1:Updated", "agt_2:Two"]);
+});
+
+test("sampled turn pagination keeps the latest unique turn state", () => {
+  const item = (turnId: string, state: "waiting" | "ok" | "flagged") => ({ turnId, threadId: "thr_1", agentId: "agt_1", sampledAt: 1, state });
+  assert.deepEqual(mergeReviewPages([item("trn_1", "waiting")], [item("trn_1", "ok"), item("trn_2", "flagged")]).map((row) => `${row.turnId}:${row.state}`), ["trn_1:ok", "trn_2:flagged"]);
 });

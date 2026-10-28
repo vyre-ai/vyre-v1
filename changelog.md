@@ -11,6 +11,7 @@
 - Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads. Removed an unused viewer barrel so every restored production file has executable coverage.
 
 ## Unreleased
+- Console AI review: paginate sampled turns within each review state, reset cursor state when switching views, and keep the latest unique turn status across pages.
 - Console Gate rules: create first agent overrides from the inherited floor or Space rule, paginate the named agent picker, keep owner-floor changes owner-only, and verify saved rule readback before reporting success.
 - Console AI incidents: show open, assigned and resolved incidents by default, paginate the full incident register without duplicate rows, and surface detail-read failures with retry instead of stale fallback data.
 - Console AI spend: invalidate stale cap and raise reviews on every edit, apply only immutable reviewed payloads, verify cap readback, use native turn/minute units, and replace raw person, agent and pauser IDs with names.

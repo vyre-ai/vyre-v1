@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
@@ -21,27 +21,47 @@ export function Logging(): ReactElement {
 }
 
 type ReviewItem = CapMap["engine.review.list"]["out"]["items"][number];
+export function mergeReviewPages(first: readonly ReviewItem[], second: readonly ReviewItem[]): ReviewItem[] {
+  const rows = new Map(first.map((item) => [item.turnId, item]));
+  for (const item of second) rows.set(item.turnId, item);
+  return [...rows.values()];
+}
 export function ReviewSampling(): ReactElement {
+  const data = useConsoleData();
   const setting = useRead<CapMap["settings.get"]["out"]>("settings.get", { key: "engine.review_sampling" });
   const [state, setState] = useState<"waiting" | "ok" | "flagged">("waiting");
   const list = useRead<CapMap["engine.review.list"]["out"]>("engine.review.list", { state, limit: 100 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [more, setMore] = useState<ReviewItem[]>([]);
+  const [page, setPage] = useState<{ loaded: boolean; next?: string; busy: boolean }>({ loaded: false, busy: false });
+  useEffect(() => { setMore([]); setPage({ loaded: false, busy: false }); setSelectedId(null); }, [state]);
   const refresh = (): void => { setting.refresh(); list.refresh(); };
   const action = useAction(refresh);
   if (!setting.data || !list.data) return <ReadState error={setting.error ?? list.error} retry={refresh} />;
   const configured = reviewSampling(setting.data.row.value);
-  const selected = list.data.items.find((item) => item.turnId === selectedId) ?? null;
+  const items = mergeReviewPages(more, list.data.items);
+  const selected = items.find((item) => item.turnId === selectedId) ?? null;
   if (selected) return <ReviewObject item={selected} note={action.note} busy={action.busy} onBack={() => setSelectedId(null)} onRun={action.run} />;
-  return <ReviewList key={`${configured.percent}:${configured.labels.join(",")}`} configured={configured} items={list.data.items} state={state} setState={setState} busy={action.busy} note={action.note} onOpen={(id) => setSelectedId(id)} onRun={action.run} />;
+  const next = page.loaded ? page.next : list.data.next;
+  const loadMore = (): void => {
+    if (!next || page.busy) return;
+    setPage((current) => ({ ...current, busy: true }));
+    void data.call("engine.review.list", { state, cursor: next, limit: 100 }).then((out) => {
+      const nextPage = out as CapMap["engine.review.list"]["out"];
+      setMore((current) => mergeReviewPages(current, nextPage.items));
+      setPage({ loaded: true, ...(nextPage.next ? { next: nextPage.next } : {}), busy: false });
+    }, () => setPage((current) => ({ ...current, busy: false })));
+  };
+  return <ReviewList key={`${configured.percent}:${configured.labels.join(",")}`} configured={configured} items={items} state={state} setState={setState} busy={action.busy} note={action.note} onOpen={(id) => setSelectedId(id)} onRun={action.run} pagination={{ ...(next ? { next } : {}), busy: page.busy, onMore: loadMore }} />;
 }
 
-function ReviewList({ configured, items, state, setState, busy, note, onOpen, onRun }: { configured: { percent: number; labels: string[] }; items: ReviewItem[]; state: "waiting" | "ok" | "flagged"; setState(value: "waiting" | "ok" | "flagged"): void; busy: boolean; note: string; onOpen(id: string): void; onRun: <T>(cap: string, input: unknown, success: string) => Promise<T | undefined> }): ReactElement {
+function ReviewList({ configured, items, state, setState, busy, note, onOpen, onRun, pagination }: { configured: { percent: number; labels: string[] }; items: ReviewItem[]; state: "waiting" | "ok" | "flagged"; setState(value: "waiting" | "ok" | "flagged"): void; busy: boolean; note: string; onOpen(id: string): void; onRun: <T>(cap: string, input: unknown, success: string) => Promise<T | undefined>; pagination: { next?: string; busy: boolean; onMore(): void } }): ReactElement {
   const [percent, setPercent] = useState(String(configured.percent));
   const [labels, setLabels] = useState<ReadonlySet<string>>(new Set(configured.labels));
   const [review, setReview] = useState(false);
   const rows: ObjectListRow<ReviewItem>[] = items.map((item) => ({ id: item.turnId, title: item.turnId, note: `${item.state} · ${new Date(item.sampledAt).toLocaleString()}`, search: `${item.threadId} ${item.agentId}`, filters: [item.state], value: item, actions: [{ label: "Open review", onSelect: () => onOpen(item.turnId) }] }));
   const sampling = (): { percent: number; labels: string[] } => reviewSampling({ percent: Number(percent), labels: [...labels] });
-  return <View testID="console-ai-review"><Section title="Sampling policy"><Group><Field label="Percent of turns" value={percent} onChange={(value) => { setPercent(value); setReview(false); }} /><Note>Sensitivity labels</Note>{["public", "internal", "confidential", "restricted"].map((label) => <Tick key={label} label={`Sample ${label}`} checked={labels.has(label)} onChange={() => { setLabels((current) => { const next = new Set(current); if (next.has(label)) next.delete(label); else next.add(label); return next; }); setReview(false); }} />)}{review ? <><Note>{sampling().percent}% of matching turns will enter human review for {sampling().labels.join(", ") || "no labels"}.</Note><Actions><Button label="Back" onPress={() => setReview(false)} /><Button label="Apply sampling" disabled={busy} onPress={() => void onRun("settings.set_space", { key: "engine.review_sampling", value: sampling() }, "Review sampling updated").then((out) => { if (out) setReview(false); })} /></Actions></> : <Button label="Review sampling change" onPress={() => { sampling(); setReview(true); }} />}</Group></Section><Section title="Sampled turns" count={rows.length}><Choice label="State" value={state} options={[{ key: "waiting", title: "Waiting" }, { key: "ok", title: "Reviewed: fine" }, { key: "flagged", title: "Flagged" }]} onChange={(value) => setState(value as typeof state)} /><ObjectList rows={rows} selectedId={null} onOpen={(row) => onOpen(row.id)} empty="Nothing sampled in this state." /></Section>{note ? <Note>{note}</Note> : null}</View>;
+  return <View testID="console-ai-review"><Section title="Sampling policy"><Group><Field label="Percent of turns" value={percent} onChange={(value) => { setPercent(value); setReview(false); }} /><Note>Sensitivity labels</Note>{["public", "internal", "confidential", "restricted"].map((label) => <Tick key={label} label={`Sample ${label}`} checked={labels.has(label)} onChange={() => { setLabels((current) => { const next = new Set(current); if (next.has(label)) next.delete(label); else next.add(label); return next; }); setReview(false); }} />)}{review ? <><Note>{sampling().percent}% of matching turns will enter human review for {sampling().labels.join(", ") || "no labels"}.</Note><Actions><Button label="Back" onPress={() => setReview(false)} /><Button label="Apply sampling" disabled={busy} onPress={() => void onRun("settings.set_space", { key: "engine.review_sampling", value: sampling() }, "Review sampling updated").then((out) => { if (out) setReview(false); })} /></Actions></> : <Button label="Review sampling change" onPress={() => { sampling(); setReview(true); }} />}</Group></Section><Section title="Sampled turns" count={rows.length}><Choice label="State" value={state} options={[{ key: "waiting", title: "Waiting" }, { key: "ok", title: "Reviewed: fine" }, { key: "flagged", title: "Flagged" }]} onChange={(value) => setState(value as typeof state)} /><ObjectList rows={rows} selectedId={null} onOpen={(row) => onOpen(row.id)} pagination={pagination} empty="Nothing sampled in this state." /></Section>{note ? <Note>{note}</Note> : null}</View>;
 }
 
 function ReviewObject({ item, note, busy, onBack, onRun }: { item: ReviewItem; note: string; busy: boolean; onBack(): void; onRun: <T>(cap: string, input: unknown, success: string) => Promise<T | undefined> }): ReactElement {
