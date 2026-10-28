@@ -3,7 +3,7 @@ import type { ReactElement } from "react";
 import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { FormDesign } from "./FormDesign.tsx";
-import { choicesOf } from "./form-design.ts";
+import { choicesOf, rulesOf } from "./form-design.ts";
 import type { Choice } from "./form-design.ts";
 import { FormWorkspace } from "./FormWorkspace.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
@@ -76,6 +76,8 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
         {selected ? <><Text style={s.text}>Preview answer for {selected.title}. This does not change a record.</Text>{selectedOptions.length?<Select label="Preview answer" value={selected.type==='multichoice'?'':String(answers[selectedField]??'')} options={[{key:'',title:'No answer'},...selectedOptions]} onChange={setAnswer}/>:<Field label="Preview answer" value={Array.isArray(answers[selectedField])?(answers[selectedField] as string[]).join(','):String(answers[selectedField]??'')} onChange={setAnswer}/>}<Text style={s.text}>{selected.type==='multichoice'&&Array.isArray(answers[selectedField])?selectedOptions.filter((o)=>(answers[selectedField] as string[]).includes(o.key)).map((o)=>o.title).join(', '):''}</Text><View style={s.actions}><Button title="Move question earlier" disabled={disabled||fields.findIndex((f)=>f.field===selectedField)<=0} onPress={()=>moveQuestion(-1)}/><Button title="Move question later" disabled={disabled||fields.findIndex((f)=>f.field===selectedField)<0||fields.findIndex((f)=>f.field===selectedField)>=fields.length-1} onPress={()=>moveQuestion(1)}/></View></>:null}
         <Text style={s.text}>Select a question to edit its prefill key and page number. Ask collects an answer. Show displays a prefilled value. Hide leaves the field off this form.</Text>
       </Card>);
+  const publicRelations=(schema.data?.type.fields??[]).filter((field)=>['relation','person'].includes(field.type)&&fields.some((mode)=>mode.field===field.key&&mode.mode==='ask'));
+  const requiredRelations=publicRelations.filter((field)=>field.required||rulesOf(logic).some((rule)=>rule.require?.includes(field.key)));
   const controls = (<View style={s.actions}><Button title={route.id ? "Save changes" : "Create draft"} testID="apps-save-form" primary disabled={disabled || !name.trim() || !type || kind === "booking" && !d.me} onPress={() => void perform(save)} />
       {route.id ? <Button title="Preview publishing" disabled={disabled || dirty} testID="apps-preview-form" onPress={() => { setPreview(true); setPublished(null); }} /> : null}
       {route.id && form.data?.form.state === "published" ? <Button title="Unpublish" disabled={disabled} onPress={() => void perform(async () => { await mutate(d, "forms.unpublish", { formId: route.id }, key); setNotice("The public form is closed."); form.refresh(); })} /> : null}
@@ -105,9 +107,10 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
     {notice ? <Text style={s.text}>{notice}</Text> : null}
     {preview && route.id ? <Card title="Publish this saved form?">
       <Text style={s.text}>Publishing makes the saved form public. Save any edits before continuing.</Text>
+      {publicRelations.length ? <Text accessibilityRole="alert" style={s.text}>{publicRelations.map((field)=>`${field.title} is unavailable to public visitors until approved record choices are supported.${requiredRelations.some((required)=>required.key===field.key)?' This required question blocks publishing.':''}`).join('\n')}</Text> : null}
       {(form.data?.fields ?? []).filter((f) => f.mode !== "hide").map((f) => <Row key={f.field} id={`preview-${f.field}`} title={schema.data?.type.fields.find((s) => s.key === f.field)?.title ?? f.field} note={f.mode === "ask" ? "Visitor answers this question" : "Prefilled value"} />)}
       <Text style={s.text}>{form.data?.settings.consentText || "No consent statement"}</Text><Text style={s.text}>{form.data?.settings.captcha ? "Captcha required" : "Captcha not required"}</Text>
-      <View style={s.actions}><Button title="Cancel" onPress={() => setPreview(false)} /><Button title="Confirm publish" testID="apps-confirm-publish" disabled={disabled} primary onPress={() => void perform(async () => { const out = await mutate(d, "forms.publish", { formId: route.id }, key); if (out.status === "held") { d.nav.openTask(out.taskId); return; } setPublished(out); setPreview(false); form.refresh(); })} /></View>
+      <View style={s.actions}><Button title="Cancel" onPress={() => setPreview(false)} /><Button title="Confirm publish" testID="apps-confirm-publish" disabled={disabled || requiredRelations.length > 0} primary onPress={() => void perform(async () => { const out = await mutate(d, "forms.publish", { formId: route.id }, key); if (out.status === "held") { d.nav.openTask(out.taskId); return; } setPublished(out); setPreview(false); form.refresh(); })} /></View>
     </Card> : null}
     {published ? <Card title="Published form"><Text selectable style={s.text}>{published.url}</Text><Text selectable style={s.text}>{published.embed}</Text></Card> : null}
   </>;

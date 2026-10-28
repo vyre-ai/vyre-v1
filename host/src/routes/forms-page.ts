@@ -22,7 +22,7 @@ export interface PublicFormView {
   slug: string;
   kind: "public" | "one_use" | "booking" | "survey";
   name: string;
-  fields: { field: string; hidden: boolean; prefillKey?: string; step: number }[];
+  fields: { field: string; hidden: boolean; prefillKey?: string; step: number; title?: string; type?: string; required?: boolean; choices?: { key: string; title: string }[] }[];
   theme?: Record<string, unknown>;
   css?: string;
   consentText?: string;
@@ -212,7 +212,8 @@ const SCRIPT = String.raw`
     $all("[data-field]").forEach(function (el) {
       var f = el.getAttribute("data-field");
       if (el.type === "file") { if (files[f]) answers[f] = files[f]; else delete answers[f]; return; }
-      answers[f] = el.value;
+      if (el.multiple) answers[f] = Array.prototype.slice.call(el.selectedOptions).map(function (option) { return option.value; });
+      else answers[f] = el.value;
     });
   }
   function apply() {
@@ -225,7 +226,7 @@ const SCRIPT = String.raw`
       var el = w.querySelector("[data-field]");
       if (el && el.type !== "file") el.required = !!s.required[f] || el.hasAttribute("data-always-required");
       var mark = w.querySelector(".vf-req");
-      if (mark) mark.hidden = !!s.required[f];
+      if (mark) mark.hidden = !(s.required[f] || (el && el.hasAttribute("data-always-required")));
     });
     return s;
   }
@@ -311,7 +312,8 @@ const SCRIPT = String.raw`
   $all("[data-field]").forEach(function (el) {
     var f = el.getAttribute("data-field"), k = el.getAttribute("data-prefill");
     if (el.type === "file") return;
-    if (partial[f] !== undefined && partial[f] !== null) el.value = String(partial[f]);
+    if (el.multiple && Array.isArray(partial[f])) $all("option", el).forEach(function (option) { option.selected = partial[f].indexOf(option.value) >= 0; });
+    else if (partial[f] !== undefined && partial[f] !== null) el.value = String(partial[f]);
     else if (k && q.get(k) !== null) el.value = q.get(k);
   });
   form.addEventListener("input", apply);
@@ -354,16 +356,27 @@ function fieldHtml(view: PublicFormView, f: PublicFormView["fields"][number], up
   const name = esc(f.field);
   const prefill = f.prefillKey ? ` data-prefill="${esc(f.prefillKey)}"` : "";
   if (f.hidden) return `<div class="vf-field" data-for="${name}" hidden><input type="hidden" data-field="${name}"${prefill}></div>`;
-  const label = `<label for="vf-${name}">${esc(humanize(f.field))} <span class="vf-req" hidden>(required)</span></label>`;
+  const required = f.required ? ' data-always-required required' : '';
+  const label = `<label for="vf-${name}">${esc(f.title ?? humanize(f.field))} <span class="vf-req"${f.required ? '' : ' hidden'}>(required)</span></label>`;
+  const wrap = (control: string): string => `<div class="vf-field" data-for="${name}">${label}${control}</div>`;
+  if (f.type === 'relation' || f.type === 'person') return wrap('<p role="note">This question requires publisher-approved record choices. Ask the form owner for help.</p>');
+  if (f.type === 'choice' || f.type === 'status' || f.type === 'multichoice') {
+    const multiple = f.type === 'multichoice';
+    return wrap(`<select id="vf-${name}" data-field="${name}"${multiple ? ' multiple' : ''}${required}${prefill}>${multiple ? '' : '<option value="">Choose an option</option>'}${(f.choices ?? []).map((choice) => `<option value="${esc(choice.key)}">${esc(choice.title)}</option>`).join('')}</select>`);
+  }
+  if (f.type === 'boolean' || f.type === 'bool' || f.type === 'checkbox') return wrap(`<select id="vf-${name}" data-field="${name}"${required}${prefill}><option value="">Choose an answer</option><option value="true">Yes</option><option value="false">No</option></select>`);
+  const typed = ({ number: 'number', integer: 'number', currency: 'number', percent: 'number', rating: 'number', date: 'date', datetime: 'datetime-local', email: 'email', phone: 'tel', url: 'url' } as Record<string, string>)[f.type ?? ''];
+  if (typed) return wrap(`<input id="vf-${name}" type="${typed}" data-field="${name}"${required}${typed === 'number' ? (f.type === 'integer' || f.type === 'rating' ? ' step="1"' : ' step="any"') : ''}${f.type === 'rating' ? ' min="1" max="5"' : ''}${prefill}>`);
   if (uploads && view.upload?.folderId !== undefined && view.upload.fields.includes(f.field)) {
     const accept = view.upload.types.length > 0 ? ` accept="${esc(view.upload.types.join(","))}"` : "";
-    return `<div class="vf-field" data-for="${name}">${label}<input id="vf-${name}" type="file" data-field="${name}"${accept}${prefill}><span class="vf-hint"></span></div>`;
+    return `<div class="vf-field" data-for="${name}">${label}<input id="vf-${name}" type="file" data-field="${name}"${required}${accept}${prefill}><span class="vf-hint"></span></div>`;
   }
-  const t = inputType(f.field);
+  if ((f.type === "file" || f.type === "files") && (!uploads || !view.upload?.folderId || !view.upload.fields.includes(f.field))) return wrap("<p>File uploads are not configured for this form. Ask the form owner for help.</p>");
+  const t = f.type === "longtext" || f.type === "richtext" || f.type === "markdown" ? { tag: "textarea", type: "text", autocomplete: undefined } : inputType(f.field);
   const auto = t.autocomplete ? ` autocomplete="${t.autocomplete}"` : "";
   const control = t.tag === "textarea"
-    ? `<textarea id="vf-${name}" data-field="${name}" maxlength="10000"${prefill}></textarea>`
-    : `<input id="vf-${name}" type="${t.type}" data-field="${name}" maxlength="10000"${auto}${prefill}>`;
+    ? `<textarea id="vf-${name}" data-field="${name}" maxlength="10000"${required}${prefill}></textarea>`
+    : `<input id="vf-${name}" type="${t.type}" data-field="${name}" maxlength="10000"${required}${auto}${prefill}>`;
   return `<div class="vf-field" data-for="${name}">${label}${control}</div>`;
 }
 

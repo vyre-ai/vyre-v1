@@ -6,7 +6,7 @@
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { FieldMode, FormKind } from "../projections.ts";
 import {
-  fail, fieldsOf, formOut, insertForm, isNull, isRec, many, mustForm, num, one, optBool, optInt, optStr, pageOf, parseJson, publicUrl, rec, reqStr, str,
+  fail, fieldsOf, formsConfig, formOut, insertForm, isNull, isRec, many, mustForm, num, one, optBool, optInt, optStr, pageOf, parseJson, publicUrl, rec, reqStr, str,
 } from "../projections.ts";
 import { bookingHandlers } from "./bookings.ts";
 import { linkHandlers } from "./links.ts";
@@ -99,6 +99,10 @@ async function update(ctx: Ctx, input: unknown) {
   if (captcha !== undefined) sets.push(["captcha", captcha ? 1 : 0]);
   if (o.uploadPolicy !== undefined && o.uploadPolicy !== null) {
     if (!isRec(o.uploadPolicy)) fail(ctx, "validation.bad_input", "The upload policy is not valid.", { field: "uploadPolicy" });
+    if(o.uploadPolicy.folderId!==undefined){
+      if(typeof o.uploadPolicy.folderId!=='string'||!/^fld_[a-zA-Z0-9_-]+$/.test(o.uploadPolicy.folderId))fail(ctx,'validation.bad_input','Choose a valid upload folder.',{field:'uploadPolicy.folderId'});
+      if(ctx.authorize({perm:'files.write',level:'edit'},{type:'folder',id:o.uploadPolicy.folderId}).effect!=='allow')fail(ctx,'permission.no_grant','You need write access to the upload folder.',{field:'uploadPolicy.folderId'});
+    }
     sets.push(["upload_policy", JSON.stringify(o.uploadPolicy)]);
   }
   const rate = optInt(ctx, o, "rateLimit", 1, 10_000);
@@ -190,6 +194,13 @@ async function designSet(ctx: Ctx, input: unknown) {
 async function publish(ctx: Ctx, input: unknown) {
   const o = rec(ctx, input);
   const form = mustForm(ctx, reqStr(ctx, o, "formId"));
+  const schemaReader=formsConfig().schemaFields;
+  if(schemaReader){
+    const schema=await schemaReader(str(form.record_type)),modes=fieldsOf(ctx,str(form.id)),logic=parseJson(form.logic);
+    const rules=isRec(logic)&&Array.isArray(logic.rules)?logic.rules:[];
+    for(const field of schema)if((field.required||rules.some((rule)=>isRec(rule)&&Array.isArray(rule.require)&&rule.require.includes(field.key)))&&(field.type==='relation'||field.type==='person')&&modes.some((mode)=>mode.field===field.key&&mode.mode==='ask'))
+      fail(ctx,'validation.precondition_failed',`${field.title} cannot be answered on a public form until publisher-approved record choices are supported. Hide this question or use a form without it.`,{field:`fields.${field.key}`});
+  }
   if (form.kind === "booking") {
     if (!one(ctx, "SELECT * FROM forms_booking_page WHERE form_id = ?", str(form.id))) fail(ctx, "validation.precondition_failed", "This booking page has no hosts yet.");
   } else if (!fieldsOf(ctx, str(form.id)).some((f) => f.mode === "ask")) {
