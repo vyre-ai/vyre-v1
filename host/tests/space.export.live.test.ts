@@ -34,6 +34,7 @@ test('HTTP shared Space archive contains canonical current records, retained fil
         const tree = await call('files.tree'), spaceFolder = tree.roots.find((root: any) => root.key === 'projects').folderId;
         const sharedFile = (await call('files.create', { folderId: spaceFolder, name: 'shared.txt', content: { text: 'First retained file version' }, idempotencyKey: 'export-shared-file' })).file;
         const second = (await call('files.write', { fileId: sharedFile.fileId, baseVersion: sharedFile.version, content: { text: 'Current shared file bytes' } })).file;
+    // secret-scan: fake; fixed synthetic provider-shaped credential used only to test archive exclusion.
         const token = 'sk-proj-abcdefghijklmnopqrstuvwxyz123456';
         const secretFile = (await call('files.create', { folderId: spaceFolder, name: 'credentials.env', content: { text: `OPENAI_API_KEY=${token}` }, idempotencyKey: 'export-secret-file' })).file;
         const personalTree = await call('files.tree', {}, 'usr_tess'), personalFolder = personalTree.roots.find((root: any) => root.key === 'personal').folderId;
