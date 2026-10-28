@@ -1834,6 +1834,7 @@
                 "examples": [
                   "usr_a1b2c3"
                 ],
+                "pattern": "^(usr|agt|act|svc|grp)_[a-z0-9]+$",
                 "type": "string"
               },
               "kind": {
@@ -1841,7 +1842,8 @@
                   "person",
                   "agent",
                   "actor",
-                  "service"
+                  "service",
+                  "group"
                 ],
                 "type": "string"
               }
@@ -2043,6 +2045,7 @@
                 "examples": [
                   "usr_a1b2c3"
                 ],
+                "pattern": "^(usr|agt|act|svc|grp)_[a-z0-9]+$",
                 "type": "string"
               },
               "kind": {
@@ -2050,7 +2053,8 @@
                   "person",
                   "agent",
                   "actor",
-                  "service"
+                  "service",
+                  "group"
                 ],
                 "type": "string"
               }
@@ -3770,6 +3774,40 @@
             ],
             "type": "object"
           },
+          "target": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "usr_a1b2c3"
+                ],
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "person",
+                  "agent",
+                  "actor",
+                  "service",
+                  "group",
+                  "role",
+                  "grant",
+                  "policy",
+                  "review",
+                  "device",
+                  "session",
+                  "invite"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
           "to": {
             "description": "Milliseconds since the Unix epoch",
             "examples": [
@@ -3921,6 +3959,40 @@
             },
             "required": [
               "type",
+              "id"
+            ],
+            "type": "object"
+          },
+          "target": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "usr_a1b2c3"
+                ],
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "person",
+                  "agent",
+                  "actor",
+                  "service",
+                  "group",
+                  "role",
+                  "grant",
+                  "policy",
+                  "review",
+                  "device",
+                  "session",
+                  "invite"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
               "id"
             ],
             "type": "object"

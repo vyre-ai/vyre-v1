@@ -46,6 +46,10 @@ type Out = {
       kind: "person" | "agent" | "actor" | "service";
       id: string;
     }>;
+  directHolders?: Array<{
+      kind: "person" | "agent" | "actor" | "service" | "group";
+      id: string;
+    }>;
 };
 ```
 
@@ -65,6 +69,12 @@ type Out = {
     "roleId": "rol_a1b2c3"
   },
   "output": {
+    "directHolders": [
+      {
+        "id": "usr_a1b2c3",
+        "kind": "person"
+      }
+    ],
     "holders": [
       {
         "id": "usr_a1b2c3",

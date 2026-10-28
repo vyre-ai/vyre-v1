@@ -7,6 +7,9 @@ import { defineManifest, ev, health, read, screen, t, write } from '../packages/
 import { id, pageIn, pageOut, principalRef, resourceRef } from './_common.ts';
 
 const V = { level: 'view' } as const;
+import { AUDIT_TARGET_KINDS } from '../packages/contracts/src/audit-targets.ts';
+
+const targetRef = t.obj({ kind: t.enm(...AUDIT_TARGET_KINDS), id: t.str({ minLength: 1, maxLength: 200, examples: ['usr_a1b2c3'] }) });
 const auditId = t.id('aud');
 const klass = t.enm('change', 'sensitive', 'deny', 'admin', 'erase', 'sign_in');
 const auditRow = t.obj({
@@ -29,12 +32,12 @@ export default defineManifest({
 
   capabilities: [
     read('audit.list', 'List audit rows with filters (Console Audit log)', {
-      ...V, in: { actor: t.opt(principalRef), action: t.opt(t.str()), resource: t.opt(resourceRef), class: t.opt(klass), from: t.opt(t.ts()), to: t.opt(t.ts()), q: t.opt(t.str()), traceId: t.opt(id.trace), ...pageIn },
+      ...V, in: { target: t.opt(targetRef), actor: t.opt(principalRef), action: t.opt(t.str()), resource: t.opt(resourceRef), class: t.opt(klass), from: t.opt(t.ts()), to: t.opt(t.ts()), q: t.opt(t.str()), traceId: t.opt(id.trace), ...pageIn },
       out: { rows: t.arr(auditRow), ...pageOut }, perm: 'audit.read', audit: 'sensitive', tool: 'engineer', team: true, cli: 'vyre audit list',
     }),
     read('audit.get', 'One audit row with its before and after', { ...V, in: { auditId }, out: { row: auditRow }, perm: 'audit.read', tool: 'engineer', team: true }),
     read('audit.export', 'Export audit rows as CSV into a file', {
-      ...V, in: { actor: t.opt(principalRef), action: t.opt(t.str()), resource: t.opt(resourceRef), class: t.opt(klass), from: t.opt(t.ts()), to: t.opt(t.ts()) }, out: { fileId: id.file, rows: t.int({ minimum: 0 }) },
+      ...V, in: { target: t.opt(targetRef), actor: t.opt(principalRef), action: t.opt(t.str()), resource: t.opt(resourceRef), class: t.opt(klass), from: t.opt(t.ts()), to: t.opt(t.ts()) }, out: { fileId: id.file, rows: t.int({ minimum: 0 }) },
       perm: 'audit.read', risk: 'medium', emits: ['audit.exported'], audit: 'always', tool: 'engineer', team: true,
     }),
     read('audit.verify', 'Verify the hash chain and signed checkpoints over a range of events', {

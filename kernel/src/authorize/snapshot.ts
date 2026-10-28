@@ -120,7 +120,7 @@ export class AccessSnapshot {
     for (const g of groups) keys.add(`group:${g}`);
     for (const rid of roleIds) {
       const r = this.roles.get(rid);
-      if (p.kind === "agent" && isElevatedRole(rid, r?.name)) continue;
+      if (p.kind === "agent" && (isElevatedRole(rid, r?.name) || r?.assignableToAgents === false)) continue;
       if (!r) continue;
       keys.add(`role:${rid}`); names.push(r.name ?? r.id);
       if (r.clearance > clearance) clearance = r.clearance;

@@ -7,9 +7,9 @@ type Kind = "person" | "agent" | "actor" | "service";
 type Actor = { kind: Kind; id: string };
 type Klass = "change" | "sensitive" | "deny" | "admin" | "erase" | "sign_in";
 interface AppendContext { space: string; principal: Actor; trace: { traceId: string; spanId: string }; now(): number; db: RawDb; emit(...args: unknown[]): void }
-interface ModuleRow { actor: Actor; onBehalfOf?: Actor; action: string; class: Klass; resource?: { type: string; id: string }; after: { decisionId: string; reason: string; capabilityVersion: number; risk: AuditRow["risk"]; outcome: AuditRow["class"]; targets?: AuditRow["targets"] } }
+interface ModuleRow { actor: Actor; onBehalfOf?: Actor; action: string; class: Klass; resource?: { type: string; id: string }; targets?: AuditRow["targets"]; after: { decisionId: string; reason: string; capabilityVersion: number; risk: AuditRow["risk"]; outcome: AuditRow["class"]; targets?: AuditRow["targets"] } }
 
-export function createAuditRecorder(options: { space: string; db: RawDb; module: Record<string, unknown> | undefined; principal(id: string): { kind: string } | undefined }): (row: AuditRow) => void {
+export function createAuditRecorder(options: { space: string; db: RawDb & { tx?<T>(run: () => T): T }; module: Record<string, unknown> | undefined; principal(id: string): { kind: string } | undefined }): (row: AuditRow) => void {
   const append = options.module?.["appendRow"] as ((ctx: AppendContext, row: ModuleRow) => unknown) | undefined;
   const classify = options.module?.["classOfInvoke"] as ((kind: AuditRow["class"], risk: AuditRow["risk"]) => Klass) | undefined;
   // Deferred modules keep the existing logs sink; a live audit module supplies both exports.
@@ -25,13 +25,15 @@ export function createAuditRecorder(options: { space: string; db: RawDb; module:
   return (row) => {
     if (row.cap === "audit.append") return;
     const principal = actor(row.principal);
-    append({ space: options.space, principal, trace: { traceId: row.traceId, spanId: row.spanId }, now: () => row.at, db: options.db, emit: () => undefined }, {
+    const write = () => append({ space: options.space, principal, trace: { traceId: row.traceId, spanId: row.spanId }, now: () => row.at, db: options.db, emit: () => undefined }, {
       actor: principal,
       ...(row.actingFor ? { onBehalfOf: actor(row.actingFor) } : {}),
+      ...(row.targets ? { targets: row.targets } : {}),
       action: row.cap,
       class: classify(row.class, row.risk),
       ...(row.resource?.id ? { resource: { type: row.resource.type, id: row.resource.id } } : {}),
       after: { decisionId: row.decisionId, reason: row.reason, capabilityVersion: row.v, risk: row.risk, outcome: row.class, ...(row.targets ? { targets: row.targets } : {}) },
     });
+    if (options.db.tx) options.db.tx(write); else write();
   };
 }

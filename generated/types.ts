@@ -765,7 +765,7 @@ export type AccessRolesApplyOut = {
 };
 export type AccessRolesAssignIn = {
   subject: {
-    kind: "person" | "agent" | "actor" | "service";
+    kind: "person" | "agent" | "actor" | "service" | "group";
     id: string;
   };
   roleId: string;
@@ -814,6 +814,10 @@ export type AccessRolesGetOut = {
       kind: "person" | "agent" | "actor" | "service";
       id: string;
     }>;
+  directHolders?: Array<{
+      kind: "person" | "agent" | "actor" | "service" | "group";
+      id: string;
+    }>;
 };
 export type AccessRolesListIn = {
   cursor?: string;
@@ -855,7 +859,7 @@ export type AccessRolesPreviewOut = {
 };
 export type AccessRolesUnassignIn = {
   subject: {
-    kind: "person" | "agent" | "actor" | "service";
+    kind: "person" | "agent" | "actor" | "service" | "group";
     id: string;
   };
   roleId: string;
@@ -1752,6 +1756,10 @@ export type AuditCheckpointsListOut = {
   total?: number;
 };
 export type AuditExportIn = {
+  target?: {
+    kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "grant" | "policy" | "review" | "device" | "session" | "invite";
+    id: string;
+  };
   actor?: {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
@@ -1798,6 +1806,10 @@ export type AuditGetOut = {
   };
 };
 export type AuditListIn = {
+  target?: {
+    kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "grant" | "policy" | "review" | "device" | "session" | "invite";
+    id: string;
+  };
   actor?: {
     kind: "person" | "agent" | "actor" | "service";
     id: string;

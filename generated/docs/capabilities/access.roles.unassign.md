@@ -26,7 +26,7 @@ Take a role away from a person, group or agent
 ```ts
 type In = {
   subject: {
-    kind: "person" | "agent" | "actor" | "service";
+    kind: "person" | "agent" | "actor" | "service" | "group";
     id: string;
   };
   roleId: string;

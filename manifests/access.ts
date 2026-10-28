@@ -21,6 +21,7 @@ const conditions = t.obj({
   window: t.opt(t.obj({ from: t.ts(), to: t.ts() })),
   expiresAt: t.opt(t.ts()),
 });
+const roleHolderRef = t.obj({ kind: t.enm('person', 'agent', 'actor', 'service', 'group'), id: t.str({ pattern: '^(usr|agt|act|svc|grp)_[a-z0-9]+$', examples: ['usr_a1b2c3'] }) });
 const principalRow = t.obj({
   id: pid, kind: t.enm('person', 'agent', 'actor', 'service'), name: t.str(), owner: t.opt(pid),
   status: t.enm('invited', 'active', 'suspended', 'removed'), roles: t.arr(id.role), groups: t.arr(id.group),
@@ -94,14 +95,14 @@ export default defineManifest({
 
     // ---- roles
     read('access.roles.list', 'List roles with their permissions, clearance and holder counts', { ...V, in: { ...pageIn }, out: { roles: t.arr(roleRow), ...pageOut }, tool: 'meta' }),
-    read('access.roles.get', 'Read one role with holders and where it is granted', { ...V, in: { roleId: id.role }, out: { role: roleRow, holders: t.arr(principalRef) }, tool: 'meta' }),
+    read('access.roles.get', 'Read one role with holders and where it is granted', { ...V, in: { roleId: id.role }, out: { role: roleRow, holders: t.arr(principalRef), directHolders: t.opt(t.arr(roleHolderRef)) }, tool: 'meta' }),
     write('access.roles.create', 'Create a custom role, usually by cloning a built-in one', { ...V, idem: 'key', in: { name: t.str(), cloneFrom: t.opt(id.role), clearance: t.opt(label), assignableToAgents: t.opt(t.bool()) }, out: { role: roleRow }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.duplicate'] }),
     write('access.roles.update', 'Rename a custom role or change its clearance; built-in roles are locked', { ...V, in: { roleId: id.role, name: t.opt(t.str()), clearance: t.opt(label), assignableToAgents: t.opt(t.bool()) }, out: { role: roleRow }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.field_locked', 'validation.duplicate'] }),
     read('access.roles.preview', 'Stage a change to the permissions of a role as a diff: who gains and who loses what', { ...V, in: { roleId: id.role, permissions: t.arr(t.str()) }, out: { gains: t.arr(t.obj({ principal: principalRef, permission: t.str() })), losses: t.arr(t.obj({ principal: principalRef, permission: t.str() })), previewHash: t.str() }, perm: 'access.manage', tool: 'engineer' }),
     write('access.roles.apply', 'Apply a staged role permission change (the diff from preview)', { ...V, in: { roleId: id.role, permissions: t.arr(t.str()), previewHash: t.str() }, out: { role: roleRow }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.field_locked', 'validation.precondition_failed'] }),
     write('access.roles.delete', 'Delete a custom role; blocked while anyone holds it', { ...V, in: { roleId: id.role }, out: { deleted: t.bool() }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.field_locked', 'validation.precondition_failed'] }),
-    write('access.roles.assign', 'Give a role to a person, group or agent (agents never get Owner or Admin)', { ...V, in: { subject: principalRef, roleId: id.role }, out: { roles: t.arr(id.role) }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.precondition_failed'] }),
-    write('access.roles.unassign', 'Take a role away from a person, group or agent', { ...V, in: { subject: principalRef, roleId: id.role }, out: { roles: t.arr(id.role) }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.precondition_failed'] }),
+    write('access.roles.assign', 'Give a role to a person, group or agent (agents never get Owner or Admin)', { ...V, in: { subject: roleHolderRef, roleId: id.role }, out: { roles: t.arr(id.role) }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.precondition_failed'] }),
+    write('access.roles.unassign', 'Take a role away from a person, group or agent', { ...V, in: { subject: roleHolderRef, roleId: id.role }, out: { roles: t.arr(id.role) }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.precondition_failed'] }),
 
     // ---- groups (one level, no nesting)
     read('access.groups.list', 'List groups', { ...V, in: { q: t.opt(t.str()), ...pageIn }, out: { groups: t.arr(groupRow), ...pageOut }, tool: 'meta' }),

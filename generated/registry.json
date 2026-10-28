@@ -8008,6 +8008,25 @@
       ],
       "type": "object"
     },
+    "s_6505e83316": {
+      "properties": {
+        "roleId": {
+          "examples": [
+            "rol_a1b2c3"
+          ],
+          "pattern": "^rol_[a-z0-9]+$",
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/s_f22e8a9091"
+        }
+      },
+      "required": [
+        "subject",
+        "roleId"
+      ],
+      "type": "object"
+    },
     "s_65290eac05": {
       "items": {
         "properties": {
@@ -8325,6 +8344,40 @@
       },
       "maxItems": 7,
       "type": "array"
+    },
+    "s_6ac6b58eb6": {
+      "properties": {
+        "id": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "person",
+            "agent",
+            "actor",
+            "service",
+            "group",
+            "role",
+            "grant",
+            "policy",
+            "review",
+            "device",
+            "session",
+            "invite"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "type": "object"
     },
     "s_6b21f82790": {
       "properties": {
@@ -16868,25 +16921,6 @@
       ],
       "type": "object"
     },
-    "s_ee8a959088": {
-      "properties": {
-        "roleId": {
-          "examples": [
-            "rol_a1b2c3"
-          ],
-          "pattern": "^rol_[a-z0-9]+$",
-          "type": "string"
-        },
-        "subject": {
-          "$ref": "#/$defs/s_6c1eb10d98"
-        }
-      },
-      "required": [
-        "subject",
-        "roleId"
-      ],
-      "type": "object"
-    },
     "s_efe3c35994": {
       "items": {
         "$ref": "#/$defs/s_854a533c8e"
@@ -17267,6 +17301,32 @@
       },
       "required": [
         "type",
+        "id"
+      ],
+      "type": "object"
+    },
+    "s_f22e8a9091": {
+      "properties": {
+        "id": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^(usr|agt|act|svc|grp)_[a-z0-9]+$",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "person",
+            "agent",
+            "actor",
+            "service",
+            "group"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
         "id"
       ],
       "type": "object"
@@ -24040,7 +24100,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "$ref": "#/$defs/s_ee8a959088"
+        "$ref": "#/$defs/s_6505e83316"
       },
       "level": "view",
       "module": "access",
@@ -24264,6 +24324,12 @@
           },
           "name": "example",
           "output": {
+            "directHolders": [
+              {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              }
+            ],
             "holders": [
               {
                 "id": "usr_a1b2c3",
@@ -24305,6 +24371,12 @@
       "name": "access.roles.get",
       "output": {
         "properties": {
+          "directHolders": {
+            "items": {
+              "$ref": "#/$defs/s_f22e8a9091"
+            },
+            "type": "array"
+          },
           "holders": {
             "$ref": "#/$defs/s_39a2155802"
           },
@@ -24556,7 +24628,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "$ref": "#/$defs/s_ee8a959088"
+        "$ref": "#/$defs/s_6505e83316"
       },
       "level": "view",
       "module": "access",
@@ -28748,6 +28820,10 @@
               "id": "rec_a1b2c3",
               "type": "space"
             },
+            "target": {
+              "id": "usr_a1b2c3",
+              "kind": "person"
+            },
             "to": 1760000000000
           },
           "name": "example",
@@ -28787,6 +28863,9 @@
           },
           "resource": {
             "$ref": "#/$defs/s_f21ece25da"
+          },
+          "target": {
+            "$ref": "#/$defs/s_6ac6b58eb6"
           },
           "to": {
             "description": "Milliseconds since the Unix epoch",
@@ -28957,6 +29036,10 @@
               "id": "rec_a1b2c3",
               "type": "space"
             },
+            "target": {
+              "id": "usr_a1b2c3",
+              "kind": "person"
+            },
             "to": 1760000000000,
             "traceId": "0123456789abcdef0123456789abcdef"
           },
@@ -29033,6 +29116,9 @@
           },
           "resource": {
             "$ref": "#/$defs/s_f21ece25da"
+          },
+          "target": {
+            "$ref": "#/$defs/s_6ac6b58eb6"
           },
           "to": {
             "description": "Milliseconds since the Unix epoch",

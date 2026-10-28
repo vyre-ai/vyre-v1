@@ -25,6 +25,10 @@ Export audit rows as CSV into a file
 
 ```ts
 type In = {
+  target?: {
+    kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "grant" | "policy" | "review" | "device" | "session" | "invite";
+    id: string;
+  };
   actor?: {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
@@ -74,6 +78,10 @@ type Out = {
     "resource": {
       "id": "rec_a1b2c3",
       "type": "space"
+    },
+    "target": {
+      "id": "usr_a1b2c3",
+      "kind": "person"
     },
     "to": 1760000000000
   },

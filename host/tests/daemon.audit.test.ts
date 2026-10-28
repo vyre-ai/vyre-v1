@@ -44,6 +44,18 @@ test("booted mutations reach audit.list with attribution and no credential input
     const role = ((await made.json()) as { data: { role: { id: string } } }).data.role;
     assert.ok(rows.some((row) => row.after?.targets?.some((target) => target.kind === "role" && target.id === role.id)), "object Activity can find the created role by declared target id");
     assert.ok(!JSON.stringify(rows).includes("Audit role proof"), "arbitrary role labels are not copied from inputs");
+    const targetRows = ((await (await call("/v1/audit/list", { target: { kind: "role", id: role.id }, limit: 10 })).json()) as { data: { rows: { action: string }[] } }).data.rows;
+    assert.deepEqual(targetRows.map((row) => row.action), ["access.roles.create"]);
+    for (const as of ["member", "guest"]) assert.equal((await call("/v1/audit/list", { target: { kind: "role", id: role.id } }, as)).status, 403, "target filtering cannot grant audit.read");
+    const actorResponse = await call("/v1/access/actors/create", { name: "Actor target proof", provider: "codex", roleIds: ["rol_member"], idempotencyKey: "audit-actor" });
+    assert.equal(actorResponse.status, 200, "create the outside actor without printing its one-time credential");
+    const actor = ((await actorResponse.json()) as { data: { actor: { id: string }; oneTimeToken: string } }).data;
+    assert.equal((await call("/v1/access/actors/update", { actorId: actor.actor.id, provider: "claude" })).status, 200);
+    assert.equal((await call("/v1/access/actors/set_engineer_mcp", { actorId: actor.actor.id, enabled: true })).status, 200);
+    assert.equal((await call("/v1/access/actors/revoke", { actorId: actor.actor.id })).status, 200);
+    const actorHistory = ((await (await call("/v1/audit/list", { target: { kind: "actor", id: actor.actor.id }, limit: 20 })).json()) as { data: { rows: { action: string }[] } }).data.rows;
+    for (const action of ["access.actors.create", "access.actors.update", "access.actors.set_engineer_mcp", "access.actors.revoke"]) assert.ok(actorHistory.some((row) => row.action === action), action);
+    assert.ok(!JSON.stringify(daemon.db!.all("SELECT * FROM audit_row")).includes(actor.oneTimeToken), "one-time actor credentials never enter audit metadata");
     assert.equal((await call("/v1/example/audited", { password: "synthetic-secret-password", apiKey: "synthetic-secret-api-key", arbitrary: "do-not-log-input" }, "agent")).status, 200);
     const attribution = ((await (await call("/v1/audit/list", { action: "example.audited" })).json()) as { data: { rows: Array<{ actor: { kind: string; id: string }; onBehalfOf?: { kind: string; id: string }; after: Record<string, unknown> }> } }).data.rows;
     assert.equal(attribution.length, 1, "one pipeline row, with no recursive append calls");

@@ -18,6 +18,7 @@ export type PolicyKind = "gate" | "spend" | "limit" | "provider_label" | "retent
 export type Status = "invited" | "active" | "suspended" | "removed";
 
 export interface Ref { kind: PKind; id: string }
+export interface RoleHolder { kind: PKind | "group"; id: string }
 export interface SubjectRef { kind: SubjectKind; id: string }
 export interface ResourceRef { type: string; id: string }
 export interface Cond {
@@ -275,7 +276,7 @@ export class AccessStore {
     const snap = new AccessSnapshot();
     snap.labelNames = ["Public", "Internal", "Confidential", "Restricted"];
     for (const r of this.roles.values()) {
-      snap.putRole({ id: r.id, clearance: labelRank(r.clearance), perms: r.permissions, name: r.name });
+      snap.putRole({ id: r.id, clearance: labelRank(r.clearance), perms: r.permissions, name: r.name, assignableToAgents: r.assignableToAgents });
     }
     snap.putRole({ id: "rol_engineer_mcp", clearance: 0, perms: ["engineer.mcp"], name: "Engineer MCP" });
     for (const p of this.principals.values()) {
@@ -315,6 +316,16 @@ export class AccessStore {
   rolesOf(holder: string): string[] { return this.assignments.get(holder) ?? []; }
   setRoles(holder: string, roles: string[]): void { this.assignments.set(holder, [...new Set(roles)]); }
 
+  directHoldersOf(roleId: string): RoleHolder[] {
+    const out: RoleHolder[] = [];
+    for (const [holder, roles] of this.assignments) if (roles.includes(roleId)) {
+      const person = this.principals.get(holder);
+      if (person) out.push({ kind: person.kind, id: person.id });
+      else if (this.groups.has(holder)) out.push({ kind: "group", id: holder });
+    }
+    return out;
+  }
+
   holdersOf(roleId: string): Ref[] {
     const out: Ref[] = [];
     const seen = new Set<string>();
@@ -322,6 +333,8 @@ export class AccessStore {
       if (seen.has(id)) return;
       const p = this.principals.get(id);
       if (!p) return;
+      const role = this.roles.get(roleId);
+      if (p.kind === "agent" && role && (isElevatedRole(roleId, role.name) || !role.assignableToAgents)) return;
       seen.add(id);
       out.push({ kind: p.kind, id: p.id });
     };
