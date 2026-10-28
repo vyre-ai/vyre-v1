@@ -1,4 +1,5 @@
 - Align the onboarding prototype landing fixture with supported native/download callbacks, and assert unavailable actions stay hidden in both themes.
+- Complete the Comms Console object pages with typed provider/privacy/recipient controls, number routing and hours, shared-inbox access and routes, and hydrated full texting registration drafts with reviewed submission.
 - Include the MIT/Apache-2.0 licensed UUID dependency in the desktop dependency fixture while retaining the exact crate allowlist and license policy checks.
 - Wire supported invite handoff to the existing desktop join protocol and the actual release downloads page, without silently advancing the browser or pretending a download started.
 - Browser Personal setup directs creation through the desktop app and offers joining an existing Space; remove the incomplete manual startup command.

@@ -66,9 +66,9 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "template") return <AgentTemplate />;
   if (id === "schema") return <SchemaPage />;
   if (id === "labels") return <LabelsPage />;
-  if (id === "domains") return <DomainsPage />;
-  if (id === "numbers") return <NumbersPage />;
-  if (id === "inboxes") return <InboxesPage />;
+  if (id === "domains") return <DomainsPage {...(args["domainId"]?{initialId:args["domainId"]}:{})} />;
+  if (id === "numbers") return <NumbersPage {...(args["numberId"]?{initialId:args["numberId"]}:{})} />;
+  if (id === "inboxes") return <InboxesPage {...(args["mailboxId"]?{initialId:args["mailboxId"]}:{})} />;
   if (id === "texting") return <TextingPage />;
   if (id === "connectors") return <IntegrationsPage mode="connectors" />;
   if (id === "connections") return <IntegrationsPage mode="connections" />;
