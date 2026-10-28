@@ -77,16 +77,55 @@ export function kindOfKey(key: string): StepKind {
   }
 }
 
+const PRODUCT_TITLES: Readonly<Record<string, string>> = {
+  "google.gmail.list_messages": "Google · List Gmail messages",
+  "google.gmail.send_message": "Google · Send a Gmail message",
+  "google.calendar.list_events": "Google · List calendar events",
+  "google.calendar.create_event": "Google · Create a calendar event",
+  "google.drive.list_files": "Google · List Drive files",
+  "google.drive.create_folder": "Google · Create a Drive folder",
+  "google.sheets.get_values": "Google · Read sheet cells",
+  "google.sheets.append_values": "Google · Append sheet rows",
+  "google.docs.create_document": "Google · Create a document",
+  "ms.mail.list_messages": "Microsoft · List Outlook messages",
+  "ms.mail.send_message": "Microsoft · Send an Outlook message",
+  "ms.calendar.list_events": "Microsoft · List calendar events",
+  "ms.calendar.create_event": "Microsoft · Create a calendar event",
+  "ms.drive.list_items": "Microsoft · List OneDrive or SharePoint items",
+  "ms.drive.create_folder": "Microsoft · Create a OneDrive or SharePoint folder",
+  "calendar.list_events": "Calendar · List events",
+  "calendar.create_event": "Calendar · Create an event",
+  "files.list": "Files · List files",
+  "files.get": "Files · Read file details",
+  "files.create": "Files · Create a file",
+  "files.move": "Files · Move a file",
+  "files.copy": "Files · Copy a file",
+  "files.share": "Files · Share a file",
+  "github.repos.list": "GitHub · List repositories",
+  "github.pull_request.get": "GitHub · Read a pull request",
+  "github.issue.create": "GitHub · Open an issue",
+  "github.issue.comment": "GitHub · Comment on an issue",
+  "github.issue.assign_agent": "GitHub · Assign an issue to an agent",
+  "forms.list": "Forms · List forms",
+  "forms.create": "Forms · Create a form",
+  "forms.publish": "Forms · Publish a form",
+  "records.relate": "Link records",
+};
+
 export function iconOfKey(key: string): IconKey {
   const hit = STEP_PALETTE.find((p) => p.key === key);
   if (hit) return hit.icon;
   if (key.startsWith("records.")) return "record";
-  if (key.startsWith("sheet.")) return "sheet";
+  if (key.startsWith("sheet.") || key.startsWith("files.") || key.startsWith("google.drive") || key.startsWith("google.sheets") || key.startsWith("google.docs") || key.startsWith("ms.drive")) return "sheet";
+  if (key.startsWith("google.gmail") || key.startsWith("ms.mail")) return "mail";
+  if (key.startsWith("calendar.") || key.includes(".calendar.")) return "hourglass";
+  if (key.startsWith("github.")) return "code";
+  if (key.startsWith("forms.")) return "edit";
   return "record";
 }
 
 export function titleOfKey(key: string): string {
-  return STEP_PALETTE.find((p) => p.key === key)?.title ?? key.replace(/[._]+/g, " ").replace(/^./, (c) => c.toUpperCase());
+  return STEP_PALETTE.find((p) => p.key === key)?.title ?? PRODUCT_TITLES[key] ?? key.replace(/[._]+/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
 
 export function triggerMeta(key: string, config?: Record<string, unknown>): { title: string; icon: IconKey } {
@@ -425,6 +464,13 @@ const REQUIRED: Readonly<Record<string, readonly { field: string; label: string 
   connector_request: [{ field: "connector", label: "a connector" }, { field: "action", label: "an action" }, { field: "connectionId", label: "a connection" }],
   post_message: [{ field: "channelId", label: "where to post" }],
   create_task: [{ field: "title", label: "a title" }],
+  "records.relate": [{ field: "recordId", label: "which record" }, { field: "toId", label: "the record to link" }],
+  "calendar.create_event": [{ field: "title", label: "a title" }, { field: "calendarId", label: "a calendar" }],
+  "files.create": [{ field: "name", label: "a file name" }, { field: "folderId", label: "a folder" }],
+  "files.move": [{ field: "fileId", label: "a file" }, { field: "toFolderId", label: "a folder" }],
+  "github.issue.create": [{ field: "repo", label: "a repository" }, { field: "title", label: "a title" }],
+  "forms.create": [{ field: "name", label: "a name" }, { field: "recordType", label: "a record type" }],
+  "forms.publish": [{ field: "formId", label: "a form" }],
   loop: [{ field: "items", label: "the list to go through" }],
   approval: [{ field: "title", label: "what needs approval" }, { field: "approver", label: "who approves" }],
 };
@@ -443,6 +489,7 @@ export function check(def: Definition, kind: "personal" | "space" = "space"): Is
     const label = cardTitle(n);
     for (const to of [...(n.next ?? []), ...(n.branches?.map((b) => b.to) ?? [])]) if (to !== "" && !by.has(to)) out.push({ nodeId: n.id, severity: "error", message: `${label} leads to a step that no longer exists` });
     for (const req of REQUIRED[n.key] ?? []) if (blank(n.input?.[req.field])) out.push({ nodeId: n.id, severity: "error", message: `${label} needs ${req.label}` });
+    if ((n.key.startsWith("google.") || n.key.startsWith("ms.")) && blank(n.input?.["connectionId"])) out.push({ nodeId: n.id, severity: "error", message: `${label} needs a connection` });
     const k = kindOfKey(n.key);
     if (k === "paths") {
       if (!n.branches || n.branches.length === 0) out.push({ nodeId: n.id, severity: "error", message: `${label} has no paths` });

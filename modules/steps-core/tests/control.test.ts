@@ -476,6 +476,20 @@ test("an authenticated request runs a connector action and refuses a secret in t
   assert.deepEqual(out.output, { output: { ok: true }, dryRun: true });
 });
 
+test("a Google step calls the Gmail capability and refuses a secret", async () => {
+  const h = harness({ "google.gmail.list_messages": () => ({ messages: [{ id: "m1", threadId: "t1" }] }) });
+  await assert.rejects(runStep(h.env, node("g", "google.gmail.list_messages", { connectionId: "con_1", q: "newer", authorization: "Bearer secret" }), callOf()), (e) => {
+    assert.match((e as Error).message, /cannot hold a secret/);
+    return true;
+  });
+  const out = await runStep(h.env, node("g", "google.gmail.list_messages", { connectionId: "con_1", q: "newer" }), callOf());
+  const sent = h.only("google.gmail.list_messages")[0]!.input;
+  assert.equal(sent.connectionId, "con_1");
+  assert.equal(sent.q, "newer");
+  assert.equal(JSON.stringify(sent).includes("authorization"), false);
+  assert.deepEqual(out.output, { messages: [{ id: "m1", threadId: "t1" }] });
+});
+
 test("steps.test runs one step: a read for real, anything else from its sample", async () => {
   const h = harness();
   const r = await stepsTest(h.ctx, { key: "if", input: { condition: "input.n > 2" }, sample: { n: 5 } }) as { output: unknown; stubbed: boolean };

@@ -488,6 +488,9 @@ async function capabilityStep(env: StepEnv, node: StepNode, i: In, call: StepCal
   const ad = ADAPTERS[node.key];
   const cap = ad ? (typeof ad.cap === "function" ? ad.cap(i) : ad.cap) : def.cap;
   if (!cap) throw stepError("internal.unexpected", `The step ${node.key} has no capability.`, false);
+  if ((node.key.startsWith("google.") || node.key.startsWith("ms.") || node.key.startsWith("github.")) && holdsSecret(i)) {
+    throw stepError("validation.bad_input", "This step cannot hold a secret. Use the connection.", false);
+  }
   let input: Record<string, unknown> = ad?.input ? await ad.input(i, env, call) : { ...i };
   // every capability that takes a key gets the step's own, so a retry of the same attempt is the same act
   if (!("idempotencyKey" in input) && "idempotencyKey" in ((CAPS.get(cap)?.input as { properties?: object } | undefined)?.properties ?? {})) input = { ...input, idempotencyKey: call.key };

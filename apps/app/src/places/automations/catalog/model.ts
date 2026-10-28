@@ -38,10 +38,25 @@ export function isPreviewKey(key: string | undefined, kind: "step" | "trigger" =
   return key !== undefined && availabilityFor(key, kind) === "preview";
 }
 
+const CONNECTED = /^(google\.|ms\.|github\.|sheet\.)/;
+const VYRE_PRODUCT = /^(calendar\.|files\.|forms\.)/;
+
+/** Connected-app order: common operations for one app, then the next app, then the authenticated request. */
+const CONNECTED_ORDER = [
+  "google.gmail.list_messages", "google.gmail.send_message", "google.calendar.list_events", "google.calendar.create_event",
+  "google.drive.list_files", "google.drive.create_folder", "google.sheets.get_values", "google.sheets.append_values", "google.docs.create_document",
+  "ms.mail.list_messages", "ms.mail.send_message", "ms.calendar.list_events", "ms.calendar.create_event", "ms.drive.list_items", "ms.drive.create_folder",
+  "github.repos.list", "github.pull_request.get", "github.issue.create", "github.issue.comment", "github.issue.assign_agent",
+  "sheet.find_rows", "sheet.add_rows", "sheet.update_rows", "sheet.create", "sheet.read_all", "sheet.delete_rows",
+  "send_email", "send_sms", "post_message", "connector_request",
+];
+
 export function groupFor(step: { key: string; category?: string }): string {
   if (availabilityFor(step.key, "step") === "preview") return "Preview";
   if (LOGIC.has(step.key)) return "Logic";
   if (step.key === "approval") return "Human input";
+  if (CONNECTED.test(step.key) || step.key === "connector_request" || step.key === "send_email" || step.key === "send_sms" || step.key === "post_message") return "Connected apps";
+  if (VYRE_PRODUCT.test(step.key) || step.key === "sign" || step.key === "create_task") return "Vyre";
   switch (step.category) {
     case "data": return "Data & transforms";
     case "send":
@@ -52,6 +67,12 @@ export function groupFor(step: { key: string; category?: string }): string {
     case "wait": return "Logic";
     default: return "Vyre";
   }
+}
+
+function rankOf(item: { key?: string }): number {
+  if (typeof item.key !== "string") return 800;
+  const at = CONNECTED_ORDER.indexOf(item.key);
+  return at === -1 ? 700 : at;
 }
 
 const GROUP_ORDER = ["Suggested", "Vyre", "Connected apps", "Logic", "Data & transforms", "Human input", "Sub-Automations", "Preview"];
@@ -66,7 +87,10 @@ export function menuGroups<T extends { group: string }>(items: readonly T[]): { 
   const out: { head: string; items: T[] }[] = [];
   for (const head of GROUP_ORDER) {
     const grouped = buckets.get(head);
-    if (grouped && grouped.length > 0) out.push({ head, items: grouped });
+    if (grouped && grouped.length > 0) {
+      const items = head === "Connected apps" ? [...grouped].sort((a, b) => rankOf(a) - rankOf(b)) : grouped;
+      out.push({ head, items });
+    }
   }
   for (const [head, grouped] of buckets) if (!GROUP_ORDER.includes(head) && grouped.length > 0) out.push({ head, items: grouped });
   return out;

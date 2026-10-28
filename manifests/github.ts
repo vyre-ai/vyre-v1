@@ -11,7 +11,7 @@
 // validation.precondition_failed.
 // DECISION: events named pull_request.*, issue.*, github.check_completed, repo.pushed are the normalised GitHub events; the raw
 // delivery is github.event_received.
-import { conn, defineManifest, ev, field, health, outward, read, rtype, screen, t, write } from '../packages/contracts/src/index.ts';
+import { conn, defineManifest, ev, field, health, outward, read, rtype, screen, step, t, write } from '../packages/contracts/src/index.ts';
 import type { SyncedTypeDef } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut } from './_common.ts';
 
@@ -227,6 +227,33 @@ export default defineManifest({
       q: { app: ['github.app.get', {}, true], repos: ['github.repos.list', { query: '/state/query' }, true] },
       a: { create: ['github.app.create_manifest', { org: '/state/org', name: '/state/name' }], complete: ['github.app.complete', { code: '/state/code', state: '/state/state' }] },
       empty: 'GitHub is not connected', primary: 'Create the GitHub App', needs: ['connectors.manage'],
+    }),
+  ],
+  steps: [
+    step('github.repos.list', 'GitHub · List repositories', 'data', 'capability', {
+      cap: 'github.repos.list', effects: 'read',
+      in: { installationId: t.opt(t.int()), query: t.opt(t.str()) },
+      out: { repos: t.arr(t.obj({ repo, private: t.bool(), defaultBranch: t.str(), url: t.str() })) },
+    }),
+    step('github.pull_request.get', 'GitHub · Read a pull request', 'data', 'capability', {
+      cap: 'github.pull_request.get', effects: 'read',
+      in: prRef,
+      out: { pullRequest: prRow },
+    }),
+    step('github.issue.create', 'GitHub · Open an issue', 'data', 'capability', {
+      cap: 'github.issue.create', effects: 'outward', gateAct: 'post', idempotency: 'key',
+      in: { repo, title: t.str(), body: t.opt(t.str()), labels: t.opt(t.arr(t.str())) },
+      out: { issue: issueRow },
+    }),
+    step('github.issue.comment', 'GitHub · Comment on an issue', 'data', 'capability', {
+      cap: 'github.issue.comment', effects: 'outward', gateAct: 'post', idempotency: 'key',
+      in: { repo, number: t.int({ minimum: 1 }), body: t.str() },
+      out: { commentId: t.int() },
+    }),
+    step('github.issue.assign_agent', 'GitHub · Assign an issue to an agent', 'data', 'capability', {
+      cap: 'github.issue.assign_agent', effects: 'write', idempotency: 'key',
+      in: { recordId: id.record, agentId: id.agent },
+      out: { taskId: id.task },
     }),
   ],
 });

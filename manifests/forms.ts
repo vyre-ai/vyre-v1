@@ -1,5 +1,5 @@
 // forms (lane L8): forms, one-use links, booking pages, surveys, attribution (spec 2.11, 3.6, ARCH 7.6). May land after the window.
-import { create, defineManifest, ev, list, read, screen, t, write } from '../packages/contracts/src/index.ts';
+import { create, defineManifest, ev, list, read, screen, step, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut } from './_common.ts';
 
 const slug = t.str({ pattern: '^[a-z0-9-]+$', examples: ['intake'] });
@@ -52,6 +52,23 @@ export default defineManifest({
     write('forms.save_partial', 'Public: keep the answers typed so far against a signed or one-use link so the person can come back; nothing reaches the record until submit', {
       in: { slug, token: t.str(), answers: t.rec(), step: t.opt(t.int({ minimum: 0 })) }, out: { saved: t.bool(), expiresAt: t.opt(t.ts()) },
       http: { method: 'POST', path: '/f/partial' }, team: true, rate: { n: 60, perSeconds: 60, scope: 'space' },
+    }),
+  ],
+  steps: [
+    step('forms.list', 'Forms · List forms', 'data', 'capability', {
+      cap: 'forms.list', effects: 'read',
+      in: { section: t.opt(t.enm('personal', 'shared', 'space')), folderId: t.opt(id.folder) },
+      out: { forms: t.arr(formRow) },
+    }),
+    step('forms.create', 'Forms · Create a form', 'data', 'capability', {
+      cap: 'forms.create', effects: 'write', idempotency: 'key',
+      in: { name: t.str(), recordType: id.recordType, kind: t.enm('public', 'one_use', 'booking', 'survey') },
+      out: { form: formRow },
+    }),
+    step('forms.publish', 'Forms · Publish a form', 'send', 'capability', {
+      cap: 'forms.publish', effects: 'write', idempotency: 'key',
+      in: { formId: id.form },
+      out: { url: t.str(), embed: t.str() },
     }),
   ],
   screens: [

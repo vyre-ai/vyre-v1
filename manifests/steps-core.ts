@@ -45,6 +45,11 @@ export default defineManifest({
       cap: 'records.update', effects: 'write', idempotency: 'key', compensate: 'records.restore_version', errors: ['validation.bad_input', 'internal.unexpected', 'validation.field_locked', 'validation.version_conflict', 'permission.on_hold'],
       in: { type: id.recordType, recordId: id.record, patch: t.rec() }, out: { recordId: id.record, version: t.int() },
     }),
+    step('records.relate', 'Link records', 'data', 'capability', {
+      cap: 'records.relate', effects: 'write',
+      in: { type: id.recordType, recordId: id.record, field: t.str(), toId: id.record, unlink: t.opt(t.bool()) },
+      out: { record: t.rec() },
+    }),
     step('create_task', 'Create a task', 'data', 'capability', {
       cap: 'tasks.create', effects: 'write', idempotency: 'key', compensate: 'tasks.transition',
       in: {

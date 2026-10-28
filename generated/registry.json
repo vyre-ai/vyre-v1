@@ -1435,6 +1435,35 @@
       ],
       "type": "object"
     },
+    "s_0cec777868": {
+      "properties": {
+        "fileId": {
+          "examples": [
+            "fil_a1b2c3"
+          ],
+          "pattern": "^fil_[a-z0-9]+$",
+          "type": "string"
+        },
+        "level": {
+          "enum": [
+            "view",
+            "use",
+            "edit",
+            "manage"
+          ],
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/s_38b6d47dbd"
+        }
+      },
+      "required": [
+        "fileId",
+        "subject",
+        "level"
+      ],
+      "type": "object"
+    },
     "s_0d12905f33": {
       "properties": {
         "fileId": {
@@ -2294,6 +2323,44 @@
       ],
       "type": "object"
     },
+    "s_1bb4357660": {
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "recordId": {
+          "examples": [
+            "rec_a1b2c3"
+          ],
+          "pattern": "^rec_[a-z0-9]+$",
+          "type": "string"
+        },
+        "toId": {
+          "examples": [
+            "rec_a1b2c3"
+          ],
+          "pattern": "^rec_[a-z0-9]+$",
+          "type": "string"
+        },
+        "type": {
+          "examples": [
+            "contact"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        },
+        "unlink": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "recordId",
+        "field",
+        "toId"
+      ],
+      "type": "object"
+    },
     "s_1c08fc9f52": {
       "properties": {
         "site": {
@@ -2488,6 +2555,36 @@
         "kit"
       ],
       "type": "object"
+    },
+    "s_1e61ab869f": {
+      "items": {
+        "properties": {
+          "defaultBranch": {
+            "type": "string"
+          },
+          "private": {
+            "type": "boolean"
+          },
+          "repo": {
+            "examples": [
+              "vyre-ai/website"
+            ],
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "private",
+          "defaultBranch",
+          "url"
+        ],
+        "type": "object"
+      },
+      "type": "array"
     },
     "s_1e7d706a53": {
       "properties": {
@@ -3530,6 +3627,39 @@
       "required": [
         "kind",
         "id"
+      ],
+      "type": "object"
+    },
+    "s_2b81d5bfa2": {
+      "properties": {
+        "as": {
+          "examples": [
+            "maya@example.com"
+          ],
+          "pattern": "^[^@\\s]+@[^@\\s]+$",
+          "type": "string"
+        },
+        "connectionId": {
+          "examples": [
+            "con_a1b2c3"
+          ],
+          "pattern": "^con_[a-z0-9]+$",
+          "type": "string"
+        },
+        "range": {
+          "examples": [
+            "Sheet1!A1:D50"
+          ],
+          "type": "string"
+        },
+        "spreadsheetId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "connectionId",
+        "spreadsheetId",
+        "range"
       ],
       "type": "object"
     },
@@ -7199,6 +7329,32 @@
       ],
       "type": "object"
     },
+    "s_5b0de38ebb": {
+      "properties": {
+        "fileId": {
+          "examples": [
+            "fil_a1b2c3"
+          ],
+          "pattern": "^fil_[a-z0-9]+$",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "toFolderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fileId",
+        "toFolderId"
+      ],
+      "type": "object"
+    },
     "s_5b5fd6f127": {
       "properties": {
         "fact": {
@@ -7509,6 +7665,45 @@
       "required": [
         "person",
         "resource"
+      ],
+      "type": "object"
+    },
+    "s_61c996a60e": {
+      "properties": {
+        "as": {
+          "examples": [
+            "maya@example.com"
+          ],
+          "pattern": "^[^@\\s]+@[^@\\s]+$",
+          "type": "string"
+        },
+        "connectionId": {
+          "examples": [
+            "con_a1b2c3"
+          ],
+          "pattern": "^con_[a-z0-9]+$",
+          "type": "string"
+        },
+        "labelIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "maxResults": {
+          "maximum": 500,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "pageToken": {
+          "type": "string"
+        },
+        "q": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "connectionId"
       ],
       "type": "object"
     },
@@ -13114,6 +13309,12 @@
       ],
       "type": "object"
     },
+    "s_b4d936413b": {
+      "items": {
+        "$ref": "#/$defs/s_9d36938961"
+      },
+      "type": "array"
+    },
     "s_b543221aaa": {
       "properties": {
         "agentId": {
@@ -13182,6 +13383,12 @@
         "file"
       ],
       "type": "object"
+    },
+    "s_b6005b0c6a": {
+      "items": {
+        "$ref": "#/$defs/s_193ebba03a"
+      },
+      "type": "array"
     },
     "s_b628c0cd13": {
       "properties": {
@@ -14538,6 +14745,12 @@
         "records"
       ],
       "type": "object"
+    },
+    "s_c836dae23c": {
+      "items": {
+        "$ref": "#/$defs/s_cd20ff6c19"
+      },
+      "type": "array"
     },
     "s_c89719c3d9": {
       "properties": {
@@ -17349,6 +17562,12 @@
         "signers"
       ],
       "type": "object"
+    },
+    "s_f3c19c03d1": {
+      "items": {
+        "$ref": "#/$defs/s_e25e4f7bef"
+      },
+      "type": "array"
     },
     "s_f54a1e0c66": {
       "items": {
@@ -36566,10 +36785,7 @@
       "output": {
         "properties": {
           "events": {
-            "items": {
-              "$ref": "#/$defs/s_e25e4f7bef"
-            },
-            "type": "array"
+            "$ref": "#/$defs/s_f3c19c03d1"
           },
           "next": {
             "description": "Cursor for the next page; absent on the last page",
@@ -70104,30 +70320,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "properties": {
-          "fileId": {
-            "examples": [
-              "fil_a1b2c3"
-            ],
-            "pattern": "^fil_[a-z0-9]+$",
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "toFolderId": {
-            "examples": [
-              "fld_a1b2c3"
-            ],
-            "pattern": "^fld_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "fileId",
-          "toFolderId"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_5b0de38ebb"
       },
       "level": "edit",
       "module": "files",
@@ -71141,33 +71334,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "properties": {
-          "fileId": {
-            "examples": [
-              "fil_a1b2c3"
-            ],
-            "pattern": "^fil_[a-z0-9]+$",
-            "type": "string"
-          },
-          "level": {
-            "enum": [
-              "view",
-              "use",
-              "edit",
-              "manage"
-            ],
-            "type": "string"
-          },
-          "subject": {
-            "$ref": "#/$defs/s_38b6d47dbd"
-          }
-        },
-        "required": [
-          "fileId",
-          "subject",
-          "level"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_0cec777868"
       },
       "level": "manage",
       "module": "files",
@@ -73795,10 +73962,7 @@
       "output": {
         "properties": {
           "forms": {
-            "items": {
-              "$ref": "#/$defs/s_193ebba03a"
-            },
-            "type": "array"
+            "$ref": "#/$defs/s_b6005b0c6a"
           },
           "next": {
             "description": "Cursor for the next page; absent on the last page",
@@ -79597,34 +79761,7 @@
             "type": "string"
           },
           "repos": {
-            "items": {
-              "properties": {
-                "defaultBranch": {
-                  "type": "string"
-                },
-                "private": {
-                  "type": "boolean"
-                },
-                "repo": {
-                  "examples": [
-                    "vyre-ai/website"
-                  ],
-                  "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "repo",
-                "private",
-                "defaultBranch",
-                "url"
-              ],
-              "type": "object"
-            },
-            "type": "array"
+            "$ref": "#/$defs/s_1e61ab869f"
           },
           "total": {
             "type": "integer"
@@ -80296,10 +80433,7 @@
       "output": {
         "properties": {
           "events": {
-            "items": {
-              "$ref": "#/$defs/s_cd20ff6c19"
-            },
-            "type": "array"
+            "$ref": "#/$defs/s_c836dae23c"
           },
           "nextPageToken": {
             "type": "string"
@@ -81834,10 +81968,7 @@
       "output": {
         "properties": {
           "files": {
-            "items": {
-              "$ref": "#/$defs/s_9d36938961"
-            },
-            "type": "array"
+            "$ref": "#/$defs/s_b4d936413b"
           },
           "nextPageToken": {
             "type": "string"
@@ -83597,43 +83728,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "properties": {
-          "as": {
-            "examples": [
-              "maya@example.com"
-            ],
-            "pattern": "^[^@\\s]+@[^@\\s]+$",
-            "type": "string"
-          },
-          "connectionId": {
-            "examples": [
-              "con_a1b2c3"
-            ],
-            "pattern": "^con_[a-z0-9]+$",
-            "type": "string"
-          },
-          "labelIds": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "maxResults": {
-            "maximum": 500,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "pageToken": {
-            "type": "string"
-          },
-          "q": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "connectionId"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_61c996a60e"
       },
       "level": "view",
       "module": "google",
@@ -85328,37 +85423,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "properties": {
-          "as": {
-            "examples": [
-              "maya@example.com"
-            ],
-            "pattern": "^[^@\\s]+@[^@\\s]+$",
-            "type": "string"
-          },
-          "connectionId": {
-            "examples": [
-              "con_a1b2c3"
-            ],
-            "pattern": "^con_[a-z0-9]+$",
-            "type": "string"
-          },
-          "range": {
-            "examples": [
-              "Sheet1!A1:D50"
-            ],
-            "type": "string"
-          },
-          "spreadsheetId": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "connectionId",
-          "spreadsheetId",
-          "range"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_2b81d5bfa2"
       },
       "level": "view",
       "module": "google",
@@ -126465,42 +126530,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "properties": {
-          "field": {
-            "type": "string"
-          },
-          "recordId": {
-            "examples": [
-              "rec_a1b2c3"
-            ],
-            "pattern": "^rec_[a-z0-9]+$",
-            "type": "string"
-          },
-          "toId": {
-            "examples": [
-              "rec_a1b2c3"
-            ],
-            "pattern": "^rec_[a-z0-9]+$",
-            "type": "string"
-          },
-          "type": {
-            "examples": [
-              "contact"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          },
-          "unlink": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "type",
-          "recordId",
-          "field",
-          "toId"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_1bb4357660"
       },
       "level": "edit",
       "module": "records",
@@ -213205,6 +213235,250 @@
       }
     },
     {
+      "cap": "calendar.create_event",
+      "category": "send",
+      "editor": "ui:StepCalendarCreateEvent",
+      "effects": "write",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "gateAct": "send",
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "agenda": {
+            "type": "string"
+          },
+          "allDay": {
+            "type": "boolean"
+          },
+          "attendees": {
+            "$ref": "#/$defs/s_c9a9a35799"
+          },
+          "bookedByAgentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "calendarId": {
+            "examples": [
+              "cld_a1b2c3"
+            ],
+            "pattern": "^cld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "endsAt": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "fromBookingPage": {
+            "examples": [
+              "frm_a1b2c3"
+            ],
+            "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          },
+          "joinProvider": {
+            "enum": [
+              "zoom",
+              "meet",
+              "teams",
+              "none"
+            ],
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "recordIds": {
+            "items": {
+              "examples": [
+                "rec_a1b2c3"
+              ],
+              "pattern": "^rec_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "startsAt": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "calendarId",
+          "title",
+          "startsAt",
+          "endsAt"
+        ],
+        "type": "object"
+      },
+      "key": "calendar.create_event",
+      "kind": "capability",
+      "module": "calendar",
+      "output": {
+        "$ref": "#/$defs/s_02d8541262"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "event": {
+          "agenda": "example",
+          "allDay": true,
+          "attendees": [
+            {
+              "contactId": "rec_a1b2c3",
+              "email": "maya@example.com",
+              "name": "example",
+              "optional": true,
+              "response": "needs_action"
+            }
+          ],
+          "bookedByAgentId": "agt_a1b2c3",
+          "calendarId": "cld_a1b2c3",
+          "description": "example",
+          "endsAt": 1760000000000,
+          "fromBookingPage": "frm_a1b2c3",
+          "id": "cev_a1b2c3",
+          "joinProvider": "zoom",
+          "joinUrl": "example",
+          "location": "example",
+          "meetingId": "rec_a1b2c3",
+          "organizer": "maya@example.com",
+          "recordIds": [
+            "rec_a1b2c3"
+          ],
+          "startsAt": 1760000000000,
+          "status": "confirmed",
+          "title": "example"
+        }
+      },
+      "title": "Calendar · Create an event"
+    },
+    {
+      "cap": "calendar.list_events",
+      "category": "data",
+      "editor": "ui:StepCalendarListEvents",
+      "effects": "read",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "calendarIds": {
+            "items": {
+              "examples": [
+                "cld_a1b2c3"
+              ],
+              "pattern": "^cld_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "from": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "query": {
+            "type": "string"
+          },
+          "to": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "type": "object"
+      },
+      "key": "calendar.list_events",
+      "kind": "capability",
+      "module": "calendar",
+      "output": {
+        "properties": {
+          "events": {
+            "$ref": "#/$defs/s_f3c19c03d1"
+          }
+        },
+        "required": [
+          "events"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "events": [
+          {
+            "agenda": "example",
+            "allDay": true,
+            "attendees": [
+              {
+                "contactId": "rec_a1b2c3",
+                "email": "maya@example.com",
+                "name": "example",
+                "optional": true,
+                "response": "needs_action"
+              }
+            ],
+            "bookedByAgentId": "agt_a1b2c3",
+            "calendarId": "cld_a1b2c3",
+            "description": "example",
+            "endsAt": 1760000000000,
+            "fromBookingPage": "frm_a1b2c3",
+            "id": "cev_a1b2c3",
+            "joinProvider": "zoom",
+            "joinUrl": "example",
+            "location": "example",
+            "meetingId": "rec_a1b2c3",
+            "organizer": "maya@example.com",
+            "recordIds": [
+              "rec_a1b2c3"
+            ],
+            "startsAt": 1760000000000,
+            "status": "confirmed",
+            "title": "example"
+          }
+        ]
+      },
+      "title": "Calendar · List events"
+    },
+    {
       "category": "journey",
       "editor": "ui:StepCallAutomation",
       "effects": "write",
@@ -213568,6 +213842,1583 @@
       "title": "Create a task"
     },
     {
+      "cap": "files.copy",
+      "category": "data",
+      "editor": "ui:StepFilesCopy",
+      "effects": "write",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "idempotency": "key",
+      "input": {
+        "$ref": "#/$defs/s_5b0de38ebb"
+      },
+      "key": "files.copy",
+      "kind": "capability",
+      "module": "files",
+      "output": {
+        "$ref": "#/$defs/s_b59a284a11"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "file": {
+          "conflict": true,
+          "createdAt": 1760000000000,
+          "deletedAt": 1760000000000,
+          "fileId": "fil_a1b2c3",
+          "folderId": "fld_a1b2c3",
+          "holds": 1,
+          "kind": "text",
+          "label": 1,
+          "mime": "example",
+          "name": "example",
+          "ownerId": "example",
+          "size": 1,
+          "source": {
+            "mountId": "mnt_a1b2c3",
+            "provider": "example"
+          },
+          "starred": true,
+          "thumb": true,
+          "updatedAt": 1760000000000,
+          "updatedBy": "example",
+          "version": 1
+        }
+      },
+      "title": "Files · Copy a file"
+    },
+    {
+      "cap": "files.create",
+      "category": "data",
+      "editor": "ui:StepFilesCreate",
+      "effects": "write",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "content": {
+            "$ref": "#/$defs/s_d928ebc271"
+          },
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "folderId",
+          "name"
+        ],
+        "type": "object"
+      },
+      "key": "files.create",
+      "kind": "capability",
+      "module": "files",
+      "output": {
+        "$ref": "#/$defs/s_b59a284a11"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "file": {
+          "conflict": true,
+          "createdAt": 1760000000000,
+          "deletedAt": 1760000000000,
+          "fileId": "fil_a1b2c3",
+          "folderId": "fld_a1b2c3",
+          "holds": 1,
+          "kind": "text",
+          "label": 1,
+          "mime": "example",
+          "name": "example",
+          "ownerId": "example",
+          "size": 1,
+          "source": {
+            "mountId": "mnt_a1b2c3",
+            "provider": "example"
+          },
+          "starred": true,
+          "thumb": true,
+          "updatedAt": 1760000000000,
+          "updatedBy": "example",
+          "version": 1
+        }
+      },
+      "title": "Files · Create a file"
+    },
+    {
+      "cap": "files.get",
+      "category": "data",
+      "editor": "ui:StepFilesGet",
+      "effects": "read",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "key": "files.get",
+      "kind": "capability",
+      "module": "files",
+      "output": {
+        "$ref": "#/$defs/s_b59a284a11"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "file": {
+          "conflict": true,
+          "createdAt": 1760000000000,
+          "deletedAt": 1760000000000,
+          "fileId": "fil_a1b2c3",
+          "folderId": "fld_a1b2c3",
+          "holds": 1,
+          "kind": "text",
+          "label": 1,
+          "mime": "example",
+          "name": "example",
+          "ownerId": "example",
+          "size": 1,
+          "source": {
+            "mountId": "mnt_a1b2c3",
+            "provider": "example"
+          },
+          "starred": true,
+          "thumb": true,
+          "updatedAt": 1760000000000,
+          "updatedBy": "example",
+          "version": 1
+        }
+      },
+      "title": "Files · Read file details"
+    },
+    {
+      "cap": "files.list",
+      "category": "data",
+      "editor": "ui:StepFilesList",
+      "effects": "read",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "folder": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "text",
+              "markdown",
+              "document",
+              "spreadsheet",
+              "presentation",
+              "pdf",
+              "image",
+              "video",
+              "audio",
+              "code",
+              "archive",
+              "google_native",
+              "other"
+            ],
+            "type": "string"
+          },
+          "section": {
+            "enum": [
+              "personal",
+              "shared",
+              "space"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "key": "files.list",
+      "kind": "capability",
+      "module": "files",
+      "output": {
+        "properties": {
+          "files": {
+            "$ref": "#/$defs/s_333ebd7463"
+          },
+          "folders": {
+            "$ref": "#/$defs/s_76462aa6ce"
+          }
+        },
+        "required": [
+          "files",
+          "folders"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "files": [
+          {
+            "conflict": true,
+            "createdAt": 1760000000000,
+            "deletedAt": 1760000000000,
+            "fileId": "fil_a1b2c3",
+            "folderId": "fld_a1b2c3",
+            "holds": 1,
+            "kind": "text",
+            "label": 1,
+            "mime": "example",
+            "name": "example",
+            "ownerId": "example",
+            "size": 1,
+            "source": {
+              "mountId": "mnt_a1b2c3",
+              "provider": "example"
+            },
+            "starred": true,
+            "thumb": true,
+            "updatedAt": 1760000000000,
+            "updatedBy": "example",
+            "version": 1
+          }
+        ],
+        "folders": [
+          {
+            "fileCount": 1,
+            "folderCount": 1,
+            "folderId": "fld_a1b2c3",
+            "git": true,
+            "label": 1,
+            "name": "example",
+            "parentId": "fld_a1b2c3",
+            "path": "Projects/Probate GTM",
+            "reviewChanges": true,
+            "scope": "personal",
+            "source": {
+              "mountId": "mnt_a1b2c3",
+              "provider": "example"
+            },
+            "subject": {
+              "id": "agt_a1b2c3",
+              "kind": "agent"
+            }
+          }
+        ]
+      },
+      "title": "Files · List files"
+    },
+    {
+      "cap": "files.move",
+      "category": "data",
+      "editor": "ui:StepFilesMove",
+      "effects": "write",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_5b0de38ebb"
+      },
+      "key": "files.move",
+      "kind": "capability",
+      "module": "files",
+      "output": {
+        "$ref": "#/$defs/s_b59a284a11"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "file": {
+          "conflict": true,
+          "createdAt": 1760000000000,
+          "deletedAt": 1760000000000,
+          "fileId": "fil_a1b2c3",
+          "folderId": "fld_a1b2c3",
+          "holds": 1,
+          "kind": "text",
+          "label": 1,
+          "mime": "example",
+          "name": "example",
+          "ownerId": "example",
+          "size": 1,
+          "source": {
+            "mountId": "mnt_a1b2c3",
+            "provider": "example"
+          },
+          "starred": true,
+          "thumb": true,
+          "updatedAt": 1760000000000,
+          "updatedBy": "example",
+          "version": 1
+        }
+      },
+      "title": "Files · Move a file"
+    },
+    {
+      "cap": "files.share",
+      "category": "data",
+      "editor": "ui:StepFilesShare",
+      "effects": "write",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_0cec777868"
+      },
+      "key": "files.share",
+      "kind": "capability",
+      "module": "files",
+      "output": {
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "ok": true
+      },
+      "title": "Files · Share a file"
+    },
+    {
+      "cap": "forms.create",
+      "category": "data",
+      "editor": "ui:StepFormsCreate",
+      "effects": "write",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "public",
+              "one_use",
+              "booking",
+              "survey"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "recordType": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "recordType",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "key": "forms.create",
+      "kind": "capability",
+      "module": "forms",
+      "output": {
+        "$ref": "#/$defs/s_7404a7ec16"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "form": {
+          "formId": "frm_a1b2c3",
+          "kind": "public",
+          "name": "example",
+          "recordType": "contact",
+          "slug": "intake",
+          "state": "draft",
+          "submissions": 1
+        }
+      },
+      "title": "Forms · Create a form"
+    },
+    {
+      "cap": "forms.list",
+      "category": "data",
+      "editor": "ui:StepFormsList",
+      "effects": "read",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "section": {
+            "enum": [
+              "personal",
+              "shared",
+              "space"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "key": "forms.list",
+      "kind": "capability",
+      "module": "forms",
+      "output": {
+        "properties": {
+          "forms": {
+            "$ref": "#/$defs/s_b6005b0c6a"
+          }
+        },
+        "required": [
+          "forms"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "forms": [
+          {
+            "formId": "frm_a1b2c3",
+            "kind": "public",
+            "name": "example",
+            "recordType": "contact",
+            "slug": "intake",
+            "state": "draft",
+            "submissions": 1
+          }
+        ]
+      },
+      "title": "Forms · List forms"
+    },
+    {
+      "cap": "forms.publish",
+      "category": "send",
+      "editor": "ui:StepFormsPublish",
+      "effects": "write",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "formId": {
+            "examples": [
+              "frm_a1b2c3"
+            ],
+            "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "formId"
+        ],
+        "type": "object"
+      },
+      "key": "forms.publish",
+      "kind": "capability",
+      "module": "forms",
+      "output": {
+        "properties": {
+          "embed": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "embed"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "embed": "example",
+        "url": "example"
+      },
+      "title": "Forms · Publish a form"
+    },
+    {
+      "cap": "github.issue.assign_agent",
+      "category": "data",
+      "editor": "ui:StepGithubIssueAssignAgent",
+      "effects": "write",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId",
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "key": "github.issue.assign_agent",
+      "kind": "capability",
+      "module": "github",
+      "output": {
+        "properties": {
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "taskId": "tsk_a1b2c3"
+      },
+      "title": "GitHub · Assign an issue to an agent"
+    },
+    {
+      "cap": "github.issue.comment",
+      "category": "data",
+      "editor": "ui:StepGithubIssueComment",
+      "effects": "outward",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "gateAct": "post",
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "number": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repo": {
+            "examples": [
+              "vyre-ai/website"
+            ],
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "number",
+          "body"
+        ],
+        "type": "object"
+      },
+      "key": "github.issue.comment",
+      "kind": "capability",
+      "module": "github",
+      "output": {
+        "properties": {
+          "commentId": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "commentId"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "commentId": 1
+      },
+      "title": "GitHub · Comment on an issue"
+    },
+    {
+      "cap": "github.issue.create",
+      "category": "data",
+      "editor": "ui:StepGithubIssueCreate",
+      "effects": "outward",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "gateAct": "post",
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "repo": {
+            "examples": [
+              "vyre-ai/website"
+            ],
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "title"
+        ],
+        "type": "object"
+      },
+      "key": "github.issue.create",
+      "kind": "capability",
+      "module": "github",
+      "output": {
+        "$ref": "#/$defs/s_7b212b7712"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "issue": {
+          "assignees": [
+            "example"
+          ],
+          "author": "example",
+          "body": "example",
+          "labels": [
+            "example"
+          ],
+          "number": 1,
+          "repo": "vyre-ai/website",
+          "state": "open",
+          "title": "example",
+          "url": "example"
+        }
+      },
+      "title": "GitHub · Open an issue"
+    },
+    {
+      "cap": "github.pull_request.get",
+      "category": "data",
+      "editor": "ui:StepGithubPullRequestGet",
+      "effects": "read",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_a6d34a645d"
+      },
+      "key": "github.pull_request.get",
+      "kind": "capability",
+      "module": "github",
+      "output": {
+        "$ref": "#/$defs/s_7aee10c6db"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "pullRequest": {
+          "additions": 1,
+          "assignees": [
+            "example"
+          ],
+          "author": "example",
+          "base": "example",
+          "body": "example",
+          "branch": "example",
+          "changedFiles": 1,
+          "checks": "none",
+          "deletions": 1,
+          "draft": true,
+          "labels": [
+            "example"
+          ],
+          "mergedAt": 1760000000000,
+          "number": 1,
+          "repo": "vyre-ai/website",
+          "state": "open",
+          "title": "example",
+          "url": "example"
+        }
+      },
+      "title": "GitHub · Read a pull request"
+    },
+    {
+      "cap": "github.repos.list",
+      "category": "data",
+      "editor": "ui:StepGithubReposList",
+      "effects": "read",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "installationId": {
+            "type": "integer"
+          },
+          "query": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "key": "github.repos.list",
+      "kind": "capability",
+      "module": "github",
+      "output": {
+        "properties": {
+          "repos": {
+            "$ref": "#/$defs/s_1e61ab869f"
+          }
+        },
+        "required": [
+          "repos"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "repos": [
+          {
+            "defaultBranch": "example",
+            "private": true,
+            "repo": "vyre-ai/website",
+            "url": "example"
+          }
+        ]
+      },
+      "title": "GitHub · List repositories"
+    },
+    {
+      "cap": "google.calendar.create_event",
+      "category": "send",
+      "editor": "ui:StepGoogleCalendarCreateEvent",
+      "effects": "outward",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected",
+        "provider.auth_failed",
+        "provider.unavailable",
+        "permission.needs_approval"
+      ],
+      "gateAct": "send",
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "attendees": {
+            "$ref": "#/$defs/s_016e5e2f02"
+          },
+          "calendarId": {
+            "examples": [
+              "primary"
+            ],
+            "type": "string"
+          },
+          "conference": {
+            "type": "boolean"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "end": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "location": {
+            "type": "string"
+          },
+          "sendUpdates": {
+            "enum": [
+              "all",
+              "externalOnly",
+              "none"
+            ],
+            "type": "string"
+          },
+          "start": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "calendarId"
+        ],
+        "type": "object"
+      },
+      "key": "google.calendar.create_event",
+      "kind": "capability",
+      "module": "google",
+      "output": {
+        "$ref": "#/$defs/s_1ecab6a554"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "event": {
+          "attendees": [
+            {
+              "email": "maya@example.com",
+              "optional": true,
+              "responseStatus": "example"
+            }
+          ],
+          "end": {},
+          "hangoutLink": "example",
+          "id": "example",
+          "location": "example",
+          "organizer": {},
+          "start": {},
+          "status": "example",
+          "summary": "example",
+          "updated": "example"
+        }
+      },
+      "title": "Google · Create a calendar event"
+    },
+    {
+      "cap": "google.calendar.list_events",
+      "category": "data",
+      "editor": "ui:StepGoogleCalendarListEvents",
+      "effects": "read",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected",
+        "provider.auth_failed",
+        "provider.unavailable",
+        "permission.needs_approval"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "calendarId": {
+            "examples": [
+              "primary"
+            ],
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "q": {
+            "type": "string"
+          },
+          "timeMax": {
+            "type": "string"
+          },
+          "timeMin": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "calendarId"
+        ],
+        "type": "object"
+      },
+      "key": "google.calendar.list_events",
+      "kind": "capability",
+      "module": "google",
+      "output": {
+        "properties": {
+          "events": {
+            "$ref": "#/$defs/s_c836dae23c"
+          }
+        },
+        "required": [
+          "events"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "events": [
+          {
+            "attendees": [
+              {
+                "email": "maya@example.com",
+                "optional": true,
+                "responseStatus": "example"
+              }
+            ],
+            "end": {},
+            "hangoutLink": "example",
+            "id": "example",
+            "location": "example",
+            "organizer": {},
+            "start": {},
+            "status": "example",
+            "summary": "example",
+            "updated": "example"
+          }
+        ]
+      },
+      "title": "Google · List calendar events"
+    },
+    {
+      "cap": "google.docs.create_document",
+      "category": "data",
+      "editor": "ui:StepGoogleDocsCreateDocument",
+      "effects": "outward",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected",
+        "provider.auth_failed",
+        "provider.unavailable",
+        "permission.needs_approval"
+      ],
+      "gateAct": "post",
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "title"
+        ],
+        "type": "object"
+      },
+      "key": "google.docs.create_document",
+      "kind": "capability",
+      "module": "google",
+      "output": {
+        "properties": {
+          "documentId": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "documentId",
+          "url"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "documentId": "example",
+        "url": "example"
+      },
+      "title": "Google · Create a document"
+    },
+    {
+      "cap": "google.drive.create_folder",
+      "category": "data",
+      "editor": "ui:StepGoogleDriveCreateFolder",
+      "effects": "outward",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected",
+        "provider.auth_failed",
+        "provider.unavailable",
+        "permission.needs_approval"
+      ],
+      "gateAct": "post",
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "name"
+        ],
+        "type": "object"
+      },
+      "key": "google.drive.create_folder",
+      "kind": "capability",
+      "module": "google",
+      "output": {
+        "$ref": "#/$defs/s_d96ebe6616"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "file": {
+          "driveId": "example",
+          "id": "example",
+          "mimeType": "example",
+          "modifiedTime": "example",
+          "name": "example",
+          "parents": [
+            "example"
+          ],
+          "size": 1,
+          "webViewLink": "example"
+        }
+      },
+      "title": "Google · Create a Drive folder"
+    },
+    {
+      "cap": "google.drive.list_files",
+      "category": "data",
+      "editor": "ui:StepGoogleDriveListFiles",
+      "effects": "read",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected",
+        "provider.auth_failed",
+        "provider.unavailable",
+        "permission.needs_approval"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "pageSize": {
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "q": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId"
+        ],
+        "type": "object"
+      },
+      "key": "google.drive.list_files",
+      "kind": "capability",
+      "module": "google",
+      "output": {
+        "properties": {
+          "files": {
+            "$ref": "#/$defs/s_b4d936413b"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "files": [
+          {
+            "driveId": "example",
+            "id": "example",
+            "mimeType": "example",
+            "modifiedTime": "example",
+            "name": "example",
+            "parents": [
+              "example"
+            ],
+            "size": 1,
+            "webViewLink": "example"
+          }
+        ]
+      },
+      "title": "Google · List Drive files"
+    },
+    {
+      "cap": "google.gmail.list_messages",
+      "category": "data",
+      "editor": "ui:StepGoogleGmailListMessages",
+      "effects": "read",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected",
+        "provider.auth_failed",
+        "provider.unavailable",
+        "permission.needs_approval"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_61c996a60e"
+      },
+      "key": "google.gmail.list_messages",
+      "kind": "capability",
+      "module": "google",
+      "output": {
+        "properties": {
+          "messages": {
+            "items": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "threadId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "threadId"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "resultSizeEstimate": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "messages"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "messages": [
+          {
+            "id": "example",
+            "threadId": "example"
+          }
+        ],
+        "resultSizeEstimate": 1
+      },
+      "title": "Google · List Gmail messages"
+    },
+    {
+      "cap": "google.gmail.send_message",
+      "category": "send",
+      "editor": "ui:StepGoogleGmailSendMessage",
+      "effects": "outward",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected",
+        "provider.auth_failed",
+        "provider.unavailable",
+        "permission.needs_approval"
+      ],
+      "gateAct": "send",
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "connectionId",
+          "to",
+          "subject"
+        ],
+        "type": "object"
+      },
+      "key": "google.gmail.send_message",
+      "kind": "capability",
+      "module": "google",
+      "output": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "id": "example",
+        "threadId": "example"
+      },
+      "title": "Google · Send a Gmail message"
+    },
+    {
+      "cap": "google.sheets.append_values",
+      "category": "data",
+      "editor": "ui:StepGoogleSheetsAppendValues",
+      "effects": "outward",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected",
+        "provider.auth_failed",
+        "provider.unavailable",
+        "permission.needs_approval"
+      ],
+      "gateAct": "post",
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "range": {
+            "type": "string"
+          },
+          "spreadsheetId": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "connectionId",
+          "spreadsheetId",
+          "range",
+          "values"
+        ],
+        "type": "object"
+      },
+      "key": "google.sheets.append_values",
+      "kind": "capability",
+      "module": "google",
+      "output": {
+        "properties": {
+          "updatedRows": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "updatedRows"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "updatedRows": 1
+      },
+      "title": "Google · Append sheet rows"
+    },
+    {
+      "cap": "google.sheets.get_values",
+      "category": "data",
+      "editor": "ui:StepGoogleSheetsGetValues",
+      "effects": "read",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected",
+        "provider.auth_failed",
+        "provider.unavailable",
+        "permission.needs_approval"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_2b81d5bfa2"
+      },
+      "key": "google.sheets.get_values",
+      "kind": "capability",
+      "module": "google",
+      "output": {
+        "properties": {
+          "values": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "values"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "values": [
+          [
+            "example"
+          ]
+        ]
+      },
+      "title": "Google · Read sheet cells"
+    },
+    {
       "category": "control",
       "editor": "ui:StepGroupBy",
       "effects": "read",
@@ -213760,6 +215611,501 @@
         ]
       },
       "title": "Loop"
+    },
+    {
+      "cap": "ms.calendar.create_event",
+      "category": "send",
+      "editor": "ui:StepMsCalendarCreateEvent",
+      "effects": "outward",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected",
+        "provider.auth_failed",
+        "provider.unavailable",
+        "permission.needs_approval"
+      ],
+      "gateAct": "send",
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "attendees": {
+            "$ref": "#/$defs/s_016e5e2f02"
+          },
+          "body": {
+            "type": "string"
+          },
+          "calendarId": {
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "end": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "location": {
+            "type": "string"
+          },
+          "start": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "teamsMeeting": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "connectionId"
+        ],
+        "type": "object"
+      },
+      "key": "ms.calendar.create_event",
+      "kind": "capability",
+      "module": "microsoft",
+      "output": {
+        "$ref": "#/$defs/s_ab4d804e42"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "event": {
+          "attendees": [
+            {
+              "email": "maya@example.com",
+              "response": "example",
+              "type": "example"
+            }
+          ],
+          "end": {},
+          "id": "example",
+          "isCancelled": true,
+          "location": {},
+          "onlineMeeting": {},
+          "organizer": {},
+          "start": {},
+          "subject": "example"
+        }
+      },
+      "title": "Microsoft · Create a calendar event"
+    },
+    {
+      "cap": "ms.calendar.list_events",
+      "category": "data",
+      "editor": "ui:StepMsCalendarListEvents",
+      "effects": "read",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected",
+        "provider.auth_failed",
+        "provider.unavailable",
+        "permission.needs_approval"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "calendarId": {
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "end": {
+            "type": "string"
+          },
+          "start": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "start",
+          "end"
+        ],
+        "type": "object"
+      },
+      "key": "ms.calendar.list_events",
+      "kind": "capability",
+      "module": "microsoft",
+      "output": {
+        "properties": {
+          "events": {
+            "$ref": "#/$defs/s_e8ec5309fc"
+          }
+        },
+        "required": [
+          "events"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "events": [
+          {
+            "attendees": [
+              {
+                "email": "maya@example.com",
+                "response": "example",
+                "type": "example"
+              }
+            ],
+            "end": {},
+            "id": "example",
+            "isCancelled": true,
+            "location": {},
+            "onlineMeeting": {},
+            "organizer": {},
+            "start": {},
+            "subject": "example"
+          }
+        ]
+      },
+      "title": "Microsoft · List calendar events"
+    },
+    {
+      "cap": "ms.drive.create_folder",
+      "category": "data",
+      "editor": "ui:StepMsDriveCreateFolder",
+      "effects": "outward",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected",
+        "provider.auth_failed",
+        "provider.unavailable",
+        "permission.needs_approval"
+      ],
+      "gateAct": "post",
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "name"
+        ],
+        "type": "object"
+      },
+      "key": "ms.drive.create_folder",
+      "kind": "capability",
+      "module": "microsoft",
+      "output": {
+        "$ref": "#/$defs/s_547685ab39"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "item": {
+          "folder": true,
+          "id": "example",
+          "lastModifiedDateTime": "example",
+          "name": "example",
+          "parentId": "example",
+          "size": 1,
+          "webUrl": "example"
+        }
+      },
+      "title": "Microsoft · Create a OneDrive or SharePoint folder"
+    },
+    {
+      "cap": "ms.drive.list_items",
+      "category": "data",
+      "editor": "ui:StepMsDriveListItems",
+      "effects": "read",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected",
+        "provider.auth_failed",
+        "provider.unavailable",
+        "permission.needs_approval"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "folderId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId"
+        ],
+        "type": "object"
+      },
+      "key": "ms.drive.list_items",
+      "kind": "capability",
+      "module": "microsoft",
+      "output": {
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/s_85e67931de"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "items": [
+          {
+            "folder": true,
+            "id": "example",
+            "lastModifiedDateTime": "example",
+            "name": "example",
+            "parentId": "example",
+            "size": 1,
+            "webUrl": "example"
+          }
+        ]
+      },
+      "title": "Microsoft · List OneDrive or SharePoint items"
+    },
+    {
+      "cap": "ms.mail.list_messages",
+      "category": "data",
+      "editor": "ui:StepMsMailListMessages",
+      "effects": "read",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected",
+        "provider.auth_failed",
+        "provider.unavailable",
+        "permission.needs_approval"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "folderId": {
+            "type": "string"
+          },
+          "search": {
+            "type": "string"
+          },
+          "top": {
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "connectionId"
+        ],
+        "type": "object"
+      },
+      "key": "ms.mail.list_messages",
+      "kind": "capability",
+      "module": "microsoft",
+      "output": {
+        "properties": {
+          "messages": {
+            "$ref": "#/$defs/s_cec7d1f1ff"
+          }
+        },
+        "required": [
+          "messages"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "messages": [
+          {
+            "bodyPreview": "example",
+            "categories": [
+              "example"
+            ],
+            "conversationId": "example",
+            "from": {},
+            "id": "example",
+            "isRead": true,
+            "parentFolderId": "example",
+            "receivedDateTime": "example",
+            "subject": "example",
+            "toRecipients": [
+              {}
+            ]
+          }
+        ]
+      },
+      "title": "Microsoft · List Outlook messages"
+    },
+    {
+      "cap": "ms.mail.send_message",
+      "category": "send",
+      "editor": "ui:StepMsMailSendMessage",
+      "effects": "outward",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected",
+        "provider.auth_failed",
+        "provider.unavailable",
+        "permission.needs_approval"
+      ],
+      "gateAct": "send",
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "connectionId",
+          "to",
+          "subject"
+        ],
+        "type": "object"
+      },
+      "key": "ms.mail.send_message",
+      "kind": "capability",
+      "module": "microsoft",
+      "output": {
+        "properties": {
+          "sent": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "sent"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "sent": true
+      },
+      "title": "Microsoft · Send an Outlook message"
     },
     {
       "category": "control",
@@ -214082,6 +216428,44 @@
         ]
       },
       "title": "Find records"
+    },
+    {
+      "cap": "records.relate",
+      "category": "data",
+      "editor": "ui:StepRecordsRelate",
+      "effects": "write",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_1bb4357660"
+      },
+      "key": "records.relate",
+      "kind": "capability",
+      "module": "steps-core",
+      "output": {
+        "properties": {
+          "record": {
+            "additionalProperties": true,
+            "type": "object"
+          }
+        },
+        "required": [
+          "record"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "record": {}
+      },
+      "title": "Link records"
     },
     {
       "cap": "records.update",

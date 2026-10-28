@@ -6,7 +6,7 @@
 // DECISION: the sheets.* capabilities live here (spreadsheets as table files, spec 2.16); steps-core wraps them as sheet steps. Provider-backed sheets (Google, SharePoint) go through the connector inside the handler.
 // DECISION: files.lint amber and red line limits are settings; amber 150 is chosen, red 200 is from the spec.
 // DECISION: changesets.approve declares the push_protected act with when input.push; the Gate narrows it to protected branches using the folder git settings.
-import { block, create, defineManifest, entity, ev, health, list, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
+import { block, create, defineManifest, entity, ev, health, list, outward, read, screen, setting, step, t, write } from '../packages/contracts/src/index.ts';
 import { id, label, level, pageIn, pageOut, purgeOut, subjectRef, versionRow } from './_common.ts';
 
 const fileKind = t.enm('text', 'markdown', 'document', 'spreadsheet', 'presentation', 'pdf', 'image', 'video', 'audio', 'code', 'archive', 'google_native', 'other');
@@ -448,6 +448,38 @@ export default defineManifest({
       q: { trash: ['files.trash.list'] },
       a: { restore: ['files.restore', { fileId: '/state/fileId' }], restoreFolder: ['files.folder.restore', { folderId: '/state/folderId' }], purge: ['files.purge', { fileId: '/state/fileId' }, 'Delete this file for good?'], empty: ['files.trash.empty', {}, 'Empty Trash?'] },
       empty: 'Trash is empty',
+    }),
+  ],
+  steps: [
+    step('files.list', 'Files · List files', 'data', 'capability', {
+      cap: 'files.list', effects: 'read',
+      in: { section, folder: t.opt(id.folder), kind: t.opt(fileKind) },
+      out: { files: t.arr(fileRow), folders: t.arr(folderRow) },
+    }),
+    step('files.get', 'Files · Read file details', 'data', 'capability', {
+      cap: 'files.get', effects: 'read',
+      in: { fileId: id.file },
+      out: { file: fileRow },
+    }),
+    step('files.create', 'Files · Create a file', 'data', 'capability', {
+      cap: 'files.create', effects: 'write', idempotency: 'key',
+      in: { folderId: id.folder, name: t.str(), content: t.opt(content), mime: t.opt(t.str()) },
+      out: { file: fileRow },
+    }),
+    step('files.move', 'Files · Move a file', 'data', 'capability', {
+      cap: 'files.move', effects: 'write',
+      in: { fileId: id.file, toFolderId: id.folder, name: t.opt(t.str()) },
+      out: { file: fileRow },
+    }),
+    step('files.copy', 'Files · Copy a file', 'data', 'capability', {
+      cap: 'files.copy', effects: 'write', idempotency: 'key',
+      in: { fileId: id.file, toFolderId: id.folder, name: t.opt(t.str()) },
+      out: { file: fileRow },
+    }),
+    step('files.share', 'Files · Share a file', 'data', 'capability', {
+      cap: 'files.share', effects: 'write',
+      in: { fileId: id.file, subject: subjectRef, level },
+      out: { ok: t.bool() },
     }),
   ],
 });

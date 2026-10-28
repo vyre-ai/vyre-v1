@@ -8,7 +8,7 @@
 // DECISION: DWD admin actions are in the `engineer` toolset (Console assistant), provider reads are deferred tools.
 // DECISION: the Space policy `google.auto_connect` (default on) and `microsoft.auto_connect` are two rows of one policy;
 // the effective value is the row for the provider being set up.
-import { conn, defineManifest, ev, health, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
+import { conn, defineManifest, ev, health, outward, read, screen, setting, step, t, write } from '../packages/contracts/src/index.ts';
 import type { CapOpts, Props } from '../packages/contracts/src/index.ts';
 import { email, id, pageIn, pageOut } from './_common.ts';
 
@@ -149,6 +149,56 @@ const capabilities = [
     { gate: quiet('Registers an events subscription for the Space; nothing is sent to anyone') }),
 ];
 
+// Common operations whose handlers already exist. Word-style editing, admin setup, and watch channels stay off the catalogue.
+const accountErrors = ['validation.bad_input', 'internal.unexpected', 'provider.auth_failed', 'provider.unavailable', 'permission.needs_approval'];
+const steps = [
+  step('google.gmail.list_messages', 'Google · List Gmail messages', 'data', 'capability', {
+    cap: 'google.gmail.list_messages', effects: 'read', errors: accountErrors,
+    in: { ...act, q: t.opt(t.str()), labelIds: t.opt(t.arr(t.str())), maxResults: t.opt(t.int({ minimum: 1, maximum: 500 })), pageToken: t.opt(t.str()) },
+    out: { messages: t.arr(t.obj({ id: t.str(), threadId: t.str() })), resultSizeEstimate: t.opt(t.int()) },
+  }),
+  step('google.gmail.send_message', 'Google · Send a Gmail message', 'send', 'capability', {
+    cap: 'google.gmail.send_message', effects: 'outward', gateAct: 'send', idempotency: 'key', errors: accountErrors,
+    in: { ...act, to: t.arr(email), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), threadId: t.opt(t.str()) },
+    out: { id: t.str(), threadId: t.str() },
+  }),
+  step('google.calendar.list_events', 'Google · List calendar events', 'data', 'capability', {
+    cap: 'google.calendar.list_events', effects: 'read', errors: accountErrors,
+    in: { ...act, calendarId: t.str({ examples: ['primary'] }), timeMin: t.opt(t.str()), timeMax: t.opt(t.str()), q: t.opt(t.str()) },
+    out: { events: t.arr(gcalEvent) },
+  }),
+  step('google.calendar.create_event', 'Google · Create a calendar event', 'send', 'capability', {
+    cap: 'google.calendar.create_event', effects: 'outward', gateAct: 'send', idempotency: 'key', errors: accountErrors,
+    in: { ...act, ...eventWrite },
+    out: { event: gcalEvent },
+  }),
+  step('google.drive.list_files', 'Google · List Drive files', 'data', 'capability', {
+    cap: 'google.drive.list_files', effects: 'read', errors: accountErrors,
+    in: { ...act, q: t.opt(t.str()), parentId: t.opt(t.str()), pageSize: t.opt(t.int({ minimum: 1, maximum: 1000 })) },
+    out: { files: t.arr(driveFile) },
+  }),
+  step('google.drive.create_folder', 'Google · Create a Drive folder', 'data', 'capability', {
+    cap: 'google.drive.create_folder', effects: 'outward', gateAct: 'post', idempotency: 'key', errors: accountErrors,
+    in: { ...act, name: t.str(), parentId: t.opt(t.str()) },
+    out: { file: driveFile },
+  }),
+  step('google.sheets.get_values', 'Google · Read sheet cells', 'data', 'capability', {
+    cap: 'google.sheets.get_values', effects: 'read', errors: accountErrors,
+    in: { ...act, spreadsheetId: t.str(), range: t.str({ examples: ['Sheet1!A1:D50'] }) },
+    out: { values: t.arr(t.arr(t.str())) },
+  }),
+  step('google.sheets.append_values', 'Google · Append sheet rows', 'data', 'capability', {
+    cap: 'google.sheets.append_values', effects: 'outward', gateAct: 'post', idempotency: 'key', errors: accountErrors,
+    in: { ...act, spreadsheetId: t.str(), range: t.str(), values: t.arr(t.arr(t.str())) },
+    out: { updatedRows: t.int() },
+  }),
+  step('google.docs.create_document', 'Google · Create a document', 'data', 'capability', {
+    cap: 'google.docs.create_document', effects: 'outward', gateAct: 'post', idempotency: 'key', errors: accountErrors,
+    in: { ...act, title: t.str(), parentId: t.opt(t.str()) },
+    out: { documentId: t.str(), url: t.str() },
+  }),
+];
+
 export default defineManifest({
   id: 'google',
   title: 'Google Workspace',
@@ -164,6 +214,7 @@ export default defineManifest({
     }),
   ],
   capabilities,
+  steps,
   connectors: [
     conn('google', 'Google Workspace', {
       mode: 'dwd', scope: 'space', auth: { type: 'service_account_dwd', scopes: SCOPES },

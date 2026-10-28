@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CARD_H, CARD_W, GAP_Y, addAfter, addInto, addTrigger, blankStep, check, clampZoom, describeTrigger, duplicateStep, fitScale, joinOf, kindOfKey, layout, moveStep, neighbour, removeStep,
-  removeTrigger, runStates, sortedIssues, subtitleOf, successors, updateStep,
+  removeTrigger, runStates, sortedIssues, subtitleOf, successors, titleOfKey, updateStep,
 } from "./model.ts";
 import type { Definition } from "./model.ts";
 import { LEAD_FOLLOW_UP } from "../sidebar/sample.ts";
@@ -160,6 +160,8 @@ test("card text: the title falls back to the step's name and the second line say
   assert.equal(subtitleOf({ id: "m", key: "send_email", input: { to: ["ada@example.com"], subject: "Hello", message: { version: 2 } } }), "Email ada@example.com: Hello, template v2");
   assert.equal(subtitleOf({ id: "t", key: "send_sms", input: { to: "+1555", body: "Hi" } }), "Text +1555, 1 segment");
   assert.equal(subtitleOf({ id: "c", key: "connector_request", input: { connector: "acme", action: "ping" } }), "acme · ping");
+  assert.equal(titleOfKey("google.gmail.list_messages"), "Google · List Gmail messages");
+  assert.ok(check({ triggers: [{ key: "manual" }], nodes: [{ id: "g", key: "google.gmail.list_messages", input: {} }] }).some((i) => /needs a connection/.test(i.message)));
   assert.ok(check({ triggers: [{ key: "manual" }], nodes: [{ id: "c", key: "connector_request", input: {} }] }).some((i) => /needs a connector/.test(i.message)));
   assert.equal(describeTrigger({ key: "record_change", filter: { where: "Source is Meta" } }), "Only when Source is Meta");
   assert.equal(describeTrigger({ key: "form_submit" }), "Every time");

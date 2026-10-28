@@ -9,7 +9,7 @@
 // the source uses verify 'signature'.
 // DECISION: gate acts follow the Google module: 'send' for anything that notifies people, 'post' for writes to files,
 // 'delete' for deletes, and an explicit { act: 'none', reason } for changes that only touch the member's own data.
-import { conn, defineManifest, ev, health, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
+import { conn, defineManifest, ev, health, outward, read, screen, setting, step, t, write } from '../packages/contracts/src/index.ts';
 import type { CapOpts, Props } from '../packages/contracts/src/index.ts';
 import { email, id, pageIn, pageOut } from './_common.ts';
 
@@ -122,6 +122,41 @@ const capabilities = [
   gw('ms.teams.recordings.subscribe', 'Subscribe to recording and transcript ready notices', { resource: t.str(), notificationUrl: t.str() }, { subscriptionId: t.str(), expiresAt: t.ts() }, { gate: quiet('Registers a change subscription for the Space; nothing is sent to anyone') }),
 ];
 
+// Common operations whose handlers already exist. Word, Excel, and admin consent stay off the catalogue.
+const accountErrors = ['validation.bad_input', 'internal.unexpected', 'provider.auth_failed', 'provider.unavailable', 'permission.needs_approval'];
+const steps = [
+  step('ms.mail.list_messages', 'Microsoft · List Outlook messages', 'data', 'capability', {
+    cap: 'ms.mail.list_messages', effects: 'read', errors: accountErrors,
+    in: { ...act, folderId: t.opt(t.str()), search: t.opt(t.str()), top: t.opt(t.int({ minimum: 1, maximum: 1000 })) },
+    out: { messages: t.arr(graphMessage) },
+  }),
+  step('ms.mail.send_message', 'Microsoft · Send an Outlook message', 'send', 'capability', {
+    cap: 'ms.mail.send_message', effects: 'outward', gateAct: 'send', idempotency: 'key', errors: accountErrors,
+    in: { ...act, to: t.arr(email), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()) },
+    out: { sent: t.bool() },
+  }),
+  step('ms.calendar.list_events', 'Microsoft · List calendar events', 'data', 'capability', {
+    cap: 'ms.calendar.list_events', effects: 'read', errors: accountErrors,
+    in: { ...act, calendarId: t.opt(t.str()), start: t.str(), end: t.str() },
+    out: { events: t.arr(graphEvent) },
+  }),
+  step('ms.calendar.create_event', 'Microsoft · Create a calendar event', 'send', 'capability', {
+    cap: 'ms.calendar.create_event', effects: 'outward', gateAct: 'send', idempotency: 'key', errors: accountErrors,
+    in: { ...act, ...eventWrite },
+    out: { event: graphEvent },
+  }),
+  step('ms.drive.list_items', 'Microsoft · List OneDrive or SharePoint items', 'data', 'capability', {
+    cap: 'ms.drive.list_items', effects: 'read', errors: accountErrors,
+    in: { ...act, driveId: t.opt(t.str()), folderId: t.opt(t.str()) },
+    out: { items: t.arr(driveItem) },
+  }),
+  step('ms.drive.create_folder', 'Microsoft · Create a OneDrive or SharePoint folder', 'data', 'capability', {
+    cap: 'ms.drive.create_folder', effects: 'outward', gateAct: 'post', idempotency: 'key', errors: accountErrors,
+    in: { ...act, driveId: t.opt(t.str()), parentId: t.opt(t.str()), name: t.str() },
+    out: { item: driveItem },
+  }),
+];
+
 export default defineManifest({
   id: 'microsoft',
   title: 'Microsoft 365',
@@ -136,6 +171,7 @@ export default defineManifest({
     }),
   ],
   capabilities,
+  steps,
   connectors: [
     conn('microsoft', 'Microsoft 365', {
       mode: 'oauth_app', scope: 'space',
