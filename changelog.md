@@ -12,6 +12,8 @@
 
 ## Unreleased
 
+- Outside actors: reject canonical Owner through create/update before mutating actor state, strip legacy non-person Owner authority, and preserve provider changes on validation failure. Update obsolete Owner fixtures while retaining agent/provider authorization coverage; use shared rows for actor roles and computer-agent choices.
+
 - Console interactions: separate list keyboard focus from opening objects, restore Audit row context menus, fit standard object frames to phone widths, and regenerate approved Access/Audit contract snapshots. Production browser covers context keys, bulk selection, role diffs and dark/phone layouts.
 
 - Administrative exports: recheck current authority and expiry after awaited blob reads; reauthorize across save waits and remove newly written blobs/metadata when revocation, registration or storage prevents completion.

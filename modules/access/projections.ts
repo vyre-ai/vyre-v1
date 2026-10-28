@@ -290,6 +290,7 @@ export class AccessStore {
       const p = this.principals.get(holder);
       for (const roleId of roles) {
         const role = this.roles.get(roleId);
+        if (isOwnerRole(roleId, role?.name) && p?.kind !== "person") continue;
         if (p?.kind === "agent" && (isElevatedRole(roleId, role?.name) || role?.assignableToAgents === false)) continue;
         snap.addPrincipalRole({ holder, role: roleId });
       }
@@ -336,6 +337,7 @@ export class AccessStore {
       const p = this.principals.get(id);
       if (!p) return;
       const role = this.roles.get(roleId);
+      if (role && isOwnerRole(roleId, role.name) && p.kind !== "person") return;
       if (p.kind === "agent" && role && (isElevatedRole(roleId, role.name) || !role.assignableToAgents)) return;
       seen.add(id);
       out.push({ kind: p.kind, id: p.id });
@@ -358,6 +360,7 @@ export class AccessStore {
       if (rid === skip) continue;
       const role = this.roles.get(rid);
       if (!role) continue;
+      if (isOwnerRole(rid, role.name) && p?.kind !== "person") continue;
       if (p?.kind === "agent" && (isElevatedRole(rid, role.name) || !role.assignableToAgents)) continue;
       for (const k of role.permissions) out.add(k);
     }
