@@ -471,7 +471,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.getByTestId("object-sheet").locator('button[aria-label="Grant expiry"]').click();
         await page.getByTestId("menu-item-In one week").click();
         await page.getByTestId("grant-add").click();await page.getByTestId("grant-save-confirm").click();
-        await page.getByText("Grant updated",{exact:true}).waitFor();
+        await page.getByTestId("grant-object").getByTestId("object-body").getByText("Grant updated",{exact:true}).waitFor();
         const afterEdit=await api("access.grants.list",{resource:{type:"folder",id:project.folderId}}) as typeof grants;
         const expiry=afterEdit.grants.find(row=>row.id===grant.id)!.conditions.expiresAt!;
         assert.ok(expiry>Date.now()+6*86400000);
