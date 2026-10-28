@@ -13,6 +13,8 @@
 - Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads. Removed an unused viewer barrel so every restored production file has executable coverage.
 
 ## Unreleased
+- Welcome uses stable exported markup before showing the device's local greeting, preventing hydration failures after a time-zone change or midnight.
+- Browser release evidence requires the real Forms/Campaigns/Apps surface instead of accepting the retired Sites placeholder or its error state.
 - Console access checks render decision steps with the shared row component and named pass/fail indicators.
 - Web startup: keep optional phone data, Console conversations, Plan views, telephony controls, and rich composers behind their owning lazy place chunks. Places still load required controls before the app marks them usable, while the signed-out first load falls from 1.71 MB to 1.36 MB raw without changing the 1.5-second phone budget.
 - Local session import: converge concurrent confirmations on one immutable source archive instead of failing a unique-key insert after project creation.

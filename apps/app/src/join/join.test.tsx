@@ -127,6 +127,13 @@ test("a fresh connection starts at the one-column Welcome back screen before cre
   assert.doesNotMatch(tagOf(ready, "get-started"), /aria-disabled="true"/);
 });
 
+test("the exported welcome markup stays identical across a local midnight before hydration", (t) => {
+  const hour = t.mock.method(Date.prototype, "getHours", () => 23);
+  const before = html({ stage: "connect" });
+  hour.mock.mockImplementation(() => 0);
+  assert.equal(html({ stage: "connect" }), before);
+});
+
 test("auth-only halftone gives Welcome its full field and keeps forms calm", () => {
   const welcome = html({ stage: "connect" });
   const form = html({ stage: "signin" });

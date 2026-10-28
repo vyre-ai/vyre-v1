@@ -1,4 +1,5 @@
 // The connection screen is deliberately small: a person names a real Space, then the caller verifies it before credentials appear.
+import { useEffect, useState } from "react";
 import { Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { ErrorLine, useJoin } from "./kit.tsx";
 import { FONT } from "./palette.ts";
@@ -15,7 +16,10 @@ export interface WelcomeProps {
 
 export function Welcome({ address, busy, error, onAddressChange, onSignIn, onGetStarted }: WelcomeProps) {
   const valid = !!normalizeSpaceAddress(address);
-  const greeting = welcomeGreeting(new Date().getHours());
+  // Static exports can be opened in another time zone or after midnight. The
+  // first browser render must match the exported markup before using its clock.
+  const [greeting, setGreeting] = useState("Welcome back");
+  useEffect(() => { setGreeting(welcomeGreeting(new Date().getHours())); }, []);
   const { p, phone } = useJoin();
   const disabled = !valid || busy;
   const go = () => { if (!disabled) onSignIn(); };
