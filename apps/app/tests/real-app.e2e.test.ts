@@ -112,9 +112,58 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
     });
 
     await t.test("1 the app opens on sign-in when nobody is signed in", async () => {
+      let releaseOptions!: () => void;
+      let releaseSignIn!: () => void;
+      const optionsGate = new Promise<void>((resolve) => { releaseOptions = resolve; });
+      const signInGate = new Promise<void>((resolve) => { releaseSignIn = resolve; });
+      await page.route("**/v1/identity/sign_in_options", async (route) => { await optionsGate; await route.continue(); });
+      let signInRequests = 0;
+      await page.route("**/v1/identity/sign_in", async (route) => { signInRequests++; await signInGate; await route.continue(); });
+      try {
+        await page.goto(`${web.origin}/home`, { waitUntil: "load" });
+        await page.getByTestId("si-user").waitFor({ timeout: 15_000 });
+        await page.getByTestId("si-user").fill("typing.user");
+        await page.getByTestId("si-password").fill("synthetic typed password");
+        await page.getByTestId("next").click();
+        assert.equal(await page.getByTestId("next").getAttribute("aria-disabled"), "true");
+        releaseOptions();
+        await page.getByRole("heading", { name: "Sign in to Fresh Co", exact: true }).waitFor({ timeout: 15_000 });
+        assert.equal(await page.getByTestId("si-user").inputValue(), "typing.user", "late Space metadata preserves the username");
+        assert.equal(await page.getByTestId("si-password").inputValue(), "synthetic typed password", "late Space metadata preserves the password");
+        assert.equal(await page.getByTestId("next").getAttribute("aria-disabled"), "true", "late metadata does not clear an in-flight submission");
+        await page.getByTestId("step-sign-in").waitFor();
+        await page.getByTestId("si-password").press("Enter");
+        releaseSignIn();
+        await page.getByTestId("join-error").waitFor({ timeout: 15_000 });
+        assert.equal(signInRequests, 1, "Enter cannot duplicate a pending sign-in");
+      } finally {
+        releaseOptions(); releaseSignIn();
+        await page.unroute("**/v1/identity/sign_in_options");
+        await page.unroute("**/v1/identity/sign_in");
+      }
+      // Capture the reference frame only after the synthetic input has been discarded.
       await page.goto(`${web.origin}/home`, { waitUntil: "load" });
       await page.getByTestId("si-user").waitFor({ timeout: 15_000 });
       assert.equal(await page.getByTestId("shell").count(), 0, "no shell before sign-in");
+      await page.getByRole("heading", { name: "Sign in to Fresh Co", exact: true }).waitFor({ timeout: 15_000 });
+      assert.ok((await page.getByTestId("si-user").boundingBox())!.width > 500, "the username field uses the full reading column");
+      const header = await page.getByTestId("auth-form-header").boundingBox();
+      const column = await page.getByTestId("step-sign-in").boundingBox();
+      const primary = await page.getByTestId("next").boundingBox();
+      const surface = await page.getByTestId("join-panel").boundingBox();
+      assert.ok(header && column && primary && surface);
+      assert.ok(header.y < column.y && primary.y > column.y, "reference header and primary surround the reading column");
+      assert.ok(Math.abs(primary.width - column.width) < 2, "the primary fills the reading column");
+      assert.ok(surface.height < 624, "the sign-in form sizes to its content");
+      fs.mkdirSync("shots-evidence/auth-forms", { recursive: true });
+      await page.screenshot({ path: "shots-evidence/auth-forms/signin-light.png" });
+      await page.evaluate(() => document.documentElement.setAttribute("data-mode", "dark"));
+      await page.screenshot({ path: "shots-evidence/auth-forms/signin-dark.png" });
+      await page.setViewportSize({ width: 375, height: 812 });
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "the form fits phone web without sideways scrolling");
+      await page.screenshot({ path: "shots-evidence/auth-forms/signin-phone.png" });
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.evaluate(() => document.documentElement.removeAttribute("data-mode"));
     });
 
     await t.test("2 the owner claims the Space with the one-time link and lands in the shell", async (s) => {

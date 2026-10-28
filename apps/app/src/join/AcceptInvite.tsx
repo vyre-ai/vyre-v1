@@ -3,12 +3,12 @@
 // Steps: welcome with name and photo, the sign-in (username, password, strength), this device (name, trust, recovery code), then ConnectAI.
 // The page is presentational: the stage machine lives in logic.ts and JoinFlow.tsx owns the timers and the calls.
 import { createElement } from "react";
-import { Platform, Pressable, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, Text, View } from "react-native";
 import type { Dispatch, ReactNode } from "react";
 import { Avatar } from "../../../../ui/src/Avatar/index.tsx";
 import { ConnectAI } from "./ConnectAI.tsx";
 import {
-  AppIcon, Bar, Button, Caption, Check, ErrorLine, FieldRow, Foot, Group, AgentFace, Meter, Panel, Progress, Row, Sheet, Step, Switch, TextButton, Title, CheckBox,
+  Bar, Button, Caption, Check, ErrorLine, FieldRow, Foot, Group, AgentFace, Meter, Panel, Progress, Row, Sheet, Step, Switch, TextButton, Title, CheckBox,
   baseText, useJoin,
 } from "./kit.tsx";
 import { MONO } from "./palette.ts";
@@ -39,7 +39,7 @@ function Landing({ invite, onOpenApp, onDownload, dispatch, state }: Pick<Accept
   const { p } = useJoin();
   return (
     <Step id="accept" dir={state.dir}>
-      <AppIcon kind="space" letter={invite.space} />
+
       <Title title={`Join ${invite.space}`} sub={`${invite.by} invited you to join as a ${invite.role}.`} />
       <Group>
         <Row kind="action" testID="open-app" label="Open in Vyre" note="Installed" onPress={() => { onOpenApp?.(); dispatch({ t: "web" }); }} />
@@ -59,7 +59,7 @@ function Expired({ invite, onEmail }: Pick<AcceptInviteProps, "invite" | "onEmai
   const first = invite.by.split(" ")[0] ?? invite.by;
   return (
     <Step id="expired">
-      <AppIcon kind="clock" />
+
       <Title title="This invite has expired" sub={`Ask ${invite.by} for a new one.`} />
       <View style={{ alignItems: "center", marginTop: 24 }}>
         <Button large testID="email-inviter" label={`Email ${first}`} onPress={() => invite.email && onEmail?.(invite.email)} />
@@ -95,7 +95,7 @@ function Welcome({ invite, state, dispatch, onPickPhoto, rules }: Pick<AcceptInv
   void rules;
   return (
     <Step id="welcome" dir={state.dir}>
-      <AppIcon kind="space" letter={invite.space} />
+
       <Title title={`Welcome to ${invite.space}`} sub={`${invite.by} invited you to join.`} />
       <Photo state={state} onPick={onPickPhoto} />
       <Group>
@@ -133,26 +133,12 @@ function FolderTile() {
   return <View accessible={false} style={{ width: 24, height: 24, borderRadius: 8, backgroundColor: "#8E8E93", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: p.grp }}><View style={{ width: 11, height: 8, borderRadius: 2, borderWidth: 1.5, borderColor: "#fff" }} /></View>;
 }
 
-function Username({ state, invite, ok, onChange, onSubmit }: { state: FlowState; invite: JoinInvite; ok: boolean; onChange: (v: string) => void; onSubmit: () => void }) {
+function Username({ state, ok, onChange, onSubmit }: { state: FlowState; ok: boolean; onChange: (v: string) => void; onSubmit: () => void }) {
   const { p } = useJoin();
-  const width = Math.max(24, Math.min(190, state.user.length * 8.6 + 6));
-  return (
-    <Row label="Username" divider={false}>
-      <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
-        <Text style={[baseText(p), { color: p.tx2 }]}>@</Text>
-        <TextInput
-          testID="username" accessibilityLabel="Username" value={state.user} onChangeText={(v) => onChange(cleanUsername(v))} placeholder="name" placeholderTextColor={p.tx2}
-          autoCapitalize="none" autoCorrect={false} spellCheck={false} onSubmitEditing={onSubmit}
-          style={[baseText(p), { width, padding: 0, color: p.tx, height: "100%" as unknown as number, outlineStyle: "none" } as object]}
-        />
-        <Text style={[baseText(p), { color: p.tx2 }]}>{`.${invite.host}`}</Text>
-        {ok ? <View testID="username-ok" style={{ marginLeft: 8 }}><Check color={p.green} /></View> : null}
-      </View>
-    </Row>
-  );
+  return <FieldRow testID="username" label="Username" value={state.user} onChange={(value) => onChange(cleanUsername(value))} placeholder="Your username" autoComplete="username" onSubmit={onSubmit} stacked trailing={ok ? <View testID="username-ok"><Check color={p.green} /></View> : null} />;
 }
 
-function SignInStep({ invite, state, dispatch, rules }: Pick<AcceptInviteProps, "invite" | "state" | "dispatch" | "rules">) {
+function SignInStep({ state, dispatch, rules }: Pick<AcceptInviteProps, "invite" | "state" | "dispatch" | "rules">) {
   const { p } = useJoin();
   const set = (patch: Partial<FlowState>) => dispatch({ t: "set", patch });
   const next = () => dispatch({ t: "next" });
@@ -165,12 +151,12 @@ function SignInStep({ invite, state, dispatch, rules }: Pick<AcceptInviteProps, 
   for (const x of sugg) tries.push(<TextButton key={x} small label={x} testID={`suggest-${x}`} onPress={() => set({ user: x })} />);
   return (
     <Step id="signin-details" dir={state.dir}>
-      <AppIcon kind="person" />
+
       <Title title="Your sign-in" sub="Your space, your username and your password. That is all it takes, on any device." />
       <Group>
-        <Username state={state} invite={invite} ok={ok} onChange={(v) => set({ user: v })} onSubmit={next} />
-        <FieldRow testID="password" label="Password" value={state.pw} onChange={(v) => set({ pw: v })} placeholder="Required" secure revealable visibilityTestID="password-visibility" autoComplete="new-password" onSubmit={next} />
-        <FieldRow testID="confirm" label="Confirm" value={state.pw2} onChange={(v) => set({ pw2: v })} placeholder="Required" secure revealable visibilityTestID="confirm-visibility" autoComplete="new-password" onSubmit={next} />
+        <Username state={state} ok={ok} onChange={(v) => set({ user: v })} onSubmit={next} />
+        <FieldRow testID="password" label="Password" value={state.pw} onChange={(v) => set({ pw: v })} placeholder="Required" secure revealable visibilityTestID="password-visibility" autoComplete="new-password" onSubmit={next} stacked />
+        <FieldRow testID="confirm" label="Confirm" value={state.pw2} onChange={(v) => set({ pw2: v })} placeholder="Required" secure revealable visibilityTestID="confirm-visibility" autoComplete="new-password" onSubmit={next} stacked />
       </Group>
       {u && !ok ? <ErrorLine testID="username-error">{taken ? sugg.length ? `@${u} is taken. Try one of the suggestions below.` : `@${u} is taken. Choose a different username.` : "Use 3 to 24 letters or digits, starting with a letter."}</ErrorLine> : mism ? <ErrorLine testID="mismatch">Make both passwords match to continue.</ErrorLine> : null}
       {sugg.length ? (
@@ -180,7 +166,7 @@ function SignInStep({ invite, state, dispatch, rules }: Pick<AcceptInviteProps, 
         </View>
       ) : null}
       <Meter level={meter(strength(state.pw))} />
-      <Foot>Vyre never sees your password. Keep your recovery code somewhere safe. You need it to recover your private items after a password reset.</Foot>
+      <Foot>Your password protects your private keys. Keep your recovery code safe, and use a signed-in device to change your password.</Foot>
     </Step>
   );
 }
@@ -190,7 +176,7 @@ function DeviceStep({ state, dispatch, newCode }: Pick<AcceptInviteProps, "state
   const set = (patch: Partial<FlowState>) => dispatch({ t: "set", patch });
   return (
     <Step id="device" dir={state.dir}>
-      <AppIcon kind="laptop" />
+
       <Title title="Set up this device" />
       <Group>
         <FieldRow testID="device" label="Device name" value={state.device} onChange={(v) => set({ device: v })} onSubmit={() => dispatch({ t: "next" })} />
@@ -237,7 +223,7 @@ function RunStep({ invite, state }: Pick<AcceptInviteProps, "invite" | "state">)
   const n = done ? steps.length : state.run;
   return (
     <Step id={done ? "done" : "run"}>
-      <AppIcon kind="space" letter={invite.space} />
+
       <Title title={done ? "You're all set" : `Setting up ${invite.space}`} sub={done ? `Welcome, ${state.first.trim()}.${state.ai === "none" ? " Your assistant is locked until you connect an AI account." : ""}` : undefined} />
       {done ? null : (
         <>

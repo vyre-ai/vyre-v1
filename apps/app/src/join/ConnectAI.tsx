@@ -1,7 +1,7 @@
 // join/ConnectAI: the last account step (spec 3.13, 4.14). The assistant needs an AI account to answer. Three ways in, or not now.
 // The person's own subscription, their own key (kept in the vault, never shown again), or the key an admin shares with the Space.
 import { Text, View } from "react-native";
-import { Foot, Group, FieldRow, Row, AppIcon, Title, baseText, useJoin, ErrorLine } from "./kit.tsx";
+import { Foot, Group, FieldRow, Row, Title, baseText, useJoin, ErrorLine } from "./kit.tsx";
 import type { AiChoice, JoinInvite } from "./logic.ts";
 
 export interface ConnectAIProps {
@@ -36,7 +36,7 @@ export function ConnectAI({ invite, ai, apiKey, error, onPick, onKey, providerKe
   const { p } = useJoin();
   return (
     <View>
-      <AppIcon kind="ai" />
+
       <Title title="Connect an AI account" sub="Your assistant needs an account to answer. You can change this in Settings." />
       {error ? <ErrorLine testID="join-error">{error}</ErrorLine> : null}
       <Group testID="ai-options">

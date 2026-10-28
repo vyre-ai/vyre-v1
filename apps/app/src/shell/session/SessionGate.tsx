@@ -10,7 +10,7 @@ import { JoinFlow } from "../../join/JoinFlow.tsx";
 import type { JoinValues } from "../../join/JoinFlow.tsx";
 import { normalizeSpaceAddress } from "../../join/logic.ts";
 import type { JoinInvite } from "../../join/logic.ts";
-import { AppIcon, Button, Foot, Panel, Step, Title } from "../../join/kit.tsx";
+import { Button, Foot, Panel, Step, Title } from "../../join/kit.tsx";
 import { JoinFrame } from "../../join/kit.tsx";
 import { Welcome } from "../../join/Welcome.tsx";
 import { mark } from "../../startup/marks.ts";
@@ -58,13 +58,17 @@ export function signInInvite(baseUrl: string, options: SignInOptions | null): Jo
 function SignInScreen({ baseUrl, open, onSignedIn, notice }: { baseUrl: string; open: NonNullable<SessionGateProps["open"]>; onSignedIn: (s: StoredSession) => void; notice?: boolean }): ReactElement {
   useEffect(() => { mark("app.usable"); }, []);
   const anonymous = useMemo(() => createCapCaller({ baseUrl, token: () => null }), [baseUrl]);
-  const [options, setOptions] = useState<SignInOptions | null>(null);
+  const currentAddress = useRef<string | null>(baseUrl);
+  currentAddress.current = baseUrl;
+  useEffect(() => { currentAddress.current = baseUrl; return () => { currentAddress.current = null; }; }, [baseUrl]);
+  const [discovery, setDiscovery] = useState<{ address: string; options: SignInOptions } | null>(null);
+  const options = discovery?.address === baseUrl ? discovery.options : null;
   const [recoveryHelp, setRecoveryHelp] = useState(false);
   useEffect(() => {
     let active = true;
-    void (anonymous("identity.sign_in_options", {}) as Promise<SignInOptions>).then((found) => { if (active) setOptions(found); }).catch(() => undefined);
+    void (anonymous("identity.sign_in_options", {}) as Promise<SignInOptions>).then((found) => { if (active) setDiscovery({ address: baseUrl, options: found }); }).catch(() => undefined);
     return () => { active = false; };
-  }, [anonymous]);
+  }, [anonymous, baseUrl]);
   const invite = useMemo(() => signInInvite(baseUrl, options), [baseUrl, options]);
   const signIn = useCallback(async (v: { username: string; password: string; code?: string }): Promise<"ok" | "second_factor_required"> => {
     let token: string | null = null;
@@ -88,12 +92,13 @@ function SignInScreen({ baseUrl, open, onSignedIn, notice }: { baseUrl: string; 
       },
       afterVerified: async (stored) => { if (keys) await unlockOwnKey(baseUrl, stored.token, v.password, keys); },
     });
+    if (currentAddress.current !== baseUrl) throw new Error("The Space address changed. Sign in again.");
     if (result.status === "second_factor_required") return result.status;
     onSignedIn(result.stored);
     return "ok";
   }, [anonymous, baseUrl, onSignedIn, open, options]);
-  if (recoveryHelp) return <JoinFrame halftoneIntensity="calm"><Panel center><Step id="recovery-help"><AppIcon kind="lock" /><Title title="Recover your account" sub="Use a device where you’re still signed in." /><Foot>Open Settings, Sign-in and devices, then change your password. That keeps your private keys and data.</Foot><Foot>If you have no signed-in device, contact the Space owner before resetting your account. This version cannot restore from a recovery code alone, and an account reset can lose private data.</Foot><Button label="Back to sign in" testID="recovery-back" onPress={() => setRecoveryHelp(false)} /></Step></Panel></JoinFrame>;
-  return <JoinFlow invite={invite} initial={{ stage: "signin", ...(notice ? { error: SIGNED_OUT_LINE } : {}) }} onSignIn={signIn} onRecoveryCode={() => setRecoveryHelp(true)} />;
+  if (recoveryHelp) return <JoinFrame halftoneIntensity="calm"><Panel center><Step id="recovery-help"><Title title="Recover your account" sub="Use a device where you’re still signed in." /><Foot>Open Settings, Sign-in and devices, then change your password. That keeps your private keys and data.</Foot><Foot>If you have no signed-in device, contact the Space owner before resetting your account. This version cannot restore from a recovery code alone, and an account reset can lose private data.</Foot><Button label="Back to sign in" testID="recovery-back" onPress={() => setRecoveryHelp(false)} /></Step></Panel></JoinFrame>;
+  return <JoinFlow key={baseUrl} invite={invite} initial={{ stage: "signin", ...(notice ? { error: SIGNED_OUT_LINE } : {}) }} onSignIn={signIn} onRecoveryCode={() => setRecoveryHelp(true)} />;
 }
 
 export function ConnectSpaceWelcome({ onConnect }: { onConnect: (address: string) => void }): ReactElement {
