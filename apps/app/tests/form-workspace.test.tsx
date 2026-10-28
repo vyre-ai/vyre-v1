@@ -13,3 +13,25 @@ test("desktop form workspace keeps Build Code Preview, compact rail and sandboxe
  const html=renderToStaticMarkup(<FormWorkspace title="Client intake" back={()=>undefined} fields={[]} modes={[]} consent="" css="" onCss={()=>undefined} rail={<span>Fields of Clients</span>}><span>Save</span></FormWorkspace>);
  assert.ok(html.includes('Fields of Clients')); assert.ok(html.includes('>Build<')); assert.ok(html.includes('>Code<')); assert.ok(html.includes('>Preview<')); assert.ok(html.includes('sandbox=""')); assert.ok(html.includes('referrerPolicy="no-referrer"'));
 });
+test("typed preview uses options, relation labels, readonly Show, step grouping and theme without executable CSS", () => {
+ const html=formPreviewHtml('Typed preview',[
+  {key:'stage',title:'Stage',type:'status',options:{stages:[{key:'new',title:'New lead'},{key:'done',title:'Done'}]}},
+  {key:'client',title:'Client',type:'relation'}, {key:'active',title:'Active',type:'boolean'}, {key:'when',title:'Date',type:'date'}, {key:'later',title:'Later',type:'text'}
+ ],[{field:'stage',mode:'ask',step:0},{field:'client',mode:'ask',step:0},{field:'active',mode:'ask',step:0},{field:'when',mode:'show',step:0},{field:'later',mode:'ask',step:1}], '', '', {step:0,theme:{accent:'#123456',font:'url(https://evil.test)',background:'#eeeeee',radius:'16px'},relations:{client:[{key:'r1',title:'Acme <Ltd>'}]},answers:{stage:'new',client:'r1',active:true,when:'2026-10-28'}});
+ assert.ok(html.includes('New lead')); assert.ok(html.includes('Acme &lt;Ltd&gt;'));assert.ok(html.includes(' checked'));assert.ok(html.includes('2026-10-28'));assert.ok(!html.includes('>Later<'));assert.ok(html.includes('--fa:#123456'));assert.ok(!html.includes('url(https://evil.test)'));
+});
+test("logic preview follows documented public submission rules and preserves combined rule data", async () => {
+ const {previewLogic,updateRules}=await import('../src/places/apps/shell/form-design.ts');
+ const logic={version:1,rules:[{when:{field:'choice',op:'eq',value:'yes'},show:['details'],require:['details']},{when:{all:[{field:'count',op:'gte',value:3},{not:{field:'choice',op:'empty'}}]},hide:['other']}]};
+ for(const [answers,hidden,required] of [[{},['details'],[]],[{choice:'yes'},[],['details']],[{choice:'no',count:4},['details','other'],[]],[{choice:'yes',count:4,details:'ok'},['other'],['details']]] as const){
+  const state=previewLogic(logic,answers);assert.deepEqual([...state.hidden].sort(),[...hidden].sort());assert.deepEqual([...state.required].sort(),[...required].sort());
+ }
+ assert.deepEqual(updateRules(logic,logic.rules),logic);
+ const html=formPreviewHtml('Conditional',[{key:'choice',title:'Choice',type:'text'},{key:'details',title:'Details',type:'text'}],[{field:'choice',mode:'ask'},{field:'details',mode:'ask'}],'','',{logic,answers:{choice:'no'}});
+ assert.ok(!html.includes('>Details<'));
+});
+test("preview orders questions by form layout and preserves individual pages", () => {
+ const fields=[{key:'first',title:'First question',type:'text'},{key:'last',title:'Last question',type:'text'}],modes=[{field:'last',mode:'ask',step:1},{field:'first',mode:'ask',step:0}];
+ const html=formPreviewHtml('Order',fields,modes,'',''); assert.ok(html.indexOf('>Last question<')<html.indexOf('>First question<'));
+ const page=formPreviewHtml('Order',fields,modes,'','',{step:1});assert.ok(page.includes('>Last question<'));assert.ok(!page.includes('>First question<'));
+});

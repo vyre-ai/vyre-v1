@@ -84,3 +84,4 @@
 - Apps on phone web: add Apps under You and retain its create/detail route through the phone navigation history, so opening a form or campaign mounts its real editor at phone width.
 
 - Apps Form editor: retain the desktop Apps sidebar, show compact field modes beside a live sandboxed canvas, and adapt Build/Code/Preview to phone width with one header. Persist custom CSS through the form read/write contract and open Ask with the actual assistant and form context.
+- Apps Forms: add schema-aware preview controls and authenticated relation choices, theme/font/cover controls, conditional show/hide/require editing, local preview answers, question ordering and page preview. Preserve existing combined rules and theme keys; document the published renderer's remaining schema-widget gap against the v1 spec.
