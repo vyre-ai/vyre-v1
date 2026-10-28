@@ -220,3 +220,10 @@ test("an agent acting for the owner may use a Mine item, an agent acting for som
   assert.equal(await refusedWith(u.use(h.ctx, { item: "Maya Claude" })), "validation.not_found", "a person acting for someone gets no change");
   h.cleanup();
 });
+
+test('a use grant revoked during asynchronous field opening cannot reach a fill sink',async()=>{
+ const h=harness();const got=sinks();const id=await put(h,await folder(h),'Revocation fixture');h.grant(ROB,id,'use');h.actAs('person',ROB);
+ const filling=u.fill(h.ctx,{handle:'#Revocation_fixture.api_key',target:{kind:'env',ref:'fixture-revocation'}});
+ h.ctx.authorize=()=>({effect:'deny',reason:'revoked',decisionId:'dec_fixture'});
+ assert.equal(await refusedWith(filling),'permission.no_grant');assert.equal(got.length,0);u.configureVault(null);h.cleanup();
+});

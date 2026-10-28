@@ -26,7 +26,7 @@ const EXPIRIES: readonly Expiry[] = ["1h", "1d", "7d"];
 // ---- the host's places (sinks)
 
 /** What a sink receives: the value, where it goes (the caller's own reference: a process, a header, a field) and which handle it came from. A sink must not log or keep the value. */
-export interface FillSink { (f: { value: string; ref: string; handle: string; field: string; itemId: string }): Promise<void> | void }
+export interface FillSink { (f: { value: string; ref: string; handle: string; field: string; itemId: string }, execution?: { space:string; principal:{kind:string;id:string}; actingFor?:string; traceId:string; parentSpanId?:string; depth:number }): Promise<void> | void }
 /** What the host's seams (connectors, sources, import) read: a Shared item's value by handle, for one call, and RS256 signing with a key that never leaves the vault. */
 export interface SecretPort {
   secret(handle: string, space: string): Promise<string>;
@@ -166,7 +166,8 @@ export async function fill(ctx: VaultCtx, input: { handle: string; target: { kin
   if (input.returnValue === true && (ctx.principal.kind === "agent" || !(owner || atLeast(level, "view")))) return denied(ctx, "Only a person at View level can have the value back. Agents use values by handle.");
   const sink = host?.sinks[kind];
   if (!sink && input.returnValue !== true) throw fail("internal.unavailable", ctx.trace.traceId, { message: `This server has no place to fill ${kind} yet.` });
-  if (sink) await sink({ value: f.value, ref, handle: str(r, "handle"), field: f.key, itemId: str(r, "id") });
+  reachable(ctx, str(r, "id"), "use"); // recheck after asynchronous Mine-key decryption
+  if (sink) await sink({ value: f.value, ref, handle: str(r, "handle"), field: f.key, itemId: str(r, "id") }, { space:ctx.space, principal:ctx.principal, ...(ctx.actingFor?{actingFor:ctx.actingFor}:{}), traceId:ctx.trace.traceId, ...(ctx.trace.parent?{parentSpanId:ctx.trace.parent}:{}), depth:ctx.depth??0 });
   touch(ctx, r, { field: f.key });
   return { filled: sink !== undefined, field: f.key, where: viaOf(r), ...(input.returnValue === true ? { value: f.value } : {}) };
 }

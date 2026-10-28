@@ -313,3 +313,9 @@ test("the harness refuses a definition that breaks the rules before any call", a
   assert.match(bad(await result({ ...OAUTHAPP, tests: [], auth: { ...OAUTHAPP.auth, tokenUrl: "https://evil.example.com/t" } }), /auth/), /evil\.example\.com/);
   assert.match(bad(await result({ ...OAUTHAPP, tests: [], auth: { ...OAUTHAPP.auth, tokenUrl: undefined } }), /auth/), /missing/);
 });
+
+test('another person cannot consume a personal OAuth state or exchange its code',async()=>{
+ const k=kit();k.install(OAUTHAPP);const made=await k.hs['connections.create'](k.ctx,{connector:'oauthapp',title:'Fixture OAuth',ownerKind:'person'});const state=new URL(made.authUrl!).searchParams.get('state')!;const actor=k.ctx.actor??'usr_dana';k.ctx.actor='usr_unrelated';
+ await assert.rejects(k.hs['connections.complete_auth'](k.ctx,{state,code:'fixture-code'}),code('permission.no_grant'));assert.equal(k.sent.length,0);assert.ok(k.tx.get('SELECT state FROM cn_oauth WHERE state = ?',state));k.ctx.actor=actor;
+ k.state.reply=()=>({status:200,body:{access_token:'fixture-token'}});assert.equal((await k.hs['connections.complete_auth'](k.ctx,{state,code:'fixture-code'})).connectionId,made.connection.connectionId);
+});
