@@ -5,6 +5,8 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AskVyre } from "../ask/AskVyre.tsx";
 import { CONFIG, useAutomationsData, useScreenQuery } from "../canvas/data.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { CONNECT_LIMIT, connectorLine, shownConnectors } from "../connect/trust-view.ts";
+import type { ConnectorSource, ShownConnector } from "../connect/trust-view.ts";
 import { countRuns, dependenciesFrom, eventRows, exportChoices, packageRows } from "./read.ts";
 import type { NamedRow } from "./read.ts";
 import type { DependencyNode } from "./read.ts";
@@ -250,7 +252,32 @@ export function Dependencies(): ReactElement {
       {note ? <Text style={v.err}>{note}</Text> : null}
       {state.phase === "ready" && state.value.length === 0 ? <Text style={v.dim}>{EMPTY_DEPENDENCIES}</Text> : null}
       {state.phase === "ready" ? state.value.map((row) => <Text key={row.id} style={v.row}>{row.line}</Text>) : null}
+      <ConnectorTrust />
     </Frame>
+  );
+}
+
+function ConnectorTrust(): ReactElement {
+  const data = useAutomationsData();
+  const [rows, setRows] = useState<ShownConnector[] | "loading" | "unavailable">("loading");
+  useEffect(() => {
+    let live = true;
+    void data.call("connectors.list", { limit: 50 }).then((out) => {
+      if (!live) return;
+      const list = out && typeof out === "object" && Array.isArray((out as { connectors?: unknown }).connectors)
+        ? (out as { connectors: ConnectorSource[] }).connectors
+        : [];
+      setRows(shownConnectors(list, "author"));
+    }).catch(() => { if (live) setRows("unavailable"); });
+    return () => { live = false; };
+  }, [data]);
+  if (rows === "loading") return null;
+  if (rows === "unavailable") return <Text style={v.dim}>Connector list is not available from this sign-in.</Text>;
+  return (
+    <View>
+      <Text style={v.dim}>{CONNECT_LIMIT}</Text>
+      {rows.map((row) => <Text key={row.key} style={v.row}>{connectorLine(row)}</Text>)}
+    </View>
   );
 }
 

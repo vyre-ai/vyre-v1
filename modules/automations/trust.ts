@@ -38,3 +38,14 @@ export function visibleInPalette(level: TrustLevel, audience: "author" | "space"
 
 export const CONNECT_LIMIT =
   "Vyre can draft a connector from official API documentation when the docs describe authentication, scopes, and requests. It cannot connect an arbitrary website. Providers differ, and some do not offer an API.";
+
+const SECRET_KEY = /(secret|password|authorization|cookie|token|api[-_]?key|credential)/i;
+const SECRET_VALUE = /^(bearer\s+|sk-|key_)/i;
+
+/** A step document must not carry a secret. The connection holds that. */
+export function containsSecret(value: unknown): boolean {
+  if (typeof value === "string") return SECRET_VALUE.test(value.trim());
+  if (!value || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some((item) => containsSecret(item));
+  return Object.entries(value as Record<string, unknown>).some(([key, item]) => SECRET_KEY.test(key) || containsSecret(item));
+}

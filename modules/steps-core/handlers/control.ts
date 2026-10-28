@@ -397,6 +397,14 @@ interface Adapter {
 }
 const people = (v: unknown): { address: string }[] => (Array.isArray(v) ? v : v === undefined ? [] : [v]).map((a) => ({ address: String(a) }));
 const looksHtml = (s: string): boolean => /^\s*</.test(s);
+const SECRET_KEY = /(secret|password|authorization|cookie|token|api[-_]?key|credential)/i;
+const SECRET_VALUE = /^(bearer\s+|sk-|key_)/i;
+const holdsSecret = (value: unknown): boolean => {
+  if (typeof value === "string") return SECRET_VALUE.test(value.trim());
+  if (!value || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some((item) => holdsSecret(item));
+  return Object.entries(value as Record<string, unknown>).some(([key, item]) => SECRET_KEY.test(key) || holdsSecret(item));
+};
 
 const ADAPTERS: Record<string, Adapter> = {
   "records.create": { cap: "records.create", output: (o) => ({ recordId: o?.record?.id ?? o?.recordId }) },
@@ -423,6 +431,20 @@ const ADAPTERS: Record<string, Adapter> = {
       };
     },
     output: (o) => ({ messageId: o?.messageId ?? o?.draftId, ...(o?.threadId ? { threadId: o.threadId } : {}) }),
+  },
+  connector_request: {
+    cap: "connectors.run",
+    input: (i) => {
+      const connector = typeof i.connector === "string" ? i.connector : "";
+      const action = typeof i.action === "string" ? i.action : "";
+      const connectionId = typeof i.connectionId === "string" ? i.connectionId : "";
+      if (!connector || !action) throw stepError("validation.bad_input", "Name the connector and the action.", false);
+      if (!connectionId) throw stepError("validation.precondition_failed", "An authenticated request needs a connection. The step does not take a secret.", false);
+      if (holdsSecret(i.input)) throw stepError("validation.bad_input", "An authenticated request cannot hold a secret. Use the connection.", false);
+      const body = i.input && typeof i.input === "object" && !Array.isArray(i.input) ? i.input as Record<string, unknown> : {};
+      return { key: connector, action, connectionId, input: body, ...(i.dryRun === true ? { dryRun: true } : {}) };
+    },
+    output: (o) => ({ output: o?.output ?? null, dryRun: o?.dryRun === true }),
   },
   send_sms: {
     cap: "telephony.send_sms",

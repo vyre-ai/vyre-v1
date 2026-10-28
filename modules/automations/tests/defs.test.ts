@@ -36,6 +36,14 @@ test("missing inputs are named per step", async () => {
   assert.ok(r.issues.some((i) => i.nodeId === "b" && i.severity === "warning"), "b is not reached from a");
 });
 
+test("an authenticated request needs a connection and cannot store a secret", async () => {
+  const h = harness();
+  const secret = await validate(h, { triggers: trig, nodes: [node("r", "connector_request", { connector: "acme", action: "ping", connectionId: "con_1", input: { apiKey: "sk-live" } })] });
+  assert.ok(secret.issues.some((i) => /cannot hold a secret/.test(i.message)));
+  const missing = await validate(h, { triggers: trig, nodes: [node("r", "connector_request", { connector: "acme", action: "ping" })] });
+  assert.ok(missing.issues.some((i) => /needs a connection/.test(i.message)));
+});
+
 test("steps and triggers that are not in the catalogue are errors", async () => {
   const h = harness();
   const r = await validate(h, { triggers: [{ key: "teleport" }], nodes: [node("a", "do_magic", {})] });

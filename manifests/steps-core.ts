@@ -165,6 +165,18 @@ export default defineManifest({
       in: { fileId: id.file, signers: t.arr(t.obj({ name: t.str(), email: tpl('Signer email'), order: t.opt(t.int({ minimum: 1 })) }), { minItems: 1 }), recordId: t.opt(id.record), message: t.opt(tpl('Note to signers')) },
       out: { envelopeId: t.str(), taskId: t.opt(id.task) },
     }),
+    step('connector_request', 'Authenticated request', 'data', 'capability', {
+      cap: 'connectors.run', effects: 'outward', gateAct: 'send', idempotency: 'key',
+      errors: ['validation.bad_input', 'validation.precondition_failed', 'internal.unexpected', 'provider.unavailable', 'provider.auth_failed', 'permission.needs_approval'],
+      in: {
+        connector: t.str({ description: 'Connector key', examples: ['stripe'] }),
+        action: t.str({ description: 'Action name from that connector', examples: ['ping'] }),
+        connectionId: t.opt(id.connection),
+        input: t.opt(t.rec()),
+        dryRun: t.opt(t.bool()),
+      },
+      out: { output: t.json(), dryRun: t.bool() },
+    }),
     // code
     step('code', 'Run code', 'code', 'code', {
       effects: 'read', retry: { max: 1, backoff: 'none', baseMs: 0 }, errors: ['validation.bad_input', 'internal.unexpected', 'timeout.deadline'],

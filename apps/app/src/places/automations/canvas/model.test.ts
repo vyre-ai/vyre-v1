@@ -159,6 +159,8 @@ test("card text: the title falls back to the step's name and the second line say
   assert.equal(subtitleOf({ id: "s", key: "ai", input: {} }), "Pick a key for this step");
   assert.equal(subtitleOf({ id: "m", key: "send_email", input: { to: ["ada@example.com"], subject: "Hello", message: { version: 2 } } }), "Email ada@example.com: Hello, template v2");
   assert.equal(subtitleOf({ id: "t", key: "send_sms", input: { to: "+1555", body: "Hi" } }), "Text +1555, 1 segment");
+  assert.equal(subtitleOf({ id: "c", key: "connector_request", input: { connector: "acme", action: "ping" } }), "acme · ping");
+  assert.ok(check({ triggers: [{ key: "manual" }], nodes: [{ id: "c", key: "connector_request", input: {} }] }).some((i) => /needs a connector/.test(i.message)));
   assert.equal(describeTrigger({ key: "record_change", filter: { where: "Source is Meta" } }), "Only when Source is Meta");
   assert.equal(describeTrigger({ key: "form_submit" }), "Every time");
 });

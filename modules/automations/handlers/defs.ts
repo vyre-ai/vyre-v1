@@ -12,6 +12,7 @@ import {
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
 import { admit, contractOf } from "../val.ts";
+import { containsSecret } from "../trust.ts";
 import type { Alerts, AutoCtx, Automation, Definition, Grant, Node, Policy } from "../projections.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -66,6 +67,10 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
     for (const k of requiredOf(s.input)) if (!present(have[k])) out.push(issue("error", `${s.title} needs ${k}.`, n.id));
     if (n.key === "send_email" && !present(have["mailboxId"])) out.push(issue("error", "Send an email needs a mailbox.", n.id));
     if (n.key === "send_sms" && !present(have["numberId"])) out.push(issue("error", "Send a text needs a number.", n.id));
+    if (n.key === "connector_request" && !present(have["connector"])) out.push(issue("error", "An authenticated request needs a connector.", n.id));
+    if (n.key === "connector_request" && !present(have["action"])) out.push(issue("error", "An authenticated request needs an action.", n.id));
+    if (n.key === "connector_request" && !present(have["connectionId"])) out.push(issue("error", "An authenticated request needs a connection.", n.id));
+    if (n.key === "connector_request" && containsSecret(have["input"])) out.push(issue("error", "An authenticated request cannot hold a secret. Use the connection.", n.id));
     if (s.kind === "ai" && !n.ai?.agentId && !n.ai?.keyId && !present(have.agentId) && !present(have.keyId)) out.push(issue("error", `${s.title} needs an agent or a key.`, n.id));
     if (n.onError?.mode === "route" && !n.onError.route) out.push(issue("error", "On error: route needs a step to go to.", n.id));
   }

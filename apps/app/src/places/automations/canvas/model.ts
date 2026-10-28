@@ -44,6 +44,7 @@ export const STEP_PALETTE: readonly { key: string; title: string; group: string;
   { key: "sheet.find_rows", title: "Find rows", group: "Spreadsheets", icon: "search" },
   { key: "sheet.update_rows", title: "Update rows", group: "Spreadsheets", icon: "edit" },
   { key: "sign", title: "Send for signature", group: "Documents", icon: "sign" },
+  { key: "connector_request", title: "Authenticated request", group: "Data", icon: "hook" },
   { key: "code", title: "Run code", group: "Advanced", icon: "code" },
 ];
 
@@ -189,6 +190,12 @@ export function subtitleOf(n: DefNode, names: { key?: (id: string) => string } =
   if (k === "stop") return str(inp["message"]) || (inp["outcome"] === "failed" ? "The run ends as failed" : "The run ends here");
   if (k === "approval") return `${str(inp["summary"]) || "Waits for a yes"}${inp["timeout"] ? `, up to ${str(inp["timeout"])}` : ""}`;
   if (k === "wait") return str(inp["note"]) || (inp["event"] ? "Waits for an event" : inp["forDuration"] ? `Waits ${str(inp["forDuration"])}` : inp["until"] ? `Waits until ${str(inp["until"])}` : "Waits");
+  if (n.key === "connector_request") {
+    const connector = str(inp["connector"]);
+    const action = str(inp["action"]);
+    if (!connector && !action) return "Name a connector action. The step does not take a secret.";
+    return `${connector || "Connector"} · ${action || "choose an action"}`;
+  }
   if (k === "ai") {
     const key = n.ai?.keyId ? (names.key?.(n.ai.keyId) ?? n.ai.keyId) : "";
     const back = n.ai?.backupKeyId ? (names.key?.(n.ai.backupKeyId) ?? n.ai.backupKeyId) : "";
@@ -415,6 +422,7 @@ const REQUIRED: Readonly<Record<string, readonly { field: string; label: string 
   "records.update": [{ field: "recordId", label: "which record" }],
   send_email: [{ field: "to", label: "who to send to" }, { field: "mailboxId", label: "a mailbox" }],
   send_sms: [{ field: "to", label: "who to text" }, { field: "numberId", label: "a number" }],
+  connector_request: [{ field: "connector", label: "a connector" }, { field: "action", label: "an action" }, { field: "connectionId", label: "a connection" }],
   post_message: [{ field: "channelId", label: "where to post" }],
   create_task: [{ field: "title", label: "a title" }],
   loop: [{ field: "items", label: "the list to go through" }],

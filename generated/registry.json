@@ -197763,6 +197763,7 @@
       "owner": "L6",
       "requires": [
         "chat",
+        "connectors",
         "esign",
         "files",
         "journeys",
@@ -213394,6 +213395,87 @@
         ]
       },
       "title": "Collect"
+    },
+    {
+      "cap": "connectors.run",
+      "category": "data",
+      "editor": "ui:StepConnectorRequest",
+      "effects": "outward",
+      "errors": [
+        "validation.bad_input",
+        "validation.precondition_failed",
+        "internal.unexpected",
+        "provider.unavailable",
+        "provider.auth_failed",
+        "permission.needs_approval"
+      ],
+      "gateAct": "send",
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "action": {
+            "description": "Action name from that connector",
+            "examples": [
+              "ping"
+            ],
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "connector": {
+            "description": "Connector key",
+            "examples": [
+              "stripe"
+            ],
+            "type": "string"
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "input": {
+            "additionalProperties": true,
+            "type": "object"
+          }
+        },
+        "required": [
+          "connector",
+          "action"
+        ],
+        "type": "object"
+      },
+      "key": "connector_request",
+      "kind": "capability",
+      "module": "steps-core",
+      "output": {
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "output": {
+            "description": "Any JSON value"
+          }
+        },
+        "required": [
+          "output",
+          "dryRun"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "dryRun": true,
+        "output": {}
+      },
+      "title": "Authenticated request"
     },
     {
       "cap": "tasks.create",

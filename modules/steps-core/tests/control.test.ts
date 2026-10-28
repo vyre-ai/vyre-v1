@@ -455,6 +455,27 @@ test("send_email and send_sms use only the id on the step", async () => {
   assert.equal(h.only("telephony.number.list").length, 0);
 });
 
+test("an authenticated request runs a connector action and refuses a secret in the step", async () => {
+  const h = harness({ "connectors.run": () => ({ output: { ok: true }, dryRun: true }) });
+  await assert.rejects(runStep(h.env, node("r", "connector_request", { connector: "acme", action: "ping" }), callOf()), (e) => {
+    assert.match((e as Error).message, /needs a connection/);
+    return true;
+  });
+  await assert.rejects(runStep(h.env, node("r", "connector_request", { connector: "acme", action: "ping", connectionId: "con_1", input: { authorization: "Bearer secret" } }), callOf()), (e) => {
+    assert.match((e as Error).message, /cannot hold a secret/);
+    return true;
+  });
+  const out = await runStep(h.env, node("r", "connector_request", { connector: "acme", action: "ping", connectionId: "con_1", input: { limit: 1 }, dryRun: true }), callOf());
+  const sent = h.only("connectors.run")[0]!.input;
+  assert.equal(sent.key, "acme");
+  assert.equal(sent.action, "ping");
+  assert.equal(sent.connectionId, "con_1");
+  assert.deepEqual(sent.input, { limit: 1 });
+  assert.equal(sent.dryRun, true);
+  assert.equal(JSON.stringify(sent).includes("authorization"), false);
+  assert.deepEqual(out.output, { output: { ok: true }, dryRun: true });
+});
+
 test("steps.test runs one step: a read for real, anything else from its sample", async () => {
   const h = harness();
   const r = await stepsTest(h.ctx, { key: "if", input: { condition: "input.n > 2" }, sample: { n: 5 } }) as { output: unknown; stubbed: boolean };

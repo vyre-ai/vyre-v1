@@ -14,6 +14,7 @@ import { MessageComposer } from "../builder/MessageComposer.tsx";
 import { DataShelf, MappingFix, SectionRow, commitTyped, nodeIdSet } from "../builder/marks.tsx";
 import { StepTest } from "../builder/StepTest.tsx";
 import { isPreviewKey, PREVIEW_NOTE } from "../catalog/model.ts";
+import { CONNECT_LIMIT } from "../connect/trust-view.ts";
 import { presenceOf } from "../values/typed.ts";
 import { Glyph } from "./icons.tsx";
 import { ERROR_MODES, keyChoices, kindOfKey, setBranch, setTriggerConfig, titleOfKey, updateStep, triggerMeta } from "./model.ts";
@@ -227,6 +228,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
         {section === "configure" ? (
           <>
         {isPreviewKey(node.key) ? <Text style={i.hint}>{PREVIEW_NOTE}</Text> : null}
+        {node.key === "connector_request" ? <Text style={i.hint}>{`${CONNECT_LIMIT} The request runs a named action on the connection.`}</Text> : null}
         <Pressable accessibilityRole="button" testID="toggle-advanced" onPress={() => setAdvanced((on) => !on)} style={pointer}><Text style={i.hint}>{advanced ? "Basic" : "Advanced"}</Text></Pressable>
         <Field label="Name" value={node.title ?? ""} placeholder={titleOfKey(node.key)} testID="field-title" onCommit={(t) => onChange(updateStep(def, node.id, { title: t }))} />
         {accountPick ? (
