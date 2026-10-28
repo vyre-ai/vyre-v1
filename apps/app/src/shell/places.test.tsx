@@ -54,22 +54,23 @@ async function mount(id: string, rt: ShellRuntime | null): Promise<string> {
   return out.replaceAll("<!-- -->", "");
 }
 
-test("all nine places are registered, each with a lazy route and the generated screens of its place", () => {
+test("nine app places and the standalone Console are registered with lazy routes", () => {
   registerShellPlaces();
   registerShellPlaces();
-  assert.deepEqual(SHELL_PLACES.map((p) => p.label), ["Home", "Chats", "Inbox", "Records", "Files", "Apps", "Automations", "Vault", "Settings"]);
+  assert.deepEqual(SHELL_PLACES.filter((p) => p.id !== "console").map((p) => p.label), ["Home", "Chats", "Inbox", "Records", "Files", "Apps", "Automations", "Vault", "Settings"]);
   for (const p of SHELL_PLACES) {
     assert.ok((PLACES as readonly string[]).includes(p.id), `${p.id} is an app route`);
     assert.equal(loaderFor(p.id), p.load, `${p.id} routes to its own loader`);
     assert.ok(p.load() instanceof Promise, `${p.id} loads lazily`);
   }
   assert.equal(shellPlace("vault")?.screens, "vault");
+  assert.equal(shellPlace("console")?.screens, "console", "Console has its own authenticated route");
   assert.equal(shellPlace("nowhere"), undefined);
 });
 
 test("every place with a first list reads a live query of a generated screen", () => {
   for (const p of SHELL_PLACES) {
-    if (p.id === "home") continue;
+    if (p.id === "home" || p.id === "console") continue;
     const cfg = FIRST_LISTS[p.id];
     assert.ok(cfg, `${p.id} has a first list`);
     const { rt } = runtimeFor("northwind", true);
@@ -100,8 +101,16 @@ test("each place renders its data from a seeded replica, not its loading frame",
 test("before the Space's runtime exists a place draws its loading frame, never a blank page", async () => {
   for (const p of SHELL_PLACES) {
     const out = await mount(p.id, null);
-    assert.ok(out.includes("-loading") || out.includes("place-loading"), `${p.id} draws a frame`);
+    if (p.id === "console") {
+      assert.ok(out.includes("Opening the Console") && out.includes('data-testid="state-empty"'), "Console explains that its authenticated frame is opening");
+    } else assert.ok(out.includes("-loading") || out.includes("place-loading"), `${p.id} draws a frame`);
   }
+});
+
+test("the standalone Console explains that Personal Spaces need a Team Space", async () => {
+  const out = await mount("console", runtimeFor("personal", false).rt);
+  assert.ok(out.includes("Needs a Team Space"));
+  assert.ok(out.includes('data-testid="state-empty"'));
 });
 
 test("a place whose list is empty says so with the shared empty state", async () => {
