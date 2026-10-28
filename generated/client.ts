@@ -1682,7 +1682,9 @@ export function createClient(transport: Transport) {
     },
     sessions: {
       continue: call("sessions.continue", 1),
+      get: call("sessions.get", 1),
       import: call("sessions.import", 1),
+      list: call("sessions.list", 1),
     },
     settings: {
       copy_profile: call("settings.copy_profile", 1),

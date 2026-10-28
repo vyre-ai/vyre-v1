@@ -11,8 +11,8 @@ import { CSV, MAPPING, makeXlsx, run, stage } from "../fixtures/seed.ts";
 
 const mine = registry.capabilities.filter((c) => c.module === "import");
 
-test("the handler table covers exactly the 14 capabilities of the import manifest", () => {
-  assert.equal(mine.length, 14);
+test("the handler table covers exactly the 16 capabilities of the import manifest", () => {
+  assert.equal(mine.length, 16);
   assert.deepEqual(Object.keys(handlers).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof handlers[c.name], "function", c.name);
 });
@@ -65,6 +65,8 @@ const scenarios: Scenario[] = [
   { cap: "import.discard", run: (hn) => run(hn, "import.discard", { importId: "imp_none" }), expect: "validation.bad_input" },
   { cap: "import.template", run: (hn) => run(hn, "import.template", { type: "contact" }) },
   { cap: "import.template", run: (hn) => run(hn, "import.template", { type: "nothing" }), expect: "validation.not_found" },
+  { cap: "sessions.list", run: (hn) => run(hn, "sessions.list", {}) },
+  { cap: "sessions.get", setup: async (hn) => (await run(hn, "sessions.import", localSession)).sessions[0].conversationId, run: (hn, conversationId) => run(hn, "sessions.get", { conversationId }) },
   { cap: "sessions.import", run: (hn) => run(hn, "sessions.import", localSession) },
   { cap: "sessions.import", run: (hn) => run(hn, "sessions.import", { ...localSession, consent: { previewedAt: 1 } }), expect: "validation.precondition_failed" },
   { cap: "sessions.continue", setup: async (hn) => (await run(hn, "sessions.import", localSession)).sessions[0].conversationId, run: (hn, conversationId) => run(hn, "sessions.continue", { conversationId, destinationSpaceId: "spc_importtest", destinationScope: "personal", agentId: "agt_intake" }) },

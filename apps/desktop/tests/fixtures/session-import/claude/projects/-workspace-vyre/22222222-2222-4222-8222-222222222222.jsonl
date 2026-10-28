@@ -1,0 +1,7 @@
+{"type":"user","uuid":"u-1","sessionId":"22222222-2222-4222-8222-222222222222","timestamp":"2026-10-24T08:00:00.000Z","message":{"role":"user","content":"Draft the note"}}
+{"type":"assistant","uuid":"a-1","parentUuid":"u-1","sessionId":"22222222-2222-4222-8222-222222222222","timestamp":"2026-10-24T08:00:01.000Z","message":{"role":"assistant","content":[{"type":"text","text":"Draft one."},{"type":"tool_use","name":"Bash","input":{"command":"echo secret"}}]}}
+{"type":"assistant","uuid":"a-hidden","parentUuid":"a-1","sessionId":"22222222-2222-4222-8222-222222222222","timestamp":"2026-10-24T08:00:02.000Z","message":{"role":"assistant","content":[{"type":"thinking","thinking":"do not import"}]}}
+{"type":"user","uuid":"u-2","parentUuid":"a-1","sessionId":"22222222-2222-4222-8222-222222222222","timestamp":"2026-10-24T08:00:03.000Z","message":{"role":"user","content":[{"type":"text","text":"Make it shorter"},{"type":"tool_result","content":"raw output"}]}}
+{"type":"system","uuid":"system-1","sessionId":"22222222-2222-4222-8222-222222222222","timestamp":"2026-10-24T08:00:04.000Z","message":{"role":"system","content":"hidden system prompt"}}
+{"type":"assistant","uuid":"a-2","parentUuid":"u-2","sessionId":"22222222-2222-4222-8222-222222222222","timestamp":"2026-10-24T08:00:05.000Z","message":{"role":"assistant","content":"Short note."}}
+{"type":"assistant","uuid":"partial"

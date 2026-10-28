@@ -57,6 +57,7 @@ export function fakeWorld(clock: { t: number }) {
   const keyOf = (fields: Record<string, unknown>, match: string[]): string | undefined => (match.some((k) => fields[k] === undefined) ? undefined : JSON.stringify(match.map((k) => fields[k])));
   let bulkCalls = 0;
   const handlers: Record<string, Handler> = {
+    "spaces.matrix": () => ({ kind: "personal", features: [] }),
     "projects.create": (i, o) => keyed(o, "project", () => ({ projectId: next("prj"), recordId: next("rec"), channelId: next("chn"), folderId: next("fld") })),
     "chat.start": (i, o) => keyed(o, "chat", () => ({ thread: { threadId: next("thr"), kind: i.kind, listed: true } })),
     "files.read": (i) => {
@@ -128,7 +129,7 @@ export function openRaw(): RawDb {
 
 export interface HarnessOptions {
   raw?: RawDb; principal?: Principal; actingFor?: string; clock?: { t: number }; world?: FakeWorld; space?: string; personalSpace?: string;
-  sessionDestination?: NonNullable<ImportCtx["sessionDestination"]>;
+
 }
 
 export function harness(o: HarnessOptions = {}) {
@@ -153,12 +154,6 @@ export function harness(o: HarnessOptions = {}) {
       const f = world.handlers[cap];
       if (!f || world.down.has(cap)) throw Object.assign(new Error(`${cap} is not available`), { error: { code: "internal.unavailable", message: `${cap} is not available` } });
       return f(input, opts);
-    },
-    sessionDestination: o.sessionDestination ?? {
-      async resolve(_owner, request) {
-        return request.kind === "personal" ? { kind: "personal", spaceId: o.personalSpace ?? o.space ?? SPACE } : { kind: "team", spaceId: request.spaceId };
-      },
-      async invoke() { throw new Error("a test must provide a destination invoke route"); },
     },
     http: world.request,
     log: { warn(msg) { warned.push(msg); } },

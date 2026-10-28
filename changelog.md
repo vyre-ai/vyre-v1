@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Personal history: connect native Codex and Claude Code discovery to selected transcript previews, explicit Personal import consent, owner-private archive reads, and linked continuation with copied visible context. Block Team imports, preserve import idempotency across the gateway, and let Personal project owners create projects without Team-only sharing calls.
 - Web startup: import production Inbox, shell-phone, and sidebar components from their leaf modules so screenshot sample fixtures and the generated screen registry no longer enter the initial common bundle through UI barrels.
 - Records performance: reduce continuous-fling boundaries from eight rich rows to four while retaining twelve-row overscan, keeping forward, reverse, jump, and end-of-table viewports continuously covered.
 - Web startup: keep the native FlashList runtime behind Metro's native platform boundary, preserving the existing windowed web list while removing native-only code from the production web entry.

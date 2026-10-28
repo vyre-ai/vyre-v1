@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { codeOf, harness } from "../fixtures/harness.ts";
-import { sessionsContinue, sessionsImport } from "../handlers/sessions.ts";
+import { sessionsContinue, sessionsImport, sessionsList, sessionsGet } from "../handlers/sessions.ts";
 
 const payload = {
   provider: "codex" as const,
@@ -92,4 +92,40 @@ test("sessions.import is Personal-only in v1 and defers Team routing", async () 
   assert.equal(h.rows("SELECT destinationScope FROM import_conversation")[0]?.destinationScope, "personal");
   await assert.rejects(sessionsImport(h.ctx, { ...payload, sourceKey: "codex:team-refused", destination: { kind: "team" } }), (e) => codeOf(e) === "validation.precondition_failed");
   await assert.rejects(sessionsImport(h.ctx, { ...payload, sourceKey: "codex:team-confirmed", destination: { kind: "team", spaceId: "spc_importtest", confirmedAt: 1_760_000_000_002 } }), (e) => codeOf(e) === "validation.precondition_failed");
+});
+
+
+test("session archive list and transcript are scoped to the owner and Space", async () => {
+  const h = harness();
+  const imported = await sessionsImport(h.ctx, payload);
+  const conversationId = imported.sessions[0].conversationId;
+  const listed = await sessionsList(h.ctx, {});
+  assert.equal(listed.sessions.length, 1);
+  const archive = await sessionsGet(h.ctx, { conversationId });
+  assert.equal(archive.session.conversationId, conversationId);
+  assert.deepEqual(archive.messages.map((m) => m.text), payload.sessions[0].messages.map((m) => m.text));
+  const other = h.as({ kind: "person", id: "usr_other" });
+  assert.equal((await sessionsList(other, {})).sessions.length, 0);
+  await assert.rejects(sessionsGet(other, { conversationId }), (e) => codeOf(e) === "validation.not_found");
+  await assert.rejects(sessionsGet({ ...h.ctx, space: "spc_other" }, { conversationId }), (e) => codeOf(e) === "validation.not_found");
+});
+
+test("session import rejects a Team node before persisting personal history", async () => {
+  const h = harness();
+  h.world.handlers["spaces.matrix"] = () => ({ kind: "team", features: [] });
+  await assert.rejects(sessionsImport(h.ctx, payload), (e) => codeOf(e) === "validation.precondition_failed");
+  assert.equal(h.rows("SELECT * FROM import_conversation").length, 0);
+});
+
+
+test("session project calls carry the required idempotency key in input and continuation receives history", async () => {
+  const h = harness();
+  const create = h.world.handlers["projects.create"]!;
+  h.world.handlers["projects.create"] = (input, opts) => {
+    assert.equal(typeof input.idempotencyKey, "string", "the gateway validates input, not CallOpts");
+    return create(input, opts);
+  };
+  const imported = await sessionsImport(h.ctx, payload);
+  await sessionsContinue(h.ctx, { conversationId: imported.sessions[0].conversationId, destinationSpaceId: h.ctx.space, destinationScope: "personal", agentId: "agt_intake" });
+  assert.match(h.only("chat.start")[0].input.first, /Ship the release/);
 });

@@ -1,4 +1,5 @@
 // Settings pages that are the same in every Space: Sign-in and devices, Appearance (with Kit choice), Keyboard, This computer, Spaces.
+import { SessionImport } from "./SessionImport.tsx";
 import { useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -303,6 +304,7 @@ export function ComputerPage({ rows, found }: PageProps): ReactElement {
     <>
       <Everywhere text="Everything here is about this computer, in every Space" />
       <RegistrySections page="computer" rows={rows} found={found} />
+      <SessionImport />
     </>
   );
 }

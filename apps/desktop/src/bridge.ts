@@ -11,7 +11,11 @@ import { badgeText } from "./notify.ts";
 
 export type { DesktopDeepLink, DesktopInfo, Invoke, Listen, Unlisten } from "../../../client/src/connection/desktop-link.ts";
 
+import type { SessionSource } from "./session-import/types.ts";
+
 export type Bridge = DesktopLinkBridge & {
+  discoverCodexSessions(options?: { codexHome?: string }): Promise<SessionSource[]>;
+  discoverSessionSources(options?: { codexHome?: string; claudeHome?: string; claudeDesktopHome?: string }): Promise<SessionSource[]>;
   /** Shows an OS banner when the rules allow it. Resolves true when one was shown. */
   notify(n: NotificationInput, opts: { windowFocused: boolean; showContent?: boolean }): Promise<boolean>;
   /** Opens the system dialog; resolves to the absolute paths chosen (empty when cancelled). */
@@ -23,6 +27,8 @@ export type Bridge = DesktopLinkBridge & {
 export function makeBridge(invoke: Invoke, listen: Listen): Bridge {
   const links = makeDesktopLinkBridge(invoke, listen);
   return {
+    async discoverCodexSessions(options = {}) { return await invoke("discover_codex_sessions", { options }) as SessionSource[]; },
+    async discoverSessionSources(options = {}) { return await invoke("discover_session_sources", { options }) as SessionSource[]; },
     async notify(n, opts) {
       const os = osNotification(n, opts);
       if (!os) return false;

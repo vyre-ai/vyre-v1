@@ -5768,8 +5768,20 @@
     },
     {
       "deferred": false,
+      "name": "sessions_get",
+      "summary": "Read an immutable imported session transcript owned by the signed-in person",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "sessions_import",
       "summary": "Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply only visible user and assistant text",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "sessions_list",
+      "summary": "List the current owner private imported session archive in this Personal Space",
       "toolset": "chats"
     },
     {
