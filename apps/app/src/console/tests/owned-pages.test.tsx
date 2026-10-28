@@ -47,6 +47,17 @@ test("Schema and sensitivity pages expose record-type objects and live label con
   assert.match(draw(<pages.LabelsPage />, { "access.labels.list": labels }), /Public|Restricted|Set label|Scan record type/);
 });
 
+test("Schema apply input preserves the exact preview and creates a fresh attempt key", async () => {
+  const { exactSchemaApplyInput } = await import("../pages/Data.tsx");
+  const ops = [{ op: "type.drop", type: "matter" }] as const;
+  const preview = { previewToken: "preview-1", additive: 0, destructive: 1, problems: [], items: [{ itemKey: "type:matter", summary: "Drop Matter", destructive: true, affectedRows: 4 }] };
+  const input = exactSchemaApplyInput(preview, ops);
+  assert.deepEqual(input.ops, ops);
+  assert.deepEqual(input.confirm, ["type:matter"]);
+  assert.equal(input.previewToken, "preview-1");
+  assert.match(input.idempotencyKey, /^[0-9a-f-]{36}$/);
+});
+
 test("Comms pages use live domains, numbers, inboxes and texting registration contracts", async () => {
   const pages = await import("../pages/Comms.tsx").catch(() => null);
   assert.ok(pages, "the Comms Console surfaces exist");
