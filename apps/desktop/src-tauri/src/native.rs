@@ -162,7 +162,7 @@ pub struct SessionDocument {
     pub text: String,
 }
 
-/// Read `state_5.sqlite` only, through SQLite's immutable file URI.
+/// Read `state_5.sqlite` only, including committed rows still in its live WAL.
 #[tauri::command]
 pub async fn discover_codex_sessions() -> Result<Vec<SessionSource>, String> {
     tauri::async_runtime::spawn_blocking(|| codex_sources(None)).await.map_err(|_| "Local session discovery stopped unexpectedly.".to_string())?
@@ -431,20 +431,7 @@ fn contained_file(root: &Path, candidate: &Path) -> bool {
 }
 
 fn open_codex_state(path: &Path) -> Result<Connection, String> {
-    let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI;
-    let immutable = immutable_sqlite_uri(path);
-    Connection::open_with_flags(&immutable, flags).map_err(|e| format!("cannot open immutable Codex state: {e}"))
-}
-
-/// SQLite URI paths treat `?`, `#` and `%` as syntax, so every non-path-safe byte is percent encoded before immutable mode is requested.
-fn immutable_sqlite_uri(path: &Path) -> String {
-    let display = path.to_string_lossy().replace('\\', "/");
-    let mut encoded = String::with_capacity(display.len());
-    for byte in display.bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/') { encoded.push(char::from(byte)); }
-        else { encoded.push_str(&format!("%{byte:02X}")); }
-    }
-    format!("file://{encoded}?immutable=1")
+    Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(|e| format!("cannot open read-only Codex state: {e}"))
 }
 
 /// Git URLs may embed a token or password as userinfo. Preserve the host/path mapping but never return that material to the page.
@@ -610,8 +597,21 @@ mod tests {
     }
 
     #[test]
-    fn immutable_sqlite_uri_escapes_path_delimiters() {
-        assert_eq!(immutable_sqlite_uri(Path::new("/tmp/a b?#%.sqlite")), "file:///tmp/a%20b%3F%23%25.sqlite?immutable=1");
+    fn read_only_codex_state_sees_a_committed_uncheckpointed_wal_thread() {
+        let root = std::env::temp_dir().join(format!("vyre-codex-wal-fixture-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("rollout.jsonl"), "{}\n").unwrap();
+        let path = root.join("state_5.sqlite");
+        let writer = Connection::open(&path).unwrap();
+        writer.execute_batch("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE threads(id TEXT, rollout_path TEXT, cwd TEXT, created_at INTEGER, updated_at INTEGER, git_branch TEXT, git_origin_url TEXT); PRAGMA wal_checkpoint(TRUNCATE); INSERT INTO threads VALUES ('wal-thread','rollout.jsonl','/work/app',1,2,'main',NULL);").unwrap();
+        assert!(root.join("state_5.sqlite-wal").exists(), "the newest thread remains in the live WAL");
+        let sources = codex_sources(Some(root.to_str().unwrap())).unwrap();
+        assert_eq!(sources.iter().map(|source| source.session_id.as_str()).collect::<Vec<_>>(), ["wal-thread"]);
+        let reader = open_codex_state(&path).unwrap();
+        assert!(reader.execute("DELETE FROM threads", []).is_err(), "the WAL-aware discovery connection remains read-only");
+        drop(reader);
+        drop(writer);
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
