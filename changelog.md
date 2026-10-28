@@ -1,5 +1,7 @@
 # Changelog
 
+- Mark the synthetic export-redaction credential fixture for the existing secret scanner without changing production credential checks.
+
 - Restored the 0.6.8 welcome composition: open halftone canvas, approved Vyre mark, large greeting and round Space connection field, with verified v1 connection and retry handling.
 
 - Fixed invited-account AI setup through the member acceptance contract so invite permissions apply before session verification: provider choice and Mine API-key storage follow verified join; subscription sign-in uses real completion, failures retry without accepting the invite twice, and raw keys never enter device storage. Preserved the authenticated device session during password changes while revoking other devices. Added working password and authenticator controls and truthful account-recovery guidance.
