@@ -19,6 +19,7 @@
 - Access: allow validated group role assignments, expose direct holders, and enforce human-only role restrictions when groups gain agent members and when evaluating legacy assignments.
 - Audit: add a bounded typed target filter for object Activity, indexed and hash-bound to declared metadata; preserve Space authorization and exclude credential values.
 - Wired live invoke audit metadata into the append-only audit chain while retaining operational logs. Actor and on-behalf-of attribution and whitelisted object target IDs now reach Console Activity without copying request bodies or credentials. Generated permission metadata now loads in the browser for the real role matrix.
+- Console object lists: pass row context-menu and keyboard-menu handlers through the supported web DOM seam so right-click and Menu-key actions work on shared rows.
 - Console Agent computers: replace the raw agent-ID provisioning field with named eligible-agent choices and mark agents that already have a computer.
 - Console Outside actors: filter Activity by audit target so owners see changes to the actor, including access, scope, Engineer MCP and revocation changes, instead of unrelated actions performed by that actor.
 - Console Schema: construct Apply from the exact reviewed diff, including destructive confirmations and a fresh idempotency key, so the production control reaches `schema.apply` instead of failing locally before the request.
