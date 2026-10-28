@@ -1,5 +1,6 @@
 - Add an isolated read-only shared Records preview to the Access checker, with memory-only expiring credentials, canceled pending requests, hidden-field redaction, explicit exit and preserved normal Owner session.
 - Enforce grant label ceilings in single-record authorization, inherited grants, SQL list predicates and persisted Access projections, with classification and randomized parity regressions.
+- Verify actual Records startup sends saved-view requests only for a loaded canonical type, with no incomplete request or 422 response.
 - Stop the Records sidebar from issuing saved-view requests before a real record type loads; keep the disabled query snapshot stable and query the first actual type when ready.
 - Make Comms visual acceptance select the actual Graphite/Paper skin and assert its root attribute, so dark captures cannot silently remain Paper.
 - Repair release Apps screenshot drawing gate to require the mounted v1 apps-place rather than obsolete Sites or deferred frames; prove Paper and Graphite routes with a real claimed daemon.
