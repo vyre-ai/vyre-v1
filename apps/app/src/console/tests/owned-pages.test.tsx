@@ -28,8 +28,10 @@ test("Agents and actors pages expose their live registers and object actions", a
   assert.match(actorObject, /object-header|Overview|Access|Activity|Edit actor|Revoke|Irfad Imtiaz/);
   assert.doesNotMatch(actorObject, /usr_irfad|Role ids \(comma separated\)/);
   const computer = { computerId: "cmt_one", agentId: "agt_intake", state: "asleep", tabs: 0, tabLimit: 8, host: "server", recording: false };
-  assert.match(draw(<pages.AgentComputers />, { "computers.list": { computers: [computer] } }), /Search|cmt_one|asleep|Provision computer/);
-  const computerObject = draw(<pages.AgentComputers initialComputerId="cmt_one" />, { "computers.list": { computers: [computer] }, "audit.list": { rows: [] } });
+  const computers = draw(<pages.AgentComputers />, { "computers.list": { computers: [computer] }, "agents.list": { agents: [agent] } });
+  assert.match(computers, /Search|cmt_one|asleep|Provision computer|Intake/);
+  assert.doesNotMatch(computers, /Agent id/);
+  const computerObject = draw(<pages.AgentComputers initialComputerId="cmt_one" />, { "computers.list": { computers: [computer] }, "agents.list": { agents: [agent] }, "audit.list": { rows: [] } });
   assert.match(computerObject, /object-header|Overview|Access|Activity|Configuration|Remove computer|Intake/);
   assert.doesNotMatch(computerObject, /agt_intake/);
   assert.match(draw(<pages.AgentTemplate />, { "agents.template.get": { version: 2, files: ["AGENT.md"], mode: "suggest", agents: 1 }, "agents.suggestions.list": { suggestions: [] } }), /Version 2|Preview for all agents|AGENT.md/);
