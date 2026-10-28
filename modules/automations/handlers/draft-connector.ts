@@ -3,6 +3,7 @@ import { generate } from "../generate.ts";
 import type { OpenApiDocument } from "../generate.ts";
 import { raise } from "../projections.ts";
 import type { AutoCtx } from "../projections.ts";
+import { setupFrom } from "../setup.ts";
 
 type In = { document?: unknown; docsUrl?: unknown };
 
@@ -15,5 +16,7 @@ export async function draftConnector(ctx: AutoCtx, input: In): Promise<unknown> 
   const docsUrl = typeof input.docsUrl === "string" ? input.docsUrl : undefined;
   const result = generate(documentOf(input.document), docsUrl === undefined ? undefined : { docsUrl });
   if (!result.ok) raise(ctx, "validation.bad_input", result.reason);
-  return { draft: result.draft, actions: result.actions, request: result.request, refused: result.refused };
+  const document = documentOf(input.document);
+  const setup = setupFrom(document, result.actions, docsUrl);
+  return { draft: result.draft, actions: result.actions, request: result.request, refused: result.refused, setup };
 }

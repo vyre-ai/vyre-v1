@@ -87,6 +87,40 @@ type Out = {
       path: string;
       reason: string;
     }>;
+  setup: {
+    fields: Array<{
+        name: string;
+        secret: boolean;
+        in: "header" | "query" | "body";
+        headerName?: string;
+        hint: string;
+      }>;
+    triggers: Array<{
+        key: string;
+        level: "draft";
+        method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "TRACE";
+        path: string;
+        effect: "read" | "outward";
+        check: "dry_run" | "hold";
+      }>;
+    checks: Array<{
+        key: string;
+        effect: "read" | "outward";
+        check: "dry_run" | "hold";
+        reason: string;
+      }>;
+    scopes: Array<string>;
+    ask: {
+      resource: "connection";
+      message?: string;
+      fields?: Array<{
+          name: string;
+          valueType: "secret" | "string";
+          presence: "missing";
+        }>;
+      docs?: Array<string>;
+    };
+  };
 };
 ```
 
@@ -178,6 +212,52 @@ type Out = {
       "query": {},
       "servers": [
         "example"
+      ]
+    },
+    "setup": {
+      "ask": {
+        "docs": [
+          "example"
+        ],
+        "fields": [
+          {
+            "name": "example",
+            "presence": "missing",
+            "valueType": "secret"
+          }
+        ],
+        "message": "example",
+        "resource": "connection"
+      },
+      "checks": [
+        {
+          "check": "dry_run",
+          "effect": "read",
+          "key": "example",
+          "reason": "example"
+        }
+      ],
+      "fields": [
+        {
+          "headerName": "example",
+          "hint": "example",
+          "in": "header",
+          "name": "example",
+          "secret": true
+        }
+      ],
+      "scopes": [
+        "example"
+      ],
+      "triggers": [
+        {
+          "check": "dry_run",
+          "effect": "read",
+          "key": "example",
+          "level": "draft",
+          "method": "GET",
+          "path": "example"
+        }
       ]
     }
   }

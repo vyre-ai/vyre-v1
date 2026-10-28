@@ -29999,6 +29999,52 @@
               "servers": [
                 "example"
               ]
+            },
+            "setup": {
+              "ask": {
+                "docs": [
+                  "example"
+                ],
+                "fields": [
+                  {
+                    "name": "example",
+                    "presence": "missing",
+                    "valueType": "secret"
+                  }
+                ],
+                "message": "example",
+                "resource": "connection"
+              },
+              "checks": [
+                {
+                  "check": "dry_run",
+                  "effect": "read",
+                  "key": "example",
+                  "reason": "example"
+                }
+              ],
+              "fields": [
+                {
+                  "headerName": "example",
+                  "hint": "example",
+                  "in": "header",
+                  "name": "example",
+                  "secret": true
+                }
+              ],
+              "scopes": [
+                "example"
+              ],
+              "triggers": [
+                {
+                  "check": "dry_run",
+                  "effect": "read",
+                  "key": "example",
+                  "level": "draft",
+                  "method": "GET",
+                  "path": "example"
+                }
+              ]
             }
           }
         }
@@ -30329,13 +30375,207 @@
                 "type": "null"
               }
             ]
+          },
+          "setup": {
+            "properties": {
+              "ask": {
+                "properties": {
+                  "docs": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "fields": {
+                    "items": {
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "presence": {
+                          "enum": [
+                            "missing"
+                          ],
+                          "type": "string"
+                        },
+                        "valueType": {
+                          "enum": [
+                            "secret",
+                            "string"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "valueType",
+                        "presence"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "resource": {
+                    "enum": [
+                      "connection"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "resource"
+                ],
+                "type": "object"
+              },
+              "checks": {
+                "items": {
+                  "properties": {
+                    "check": {
+                      "enum": [
+                        "dry_run",
+                        "hold"
+                      ],
+                      "type": "string"
+                    },
+                    "effect": {
+                      "enum": [
+                        "read",
+                        "outward"
+                      ],
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "effect",
+                    "check",
+                    "reason"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "fields": {
+                "items": {
+                  "properties": {
+                    "headerName": {
+                      "type": "string"
+                    },
+                    "hint": {
+                      "type": "string"
+                    },
+                    "in": {
+                      "enum": [
+                        "header",
+                        "query",
+                        "body"
+                      ],
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "secret": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "secret",
+                    "in",
+                    "hint"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "scopes": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "triggers": {
+                "items": {
+                  "properties": {
+                    "check": {
+                      "enum": [
+                        "dry_run",
+                        "hold"
+                      ],
+                      "type": "string"
+                    },
+                    "effect": {
+                      "enum": [
+                        "read",
+                        "outward"
+                      ],
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "level": {
+                      "enum": [
+                        "draft"
+                      ],
+                      "type": "string"
+                    },
+                    "method": {
+                      "enum": [
+                        "GET",
+                        "POST",
+                        "PUT",
+                        "PATCH",
+                        "DELETE",
+                        "HEAD",
+                        "OPTIONS",
+                        "TRACE"
+                      ],
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "level",
+                    "method",
+                    "path",
+                    "effect",
+                    "check"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "fields",
+              "triggers",
+              "checks",
+              "scopes",
+              "ask"
+            ],
+            "type": "object"
           }
         },
         "required": [
           "draft",
           "actions",
           "request",
-          "refused"
+          "refused",
+          "setup"
         ],
         "type": "object"
       },

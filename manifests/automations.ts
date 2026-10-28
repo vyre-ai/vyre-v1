@@ -78,6 +78,28 @@ const authenticatedRequest = t.obj({
   body: t.opt(jsonSchema), outputSchema: t.opt(jsonSchema), effect: effectKind,
   servers: t.arr(t.str()), allowedDomains: t.arr(t.str()),
 });
+const pasteField = t.obj({
+  name: t.str(), secret: t.bool(), in: t.enm('header', 'query', 'body'), headerName: t.opt(t.str()), hint: t.str(),
+});
+const draftTrigger = t.obj({
+  key: t.str(), level: connectorLevel, method: httpMethod, path: t.str(), effect: effectKind, check: t.enm('dry_run', 'hold'),
+});
+const actionCheck = t.obj({
+  key: t.str(), effect: effectKind, check: t.enm('dry_run', 'hold'), reason: t.str(),
+});
+const askField = t.obj({ name: t.str(), valueType: t.enm('secret', 'string'), presence: t.enm('missing') });
+const connectorSetup = t.obj({
+  fields: t.arr(pasteField),
+  triggers: t.arr(draftTrigger),
+  checks: t.arr(actionCheck),
+  scopes: t.arr(t.str()),
+  ask: t.obj({
+    resource: t.enm('connection'),
+    message: t.opt(t.str()),
+    fields: t.opt(t.arr(askField)),
+    docs: t.opt(t.arr(t.str())),
+  }),
+});
 
 const recordFilter = t.obj({ type: id.recordType, op: t.opt(t.enm('created', 'updated', 'deleted')), fields: t.opt(t.arr(t.str())), where: t.opt(anyJson) });
 const rowFilter = t.obj({ fileId: id.file, sheet: t.opt(t.str()), op: t.opt(t.enm('added', 'changed')), columns: t.opt(t.arr(t.str())) });
@@ -210,6 +232,7 @@ export default defineManifest({
         actions: t.arr(draftedAction),
         request: t.nullable(authenticatedRequest),
         refused: t.arr(t.obj({ path: t.str(), reason: t.str() })),
+        setup: connectorSetup,
       },
       tool: 'automations',
     }),

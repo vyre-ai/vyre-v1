@@ -2145,6 +2145,40 @@ export type AutomationsDraftConnectorOut = {
       path: string;
       reason: string;
     }>;
+  setup: {
+    fields: Array<{
+        name: string;
+        secret: boolean;
+        in: "header" | "query" | "body";
+        headerName?: string;
+        hint: string;
+      }>;
+    triggers: Array<{
+        key: string;
+        level: "draft";
+        method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "TRACE";
+        path: string;
+        effect: "read" | "outward";
+        check: "dry_run" | "hold";
+      }>;
+    checks: Array<{
+        key: string;
+        effect: "read" | "outward";
+        check: "dry_run" | "hold";
+        reason: string;
+      }>;
+    scopes: Array<string>;
+    ask: {
+      resource: "connection";
+      message?: string;
+      fields?: Array<{
+          name: string;
+          valueType: "secret" | "string";
+          presence: "missing";
+        }>;
+      docs?: Array<string>;
+    };
+  };
 };
 export type AutomationsFireIn = {
   automationId: string;

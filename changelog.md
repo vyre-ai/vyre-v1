@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Automations: drafting a connector also returns the Vault paste fields and an Ask Vyre bundle. The bundle has field names only. A read may be tried later. An outward call waits until the person runs it. A webhook in the document becomes a draft trigger. Nothing is fetched or promoted.
 - Automations: `automations.draft_connector` drafts actions from an OpenAPI document already in memory. A docs URL is stored and not fetched. Nothing is saved or promoted.
 - Automations: an OpenAPI document already in memory drafts typed actions at draft level. A host outside that document's servers is rejected. Secret examples are not copied. The generator does not fetch docs, call the API, or promote the draft.
 - Automations: stopping a parent stops unfinished children. A child that already finished stays finished. A pasted secret is refused on a draft, and the step log keeps the field name without the secret value.
