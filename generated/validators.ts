@@ -32209,6 +32209,7 @@ if ("redirect" in o1998) lf(o1998["redirect"], p + "/settings" + "/thankYou" + "
 }
 }
 }
+if ("css" in o1996) lf(o1996["css"], p + "/css", e, L2);
 if ("theme" in o1996) {
 {
 const x1999 = o1996["theme"];

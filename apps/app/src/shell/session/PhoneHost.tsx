@@ -66,5 +66,5 @@ export function PhoneHost({ session, needsYou, registerGo, onSignOut }: PhoneHos
     };
     return <PlaceHost place={where.place} runtime={session?.runtime ?? null} hash={where.hash} opened={opened} />;
   };
-  return <MobileShell renderScreen={render} needsYou={needsYou} initialTab="chats" />;
+  return <MobileShell renderScreen={render} needsYou={needsYou} initialTab="chats" ownsHeader={(entry) => entry.screen.startsWith("apps:") && placeOf(entry)?.hash !== ""} />;
 }

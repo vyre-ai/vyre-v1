@@ -65,3 +65,5 @@
 - Apps: restore Forms, Campaigns, Templates and sending domains with reloadable detail/create routes, Personal gating before subscriptions, typed editors, preview-confirm publishing/launch/install, offline and permission errors, and real Kit builder chats. Preserve saved form consent, captcha, thank-you text and page grouping through an expanded read contract. Connect campaign email designs to saved versions, shared blocks, AI proposals and test sends; sandbox HTML previews and confirm send/save status only after the provider succeeds.
 
 - Apps on phone web: add Apps under You and retain its create/detail route through the phone navigation history, so opening a form or campaign mounts its real editor at phone width.
+
+- Apps Form editor: retain the desktop Apps sidebar, show compact field modes beside a live sandboxed canvas, and adapt Build/Code/Preview to phone width with one header. Persist custom CSS through the form read/write contract and open Ask with the actual assistant and form context.

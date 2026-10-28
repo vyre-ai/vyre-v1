@@ -9963,6 +9963,7 @@ export type FormsGetOut = {
       redirect?: string;
     };
   };
+  css?: string;
   theme?: Record<string, unknown>;
   logic?: unknown;
 };

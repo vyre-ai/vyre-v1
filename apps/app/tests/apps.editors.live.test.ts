@@ -34,11 +34,20 @@ test("production Apps: create a form and campaign, reload their real editors, in
     await page.getByRole("menuitem", { name: /^Contacts?$/, exact: true }).first().click();
     await page.getByTestId("apps-save-form").click();
     await page.getByTestId("apps-form-detail").waitFor({ timeout: 20_000 });
+    await page.getByRole("button", { name: "Mode for Name", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Ask", exact: true }).click();
+    await page.getByRole("button", { name: "Code", exact: true }).click();
+    await page.getByLabel("Custom CSS", { exact: true }).fill("input { border-color: rgb(110, 80, 190); }");
+    await page.getByRole("button", { name: "Build", exact: true }).click();
     await page.getByLabel("Form name", { exact: true }).fill("Browser fixture renamed"); await page.getByTestId("apps-save-form").click();
     await page.getByText("Saved the form.", { exact: true }).waitFor();
     await page.reload({ waitUntil: "load" });
     await page.getByTestId("apps-form-detail").waitFor({ timeout: 20_000 });
     assert.equal(await page.getByLabel("Form name", { exact: true }).inputValue(), "Browser fixture renamed");
+    await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="name"]').waitFor();
+    assert.equal(await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="name"]').evaluate((el) => getComputedStyle(el).borderTopColor), "rgb(110, 80, 190)");
+    const captures = process.env["VYRE_APPS_SHOTS"];
+    if (captures) { fs.mkdirSync(captures, { recursive: true }); await page.screenshot({ path: path.join(captures, "form-editor-desktop.png") }); }
     await page.getByRole("button", { name: "Back to Apps", exact: true }).click();
     await page.getByTestId("apps-head-campaigns").click();
     await page.getByTestId("apps-new-group").click();
@@ -93,7 +102,14 @@ test("production Apps: create a form and campaign, reload their real editors, in
     await page.getByTestId("apps-form-detail").waitFor();
     await page.getByLabel("Form name", { exact: true }).waitFor();
     assert.equal(await page.getByLabel("Form name", { exact: true }).inputValue(), "Phone browser intake");
+    assert.ok((await page.getByLabel("Form name", { exact: true }).boundingBox())!.width > 250);
+    await page.getByRole("button", { name: "Mode for Name", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Ask", exact: true }).click();
     if (out) await page.screenshot({ path: path.join(out, "form-editor-phone.png") });
+    await page.getByRole("button", { name: "Preview", exact: true }).click();
+    await page.getByTestId("apps-form-canvas").waitFor();
+    await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="name"]').waitFor();
+    if (out) await page.screenshot({ path: path.join(out, "form-preview-phone.png") });
   } catch (e) { console.error(`Apps browser failure: ${await page.locator("body").innerText().catch(() => "no body")}\n${refused.join("\n")}`); throw e; }
   finally { await context.close(); await browser.close(); web.close(); await space.stop(); fs.rmSync(space.dir, { recursive: true, force: true }); }
 });

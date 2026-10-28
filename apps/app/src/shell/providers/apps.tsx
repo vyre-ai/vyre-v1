@@ -17,7 +17,7 @@ export function appsData(rt: ShellRuntime): AppsData {
   const deferred = new Set(rt.deferredModules);
   deferred.add("sites");
   return {
-    me: { id: rt.me.id, name: rt.me.name }, connection: rt.connection,
+    assistantId: rt.assistant.id, me: { id: rt.me.id, name: rt.me.name }, connection: rt.connection,
     screens: rt.screens, call: rt.call, clock: () => ({ now: rt.clock().now }), team: rt.space.kind === "team", deferred: [...deferred],
     nav: {
       open: (group, id) => rt.open({ screen: SCREEN[group] ?? "apps.forms", args: { selected: id } }),

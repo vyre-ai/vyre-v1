@@ -72554,6 +72554,7 @@
           },
           "name": "example",
           "output": {
+            "css": "example",
             "fields": [
               {
                 "field": "example",
@@ -72606,6 +72607,9 @@
       "name": "forms.get",
       "output": {
         "properties": {
+          "css": {
+            "type": "string"
+          },
           "fields": {
             "$ref": "#/$defs/s_65290eac05"
           },

@@ -122,7 +122,7 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
       <View key={g.key} testID={`apps-group-${g.key}`}>
         <Pressable
           accessibilityRole="button" accessibilityState={{ expanded: open }} aria-expanded={open} accessibilityLabel={`${g.title}, ${rows.length}`} testID={`apps-head-${g.key}`}
-          onPress={() => { setGroup(g.key); setClosed((c) => { const n = new Set(c); if (n.has(g.key)) n.delete(g.key); else n.add(g.key); return n; }); }}
+          onPress={() => { setGroup(g.key); if (route.kind !== "list") d.nav.show(g.key); setClosed((c) => { const n = new Set(c); if (n.has(g.key)) n.delete(g.key); else n.add(g.key); return n; }); }}
           style={(state) => [s.gh, (state as { hovered?: boolean }).hovered === true && s.over]}
         >
           <View style={open ? undefined : s.shut}><Text style={s.chev}>{"▾"}</Text></View>
@@ -181,7 +181,7 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
 
   return (
     <View style={s.page} testID="apps-place">
-      {wide || !showList ? (
+      {wide || route.kind === "list" && !showList ? (
         <View style={[s.side, wide ? s.sideWide : s.sideFull]} testID="apps-sidebar" accessibilityRole="menu" accessibilityLabel="Apps">
           <View style={s.sh}>
             <Text accessibilityRole="header" style={s.title}>Apps</Text>
@@ -223,13 +223,13 @@ export default function AppsLayout({ data, start, route }: { data?: AppsData | u
   const v = data ?? provided;
   if (!v) return <AppsLoading />;
   if (!v.team) return <View style={s.page} testID="apps-needs-team"><View style={s.center}><NeedsTeamSpace density="regular" what="Forms and campaigns" onAction={v.nav.joinTeam} /></View></View>;
-  return <AppsDataProvider value={v}>{route && route.kind !== "list" ? <AppsSurface route={route} /> : <Page initial={start} route={route} />}</AppsDataProvider>;
+  return <AppsDataProvider value={v}><Page initial={start} route={route} /></AppsDataProvider>;
 }
 const s = StyleSheet.create({
   page: { flex: 1, flexDirection: "row", minHeight: 0, backgroundColor: "var(--win)" as string },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   side: { minHeight: 0, borderRightWidth: 1, borderRightColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
-  sideWide: { width: 260, flexShrink: 0 },
+  sideWide: { width: 268, flexShrink: 0 },
   sideFull: { flex: 1, borderRightWidth: 0 },
   sh: { height: 52, flexDirection: "row", alignItems: "center", paddingLeft: 18, paddingRight: 10 },
   title: { fontSize: 17, fontWeight: "600", letterSpacing: -0.2, color: "var(--ink)" as string },

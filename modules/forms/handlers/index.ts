@@ -52,6 +52,7 @@ async function get(ctx: Ctx, input: unknown) {
       return row;
     }),
   };
+  if (!isNull(form.css)) out.css = str(form.css);
   const theme = parseJson(form.theme);
   if (isRec(theme)) out.theme = theme;
   const logic = parseJson(form.logic);

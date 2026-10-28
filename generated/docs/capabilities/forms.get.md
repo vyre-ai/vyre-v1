@@ -57,6 +57,7 @@ type Out = {
       redirect?: string;
     };
   };
+  css?: string;
   theme?: Record<string, unknown>;
   logic?: unknown;
 };
@@ -79,6 +80,7 @@ type Out = {
     "formId": "frm_a1b2c3"
   },
   "output": {
+    "css": "example",
     "fields": [
       {
         "field": "example",

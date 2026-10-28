@@ -20,6 +20,7 @@ export interface AppsNav {
 }
 
 export interface AppsData {
+  assistantId?: string;
   me?: { id: string; name: string };
   connection?: { get(): "online" | "offline"; subscribe(listener: () => void): () => void };
   peek?(cap: string, input: unknown): unknown;
