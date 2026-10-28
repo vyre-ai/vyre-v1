@@ -14,6 +14,7 @@ import { Models } from "../../console/pages/Models.tsx";
 import { Spend } from "../../console/pages/Spend.tsx";
 import { Logging, ReviewSampling } from "../../console/pages/AiSettings.tsx";
 import { Incidents } from "../../console/pages/Incidents.tsx";
+import { AiPolicy } from "../../console/pages/AiPolicy.tsx";
 import { Assistant } from "../../console/Assistant.tsx";
 import { usePlaceHash } from "../hash/context.tsx";
 import { nameLookup } from "./records-live.ts";
@@ -28,6 +29,7 @@ export function aiDataPageFor(id: string): ReactElement | null {
   if (id === "logging") return <Logging />;
   if (id === "review") return <ReviewSampling />;
   if (id === "incidents") return <Incidents />;
+  if (id === "aipolicy") return <AiPolicy />;
   return null;
 }
 export default function ConsolePlace(): ReactElement {

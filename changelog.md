@@ -11,6 +11,7 @@
 - Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads. Removed an unused viewer barrel so every restored production file has executable coverage.
 
 ## Unreleased
+- Console AI policy export: show the policy in force, including label-specific provider restrictions and loop limits, then export the audited policy file and open it in Files.
 - Console AI incidents: add searchable/filterable incident objects, named owner assignment, notes, reviewed resolution, and person-report creation through the live incident contracts.
 - Console AI oversight: configure turn logging and sensitivity-based review sampling through typed Space settings; review sampled turns on standard object pages and mark them fine or flag them into incidents with impact confirmation.
 - Console AI policy: derive provider and model modes from the latest policy until editing begins, verify saved policy readback before clearing the draft, and retain restrictive empty per-label rules without allowing empty global selections to broaden access.
