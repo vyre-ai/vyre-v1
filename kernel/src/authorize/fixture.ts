@@ -82,6 +82,7 @@ export function buildWorld(seed: number, opts: { agentElevated?: boolean } = {})
     const w4 = r.int(10), where = w4 < 4 ? 0 : w4 < 6 ? 1 : w4 < 8 ? 2 : 3;
     const [resource_type, resource_id] = where === 0 ? ["deal", null] as const : where === 1 ? ["deal", `r${r.int(12)}`] as const : where === 2 ? ["folder", r.pick(["root", "f1", "f2"])] as const : ["record_type", "rt_deal"] as const;
     const c: Conditions = {};
+    if (r.chance(0.4)) c.labelCeiling = r.int(4);
     if (r.chance(0.55)) c.rowFilter = expr(r, 2);
     if (r.chance(0.15)) c.notBefore = r.pick([500, 1500]);
     if (r.chance(0.1)) c.notAfter = r.pick([500, 1500]);

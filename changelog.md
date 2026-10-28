@@ -1,5 +1,16 @@
 # Changelog
 
+- Enforce grant label ceilings in single-record authorization, inherited grants, SQL list predicates and persisted Access projections, with classification and randomized parity regressions.
+- Complete Connector and Connection Console object controllers with typed creation, cursor pagination, real test/build/diff/publication/version controls, Files exports, Vault metadata references and truthful provider reconnection.
+- Align the onboarding prototype landing fixture with supported native/download callbacks, and assert unavailable actions stay hidden in both themes.
+- Complete the Comms Console object pages with typed provider/privacy/recipient controls, number routing and hours, shared-inbox access and routes, and hydrated full texting registration drafts with reviewed submission.
+- Include the MIT/Apache-2.0 licensed UUID dependency in the desktop dependency fixture while retaining the exact crate allowlist and license policy checks.
+- Wire supported invite handoff to the existing desktop join protocol and the actual release downloads page, without silently advancing the browser or pretending a download started.
+- Browser Personal setup directs creation through the desktop app and offers joining an existing Space; remove the incomplete manual startup command.
+- Complete administrator-issued account resets from sign-in help with explicit private-data-loss acknowledgment, fresh local key generation, a saved recovery code, and verified session entry. Reset codes remain in component memory.
+- Desktop Personal Space creation starts a separate managed local profile, preserves the device daemon, and reuses the real owner claim flow inside the packaged app. Validated local handoff and single-flight startup prevent duplicate creation and remote endpoint injection. A persisted UUID keeps the Space identity across port changes, and authenticated HTTP shutdown now resolves the daemon entry point cleanly.
+- Allow only exact packaged desktop origins to reach capability/sync/local-key APIs across origins, with validated preflight headers and unchanged bearer authentication.
+
 - Closed a verified Guest hidden-field disclosure in ordinary Records reads. The host now supplies canonical row facts for point authorization and rechecks/redacts get, query, search and history output after audit; hidden values cannot leak through sort cursors, filter probes, text-search matches or unfiltered totals. Conditional collection authorization remains under active completion.
 
 - Added a source-session-bound, ten-minute shared Records preview for View-as. The memory-only token permits a closed canonical read facade with requester/target grant intersection, row filtering, field redaction and label ceilings; it refuses Personal ancestry, module handlers, nested calls, writes, credentials, exports and other transports. Reads recheck authority after awaited storage and audit work; source sign-out, target suspension, expiry and restart invalidate previews. The normal Console preview control remains hidden until the isolated client is integrated.

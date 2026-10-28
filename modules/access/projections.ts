@@ -511,6 +511,7 @@ function kernelGrant(g: GrantRec): GrantRow {
   const c = g.conditions;
   const conditions: NonNullable<GrantRow["conditions"]> = {};
   if (isExpr(c.rowFilter)) conditions.rowFilter = c.rowFilter;
+  if (c.labelCeiling !== undefined) conditions.labelCeiling = labelRank(c.labelCeiling);
   if (c.hiddenFields?.length) conditions.hiddenFields = c.hiddenFields;
   if (c.window) { conditions.notBefore = c.window.from; conditions.notAfter = c.window.to; }
   const row: GrantRow = {

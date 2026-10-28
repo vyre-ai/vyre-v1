@@ -60,7 +60,7 @@ export function aclIds(snap: AccessSnapshot, info: SubjectInfo, entityType: stri
     let ok = false;
     for (const anc of chain) {
       for (const g of snap.grantsOn(anc.id) ?? []) {
-        if (!info.keys.has(g.key) || g.rank < rank || !live(g, now)) continue;
+        if (!info.keys.has(g.key) || g.rank < rank || !live(g, now) || r.label > g.ceiling) continue;
         if (g.filter) {
           const row = snap.rowSource?.(r.id);
           if (!row || !evalExpr(g.filter, row, r.owner_id, info.p.id)) continue;
@@ -81,7 +81,7 @@ function subjectPred(snap: AccessSnapshot, s: SubjectInfo, q: ScopeForReq): Pred
   const parts: Pred[] = [];
   for (const g of snap.typeWide(q.entityType) ?? []) {
     if (!s.keys.has(g.key) || g.rank < rank || !live(g, q.now)) continue;
-    parts.push(g.filter ? { t: "expr", e: g.filter, me: s.p.id } : TRUE);
+    parts.push(and([g.filter ? { t: "expr", e: g.filter, me: s.p.id } : TRUE, ...(g.ceiling === Infinity ? [] : [{t:"label_le",n:g.ceiling} as Pred])]));
   }
   const ids = aclIds(snap, s, q.entityType, rank, q.now);
   if (ids.size) parts.push({ t: "acl", person: s.p.id, entityType: q.entityType, rank, ids });
