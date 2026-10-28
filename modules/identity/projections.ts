@@ -15,6 +15,8 @@ export interface Db {
 export interface Github { resolve(code: string): Promise<{ id: string; login: string }> }
 export interface IdentityCtx {
   signInPolicy?: {current():Readonly<SignInPolicy>;methods:Readonly<SignInMethods>};
+  /** Current canonical Space owner, supplied read-only by the access projection. */
+  spaceOwner?():string|null;
   space: string;
   /** Absent on pre-auth calls (caller 'anonymous'). */
   principal?: { kind: string; id: string };
@@ -301,15 +303,19 @@ export function putCode(ctx: IdentityCtx, kind: "pair" | "reset" | "claim", pers
   return expiresAt;
 }
 /** Spend a code once. Unknown, spent and expired codes all read the same to the caller except expired. */
-export function spendCode(ctx: IdentityCtx, kind: "pair" | "reset" | "claim", code: string): { personId: string; purpose: string | null } {
+export function peekCode(ctx: IdentityCtx, kind: "pair" | "reset" | "claim", code: string): { personId: string; purpose: string | null } {
   const h = sha(`${kind}:${code}`);
   const r = ctx.db.all(`SELECT person_id, purpose, expires_at, used_at FROM identity_codes WHERE code_hash = ?`, h)[0] as
     { person_id: string; purpose: string | null; expires_at: number; used_at: number | null } | undefined;
   if (!r || r.used_at !== null) raise(ctx.trace.traceId, "auth.invalid_code");
   if (r.expires_at <= ctx.now()) raise(ctx.trace.traceId, "auth.expired");
-  const got = ctx.db.run(`UPDATE identity_codes SET used_at = ? WHERE code_hash = ? AND used_at IS NULL`, ctx.now(), h);
-  if (got.changes !== 1) raise(ctx.trace.traceId, "auth.invalid_code");
   return { personId: r.person_id, purpose: r.purpose };
+}
+export function spendCode(ctx: IdentityCtx, kind: "pair" | "reset" | "claim", code: string): { personId: string; purpose: string | null } {
+  const row=peekCode(ctx,kind,code);
+  const got = ctx.db.run(`UPDATE identity_codes SET used_at = ? WHERE code_hash = ? AND used_at IS NULL`, ctx.now(), sha(`${kind}:${code}`));
+  if (got.changes !== 1) raise(ctx.trace.traceId, "auth.invalid_code");
+  return row;
 }
 
 // ---- challenges for the second factor

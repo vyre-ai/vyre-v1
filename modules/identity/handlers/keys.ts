@@ -1,10 +1,10 @@
-import {assertNewMemberPolicy} from "../policy.ts";
+import {assertNewMemberPolicy,assertSignInPolicy} from "../policy.ts";
 // Wrapped key storage, password change, recovery and admin reset (spec 3.13, 2.25). The server holds ciphertext only: it checks that a bundle is base64 and stores it,
 // it never receives a personKey and never returns a key to anyone but the signed-in person.
 import type { Device, IdentityCtx, KeyBundle, SignInOut } from "../projections.ts";
 import {
   MIN_SECRET, RESET_TTL_MS, USERNAME, nid, provisionAccount, randomBytes, validBundle, accountById, accountByName, bundleOf, burnVerify, checkVerifier, issueSession, lockedFor, makeVerifier, me, mustAccount, noteFail, raise,
-  currentSessionId, revokeSessions, setKeys, spendCode, putCode, clearFails, LOCK_AFTER,
+  currentSessionId, revokeSessions, setKeys, peekCode, spendCode, putCode, clearFails, LOCK_AFTER,
 } from "../projections.ts";
 
 const ok = { ok: true } as const;
@@ -95,33 +95,46 @@ export async function resetPreview(ctx: IdentityCtx, input: { personId: string }
   return { hasRecoveryCode: !!a.recovery_hash, losses };
 }
 
+function resetOwner(ctx:IdentityCtx):string {
+  const owner=ctx.spaceOwner?.();if(!owner)raise(ctx.trace.traceId,"internal.unavailable","The server cannot verify the current Space owner for account reset.");return owner;
+}
+function assertResetTarget(ctx:IdentityCtx,personId:string):void {
+  if(resetOwner(ctx)===personId)raise(ctx.trace.traceId,"permission.role_lacks_permission","The current Space owner cannot be reset by an administrator. Use the owner's signed-in password change or saved recovery code.");
+}
 export async function resetStart(ctx: IdentityCtx, input: { personId: string }) {
+  if(!ctx.principal)raise(ctx.trace.traceId,"auth.unauthenticated");
+  if(ctx.principal.kind!=="person")raise(ctx.trace.traceId,"permission.needs_approval","A person must review and issue an account reset.");
+  if(ctx.principal.id===input.personId)raise(ctx.trace.traceId,"validation.precondition_failed","Change your own password in account settings instead of signing yourself out through an administrator reset.");
+  assertResetTarget(ctx,input.personId);
   const a = mustAccount(ctx, input.personId);
   const resetCode = `rst_${randomBytes(24).toString("base64url")}`;
-  const expiresAt = putCode(ctx, "reset", a.person_id, resetCode, RESET_TTL_MS);
+  const expiresAt = putCode(ctx, "reset", a.person_id, resetCode, RESET_TTL_MS,`reset_by:${ctx.principal.id}`);
   revokeSessions(ctx, a.person_id);
   return { resetCode, expiresAt };
 }
 
 export async function resetComplete(ctx: IdentityCtx, input: Device & { resetCode: string; newPassword: string; keys: KeyBundle }): Promise<SignInOut> {
-  const spent = spendCode(ctx, "reset", input.resetCode.trim());
-  const a = accountById(ctx, spent.personId);
+  const code=input.resetCode.trim();const pending=peekCode(ctx,"reset",code);
+  const a = accountById(ctx, pending.personId);
   if (!a) raise(ctx.trace.traceId, "auth.invalid_code");
+  assertResetTarget(ctx,a.person_id);assertSignInPolicy(ctx,a,"recovery");
   checkNewSecret(ctx, input.newPassword);
+  if(!validBundle(input.keys))raise(ctx.trace.traceId,"validation.bad_input","keys must be base64 ciphertext");
   const verifier = await makeVerifier(input.newPassword);
+  // Recheck authority/policy after hashing; ownership can change while the verifier is prepared.
+  assertResetTarget(ctx,a.person_id);assertSignInPolicy(ctx,a,"recovery");
+  const spent=spendCode(ctx,"reset",code);
   // fresh keys replace the old bundle: Mine items stay sealed under the old key unless a recovery code was saved
   ctx.db.run(`UPDATE identity_accounts SET verifier = ?, keys_json = NULL, recovery_hash = NULL WHERE person_id = ?`, verifier, a.person_id);
   setKeys(ctx, a.person_id, input.keys, "reset");
   revokeSessions(ctx, a.person_id);
   clearFails(ctx, a);
-  ctx.emit("password.reset", a.person_id, { personId: a.person_id, by: "admin", recovered: false });
+  const by=spent.purpose?.match(/^reset_by:(usr_[a-z0-9]+)$/)?.[1]??"admin";
+  ctx.emit("password.reset", a.person_id, { personId: a.person_id, by, recovered: false });
   return await issueSession(ctx, mustAccount(ctx, a.person_id), input, "recovery");
 }
 
-/**
- * Ruling 23, pre-auth: join by invite with no account yet. Everything that can be refused is checked before the person exists
- * (code, username, password, key bundle), so a refused call leaves nothing behind and the invite stays open.
- */
+
 export async function acceptCreateAccount(
   ctx: IdentityCtx, input: Device & { code: string; username: string; displayName?: string; password: string; keys: KeyBundle },
 ): Promise<SignInOut> {
