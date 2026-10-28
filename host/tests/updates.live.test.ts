@@ -38,7 +38,7 @@ function seededDir(): string {
 
 interface Feed { urls: string[]; tamper: boolean }
 
-async function boot(dir: string, feed: Feed, key = PUB_HEX): Promise<Daemon> {
+async function boot(dir: string, feed: Feed, key = PUB_HEX, runOverride?: RunCommand): Promise<Daemon> {
   const fetchFeed: FeedFetch = async (url) => {
     feed.urls.push(url);
     const channel = /\/(stable|beta|nightly)\.json(\.sig)?$/.exec(url)?.[1] ?? "stable";
@@ -46,7 +46,7 @@ async function boot(dir: string, feed: Feed, key = PUB_HEX): Promise<Daemon> {
     const body = url.endsWith(".sig") ? sign(feed.tamper ? m.replace("1.1.0", "9.9.9") : m) : m;
     return { status: 200, text: async () => body };
   };
-  const run: RunCommand = async (argv) => (argv[1] === "version" ? { code: 0, stdout: "1.0.0\n", stderr: "" } : { code: 0, stdout: "", stderr: "" });
+  const run: RunCommand = runOverride ?? (async (argv) => (argv[1] === "version" ? { code: 0, stdout: "1.0.0\n", stderr: "" } : { code: 0, stdout: "", stderr: "" }));
   return startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     codeRoot: CODE_ROOT,
@@ -136,11 +136,30 @@ test("updates seam: the feed address, the installer through vyre-server, and the
   assert.equal(h.releaseKey.length, 32);
   assert.equal(await h.installer.current(), "1.0.0");
   assert.deepEqual(await h.installer.previous(), ["1.0.0"]);
-  await h.installer.install({ version: "1.1.0", tarball: "vyre.tgz", sha256: "a".repeat(64) });
-  assert.deepEqual(ran.find((a) => a[1] === "update"), ["vyre-server", "update", "--yes"]);
+  await h.installer.install({ version: "1.1.0", tarball: "vyre.tgz", sha256: "a".repeat(64) }, "beta");
+  assert.deepEqual(ran.find((a) => a[1] === "update"), ["vyre-server", "update", "--yes", "--channel", "beta", "--version", "1.1.0", "--sha256", "a".repeat(64), "--feed-base", githubFeedBase("beta")]);
   assert.equal(await h.installer.healthy(), true);
   await assert.rejects(h.installer.switchTo("0.9.0"), /not the release kept/);
   await h.installer.switchTo("1.0.0");
   assert.equal(version, "1.0.0");
   await assert.rejects(h.installer.install({ version: "2.0.0", tarball: "vyre.tgz", sha256: "a".repeat(64) }), /installed 1\.1\.0, not 2\.0\.0|installed 1\.0\.0/);
+});
+
+
+test("updates HTTP applies exactly the reviewed beta release through pinned installer arguments", async () => {
+  const dir=seededDir(),feed:Feed={urls:[],tamper:false};let version='1.0.0';const commands:string[][]=[];
+  const run:RunCommand=async argv=>{
+    commands.push([...argv]);
+    if(argv[1]==='version')return{code:0,stdout:version,stderr:''};
+    if(argv[1]==='update'){assert.equal(argv[argv.indexOf('--channel')+1],'beta');assert.equal(argv[argv.indexOf('--version')+1],'1.1.0');assert.equal(argv[argv.indexOf('--sha256')+1],'a'.repeat(64));assert.equal(argv[argv.indexOf('--feed-base')+1],githubFeedBase('beta'));version='1.1.0';return{code:0,stdout:'',stderr:''};}
+    if(argv[1]==='doctor')return{code:0,stdout:'',stderr:''};
+    return{code:1,stdout:'',stderr:'fixture unsupported command'};
+  };
+  const d=await boot(dir,feed,PUB_HEX,run);
+  try{
+    assert.equal((await call(d,'backup.config_set',{target:{kind:'local',path:path.join(dir,'fixture-backups')},schedule:'0 3 * * *',enabled:false})).status,200);
+    assert.equal((await call(d,'updates.channel_set',{channel:'beta'})).status,200);
+    const applied=await call(d,'updates.apply',{to:'1.1.0'});assert.equal(applied.status,200,JSON.stringify(applied));
+    assert.ok(commands.some(argv=>argv[1]==='update'));const status=await call(d,'updates.status',{});assert.equal(status.data.current,'1.1.0');assert.equal(status.data.lastResult,'ok');
+  }finally{await d.stop();fs.rmSync(dir,{recursive:true,force:true});}
 });

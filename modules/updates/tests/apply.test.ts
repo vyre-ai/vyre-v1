@@ -153,3 +153,9 @@ test("a switch that throws is reported with the state it may have left", async (
   assert.equal(err.error.code, "internal.unexpected");
   assert.match(err.error.message, /roll back did not finish/);
 });
+
+test('apply forwards the verified selected channel to the installer',async()=>{
+ const w=await ready();await w.publish({channel:'beta',version:'1.3.0'});await call('updates.channel_set',w.ctx,{channel:'beta'});
+ let selected:string|undefined;const install=w.installer.install.bind(w.installer);w.installer.install=async(release,channel)=>{selected=channel;await install(release,channel);};
+ await call('updates.apply',w.ctx,{to:'1.3.0'});assert.equal(selected,'beta');
+});

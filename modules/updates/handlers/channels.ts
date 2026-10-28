@@ -37,7 +37,7 @@ export interface Installer {
   /** Versions kept on disk that the server can go back to, newest first. */
   previous(): Promise<string[]>;
   /** Fetch the artifact, check its sha256 against the manifest's, switch to it and restart. Resolves once the process is up again. */
-  install(release: ReleaseInfo): Promise<void>;
+  install(release: ReleaseInfo, channel?: Channel): Promise<void>;
   /** Does the running server answer its health probe? */
   healthy(): Promise<boolean>;
   /** Switch back to a kept version and restart. */
