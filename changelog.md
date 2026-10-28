@@ -12,6 +12,7 @@
 
 ## Unreleased
 - Console AI policy: add typed provider, model, account and sensitivity-label controls with restrictive selected-only validation, reviewed policy application, and direct navigation to Vault for provider credentials.
+- Console object lists: pass row context-menu and keyboard-menu handlers through the supported web DOM seam so right-click and Menu-key actions work on shared rows.
 - Console objects: wait for real asynchronous mutations before showing completion or Undo, preserve failed/held actions as visible errors, guard duplicate action submits, and synchronize externally changed tabs and quick-edit sheets.
 - Console: add a shared searchable, filterable and keyboard-selectable object-list framework with checked filter counts, bulk selection, pagination and real row context actions; it composes with the existing standard object header, tabs and quick-edit sheet.
 - Console access checks render decision steps with the shared row component and named pass/fail indicators.
