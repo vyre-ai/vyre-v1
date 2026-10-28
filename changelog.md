@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Automations: the seven acceptance flows run on the host databases in this process. A revoked Google account fails the step with provider.auth_failed, Ask Vyre keeps the connection id and drops the token, and a retry uses that same connection id. A new host object on the same databases resumes a waiting Run once. A killed process and a browser pass were not run.
 - Automations: first-party steps call handlers that already exist for records, files, calendar, forms, GitHub, Google, and Microsoft. Word, Excel, Vault reveal, and installation tokens stay off the catalogue. A Google or Microsoft step needs a connection and cannot hold a secret.
 - Automations: an authenticated request runs a named connector action on a connection. A draft connector stays with its author. The step cannot hold a secret, and it does not call an arbitrary website.
 - Automations: Send an email uses the shared email builder. Send a text uses the shared rich editor. The canvas names the message, a test fills it from fixture data, and a text shows its segment count. Links are not shortened.

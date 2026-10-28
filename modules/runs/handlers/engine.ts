@@ -424,6 +424,8 @@ export function backoffMs(p: RetryPolicy, attempt: number): number {
 
 export interface PlanStep {
   id: string;
+  /** Catalogue step key when the host built the plan. An AI step waits on a lost key. A connection step does not. */
+  key?: string;
   branch?: string;
   input?: unknown;
   retry?: RetryPolicy;
@@ -485,7 +487,12 @@ export interface DriveOptions {
 }
 export interface DriveResult { status: RunStatus; retryAt?: number; failedStep?: string }
 
-const KEY_LOST = /^(provider\.auth_failed|key\.lost)$/;
+/** An AI model key can fall over to a backup key. A revoked Google or Microsoft connection is a failed step, so the same connection can be reconnected and retried. */
+function waitsForWorkingKey(step: PlanStep, code: string): boolean {
+  if (code === "key.lost") return true;
+  if (code !== "provider.auth_failed") return false;
+  return step.key === "ai" || (step.key === undefined && step.id === "ai");
+}
 interface Caught { code: string; message: string; retryable: boolean }
 function caught(e: unknown): Caught {
   const he = (e as { error?: { code?: unknown; message?: unknown; retryable?: unknown } } | null)?.error;
@@ -601,8 +608,8 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
       const c = caught(e);
       const policy = step.retry ?? NO_RETRY;
       run = findRun(ctx.db, runId)!;
-      if (KEY_LOST.test(c.code) && !isSandbox(run.kind)) {
-        // a lost key falls to the backup key once, then the Run waits in Needs you; it never fails silently
+      if (waitsForWorkingKey(step, c.code) && !isSandbox(run.kind)) {
+        // a lost AI key falls to the backup key once, then the Run waits in Needs you; it never fails silently
         if (opts.backupKey && !fellBack && run.keyUsed !== opts.backupKey) {
           fellBack = true;
           applyKey(ctx, run, { step: cur, keyUsed: opts.backupKey, fellBackFrom: run.keyUsed ?? "unknown", reason: c.message });

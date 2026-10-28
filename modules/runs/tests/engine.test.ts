@@ -228,6 +228,21 @@ test("a lost key falls to the backup key once; with none, the Run waits in Needs
   assert.equal(readWait(h2.db, id2)?.taskId, "tsk_n1");
 });
 
+test("a revoked connection fails the step and does not wait for an AI key", async () => {
+  const h = harness();
+  const tasks = tasksCreate(h);
+  const id = await started(h);
+  const exec: Executor = async () => { throw errorOf("provider.auth_failed", "Google rejected the sign-in.", false); };
+  const r = await h.engineRun(engine, (ctx) => drive(ctx, id, [step("gmail", { key: "google.gmail.list_messages" })], exec));
+  assert.equal(r.status, "failed");
+  assert.equal(r.failedStep, "gmail");
+  assert.equal((await runOf(h, id)).status, "failed");
+  assert.equal((await runOf(h, id)).waitReason, undefined);
+  assert.equal(states(h, id).join(","), "gmail#1:failed");
+  assert.equal(tasks.made.length, 1);
+  assert.match(String(tasks.made[0].title), /failed/);
+});
+
 test("branches: a step names the next one, and a resumed Run follows the stored path", async () => {
   const h = harness();
   const id = await started(h);
