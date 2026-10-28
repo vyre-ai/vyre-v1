@@ -11,6 +11,7 @@
 - Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads. Removed an unused viewer barrel so every restored production file has executable coverage.
 
 ## Unreleased
+- Console erase: find a person by name, email or phone, review grouped expiring findings, select data kinds, require owner confirmation and a reason for hold override, and show the live erasure run and tombstone history.
 - Console holds: search named people, files, folders, channels and threads, review hold impact, verify placement, paginate held targets, and require release confirmation.
 - Console retention: edit global and per-record-type policies with typed durations, review and verified readback; reset overrides and start retention jobs with live state, removal and hold-skip results.
 - Console AI review: paginate sampled turns within each review state, reset cursor state when switching views, and keep the latest unique turn status across pages.

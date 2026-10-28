@@ -5,6 +5,7 @@ import { incidentDefaultFilters, mergeIncidentPages } from "../pages/Incidents.t
 import { canEditOwnerFloor, gateRuleDraft, mergeGateAgents } from "../pages/GateRules.tsx";
 import { mergeReviewPages } from "../pages/AiSettings.tsx";
 import { holdTargetOf, mergeHolds } from "../pages/Holds.tsx";
+import { eraseFindingExpired } from "../pages/ErasePerson.tsx";
 
 test("Models and providers mounts a real Console page", () => {
   const page = aiDataPageFor("models");
@@ -18,6 +19,7 @@ test("Models and providers mounts a real Console page", () => {
   assert.ok(aiDataPageFor("gate"));
   assert.ok(aiDataPageFor("retention"));
   assert.ok(aiDataPageFor("holds"));
+  assert.ok(aiDataPageFor("erase"));
   assert.equal(aiDataPageFor("not-ai-data"), null);
 });
 
@@ -46,4 +48,9 @@ test("hold search maps named app objects to governance targets and paginates uni
   assert.deepEqual(holdTargetOf({ kind: "file", id: "fil_1", title: "Brief" }), { kind: "file", id: "fil_1", title: "Brief" });
   const row = (id: string, reason: string) => ({ target: { kind: "file" as const, id }, title: id, reason, by: "usr_1", at: 1 });
   assert.deepEqual(mergeHolds([row("fil_1", "old")], [row("fil_1", "new"), row("fil_2", "two")]).map((item) => item.reason), ["new", "two"]);
+});
+
+test("erase findings expire at their declared timestamp", () => {
+  assert.equal(eraseFindingExpired(10_000, 9_999), false);
+  assert.equal(eraseFindingExpired(10_000, 10_000), true);
 });
