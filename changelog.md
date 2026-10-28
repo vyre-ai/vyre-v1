@@ -1,5 +1,7 @@
 # Changelog
 
+- Bound backup restore confirmation to the latest selected backup: clear prior confirmation during loading and on failure, ignore delayed or cancelled previews, show the selected backup date, and prevent confirming a removed backup. Added forced-order regressions and production browser proof using two actual local backups without executing restore.
+
 - Closed the view-level Space address mutation path: require server.network manage, verify DNS and apply the real host driver before saving the profile, and show the observed current address after Network changes. Missing drivers and failed DNS/Caddy applications preserve prior state. Added actual HTTP view-only denial, owner success/failure and restart regressions.
 
 - Wired network domain changes to the existing Caddy ingress driver and added sanitized pending/applied/failed outcome readback. Preserve observed address and server rows until host operations succeed; retain prior state on driver failure, restrict renewal to current Space ingress, and refresh its observed certificate. Mark absent compute enrollment unavailable. Return server budget units and direction with Speed rows through the capability boundary. Added driver, HTTP permission/failure/event/restart and browser regressions.
