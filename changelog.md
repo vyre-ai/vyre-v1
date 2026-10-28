@@ -11,6 +11,7 @@
 - Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads. Removed an unused viewer barrel so every restored production file has executable coverage.
 
 ## Unreleased
+- Console AI spend: invalidate stale cap and raise reviews on every edit, apply only immutable reviewed payloads, verify cap readback, use native turn/minute units, and replace raw person, agent and pauser IDs with names.
 - Console Gate rules: edit Space defaults, the owner floor, and named agent overrides across every Gate act with explicit approvers, timeouts, escalation and an impact review before apply.
 - Console AI policy export: show the policy in force, including label-specific provider restrictions and loop limits, then export the audited policy file and open it in Files.
 - Console AI incidents: add searchable/filterable incident objects, named owner assignment, notes, reviewed resolution, and person-report creation through the live incident contracts.

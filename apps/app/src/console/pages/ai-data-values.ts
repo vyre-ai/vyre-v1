@@ -23,6 +23,18 @@ export function limitDraft(input: { run: string; day: string; month: string; tur
   return Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined));
 }
 
+type Limit = CapMap["engine.spend.raise"]["in"]["limit"];
+export function raiseAmount(limit: Limit, raw: string): number | undefined {
+  if (limit === "run" || limit === "day" || limit === "month") return amountInMicros(raw);
+  const value = count(raw);
+  if (value === 0) throw new Error("The raise must be more than zero.");
+  return value;
+}
+
+export function capsMatch(left: CapMap["engine.spend.caps.set"]["in"]["caps"], right: CapMap["engine.spend.caps.set"]["in"]["caps"]): boolean {
+  return (["run", "dayMicros", "monthMicros", "turnsPerDay", "timeMinutesPerRun"] as const).every((key) => left[key] === right[key]);
+}
+
 export function policySelection(mode: "all" | "selected", values: readonly string[]): string[] {
   if (mode === "all") return [];
   const unique = [...new Set(values)];
