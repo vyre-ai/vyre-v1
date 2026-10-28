@@ -26,6 +26,7 @@ export const SHELL_PLACES: readonly ShellPlace[] = [
   { id: "automations", label: "Automations", screens: "automations", load: () => import("./providers/automations.tsx") },
   { id: "vault", label: "Vault", screens: "vault", load: () => import("./providers/vault.tsx") },
   { id: "settings", label: "Settings", screens: "settings", load: () => import("./providers/settings.tsx") },
+  { id: "console", label: "Console", screens: "console", load: () => import("./providers/console.tsx") },
 ];
 
 export function shellPlace(id: string): ShellPlace | undefined {

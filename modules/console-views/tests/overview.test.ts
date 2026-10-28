@@ -158,3 +158,12 @@ test("a caller who may not read the probe or the backup log still gets the Overv
 });
 
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+
+
+test("Console developers do not see people, group, role or grant administration", async () => {
+  const groups = (await handlers["console.nav"](world(quiet, ["console.access", "schema.manage", "server.logs"]).ctx, {})).groups;
+  const keys = groups.flatMap((group) => group.pages.map((page) => page.key));
+  for (const key of ["access.people", "access.groups", "access.roles", "access.grants"]) assert.ok(!keys.includes(key));
+  assert.ok(keys.includes("console.schema"));
+  assert.ok(keys.includes("console.server-logs"));
+});

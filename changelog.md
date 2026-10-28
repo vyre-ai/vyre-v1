@@ -1,5 +1,7 @@
 # Changelog
 
+- Added an authenticated standalone Console frame with server-pruned navigation and real Overview, Audit, Backups, Devices, People, Roles, Grants and Access checker surfaces. Backup restore requires a preview and explicit confirmation; device revocation retains purge handling. The remaining Console pages remain incomplete and are listed in the release scope ledger.
+
 - Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads. Removed an unused viewer barrel so every restored production file has executable coverage.
 
 ## Unreleased
