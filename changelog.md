@@ -1,5 +1,7 @@
 # Changelog
 
+- Mark the synthetic export-redaction credential fixture for the existing secret scanner without changing production credential checks.
+
 - Restored the 0.6.8 welcome composition: open halftone canvas, approved Vyre mark, large greeting and round Space connection field, with verified v1 connection and retry handling.
 
 - Fixed invited-account AI setup through the member acceptance contract so invite permissions apply before session verification: provider choice and Mine API-key storage follow verified join; subscription sign-in uses real completion, failures retry without accepting the invite twice, and raw keys never enter device storage. Preserved the authenticated device session during password changes while revoking other devices. Added working password and authenticator controls and truthful account-recovery guidance.
@@ -11,6 +13,10 @@
 - Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads. Removed an unused viewer barrel so every restored production file has executable coverage.
 
 ## Unreleased
+- Space archives: refuse snapshots while relevant writes are active, advance mutation revisions on completion, and enforce a cumulative retained-item budget across roots and descendants. Add deterministic HTTP coverage for writes blocked before the snapshot baseline and between DB/log phases.
+- Label the fixed synthetic collector and HTTP archive credential fixtures with the documented secret-scan marker; keep production scanner enforcement unchanged.
+- Space archives: collect current shared records/schema, retained file versions and canonical current pointers, public channel messages and Space settings through the original owner’s capabilities. Include an exact hashed manifest, explicit privacy/credential omissions and mutation guards through persistence; refuse missing snapshots and inconsistent exports instead of returning a partial ZIP.
+- Space archives: recheck current owner, export permissions and expiry after blob retrieval before returning status or bytes; withhold ready pointers until resource registration finishes, and delete encrypted artifacts after failed persistence or registration.
 - Console: add Updates review/history, Space profile and owner transfer controls, and local/drive/S3 backup settings with encryption and schedule readback. Add expiring current-owner archive status and authenticated chunked downloads; fix null-Space export authorization, atomically project ownership/resource/role changes across restart, and preserve the Space when server-side deletion refuses. Keep the existing shared-history-only export scope explicit.
 - Console: add live Server logs, service restart review, storage probes, Diagnostics and Support pages with real requester-private downloads. Scope administrative export ports to approved handlers, preserve current permissions and actor attribution, scrub content, and expire encrypted artifacts and caches after 24 hours. Drain accepted log rows and spans before closing the sink and ignore late shutdown callbacks.
 - Console access checks render decision steps with the shared row component and named pass/fail indicators.

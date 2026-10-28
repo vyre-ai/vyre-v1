@@ -66,5 +66,6 @@
   {"file": "apps/app/src/shell/places.test.tsx", "capSec": 120, "owner": "L11", "reason": "boots a daemon or mounts the whole app; over the 30 s fast cap when many shards share a host (release dry run, #676), so it gets its own slow job"},
   {"file": "apps/app/tests/chats-mounted.test.tsx", "capSec": 120, "owner": "L11", "reason": "boots a daemon or mounts the whole app; over the 30 s fast cap when many shards share a host (release dry run, #676), so it gets its own slow job"},
   {"file": "host/tests/authz.single-source.test.ts", "capSec": 120, "owner": "L11", "reason": "boots a daemon or mounts the whole app; over the 30 s fast cap when many shards share a host (release dry run, #676), so it gets its own slow job"},
-  {"file": "host/tests/l7.live.test.ts", "capSec": 120, "owner": "L11", "reason": "boots a daemon or mounts the whole app; over the 30 s fast cap when many shards share a host (release dry run, #676), so it gets its own slow job"}
+  {"file": "host/tests/l7.live.test.ts", "capSec": 120, "owner": "L11", "reason": "boots a daemon or mounts the whole app; over the 30 s fast cap when many shards share a host (release dry run, #676), so it gets its own slow job"},
+  {"file": "host/tests/space.export.live.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots and restarts a real Space; populates shared/private fixtures through HTTP, exports and verifies retained versions and owner-private ZIP content"}
 ]

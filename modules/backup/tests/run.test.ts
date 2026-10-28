@@ -454,3 +454,8 @@ test("impl.ts exposes every backup handler, the host wiring and no projections",
     "backup.config_get", "backup.config_set", "backup.delete", "backup.export_start", "backup.export_status", "backup.health", "backup.list", "backup.restore", "backup.restore_preview", "backup.run", "backup.verify",
   ]);
 });
+
+test('collected snapshots refuse prohibited entries rather than silently breaking their manifest',async()=>{
+ const w=world();configureBackup(w.drivers);w.ctx.ownerArchive={collect:async()=>[{path:'manifest.json',bytes:new TextEncoder().encode('{"entries":["private/data.json"]}')},{path:'private/data.json',bytes:new TextEncoder().encode('prohibited fixture')}],saveZip:async()=>{throw new Error('must not persist a partial ZIP');}};
+ const error=await failed(call('backup.export_start',w.ctx,{}));assert.equal(error.error.code,'validation.precondition_failed');assert.match(error.error.message,/No partial archive/);assert.equal(w.saved.length,0);
+});
