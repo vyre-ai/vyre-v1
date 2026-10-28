@@ -17,14 +17,16 @@ test("Agents and actors pages expose their live registers and object actions", a
   assert.ok(pages, "the Agents and actors Console surfaces exist");
   if (!pages) return;
   const agent = { agentId: "agt_one", name: "Intake", face: "I", status: "awake", ownerId: "usr_owner", folderId: "fld_one", accountPolicy: "asker", toolsAllowed: [], toolsDenied: [], vaultKeys: [], limits: {}, captureMode: "propose", hasComputer: true, templateVersion: 1, createdAt: 1 };
-  assert.match(draw(<pages.AgentsRegister />, { "agents.list": { agents: [agent] } }), /Intake|Pause agent|console-agent-agt_one/);
+  assert.match(draw(<pages.AgentsRegister />, { "agents.list": { agents: [agent] } }), /Search|Intake|Pause agent/);
+  assert.match(draw(<pages.AgentsRegister initialAgentId="agt_one" />, { "agents.list": { agents: [agent] }, "access.principals.effective": { permissions: [], roles: [], grants: [] }, "audit.list": { rows: [] } }), /object-header|Overview|Access|Activity|Edit agent|Delete agent/);
   const actor = { id: "act_one", name: "Claude Code", owner: "usr_owner", provider: "anthropic", roles: [], status: "active", engineerMcp: false };
   const actorsList = draw(<pages.OutsideActors />, { "access.actors.list": { actors: [actor] } });
   assert.match(actorsList, /Search|Claude Code|Active/);
   const actorObject = draw(<pages.OutsideActors initialActorId="act_one" />, { "access.actors.list": { actors: [actor] }, "audit.list": { rows: [] }, "access.roles.list": { roles: [] } });
   assert.match(actorObject, /object-header|Overview|Access|Activity|Edit actor|Revoke/);
   const computer = { computerId: "cmt_one", agentId: "agt_one", state: "asleep", tabs: 0, tabLimit: 8, host: "server", recording: false };
-  assert.match(draw(<pages.AgentComputers />, { "computers.list": { computers: [computer] } }), /cmt_one|Wake configuration|Remove/);
+  assert.match(draw(<pages.AgentComputers />, { "computers.list": { computers: [computer] } }), /Search|cmt_one|asleep|Provision computer/);
+  assert.match(draw(<pages.AgentComputers initialComputerId="cmt_one" />, { "computers.list": { computers: [computer] }, "audit.list": { rows: [] } }), /object-header|Overview|Access|Activity|Configuration|Remove computer/);
   assert.match(draw(<pages.AgentTemplate />, { "agents.template.get": { version: 2, files: ["AGENT.md"], mode: "suggest", agents: 1 }, "agents.suggestions.list": { suggestions: [] } }), /Version 2|Preview for all agents|AGENT.md/);
 });
 
@@ -33,7 +35,9 @@ test("Schema and sensitivity pages expose record-type objects and live label con
   assert.ok(pages, "the owned Data Console surfaces exist");
   if (!pages) return;
   const type = { key: "matter", title: "Matter", plural: "Matters", icon: "record", label: "confidential", system: false, titleField: "title", fields: [{ key: "title", type: "text", title: "Title", required: true }], version: 3 };
-  assert.match(draw(<pages.SchemaPage />, { "schema.describe": { types: [type] }, "schema.changes.list": { changes: [] }, "schema.trash.list": { items: [] } }), /Matter|Version 3|Preview schema change/);
+  const schema = draw(<pages.SchemaPage />, { "schema.describe": { types: [type] }, "schema.changes.list": { changes: [] }, "schema.trash.list": { items: [] }, "schema.field_types": { fieldTypes: [{ key: "text", title: "Text", filterOps: [], sortable: true, groupable: true, sealed: false }] } });
+  assert.match(schema, /Matter|Version 3|Add field|Create record type|Preview schema change/);
+  assert.doesNotMatch(schema, /Operations \(JSON array\)/);
   const labels = { labels: [{ label: "public", rank: 0, providers: "any", syncToLaptop: true }, { label: "restricted", rank: 3, providers: "none", syncToLaptop: false }] };
   assert.match(draw(<pages.LabelsPage />, { "access.labels.list": labels }), /Public|Restricted|Set label|Scan record type/);
 });

@@ -15,11 +15,11 @@ Historical build/P-L7b_11 at333b3a02 supplies only shell, Overview, Audit. No la
 | Access checker | `access.checker` | Real access.check decision/steps; production pending. |
 | Access reviews | `access.reviews` | Missing functional UI; historical navigation definition only. |
 | Sessions and devices | `devices.sessions` | Partial: devices list/detail/session or device revocation with confirmation. Missing full device object views, filters and bulk actions. |
-| Agents register | `console.agents-register` | Implementation pending acceptance: live register/create/detail/pause/resume/delete exists, but still needs migration to the shared searchable object model and production mutation proof. |
+| Agents register | `console.agents-register` | Acceptance candidate: shared searchable/filterable/bulk register, standard Overview/Access/Activity/Configuration object page, quick edit, create/pause/resume and impact-confirmed delete. Production mutation proof and owner review pending. |
 | Outside actors | `console.outside-actors` | Acceptance candidate: shared searchable/filterable/bulk list, standard Overview/Access/Activity object page, quick edit, one-time token creation, Engineer MCP control and impact-confirmed revocation. Fresh production daemon create/readback/edit/effective-access proof passes; owner review pending. |
-| Agent computers | `console.agent-computers` | Implementation pending acceptance: live register/configuration/sleep/removal exists, but still needs migration to the shared object model and production mutation proof. |
+| Agent computers | `console.agent-computers` | Acceptance candidate: shared searchable/filterable/bulk register, standard object page, quick configuration, provision/wake/sleep and impact-confirmed removal. Production mutation proof and owner review pending. |
 | Agent template | `console.agent-template` | Implementation pending acceptance: live read/preview/apply and suggestion review exists. The backend exposes no direct template-file edit contract; production proof pending. |
-| Schema | `console.schema` | Not accepted: live type/field inspection, JSON diff/apply, history and restore exist, but the JSON operations form must be replaced by a typed field builder and shared object model. |
+| Schema | `console.schema` | Implementation pending acceptance: typed record-type/field create/edit/rename/drop builder with exact diff token, destructive item confirmation, history and Trash restore replaces the JSON form. Shared searchable object-page treatment and production mutation proof remain. |
 | Sensitivity labels | `console.labels` | Implementation pending acceptance: live label/resource/scan controls exist, but rules and shared object interactions remain incomplete. |
 | Retention | `governance.retention` | Missing functional UI; historical navigation definition only. |
 | Holds | `governance.holds` | Missing functional UI; historical navigation definition only. |

@@ -11,6 +11,7 @@
 - Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads. Removed an unused viewer barrel so every restored production file has executable coverage.
 
 ## Unreleased
+- Console Agents and Data: migrate Agent and Agent computer registers to the shared searchable object model with standard object tabs, impact-confirmed bulk/destructive actions and quick edits; replace raw Schema JSON operations with a typed record-type and field builder bound to exact diff previews.
 - Console surfaces: wire capability-backed first implementations for Agents, Data, Comms and Integrations; Outside actors now uses the shared object model with production create/readback/edit proof, while the scope ledger names the remaining acceptance gaps for every other adapter.
 - Console objects: wait for real asynchronous mutations before showing completion or Undo, preserve failed/held actions as visible errors, guard duplicate action submits, and synchronize externally changed tabs and quick-edit sheets.
 - Console: add a shared searchable, filterable and keyboard-selectable object-list framework with checked filter counts, bulk selection, pagination and real row context actions; it composes with the existing standard object header, tabs and quick-edit sheet.
