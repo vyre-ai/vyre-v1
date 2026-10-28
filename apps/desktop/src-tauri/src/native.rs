@@ -585,9 +585,14 @@ mod tests {
     fn integer_codex_metadata_keeps_safe_ssh_remote() {
         let root = std::env::temp_dir().join(format!("vyre-codex-fixture-{}", std::process::id()));
         fs::create_dir_all(&root).unwrap();
+        let repo = root.join("work").join("app");
+        fs::create_dir_all(&repo).unwrap();
+        assert!(Command::new("git").arg("init").arg(&repo).output().unwrap().status.success());
+        assert!(Command::new("git").arg("-C").arg(&repo).args(["remote", "add", "origin", "git@github.com:acme/app.git"]).output().unwrap().status.success());
         fs::write(root.join("rollout.jsonl"), "{}\n").unwrap();
         let db = Connection::open(root.join("state_5.sqlite")).unwrap();
-        db.execute_batch("CREATE TABLE threads(id TEXT, rollout_path TEXT, cwd TEXT, created_at INTEGER, updated_at INTEGER, git_branch TEXT, git_origin_url TEXT); INSERT INTO threads VALUES ('fixture','rollout.jsonl','/work/app',1760000000,1760000001,'main','git@github.com:acme/app.git');").unwrap();
+        db.execute_batch("CREATE TABLE threads(id TEXT, rollout_path TEXT, cwd TEXT, created_at INTEGER, updated_at INTEGER, git_branch TEXT, git_origin_url TEXT);").unwrap();
+        db.execute("INSERT INTO threads VALUES (?1,?2,?3,?4,?5,?6,?7)", rusqlite::params!["fixture", "rollout.jsonl", repo.to_str().unwrap(), 1760000000_i64, 1760000001_i64, "main", "git@github.com:acme/app.git"]).unwrap();
         drop(db);
         let sources = codex_sources(Some(root.to_str().unwrap())).unwrap();
         assert_eq!(sources.len(), 1);
@@ -632,8 +637,9 @@ mod tests {
         fs::create_dir_all(repo.join("packages").join("app")).unwrap();
         assert!(Command::new("git").arg("init").arg(&repo).output().unwrap().status.success());
         assert!(Command::new("git").arg("-C").arg(&repo).args(["remote", "add", "origin", "https://token:secret@example.com/acme/vyre.git"]).output().unwrap().status.success());
+        let canonical_repo = repo.canonicalize().unwrap();
         fs::create_dir_all(project.join(parent).join("subagents")).unwrap();
-        fs::write(project.join(format!("{parent}.jsonl")), format!(r#"{{"type":"user","cwd":{},"message":{{"role":"user","content":"Parent"}}}}\n"#, serde_json::to_string(repo.join("packages").join("app").to_str().unwrap()).unwrap())).unwrap();
+        fs::write(project.join(format!("{parent}.jsonl")), format!("{{\"type\":\"user\",\"cwd\":{},\"message\":{{\"role\":\"user\",\"content\":\"Parent\"}}}}\n", serde_json::to_string(repo.join("packages").join("app").to_str().unwrap()).unwrap())).unwrap();
         fs::write(project.join(parent).join("subagents").join(format!("agent-{child}.jsonl")), "{}\n").unwrap();
         let sources = claude_sources(Some(claude.to_str().unwrap()), None);
         assert_eq!(sources.len(), 1, "subagents belong to their parent and are not selectable sessions");
@@ -644,7 +650,7 @@ mod tests {
         let read = read_discovered_source(&sources[0], &root).unwrap();
         assert_eq!(read["documents"].as_array().map(Vec::len), Some(2));
         assert_eq!(read["documents"][1]["namespace"], format!("subagent:{child}"));
-        assert_eq!(read["source"]["cwd"], repo.to_str().unwrap());
+        assert_eq!(read["source"]["cwd"], canonical_repo.to_str().unwrap());
         assert_eq!(read["source"]["gitOriginUrl"], "https://example.com/acme/vyre.git");
         assert_eq!(read["source"]["repositoryMetadataAuthoritative"], true);
         let codex = fixture.join(".codex");
@@ -657,7 +663,7 @@ mod tests {
         drop(db);
         let codex_sources = codex_sources(Some(codex.to_str().unwrap())).unwrap();
         let codex_source = codex_sources.iter().find(|source| source.session_id == "fixture").unwrap().clone();
-        assert_eq!(codex_source.cwd.as_deref(), repo.to_str());
+        assert_eq!(codex_source.cwd.as_deref(), canonical_repo.to_str());
         assert_eq!(codex_source.git_origin_url.as_deref(), Some("https://example.com/acme/vyre.git"));
         assert_eq!(read["source"]["cwd"], codex_source.cwd.clone().unwrap());
         assert_eq!(read["source"]["gitOriginUrl"], codex_source.git_origin_url.clone().unwrap());
@@ -668,7 +674,7 @@ mod tests {
         assert_eq!(deferred.cwd.as_deref(), repo.join("packages").join("app").to_str());
         assert_eq!(deferred.git_origin_url, None, "bounded discovery defers repository identity after its budget");
         let selected = read_discovered_source(&deferred, &codex.canonicalize().unwrap()).unwrap();
-        assert_eq!(selected["source"]["cwd"], repo.to_str().unwrap(), "an explicit selected preview receives one fresh bounded repository probe");
+        assert_eq!(selected["source"]["cwd"], canonical_repo.to_str().unwrap(), "an explicit selected preview receives one fresh bounded repository probe");
         assert_eq!(selected["source"]["gitOriginUrl"], "https://example.com/acme/vyre.git");
         fs::remove_dir_all(fixture).unwrap();
     }
