@@ -394,3 +394,15 @@ test('only a healthy update persists the selected daily channel and feed',()=>{
   }finally{fs.rmSync(dir,{recursive:true,force:true});}
  }
 });
+
+test('a contending update cannot remove the active updater lock during exit cleanup',()=>{
+ const dir=tmp();try{const lock=path.join(dir,'state','update.lock');fs.mkdirSync(lock,{recursive:true});
+  const out=sh(SERVER,'trap cleanup EXIT; cmd_update --check',{VYRE_DIR:dir,TMPDIR:dir});
+  assert.equal(fs.existsSync(lock),true,'a contender must not clean a lock it did not acquire');assert.equal(out.status,75,out.stderr);
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
+test('manual rollback respects the same active operation lock before changing state',()=>{
+ const dir=tmp();try{const lock=path.join(dir,'state','update.lock');fs.mkdirSync(lock,{recursive:true});
+  const out=sh(SERVER,'trap cleanup EXIT; cmd_rollback',{VYRE_DIR:dir,TMPDIR:dir});assert.equal(out.status,75,out.stderr);assert.equal(fs.existsSync(lock),true);
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});

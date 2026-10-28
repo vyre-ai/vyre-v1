@@ -7,6 +7,8 @@
 
 - Keep browser failure diagnostics from masking the original Apps failure, and verify the canonical wording in exported AI policy documents.
 - Restore the auth entry chooser and canonical invite links, connect Add a Space on desktop and phone, keep Get started available before choosing an address, and add password-based Lock/Unlock using the existing session revocation and key-drop path. Preserve the approved clean 0.6.8 auth kit and signed-in v1 visual language.
+- Serialized server apply/rollback operations per Space and shared their CLI lock. A contending updater no longer removes another process’s lock during cleanup, and a busy installer never triggers rollback of an active installation. Added deterministic concurrency, lock-ownership, failure-release and actual HTTP competing-operation regressions.
+
 - Added older/newer/latest Server log navigation through existing cursors, paused auto-refresh on older pages, preserved whole-filter private exports, and rendered actual log rows in trace detail. Added production browser proof with 120 authenticated fixture entries, cross-page export and trace readback.
 
 - Kept the audited Speed trace drilldown on a direct authenticated read, matching Server trace handling and avoiding repeat reads from global query invalidation.
