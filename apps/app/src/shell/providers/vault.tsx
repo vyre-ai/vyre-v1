@@ -3,9 +3,19 @@
 import { useMemo } from "react";
 import type { ReactElement } from "react";
 import VaultLayout, { VaultLoading } from "../../places/vault/layout/index.tsx";
-import type { VaultData } from "../../places/vault/layout/index.tsx";
+import type { VaultData, VaultRoute } from "../../places/vault/layout/index.tsx";
+import { usePlaceHash } from "../hash/context.tsx";
+import type { HashTarget } from "../hash/hash.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
+
+export function vaultRoute(target: HashTarget): VaultRoute {
+  if (target.screen === "vault_requests.list") return { surface: "requests" };
+  if (target.args["share"]) return { surface: "share", itemId: target.args["share"] };
+  if (target.args["export"]) return { surface: "export", folderId: target.args["export"] };
+  if (target.args["advanced"] === "true") return { surface: "advanced" };
+  return { surface: "layout" };
+}
 
 export function vaultData(rt: ShellRuntime): VaultData {
   return {
@@ -23,6 +33,8 @@ export function vaultData(rt: ShellRuntime): VaultData {
 
 export default function VaultPlace(_props: { place: string }): ReactElement {
   const rt = useOptionalShellRuntime();
+  const { target, opened } = usePlaceHash();
   const data = useMemo(() => (rt ? vaultData(rt) : null), [rt]);
-  return data ? <VaultLayout data={data} /> : <VaultLoading />;
+  const route = useMemo(() => vaultRoute(target), [target]);
+  return data ? <VaultLayout data={data} route={route} onRouteClose={() => opened({ screen: "vault.layout" })} /> : <VaultLoading />;
 }
