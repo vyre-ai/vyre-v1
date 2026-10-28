@@ -2087,6 +2087,65 @@ export type AutomationsDeleteIn = {
 export type AutomationsDeleteOut = {
   deleted: boolean;
 };
+export type AutomationsDraftConnectorIn = {
+  document: Record<string, unknown>;
+  docsUrl?: string;
+};
+export type AutomationsDraftConnectorOut = {
+  draft: {
+    key: string;
+    level: "draft";
+    docsUrl?: string;
+    tested: boolean;
+    reviewed: boolean;
+    auth: "oauth" | "api_key" | "none" | "unknown";
+  };
+  actions: Array<{
+      key: string;
+      level: "draft";
+      method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "TRACE";
+      path: string;
+      fields: Array<{
+          name: string;
+          in: "path" | "query" | "header" | "body";
+          required: boolean;
+          schema: Record<string, unknown>;
+        }>;
+      inputSchema: Record<string, unknown>;
+      outputSchema?: Record<string, unknown>;
+      body?: Record<string, unknown>;
+      effect: "read" | "outward";
+      scopes?: Array<string>;
+      servers: Array<string>;
+      domains: Array<string>;
+      errors?: Array<{
+          status: string;
+          code: string;
+        }>;
+      connection?: {
+        required: boolean;
+      };
+      auth: "oauth" | "api_key" | "none" | "unknown";
+      tested: boolean;
+      reviewed: boolean;
+      missing: Array<string>;
+    }>;
+  request: ({
+    method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "TRACE";
+    path: string;
+    query: Record<string, Record<string, unknown>>;
+    headers: Record<string, Record<string, unknown>>;
+    body?: Record<string, unknown>;
+    outputSchema?: Record<string, unknown>;
+    effect: "read" | "outward";
+    servers: Array<string>;
+    allowedDomains: Array<string>;
+  }) | null;
+  refused: Array<{
+      path: string;
+      reason: string;
+    }>;
+};
 export type AutomationsFireIn = {
   automationId: string;
   trigger: string;
@@ -26961,6 +27020,7 @@ export interface CapMap {
   "automations.alerts.set": { in: AutomationsAlertsSetIn; out: AutomationsAlertsSetOut };
   "automations.create": { in: AutomationsCreateIn; out: AutomationsCreateOut };
   "automations.delete": { in: AutomationsDeleteIn; out: AutomationsDeleteOut };
+  "automations.draft_connector": { in: AutomationsDraftConnectorIn; out: AutomationsDraftConnectorOut };
   "automations.fire": { in: AutomationsFireIn; out: AutomationsFireOut };
   "automations.followers.add": { in: AutomationsFollowersAddIn; out: AutomationsFollowersAddOut };
   "automations.followers.remove": { in: AutomationsFollowersRemoveIn; out: AutomationsFollowersRemoveOut };

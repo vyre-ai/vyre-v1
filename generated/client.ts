@@ -164,6 +164,7 @@ export function createClient(transport: Transport) {
       },
       create: call("automations.create", 1),
       delete: call("automations.delete", 1),
+      draft_connector: call("automations.draft_connector", 1),
       fire: call("automations.fire", 1),
       followers: {
         add: call("automations.followers.add", 1),

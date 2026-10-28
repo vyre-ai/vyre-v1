@@ -29911,6 +29911,450 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "docsUrl": "example",
+            "document": {}
+          },
+          "name": "example",
+          "output": {
+            "actions": [
+              {
+                "auth": "oauth",
+                "body": {},
+                "connection": {
+                  "required": true
+                },
+                "domains": [
+                  "example"
+                ],
+                "effect": "read",
+                "errors": [
+                  {
+                    "code": "example",
+                    "status": "example"
+                  }
+                ],
+                "fields": [
+                  {
+                    "in": "path",
+                    "name": "example",
+                    "required": true,
+                    "schema": {}
+                  }
+                ],
+                "inputSchema": {},
+                "key": "example",
+                "level": "draft",
+                "method": "GET",
+                "missing": [
+                  "example"
+                ],
+                "outputSchema": {},
+                "path": "example",
+                "reviewed": true,
+                "scopes": [
+                  "example"
+                ],
+                "servers": [
+                  "example"
+                ],
+                "tested": true
+              }
+            ],
+            "draft": {
+              "auth": "oauth",
+              "docsUrl": "example",
+              "key": "example",
+              "level": "draft",
+              "reviewed": true,
+              "tested": true
+            },
+            "refused": [
+              {
+                "path": "example",
+                "reason": "example"
+              }
+            ],
+            "request": {
+              "allowedDomains": [
+                "example"
+              ],
+              "body": {},
+              "effect": "read",
+              "headers": {},
+              "method": "GET",
+              "outputSchema": {},
+              "path": "example",
+              "query": {},
+              "servers": [
+                "example"
+              ]
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "docsUrl": {
+            "description": "Stored on the draft only. Not fetched and not a server.",
+            "type": "string"
+          },
+          "document": {
+            "additionalProperties": true,
+            "description": "An OpenAPI 3 document already in memory. Nothing is fetched.",
+            "type": "object"
+          }
+        },
+        "required": [
+          "document"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.draft_connector",
+      "output": {
+        "properties": {
+          "actions": {
+            "items": {
+              "properties": {
+                "auth": {
+                  "enum": [
+                    "oauth",
+                    "api_key",
+                    "none",
+                    "unknown"
+                  ],
+                  "type": "string"
+                },
+                "body": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "connection": {
+                  "properties": {
+                    "required": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "required"
+                  ],
+                  "type": "object"
+                },
+                "domains": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "effect": {
+                  "enum": [
+                    "read",
+                    "outward"
+                  ],
+                  "type": "string"
+                },
+                "errors": {
+                  "items": {
+                    "properties": {
+                      "code": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "code"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "fields": {
+                  "items": {
+                    "properties": {
+                      "in": {
+                        "enum": [
+                          "path",
+                          "query",
+                          "header",
+                          "body"
+                        ],
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "schema": {
+                        "additionalProperties": true,
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "in",
+                      "required",
+                      "schema"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "inputSchema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "key": {
+                  "type": "string"
+                },
+                "level": {
+                  "enum": [
+                    "draft"
+                  ],
+                  "type": "string"
+                },
+                "method": {
+                  "enum": [
+                    "GET",
+                    "POST",
+                    "PUT",
+                    "PATCH",
+                    "DELETE",
+                    "HEAD",
+                    "OPTIONS",
+                    "TRACE"
+                  ],
+                  "type": "string"
+                },
+                "missing": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "outputSchema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "reviewed": {
+                  "type": "boolean"
+                },
+                "scopes": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "servers": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "tested": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "key",
+                "level",
+                "method",
+                "path",
+                "fields",
+                "inputSchema",
+                "effect",
+                "servers",
+                "domains",
+                "auth",
+                "tested",
+                "reviewed",
+                "missing"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "draft": {
+            "properties": {
+              "auth": {
+                "enum": [
+                  "oauth",
+                  "api_key",
+                  "none",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              "docsUrl": {
+                "description": "Stored on the draft only. Not fetched and not a server.",
+                "type": "string"
+              },
+              "key": {
+                "type": "string"
+              },
+              "level": {
+                "enum": [
+                  "draft"
+                ],
+                "type": "string"
+              },
+              "reviewed": {
+                "type": "boolean"
+              },
+              "tested": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "key",
+              "level",
+              "tested",
+              "reviewed",
+              "auth"
+            ],
+            "type": "object"
+          },
+          "refused": {
+            "items": {
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "reason"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "request": {
+            "anyOf": [
+              {
+                "properties": {
+                  "allowedDomains": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "body": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "effect": {
+                    "enum": [
+                      "read",
+                      "outward"
+                    ],
+                    "type": "string"
+                  },
+                  "headers": {
+                    "additionalProperties": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "type": "object"
+                  },
+                  "method": {
+                    "enum": [
+                      "GET",
+                      "POST",
+                      "PUT",
+                      "PATCH",
+                      "DELETE",
+                      "HEAD",
+                      "OPTIONS",
+                      "TRACE"
+                    ],
+                    "type": "string"
+                  },
+                  "outputSchema": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "type": "object"
+                  },
+                  "servers": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "method",
+                  "path",
+                  "query",
+                  "headers",
+                  "effect",
+                  "servers",
+                  "allowedDomains"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "draft",
+          "actions",
+          "request",
+          "refused"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Draft actions from an OpenAPI document already in memory. A docs URL is stored on the draft and is not fetched or promoted.",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [
         "automation.run_started",

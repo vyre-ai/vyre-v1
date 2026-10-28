@@ -4,13 +4,14 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (39)
+## Capabilities (40)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
 - [automations.alerts.set](../capabilities/automations.alerts.set.md): Set error alerts: who, when (every failure or after N in a row), where (Needs you, DM, channel), and the escalation chain
 - [automations.create](../capabilities/automations.create.md): Create an Automation; it starts Personal
 - [automations.delete](../capabilities/automations.delete.md): Move an Automation to Trash
+- [automations.draft_connector](../capabilities/automations.draft_connector.md): Draft actions from an OpenAPI document already in memory. A docs URL is stored on the draft and is not fetched or promoted.
 - [automations.fire](../capabilities/automations.fire.md): Start a run from a matched trigger event, checking self-trigger origin and the chain depth limit of 8 (called by the trigger consumer)
 - [automations.followers.add](../capabilities/automations.followers.add.md): Follow an Automation to get its updates
 - [automations.followers.remove](../capabilities/automations.followers.remove.md): Stop following an Automation

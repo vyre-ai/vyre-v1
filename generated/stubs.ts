@@ -164,6 +164,7 @@ export function stubs(ctx: CallCtx) {
       },
       create: call("automations.create"),
       delete: call("automations.delete"),
+      draft_connector: call("automations.draft_connector"),
       fire: call("automations.fire"),
       followers: {
         add: call("automations.followers.add"),

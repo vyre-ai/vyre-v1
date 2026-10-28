@@ -4508,6 +4508,34 @@
     },
     {
       "blocks": [],
+      "cap": "automations.draft_connector",
+      "deferred": false,
+      "description": "Draft actions from an OpenAPI document already in memory. A docs URL is stored on the draft and is not fetched or promoted.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "docsUrl": {
+            "description": "Stored on the draft only. Not fetched and not a server.",
+            "type": "string"
+          },
+          "document": {
+            "additionalProperties": true,
+            "description": "An OpenAPI 3 document already in memory. Nothing is fetched.",
+            "type": "object"
+          }
+        },
+        "required": [
+          "document"
+        ],
+        "type": "object"
+      },
+      "name": "automations_draft_connector",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.followers.add",
       "deferred": false,
       "description": "Follow an Automation to get its updates",

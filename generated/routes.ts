@@ -2041,6 +2041,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/automations/draft_connector",
+    "cap": "automations.draft_connector",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/automations/fire",
     "cap": "automations.fire",
     "v": 1,

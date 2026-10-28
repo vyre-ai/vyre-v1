@@ -54,6 +54,30 @@ const accessDiff = t.obj({
   vaultNames: t.arr(t.str()), connections: t.arr(t.str()), keysToReplace: t.arr(t.obj({ stepId: t.str(), keyId: t.str(), reason: t.str() })),
 });
 const target = { automationId: id.automation };
+const jsonSchema = t.rec();
+const httpMethod = t.enm('GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS', 'TRACE');
+const connectorLevel = t.enm('draft');
+const effectKind = t.enm('read', 'outward');
+const authKind = t.enm('oauth', 'api_key', 'none', 'unknown');
+const openApiDocument = { ...t.rec(), description: 'An OpenAPI 3 document already in memory. Nothing is fetched.' };
+const connectorDraft = t.obj({
+  key: t.str(), level: connectorLevel, docsUrl: t.opt(t.str({ description: 'Stored on the draft only. Not fetched and not a server.' })),
+  tested: t.bool(), reviewed: t.bool(), auth: authKind,
+});
+const draftedAction = t.obj({
+  key: t.str(), level: connectorLevel, method: httpMethod, path: t.str(),
+  fields: t.arr(t.obj({ name: t.str(), in: t.enm('path', 'query', 'header', 'body'), required: t.bool(), schema: jsonSchema })),
+  inputSchema: jsonSchema, outputSchema: t.opt(jsonSchema), body: t.opt(jsonSchema), effect: effectKind,
+  scopes: t.opt(t.arr(t.str())), servers: t.arr(t.str()), domains: t.arr(t.str()),
+  errors: t.opt(t.arr(t.obj({ status: t.str(), code: t.str() }))),
+  connection: t.opt(t.obj({ required: t.bool() })),
+  auth: authKind, tested: t.bool(), reviewed: t.bool(), missing: t.arr(t.str()),
+});
+const authenticatedRequest = t.obj({
+  method: httpMethod, path: t.str(), query: t.rec(jsonSchema), headers: t.rec(jsonSchema),
+  body: t.opt(jsonSchema), outputSchema: t.opt(jsonSchema), effect: effectKind,
+  servers: t.arr(t.str()), allowedDomains: t.arr(t.str()),
+});
 
 const recordFilter = t.obj({ type: id.recordType, op: t.opt(t.enm('created', 'updated', 'deleted')), fields: t.opt(t.arr(t.str())), where: t.opt(anyJson) });
 const rowFilter = t.obj({ fileId: id.file, sheet: t.opt(t.str()), op: t.opt(t.enm('added', 'changed')), columns: t.opt(t.arr(t.str())) });
@@ -178,6 +202,16 @@ export default defineManifest({
     }),
     read('automations.validate', 'Check a definition against the step and trigger catalogue: missing inputs, unreachable steps, loops, personal triggers that need a Team Space', {
       in: { definition, kind: t.opt(kindEnum) }, out: { ok: t.bool(), issues: t.arr(t.obj({ nodeId: t.opt(t.str()), severity: t.enm('error', 'warning'), message: t.str() })) }, tool: 'automations',
+    }),
+    read('automations.draft_connector', 'Draft actions from an OpenAPI document already in memory. A docs URL is stored on the draft and is not fetched or promoted.', {
+      in: { document: openApiDocument, docsUrl: t.opt(t.str({ description: 'Stored on the draft only. Not fetched and not a server.' })) },
+      out: {
+        draft: connectorDraft,
+        actions: t.arr(draftedAction),
+        request: t.nullable(authenticatedRequest),
+        refused: t.arr(t.obj({ path: t.str(), reason: t.str() })),
+      },
+      tool: 'automations',
     }),
     read('automations.triggers.list', 'The trigger palette: every trigger with its payload schema, sample and whether a Personal Space can use it', {
       in: {}, out: { triggers: t.arr(t.obj({ key: t.str(), title: t.str(), payload: anyJson, sample: anyJson, personalOk: t.bool(), allowSelfTrigger: t.bool() })) }, tool: 'automations',
