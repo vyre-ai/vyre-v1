@@ -35,6 +35,8 @@ type In = {
 type Out = {
   rows: Array<{
       budgetId: string;
+      unit: string;
+      sense: "min" | "max" | "exact";
       p50: number;
       p95: number;
       budgetP95: number;
@@ -68,6 +70,8 @@ type Out = {
         "over": true,
         "p50": 1,
         "p95": 1,
+        "sense": "min",
+        "unit": "example",
         "worstTraceId": "0123456789abcdef0123456789abcdef"
       }
     ]

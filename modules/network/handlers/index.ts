@@ -1,7 +1,7 @@
 // Capability handlers for network (spec Networking, ARCH 5.9, 7.10). Reads come from status.ts; every change is written to the module's
 // tables and queued in network_command for the host daemon, which owns Caddy, DNS and the relay connection.
 
-import { asRow, certs, endpoints, failWith, healthProbe, hostnames, ingress, queue, readConfig, servers, statusOf, writeConfig, JOIN_CODE_MS } from "./status.ts";
+import { asRow, certs, endpoints, failWith, healthProbe, hostnames, ingress, queue, readConfig, servers, statusOf, JOIN_CODE_MS } from "./status.ts";
 import type { Mode, NetworkCtx } from "./status.ts";
 
 export type { NetworkCtx } from "./status.ts";
@@ -39,10 +39,6 @@ export async function domainSet(ctx: NetworkCtx, input: { domain: string }) {
   } else if (cfg?.relayAddress) records = [{ type: "CNAME", name: domain, value: cfg.relayAddress }];
   queue(ctx, "set_domain", domain);
   const dnsOk = dns?.["ok"] === 1;
-  if (dnsOk && cfg) {
-    writeConfig(ctx, { ...cfg, address: domain, mode: "own_domain", domain });
-    ctx.emit("network.domain_changed", `entity/${domain}`, { address: domain, mode: "own_domain" });
-  }
   return { dnsOk, records };
 }
 
@@ -55,9 +51,7 @@ export async function relaySet(ctx: NetworkCtx, input: { mode: Mode }) {
     return failWith(ctx.trace.traceId, "validation.precondition_failed", input.mode === "relay" ? "This Space has no relay address yet." : "Set an own domain first.", { mode: input.mode });
   }
   if (cfg.mode !== input.mode) {
-    writeConfig(ctx, { ...cfg, address, mode: input.mode });
     queue(ctx, "set_mode", input.mode);
-    ctx.emit("network.domain_changed", `entity/${address}`, { address, mode: input.mode });
   }
   return { address };
 }
@@ -82,17 +76,15 @@ export async function serverReconnect(ctx: NetworkCtx, input: { serverId: string
   const s = servers(ctx).find((x) => x.serverId === input.serverId);
   if (!s) return failWith(ctx.trace.traceId, "validation.not_found", "That server is not in this Space.", { serverId: input.serverId });
   queue(ctx, "reconnect", input.serverId);
-  return { state: s.state === "down" ? ("degraded" as const) : s.state };
+  return { state: s.state };
 }
 
 export async function serverRemove(ctx: NetworkCtx, input: { serverId: string }) {
   const s = servers(ctx).find((x) => x.serverId === input.serverId);
   if (!s) return { removed: false };
   if (s.role === "space") return failWith(ctx.trace.traceId, "validation.precondition_failed", "The Space server cannot be removed.", { serverId: input.serverId });
-  ctx.db.run("DELETE FROM network_server WHERE server_id = ?", input.serverId);
   queue(ctx, "remove", input.serverId);
-  ctx.emit("network.server_removed", `entity/${input.serverId}`, { serverId: input.serverId });
-  return { removed: true };
+  return { removed: false };
 }
 
 export const handlers = {

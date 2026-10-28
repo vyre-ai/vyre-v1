@@ -39,6 +39,13 @@ type Out = {
     state: "healthy" | "degraded" | "down";
   };
   publicIngress: boolean;
+  commands: Array<{
+      kind: string;
+      target: string;
+      state: "pending" | "applied" | "failed";
+      at: number;
+      detail?: string;
+    }>;
 };
 ```
 
@@ -63,6 +70,15 @@ type Out = {
       "host": "example",
       "state": "healthy"
     },
+    "commands": [
+      {
+        "at": 1760000000000,
+        "detail": "example",
+        "kind": "example",
+        "state": "pending",
+        "target": "example"
+      }
+    ],
     "mode": "own_domain",
     "publicIngress": true
   }

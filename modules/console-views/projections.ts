@@ -3,6 +3,7 @@
 // caller may not read (no server.network, no audit.read) drops out of the page instead of failing it. Nothing here is cached: each call reads fresh.
 
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import { ERROR_CODES, VyreErr } from "../../packages/contracts/src/errors.ts";
 import type { CapName, ErrorCode, VyreError } from "../../packages/contracts/src/types.ts";
@@ -270,7 +271,7 @@ let cached: Budget[] | null = null;
 export function loadBudgets(): Budget[] {
   if (provider) return provider();
   if (cached) return cached;
-  const raw = JSON.parse(readFileSync(new URL("../../perf/budgets.json", import.meta.url), "utf8")) as { budgets?: unknown };
+  const raw = JSON.parse(readFileSync(fileURLToPath(new URL("../../perf/budgets.json", import.meta.url).href), "utf8")) as { budgets?: unknown };
   cached = asList(raw.budgets).flatMap((b): Budget[] => {
     const id = str(b["id"]);
     const p95 = num(b["p95"]);
@@ -289,7 +290,7 @@ export function percentile(sorted: readonly number[], p: number): number {
 }
 const round = (n: number): number => Math.round(n * 100) / 100;
 
-export interface SpeedRow { budgetId: string; p50: number; p95: number; budgetP95: number; worstTraceId?: string; over: boolean }
+export interface SpeedRow { unit: string; sense: Budget["sense"]; budgetId: string; p50: number; p95: number; budgetP95: number; worstTraceId?: string; over: boolean }
 interface Sample { value: number; traceId?: string }
 
 async function samplesOf(ctx: ViewCtx, b: Budget, since: number): Promise<Sample[]> {
@@ -323,7 +324,7 @@ export function rollUp(b: Budget, samples: readonly Sample[]): SpeedRow | null {
   const tail = low ? percentile(values, 5) : percentile(values, 95);
   const worst = samples.reduce((w, s) => (low ? s.value < w.value : s.value > w.value) ? s : w);
   const over = b.sense === "exact" ? values.some((v) => v !== b.p95) : low ? tail < b.p95 : tail > b.p95;
-  return { budgetId: b.id, p50: round(percentile(values, 50)), p95: round(tail), budgetP95: b.p95, ...(worst.traceId ? { worstTraceId: worst.traceId } : {}), over };
+  return { unit: b.unit, sense: b.sense, budgetId: b.id, p50: round(percentile(values, 50)), p95: round(tail), budgetP95: b.p95, ...(worst.traceId ? { worstTraceId: worst.traceId } : {}), over };
 }
 
 export async function speedRows(ctx: ViewCtx, windowMinutes: number | undefined): Promise<SpeedRow[]> {

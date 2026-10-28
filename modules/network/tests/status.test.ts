@@ -75,11 +75,11 @@ test("endpoints list direct first and follow their heartbeats, so failover shows
 
 test("status shows the address, mode, certificate and public ingress; before any report it says so", async () => {
   const h = harness();
-  assert.deepEqual(await status(h.ctx, {}), { address: "", mode: "relay", certificate: { host: "", state: "degraded" }, publicIngress: false });
+  assert.deepEqual(await status(h.ctx, {}), { address: "", mode: "relay", certificate: { host: "", state: "degraded" }, publicIngress: false, commands: [] });
   assert.deepEqual(await ingressCheck(h.ctx, {}), { reachable: false, detail: "The host has not reported its address yet." });
   config(h);
   cert(h, HOST, NOW + 60 * DAY_MS);
-  assert.deepEqual(await status(h.ctx, {}), { address: HOST, mode: "own_domain", certificate: { host: HOST, expiresAt: NOW + 60 * DAY_MS, state: "healthy" }, publicIngress: true });
+  assert.deepEqual(await status(h.ctx, {}), { address: HOST, mode: "own_domain", certificate: { host: HOST, expiresAt: NOW + 60 * DAY_MS, state: "healthy" }, publicIngress: true, commands: [] });
   assert.deepEqual(await ingressCheck(h.ctx, {}), { reachable: true });
   config(h, { ingress: 0 });
   assert.equal((await ingressCheck(h.ctx, {})).detail, "Forms and webhooks cannot reach this Space from outside.");
@@ -112,7 +112,7 @@ test("public hostnames carry their certificate state", async () => {
   ]);
 });
 
-test("domain_set changes the address only when the host's DNS check passed", async () => {
+test("domain_set queues DNS checks without claiming host route application", async () => {
   const h = harness();
   config(h, { mode: "relay", address: "northwind.vyre.run", domain: null });
   await assert.rejects(() => domainSet(h.ctx, { domain: "not a domain" }), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.bad_input" && e.error.traceId === TRACE);
@@ -125,20 +125,21 @@ test("domain_set changes the address only when the host's DNS check passed", asy
   h.raw.run("INSERT INTO network_dns (domain, ok, records_json, checked_at) VALUES (?, ?, ?, ?)", "space.example.com", 1, JSON.stringify([{ type: "A", name: "space.example.com", value: "203.0.113.5" }, { bad: 1 }]), NOW);
   const second = await domainSet(h.ctx, { domain: "space.example.com" });
   assert.deepEqual(second, { dnsOk: true, records: [{ type: "A", name: "space.example.com", value: "203.0.113.5" }] });
-  assert.deepEqual(h.events.map((e) => [e.name, e.payload]), [["network.domain_changed", { address: "space.example.com", mode: "own_domain" }]]);
+  assert.deepEqual(h.events, [], "a cached DNS pass does not prove host route application");
   const st = await status(h.ctx, {});
-  assert.deepEqual([st.address, st.mode], ["space.example.com", "own_domain"]);
+  assert.deepEqual([st.address, st.mode], ["northwind.vyre.run", "relay"]);
 });
 
-test("relay_set switches the address both ways, emits once, and refuses without a target", async () => {
+test("relay_set queues a change without changing observed state and refuses without a target", async () => {
   const h = harness();
   await assert.rejects(() => relaySet(h.ctx, { mode: "relay" }), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.precondition_failed");
   config(h, { mode: "own_domain" });
   assert.deepEqual(await relaySet(h.ctx, { mode: "relay" }), { address: "northwind.vyre.run" });
   assert.deepEqual(await relaySet(h.ctx, { mode: "own_domain" }), { address: HOST });
   assert.deepEqual(await relaySet(h.ctx, { mode: "own_domain" }), { address: HOST });
-  assert.equal(h.events.length, 2, "the same mode again changes nothing and emits nothing");
-  assert.deepEqual(h.events.map((e) => (e.payload as { mode: string }).mode), ["relay", "own_domain"]);
+  assert.equal(h.events.length, 0, "queued changes do not emit observed completion");
+  assert.equal((await status(h.ctx, {})).mode, 'own_domain');
+  assert.deepEqual(h.raw.rows('network_command').map((row)=>row['target']),['relay']);
   config(h, { mode: "relay", address: "northwind.vyre.run", domain: null });
   await assert.rejects(() => relaySet(h.ctx, { mode: "own_domain" }), VyreErr);
 });
@@ -160,20 +161,20 @@ test("join codes look like VYRE-XXXX-XXXX, expire in ten minutes and differ", as
   assert.deepEqual(h.raw.rows("network_join").map((r) => r["by_principal"]), ["usr_admin", "usr_admin"]);
 });
 
-test("reconnect asks the host and never reports a green row it has not seen; remove drops the row and emits", async () => {
+test("reconnect asks the host and never reports a green row it has not seen; remove retains the row until the host confirms", async () => {
   const h = harness();
   server(h, "srv_main", "Northwind server", "space", "healthy", NOW);
   server(h, "srv_box", "Cloud box", "compute", "healthy", NOW - HEARTBEAT_DOWN_MS - 1);
-  assert.deepEqual(await serverReconnect(h.ctx, { serverId: "srv_box" }), { state: "degraded" }, "a down server reads as reconnecting");
+  assert.deepEqual(await serverReconnect(h.ctx, { serverId: "srv_box" }), { state: "down" }, "a queued reconnect preserves observed state");
   assert.deepEqual(await serverReconnect(h.ctx, { serverId: "srv_main" }), { state: "healthy" });
   assert.deepEqual(h.raw.rows("network_command").map((c) => [c["kind"], c["target"]]), [["reconnect", "srv_box"], ["reconnect", "srv_main"]]);
   await assert.rejects(() => serverReconnect(h.ctx, { serverId: "srv_none" }), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.not_found");
 
   await assert.rejects(() => serverRemove(h.ctx, { serverId: "srv_main" }), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.precondition_failed");
-  assert.deepEqual(await serverRemove(h.ctx, { serverId: "srv_box" }), { removed: true });
   assert.deepEqual(await serverRemove(h.ctx, { serverId: "srv_box" }), { removed: false });
-  assert.deepEqual((await serverList(h.ctx, {})).servers.map((s) => s.serverId), ["srv_main"]);
-  assert.deepEqual(h.events.map((e) => [e.name, e.subject, e.payload]), [["network.server_removed", "entity/srv_box", { serverId: "srv_box" }]]);
+  assert.deepEqual(await serverRemove(h.ctx, { serverId: "srv_box" }), { removed: false });
+  assert.deepEqual((await serverList(h.ctx, {})).servers.map((s) => s.serverId), ["srv_box", "srv_main"]);
+  assert.deepEqual(h.events, [], "removal is observed only after the driver succeeds");
 });
 
 test("the health probe combines certificate expiry and relay reachability", async () => {

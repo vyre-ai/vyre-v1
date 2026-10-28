@@ -20,6 +20,8 @@ export interface NetworkPort {
   renew(host: string): Promise<{ expiresAt: number | null; reason?: string }>;
   reconnect(serverId: string): Promise<ServerState | null>;
   disconnect(serverId: string): Promise<void>;
+  /** Observe a managed local HTTPS certificate without requesting another change. */
+  certificate?(host: string): Promise<{ expiresAt: number | null; reason?: string }>;
 }
 
 export interface Resolver {
@@ -59,6 +61,7 @@ export interface CommandDeps {
   network: NetworkPort;
   now: () => number;
   log?: Logger | undefined;
+  observed?(event: { id: string; type: 'network.domain_changed' | 'network.server_removed' | 'network.certificate_renewed'; actor: string; target: string; payload: Record<string, unknown> }): Promise<void>;
 }
 
 type Row = Record<string, unknown>;
@@ -81,18 +84,40 @@ export async function pollCommands(d: CommandDeps): Promise<number> {
     d.db.run("UPDATE health_restart SET done_at = ? WHERE id = ?", d.now(), id);
     n++;
   }
-  for (const raw of d.db.all("SELECT id, kind, target FROM network_command WHERE done_at IS NULL ORDER BY at, id")) {
+  for (const raw of d.db.all("SELECT id, kind, target, by_principal FROM network_command WHERE done_at IS NULL ORDER BY at, id")) {
     const r = row(raw);
     const id = r["id"] as number, kind = text(r["kind"]), target = text(r["target"]);
-    try { await runNetwork(d, kind, target); }
-    catch (e) { d.log?.error("command.network_failed", { kind, target, error: e instanceof Error ? e.message : String(e) }); }
+    let state = 'applied';
+    let detail: string | null = null;
+    try {
+      state = (await runNetwork(d, kind, target)) ?? 'applied';
+      if (state === 'applied' && d.observed) {
+        const identity = { id: `evt_network_command_${id}`, actor: text(r['by_principal']), target };
+        if (kind === 'set_domain' || kind === 'set_mode') {
+          const cfg = row(d.db.all("SELECT address, mode FROM network_config WHERE id = 1")[0]);
+          await d.observed({ ...identity, type: 'network.domain_changed', target: text(cfg['address']), payload: { address: text(cfg['address']), mode: text(cfg['mode']) } });
+        } else if (kind === 'remove') await d.observed({ ...identity, type: 'network.server_removed', payload: { serverId: target } });
+        else if (kind === 'renew') {
+          const certificate = row(d.db.all("SELECT expires_at FROM network_cert WHERE host = ?", target)[0]);
+          await d.observed({ ...identity, type: 'network.certificate_renewed', payload: { host: target, expiresAt: certificate['expires_at'] } });
+        }
+      }
+    }
+    catch (e) {
+      state = 'failed';
+      // Driver errors may contain configuration. Only this fixed guidance is public.
+      detail = 'The host could not complete this network change. Check server logs and retry.';
+      d.log?.error("command.network_failed", { kind, target, error: e instanceof Error ? e.message : String(e) });
+    }
+    d.db.run("INSERT OR REPLACE INTO network_result (id, kind, target, state, detail, at) VALUES (?, ?, ?, ?, ?, ?)", id, kind, target, state, detail, d.now());
+    d.db.run("DELETE FROM network_result WHERE id NOT IN (SELECT id FROM network_result ORDER BY at DESC, id DESC LIMIT 100)");
     d.db.run("UPDATE network_command SET done_at = ? WHERE id = ?", d.now(), id);
     n++;
   }
   return n;
 }
 
-async function runNetwork(d: CommandDeps, kind: string, target: string): Promise<void> {
+async function runNetwork(d: CommandDeps, kind: string, target: string): Promise<"pending" | void> {
   const t = d.now();
   switch (kind) {
     case "set_domain": {
@@ -102,6 +127,7 @@ async function runNetwork(d: CommandDeps, kind: string, target: string): Promise
         "INSERT INTO network_dns (domain, ok, records_json, checked_at) VALUES (?, ?, ?, ?) ON CONFLICT(domain) DO UPDATE SET ok = excluded.ok, records_json = excluded.records_json, checked_at = excluded.checked_at",
         target, r.ok ? 1 : 0, JSON.stringify(r.records), t,
       );
+      if (!r.ok) throw new Error('DNS verification failed.');
       if (r.ok) {
         await d.network.applyAddress({ mode: "own_domain", address: target });
         // Only acknowledge the new address after the driver accepted it. DNS alone
@@ -112,9 +138,11 @@ async function runNetwork(d: CommandDeps, kind: string, target: string): Promise
     }
     case "set_mode": {
       const mode = target === "relay" ? "relay" : "own_domain";
-      const cfg = row(d.db.all("SELECT address FROM network_config WHERE id = 1")[0]);
-      const address = text(cfg["address"]);
-      if (address) await d.network.applyAddress({ mode, address });
+      const cfg = row(d.db.all("SELECT address, domain, relay_address FROM network_config WHERE id = 1")[0]);
+      const address = text(cfg[mode === 'relay' ? 'relay_address' : 'domain']);
+      if (!address) throw new Error('No address is configured for this mode.');
+      await d.network.applyAddress({ mode, address });
+      d.db.run("UPDATE network_config SET address = ?, mode = ?, reported_at = ? WHERE id = 1", address, mode, d.now());
       return;
     }
     case "renew": {
@@ -123,10 +151,12 @@ async function runNetwork(d: CommandDeps, kind: string, target: string): Promise
         "INSERT INTO network_cert (host, expires_at, reason, reported_at) VALUES (?, ?, ?, ?) ON CONFLICT(host) DO UPDATE SET expires_at = COALESCE(excluded.expires_at, network_cert.expires_at), reason = excluded.reason, reported_at = excluded.reported_at",
         target, r.expiresAt, r.reason ?? null, t,
       );
+      if (r.expiresAt === null) return 'pending';
       return;
     }
     case "reconnect": {
       const state = await d.network.reconnect(target);
+      if (!state) throw new Error('No server connection manager answered this reconnect.');
       if (state) d.db.run("UPDATE network_server SET state = ?, heartbeat_at = ? WHERE server_id = ?", state, state === "down" ? int(row(d.db.all("SELECT heartbeat_at FROM network_server WHERE server_id = ?", target)[0])["heartbeat_at"]) : t, target);
       return;
     }

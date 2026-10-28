@@ -1,5 +1,7 @@
 # Changelog
 
+- Wired network domain changes to the existing Caddy ingress driver and added sanitized pending/applied/failed outcome readback. Preserve observed address and server rows until host operations succeed; retain prior state on driver failure, restrict renewal to current Space ingress, and refresh its observed certificate. Mark absent compute enrollment unavailable. Return server budget units and direction with Speed rows through the capability boundary. Added driver, HTTP permission/failure/event/restart and browser regressions.
+
 - Routed the Console Network and Speed entries to their live pages and separated Usage from the AI Spend editor.
 
 - Added typed Console Network, Speed and Usage pages with reviewed network changes, observed status, performance budget units and trace drilldown, and independent usage grouping. Fixed the first successful queued domain apply leaving the reported address stale. Added production browser coverage and command failure regression.

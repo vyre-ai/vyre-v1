@@ -57,7 +57,7 @@ test("rows roll up per budget id with p50, p95, the budget and the worst trace; 
   assert.ok(n.p50 >= 10 && n.p50 <= 30);
   assert.equal(n.p95, 29, "20 of 21 samples are at or under 29 ms; the 400 ms outlier sits above the 95th rank");
   assert.equal(n.over, false);
-  assert.deepEqual(rows[1], { budgetId: "search", p50: 20, p95: 30, budgetP95: 50, worstTraceId: trace(2), over: false });
+  assert.deepEqual(rows[1], { unit: "ms", sense: "max", budgetId: "search", p50: 20, p95: 30, budgetP95: 50, worstTraceId: trace(2), over: false });
   setBudgetsProvider(null);
 });
 
@@ -69,6 +69,8 @@ test("a budget is over when p95 passes it, and a min budget is over when the low
   assert.equal(smooth?.over, false);
   const janky = rollUp(fps, [60, 59, 58, 30, 20].map((v, i) => ({ value: v, traceId: trace(i + 1) })));
   assert.equal(janky?.over, true);
+  assert.equal(janky?.unit, "count");
+  assert.equal(janky?.sense, "min");
   assert.equal(janky?.p95, 20, "the bad end for min is the low tail");
   assert.equal(janky?.worstTraceId, trace(5));
   assert.equal(rollUp({ ...nav, sense: "exact", p95: 0 }, [{ value: 0 }, { value: 0 }])?.over, false);

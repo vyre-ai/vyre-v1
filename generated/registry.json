@@ -54830,6 +54830,8 @@
                 "over": true,
                 "p50": 1,
                 "p95": 1,
+                "sense": "min",
+                "unit": "example",
                 "worstTraceId": "0123456789abcdef0123456789abcdef"
               }
             ]
@@ -54869,6 +54871,17 @@
                 "p95": {
                   "type": "number"
                 },
+                "sense": {
+                  "enum": [
+                    "min",
+                    "max",
+                    "exact"
+                  ],
+                  "type": "string"
+                },
+                "unit": {
+                  "type": "string"
+                },
                 "worstTraceId": {
                   "examples": [
                     "0123456789abcdef0123456789abcdef"
@@ -54879,6 +54892,8 @@
               },
               "required": [
                 "budgetId",
+                "unit",
+                "sense",
                 "p50",
                 "p95",
                 "budgetP95",
@@ -117532,6 +117547,15 @@
               "host": "example",
               "state": "healthy"
             },
+            "commands": [
+              {
+                "at": 1760000000000,
+                "detail": "example",
+                "kind": "example",
+                "state": "pending",
+                "target": "example"
+              }
+            ],
             "mode": "own_domain",
             "publicIngress": true
           }
@@ -117578,6 +117602,45 @@
             ],
             "type": "object"
           },
+          "commands": {
+            "items": {
+              "properties": {
+                "at": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "detail": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "state": {
+                  "enum": [
+                    "pending",
+                    "applied",
+                    "failed"
+                  ],
+                  "type": "string"
+                },
+                "target": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "target",
+                "state",
+                "at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
           "mode": {
             "enum": [
               "own_domain",
@@ -117593,7 +117656,8 @@
           "address",
           "mode",
           "certificate",
-          "publicIngress"
+          "publicIngress",
+          "commands"
         ],
         "type": "object"
       },

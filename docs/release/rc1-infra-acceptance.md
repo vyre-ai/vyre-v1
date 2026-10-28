@@ -2,7 +2,7 @@
 
 Base: f277e080. This increment owns Network, Speed and Usage. Existing Console components and server-pruned navigation remain the composition.
 
-Network reads status, endpoints, public hostnames and servers through their normal capabilities. Domain, address mode, renewal and removal require a review step. Reconnect and join code use their existing capabilities. A queued host command is described as requested; only observed status establishes the result. Gate-held actions retain their approval state. Speed uses the checked-in budget units and direction, including lower-tail budgets, and opens retained worst traces only for callers with server.logs. Usage has independent period and person/agent/model grouping; it is not the Spend editor.
+Network reads status, endpoints, public hostnames and servers through their normal capabilities. Domain, address mode, renewal and removal require a review step. Reconnect uses its existing capability and shows the host outcome. Compute enrollment has no consumer/connection-manager protocol in this repository; join-code creation is unavailable with an explicit explanation. A queued host command is described as requested; only observed status establishes the result. Gate-held actions retain their approval state. Speed uses server-reported budget units and direction, including lower-tail budgets, and opens retained worst traces only for callers with server.logs. Usage has independent period and person/agent/model grouping; it is not the Spend editor.
 
 ## Evidence
 
@@ -12,6 +12,14 @@ Network reads status, endpoints, public hostnames and servers through their norm
 - Focused semantic checks report no diagnostics in the new pages; existing shared UI Menu and States errors remain outside this increment.
 - Host regression proves first successful domain apply updates observed network_config and a failed apply keeps the prior address. Fifteen command/probe tests pass.
 
+## Managed driver increment
+
+The daemon now uses the existing CaddyAdmin/CaddyRouter for own-domain ingress, targeting only its bound local gateway. A failed apply preserves the prior observed address. Relay switching requires an active endpoint for this Space. Renewal can only touch the current Space ingress and reports the actual certificate; it never overwrites another route’s authentication or upstream. The slow probe refreshes the current ingress certificate.
+
+A new additive network.status commands array shows pending requests and bounded host outcomes. The host retains 100 sanitized outcomes and returns the latest 10. Raw driver errors stay in authorized server logs. Domain/mode changes and removal no longer mutate observed state before driver completion. Observed successful changes append their declared events with the original requester. Unsupported compute reconnect/disconnect fail; failed disconnect retains the server row.
+
+Regression proof: 89 backend/module tests pass, including the final managed HTTP fixture proving domain apply, member denial, actual Caddy config writes, event, failure and restart persistence. The updated production browser passes three tests with actual failed reconnect readback and disabled enrollment guidance. Secrets scan reports 6,517 files with zero hits; boundaries report no new violations. Generated/frozen snapshots include network.status readback and console.speed unit/sense fields. Final combined evidence follows in the next checkpoint.
+
 ## Remaining action audit
 
-The default daemon network port has no route or reconnect driver; successful no-op applyAddress/disconnect are not adequate release behavior. The existing CaddyRouter supports ingress configuration and certificate inspection. A separate next increment must connect this existing driver and expose failures rather than infer success from DNS. Public network mutations are not exercised against the operator’s real infrastructure by these fixture tests.
+Compute server enrollment, reconnect and disconnect still need a real server-manager protocol. The candidate exposes that limitation and does not generate an unusable join code in the Console. This is a named v1 blocker, not completed functionality. Actual public DNS/ACME production issuance was not attempted against operator infrastructure; the tests use deterministic DNS, Caddy protocol fixtures and a booted HTTP pipeline.

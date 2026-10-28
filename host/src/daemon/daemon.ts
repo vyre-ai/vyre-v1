@@ -102,7 +102,8 @@ import { createSpaceStore, spaceStoreDrivers, spaceStorePath } from "./store.ts"
 import { coreOf, createSyncEngine } from "./syncengine.ts";
 import { collectProjections, createProjectionRunner } from "./projections.ts";
 import type { ProjectionRunner } from "./projections.ts";
-import { defaultNetworkPort, pollCommands } from "./commands.ts";
+import { managedNetworkPort } from "./network-driver.ts";
+import { pollCommands } from "./commands.ts";
 import type { NetworkPort } from "./commands.ts";
 import { alive, clearInfo, ensureAdminToken, ensureDirs, pathsFor, readInfo, writeInfo } from "./config.ts";
 import type { DaemonConfig, DaemonPaths, Role } from "./config.ts";
@@ -1036,15 +1037,34 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     );
   };
 
-  const network = o.network ?? defaultNetworkPort();
-  const runCommands = (): Promise<number> => (db ? pollCommands({ db, supervisor, network, now, log: sink.logger({ space: space ?? "-", place: "commands" }) }) : Promise.resolve(0));
+  const network = o.network ?? managedNetworkPort({
+    adminUrl: cfg.caddyAdmin, space: space ?? '-', upstream: () => `127.0.0.1:${boundPort}`,
+    ingressHost: () => (db?.all("SELECT address FROM network_config WHERE id = 1 AND mode = 'own_domain'")[0] as {address?:string}|undefined)?.address ?? null,
+    relayReady: (address) => !!db?.all("SELECT url FROM network_endpoint WHERE kind = 'relay' AND state = 'healthy' AND heartbeat_at > ?", now() - 60_000).some((raw) => {
+      const url = (raw as {url?:string}).url;
+      if (!url) return false;
+      try { return new URL(url).host === address; } catch { return false; }
+    }),
+  });
+  const runCommands = (): Promise<number> => (db ? pollCommands({ db, supervisor, network, now, log: sink.logger({ space: space ?? "-", place: "commands" }), observed: async (event) => {
+    if (!log) throw new Error('The event log is unavailable.');
+    const stored = await log.append({ id: event.id, type: event.type, sv: 1, trace_id: ZERO_TRACE, actor: event.actor, entity: 'entity', entity_id: event.target, vis: 'space', payload: event.payload });
+    headSeq = Math.max(headSeq, stored.seq);
+  } }) : Promise.resolve(0));
 
+  const refreshNetworkCertificate = async (): Promise<void> => {
+    if (!db || !network.certificate) return;
+    const row = db.all("SELECT address, mode FROM network_config WHERE id = 1")[0] as {address?:string;mode?:string}|undefined;
+    if (!row?.address || row.mode !== 'own_domain' || !/^[a-z0-9.-]+\.[a-z]+$/i.test(row.address)) return;
+    const result = await network.certificate(row.address);
+    db.run("INSERT INTO network_cert (host, expires_at, reason, reported_at) VALUES (?, ?, ?, ?) ON CONFLICT(host) DO UPDATE SET expires_at = COALESCE(excluded.expires_at, network_cert.expires_at), reason = excluded.reason, reported_at = excluded.reported_at", row.address, result.expiresAt, result.reason ?? null, now());
+  };
   const fast = o.intervals?.fast ?? 15_000, slow = o.intervals?.slow ?? 60_000;
   const group = (names: ProbeName[]): ProbeName[] => names.filter((n) => relevant.includes(n));
   // a signed-out person's key leaves memory within the interval, not whenever someone next reads it
   scheduler.add({ name: "keyring.sweep", schedule: { everyMs: o.intervals?.sweep ?? 30_000 }, run: () => { keyring.sweep(); } });
   scheduler.add({ name: "probes.fast", schedule: { everyMs: fast }, run: async () => { await runProbes(group(["events_db", "index_db", "scheduler", "disk_space"])); } });
-  scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"])); reportNetwork(); } });
+  scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"])); reportNetwork(); await refreshNetworkCertificate(); } });
   scheduler.add({ name: "probes.encryption", schedule: { everyMs: o.intervals?.encryption ?? 300_000 }, run: async () => { await runProbes(group(["disk_encrypted"])); } });
   if (hasSpace) {
     scheduler.add({ name: "commands.poll", schedule: { everyMs: o.intervals?.commands ?? 1000 }, run: async () => { await runCommands(); } });
