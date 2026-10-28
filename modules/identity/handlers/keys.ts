@@ -3,7 +3,7 @@
 import type { Device, IdentityCtx, KeyBundle, SignInOut } from "../projections.ts";
 import {
   MIN_SECRET, RESET_TTL_MS, USERNAME, nid, provisionAccount, randomBytes, validBundle, accountById, accountByName, bundleOf, burnVerify, checkVerifier, issueSession, lockedFor, makeVerifier, me, mustAccount, noteFail, raise,
-  revokeSessions, setKeys, spendCode, putCode, clearFails, LOCK_AFTER,
+  currentSessionId, revokeSessions, setKeys, spendCode, putCode, clearFails, LOCK_AFTER,
 } from "../projections.ts";
 
 const ok = { ok: true } as const;
@@ -45,7 +45,7 @@ export async function changePassword(ctx: IdentityCtx, input: { currentPassword:
   const verifier = await makeVerifier(input.newPassword);
   ctx.db.run(`UPDATE identity_accounts SET verifier = ? WHERE person_id = ?`, verifier, a.person_id);
   setKeys(ctx, a.person_id, input.keys, "password_change");
-  revokeSessions(ctx, a.person_id, ctx.session?.id);
+  revokeSessions(ctx, a.person_id, currentSessionId(ctx, a.person_id));
   ctx.emit("password.changed", a.person_id, { personId: a.person_id });
   return ok;
 }

@@ -233,6 +233,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       const roles = (await api("access.roles.list", {})) as { roles: Array<{ id: string; name: string }> };
       const role = roles.roles.find((r) => /member/i.test(r.name)) ?? roles.roles[0];
       assert.ok(role, "the Space has an invite role");
+      await api("spaces.switch_address", { mode: "own_domain", host: "provider-fixture.example" });
       const invited = await api("members.invites.create", { role: role.id, idempotencyKey: "e2e.provider.invite" }) as { link: string };
       const inviteUrl = new URL(invited.link);
       const code = inviteUrl.pathname.split("/").filter(Boolean).at(-1)!;
@@ -241,17 +242,26 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-subj", "/CN=localhost", "-days", "1", "-keyout", keyPath, "-out", certPath], { stdio: "ignore" });
       const secureWeb = await edge(dist, space.url, { key: fs.readFileSync(keyPath, "utf8"), cert: fs.readFileSync(certPath, "utf8") });
       const joinedContext = await browser.newContext({ viewport: { width: 1280, height: 800 }, ignoreHTTPSErrors: true });
-      await joinedContext.addInitScript(({ address, code }) => {
+      await joinedContext.addInitScript(`{
+        const address = ${JSON.stringify(secureWeb.origin)};
+        const code = ${JSON.stringify(code)};
         let pending = { action: "join", params: { address, code, fp: "display-marker" } };
-        (globalThis as unknown as { __TAURI__: unknown }).__TAURI__ = {
-          core: { invoke: async (command: string) => command === "desktop_info" ? { app: "Vyre", version: "1.0.0-rc.1", platform: "macos", arch: "aarch64", sidecar: { phase: "ready", url: null, version: "1.0.0-rc.1", restarts: 0, error: null } } : command === "take_pending_link" ? (() => { const link = pending; pending = null as never; return link; })() : null },
+        globalThis.__TAURI__ = {
+          core: { invoke: async (command) => {
+            if (command === "desktop_info") return { app: "Vyre", version: "1.0.0-rc.1", platform: "macos", arch: "aarch64", sidecar: { phase: "ready", url: null, version: "1.0.0-rc.1", restarts: 0, error: null } };
+            if (command === "take_pending_link") { const link = pending; pending = null; return link; }
+            return null;
+          } },
           event: { listen: async () => () => undefined },
         };
-      }, { address: secureWeb.origin, code });
+      }`);
       const joined = await joinedContext.newPage();
+      const joinErrors: string[] = [];
+      joined.on("pageerror", (e) => joinErrors.push(e.message.slice(0, 200)));
+      joined.on("response", (r) => { if (r.status() >= 400) joinErrors.push(`${r.status()} ${new URL(r.url()).pathname}`); });
       let accepted = 0;
       let providerAttempts = 0;
-      joined.on("request", (r) => { if (r.url().includes("/v1/invites/accept_create_account")) accepted++; });
+      joined.on("request", (r) => { if (r.url().includes("/v1/members/accept")) accepted++; });
       await joined.route("**/v1/providers/add", async (route) => {
         providerAttempts++;
         if (providerAttempts === 1) await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: { code: "internal.unavailable", message: "Transient fixture failure", traceId: "fixture-provider" } }) });
@@ -259,7 +269,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       });
       try {
         await joined.goto(`${secureWeb.origin}/home`, { waitUntil: "load" });
-        await joined.getByTestId("web").waitFor({ timeout: 15_000 });
+        await joined.getByTestId("web").waitFor({ timeout: 15_000 }).catch(async (error) => { console.log(`invite landing: errors=${joinErrors.join(" | ")}, screen=${(await joined.locator("body").innerText()).replace(/\s+/g, " ").slice(0,600)}`); throw error; });
         await joined.getByTestId("web").click();
         await joined.getByTestId("first").fill("Casey");
         await joined.getByTestId("last").fill("Builder");
@@ -274,7 +284,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await joined.getByTestId("ai-provider-openai").click();
         await joined.getByTestId("ai-key-field").fill("synthetic-release-api-key");
         await joined.getByTestId("next").click();
-        await joined.getByTestId("joined-provider-continue").waitFor({ timeout: 30_000 });
+        await joined.getByTestId("joined-provider-continue").waitFor({ timeout: 30_000 }).catch(async (error) => { console.log(`joined setup: accepted=${accepted}, errors=${joinErrors.join(" | ")}, screen=${(await joined.locator("body").innerText()).replace(/\s+/g, " ").slice(0, 600)}`); throw error; });
         await joined.getByTestId("joined-provider-continue").click();
         await joined.getByTestId("joined-provider-error").waitFor({ timeout: 15_000 });
         assert.equal(await joined.getByText("Your AI account is connected", { exact: true }).count(), 0);
@@ -303,7 +313,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       assert.equal(await page.getByTestId("security-saved").count(), 0, "a wrong password cannot report success");
       await page.getByTestId("security-current-password").fill("correct horse battery 9");
       await page.getByTestId("security-save").click();
-      await page.getByTestId("security-saved").waitFor({ timeout: 15_000 });
+      await page.getByTestId("security-saved").waitFor({ timeout: 15_000 }).catch(async (error) => { await dump("security change"); throw error; });
       await page.getByTestId("security-close").click();
       await page.getByTestId("totp-setup").click();
       fs.mkdirSync("shots-evidence/settings-security", { recursive: true });
@@ -313,12 +323,12 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       const uri = new URL(await page.getByTestId("security-setup-uri").innerText());
       await page.getByTestId("security-totp-code").fill(authenticatorCode(uri.searchParams.get("secret")!));
       await page.getByTestId("security-save").click();
-      await page.getByTestId("security-saved").waitFor({ timeout: 15_000 });
+      await page.getByTestId("security-saved").waitFor({ timeout: 15_000 }).catch(async (error) => { await dump("security change"); throw error; });
       await page.getByTestId("security-close").click();
       await page.getByTestId("totp-remove").click();
       await page.getByTestId("security-current-password").fill("correct horse changed 9");
       await page.getByTestId("security-save").click();
-      await page.getByTestId("security-saved").waitFor({ timeout: 15_000 });
+      await page.getByTestId("security-saved").waitFor({ timeout: 15_000 }).catch(async (error) => { await dump("security change"); throw error; });
       await page.getByTestId("security-close").click();
     });
 

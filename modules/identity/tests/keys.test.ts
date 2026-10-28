@@ -5,7 +5,7 @@ import { handlers } from "../impl.ts";
 import { codeOf, DEVICE, harness, KEYS } from "./wire.ts";
 import { SEED_PERSON } from "../fixtures/seed.ts";
 import { registry } from "../../../generated/registry.ts";
-import { provisionAccount, sessionOfToken, sha } from "../projections.ts";
+import { currentSessionId, provisionAccount, sessionOfToken, sha } from "../projections.ts";
 
 const P = SEED_PERSON;
 const NEW_PASSWORD = "a brand new password";
@@ -198,4 +198,26 @@ test("recovery_restore emits only the events its manifest declares, and a wrong 
   assert.deepEqual(h.events.slice(before).filter((e) => e.name === "signin.failed").map((e) => e.payload), [{ username: P.username, reason: "bad_code" }], "a failed restore stays visible to the audit log");
   await handlers["identity.recovery_restore"](h.anon, { username: P.username, recoveryProof: sha(wrap), newPassword: NEW_PASSWORD, keys: fresh, ...DEVICE });
   assert.deepEqual(h.events.slice(before).filter((e) => !declared.has(e.name)).map((e) => e.name), [], "a restore emits nothing undeclared");
+});
+
+test("password change keeps the authenticated host device session when its context has no session id", async () => {
+  const h = await world();
+  const first = await signedIn(h);
+  const other = await signedIn(h, { deviceName: "Other device", deviceClass: "phone" });
+  await handlers["identity.keys_put"](first.ctx, { keys: KEYS, reason: "first_device" });
+  const hostCtx = { ...first.ctx, device: first.out.session!.deviceId, session: { deviceId: first.out.session!.deviceId } };
+  await handlers["identity.change_password"](hostCtx, { currentPassword: P.secret, newPassword: NEW_PASSWORD, keys: { ...KEYS, personKeyByPassword: "bmV3LXBhc3N3b3JkLXdyYXAtZml4dHVyZQ==" } });
+  assert.ok(sessionOfToken(h.anon, first.out.session!.token), "the current bearer remains valid");
+  assert.equal(sessionOfToken(h.anon, other.out.session!.token), undefined, "the other device bearer is revoked");
+  await assert.rejects(handlers["identity.sign_in"](h.anon, { username: P.username, password: P.secret, ...DEVICE }), (e) => codeOf(e) === "auth.bad_credentials");
+  assert.equal((await handlers["identity.sign_in"](h.anon, { username: P.username, password: NEW_PASSWORD, ...DEVICE })).status, "ok");
+});
+
+ test("current session lookup rejects a different person or device", async () => {
+  const h = await world();
+  const first = await signedIn(h);
+  const out = first.out.session!;
+  assert.equal(currentSessionId({ ...first.ctx, device: "dev_other" }, P.personId), undefined);
+  assert.equal(currentSessionId({ ...first.ctx, device: out.deviceId }, "usr_other"), undefined);
+  assert.equal(currentSessionId({ ...first.ctx, device: out.deviceId, session: { id: "ses_wrong", deviceId: out.deviceId } }, P.personId), undefined);
 });
