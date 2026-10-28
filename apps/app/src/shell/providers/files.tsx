@@ -12,10 +12,15 @@ import { reviewData } from "./files-review.ts";
 import { SidebarContent } from "../sidebar/index.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 
+import { useOpenedId } from "../hash/context.tsx";
+import { FileDetail } from "./file-detail.tsx";
+
 const TREE_W = 240;
 
 export default function FilesPlace(_props: { place: string }): ReactElement {
   const rt = useOptionalShellRuntime();
+  const fileId = useOpenedId(["file", "doc", "document"], ["fileId"]);
+  const folderId = useOpenedId(["folder"], ["folderId"]);
   const data = useMemo(() => (rt ? filesData(rt) : null), [rt]);
   const review = useMemo(() => (rt ? reviewData(rt) : null), [rt]);
   const width = useWindowDimensions().width;
@@ -31,10 +36,10 @@ export default function FilesPlace(_props: { place: string }): ReactElement {
   return (
     <FilesDataProvider value={data}>
       <ReviewDataProvider value={review}>
-        <FilesStateProvider>
+        <FilesStateProvider key={folderId ?? "root"} {...(folderId ? { initial: { where: { kind: "folder" as const, id: folderId } } } : {})}>
           <View testID="files-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
             <SidebarContent title="Files" searchPlaceholder="Search files">{(query, slot) => <FilesTree query={query} slot={slot} />}</SidebarContent>
-            <FilesList />
+            {fileId ? <FileDetail rt={rt!} fileId={fileId} /> : <FilesList />}
           </View>
         </FilesStateProvider>
       </ReviewDataProvider>

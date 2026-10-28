@@ -5,6 +5,9 @@
 - Fixed invited-account AI setup through the member acceptance contract so invite permissions apply before session verification: provider choice and Mine API-key storage follow verified join; subscription sign-in uses real completion, failures retry without accepting the invite twice, and raw keys never enter device storage. Preserved the authenticated device session during password changes while revoking other devices. Added working password and authenticator controls and truthful account-recovery guidance.
 
 - Fixed fresh desktop connection: the first launch now accepts and verifies a Space address before sign-in, with retryable connection errors and the existing verified session persistence.
+- Added an authenticated standalone Console frame with server-pruned navigation and real Overview, Audit, Backups, Devices, People, Roles, Grants and Access checker surfaces. Backup restore requires a preview and explicit confirmation; device revocation retains purge handling. The remaining Console pages remain incomplete and are listed in the release scope ledger.
+
+- Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads. Removed an unused viewer barrel so every restored production file has executable coverage.
 
 ## Unreleased
 - Local session import: converge concurrent confirmations on one immutable source archive instead of failing a unique-key insert after project creation.

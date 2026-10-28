@@ -12,8 +12,9 @@ import { formatHash } from "../hash/hash.ts";
 import type { PlaceId } from "../rail/kits.ts";
 import { createShellHub } from "../spaces/hub.ts";
 import type { ShellHub } from "../spaces/hub.ts";
-import { webPurgeClient, wipeBrowserStorage } from "../spaces/purge.ts";
+import { watchPurge, webPurgeClient, wipeBrowserStorage } from "../spaces/purge.ts";
 import type { ShellPurge } from "../spaces/purge.ts";
+import { HubProvider, useHubState } from "../spaces/context.tsx";
 import { Shell } from "../spaces/Shell.tsx";
 import type { PlaceContext } from "../spaces/Shell.tsx";
 import { CapError } from "./caps.ts";
@@ -54,6 +55,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     navRef.current = h;
     return h;
   }, [given, stored.def, stored.personId]);
+  const location = useHubState(hub);
   const [session, setSession] = useState<RealSession | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -123,6 +125,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     client: webPurgeClient({ deviceId: "web", call: session.call, wipe: () => { wipeBrowserStorage(); clearStored(); }, done: () => onSignedOut() }),
     subscribe: (l) => session.onPurge(l),
   } : undefined), [session, onSignedOut]);
+  useEffect(() => location.place === "console" && purge ? watchPurge(purge, (e) => hub.flash(`Couldn't remove this device's data: ${e instanceof Error ? e.message : "try again"}`)) : undefined, [location.place, purge, hub]);
   const renderPlace = (ctx: PlaceContext): ReactElement => failed !== null && session === null
     ? <States kind="error" message={`Couldn't reach ${stored.def.name}`} cause={failed} next="Try again" retryable onRetry={() => setAttempt((n) => n + 1)} />
     : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} hash={ctx.hash} opened={(t) => { const next = formatHash(t); if (next !== ctx.hash) hub.go(ctx.place, next); }} />;
@@ -132,6 +135,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     onSignedOut("manual");
   };
   const renderNewTab = (): ReactElement => (search ? <NewTabSearch data={search} /> : <States kind="empty" title="Open anything, or start something" icon="search" />);
+  if (location.place === "console") return <HubProvider hub={hub}>{renderPlace({ place: "console", hash: location.hash } as PlaceContext)}</HubProvider>;
   if (narrow) return <Suspense fallback={<View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />}><PhoneHost session={session} needsYou={stored.def.counts.chats ?? 0} registerGo={registerGo} onSignOut={signOut} /></Suspense>;
   return (
     <>
