@@ -9952,7 +9952,17 @@ export type FormsGetOut = {
       field: string;
       mode: "ask" | "show" | "hide";
       prefillKey?: string;
+      step?: number;
     }>;
+  settings: {
+    consentText: string;
+    captcha: boolean;
+    rateLimit: number;
+    thankYou?: {
+      text?: string;
+      redirect?: string;
+    };
+  };
   theme?: Record<string, unknown>;
   logic?: unknown;
 };

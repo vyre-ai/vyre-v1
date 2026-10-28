@@ -21,6 +21,9 @@ export interface EmailBlock {
   id: string;
   kind: EmailBlockKind;
   text?: string;
+  src?: string;
+  href?: string;
+  alt?: string;
   /** Merge token name when kind is merge. */
   field?: string;
   /** Nested blocks when kind is columns. */

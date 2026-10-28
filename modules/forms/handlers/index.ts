@@ -44,9 +44,11 @@ async function get(ctx: Ctx, input: unknown) {
   const form = mustForm(ctx, reqStr(ctx, o, "formId"));
   const out: Record<string, unknown> = {
     form: formOut(ctx, form),
+    settings: { consentText: str(form.consent_text), captcha: Number(form.captcha) === 1, rateLimit: Number(form.rate_limit), ...(parseJson(form.thank_you) ? { thankYou: parseJson(form.thank_you) } : {}) },
     fields: fieldsOf(ctx, str(form.id)).map((f) => {
       const row: Record<string, unknown> = { field: str(f.field), mode: str(f.mode) };
       if (!isNull(f.prefill_key)) row.prefillKey = str(f.prefill_key);
+      if (!isNull(f.step)) row.step = Number(f.step);
       return row;
     }),
   };

@@ -46,7 +46,17 @@ type Out = {
       field: string;
       mode: "ask" | "show" | "hide";
       prefillKey?: string;
+      step?: number;
     }>;
+  settings: {
+    consentText: string;
+    captcha: boolean;
+    rateLimit: number;
+    thankYou?: {
+      text?: string;
+      redirect?: string;
+    };
+  };
   theme?: Record<string, unknown>;
   logic?: unknown;
 };
@@ -73,7 +83,8 @@ type Out = {
       {
         "field": "example",
         "mode": "ask",
-        "prefillKey": "example"
+        "prefillKey": "example",
+        "step": 1
       }
     ],
     "form": {
@@ -86,6 +97,15 @@ type Out = {
       "submissions": 1
     },
     "logic": {},
+    "settings": {
+      "captcha": true,
+      "consentText": "example",
+      "rateLimit": 1,
+      "thankYou": {
+        "redirect": "example",
+        "text": "example"
+      }
+    },
     "theme": {}
   }
 }
