@@ -24,7 +24,7 @@ export function Welcome({ address, busy, error, onAddressChange, onSignIn, onGet
       <View testID="step-welcome" style={{ width: "100%", maxWidth: 720, alignItems: "center" }}>
         <View style={{ alignItems: "center", gap: 6, marginBottom: 28 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <Image source={{ uri: "/vyre-mark.svg" }} accessibilityLabel="Vyre" style={{ width: 28, height: 28 }} />
+            <Image source={{ uri: "/vyre-mark.svg" }} accessible={false} style={{ width: 28, height: 28 }} />
             <Text style={{ fontFamily: FONT, color: p.tx, fontSize: 15, fontWeight: "600" }}>Vyre</Text>
           </View>
           <Text style={{ fontFamily: FONT, color: p.tx2, fontSize: 12.5 }}>The command center for AI-native teams</Text>
@@ -39,7 +39,7 @@ export function Welcome({ address, busy, error, onAddressChange, onSignIn, onGet
           </Pressable>
         </View>
         {error ? <ErrorLine testID="space-error">{error}</ErrorLine> : null}
-        <Pressable testID="get-started" accessibilityRole="button" disabled={disabled} onPress={onGetStarted} style={{ minHeight: 44, paddingHorizontal: 22, marginTop: 20, borderRadius: 999, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: p.hair, backgroundColor: p.panel, opacity: busy ? 0.4 : 1 }}>
+        <Pressable testID="get-started" accessibilityRole="button" disabled={disabled} onPress={onGetStarted} style={{ minHeight: 44, paddingHorizontal: 22, marginTop: 20, borderRadius: 999, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: p.hair, backgroundColor: p.panel, opacity: disabled ? 0.4 : 1 }}>
           <Text style={{ fontFamily: FONT, color: p.tx, fontSize: 14, fontWeight: "500" }}>New here? Get started</Text>
         </Pressable>
       </View>

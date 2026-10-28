@@ -121,6 +121,10 @@ test("a fresh connection starts at the one-column Welcome back screen before cre
   assert.match(out, /data-testid="welcome-hero"/);
   assert.match(out, /The command center for AI-native teams/);
   assert.equal(out.match(/data-testid="step-/g)?.length, 1);
+  assert.match(tagOf(out, "get-started"), /aria-disabled="true"/);
+  assert.match(tagOf(out, "get-started"), /opacity:0.4/);
+  const ready = html({ stage: "connect", spaceAddress: "northwind.example" });
+  assert.doesNotMatch(tagOf(ready, "get-started"), /aria-disabled="true"/);
 });
 
 test("auth-only halftone gives Welcome its full field and keeps forms calm", () => {
