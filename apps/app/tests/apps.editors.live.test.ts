@@ -79,7 +79,7 @@ test("production Apps: create a form and campaign, reload their real editors, in
     const appRefusals = refused.filter((line) => /\/v1\/(forms|campaigns|templates|mail\/domain|email_builder)\//.test(line));
     assert.equal(appRefusals.length, 0, appRefusals.join("\n")); assert.deepEqual(errors, []);
     const out = process.env["VYRE_APPS_SHOTS"];
-    if (out) { fs.mkdirSync(out, { recursive: true }); await page.screenshot({ path: path.join(out, "domain-review-desktop.png") }); await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: path.join(out, "domain-review-phone.png") }); }
+    if (out) { fs.mkdirSync(out, { recursive: true }); await page.screenshot({ path: path.join(out, "domain-review-desktop.png") }); await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(300); await page.screenshot({ path: path.join(out, "domain-review-phone.png") }); }
   } catch (e) { console.error(`Apps browser failure: ${await page.locator("body").innerText().catch(() => "no body")}\n${refused.join("\n")}`); throw e; }
   finally { await context.close(); await browser.close(); web.close(); await space.stop(); fs.rmSync(space.dir, { recursive: true, force: true }); }
 });
