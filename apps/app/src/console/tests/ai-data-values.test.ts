@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { amountInMicros, limitDraft, policySelection } from "../pages/ai-data-values.ts";
+import { amountInMicros, limitDraft, policySelection, reviewSampling } from "../pages/ai-data-values.ts";
 
 test("spend limits preserve exact six-decimal dollar values and reject unsafe values", () => {
   assert.equal(amountInMicros(" 12.000001 "), 12_000_001);
@@ -18,4 +18,9 @@ test("selected-only policies cannot accidentally broaden access when their last 
   assert.deepEqual(policySelection("all", []), []);
   assert.deepEqual(policySelection("selected", ["openai", "openai", "anthropic"]), ["openai", "anthropic"]);
   assert.throws(() => policySelection("selected", []), /Choose at least one/);
+});
+
+test("review sampling accepts only a bounded percent and known labels", () => {
+  assert.deepEqual(reviewSampling({ percent: 25, labels: ["confidential", "restricted"] }), { percent: 25, labels: ["confidential", "restricted"] });
+  for (const value of [{ percent: -1, labels: [] }, { percent: 101, labels: [] }, { percent: 5.5, labels: [] }, { percent: 5, labels: ["secret"] }, null]) assert.throws(() => reviewSampling(value));
 });

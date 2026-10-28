@@ -12,6 +12,7 @@ import { Grants, People, Roles } from "../../console/pages/Access.tsx";
 import { Checker } from "../../console/pages/Checker.tsx";
 import { Models } from "../../console/pages/Models.tsx";
 import { Spend } from "../../console/pages/Spend.tsx";
+import { Logging, ReviewSampling } from "../../console/pages/AiSettings.tsx";
 import { Assistant } from "../../console/Assistant.tsx";
 import { usePlaceHash } from "../hash/context.tsx";
 import { nameLookup } from "./records-live.ts";
@@ -23,6 +24,8 @@ export function consolePagesFromNav(out: { groups: Array<{ pages: Array<{ key: s
 export function aiDataPageFor(id: string): ReactElement | null {
   if (id === "models") return <Models />;
   if (id === "spend" || id === "usage") return <Spend />;
+  if (id === "logging") return <Logging />;
+  if (id === "review") return <ReviewSampling />;
   return null;
 }
 export default function ConsolePlace(): ReactElement {

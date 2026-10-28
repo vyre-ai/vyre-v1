@@ -30,5 +30,14 @@ export function policySelection(mode: "all" | "selected", values: readonly strin
   return unique;
 }
 
+const LABELS = new Set(["public", "internal", "confidential", "restricted"]);
+export function reviewSampling(value: unknown): { percent: number; labels: string[] } {
+  if (!value || typeof value !== "object") throw new Error("Review sampling is not configured correctly.");
+  const input = value as { percent?: unknown; labels?: unknown };
+  if (!Number.isInteger(input.percent) || (input.percent as number) < 0 || (input.percent as number) > 100) throw new Error("Sampling percent must be a whole number from 0 to 100.");
+  if (!Array.isArray(input.labels) || input.labels.some((label) => typeof label !== "string" || !LABELS.has(label))) throw new Error("Sampling labels must use the Space sensitivity labels.");
+  return { percent: input.percent as number, labels: [...new Set(input.labels as string[])] };
+}
+
 export const dollarInput = (micros: number | undefined): string => micros === undefined ? "" : String(micros / 1_000_000);
 export const dollars = (micros: number): string => new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 4 }).format(micros / 1_000_000);
