@@ -21,7 +21,7 @@ import { Checker } from "../../console/pages/Checker.tsx";
 import { AgentComputers, AgentsRegister, AgentTemplate, OutsideActors } from "../../console/pages/Agents.tsx";
 import { DomainsPage, InboxesPage, NumbersPage, TextingPage } from "../../console/pages/Comms.tsx";
 import { LabelsPage, SchemaPage } from "../../console/pages/Data.tsx";
-import { ApiKeysPage, IntegrationsPage, WebhooksPage } from "../../console/pages/Integrations.tsx";
+import { ApiKeysPage, ConnectorsPage, ConnectionsPage, WebhooksPage } from "../../console/pages/Integrations.tsx";
 import { Models } from "../../console/pages/Models.tsx";
 import { Spend } from "../../console/pages/Spend.tsx";
 import { Logging, ReviewSampling } from "../../console/pages/AiSettings.tsx";
@@ -70,9 +70,9 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "numbers") return <NumbersPage {...(args["numberId"]?{initialId:args["numberId"]}:{})} />;
   if (id === "inboxes") return <InboxesPage {...(args["mailboxId"]?{initialId:args["mailboxId"]}:{})} />;
   if (id === "texting") return <TextingPage />;
-  if (id === "connectors") return <IntegrationsPage mode="connectors" />;
-  if (id === "connections") return <IntegrationsPage mode="connections" />;
-  if (id === "webhooks") return <WebhooksPage />;
+  if (id === "connectors") return <ConnectorsPage {...(args["connectorKey"]?{initialKey:args["connectorKey"]}:{})} />;
+  if (id === "connections") return <ConnectionsPage {...(args["connectionId"]?{initialId:args["connectionId"]}:{})} />;
+  if (id === "webhooks") return <WebhooksPage {...(args["webhookId"]?{initialId:args["webhookId"]}:{})} />;
   if (id === "keys") return <ApiKeysPage {...(args.sessionId?{initialSessionId:args.sessionId}:{})} />;
   return <States kind="error" message={`${pageById(id)?.title ?? id} is not implemented in this candidate yet.`} />;
 }

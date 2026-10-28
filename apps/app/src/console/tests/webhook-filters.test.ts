@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import{readWebhookFilter,writeWebhookFilter}from'../pages/webhook-filters.ts';
+test('typed filter edits preserve mixed scalar lists, null and literal payload pointers',()=>{const filter={'/priority':[1,true,'high'], '/customer~1name':'Dana', '/empty':null};assert.deepEqual(writeWebhookFilter(readWebhookFilter(filter)),filter);});
+test('new named field conditions become payload pointers and reject duplicate fields or nonfinite numbers',()=>{const rows=readWebhookFilter({'/amount':5});delete rows[0]!.pointer;rows[0]!.field='deal.amount';assert.deepEqual(writeWebhookFilter(rows),{'/deal/amount':5});rows[0]!.values[0]!.value='NaN';assert.throws(()=>writeWebhookFilter(rows),/number/);const duplicate=readWebhookFilter({'/type':'lead'});assert.throws(()=>writeWebhookFilter([...duplicate,...duplicate]),/once/);});
