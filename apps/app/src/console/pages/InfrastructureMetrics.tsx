@@ -5,14 +5,11 @@ import type { CapMap } from '../../../../../generated/types.ts';
 import { Row } from '../../../../../ui/src/Row/index.tsx';
 import { Group, Section } from '../shell/ui.tsx';
 import { useConsoleData } from '../shell/data.tsx';
+import { InfraTrace } from './Infrastructure.tsx';
 import { Actions, Button, Note, ReadState, Select, useRead } from './shared.tsx';
 
 export function speedValue(unit: string, value: number): string {
   return `${value}${unit === 'percent' ? '%' : unit === 'ms' ? ' ms' : unit === 'count' ? ' items' : unit === 'cls' ? ' CLS' : ''}`;
-}
-function WorstTrace({ id }: { id: string }): ReactElement {
-  const result = useRead<CapMap['logs.trace']['out']>('logs.trace', { traceId: id }, { direct: true });
-  return <Section title="Worst trace"><Group><Note>{id}</Note>{result.data ? <>{result.data.spans.map((span) => <Row key={span.spanId} id={`speed-span-${span.spanId}`} title={span.name} note={`${(span.durUs / 1000).toFixed(1)} ms`} />)}{!result.data.spans.length ? <Note>No retained spans for this trace.</Note> : null}</> : <ReadState error={result.error} retry={result.refresh} />}</Group></Section>;
 }
 export function Speed(): ReactElement {
   const data = useConsoleData();
@@ -21,7 +18,7 @@ export function Speed(): ReactElement {
   return <View testID="console-speed-infra"><Section title="Speed"><Group><Select label="Sample window" value={window} options={[{ key: '15', title: 'Last 15 minutes' }, { key: '60', title: 'Last hour' }, { key: '1440', title: 'Last day' }]} onChange={(value) => { setWindow(value); setTrace(''); }} /><Note>Median and bad-end percentile compared with each performance budget. Missing samples do not establish server health.</Note><Actions><Button label="Refresh speed" onPress={result.refresh} /></Actions>{result.data ? result.data.rows.length ? result.data.rows.map((row) => {
     const sense = row.sense;
     return <Row key={row.budgetId} id={`speed-${row.budgetId}`} title={row.budgetId.replaceAll('_', ' ')} note={`${row.over ? 'Outside budget' : 'Within budget'} · Median ${speedValue(row.unit, row.p50)} · ${sense === 'min' ? 'Low-end p5' : 'p95'} ${speedValue(row.unit, row.p95)} · Target ${sense === 'min' ? 'at least' : sense === 'exact' ? 'exactly' : 'at most'} ${speedValue(row.unit, row.budgetP95)}`} trailing={row.worstTraceId && data.can('server.logs') ? <Button label="Worst trace" onPress={() => setTrace(row.worstTraceId!)} /> : undefined} />;
-  }) : <Note>No speed samples in this window.</Note> : <ReadState error={result.error} retry={result.refresh} />}{!data.can('server.logs') ? <Note>Viewing individual traces requires server log access.</Note> : null}</Group></Section>{trace ? <WorstTrace id={trace} /> : null}</View>;
+  }) : <Note>No speed samples in this window.</Note> : <ReadState error={result.error} retry={result.refresh} />}{!data.can('server.logs') ? <Note>Viewing individual traces requires server log access.</Note> : null}</Group></Section>{trace ? <InfraTrace id={trace} title="Worst trace" /> : null}</View>;
 }
 function UsageLimits(): ReactElement {
   const data = useConsoleData();
