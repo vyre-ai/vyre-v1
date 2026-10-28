@@ -6,7 +6,7 @@ import { AccessSnapshot, authorize } from "../../kernel/src/authorize/index.ts";
 import { createIdempotency } from "../../kernel/src/idempotency/index.ts";
 import { createInvoke, createRateLimiter, indexCapabilities, MAX_DEPTH } from "../src/invoke.ts";
 import type { AuditRow, CommitBatch, CtxSeed, GateHook, Handler, InvokeDeps, SpanRecord } from "../src/invoke.ts";
-import { HostError, VyreErr, makeError } from "../src/routes/errors.ts";
+import { HostError, VyreErr, makeError, fail } from "../src/routes/errors.ts";
 import { resolveResource } from "../src/routes/resource.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
@@ -273,4 +273,13 @@ test("preview bypasses all module/nested handlers and idempotency; rechecks afte
   await expectErr(r.invoke("records.create", {}, preview), "permission.no_grant");
   await expectErr(r.invoke("records.get", {}, { ...preview, depth: 1 }), "permission.no_grant");
   assert.equal(handlerCalls, 0);
+});
+
+
+test("only the trusted host's pre-authorized internal record read retains system authority", async()=>{
+ const c=cap({name:"records.get",effects:"read",permission:null,level:"view"});let projected=0;
+ const r=rig([c],{"records.get":()=>({record:{id:"rec_1",fields:{title:"Shared project"}}})},{recordAccess:{facts:async(_cap,_input,req)=>req,project:async()=>{projected++;throw fail("permission.no_grant","1".repeat(32));}}});
+ const result=await r.invoke("records.get",{id:"rec_1"},seed({preAuth:true,principal:{kind:"service",id:"svc_host"},origin:"hook"}));assert.equal(result.status,"ok");assert.equal(projected,0);
+ for(const principal of [{kind:"actor",id:"act_anonymous"},{kind:"service",id:"svc_"+"a".repeat(32)}] as const)await expectErr(r.invoke("records.get",{id:"rec_1"},seed({preAuth:true,principal})),"permission.no_grant");assert.equal(projected,2);
+ await expectErr(r.invoke("records.get",{id:"rec_1"},seed({principal:{kind:"service",id:"svc_host"}})),"auth.unauthenticated");
 });

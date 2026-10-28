@@ -6,6 +6,7 @@
 import { formatHlc, tickHlc } from "../../lib/hlc.ts";
 import type { Hlc } from "../../lib/hlc.ts";
 import { mintId } from "../../lib/ids.ts";
+import {isHostService} from "../../lib/trust.ts";
 import { mintEventId } from "./ids.ts";
 import type { Decision as KernelDecision, Req as AuthReq, ResourceRef } from "../../kernel/src/authorize/index.ts";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
@@ -323,7 +324,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     }
 
     // 7 commit: events, inline projections and the audit row land together
-    const finishOutput=SCOPED_RECORD_READS.has(c.name)?await deps.recordAccess?.project(c.name,input,seed,output,traceId):undefined;
+    const finishOutput=SCOPED_RECORD_READS.has(c.name)&&!(seed.preAuth&&isHostService(seed.principal))?await deps.recordAccess?.project(c.name,input,seed,output,traceId):undefined;
     const targets = shouldAudit(c) ? auditTargets(c.name, input, output) : undefined;
     const auditRow: AuditRow | null = shouldAudit(c)
       ? { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: did(), reason: "ok", resource, traceId, spanId: trace.spanId, at: t, risk: c.risk, ...(targets ? { targets } : {}) }

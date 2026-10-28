@@ -1,3 +1,4 @@
+- Preserve the trusted host’s internal record-read authority for validated shared project links, while retaining scoped projection checks for anonymous actors, tenant services and direct callers.
 - Add an isolated read-only shared Records preview to the Access checker, with memory-only expiring credentials, canceled pending requests, hidden-field redaction, explicit exit and preserved normal Owner session.
 - Enforce grant label ceilings in single-record authorization, inherited grants, SQL list predicates and persisted Access projections, with classification and randomized parity regressions.
 - Page all Comms Console lists beyond 100 rows; bind cursors to the current first-page snapshot and deduplicate canonical IDs so live insertions cannot skip or duplicate rows.
