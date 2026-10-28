@@ -9,5 +9,6 @@ test("Models and providers mounts a real Console page", () => {
   assert.ok(aiDataPageFor("usage"));
   assert.ok(aiDataPageFor("logging"));
   assert.ok(aiDataPageFor("review"));
+  assert.ok(aiDataPageFor("incidents"));
   assert.equal(aiDataPageFor("not-ai-data"), null);
 });

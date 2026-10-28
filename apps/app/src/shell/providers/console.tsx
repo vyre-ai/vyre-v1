@@ -13,6 +13,7 @@ import { Checker } from "../../console/pages/Checker.tsx";
 import { Models } from "../../console/pages/Models.tsx";
 import { Spend } from "../../console/pages/Spend.tsx";
 import { Logging, ReviewSampling } from "../../console/pages/AiSettings.tsx";
+import { Incidents } from "../../console/pages/Incidents.tsx";
 import { Assistant } from "../../console/Assistant.tsx";
 import { usePlaceHash } from "../hash/context.tsx";
 import { nameLookup } from "./records-live.ts";
@@ -26,6 +27,7 @@ export function aiDataPageFor(id: string): ReactElement | null {
   if (id === "spend" || id === "usage") return <Spend />;
   if (id === "logging") return <Logging />;
   if (id === "review") return <ReviewSampling />;
+  if (id === "incidents") return <Incidents />;
   return null;
 }
 export default function ConsolePlace(): ReactElement {
