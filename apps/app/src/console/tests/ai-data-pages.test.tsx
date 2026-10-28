@@ -6,6 +6,7 @@ import { canEditOwnerFloor, gateRuleDraft, mergeGateAgents } from "../pages/Gate
 import { mergeReviewPages } from "../pages/AiSettings.tsx";
 import { holdTargetOf, mergeHolds } from "../pages/Holds.tsx";
 import { eraseFindingExpired } from "../pages/ErasePerson.tsx";
+import { mergeSpendAgents } from "../pages/Spend.tsx";
 
 test("Models and providers mounts a real Console page", () => {
   const page = aiDataPageFor("models");
@@ -53,4 +54,9 @@ test("hold search maps named app objects to governance targets and paginates uni
 test("erase findings expire at their declared timestamp", () => {
   assert.equal(eraseFindingExpired(10_000, 9_999), false);
   assert.equal(eraseFindingExpired(10_000, 10_000), true);
+});
+
+test("spend scope pagination keeps named agents unique", () => {
+  const agent = (agentId: string, name: string) => ({ agentId, name }) as never;
+  assert.deepEqual(mergeSpendAgents([agent("agt_1", "One")], [agent("agt_1", "Updated"), agent("agt_2", "Two")]).map((row) => `${row.agentId}:${row.name}`), ["agt_1:Updated", "agt_2:Two"]);
 });

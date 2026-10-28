@@ -10,6 +10,12 @@ import { Choice } from "./ai-controls.tsx";
 import { capsMatch, dollarInput, dollars, limitDraft, raiseAmount } from "./ai-data-values.ts";
 
 type Scope = "space" | "person" | "agent";
+type SpendAgent = CapMap["agents.list"]["out"]["agents"][number];
+export function mergeSpendAgents(first: readonly SpendAgent[], second: readonly SpendAgent[]): SpendAgent[] {
+  const rows = new Map(first.map((agent) => [agent.agentId, agent]));
+  for (const agent of second) rows.set(agent.agentId, agent);
+  return [...rows.values()];
+}
 type Limit = "run" | "day" | "month" | "turns" | "time";
 type UsageBy = "day" | "person" | "agent" | "model";
 
@@ -17,12 +23,16 @@ export function Spend(): ReactElement {
   const data = useConsoleData();
   const people = useRead<CapMap["access.principals.list"]["out"]>("access.principals.list", { kind: "person" });
   const agents = useRead<CapMap["agents.list"]["out"]>("agents.list", { section: "space", limit: 100 });
+  const [moreAgents, setMoreAgents] = useState<SpendAgent[]>([]);
+  const [agentPage, setAgentPage] = useState<{ loaded: boolean; next?: string; busy: boolean }>({ loaded: false, busy: false });
   const [scope, setScope] = useState<Scope>("space");
   const [scopeId, setScopeId] = useState("");
   if (!people.data || !agents.data) return <ReadState error={people.error ?? agents.error} retry={() => { people.refresh(); agents.refresh(); }} />;
+  const agentRows = mergeSpendAgents(agents.data.agents, moreAgents);
+  const agentNext = agentPage.loaded ? agentPage.next : agents.data.next;
   const changeScope = (next: Scope): void => { setScope(next); setScopeId(next === "person" ? data.me.id : next === "agent" ? agents.data!.agents[0]?.agentId ?? "" : ""); };
   const peopleOptions = [...people.data.principals.map((person) => ({ key: person.id, title: person.name })), ...(people.data.principals.some((person) => person.id === data.me.id) ? [] : [{ key: data.me.id, title: data.me.name }])];
-  return <View testID="console-ai-spend"><Section title="Scope"><Group><Choice label="Limits for" value={scope} options={[{ key: "space", title: "This Space" }, { key: "person", title: "A person" }, { key: "agent", title: "An agent" }]} onChange={(value) => changeScope(value as Scope)} />{scope === "person" ? <Choice label="Person" value={scopeId} options={peopleOptions} onChange={setScopeId} /> : scope === "agent" ? <Choice label="Agent" value={scopeId} options={agents.data.agents.map((agent) => ({ key: agent.agentId, title: agent.name }))} onChange={setScopeId} /> : null}</Group></Section>{scope === "space" || scopeId ? <SpendScope key={`${scope}:${scopeId}`} scope={scope} {...(scope === "space" ? {} : { scopeId })} /> : <Note>Choose the {scope} whose limits you want to review.</Note>}</View>;
+  return <View testID="console-ai-spend"><Section title="Scope"><Group><Choice label="Limits for" value={scope} options={[{ key: "space", title: "This Space" }, { key: "person", title: "A person" }, { key: "agent", title: "An agent" }]} onChange={(value) => changeScope(value as Scope)} />{scope === "person" ? <Choice label="Person" value={scopeId} options={peopleOptions} onChange={setScopeId} /> : scope === "agent" ? <><Choice label="Agent" value={scopeId} options={agentRows.map((agent) => ({ key: agent.agentId, title: agent.name }))} onChange={setScopeId} />{agentNext ? <Button label={agentPage.busy ? "Loading agents…" : "Load more agents"} disabled={agentPage.busy} onPress={() => { if (agentPage.busy) return; setAgentPage((current) => ({ ...current, busy: true })); void data.call("agents.list", { section: "space", cursor: agentNext, limit: 100 }).then((out) => { const page = out as CapMap["agents.list"]["out"]; setMoreAgents((current) => mergeSpendAgents(current, page.agents)); setAgentPage({ loaded: true, ...(page.next ? { next: page.next } : {}), busy: false }); }, () => setAgentPage((current) => ({ ...current, busy: false }))); }} /> : null}</> : null}</Group></Section>{scope === "space" || scopeId ? <SpendScope key={`${scope}:${scopeId}`} scope={scope} {...(scope === "space" ? {} : { scopeId })} /> : <Note>Choose the {scope} whose limits you want to review.</Note>}</View>;
 }
 
 function SpendScope({ scope, scopeId }: { scope: Scope; scopeId?: string }): ReactElement {
