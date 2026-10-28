@@ -1,5 +1,7 @@
 # Changelog
 
+- Made native telemetry source IDs monotonic across retention pruning and restart with persisted per-stream counters. Restricted mirrored messages to declared templates and string metadata to registered capabilities, trace formats and finite reason/state enums; unknown identifier-shaped credentials cannot pass as message/reason text. Added prune-all/highest-row and legacy-source regressions.
+
 - Connected real daemon logs and invoke spans to canonical authorized telemetry reads through the existing scrubbed writer. Native logs remain the durable recovery source; bounded batches and transactional source checkpoints prevent lost or duplicate replay after write failure/restart, and unavailable canonical storage cannot trap shutdown. Added actual HTTP access, metadata/privacy, rollback and restart regressions.
 
 - Completed Usage’s current-person limits summary, explicitly selected Space limits, principal names, aligned costs and real Spend-editor navigation through existing protected capabilities. Added ordinary-reader query-scope checks and production browser proof with populated, period-filtered metering fixtures and actual budget readback; no inference ran.

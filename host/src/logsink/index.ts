@@ -11,7 +11,7 @@ export const CONTENT_KEYS: readonly string[] = Object.freeze(["body", "text", "s
 const CONTENT_RE = new RegExp(`^(${CONTENT_KEYS.join("|")})$`, "i");
 
 export const LOGS_SCHEMA = `
-CREATE TABLE IF NOT EXISTS log_source (id TEXT PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS log_source (id TEXT PRIMARY KEY, row_seq INTEGER NOT NULL DEFAULT 0, span_seq INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS logs (
   id INTEGER PRIMARY KEY, at INTEGER NOT NULL, level INTEGER NOT NULL,
   trace_id TEXT, span_id TEXT, space TEXT NOT NULL,
@@ -67,20 +67,24 @@ export class LogSink implements SpanSink {
   constructor(o: LogSinkOptions = {}) {
     this.db = o.db ?? new DatabaseSync(o.path ?? ":memory:");
     this.db.exec(LOGS_SCHEMA);
+    const columns = this.db.prepare('PRAGMA table_info(log_source)').all();
+    if (!columns.some(column => column['name'] === 'row_seq')) this.db.exec('ALTER TABLE log_source ADD COLUMN row_seq INTEGER NOT NULL DEFAULT 0');
+    if (!columns.some(column => column['name'] === 'span_seq')) this.db.exec('ALTER TABLE log_source ADD COLUMN span_seq INTEGER NOT NULL DEFAULT 0');
     this.sourceId = String(this.db.prepare('SELECT id FROM log_source LIMIT 1').get()?.id ?? globalThis.crypto.randomUUID());
     this.db.prepare('INSERT OR IGNORE INTO log_source (id) VALUES (?)').run(this.sourceId);
+    this.db.prepare('UPDATE log_source SET row_seq = MAX(row_seq, (SELECT COALESCE(MAX(id), 0) FROM logs)), span_seq = MAX(span_seq, (SELECT COALESCE(MAX(rowid), 0) FROM spans)) WHERE id = ?').run(this.sourceId);
     this.batchMs = o.batchMs ?? 250;
     this.now = o.now ?? Date.now;
     this.secrets = o.secrets ?? (() => []);
   }
 
   /** Attach the internal metadata writer after module initialization. */
-  setObserver(observer: ((batch: TelemetryBatch) => void) | undefined, position: TelemetryPosition = { rowId: 0, spanId: 0 }): void { this.observer = observer; this.observed = position; if (observer) this.schedule(); }
+  setObserver(observer: ((batch: TelemetryBatch) => void) | undefined, position: TelemetryPosition = { rowId: 0, spanId: 0 }): void { this.db.prepare('UPDATE log_source SET row_seq = MAX(row_seq, ?), span_seq = MAX(span_seq, ?) WHERE id = ?').run(position.rowId, position.spanId, this.sourceId); this.observer = observer; this.observed = position; if (observer) this.schedule(); }
 
   private observe(): boolean {
     if (!this.observer) return false;
-    const rawRows = this.db.prepare('SELECT * FROM logs WHERE id > ? ORDER BY id LIMIT 1000').all(this.observed.rowId) as Record<string, unknown>[];
-    const rawSpans = this.db.prepare('SELECT rowid AS source_id, * FROM spans WHERE rowid > ? ORDER BY rowid LIMIT 1000').all(this.observed.spanId) as Record<string, unknown>[];
+    const rawRows = this.db.prepare(`SELECT id,at,level,space,${COLS.join(',')},CASE WHEN length(msg) <= 80 THEN msg ELSE 'log.redacted' END AS msg,CASE WHEN length(CAST(attrs AS BLOB)) <= 8192 THEN attrs ELSE NULL END AS attrs FROM logs WHERE id > ? ORDER BY id LIMIT 1000`).all(this.observed.rowId) as Record<string, unknown>[];
+    const rawSpans = this.db.prepare('SELECT rowid AS source_id,trace_id,span_id,parent,substr(name,1,121) AS name,at,dur_us,CASE WHEN length(CAST(attrs AS BLOB)) <= 8192 THEN attrs ELSE NULL END AS attrs FROM spans WHERE rowid > ? ORDER BY rowid LIMIT 1000').all(this.observed.spanId) as Record<string, unknown>[];
     if (!rawRows.length && !rawSpans.length) return false;
     const position = { rowId: Number(rawRows.at(-1)?.['id'] ?? this.observed.rowId), spanId: Number(rawSpans.at(-1)?.['source_id'] ?? this.observed.spanId) };
     const attrs = (value: unknown): Record<string, unknown> | null => typeof value === 'string' ? JSON.parse(value) as Record<string, unknown> : null;
@@ -124,15 +128,18 @@ export class LogSink implements SpanSink {
     if (this.timer) { clearTimeout(this.timer); this.timer = null; }
     if (!this.rows.length && !this.spans.length) { if (this.observe()) this.schedule(); return; }
     const rows = this.rows.splice(0, 1000), spans = this.spans.splice(0, 1000);
-    const insLog = this.db.prepare(`INSERT INTO logs (at, level, space, ${COLS.join(", ")}, msg, attrs) VALUES (?, ?, ?, ${COLS.map(() => "?").join(", ")}, ?, ?)`);
-    const insSpan = this.db.prepare("INSERT INTO spans (trace_id, span_id, parent, name, at, dur_us, attrs) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    const insLog = this.db.prepare(`INSERT INTO logs (id, at, level, space, ${COLS.join(", ")}, msg, attrs) VALUES (?, ?, ?, ?, ${COLS.map(() => "?").join(", ")}, ?, ?)`);
+    const insSpan = this.db.prepare("INSERT INTO spans (rowid, trace_id, span_id, parent, name, at, dur_us, attrs) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
     this.db.exec("BEGIN");
     try {
+      const sequence = this.db.prepare('SELECT row_seq, span_seq FROM log_source WHERE id = ?').get(this.sourceId)!;
+      let rowSeq = Number(sequence['row_seq']), spanSeq = Number(sequence['span_seq']);
       for (const { at, row } of rows) {
         const attrs = row.attrs ? JSON.stringify(this.redact(row.attrs)) : null;
-        insLog.run(at, row.level, row.space, ...COLS.map((c) => row[c] ?? null), row.msg, attrs);
+        insLog.run(++rowSeq, at, row.level, row.space, ...COLS.map((c) => row[c] ?? null), row.msg, attrs);
       }
-      for (const s of spans) insSpan.run(s.trace_id, s.span_id, s.parent, s.name, s.at, s.dur_us, s.attrs ? JSON.stringify(this.redact(s.attrs)) : null);
+      for (const s of spans) insSpan.run(++spanSeq, s.trace_id, s.span_id, s.parent, s.name, s.at, s.dur_us, s.attrs ? JSON.stringify(this.redact(s.attrs)) : null);
+      this.db.prepare('UPDATE log_source SET row_seq = ?, span_seq = ? WHERE id = ?').run(rowSeq, spanSeq, this.sourceId);
       this.db.exec("COMMIT");
     } catch (e) { this.db.exec("ROLLBACK"); this.rows.unshift(...rows); this.spans.unshift(...spans); throw e; }
     const more = this.observe();
