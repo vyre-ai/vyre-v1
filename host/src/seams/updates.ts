@@ -109,6 +109,7 @@ export function createUpdatesHost(d: UpdatesHostDeps = {}): UpdatesDrivers {
       },
       async install(release, channel = 'stable') {
         const r = await server("update", "--yes", "--channel", channel, "--version", release.version, "--sha256", release.sha256, "--feed-base", base(channel));
+        if (r.code === 75) throw new UpdateOperationBusy();
         if (r.code !== 0) throw new Error(firstLine(r.stderr) || `vyre-server update failed (${r.code})`);
         const now = await this.current();
         if (now !== release.version) throw new Error(`vyre-server installed ${now}, not ${release.version}`);
@@ -122,10 +123,16 @@ export function createUpdatesHost(d: UpdatesHostDeps = {}): UpdatesDrivers {
         const kept = await this.previous();
         if (!kept.includes(version)) throw new Error(`${version} is not the release kept to go back to`);
         const r = await server("rollback");
+        if (r.code === 75) throw new UpdateOperationBusy();
         if (r.code !== 0) throw new Error(firstLine(r.stderr) || `vyre-server rollback failed (${r.code})`);
       },
     },
   };
+}
+
+class UpdateOperationBusy extends Error {
+  readonly code = 'update.operation_busy';
+  constructor() { super('Another server update or rollback is running.'); }
 }
 
 const firstLine = (s: string): string => s.trim().split("\n")[0]?.slice(0, 300) ?? "";

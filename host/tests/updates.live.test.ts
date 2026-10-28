@@ -146,12 +146,12 @@ test("updates seam: the feed address, the installer through vyre-server, and the
 });
 
 
-test("updates HTTP applies exactly the reviewed beta release through pinned installer arguments", async () => {
-  const dir=seededDir(),feed:Feed={urls:[],tamper:false};let version='1.0.0';const commands:string[][]=[];
+test("updates HTTP pins beta installation and refuses competing apply or rollback while in flight", async () => {
+  const dir=seededDir(),feed:Feed={urls:[],tamper:false};let version='1.0.0';const commands:string[][]=[];let entered=()=>{},finish=()=>{};const installing=new Promise<void>(resolve=>{entered=resolve;}),gate=new Promise<void>(resolve=>{finish=resolve;});let pendingApply:ReturnType<typeof call>|undefined;
   const run:RunCommand=async argv=>{
     commands.push([...argv]);
     if(argv[1]==='version')return{code:0,stdout:version,stderr:''};
-    if(argv[1]==='update'){assert.equal(argv[argv.indexOf('--channel')+1],'beta');assert.equal(argv[argv.indexOf('--version')+1],'1.1.0');assert.equal(argv[argv.indexOf('--sha256')+1],'a'.repeat(64));assert.equal(argv[argv.indexOf('--feed-base')+1],githubFeedBase('beta'));version='1.1.0';return{code:0,stdout:'',stderr:''};}
+    if(argv[1]==='update'){assert.equal(argv[argv.indexOf('--channel')+1],'beta');assert.equal(argv[argv.indexOf('--version')+1],'1.1.0');assert.equal(argv[argv.indexOf('--sha256')+1],'a'.repeat(64));assert.equal(argv[argv.indexOf('--feed-base')+1],githubFeedBase('beta'));version='1.1.0';entered();await gate;return{code:0,stdout:'',stderr:''};}
     if(argv[1]==='doctor')return{code:0,stdout:'',stderr:''};
     return{code:1,stdout:'',stderr:'fixture unsupported command'};
   };
@@ -159,7 +159,17 @@ test("updates HTTP applies exactly the reviewed beta release through pinned inst
   try{
     assert.equal((await call(d,'backup.config_set',{target:{kind:'local',path:path.join(dir,'fixture-backups')},schedule:'0 3 * * *',enabled:false})).status,200);
     assert.equal((await call(d,'updates.channel_set',{channel:'beta'})).status,200);
-    const applied=await call(d,'updates.apply',{to:'1.1.0'});assert.equal(applied.status,200,JSON.stringify(applied));
+    pendingApply=call(d,'updates.apply',{to:'1.1.0'});await installing;
+    const competing=await call(d,'updates.apply',{});assert.equal(competing.status,422,JSON.stringify(competing));assert.match(JSON.stringify(competing.data),/Another server update or rollback/);
+    const rollback=await call(d,'updates.rollback',{to:'1.0.0'});assert.equal(rollback.status,422,JSON.stringify(rollback));assert.match(JSON.stringify(rollback.data),/Another server update or rollback/);assert.equal(commands.filter(argv=>argv[1]==='update').length,1);assert.ok(!commands.some(argv=>argv[1]==='rollback'));
+    finish();const applied=await pendingApply;assert.equal(applied.status,200,JSON.stringify(applied));
     assert.ok(commands.some(argv=>argv[1]==='update'));const status=await call(d,'updates.status',{});assert.equal(status.data.current,'1.1.0');assert.equal(status.data.lastResult,'ok');
-  }finally{await d.stop();fs.rmSync(dir,{recursive:true,force:true});}
+  }finally{finish();await pendingApply?.catch(()=>undefined);await d.stop();fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test('installer busy exit is a typed refusal for apply and rollback without leaking CLI details',async()=>{
+ const host=createUpdatesHost({run:async argv=>argv[1]==='version'?{code:0,stdout:'1.0.0',stderr:''}:{code:75,stdout:'',stderr:'fixture internal lock path'},readText:()=> 'releases/0.9.0\n'});
+ const busy=(error:unknown)=>{assert.equal((error as {code?:string}).code,'update.operation_busy');assert.doesNotMatch((error as Error).message,/internal lock path/);return true;};
+ await assert.rejects(host.installer.install({version:'1.1.0',tarball:'fixture.tgz',sha256:'a'.repeat(64)}),busy);
+ await assert.rejects(host.installer.switchTo('0.9.0'),busy);
 });

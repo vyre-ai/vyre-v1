@@ -1,5 +1,7 @@
 # Changelog
 
+- Serialized server apply/rollback operations per Space and shared their CLI lock. A contending updater no longer removes another process’s lock during cleanup, and a busy installer never triggers rollback of an active installation. Added deterministic concurrency, lock-ownership, failure-release and actual HTTP competing-operation regressions.
+
 - Added older/newer/latest Server log navigation through existing cursors, paused auto-refresh on older pages, preserved whole-filter private exports, and rendered actual log rows in trace detail. Added production browser proof with 120 authenticated fixture entries, cross-page export and trace readback.
 
 - Kept the audited Speed trace drilldown on a direct authenticated read, matching Server trace handling and avoiding repeat reads from global query invalidation.

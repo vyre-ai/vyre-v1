@@ -159,3 +159,25 @@ test('apply forwards the verified selected channel to the installer',async()=>{
  let selected:string|undefined;const install=w.installer.install.bind(w.installer);w.installer.install=async(release,channel)=>{selected=channel;await install(release,channel);};
  await call('updates.apply',w.ctx,{to:'1.3.0'});assert.equal(selected,'beta');
 });
+
+test('a competing apply cannot roll back the update already in progress',async()=>{
+ const w=await ready();w.backups.runs.push({backupId:'bkp_second'});w.backups.listed.push('bkp_second');const deferred=()=>{let resolve!:()=>void;const promise=new Promise<void>(done=>{resolve=done;});return{promise,resolve};};
+ const firstFeed=deferred(),secondFeed=deferred(),allowFirst=deferred(),allowSecond=deferred(),installEntered=deferred(),finishInstall=deferred();let reads=0,installs=0;
+ const fetch=w.feed.fetch.bind(w.feed);w.feed.fetch=async channel=>{reads++;if(reads===1){firstFeed.resolve();await allowFirst.promise;}else if(reads===2){secondFeed.resolve();await allowSecond.promise;}return fetch(channel);};
+ w.installer.install=async release=>{installs++;if(installs!==1)throw new Error('fixture another update already running');w.installer.version=release.version;w.installer.log.push(`install ${release.version}`);installEntered.resolve();await finishInstall.promise;};
+ const first=call('updates.apply',w.ctx,{to:'1.3.0'});let second:Promise<{ok:boolean;error?:unknown}>|undefined;
+ try{
+  await firstFeed.promise;second=call('updates.apply',w.ctx,{to:'1.3.0'}).then(()=>({ok:true}),error=>({ok:false,error}));await Promise.race([secondFeed.promise,second]);
+  allowFirst.resolve();await installEntered.promise;allowSecond.resolve();const outcome=await second;
+  assert.deepEqual(w.installer.log,['install 1.3.0'],'the contender must not roll back the in-progress install');assert.equal(outcome.ok,false,'the second operation is refused, not installed or rolled back');assert.ok(outcome.error instanceof VyreErr);assert.equal(outcome.error.error.code,'validation.precondition_failed');
+  const rollback=await failed(call('updates.rollback',w.ctx,{to:'1.1.0'}));assert.equal(rollback.error.code,'validation.precondition_failed');assert.deepEqual(w.installer.log,['install 1.3.0']);
+  finishInstall.resolve();await first;assert.equal(w.installer.version,'1.3.0');
+ }finally{allowFirst.resolve();allowSecond.resolve();finishInstall.resolve();await first.catch(()=>undefined);await second;}
+});
+
+test('an externally busy installer never triggers rollback and releases the Space operation guard',async()=>{
+ const w=await ready(),install=w.installer.install.bind(w.installer);
+ w.installer.install=async()=>{w.installer.version='1.3.0';throw Object.assign(new Error('fixture external updater owns the operation'),{code:'update.operation_busy'});};
+ const error=await failed(call('updates.apply',w.ctx,{to:'1.3.0'}));assert.equal(error.error.code,'validation.precondition_failed');assert.deepEqual(w.installer.log,[]);assert.equal(w.installer.version,'1.3.0','the other operation is not rolled back');
+ w.installer.version='1.2.0';w.installer.install=install;w.backups.runs.push({backupId:'bkp_retry'});w.backups.listed.push('bkp_retry');await call('updates.apply',w.ctx,{to:'1.3.0'});assert.equal(w.installer.version,'1.3.0','the failed request released its guard');
+});

@@ -26,6 +26,7 @@ DIR=$(find_dir)
 DRY=0
 YES=0
 TMP=""
+LOCKDIR=""
 WANT=""
 WANT_SHA256=""
 CHANNEL=$(cat "$DIR/channel" 2>/dev/null || printf stable)
@@ -360,6 +361,16 @@ prune_releases() {
   done
 }
 
+lock_update_operation() {
+  operation_lock_path="$DIR/state/update.lock"
+  mkdir -p "$DIR/state"
+  # A failed contender owns nothing: EXIT cleanup must leave the active lock alone.
+  if mkdir "$operation_lock_path" 2>/dev/null; then LOCKDIR=$operation_lock_path
+  elif [ -d "$operation_lock_path" ]; then die "another update or rollback is running (or died: check $operation_lock_path)." 75
+  else die "could not create the update lock; check the install directory permissions." 1
+  fi
+}
+
 parse_update_args() {
   check_only=0
   while [ $# -gt 0 ]; do
@@ -387,9 +398,7 @@ parse_update_args() {
 cmd_update() {
   parse_update_args "$@"
   TMP=$(mktemp -d "${TMPDIR:-/tmp}/vyre-update.XXXXXX")
-  LOCKDIR="$DIR/state/update.lock"
-  mkdir -p "$DIR/state"
-  mkdir "$LOCKDIR" 2>/dev/null || die "another update is running (or died: remove $LOCKDIR)."
+  lock_update_operation
   started=$(date +%s)
   from=$(cur_version)
   fetch_release
@@ -438,6 +447,7 @@ cmd_update() {
 }
 
 cmd_rollback() {
+  lock_update_operation
   [ -f "$DIR/previous" ] || die "there is no earlier release to go back to."
   prev=$(sed -n 's|^releases/||p' "$DIR/previous" | head -n 1)
   [ -n "$prev" ] && [ -f "$DIR/releases/$prev/.complete" ] || die "the earlier release ($prev) is no longer on disk."

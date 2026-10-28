@@ -12,6 +12,17 @@ import {
 import type { UpdateCtx } from "./channels.ts";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 
+const activeOperations = new Set<string>();
+async function exclusiveOperation<T>(ctx: UpdateCtx, work: () => Promise<T>): Promise<T> {
+  if (activeOperations.has(ctx.space)) return failWith(ctx.trace.traceId, 'validation.precondition_failed', 'Another server update or rollback is running. Wait for it to finish.');
+  activeOperations.add(ctx.space);
+  try { return await work(); }
+  finally { activeOperations.delete(ctx.space); }
+}
+function operationBusy(error: unknown): boolean {
+  return !!error && typeof error === 'object' && (error as {code?:unknown}).code === 'update.operation_busy';
+}
+
 const asRow = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 
 /** Take a backup and prove it exists. backup.run answers with the id even when the copy failed (it announces backup.failed), so the list is the proof. */
@@ -30,6 +41,9 @@ async function backupFirst(ctx: UpdateCtx, runId: string): Promise<string> {
 }
 
 export async function apply(ctx: UpdateCtx, input: { to?: string }) {
+  return exclusiveOperation(ctx, () => applyNow(ctx, input));
+}
+async function applyNow(ctx: UpdateCtx, input: { to?: string }) {
   const d = need(ctx);
   const runId = ctx.run ?? mint("run");
   const state = readState(ctx);
@@ -56,6 +70,7 @@ export async function apply(ctx: UpdateCtx, input: { to?: string }) {
     await d.installer.install(release, channel);
     if (!(await d.installer.healthy())) reason = "the new version did not pass its health check";
   } catch (e) {
+    if (operationBusy(e)) return failWith(ctx.trace.traceId, 'validation.precondition_failed', 'Another server update or rollback is running. No rollback was attempted. Wait for it to finish.');
     reason = e instanceof Error ? e.message : "the install did not finish";
   }
   const seconds = Math.max(0, Math.round((ctx.now() - started) / 1000));
@@ -76,6 +91,9 @@ export async function apply(ctx: UpdateCtx, input: { to?: string }) {
 }
 
 export async function rollback(ctx: UpdateCtx, input: { to: string }) {
+  return exclusiveOperation(ctx, () => rollbackNow(ctx, input));
+}
+async function rollbackNow(ctx: UpdateCtx, input: { to: string }) {
   const d = need(ctx);
   const runId = ctx.run ?? mint("run");
   if (!parseVersion(input.to)) return failWith(ctx.trace.traceId, "validation.bad_input", "That is not a version.", { errors: ["to: not a version"] });
@@ -89,6 +107,7 @@ export async function rollback(ctx: UpdateCtx, input: { to: string }) {
   try {
     await d.installer.switchTo(input.to);
   } catch (e) {
+    if (operationBusy(e)) return failWith(ctx.trace.traceId, 'validation.precondition_failed', 'Another server update or rollback is running. Wait for it to finish.');
     return failWith(ctx.trace.traceId, "internal.unexpected", `The roll back did not finish: ${e instanceof Error ? e.message : "unknown error"}. The server may still be on ${from}.`, { from, to: input.to });
   }
   if (!(await d.installer.healthy())) {
