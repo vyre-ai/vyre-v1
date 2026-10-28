@@ -360,3 +360,37 @@ test("@heavy install on a fresh host with Docker ends with doctor green (install
   assert.match(r.stdout, /# pass \d+ fail 0/);
   assert.doesNotMatch(r.stdout, /^not ok/m);
 });
+
+test('update parser pins selected channel, version and hash before any state change',()=>{
+ const dir=tmp();try{
+  const out=sh(SERVER,'parse_update_args --channel beta --version 1.1.0 --sha256 '+ 'a'.repeat(64) +' --feed-base https://updates.fixture.example/; printf "%s|%s|%s|%s" "$CHANNEL" "$WANT" "$WANT_SHA256" "$UPDATE_URL"',{VYRE_DIR:dir});
+  assert.equal(out.status,0,out.stderr);assert.equal(out.stdout,'beta|1.1.0|'+ 'a'.repeat(64)+'|https://updates.fixture.example/');assert.deepEqual(fs.readdirSync(dir),[]);
+  for(const args of ['--channel invalid','--version nope','--sha256 short',"--version ''","--sha256 ''",'--version','--feed-base file:///tmp/fixture']){const invalid=sh(SERVER,`parse_update_args ${args}`,{VYRE_DIR:dir});assert.notEqual(invalid.status,0,args);assert.deepEqual(fs.readdirSync(dir),[]);}
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
+test('changed reviewed artifact digest is refused before tarball download or unpack',()=>{
+ const dir=tmp();try{
+  fs.writeFileSync(path.join(dir,'fixture.json'),JSON.stringify({v:1,channel:'stable',server:{version:'1.1.0',tarball:'fixture.tgz',sha256:'a'.repeat(64)}}));
+  const out=sh(SERVER,`TMP="$VYRE_FIXTURE_DIR"; WANT=1.1.0; WANT_SHA256=${'b'.repeat(64)}; UPDATE_URL=https://updates.fixture.example; verify_manifest(){ return 0; }; fetch(){ case "$1" in *.json) cp "$VYRE_FIXTURE_DIR/fixture.json" "$2" ;; *.sig) printf fixture >"$2" ;; *) touch "$VYRE_FIXTURE_DIR/artifact-requested"; return 1 ;; esac; }; fetch_release`,{VYRE_DIR:dir,VYRE_FIXTURE_DIR:dir});
+  assert.notEqual(out.status,0);assert.match(out.stderr,/reviewed artifact/i);assert.equal(fs.existsSync(path.join(dir,'artifact-requested')),false);
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test('update dry-run never unpacks, pulls images or takes a backup even when a target release already exists',()=>{
+ const dir=tmp();try{
+  const out=sh(SERVER,'cur_version(){ printf 1.0.0; }; fetch_release(){ REL_VERSION=1.1.0; }; unpack_release(){ touch "$VYRE_FIXTURE_DIR/unpack-called"; }; cmd_update --dry-run --version 1.1.0',{VYRE_DIR:dir,VYRE_FIXTURE_DIR:dir,TMPDIR:dir});
+  assert.equal(out.status,0,out.stderr);assert.match(out.stdout,/Would install|would install/);assert.equal(fs.existsSync(path.join(dir,'unpack-called')),false);
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test('only a healthy update persists the selected daily channel and feed',()=>{
+ for(const healthy of [true,false]){
+  const dir=tmp();try{
+   for(const version of ['1.0.0','1.1.0']){fs.mkdirSync(path.join(dir,'releases',version),{recursive:true});fs.writeFileSync(path.join(dir,'releases',version,'images.lock'),'VYRE_IMAGE=fixture@sha256:'+ 'a'.repeat(64)+'\n');}
+   fs.symlinkSync('releases/1.0.0',path.join(dir,'current'));fs.writeFileSync(path.join(dir,'compose.env'),'VYRE_IMAGE=fixture@sha256:'+ 'a'.repeat(64)+'\n');fs.writeFileSync(path.join(dir,'vyre.env'),'');fs.writeFileSync(path.join(dir,'channel'),'stable\n');fs.writeFileSync(path.join(dir,'update-url'),'https://old.fixture.example/\n');
+   const body='cur_version(){ printf 1.0.0; }; fetch_release(){ REL_VERSION=1.1.0; }; unpack_release(){ :; }; docker(){ return 0; }; backup_data(){ BACKUP_FILE=fixture; }; set_current(){ :; }; dc(){ return '+(healthy?'0':'1')+'; }; wait_healthy(){ return 0; }; prune_releases(){ :; }; cmd_update --yes --channel beta --version 1.1.0 --sha256 '+ 'a'.repeat(64)+' --feed-base https://updates.fixture.example/';
+   const out=sh(SERVER,body,{VYRE_DIR:dir,TMPDIR:dir});assert.equal(out.status,healthy?0:4,out.stderr);
+   assert.equal(fs.readFileSync(path.join(dir,'channel'),'utf8'),healthy?'beta\n':'stable\n');assert.equal(fs.readFileSync(path.join(dir,'update-url'),'utf8'),healthy?'https://updates.fixture.example/\n':'https://old.fixture.example/\n');
+  }finally{fs.rmSync(dir,{recursive:true,force:true});}
+ }
+});

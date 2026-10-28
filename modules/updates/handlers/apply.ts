@@ -53,7 +53,7 @@ export async function apply(ctx: UpdateCtx, input: { to?: string }) {
   ctx.emit("update.started" as never, `entity/${release.version}`, { from, to: release.version });
   let reason = "";
   try {
-    await d.installer.install(release);
+    await d.installer.install(release, channel);
     if (!(await d.installer.healthy())) reason = "the new version did not pass its health check";
   } catch (e) {
     reason = e instanceof Error ? e.message : "the install did not finish";

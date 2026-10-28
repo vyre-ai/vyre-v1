@@ -27,6 +27,7 @@ DRY=0
 YES=0
 TMP=""
 WANT=""
+WANT_SHA256=""
 CHANNEL=$(cat "$DIR/channel" 2>/dev/null || printf stable)
 UPDATE_URL=${VYRE_UPDATE_URL:-$(cat "$DIR/update-url" 2>/dev/null || printf 'https://vyre.run/server/')}
 DATA_DIR=$(cat "$DIR/data-dir" 2>/dev/null || printf '%s/data' "$DIR")
@@ -152,6 +153,9 @@ fetch_release() {
   [ "${#sum}" = 64 ] || die "the manifest does not give the artifact's sha256; nothing was installed."
   if [ -n "$WANT" ] && [ "$WANT" != latest ] && [ "$WANT" != "$REL_VERSION" ]; then
     die "the $CHANNEL channel offers $REL_VERSION, not $WANT; nothing was installed."
+  fi
+  if [ -n "${WANT_SHA256:-}" ] && [ "$WANT_SHA256" != "$sum" ]; then
+    die "the reviewed artifact changed on the $CHANNEL channel; check the release again before installing. Nothing was installed."
   fi
   case "$url" in http://*|https://*) ;; "") die "the manifest names no artifact; nothing was installed." ;; *) url="$base/$url" ;; esac
   say "  Downloading Vyre Server $REL_VERSION"
@@ -356,9 +360,32 @@ prune_releases() {
   done
 }
 
-cmd_update() {
+parse_update_args() {
   check_only=0
-  for a in "$@"; do case "$a" in --check) check_only=1 ;; --yes|-y) YES=1 ;; --dry-run) DRY=1 ;; *) die "update takes --check, --yes or --dry-run" 2 ;; esac; done
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --check) check_only=1 ;;
+      --yes|-y) YES=1 ;;
+      --dry-run) DRY=1 ;;
+      --channel) shift; [ $# -gt 0 ] || die "--channel needs a value" 2; CHANNEL=$1 ;;
+      --version) shift; [ $# -gt 0 ] || die "--version needs a value" 2; [ -n "$1" ] || die "--version needs a value" 2; WANT=$1 ;;
+      --sha256) shift; [ $# -gt 0 ] || die "--sha256 needs a value" 2; [ -n "$1" ] || die "--sha256 needs a value" 2; WANT_SHA256=$1 ;;
+      --feed-base) shift; [ $# -gt 0 ] || die "--feed-base needs a value" 2; UPDATE_URL=$1 ;;
+      *) die "update takes --check, --yes, --dry-run, --channel, --version, --sha256 or --feed-base" 2 ;;
+    esac
+    shift
+  done
+  case "$CHANNEL" in stable|beta|nightly) ;; *) die "--channel is stable, beta or nightly" 2 ;; esac
+  [ -z "$WANT" ] || ver_cmp "$WANT" "$WANT" >/dev/null 2>&1 || die "--version must name a release version" 2
+  if [ -n "$WANT_SHA256" ]; then
+    case "$WANT_SHA256" in *[!0-9a-f]*) die "--sha256 must be 64 hexadecimal characters" 2 ;; esac
+    [ "${#WANT_SHA256}" = 64 ] || die "--sha256 must be 64 hexadecimal characters" 2
+  fi
+  case "$UPDATE_URL" in http://*|https://*) ;; *) die "--feed-base must be an HTTP or HTTPS address" 2 ;; esac
+}
+
+cmd_update() {
+  parse_update_args "$@"
   TMP=$(mktemp -d "${TMPDIR:-/tmp}/vyre-update.XXXXXX")
   LOCKDIR="$DIR/state/update.lock"
   mkdir -p "$DIR/state"
@@ -370,6 +397,7 @@ cmd_update() {
   if [ "$c" -le 0 ]; then say "Vyre Server $from is the newest on the $CHANNEL channel."; return 0; fi
   say "Vyre Server $REL_VERSION is available (running $from)."
   [ "$check_only" = 0 ] || return 10
+  if [ "$DRY" = 1 ]; then say "Would install $REL_VERSION from the $CHANNEL channel; no images, backups or running services were changed."; return 0; fi
   unpack_release
   [ -n "$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/releases/$REL_VERSION/images.lock")" ] || die "the release names no server image; nothing was changed."
   for k in VYRE_IMAGE VYRE_AGENT_IMAGE VYRE_SANDBOX_IMAGE; do
@@ -391,6 +419,9 @@ cmd_update() {
   fi
   secs=$(( $(date +%s) - started ))
   if [ -z "$reason" ]; then
+    # Only a healthy install changes the daily updater's selected feed.
+    printf '%s\n' "$CHANNEL" >"$DIR/channel"
+    printf '%s\n' "$UPDATE_URL" >"$DIR/update-url"
     record_update "$from" "$REL_VERSION" ok "$secs" ""
     prune_releases
     say "Updated to $REL_VERSION in $secs s."
