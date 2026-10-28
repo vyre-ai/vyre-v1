@@ -12,6 +12,8 @@
 
 ## Unreleased
 
+- Closed a grant escalation path: grant updates and share upserts now require independent current resource authority and retain its level, expiry/window, row-filter, hidden-field and declared sensitivity bounds. A grant cannot renew itself. Validate every condition before mutating the grant and preserve issuer/source. Actual HTTP escalation/contained delegation/rollback/restart regressions pass with existing sharing properties.
+
 - Added typed Console Policies objects, reviewed public-link and sign-in editors, prerequisite-backed authenticator setup, indexed Activity and links to the owning AI/Data controls. Production browser proves public-link save/readback/reload plus dark/fresh-phone rendering; required MFA remains unavailable until the server supports invited-member enrollment. Fixed direct-read enable transitions.
 
 - Enforce the current Space sign-in policy at authentication and session issuance through a typed read-only host port. Only advertise implemented methods; reject password lockout, unsupported SSO and required MFA without actual Owner enrollment and a supported new-member enrollment path. Reject unavailable invite sign-up before accepting the invite or creating an account. Added real HTTP authentication/readback and policy Activity regressions.

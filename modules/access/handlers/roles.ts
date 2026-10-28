@@ -1,8 +1,9 @@
+import {updateGrant} from "./share.ts";
 // Roles, groups, grants and principals. Role permission changes stage as a diff, then Apply swaps the whole set.
 import { isOwnerRole } from "../../../kernel/src/authorize/snapshot.ts";
 import type { AccessCtx, Cond, GrantRec, GroupRec, PKind, PrincipalRec, Ref, RoleHolder, ResourceRef, RoleRec, SubjectRef } from "../projections.ts";
 import {
-  changed, EVERYONE, fnv, grantView, groupView, isExpr, nid, page, principalView, raise, roleView, storeOf,
+  changed, EVERYONE, fnv, grantView, groupView, nid, page, principalView, raise, roleView, storeOf,
 } from "../projections.ts";
 
 type Level = "view" | "use" | "edit" | "manage";
@@ -323,23 +324,7 @@ export async function grantsList(ctx: AccessCtx, input: { resource?: ResourceRef
 }
 
 export async function grantsUpdate(ctx: AccessCtx, input: { grantId: string; level?: Level; conditions?: Cond }) {
-  const store = storeOf(ctx);
-  const g = store.grants.get(input.grantId);
-  if (!g) raise(ctx.trace.traceId, "validation.not_found", "no such grant");
-  if (input.level) g.level = input.level;
-  if (input.conditions) {
-    if (input.conditions.rowFilter !== undefined && input.conditions.rowFilter !== null && !isExpr(input.conditions.rowFilter)) {
-      raise(ctx.trace.traceId, "validation.bad_input", "row filter is outside the expression subset");
-    }
-    g.conditions = input.conditions;
-  }
-  store.bump();
-  const updated: { grantId: string; level: Level; expiresAt?: number } = { grantId: g.id, level: g.level };
-  if (g.conditions.expiresAt !== undefined) updated.expiresAt = g.conditions.expiresAt;
-  ctx.emit("grant.updated", g.id, updated);
-  ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what: "assignment", by: ctx.principal.id });
-  try { store.persist(ctx.db); } catch (e) { store.bump(); throw e; }
-  return { grant: grantView(g) };
+  return updateGrant(ctx,input);
 }
 
 export async function principalsList(ctx: AccessCtx, input: { kind?: PKind; status?: "invited" | "active" | "suspended" | "removed"; q?: string; cursor?: string; limit?: number }) {
