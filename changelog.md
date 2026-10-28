@@ -11,6 +11,7 @@
 - Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads. Removed an unused viewer barrel so every restored production file has executable coverage.
 
 ## Unreleased
+- Console surfaces: wire capability-backed first implementations for Agents, Data, Comms and Integrations; Outside actors now uses the shared object model with production create/readback/edit proof, while the scope ledger names the remaining acceptance gaps for every other adapter.
 - Console objects: wait for real asynchronous mutations before showing completion or Undo, preserve failed/held actions as visible errors, guard duplicate action submits, and synchronize externally changed tabs and quick-edit sheets.
 - Console: add a shared searchable, filterable and keyboard-selectable object-list framework with checked filter counts, bulk selection, pagination and real row context actions; it composes with the existing standard object header, tabs and quick-edit sheet.
 - Console access checks render decision steps with the shared row component and named pass/fail indicators.

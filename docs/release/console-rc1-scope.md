@@ -15,12 +15,12 @@ Historical build/P-L7b_11 at333b3a02 supplies only shell, Overview, Audit. No la
 | Access checker | `access.checker` | Real access.check decision/steps; production pending. |
 | Access reviews | `access.reviews` | Missing functional UI; historical navigation definition only. |
 | Sessions and devices | `devices.sessions` | Partial: devices list/detail/session or device revocation with confirmation. Missing full device object views, filters and bulk actions. |
-| Agents register | `console.agents-register` | Missing functional UI; historical navigation definition only. |
-| Outside actors | `console.outside-actors` | Missing functional UI; historical navigation definition only. |
-| Agent computers | `console.agent-computers` | Missing functional UI; historical navigation definition only. |
-| Agent template | `console.agent-template` | Missing functional UI; historical navigation definition only. |
-| Schema | `console.schema` | Missing functional UI; historical navigation definition only. |
-| Sensitivity labels | `console.labels` | Missing functional UI; historical navigation definition only. |
+| Agents register | `console.agents-register` | Implementation pending acceptance: live register/create/detail/pause/resume/delete exists, but still needs migration to the shared searchable object model and production mutation proof. |
+| Outside actors | `console.outside-actors` | Acceptance candidate: shared searchable/filterable/bulk list, standard Overview/Access/Activity object page, quick edit, one-time token creation, Engineer MCP control and impact-confirmed revocation. Fresh production daemon create/readback/edit/effective-access proof passes; owner review pending. |
+| Agent computers | `console.agent-computers` | Implementation pending acceptance: live register/configuration/sleep/removal exists, but still needs migration to the shared object model and production mutation proof. |
+| Agent template | `console.agent-template` | Implementation pending acceptance: live read/preview/apply and suggestion review exists. The backend exposes no direct template-file edit contract; production proof pending. |
+| Schema | `console.schema` | Not accepted: live type/field inspection, JSON diff/apply, history and restore exist, but the JSON operations form must be replaced by a typed field builder and shared object model. |
+| Sensitivity labels | `console.labels` | Implementation pending acceptance: live label/resource/scan controls exist, but rules and shared object interactions remain incomplete. |
 | Retention | `governance.retention` | Missing functional UI; historical navigation definition only. |
 | Holds | `governance.holds` | Missing functional UI; historical navigation definition only. |
 | Erase a person | `governance.erase` | Missing functional UI; historical navigation definition only. |
@@ -33,14 +33,14 @@ Historical build/P-L7b_11 at333b3a02 supplies only shell, Overview, Audit. No la
 | Review sampling | `console.ai-review` | Missing functional UI; historical navigation definition only. |
 | Incidents | `console.ai-incidents` | Missing functional UI; historical navigation definition only. |
 | AI use policy | `console.ai-spend` | Missing functional UI; historical navigation definition only. |
-| Sending domains | `mail.domains` | Missing functional UI; historical navigation definition only. |
-| Numbers | `telephony.numbers` | Missing functional UI; historical navigation definition only. |
-| Shared inboxes | `mail.shared-inboxes` | Missing functional UI; historical navigation definition only. |
-| Texting registration | `telephony.registration` | Missing functional UI; historical navigation definition only. |
-| Connectors | `console.integrations` | Missing functional UI; historical navigation definition only. |
-| Connections | `console.integrations` | Missing functional UI; historical navigation definition only. |
-| Webhooks | `events.webhooks` | Missing functional UI; historical navigation definition only. |
-| API keys | `console.mcp-sessions` | Missing functional UI; historical navigation definition only. |
+| Sending domains | `mail.domains` | Implementation pending acceptance: live add/list/DNS/default/remove controls exist; shared object interactions and production mutation proof remain. |
+| Numbers | `telephony.numbers` | Implementation pending acceptance: live search/buy/list/recording/release exists; routing/hours edit, shared object interactions and production proof remain. |
+| Shared inboxes | `mail.shared-inboxes` | Implementation pending acceptance: live create/list/privacy/route inspection exists; route editing, shared object interactions and production proof remain. |
+| Texting registration | `telephony.registration` | Implementation pending acceptance: live draft/submit/status controls exist; production mutation proof remains. |
+| Connectors | `console.integrations` | Implementation pending acceptance: live catalogue/detail/draft/test/export exists; guided build/publish/version flows, shared object interactions and production proof remain. |
+| Connections | `console.integrations` | Implementation pending acceptance: live list/detail/pause/resume/test/reconnect/delete exists; create/edit scopes, shared object interactions and production proof remain. |
+| Webhooks | `events.webhooks` | Implementation pending acceptance: live create/detail/enable/test/rotate/delete exists; delivery log/edit sheet, shared object interactions and production proof remain. |
+| API keys | `console.mcp-sessions` | Implementation pending acceptance: live one-time issue and session close exists. Durable registered credentials remain under Outside actors because this screen has no token inventory/revoke contract; production proof remains. |
 | Network | `console.network` | Missing functional UI; historical navigation definition only. |
 | Server | `console.server-logs` | Missing functional UI; historical navigation definition only. |
 | Audit log | `audit.log` | Historical Audit filters/search/detail via audit capabilities; focused SSR pass, production pending. |
