@@ -107,6 +107,15 @@ test("sessions.import is Personal-only in v1 and defers Team routing", async () 
   await assert.rejects(sessionsImport(h.ctx, { ...payload, sourceKey: "codex:team-confirmed", destination: { kind: "team", spaceId: "spc_importtest", confirmedAt: 1_760_000_000_002 } }), (e) => codeOf(e) === "validation.precondition_failed");
 });
 
+test("concurrent confirmed imports of one source produce one archive and one copy of each message", async () => {
+  const h = harness();
+  const results = await Promise.all([sessionsImport(h.ctx, payload), sessionsImport(h.ctx, payload)]);
+  assert.equal(h.rows("SELECT * FROM import_conversation").length, 1);
+  assert.equal(h.rows("SELECT * FROM import_message").length, payload.sessions[0]!.messages.length);
+  assert.equal(results[0].sessions[0].conversationId, results[1].sessions[0].conversationId);
+  assert.equal(results[0].imported + results[1].imported, 1);
+});
+
 
 test("session archive list and transcript are scoped to the owner and Space", async () => {
   const h = harness();

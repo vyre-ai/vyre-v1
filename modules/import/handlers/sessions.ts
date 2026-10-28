@@ -63,6 +63,20 @@ async function destination(ctx: ImportCtx, owner: string, targetSpaceId: string,
   return { destination: { kind: "project", projectId: made.projectId, scope, spaceId: targetSpaceId }, identityKey: repo.key };
 }
 
+function appendMessages(ctx: ImportCtx, conversationId: string, sourceKey: string, provider: Provider, messages: SourceMessage[]): number {
+  let added = 0;
+  for (const m of messages) {
+    const prior = (ctx.db.all("SELECT text FROM import_message WHERE conversationId = ? AND sourceMessageId = ?", conversationId, m.sourceMessageId) as Array<Record<string, unknown>>)[0];
+    if (!prior) {
+      ctx.db.run("INSERT OR IGNORE INTO import_message (messageId, conversationId, sourceKey, sourceMessageId, provider, role, text, at, immutable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)", newId("ims", ctx.now()), conversationId, sourceKey, m.sourceMessageId, provider, m.role, m.text, m.at);
+      added++;
+    } else if (String(prior["text"]) !== m.text) {
+      ctx.db.run("INSERT OR IGNORE INTO import_session_conflict (conflictId, conversationId, sourceMessageId, incomingText, detectedAt) VALUES (?, ?, ?, ?, ?)", newId("iscf", ctx.now()), conversationId, m.sourceMessageId, m.text, ctx.now());
+    }
+  }
+  return added;
+}
+
 export async function sessionsImport(ctx: ImportCtx, raw: In): Promise<unknown> {
   ensure(ctx.db);
   const { provider, sourceKey, sessions, scope } = checked(ctx, raw);
@@ -77,22 +91,23 @@ export async function sessionsImport(ctx: ImportCtx, raw: In): Promise<unknown> 
     if (existing[0]) {
       const row = existing[0];
       const conversationId = String(row["conversationId"]);
-      for (const m of source.messages) {
-        const priorMessage = (ctx.db.all("SELECT text FROM import_message WHERE conversationId = ? AND sourceMessageId = ?", conversationId, m.sourceMessageId) as Array<Record<string, unknown>>)[0];
-        if (!priorMessage) {
-          ctx.db.run("INSERT INTO import_message (messageId, conversationId, sourceKey, sourceMessageId, provider, role, text, at, immutable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)", newId("ims", ctx.now()), conversationId, sourceKey, m.sourceMessageId, provider, m.role, m.text, m.at);
-          updated++;
-        } else if (String(priorMessage["text"]) !== m.text) {
-          ctx.db.run("INSERT OR IGNORE INTO import_session_conflict (conflictId, conversationId, sourceMessageId, incomingText, detectedAt) VALUES (?, ?, ?, ?, ?)", newId("iscf", ctx.now()), conversationId, m.sourceMessageId, m.text, ctx.now());
-        }
-      }
+      updated += appendMessages(ctx, conversationId, sourceKey, provider, source.messages);
       out.push({ conversationId, provider, destination: row["destinationKind"] === "project" ? { kind: "project", projectId: String(row["projectId"]), scope, spaceId: target.spaceId } : { kind: "imported_sessions", scope, spaceId: target.spaceId } });
       continue;
     }
     const bound = await destination(ctx, owner, target.spaceId, scope, source);
     const conversationId = newId("isc", ctx.now());
-    ctx.db.run("INSERT INTO import_conversation (conversationId, spaceId, sourceKey, sourceSessionId, provider, owner, destinationScope, projectId, destinationKind, identityKey, title, startedAt, importedAt, immutable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)", conversationId, target.spaceId, sourceKey, source.sourceSessionId, provider, owner, scope, bound.destination.kind === "project" ? bound.destination.projectId : null, bound.destination.kind, bound.identityKey ?? null, source.title ?? null, source.startedAt, ctx.now());
-    for (const m of source.messages) ctx.db.run("INSERT OR IGNORE INTO import_message (messageId, conversationId, sourceKey, sourceMessageId, provider, role, text, at, immutable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)", newId("ims", ctx.now()), conversationId, sourceKey, m.sourceMessageId, provider, m.role, m.text, m.at);
+    ctx.db.run("INSERT OR IGNORE INTO import_conversation (conversationId, spaceId, sourceKey, sourceSessionId, provider, owner, destinationScope, projectId, destinationKind, identityKey, title, startedAt, importedAt, immutable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)", conversationId, target.spaceId, sourceKey, source.sourceSessionId, provider, owner, scope, bound.destination.kind === "project" ? bound.destination.projectId : null, bound.destination.kind, bound.identityKey ?? null, source.title ?? null, source.startedAt, ctx.now());
+    // Project creation yields to another confirmed import. The unique source tuple
+    // chooses one archive atomically; append to its winner instead of throwing.
+    const winner = (ctx.db.all("SELECT conversationId, projectId, destinationKind FROM import_conversation WHERE spaceId = ? AND owner = ? AND destinationScope = ? AND sourceKey = ? AND sourceSessionId = ?", target.spaceId, owner, scope, sourceKey, source.sourceSessionId) as Array<Record<string, unknown>>)[0]!;
+    const winnerId = String(winner["conversationId"]);
+    const added = appendMessages(ctx, winnerId, sourceKey, provider, source.messages);
+    if (winnerId !== conversationId) {
+      updated += added;
+      out.push({ conversationId: winnerId, provider, destination: winner["destinationKind"] === "project" ? { kind: "project", projectId: String(winner["projectId"]), scope, spaceId: target.spaceId } : { kind: "imported_sessions", scope, spaceId: target.spaceId } });
+      continue;
+    }
     ctx.emit("sessions.imported", conversationId, clean({ conversationId, provider, sourceKey, projectId: bound.destination.kind === "project" ? bound.destination.projectId : undefined, scope, spaceId: target.spaceId, messages: source.messages.length }));
     out.push({ conversationId, provider, destination: bound.destination }); imported++;
   }
