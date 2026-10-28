@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (36)
+## Capabilities (39)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
@@ -24,6 +24,9 @@ Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, recor
 - [automations.migrate_runs](../capabilities/automations.migrate_runs.md): Move selected active runs onto a definition version without replaying finished steps
 - [automations.migration_preview](../capabilities/automations.migration_preview.md): Group active runs by the step they are on before moving them to a definition version
 - [automations.move](../capabilities/automations.move.md): Move an Automation into a Group, or out with null
+- [automations.packages.export](../capabilities/automations.packages.export.md): Save a portable copy of an Automation definition
+- [automations.packages.import](../capabilities/automations.packages.import.md): Create a draft Automation from a package this person exported
+- [automations.packages.list](../capabilities/automations.packages.list.md): List portable Automation packages this person has exported
 - [automations.preview_promote](../capabilities/automations.preview_promote.md): Show what Promote to Space grants as an access diff, and which subscription keys must be replaced by shared API keys
 - [automations.promote](../capabilities/automations.promote.md): Promote a Personal Automation to the Space: keeps history and versions, runs on access granted to the automation itself
 - [automations.replay](../capabilities/automations.replay.md): Run a past run again on the same definition version or the current one

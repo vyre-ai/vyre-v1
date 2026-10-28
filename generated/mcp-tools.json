@@ -4913,6 +4913,78 @@
     },
     {
       "blocks": [],
+      "cap": "automations.packages.export",
+      "deferred": false,
+      "description": "Save a portable copy of an Automation definition",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "automationId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_packages_export",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.packages.import",
+      "deferred": false,
+      "description": "Create a draft Automation from a package this person exported",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "packageId": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "packageId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_packages_import",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.packages.list",
+      "deferred": false,
+      "description": "List portable Automation packages this person has exported",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "automations_packages_list",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.preview_promote",
       "deferred": false,
       "description": "Show what Promote to Space grants as an access diff, and which subscription keys must be replaced by shared API keys",

@@ -93,6 +93,24 @@ export default defineManifest({
       in: { section: t.opt(t.enm('personal', 'shared', 'space')), folder: t.opt(id.folder), groupId: t.opt(groupId), status: t.opt(status), q: t.opt(t.str()), ...pageIn },
       out: { automations: t.arr(summary), ...pageOut }, tool: 'automations', label: 'filter', cli: 'vyre automations list',
     }),
+    read('automations.packages.list', 'List portable Automation packages this person has exported', {
+      in: {},
+      out: { packages: t.arr(t.obj({ id: t.str(), name: t.str(), sourceAutomationId: id.automation, createdAt: t.ts() })) },
+      tool: 'automations',
+    }),
+    write('automations.packages.export', 'Save a portable copy of an Automation definition', {
+      in: { ...target, name: t.opt(t.str({ minLength: 1 })) },
+      out: { package: t.obj({ id: t.str(), name: t.str(), sourceAutomationId: id.automation, createdAt: t.ts() }) },
+      on: ['automation', '/automationId'], tool: 'automations',
+      errors: ['permission.not_found', 'validation.bad_input'],
+    }),
+    write('automations.packages.import', 'Create a draft Automation from a package this person exported', {
+      in: { packageId: t.str({ minLength: 1 }), name: t.opt(t.str({ minLength: 1 })) },
+      out: { automation: row },
+      emits: ['automation.created'],
+      tool: 'automations',
+      errors: ['validation.not_found', 'validation.bad_input'],
+    }),
     read('automations.get', 'Read an Automation with its definition, alerts and followers', { in: target, out: { automation: row }, on: ['automation', '/automationId'], tool: 'automations', label: 'check', cli: 'vyre automations get' }),
     read('automations.migration_preview', 'Group active runs by the step they are on before moving them to a definition version', {
       in: { ...target, toVersion: t.int({ minimum: 1 }) },

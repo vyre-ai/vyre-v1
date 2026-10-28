@@ -5,6 +5,7 @@ import {
 } from "./defs.ts";
 import { accountPicks } from "./accounts.ts";
 import { migrateRuns, migrationPreview } from "./migrate.ts";
+import { exportPackage, importPackage, packagesList } from "./packages.ts";
 import { scheduleChoose } from "./schedule.ts";
 import { fire, replay, retry, run, stop, test } from "./triggers.ts";
 
@@ -27,6 +28,9 @@ export const handlers = {
   "automations.migrate_runs": migrateRuns,
   "automations.migration_preview": migrationPreview,
   "automations.move": move,
+  "automations.packages.export": exportPackage,
+  "automations.packages.import": importPackage,
+  "automations.packages.list": packagesList,
   "automations.preview_promote": previewPromote,
   "automations.promote": promote,
   "automations.replay": replay,

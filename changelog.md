@@ -1,10 +1,11 @@
 # Changelog
 
 ## Unreleased
+- Automations: export saves a portable copy of an Automation definition. The package list stays empty until that person exports one. Import creates a draft from a package they own.
 - Automations: the step panel lists every field the schema names, including one that is still missing. The data shelf shows type and whether a value is missing, null, or empty. A step test stores the definition version with the output.
 - Automations: turning an Automation on checks each step's capability contract. An AI step stays a preview. Every other catalogue step has a schema, an effect, documented errors, and a test mode.
 - Automations: a reviewed Apply moves only safe cohorts onto the chosen definition version. Finished steps stay finished, and ambiguous or finished runs stay pinned.
-- Automations: Live Event Explorer, Dependencies, and Analytics read the event log, named accounts, and run counts. Packages stay empty until an automation package catalog exists.
+- Automations: Live Event Explorer, Dependencies, and Analytics read the event log, named accounts, and run counts. The package list stays empty until this person exports one.
 - Automations: Transform, Collect, and Group by run as ordinary steps. A wait can move to the next open hours. Run another automation starts that automation and waits for it. Run code executes in a sandbox with no network and no files. An AI step stays a preview.
 - Automations: a step can retry, skip, substitute, stop, or route on a named error code. Skip and substitute do not run the step again. The step menu offers each of those.
 - Automations: Send an email and Send a text cannot be turned on until the step names its mailbox or number.

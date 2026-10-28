@@ -626,6 +626,24 @@
     },
     {
       "deferred": false,
+      "name": "automations_packages_export",
+      "summary": "Save a portable copy of an Automation definition",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_packages_import",
+      "summary": "Create a draft Automation from a package this person exported",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_packages_list",
+      "summary": "List portable Automation packages this person has exported",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_preview_promote",
       "summary": "Show what Promote to Space grants as an access diff, and which subscription keys must be replaced by shared API keys",
       "toolset": "automations"

@@ -181,6 +181,11 @@ export function createClient(transport: Transport) {
       migrate_runs: call("automations.migrate_runs", 1),
       migration_preview: call("automations.migration_preview", 1),
       move: call("automations.move", 1),
+      packages: {
+        export: call("automations.packages.export", 1),
+        import: call("automations.packages.import", 1),
+        list: call("automations.packages.list", 1),
+      },
       preview_promote: call("automations.preview_promote", 1),
       promote: call("automations.promote", 1),
       replay: call("automations.replay", 1),

@@ -74,3 +74,26 @@ export function dependenciesFrom(automations: readonly DependencyAutomation[]): 
   }
   return rows;
 }
+
+export interface NamedRow { id: string; name: string }
+
+function namedRows(out: unknown, key: "packages" | "automations"): NamedRow[] | null {
+  if (!out || typeof out !== "object" || !Array.isArray((out as Record<string, unknown>)[key])) return null;
+  const rows: NamedRow[] = [];
+  for (const row of (out as Record<string, unknown[]>)[key] ?? []) {
+    if (!row || typeof row !== "object") continue;
+    const id = (row as { id?: unknown }).id;
+    const name = (row as { name?: unknown }).name;
+    if (typeof id !== "string" || typeof name !== "string" || !id || !name) continue;
+    rows.push({ id, name });
+  }
+  return rows;
+}
+
+export function packageRows(out: unknown): NamedRow[] | null {
+  return namedRows(out, "packages");
+}
+
+export function exportChoices(out: unknown): NamedRow[] | null {
+  return namedRows(out, "automations");
+}

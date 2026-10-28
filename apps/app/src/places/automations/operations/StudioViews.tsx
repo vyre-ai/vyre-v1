@@ -5,7 +5,8 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AskVyre } from "../ask/AskVyre.tsx";
 import { CONFIG, useAutomationsData, useScreenQuery } from "../canvas/data.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { countRuns, dependenciesFrom, eventRows } from "./read.ts";
+import { countRuns, dependenciesFrom, eventRows, exportChoices, packageRows } from "./read.ts";
+import type { NamedRow } from "./read.ts";
 import type { DependencyNode } from "./read.ts";
 import { choiceStartsRuns, readChoiceResult, scheduleRequestFromTask } from "./recovery.ts";
 import type { ScheduleChoiceKey } from "./recovery.ts";
@@ -175,14 +176,6 @@ export function AnalyticsPanel({ automationId }: { automationId: string }): Reac
   );
 }
 
-export function HonestEmpty({ testID, title, body }: { testID: string; title: string; body: string }): ReactElement {
-  return (
-    <Frame testID={testID} title={title}>
-      <Text style={v.dim}>{body}</Text>
-    </Frame>
-  );
-}
-
 const EMPTY_EVENTS = "Listening for events. A trigger event will show here when one is published. None have arrived.";
 const EMPTY_DEPENDENCIES = "Choose a dependency. This fills when an Automation names another Automation, a mailbox, a number, or a connection. None are recorded yet.";
 
@@ -261,8 +254,77 @@ export function Dependencies(): ReactElement {
   );
 }
 
+const EMPTY_PACKAGES = "No packages. Installed automation packages will list here when the catalog has any.";
+
 export function Packages(): ReactElement {
-  return <HonestEmpty testID="packages" title="Packages" body="No packages. Installed automation packages will list here when the catalog has any." />;
+  const data = useAutomationsData();
+  const [reload, setReload] = useState(0);
+  const [packages, setPackages] = useState<Phase<NamedRow[]>>({ phase: "loading" });
+  const [sources, setSources] = useState<NamedRow[]>([]);
+  const [note, setNote] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const listed = packageRows(await data.call("automations.packages.list", {}));
+        if (!listed) throw new Error("The package list did not return rows.");
+        const choices = exportChoices(await data.call("automations.list", { limit: 20 })) ?? [];
+        if (!live) return;
+        setPackages({ phase: "ready", value: listed });
+        setSources(choices);
+      } catch (e) {
+        if (!live) return;
+        setPackages({ phase: "error", message: e instanceof Error ? e.message : "Packages did not load." });
+      }
+    })();
+    return () => { live = false; };
+  }, [data, reload]);
+  async function exp(id: string): Promise<void> {
+    if (busy) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      await data.call("automations.packages.export", { automationId: id });
+      setReload((n) => n + 1);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "That automation was not exported.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function imp(id: string, name: string): Promise<void> {
+    if (busy) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      await data.call("automations.packages.import", { packageId: id });
+      setNote(`Draft ${name} is in your automations.`);
+      setReload((n) => n + 1);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "That package was not imported.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Frame testID="packages" title="Packages">
+      <Status state={packages} />
+      {packages.phase === "ready" && packages.value.length === 0 ? <Text style={v.dim}>{EMPTY_PACKAGES}</Text> : null}
+      {packages.phase === "ready" ? packages.value.map((row) => (
+        <Pressable key={row.id} accessibilityRole="button" disabled={busy} testID={`import-${row.id}`} onPress={() => { void imp(row.id, row.name); }} style={v.choice}>
+          <Text style={v.row}>{`Import ${row.name} as a draft`}</Text>
+        </Pressable>
+      )) : null}
+      {packages.phase === "ready" && sources.length > 0 ? <Text style={v.dim}>Export an Automation</Text> : null}
+      {packages.phase === "ready" ? sources.map((row) => (
+        <Pressable key={row.id} accessibilityRole="button" disabled={busy} testID={`export-${row.id}`} onPress={() => { void exp(row.id); }} style={v.choice}>
+          <Text style={v.row}>{`Export ${row.name}`}</Text>
+        </Pressable>
+      )) : null}
+      {note ? <Text style={v.dim}>{note}</Text> : null}
+    </Frame>
+  );
 }
 
 const v = StyleSheet.create({

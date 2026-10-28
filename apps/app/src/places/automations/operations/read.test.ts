@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { countRuns, dependenciesFrom, eventRows } from "./read.ts";
+import { countRuns, dependenciesFrom, eventRows, exportChoices, packageRows } from "./read.ts";
 
 test("run counts use the statuses on the list and add cost only when it is a number", () => {
   assert.equal(countRuns(null as never), null);
@@ -26,6 +26,12 @@ test("event rows show type, time, subject, and run, and a sealed row hides the p
   assert.match(rows?.[1]?.line ?? "", /dm\.sent/);
   assert.match(rows?.[1]?.line ?? "", /sealed/);
   assert.equal(rows?.[1]?.line.includes("hidden"), false);
+});
+
+test("package rows and export choices keep only named ids", () => {
+  assert.deepEqual(packageRows({ packages: [{ id: "pkg_1", name: "Welcome" }, { id: 1, name: "skip" }] }), [{ id: "pkg_1", name: "Welcome" }]);
+  assert.equal(packageRows({}), null);
+  assert.deepEqual(exportChoices({ automations: [{ id: "aut_1", name: "Welcome" }] }), [{ id: "aut_1", name: "Welcome" }]);
 });
 
 test("dependencies come from named ids on the definition", () => {

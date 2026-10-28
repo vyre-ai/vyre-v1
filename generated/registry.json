@@ -5186,6 +5186,38 @@
       ],
       "type": "object"
     },
+    "s_42e14d480d": {
+      "properties": {
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "sourceAutomationId": {
+          "examples": [
+            "aut_a1b2c3"
+          ],
+          "pattern": "^aut_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "sourceAutomationId",
+        "createdAt"
+      ],
+      "type": "object"
+    },
     "s_4378c74ec9": {
       "properties": {
         "tools": {
@@ -31187,6 +31219,312 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Move an Automation into a Group, or out with null",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.not_found",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "automationId": "aut_a1b2c3",
+            "name": "example"
+          },
+          "name": "example",
+          "output": {
+            "package": {
+              "createdAt": 1760000000000,
+              "id": "example",
+              "name": "example",
+              "sourceAutomationId": "aut_a1b2c3"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "automationId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "automations",
+      "name": "automations.packages.export",
+      "output": {
+        "properties": {
+          "package": {
+            "$ref": "#/$defs/s_42e14d480d"
+          }
+        },
+        "required": [
+          "package"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/automationId",
+        "type": "automation"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Save a portable copy of an Automation definition",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "automation.created"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "name": "example",
+            "packageId": "example"
+          },
+          "name": "example",
+          "output": {
+            "automation": {
+              "alerts": {
+                "escalation": [
+                  {
+                    "afterHours": 1,
+                    "to": {
+                      "id": "usr_a1b2c3",
+                      "kind": "person"
+                    }
+                  }
+                ],
+                "when": {
+                  "mode": "every",
+                  "n": 2
+                },
+                "where": {
+                  "channelId": "chn_a1b2c3",
+                  "dm": true,
+                  "needsYou": true
+                },
+                "who": [
+                  {
+                    "id": "usr_a1b2c3",
+                    "kind": "person"
+                  }
+                ]
+              },
+              "createdAt": 1760000000000,
+              "definition": {
+                "allowSelfTrigger": true,
+                "nodes": [
+                  {
+                    "ai": {
+                      "agentId": "agt_a1b2c3",
+                      "approver": {
+                        "id": "usr_a1b2c3",
+                        "kind": "person"
+                      },
+                      "assigned": {
+                        "id": "usr_a1b2c3",
+                        "kind": "person"
+                      },
+                      "backupKeyId": "example",
+                      "escalateTo": {
+                        "id": "usr_a1b2c3",
+                        "kind": "person"
+                      },
+                      "keyId": "example",
+                      "nudgeMinutes": 1,
+                      "reviewer": {
+                        "id": "usr_a1b2c3",
+                        "kind": "person"
+                      },
+                      "timeoutMinutes": 1
+                    },
+                    "branches": [
+                      {
+                        "label": "example",
+                        "to": "example",
+                        "when": "example"
+                      }
+                    ],
+                    "id": "step_1",
+                    "input": {},
+                    "key": "records.update",
+                    "next": [
+                      "example"
+                    ],
+                    "onError": {
+                      "codes": [
+                        "example"
+                      ],
+                      "max": 1,
+                      "mode": "fail",
+                      "output": {},
+                      "route": "example"
+                    },
+                    "title": "example"
+                  }
+                ],
+                "start": [
+                  "example"
+                ],
+                "triggers": [
+                  {
+                    "config": {},
+                    "filter": {},
+                    "key": "record_change"
+                  }
+                ]
+              },
+              "description": "example",
+              "followers": [
+                "example"
+              ],
+              "groupId": "agr_a1b2c3",
+              "id": "aut_a1b2c3",
+              "kind": "personal",
+              "name": "example",
+              "ownerId": "example",
+              "pausedReason": "example",
+              "status": "on",
+              "updatedAt": 1760000000000,
+              "version": 1
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "packageId": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "packageId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "automations",
+      "name": "automations.packages.import",
+      "output": {
+        "$ref": "#/$defs/s_c0345bdf62"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Create a draft Automation from a package this person exported",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "packages": [
+              {
+                "createdAt": 1760000000000,
+                "id": "example",
+                "name": "example",
+                "sourceAutomationId": "aut_a1b2c3"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.packages.list",
+      "output": {
+        "properties": {
+          "packages": {
+            "items": {
+              "$ref": "#/$defs/s_42e14d480d"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "packages"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "List portable Automation packages this person has exported",
       "surfaces": {
         "http": "auto",
         "mcp": {

@@ -2491,6 +2491,120 @@ export type AutomationsMoveOut = {
     updatedAt: number;
   };
 };
+export type AutomationsPackagesExportIn = {
+  automationId: string;
+  name?: string;
+};
+export type AutomationsPackagesExportOut = {
+  package: {
+    id: string;
+    name: string;
+    sourceAutomationId: string;
+    createdAt: number;
+  };
+};
+export type AutomationsPackagesImportIn = {
+  packageId: string;
+  name?: string;
+};
+export type AutomationsPackagesImportOut = {
+  automation: {
+    id: string;
+    name: string;
+    description?: string;
+    kind: "personal" | "space";
+    groupId?: string;
+    ownerId: string;
+    status: "on" | "off" | "draft" | "paused";
+    pausedReason?: string;
+    version: number;
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+          };
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+    };
+    followers: Array<string>;
+    alerts: {
+      who: Array<{
+          kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+          id: string;
+        }>;
+      when: {
+        mode: "every" | "after_n";
+        n?: number;
+      };
+      where: {
+        needsYou: boolean;
+        dm: boolean;
+        channelId?: string;
+      };
+      escalation: Array<{
+          to: {
+            kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+            id: string;
+          };
+          afterHours: number;
+        }>;
+    };
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type AutomationsPackagesListIn = Record<string, unknown>;
+export type AutomationsPackagesListOut = {
+  packages: Array<{
+      id: string;
+      name: string;
+      sourceAutomationId: string;
+      createdAt: number;
+    }>;
+};
 export type AutomationsPreviewPromoteIn = {
   automationId: string;
 };
@@ -26860,6 +26974,9 @@ export interface CapMap {
   "automations.migrate_runs": { in: AutomationsMigrateRunsIn; out: AutomationsMigrateRunsOut };
   "automations.migration_preview": { in: AutomationsMigrationPreviewIn; out: AutomationsMigrationPreviewOut };
   "automations.move": { in: AutomationsMoveIn; out: AutomationsMoveOut };
+  "automations.packages.export": { in: AutomationsPackagesExportIn; out: AutomationsPackagesExportOut };
+  "automations.packages.import": { in: AutomationsPackagesImportIn; out: AutomationsPackagesImportOut };
+  "automations.packages.list": { in: AutomationsPackagesListIn; out: AutomationsPackagesListOut };
   "automations.preview_promote": { in: AutomationsPreviewPromoteIn; out: AutomationsPreviewPromoteOut };
   "automations.promote": { in: AutomationsPromoteIn; out: AutomationsPromoteOut };
   "automations.replay": { in: AutomationsReplayIn; out: AutomationsReplayOut };
