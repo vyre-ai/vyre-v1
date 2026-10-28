@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { appendRow, findRows } from "../projections.ts";
+import { exportCsv } from "../handlers/log.ts";
 import { harness } from "../fixtures/db.ts";
 
 test("target-filtered Activity finds older target history behind unrelated rows and paginates exactly", () => {
@@ -25,4 +26,20 @@ test("untrusted detail fields never become indexed object targets", () => {
   const h = harness(); const ctx = h.as("usr_admin");
   appendRow(ctx, { actor: { kind: "person", id: "usr_admin" }, action: "read", class: "sensitive", after: { targets: [{ kind: "actor", id: "act_forged" }] } }, "aud_detail");
   assert.deepEqual(findRows(ctx, { target: { kind: "actor", id: "act_forged" } }, undefined, 10).rows, []);
+});
+
+test("a corrupt derived association cannot make a row match another target", () => {
+  const h = harness(); const ctx = h.as("usr_admin");
+  const row = appendRow(ctx, { actor: {kind:"person",id:"usr_admin"}, action:"role.updated", class:"change", targets:[{kind:"role",id:"rol_actual"}] }, "aud_bound");
+  ctx.db.run("INSERT INTO audit_target (kind, target_id, audit_seq) VALUES (?, ?, ?)", "actor", "act_forged", row.seq);
+  assert.deepEqual(findRows(ctx,{target:{kind:"actor",id:"act_forged"}},undefined,10).rows,[]);
+});
+
+test("audit CSV applies the same object filter before the owned file writer", async () => {
+ const h = harness(); const ctx = h.as("usr_admin");
+ appendRow(ctx,{actor:{kind:"person",id:"usr_admin"},action:"role.changed",class:"change",targets:[{kind:"role",id:"rol_one"}]},"aud_exportone");
+ appendRow(ctx,{actor:{kind:"person",id:"usr_admin"},action:"other.changed",class:"change",targets:[{kind:"actor",id:"act_other"}]},"aud_exportother");
+ let csv = "";
+ const out = await exportCsv({...ctx,authorize:()=>({effect:"allow"}) as never,exports:{save:async(_name,body)=>{csv=body;return "fil_owned";}}},{target:{kind:"role",id:"rol_one"}});
+ assert.deepEqual(out,{fileId:"fil_owned",rows:1}); assert.ok(csv.includes("role.changed")); assert.ok(!csv.includes("other.changed"));
 });

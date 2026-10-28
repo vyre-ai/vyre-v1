@@ -202,7 +202,7 @@ export async function groupsCreate(ctx: AccessCtx, input: { name: string; member
   if (!name) raise(ctx.trace.traceId, "validation.bad_input", "name is required");
   if ([...store.groups.values()].some((g) => g.name === name)) raise(ctx.trace.traceId, "validation.duplicate", "a group with that name exists");
   const members = (input.members ?? []).map((m) => checkMember(store, m, ctx.trace.traceId));
-  const managers = (input.managers ?? []).map((m) => checkPerson(store, m, ctx.trace.traceId));
+  const managers = (input.managers ?? []).map((m) => checkManager(store, m, ctx.trace.traceId));
   const group: GroupRec = { id: nid("grp"), name, builtIn: false, members, managers };
   store.groups.set(group.id, group);
   changed(ctx, store, "group");
@@ -215,6 +215,11 @@ function checkPerson(store: ReturnType<typeof storeOf>, m: Ref, trace: string): 
   const p = mustPrincipal(store, m.id, trace);
   return { kind: p.kind, id: p.id };
 }
+function checkManager(store: ReturnType<typeof storeOf>, m: Ref, trace: string): Ref {
+  const principal = checkPerson(store, m, trace);
+  if (principal.kind !== "person") raise(trace, "validation.precondition_failed", "group managers must be people");
+  return principal;
+}
 function checkMember(store: ReturnType<typeof storeOf>, m: Ref, trace: string): Ref {
   const p = checkPerson(store, m, trace);
   if (p.kind !== "person" && p.kind !== "agent") raise(trace, "validation.precondition_failed", "groups hold people and agents only");
@@ -224,6 +229,7 @@ function checkMember(store: ReturnType<typeof storeOf>, m: Ref, trace: string): 
 export async function groupsUpdate(ctx: AccessCtx, input: { groupId: string; name?: string; managers?: Ref[] }) {
   const store = storeOf(ctx);
   const g = mustGroup(store, input.groupId, ctx.trace.traceId);
+  const managers = input.managers?.map((manager) => checkManager(store, manager, ctx.trace.traceId));
   if (input.name !== undefined && input.name.trim() !== g.name) {
     if (g.builtIn) raise(ctx.trace.traceId, "validation.field_locked", "the built-in group name is locked");
     const name = input.name.trim();
@@ -231,7 +237,7 @@ export async function groupsUpdate(ctx: AccessCtx, input: { groupId: string; nam
     if ([...store.groups.values()].some((x) => x.id !== g.id && x.name === name)) raise(ctx.trace.traceId, "validation.duplicate", "a group with that name exists");
     g.name = name;
   }
-  if (input.managers) g.managers = input.managers.map((m) => checkPerson(store, m, ctx.trace.traceId));
+  if (managers) g.managers = managers;
   changed(ctx, store, "group");
   return { group: groupView(g) };
 }

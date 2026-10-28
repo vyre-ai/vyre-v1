@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { harness } from "../fixtures/db.ts";
 import { dropStore, storeOf } from "../projections.ts";
-import { groupsAddMember, groupsCreate, groupsGet, groupsRemoveMember, principalsEffective, putPrincipal, rolesApply, rolesAssign, rolesCreate, rolesGet, rolesPreview, rolesUpdate } from "../handlers/roles.ts";
+import { groupsAddMember, groupsCreate, groupsGet, groupsUpdate, groupsRemoveMember, principalsEffective, putPrincipal, rolesApply, rolesAssign, rolesCreate, rolesGet, rolesPreview, rolesUpdate } from "../handlers/roles.ts";
 import { authorize } from "../../../kernel/src/authorize/index.ts";
 import { validateInput } from "../../../generated/validators.ts";
 const code = (error: unknown): string | undefined => (error as { error?: { code?: string } }).error?.code;
@@ -72,3 +72,11 @@ test("changing agent eligibility cannot silently retain agent holders, and legac
   const person = await principalsEffective(h.ctx, { principal: { kind: "person", id: "usr_person" } });
   assert.ok(person.permissions.includes("records.edit"));
 });
+
+ test("a rejected manager update cannot rename a group or assign an agent manager", async () => {
+  const h = world();
+  const group = (await groupsCreate(h.ctx, { name: "Original", idempotencyKey: "manager-atomic" })).group;
+  await assert.rejects(groupsUpdate(h.ctx, { groupId: group.id, name: "Mutated", managers: [{kind: "agent", id: "agt_agent"}] }), (error) => code(error) === "validation.precondition_failed");
+  assert.equal((await groupsGet(h.ctx, { groupId: group.id })).group.name, "Original");
+  assert.deepEqual((await groupsGet(h.ctx, { groupId: group.id })).group.managers, []);
+ });

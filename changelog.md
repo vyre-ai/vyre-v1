@@ -12,6 +12,8 @@
 
 ## Unreleased
 
+- Console Groups: add the shared searchable object list and object tabs, paginated member/manager selection, real group roles, grants and indexed Activity, with confirmed deletion and deep-link browser coverage. Reject invalid manager updates before changing the group.
+
 - Access: allow validated group role assignments, expose direct holders, and enforce human-only role restrictions when groups gain agent members and when evaluating legacy assignments.
 - Audit: add a bounded typed target filter for object Activity, indexed and hash-bound to declared metadata; preserve Space authorization and exclude credential values.
 - Wired live invoke audit metadata into the append-only audit chain while retaining operational logs. Actor and on-behalf-of attribution and whitelisted object target IDs now reach Console Activity without copying request bodies or credentials. Generated permission metadata now loads in the browser for the real role matrix.
