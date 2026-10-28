@@ -650,7 +650,9 @@ mod tests {
         let read = read_discovered_source(&sources[0], &root).unwrap();
         assert_eq!(read["documents"].as_array().map(Vec::len), Some(2));
         assert_eq!(read["documents"][1]["namespace"], format!("subagent:{child}"));
-        assert_eq!(read["source"]["cwd"], canonical_repo.to_str().unwrap());
+        // Git uses forward slashes on Windows; canonicalize uses the extended-length
+        // \\?\ prefix. Check checkout identity without requiring either spelling.
+        assert_eq!(PathBuf::from(read["source"]["cwd"].as_str().unwrap()).canonicalize().unwrap(), canonical_repo);
         assert_eq!(read["source"]["gitOriginUrl"], "https://example.com/acme/vyre.git");
         assert_eq!(read["source"]["repositoryMetadataAuthoritative"], true);
         let codex = fixture.join(".codex");
@@ -663,7 +665,7 @@ mod tests {
         drop(db);
         let codex_sources = codex_sources(Some(codex.to_str().unwrap())).unwrap();
         let codex_source = codex_sources.iter().find(|source| source.session_id == "fixture").unwrap().clone();
-        assert_eq!(codex_source.cwd.as_deref(), canonical_repo.to_str());
+        assert_eq!(PathBuf::from(codex_source.cwd.as_deref().unwrap()).canonicalize().unwrap(), canonical_repo);
         assert_eq!(codex_source.git_origin_url.as_deref(), Some("https://example.com/acme/vyre.git"));
         assert_eq!(read["source"]["cwd"], codex_source.cwd.clone().unwrap());
         assert_eq!(read["source"]["gitOriginUrl"], codex_source.git_origin_url.clone().unwrap());
@@ -674,7 +676,7 @@ mod tests {
         assert_eq!(deferred.cwd.as_deref(), repo.join("packages").join("app").to_str());
         assert_eq!(deferred.git_origin_url, None, "bounded discovery defers repository identity after its budget");
         let selected = read_discovered_source(&deferred, &codex.canonicalize().unwrap()).unwrap();
-        assert_eq!(selected["source"]["cwd"], canonical_repo.to_str().unwrap(), "an explicit selected preview receives one fresh bounded repository probe");
+        assert_eq!(PathBuf::from(selected["source"]["cwd"].as_str().unwrap()).canonicalize().unwrap(), canonical_repo, "an explicit selected preview receives one fresh bounded repository probe");
         assert_eq!(selected["source"]["gitOriginUrl"], "https://example.com/acme/vyre.git");
         fs::remove_dir_all(fixture).unwrap();
     }
