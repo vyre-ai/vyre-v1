@@ -35,7 +35,7 @@ test('server.logs-only requester gets a readable private export; another person,
   const archive=await call('backup.export_start',{idempotencyKey:'private-archive'},'usr_olivia');assert.equal(archive.status,200,JSON.stringify(archive));
   const ready=await call('backup.export_status',{runId:archive.data.runId},'usr_olivia');assert.equal(ready.status,200,JSON.stringify(ready));assert.equal(ready.data.state,'ready');
   const zipId=ready.data.fileId;const first=await call('files.read',{fileId:zipId,as:'base64',offset:0,length:16},'usr_olivia');assert.equal(first.status,200,JSON.stringify(first));assert.equal(first.data.truncated,true);assert.equal(Buffer.from(first.data.base64,'base64').subarray(0,2).toString(),'PK');
-  const zip=await call('files.read',{fileId:zipId,as:'base64'},'usr_olivia');assert.equal(zip.status,200);const bytes=Buffer.from(zip.data.base64,'base64');assert.match(bytes.toString(),/README.txt/);assert.match(bytes.toString(),/records\/events.jsonl/);assert.doesNotMatch(bytes.toString(),/seal.key|admin.token/);
+  const zip=await call('files.read',{fileId:zipId,as:'base64'},'usr_olivia');assert.equal(zip.status,200);const bytes=Buffer.from(zip.data.base64,'base64');assert.match(bytes.toString(),/README.txt/);assert.ok(bytes.includes(Buffer.from('manifest.json')));assert.doesNotMatch(bytes.toString(),/seal.key|admin.token/);
   assert.equal((await call('files.read',{fileId:zipId,as:'url'},'usr_olivia')).status,422);
   assert.equal((await call('files.read',{fileId:zipId,as:'base64'},'usr_exporter')).status,403);
   assert.equal((await call('backup.export_status',{runId:archive.data.runId},'usr_exporter')).status,403);
