@@ -3,6 +3,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
+import { Composer } from "../../../../../../ui/src/Composer/index.tsx";
+import { installComposerForTests } from "../../../../../../ui/src/Composer/Deferred.tsx";
 import { Conversation, ConversationLoading } from "./Conversation.tsx";
 import { HoverBar, MessageView } from "./MessageView.tsx";
 import * as act from "./actions.ts";
@@ -15,6 +17,8 @@ import type { Message, Pending, Thread } from "./model.ts";
 import { DIRECTORY, SAMPLE_NOW, createSample } from "./sample.ts";
 import type { Sample, Variant } from "./sample.ts";
 import { createStreamStore } from "../../../../../../ui/src/stream/index.ts";
+
+installComposerForTests(Composer);
 
 const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
 const html = (s: Sample): string => clean(renderToStaticMarkup(<Conversation data={s.data} />));

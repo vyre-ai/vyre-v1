@@ -3,6 +3,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
+import { Composer } from "../../../../../../ui/src/Composer/index.tsx";
+import { installComposerForTests } from "../../../../../../ui/src/Composer/Deferred.tsx";
 import { screensById } from "../../../../../../generated/screens.ts";
 import Home from "../index.tsx";
 import { homeBSlots } from "./index.ts";
@@ -10,6 +12,8 @@ import { dismissChecklist, startAsk, unstar } from "./actions.ts";
 import type { ActionDeps } from "./actions.ts";
 import { createSampleHomeB } from "./sample.ts";
 import type { SampleHomeB } from "./sample.ts";
+
+installComposerForTests(Composer);
 
 const html = (h: SampleHomeB): string => {
   const { top, bottom } = homeBSlots(h.extras);

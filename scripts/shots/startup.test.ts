@@ -23,7 +23,6 @@ test("chunks are listed largest first with raw and gzip sizes", () => {
   assert.deepEqual(c.map((x) => x.file), ["_expo/static/js/web/records-def.js", "_expo/static/js/web/entry-abc.js"]);
   assert.ok(c.every((x) => x.gzip > 0 && x.gzip < x.raw));
 });
-
 test("the entry is what index.html loads, and the report separates it from the lazy chunks", () => {
   const d = fakeDist();
   assert.deepEqual(entryScripts(d), ["_expo/static/js/web/entry-abc.js"]);
@@ -32,7 +31,7 @@ test("the entry is what index.html loads, and the report separates it from the l
   assert.equal(r.total, 14000);
   assert.match(r.text, /entry loads 1 script/);
 });
-
+// Add new startup ownership checks above so this file remains the bundle-boundary contract.
 test("the median ignores runs with no mark", () => {
   assert.equal(median([300, null, 100, 200]), 200);
   assert.equal(median([null]), null);
@@ -92,4 +91,63 @@ test("the production Inbox graph excludes screenshot and test samples", () => {
     const leaked = closure(entry, graph).filter((file) => /\/sample\.tsx?$/.test(file) || file === "generated/screens.ts");
     assert.deepEqual(leaked, [], `${entry} runtime closure must not include sample fixtures or the generated screen registry`);
   }
+});
+
+test("the optional phone bootstrap does not load the Inbox place UI", () => {
+  const root = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "..");
+  const tracked = new Set(execFileSync("git", ["ls-files"], { cwd: root, encoding: "utf8" }).trim().split("\n"));
+  const graph = imports(tracked, (file) => fs.readFileSync(path.join(root, file), "utf8").replace(/^\s*import\s+type\b[^;]*;?\s*$/gm, ""));
+  const loaded = closure("apps/app/src/shell/session/phone.ts", graph);
+  assert.doesNotMatch(
+    loaded.join("\n"),
+    /apps\/app\/src\/(?:shell\/providers\/inbox\.tsx|places\/inbox\/(?:calendar|contactlist|contacttab|sidebar)\/)/,
+    "phone setup may share Inbox data/navigation, but must not pull the lazy Inbox place into the startup common chunk",
+  );
+});
+
+test("the Console assistant reuses the lazy Chats place chunk", () => {
+  const root = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "..");
+  const assistant = fs.readFileSync(path.join(root, "apps/app/src/console/Assistant.tsx"), "utf8");
+  assert.doesNotMatch(assistant, /from ["']\.\.\/places\/chats\/conversation\/Conversation\.tsx["']/, "Console must not make the Chats renderer common to two place chunks");
+  assert.match(assistant, /import\(["']\.\.\/shell\/providers\/chats\.tsx["']\)/, "the assistant loads the already-lazy Chats place chunk when its thread is ready");
+});
+
+test("optional Plan views share one on-demand renderer instead of the startup common chunk", () => {
+  const root = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "..");
+  for (const file of ["apps/app/src/places/home/sections-a/MyWork.tsx", "apps/app/src/places/records/projectpage/ProjectPage.tsx"]) {
+    const src = fs.readFileSync(path.join(root, file), "utf8");
+    assert.doesNotMatch(src, /import \{ Plan \} from ["'][^"']*ui\/src\/Plan\/index\.tsx["']/, `${file} must not statically share the optional Plan renderer`);
+    assert.match(src, /Plan\/DeferredPlan\.tsx/, `${file} uses the shared deferred Plan boundary`);
+  }
+  for (const file of ["apps/app/src/places/home/sections-a/MyWork.tsx", "apps/app/src/places/home/sections-a/plan.ts"]) {
+    const src = fs.readFileSync(path.join(root, file), "utf8");
+    assert.doesNotMatch(src, /Plan\/logic\.ts/, `${file} may use the tiny date leaf, not the full Plan editor logic`);
+    assert.match(src, /Plan\/dates\.ts/);
+  }
+  const deferred = fs.readFileSync(path.join(root, "ui/src/Plan/DeferredPlan.tsx"), "utf8");
+  assert.match(deferred, /lazy\(\(\) => import\(["']\.\/index\.tsx["']\)/, "the full Plan remains available on demand");
+});
+
+test("the optional phone dock reuses the lazy Inbox place chunk", () => {
+  const root = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "..");
+  const shell = fs.readFileSync(path.join(root, "apps/app/src/shell/spaces/Shell.tsx"), "utf8");
+  for (const eager of ["../../places/inbox/softphone/phone.tsx", "../../places/inbox/softphone/pill.tsx", "../../places/inbox/sidebar/data.tsx"]) {
+    assert.doesNotMatch(shell, new RegExp(`^import \\{[^\\n]+\\} from ["']${eager.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`, "m"), `Shell must not statically share ${eager} with Inbox`);
+  }
+  assert.match(shell, /import\(["']\.\.\/providers\/inbox\.tsx["']\)/, "the dock and title pill load from the existing Inbox place chunk only after telephony connects");
+});
+
+test("places that draw a Composer preload one shared on-demand editor before becoming usable", () => {
+  const root = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "..");
+  for (const file of ["apps/app/src/places/home/sections-b/AskBox.tsx", "apps/app/src/places/chats/conversation/Conversation.tsx", "apps/app/src/places/inbox/contacttab/ContactTab.tsx"]) {
+    const src = fs.readFileSync(path.join(root, file), "utf8");
+    assert.doesNotMatch(src, /^import \{ Composer \} from ["'][^"']*ui\/src\/Composer\/index\.tsx["'];?$/m, `${file} must not promote the editor into the startup common chunk`);
+    assert.match(src, /Composer\/Deferred\.tsx/, `${file} renders the shared deferred editor`);
+  }
+  const loader = fs.readFileSync(path.join(root, "ui/src/Composer/load.ts"), "utf8");
+  assert.match(loader, /import\(["']\.\/index\.tsx["']\)/);
+  const places = fs.readFileSync(path.join(root, "apps/app/src/shell/places.ts"), "utf8");
+  assert.match(places, /Composer\/load\.ts/);
+  assert.match(places, /withComposer/);
+  for (const id of ["home", "chat", "mail", "sites"]) assert.match(places, new RegExp(`id: ["']${id}["'][^\\n]+withComposer`), `${id} waits for its real composer before PlaceHost marks it usable`);
 });

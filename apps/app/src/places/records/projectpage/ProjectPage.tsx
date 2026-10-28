@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
-import { Plan } from "../../../../../../ui/src/Plan/index.tsx";
+import { DeferredPlan as Plan } from "../../../../../../ui/src/Plan/DeferredPlan.tsx";
 import type { PlanTask } from "../../../../../../ui/src/Plan/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { TabStrip } from "../../../../../../ui/src/TabStrip/index.tsx";

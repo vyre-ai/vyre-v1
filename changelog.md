@@ -12,6 +12,7 @@
 
 ## Unreleased
 - Console access checks render decision steps with the shared row component and named pass/fail indicators.
+- Web startup: keep optional phone data, Console conversations, Plan views, telephony controls, and rich composers behind their owning lazy place chunks. Places still load required controls before the app marks them usable, while the signed-out first load falls from 1.71 MB to 1.36 MB raw without changing the 1.5-second phone budget.
 - Local session import: converge concurrent confirmations on one immutable source archive instead of failing a unique-key insert after project creation.
 - Desktop session import: keep provider roots and transcript paths behind native IPC, read committed Codex WAL rows without write access, move filesystem discovery off the app UI thread under one bounded Git-probe budget, recover Claude discovery when Codex metadata is damaged, attach CLI-only Claude repository identity after selected preview, keep native-verified repository roots authoritative over stale transcript metadata, normalize Codex and Claude checkout roots, and merge bounded Claude subagent history into its parent preview.
 - Local session import: remove instruction/environment wrappers and redact credential patterns before preview and again before immutable archive or conflict storage.

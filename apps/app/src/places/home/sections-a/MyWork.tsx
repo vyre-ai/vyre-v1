@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { Plan } from "../../../../../../ui/src/Plan/index.tsx";
+import { DeferredPlan as Plan } from "../../../../../../ui/src/Plan/DeferredPlan.tsx";
 import type { PlanTask, PlanWho } from "../../../../../../ui/src/Plan/types.ts";
-import { toIso } from "../../../../../../ui/src/Plan/logic.ts";
+import { toIso } from "../../../../../../ui/src/Plan/dates.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";

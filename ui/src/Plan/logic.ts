@@ -2,23 +2,16 @@
 // Everything here is pure, so the tests run it without a renderer.
 
 import type { PlanStatus, PlanTask, PlanWho } from "./types.ts";
+import { DAY_MS, toDay, toIso } from "./dates.ts";
 
-export const DAY_MS = 86_400_000;
+export { DAY_MS, toDay, toIso } from "./dates.ts";
+
 export const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 export const MONL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
 export const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 /* ---------- dates ---------- */
 
-/** Days since 1970-01-01 of an ISO date. */
-export function toDay(iso: string): number {
-  const [y, m, d] = iso.slice(0, 10).split("-").map(Number) as [number, number, number];
-  return Math.floor(Date.UTC(y, m - 1, d) / DAY_MS);
-}
-export function toIso(day: number): string {
-  const t = new Date(day * DAY_MS);
-  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(t.getUTCDate()).padStart(2, "0")}`;
-}
 export const dayOfMonth = (day: number): number => new Date(day * DAY_MS).getUTCDate();
 export const weekday = (day: number): number => new Date(day * DAY_MS).getUTCDay();
 export const monthOf = (day: number): number => new Date(day * DAY_MS).getUTCMonth();
