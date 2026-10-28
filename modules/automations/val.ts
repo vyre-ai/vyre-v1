@@ -73,3 +73,47 @@ export function admit(cap: CapabilityContract): { stable: boolean; issues: Contr
 export function blocksLivePublish(availability: CapabilityContract["availability"]): boolean {
   return availability !== "live";
 }
+
+export interface CatalogueStep {
+  key: string;
+  input: unknown;
+  output: unknown;
+  effects: "read" | "write" | "outward";
+  errors?: readonly string[];
+  idempotency?: "key" | "natural" | "none";
+}
+
+const ACCOUNT_FIELDS = ["connectionId", "mailboxId", "numberId"] as const;
+
+function requiredNames(schema: unknown): Set<string> {
+  const required = schema && typeof schema === "object" ? (schema as { required?: unknown }).required : undefined;
+  return new Set(Array.isArray(required) ? required.filter((name): name is string => typeof name === "string") : []);
+}
+
+function propertyNames(schema: unknown): Set<string> {
+  const properties = schema && typeof schema === "object" ? (schema as { properties?: unknown }).properties : undefined;
+  if (!properties || typeof properties !== "object") return new Set();
+  return new Set(Object.keys(properties as Record<string, unknown>));
+}
+
+/** The catalogue row is the contract. A missing field stays missing so admit() can refuse it. */
+export function contractOf(step: CatalogueStep, availability: CapabilityContract["availability"] = "live"): CapabilityContract {
+  const required = requiredNames(step.input);
+  const props = propertyNames(step.input);
+  const account = ACCOUNT_FIELDS.find((name) => required.has(name) || props.has(name));
+  const idempotency: CapabilityContract["idempotency"] = step.idempotency === "none"
+    ? (step.effects === "read" ? "read-only" : "none")
+    : "key";
+  return {
+    key: step.key,
+    inputSchema: step.input,
+    outputSchema: step.output,
+    effects: step.effects,
+    ...(account ? { connection: { required: required.has(account), app: account === "mailboxId" ? "mail" : account === "numberId" ? "sms" : "connection" } } : { connection: { required: false } }),
+    errors: (step.errors ?? []).map((code) => ({ code, retryable: code.startsWith("timeout.") || code === "internal.unexpected" || code.startsWith("provider.") })),
+    test: { mode: step.effects === "read" ? "live-read" : "stub-write" },
+    idempotency,
+    availability,
+    executorVersion: "1",
+  };
+}

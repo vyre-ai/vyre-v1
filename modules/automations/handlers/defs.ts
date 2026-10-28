@@ -11,6 +11,7 @@ import {
   raise, readPolicy, saveAutomation, saveVersion, touch, versionById,
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
+import { admit, contractOf } from "../val.ts";
 import type { Alerts, AutoCtx, Automation, Definition, Grant, Node, Policy } from "../projections.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -109,6 +110,23 @@ export function previewLiveIssues(def: Definition): Issue[] {
     out.push(issue("error", "AI step is a preview and cannot be turned on.", n.id));
   }
   return out;
+}
+
+/** Live publish runs admit() on every catalogue step. Preview wording stays in previewLiveIssues. */
+export function admissionIssues(def: Definition): Issue[] {
+  const out: Issue[] = [];
+  for (const n of def.nodes) {
+    const step = STEPS.get(n.key);
+    if (!step || PREVIEW_STEPS.has(n.key)) continue;
+    const verdict = admit(contractOf(step));
+    if (verdict.stable) continue;
+    for (const item of verdict.issues) out.push(issue("error", item.message, n.id));
+  }
+  return out;
+}
+
+function blocksGoingLive(def: Definition, policy: Policy): Issue[] {
+  return [...validateDefinition(def, policy), ...previewLiveIssues(def), ...admissionIssues(def)];
 }
 
 // ---- reads ----
@@ -214,7 +232,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   if (input.definition !== undefined && !same(input.definition, a.definition)) {
     checkStructure(ctx, input.definition);
     const policy = readPolicy(ctx.db);
-    const blocking = [...validateDefinition(input.definition, policy), ...(a.status === "on" ? previewLiveIssues(input.definition) : [])];
+    const blocking = a.status === "on" ? blocksGoingLive(input.definition, policy) : validateDefinition(input.definition, policy);
     if (a.status === "on" && hasErrors(blocking)) {
       raise(ctx, "validation.precondition_failed", "Turn the automation off before saving a definition with errors.", { reason: "invalid_definition" });
     }
@@ -237,7 +255,7 @@ export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   if (input.enabled) {
     if (a.status === "on") return { automation: out(a) };
-    const issues = [...validateDefinition(a.definition, readPolicy(ctx.db)), ...previewLiveIssues(a.definition)];
+    const issues = blocksGoingLive(a.definition, readPolicy(ctx.db));
     if (hasErrors(issues)) {
       const preview = previewLiveIssues(a.definition);
       const reason = preview.length > 0 ? "preview" : "invalid_definition";
@@ -285,7 +303,7 @@ export async function restoreVersion(ctx: AutoCtx, input: In): Promise<unknown> 
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   const v = versionById(ctx.db, a.id, input.versionId);
   if (!v) raise(ctx, "validation.not_found", "That version does not exist.", { reason: "no_version" });
-  const restored = [...validateDefinition(v.definition, readPolicy(ctx.db)), ...(a.status === "on" ? previewLiveIssues(v.definition) : [])];
+  const restored = a.status === "on" ? blocksGoingLive(v.definition, readPolicy(ctx.db)) : validateDefinition(v.definition, readPolicy(ctx.db));
   if (a.status === "on" && hasErrors(restored)) {
     raise(ctx, "validation.precondition_failed", "Turn the automation off before restoring a version with errors.", { reason: "invalid_definition" });
   }
