@@ -1,6 +1,6 @@
 // Pure parsing boundary shared by packaged clients. Never reads local files.
 import { sanitizeImportedText } from "../../../lib/import-text.ts";
-export interface SessionSource { provider: "codex" | "claude"; sessionId: string; sessionKey: string; cwd?: string | null; gitOriginUrl?: string | null }
+export interface SessionSource { provider: "codex" | "claude"; sessionId: string; sessionKey: string; cwd?: string | null; gitOriginUrl?: string | null; repositoryMetadataAuthoritative?: boolean }
 export interface SessionDocument { namespace: string; text: string }
 export interface SessionMessage { sourceMessageId: string; role: "user" | "assistant"; text: string; at: number }
 export interface SessionPayload { sourceSessionId: string; title: string; startedAt: number; repo?: { root?: string; remote?: string }; messages: SessionMessage[] }
@@ -13,6 +13,7 @@ function remote(value: unknown): string | undefined {
 function parseDocument(source: SessionSource, text: string, namespace: string): SessionPayload {
   const messages: SessionMessage[] = [];
   const ids = new Set<string>();
+  const authoritativeRepository = source.repositoryMetadataAuthoritative === true;
   let root = source.cwd ?? undefined, origin = remote(source.gitOriginUrl);
   const lines = text.split("\n");
   for (const [index, raw] of lines.entries()) {
@@ -21,10 +22,10 @@ function parseDocument(source: SessionSource, text: string, namespace: string): 
     try { line = object(JSON.parse(raw)); } catch { continue; }
     const payload = object(line.payload);
     if (line.type === "session_meta") {
-      if (typeof payload.cwd === "string") root = payload.cwd;
-      origin = remote(object(payload.git).repository_url) ?? origin;
+      if (!authoritativeRepository && typeof payload.cwd === "string") root = payload.cwd;
+      if (!authoritativeRepository) origin = remote(object(payload.git).repository_url) ?? origin;
     }
-    if (!root && typeof line.cwd === "string") root = line.cwd;
+    if (!authoritativeRepository && !root && typeof line.cwd === "string") root = line.cwd;
     const m = source.provider === "codex" ? payload : object(line.message);
     if (source.provider === "codex" ? line.type !== "response_item" || m.type !== "message" : line.type !== "user" && line.type !== "assistant") continue;
     if (m.role !== "user" && m.role !== "assistant") continue;

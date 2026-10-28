@@ -150,6 +150,8 @@ pub struct SessionSource {
     pub updated_at: Option<String>,
     pub git_branch: Option<String>,
     pub git_origin_url: Option<String>,
+    /// True only after native code has resolved or rejected local repository identity.
+    pub repository_metadata_authoritative: bool,
 }
 
 #[derive(Serialize)]
@@ -207,6 +209,7 @@ fn read_discovered_source(source: &SessionSource, root: &Path) -> Result<serde_j
             documents.push(SessionDocument { namespace: format!("subagent:{id}"), text: read_session_text(&child, &mut remaining)? });
         }
     }
+    selected.repository_metadata_authoritative = true;
     Ok(serde_json::json!({ "source": selected, "documents": documents }))
 }
 
@@ -269,7 +272,7 @@ fn codex_sources(configured: Option<&str>) -> Result<Vec<SessionSource>, String>
         let normalized_cwd = repo.as_ref().map(|value| value.0.clone()).or(cwd);
         let normalized_remote = repo.and_then(|value| value.1.or(safe_remote));
         let project_key = normalized_cwd.as_deref().map(|value| format!("codex:{value}")).unwrap_or_else(|| "codex:unknown".to_string());
-        out.push(SessionSource { provider: "codex".to_string(), session_key: format!("codex:{id}"), session_id: id, project_key, transcript_path: transcript.to_string_lossy().into_owned(), cwd: normalized_cwd, created_at, updated_at, git_branch, git_origin_url: normalized_remote });
+        out.push(SessionSource { provider: "codex".to_string(), session_key: format!("codex:{id}"), session_id: id, project_key, transcript_path: transcript.to_string_lossy().into_owned(), cwd: normalized_cwd, created_at, updated_at, git_branch, git_origin_url: normalized_remote, repository_metadata_authoritative: false });
     }
     Ok(out)
 }
@@ -297,7 +300,7 @@ fn claude_sources(configured: Option<&str>, configured_desktop: Option<&str>) ->
             out.push(SessionSource {
                 provider: "claude".to_string(), session_key: format!("claude:{id}"), session_id: id,
                 project_key: format!("claude:{project}"), transcript_path: file.to_string_lossy().into_owned(),
-                cwd: repo.as_ref().map(|value| value.0.clone()).or_else(|| extra.and_then(|value| value.0.clone())), created_at: None, updated_at: extra.and_then(|value| value.1.clone()), git_branch: None, git_origin_url: repo.and_then(|value| value.1),
+                cwd: repo.as_ref().map(|value| value.0.clone()).or_else(|| extra.and_then(|value| value.0.clone())), created_at: None, updated_at: extra.and_then(|value| value.1.clone()), git_branch: None, git_origin_url: repo.and_then(|value| value.1), repository_metadata_authoritative: false,
             });
         }
     }
@@ -552,9 +555,10 @@ mod tests {
         let mut zipped = flate2::write::GzEncoder::new(fs::File::create(&file).unwrap(), flate2::Compression::default());
         zipped.write_all(b"{\"visible\":true}\n").unwrap();
         zipped.finish().unwrap();
-        let source = SessionSource { provider: "claude".into(), session_id: "fixture".into(), session_key: "claude:fixture".into(), project_key: "unknown".into(), transcript_path: file.to_string_lossy().into(), cwd: None, created_at: None, updated_at: None, git_branch: None, git_origin_url: None };
+        let source = SessionSource { provider: "claude".into(), session_id: "fixture".into(), session_key: "claude:fixture".into(), project_key: "unknown".into(), transcript_path: file.to_string_lossy().into(), cwd: None, created_at: None, updated_at: None, git_branch: None, git_origin_url: None, repository_metadata_authoritative: false };
         let value = read_discovered_source(&source, &root).unwrap();
         assert_eq!(value["documents"][0]["text"], "{\"visible\":true}\n");
+        assert_eq!(value["source"]["repositoryMetadataAuthoritative"], true);
         assert!(read_discovered_source(&source, &root.join("other")).is_err());
         fs::remove_dir_all(root).unwrap();
     }
@@ -611,6 +615,7 @@ mod tests {
         assert_eq!(read["documents"][1]["namespace"], format!("subagent:{child}"));
         assert_eq!(read["source"]["cwd"], repo.to_str().unwrap());
         assert_eq!(read["source"]["gitOriginUrl"], "https://example.com/acme/vyre.git");
+        assert_eq!(read["source"]["repositoryMetadataAuthoritative"], true);
         let codex = fixture.join(".codex");
         fs::create_dir_all(&codex).unwrap();
         fs::write(codex.join("rollout.jsonl"), "{}\n").unwrap();

@@ -16,6 +16,24 @@ test("Codex preview keeps visible canonical messages without payload ids, metada
   assert.equal(new Set(out.messages.map((m) => m.sourceMessageId)).size, 2);
   assert.deepEqual(parseSession({ provider: "codex", sessionId: "one", sessionKey: "codex:one" }, text), out);
 });
+
+test("native repository decisions override stale transcript metadata", () => {
+  const text = [
+    { type: "session_meta", payload: { cwd: "/work/vyre/packages/app", git: { repository_url: "https://example.com/stale/fork.git" } } },
+    { type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "Fix this" }] } },
+  ].map(JSON.stringify).join("\n");
+  const canonical = parseSession({
+    provider: "codex", sessionId: "canonical", sessionKey: "codex:canonical",
+    cwd: "/work/vyre", gitOriginUrl: "https://example.com/acme/vyre.git", repositoryMetadataAuthoritative: true,
+  }, text);
+  assert.deepEqual(canonical.repo, { root: "/work/vyre", remote: "https://example.com/acme/vyre.git" });
+
+  const deleted = parseSession({
+    provider: "codex", sessionId: "deleted", sessionKey: "codex:deleted",
+    cwd: "/work/deleted-vyre", gitOriginUrl: null, repositoryMetadataAuthoritative: true,
+  }, text);
+  assert.deepEqual(deleted.repo, { root: "/work/deleted-vyre" }, "a stale transcript remote cannot turn a deleted checkout into a Project");
+});
 test("Claude preview excludes tools and thinking, accepts final JSON, redacts remote credentials", () => {
   const out = parseSession({ provider: "claude", sessionId: "two", sessionKey: "claude:two", gitOriginUrl: "https://token:secret@example.com/a/b.git" }, JSON.stringify({ type: "assistant", uuid: "m1", message: { role: "assistant", content: [{ type: "thinking", thinking: "private" }, { type: "tool_use", input: "secret" }, { type: "text", text: "Visible" }] } }));
   assert.equal(out.messages[0].text, "Visible");
