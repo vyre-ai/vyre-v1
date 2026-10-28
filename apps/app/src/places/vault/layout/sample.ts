@@ -30,7 +30,7 @@ export interface SampleSpace {
   items: ItemSpec[];
   history: HistorySpec[];
   providers: ProviderSpec[];
-  requests: { id: string; name: string; forAutomation: string; agoMin: number }[];
+  requests: { id: string; name: string; fields: string[]; reason: string; requester: { kind: "person" | "agent" | "actor" | "service"; id: string }; folderId?: string; agoMin: number }[];
   /** Who holds each item besides you: [kind, id, level]. */
   grants?: Record<string, [kind: Share["subject"]["kind"], id: string, level: Share["level"]][]>;
 }
@@ -87,7 +87,7 @@ export const northwind: SampleSpace = {
     { id: "prv_opencode", key: "opencode-go", name: "OpenCode Go", connection: "api_key", via: "API key", scope: "mine", item: "vit_opencode", agents: ["agt_billing"], tokens: 900_000, cents: 740, engine: "opencode" },
     { id: "prv_anthropic", key: "openai", name: "OpenAI", connection: "api_key", via: "API key #Northwind_OpenAI", scope: "shared", item: "vit_anthropic", agents: ["agt_intake"], tokens: 1_100_000, cents: 1320, engine: "claude-code" },
   ],
-  requests: [{ id: "req_twilio", name: "Twilio", forAutomation: "New lead follow-up", agoMin: 120 }],
+  requests: [{ id: "req_twilio", name: "Twilio", fields: ["TWILIO_AUTH_TOKEN"], reason: "New lead follow-up needs to send an SMS", requester: { kind: "agent", id: "agt_intake" }, folderId: "fld_ops", agoMin: 120 }],
   grants: {
     vit_ghl: [["person", "usr_maya", "edit"], ["person", "usr_omar", "view"], ["agent", "agt_intake", "use"], ["agent", "agt_research", "use"], ["service", "aut_weekly", "use"]],
     vit_stripe: [["agent", "agt_billing", "use"], ["person", "usr_maya", "edit"]],
@@ -175,7 +175,11 @@ export function createSampleVault(space: SampleSpace = northwind, o: { online?: 
     id: p.id, providerKey: p.key, name: p.name, connection: p.connection, via: p.via, scope: p.scope, itemId: p.item, agentsUsing: p.agents,
     usage: { tokens: p.tokens, costCents: p.cents, periodStart: Date.UTC(2025, 9, 1) }, engine: p.engine, spaceMayUse: p.scope === "shared", state: "ok",
   }) as Row));
-  replica.put("requests", space.requests.map((r) => ({ id: r.id, name: r.name, forAutomation: r.forAutomation, at: SAMPLE_NOW - m(r.agoMin) }) as Row));
+  replica.put("requests", space.requests.map((r) => ({
+    id: r.id, name: r.name, fields: r.fields, reason: r.reason, requester: r.requester, ...(r.folderId ? { folderId: r.folderId } : {}),
+    state: "waiting", taskId: `tsk_${r.id}`, at: SAMPLE_NOW - m(r.agoMin),
+  }) as Row));
+  replica.put("exports", space.id === "northwind" ? [{ id: "vex_marketing", folderId: "fld_marketing", by: space.me.id, expiresAt: SAMPLE_NOW + HOUR_MS, pulled: false }] : []);
   replica.put("principals", space.principals.map((p) => ({ ...p })));
 
   const rows = <T,>(table: string): T[] => replica.rows(table) as unknown as T[];
@@ -204,9 +208,12 @@ export function createSampleVault(space: SampleSpace = northwind, o: { online?: 
     return { total: itemRows().length, weak: 0, reused: 0, stale: 0, rotationDue: flagged.length, items: flagged.map((i) => ({ itemId: i.id, name: i.name, issues: ["rotation_due" as const] })) };
   });
   replica.resolve("vault.requests.list", (_t, input) => {
-    const all = rows<Row & { name: string }>("requests");
-    return { requests: (input.state && input.state !== "waiting" ? [] : all).map((r) => ({ id: r.id, name: r.name })) } as unknown as CapMap["vault.requests.list"]["out"];
+    const all = rows<Row & CapMap["vault.requests.list"]["out"]["requests"][number]>("requests");
+    return { requests: all.filter((r) => !input.state || r.state === input.state) } as CapMap["vault.requests.list"]["out"];
   });
+  replica.resolve("vault.exports.list", (_t, input) => ({
+    exports: rows<Row & CapMap["vault.exports.list"]["out"]["exports"][number]>("exports").filter((x) => !input.folderId || x.folderId === input.folderId),
+  }));
   replica.resolve("vault.item.get", (_t, input) => {
     const it = find(input.itemId);
     return { item: strip(it), fields: fieldsOf(it.id).map((f) => ({ key: f.key, secret: f.secret, hasValue: f.value !== "" })) };
@@ -288,10 +295,36 @@ export function createSampleVault(space: SampleSpace = northwind, o: { online?: 
       replica.put("folders", [f as unknown as Row]);
       return { folder: f };
     },
+    "vault.requests.fulfil": (i: { requestId: string; itemId?: string; fields?: { key: string; value: string }[]; folderId?: string }) => {
+      const request = rows<Row & CapMap["vault.requests.list"]["out"]["requests"][number]>("requests").find((x) => x.id === i.requestId);
+      if (!request || request.state !== "waiting") throw new Error("validation.precondition_failed");
+      let itemId = i.itemId;
+      if (!itemId && i.fields?.length) {
+        const made = writes["vault.item.put"]!({ folderId: i.folderId ?? request.folderId ?? "fld_mine", name: request.name, kind: "api_key", fields: i.fields }) as { item: Item };
+        itemId = made.item.id;
+      }
+      if (!itemId) throw new Error("validation.precondition_failed");
+      const next = { ...request, state: "fulfilled", itemId, decidedAt: SAMPLE_NOW } as Row;
+      replica.put("requests", [next]);
+      return { request: next };
+    },
+    "vault.requests.decline": (i: { requestId: string; note?: string }) => {
+      const request = rows<Row & CapMap["vault.requests.list"]["out"]["requests"][number]>("requests").find((x) => x.id === i.requestId);
+      if (!request || request.state !== "waiting") throw new Error("validation.precondition_failed");
+      replica.put("requests", [{ ...request, state: "declined", ...(i.note ? { note: i.note } : {}), decidedAt: SAMPLE_NOW } as Row]);
+      return { ok: true };
+    },
+    "vault.export_env": (i: { folderId: string }) => {
+      const id = `vex_new${++seq}`;
+      replica.put("exports", [{ id, folderId: i.folderId, by: space.me.id, expiresAt: SAMPLE_NOW + HOUR_MS, pulled: false } as Row]);
+      return { exportId: id, pullUrl: `https://northwind.example/export/${id}`, expiresAt: SAMPLE_NOW + HOUR_MS };
+    },
+    "vault.exports.revoke": (i: { exportId: string }) => { replica.remove("exports", [i.exportId]); return { ok: true }; },
   };
 
   const nav: VaultNav = {
     openShare: (id) => void opened.push(`share:${id}`), openExport: (id) => void opened.push(`export:${id}`), openAdvanced: () => void opened.push("advanced"), ask: (agentId, mode, about) => void opened.push(`ask:${agentId}:${mode}:${about.id}`),
+    openBackups: () => void opened.push("backups"), openDevices: () => void opened.push("devices"), openOutsideActors: () => void opened.push("outside-actors"),
     openRequests: () => void opened.push("requests"), openAgent: (id) => void opened.push(`agent:${id}`),
   };
   const connection: Connection = { get: () => (online ? "online" : "offline"), subscribe: (l) => { listeners.add(l); return () => void listeners.delete(l); } };

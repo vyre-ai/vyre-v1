@@ -14,6 +14,10 @@ export interface VaultNav {
   openExport(folderId: string): void;
   /** The Advanced page: emergency access, recovery key, backups, devices, outside-agent passes. */
   openAdvanced(): void;
+  /** Contract-backed security surfaces linked from Advanced. */
+  openBackups(): void;
+  openDevices(): void;
+  openOutsideActors(): void;
   /** The Automation or agent that is asking for a key. */
   openRequests(): void;
   openAgent(agentId: string): void;

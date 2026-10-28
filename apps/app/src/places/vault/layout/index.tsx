@@ -17,6 +17,7 @@ import type { Folder, Health, Item, Provider, Selection } from "./model.ts";
 import { Btn, Glyph, IconBtn, QuietLine } from "./parts.tsx";
 import { Sidebar } from "./Sidebar.tsx";
 import { Sheet } from "./Sheet.tsx";
+import { declineVaultRequest, fulfilVaultRequest, revokeVaultExport } from "./routed-actions.ts";
 import { HealthView } from "../health/index.ts";
 import { ImportSheet } from "../import/index.ts";
 import type { Source } from "../import/index.ts";
@@ -32,6 +33,7 @@ type ItemsOut = CapMap["vault.items.list"]["out"];
 type FoldersOut = CapMap["vault.folders.list"]["out"];
 type ProvidersOut = CapMap["providers.list"]["out"];
 type RequestsOut = CapMap["vault.requests.list"]["out"];
+type ExportsOut = CapMap["vault.exports.list"]["out"];
 
 export const WIDE = 900;
 export const TWO_PANE = 720;
@@ -238,7 +240,7 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
   const routed = route.surface === "advanced"
     ? <AdvancedView onClose={onRouteClose} />
     : route.surface === "requests"
-      ? <RequestsView requests={requests} onClose={onRouteClose} />
+      ? <RequestsView requests={requests} items={all} onClose={onRouteClose} />
       : null;
 
   return (
@@ -270,37 +272,77 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
   );
 }
 
-function RequestsView({ requests, onClose }: { requests: import("../../../../../../client/src/index.ts").QueryState<RequestsOut>; onClose(): void }): ReactElement {
+function RequestsView({ requests, items, onClose }: { requests: import("../../../../../../client/src/index.ts").QueryState<RequestsOut>; items: readonly Item[]; onClose(): void }): ReactElement {
   const names = usePrincipals();
+  const cards: ReactElement[] = [];
+  if (requests.status === "ready") for (const request of requests.data.requests) cards.push(<RequestCard key={request.id} request={request} items={items} requester={names.name(request.requester.id)} />);
   return (
     <View style={s.routed} testID="vault-requests">
       <View style={s.routedHead}><Btn label="Back" icon="back" onPress={onClose} /><Text accessibilityRole="header" style={s.routedTitle}>Requested</Text></View>
       <Text style={s.routedIntro}>Keys and fields that an Automation or agent is waiting for.</Text>
-      {requests.status !== "ready" ? <Text style={s.routedSub}>Loading</Text> : requests.data.requests.length === 0 ? <States kind="empty" title="Nothing is waiting" icon="search" /> : requests.data.requests.map((request) => (
-        <Row key={request.id} id={`vault-request-${request.id}`} title={request.name} tall note={`${request.requester ? names.name(request.requester.id) : "Requester"} · ${request.reason || "Needs access"}${request.fields?.length ? ` · ${request.fields.join(" · ")}` : ""}`} />
-      ))}
+      {requests.status !== "ready" ? <Text style={s.routedSub}>Loading</Text> : cards.length === 0 ? <States kind="empty" title="Nothing is waiting" icon="search" /> : cards}
+    </View>
+  );
+}
+
+function RequestCard({ request, items, requester }: { request: RequestsOut["requests"][number]; items: readonly Item[]; requester: string }): ReactElement {
+  const data = useVaultData();
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState("");
+  const candidates = items.filter((item) => request.fields.every((field) => item.fieldKeys.includes(field)));
+  const run = (action: () => Promise<void>): void => {
+    setBusy(true); setFailure("");
+    void action().catch((error) => setFailure(error instanceof Error ? error.message : "That did not work")).finally(() => setBusy(false));
+  };
+  const fieldsReady = request.fields.length > 0 && request.fields.every((field) => (draft[field] ?? "").trim() !== "");
+  const candidateButtons: ReactElement[] = [];
+  for (const item of candidates) candidateButtons.push(<Btn key={item.id} label={`Use ${item.name}`} disabled={busy} onPress={() => run(() => fulfilVaultRequest(data, request.id, { itemId: item.id }))} testID={`vault-request-use-${request.id}-${item.id}`} />);
+  const fieldInputs: ReactElement[] = [];
+  for (const field of request.fields) fieldInputs.push(<TextInput key={field} value={draft[field] ?? ""} onChangeText={(value) => setDraft((cur) => ({ ...cur, [field]: value }))} placeholder={field} accessibilityLabel={field} secureTextEntry style={s.requestInput} testID={`vault-request-field-${request.id}-${field}`} />);
+  return (
+    <View style={s.requestCard} testID={`vault-request-${request.id}`}>
+      <Text style={s.routedName}>{request.name}</Text>
+      <Text style={s.routedSub}>{`${requester} · ${request.reason}`}</Text>
+      {candidates.length ? (
+        <View style={s.requestActions}>
+          {candidateButtons}
+        </View>
+      ) : (
+        <View style={{ gap: 8 }}>
+          <Text style={s.routedSub}>Save the requested fields as a new Vault item</Text>
+          {fieldInputs}
+          <Btn label="Save and fulfil" primary disabled={busy || !fieldsReady} onPress={() => run(() => fulfilVaultRequest(data, request.id, { fields: request.fields.map((key) => ({ key, value: draft[key]!.trim() })), ...(request.folderId ? { folderId: request.folderId } : {}) }))} testID={`vault-request-fulfil-${request.id}`} />
+        </View>
+      )}
+      <View style={s.requestActions}>
+        <TextInput value={note} onChangeText={setNote} placeholder="Note for requester (optional)" accessibilityLabel="Decline note" style={[s.requestInput, { flex: 1 }]} />
+        <Btn label="Decline" danger disabled={busy} onPress={() => run(() => declineVaultRequest(data, request.id, note))} testID={`vault-request-decline-${request.id}`} />
+      </View>
+      {failure ? <Text style={s.error} accessibilityRole="alert">{failure}</Text> : null}
     </View>
   );
 }
 
 function AdvancedView({ onClose }: { onClose(): void }): ReactElement {
+  const { nav } = useVaultData();
   const rows = [
-    ["Emergency access", "Someone you trust can ask for your items after a wait"],
-    ["Recovery key", "Keep a recovery path for this Vault"],
-    ["Backups", "Review encrypted Vault backups"],
-    ["Devices", "See the computers that can open this Vault"],
-    ["Outside agents", "Review time-limited passes for outside agents"],
+    ["Backups", "Review, verify, restore, or run encrypted Space backups", nav.openBackups],
+    ["Devices", "See and revoke the computers that can open this Vault", nav.openDevices],
+    ["Outside agents", "Create, scope, or revoke access for Claude Code, Codex, and other tools", nav.openOutsideActors],
   ] as const;
   return (
     <View style={s.routed} testID="vault-advanced">
       <View style={s.routedHead}><Btn label="Back" icon="back" onPress={onClose} /><Text accessibilityRole="header" style={s.routedTitle}>Advanced</Text></View>
-      {rows.map(([title, sub]) => <Row key={title} id={`vault-advanced-${title.toLowerCase().replace(/\s+/g, "-")}`} title={title} note={sub} tall />)}
+      {rows.map(([title, sub, open]) => <Row key={title} id={`vault-advanced-${title.toLowerCase().replace(/\s+/g, "-")}`} title={title} note={sub} tall onPress={open} trailing={<Glyph name="chevron" />} />)}
     </View>
   );
 }
 
 function ExportSheet({ folderId, folderName, onClose }: { folderId: string; folderName: string; onClose(): void }): ReactElement {
   const data = useVaultData();
+  const exports = useScreenQuery<ExportsOut>("vault.export", "open", { folderId });
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ pullUrl: string; expiresAt: number } | null>(null);
   const [failure, setFailure] = useState("");
@@ -316,6 +358,12 @@ function ExportSheet({ folderId, folderName, onClose }: { folderId: string; fold
     <Sheet title={`Export ${folderName} as .env`} onClose={onClose} testID="vault-export-sheet" footer={<><View style={{ flex: 1 }} /><Btn label="Cancel" onPress={onClose} /><Btn label={busy ? "Exporting…" : "Create export"} primary disabled={busy} onPress={() => { void exportFolder(); }} testID="vault-export-create" /></>}>
       <Text style={s.routedIntro}>Creates a one-hour, logged download. Values stay hidden in the Vault.</Text>
       {result ? <View style={{ gap: 8 }}><Text style={s.routedName}>Export ready</Text><Btn label="Copy download link" icon="copy" onPress={() => { void copyText(data, result.pullUrl); }} testID="vault-export-copy" /></View> : null}
+      <View style={{ gap: 6 }} testID="vault-active-exports">
+        <Text style={s.routedName}>Active exports</Text>
+        {exports.status !== "ready" ? <Text style={s.routedSub}>Loading</Text> : exports.data.exports.length === 0 ? <Text style={s.routedSub}>No open download links</Text> : exports.data.exports.map((item) => (
+          <Row key={item.id} id={`vault-export-${item.id}`} title={item.pulled ? "Downloaded" : "Not downloaded"} note={`Expires ${new Date(item.expiresAt).toLocaleString()}`} trailing={<Btn label="Revoke" danger onPress={() => { void revokeVaultExport(data, item.id).catch((error) => setFailure(error instanceof Error ? error.message : "Could not revoke export")); }} testID={`vault-export-revoke-${item.id}`} />} />
+        ))}
+      </View>
       {failure ? <Text style={s.error} accessibilityRole="alert">{failure}</Text> : null}
     </Sheet>
   );
@@ -407,6 +455,9 @@ const s = StyleSheet.create({
   routedIntro: { fontSize: 13, color: "var(--ink-3)" as string },
   routedName: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   routedSub: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  requestCard: { gap: 10, padding: 14, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 10, backgroundColor: "var(--raised)" as string },
+  requestActions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
+  requestInput: { minHeight: 34, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 7, paddingHorizontal: 10, color: "var(--ink)" as string, backgroundColor: "var(--win)" as string },
   error: { fontSize: 12.5, color: "var(--danger)" as string },
   skRow: { height: 44, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 8 },
   skLogo: { width: 30, height: 30, borderRadius: 8, backgroundColor: "var(--sel)" as string },

@@ -11,6 +11,7 @@ import type { ShellRuntime } from "./runtime.tsx";
 
 export function vaultRoute(target: HashTarget): VaultRoute {
   if (target.screen === "vault_requests.list") return { surface: "requests" };
+  if (target.screen === "vault.export" && target.args["folderId"]) return { surface: "export", folderId: target.args["folderId"] };
   if (target.args["share"]) return { surface: "share", itemId: target.args["share"] };
   if (target.args["export"]) return { surface: "export", folderId: target.args["export"] };
   if (target.args["advanced"] === "true") return { surface: "advanced" };
@@ -22,8 +23,11 @@ export function vaultData(rt: ShellRuntime): VaultData {
     screens: rt.screens, call: rt.call, connection: rt.connection, principals: rt.principals, me: rt.me, spaceName: rt.space.name,
     nav: {
       openShare: (itemId) => rt.open({ screen: "vault.layout", args: { share: itemId } }),
-      openExport: (folderId) => rt.open({ screen: "vault.layout", args: { export: folderId } }),
+      openExport: (folderId) => rt.open({ screen: "vault.export", args: { folderId } }),
       openAdvanced: () => rt.open({ screen: "vault.layout", args: { advanced: true } }),
+      openBackups: () => rt.open({ screen: "console.backups" }),
+      openDevices: () => rt.open({ screen: "devices.mine" }),
+      openOutsideActors: () => rt.open({ screen: "console.outside-actors" }),
       openRequests: () => rt.open({ screen: "vault_requests.list" }),
       openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
     },
