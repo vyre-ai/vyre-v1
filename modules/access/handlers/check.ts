@@ -58,8 +58,8 @@ export async function check(ctx: AccessCtx, input: CheckIn) {
 export async function viewAs(ctx: AccessCtx, input: { person: string }) {
   const store = storeOf(ctx);
   if (!store.principals.has(input.person)) raise(ctx.trace.traceId, "validation.not_found", "no such person");
-  const expiresAt = ctx.now() + TOKEN_MS;
-  const previewToken = `vas_${nid("tok").slice(4)}`;
+  if (!ctx.preview) raise(ctx.trace.traceId, "validation.precondition_failed", "Shared record preview is not available on this host.");
+  const { previewToken, expiresAt } = ctx.preview.issue(input.person);
   ctx.emit("view_as.started", input.person, { target: input.person, expiresAt });
   return { previewToken, expiresAt };
 }

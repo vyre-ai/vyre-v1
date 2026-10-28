@@ -41,6 +41,7 @@
 - Verify imported Claude Code and Codex checkout identity across Git's Windows path spelling and Windows canonical extended-length paths, while retaining exact provider-to-provider metadata agreement.
 
 - Matched non-Welcome auth forms to the 0.6.8 content-height reading frame, small Vyre mark and top Back action, with a full-width primary below the fields. Preserved the approved flat surface, restrained halftone and existing account/security contracts. Made username/password fields fill the reading column and refresh the verified Space name without discarding typed credentials or in-flight sign-in. Scope delayed metadata to the destination host and origin, remount credentials when the address changes, and prevent duplicate pending sign-in requests.
+- Added a source-session-bound, ten-minute shared Records preview for View-as. The memory-only token permits a closed canonical read facade with requester/target grant intersection, row filtering, field redaction and label ceilings; it refuses Personal ancestry, module handlers, nested calls, writes, credentials, exports and other transports. Reads recheck authority after awaited storage and audit work; source sign-out, target suspension, expiry and restart invalidate previews. The normal Console preview control remains hidden until the isolated client is integrated.
 
 - Restored the 0.6.8 welcome composition: open halftone canvas, approved Vyre mark, large greeting and round Space connection field, with verified v1 connection and retry handling.
 

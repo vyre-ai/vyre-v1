@@ -39,6 +39,8 @@ export function indexCapabilities(caps: readonly CapabilityDef[]): CapIndex {
 export interface PrincipalSeed { kind: Ctx["principal"]["kind"]; id: string }
 /** What the caller knows before the pipeline starts: who, for whom, where from. */
 export interface CtxSeed {
+  sessionId?: string | undefined;
+  previewToken?: string | undefined;
   space: string;
   principal: PrincipalSeed;
   actingFor?: string | undefined;
@@ -92,6 +94,7 @@ export interface GateHook {
 }
 
 export interface InvokeDeps {
+  preview?: { read(token: string, cap: string, input: unknown, trace: string): Promise<{ finish(): unknown }> };
   caps: CapIndex;
   validateInput(cap: string, v: number, input: unknown): string[];
   validateEvent?(name: string, payload: unknown): string[];
@@ -202,6 +205,16 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       // 2 validate
       const problems = deps.validateInput(c.name, c.v, input);
       if (problems.length) throw fail("validation.bad_input", traceId, { details: { errors: problems.slice(0, 20), cap: c.name } });
+
+      // A preview never enters idempotency, Gate, module handlers or ctx.call.
+      // The closed read facade returns a final synchronous authority/redaction
+      // check, run after the awaited audit commit and immediately before release.
+      if (seed.previewToken) {
+        if (!deps.preview || seed.preAuth || depth !== 0 || c.effects !== "read") throw fail("permission.no_grant", traceId);
+        const result = await deps.preview.read(seed.previewToken, c.name, input, traceId);
+        await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events: [], audit: { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: `dec_${hex(16)}`, reason: "ok", resource: null, traceId, spanId: trace.spanId, at: now(), risk: c.risk } });
+        return { status: "ok", output: result.finish(), traceId };
+      }
 
       // 3 idempotency: a 'key' capability requires the key; the stored result of a repeat is returned without running anything
       let key: string | undefined;
@@ -343,6 +356,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       space: seed.space, principal: seed.principal, ...(seed.actingFor ? { actingFor: seed.actingFor } : {}), trace,
       ...(seed.run ? { run: seed.run } : {}), ...(seed.thread ? { thread: seed.thread } : {}), origin: seed.origin ?? "user", depth,
       ...(seed.device ? { device: seed.device } : {}), now,
+      ...(seed.sessionId ? { sessionId: seed.sessionId } : {}),
       db: svc.db ?? { all: unavailable("db"), run: unavailable("db") },
       emit<T>(name: EventName, subject: string, payload: T, opts?: EmitOpts): EventEnvelope<T> {
         if (!c.emits.includes(name)) throw fail("internal.unexpected", trace.traceId, { message: "Something went wrong on our side.", details: { cap: c.name, event: name, why: "event not declared in emits" } });

@@ -258,3 +258,19 @@ test("pre-auth callers skip authorize", async () => {
   const res = await r.invoke("auth.sign_in", {}, seed({ principal: { kind: "actor", id: "anonymous" }, preAuth: true }));
   assert.equal(res.status, "ok"); assert.ok(!r.order.includes("authorize"));
 });
+
+test("preview bypasses all module/nested handlers and idempotency; rechecks after audit", async () => {
+  let handlerCalls = 0, revoked = false, finishes = 0;
+  const read = cap({ name: "records.get", effects: "read" });
+  const write = cap({ name: "records.create", effects: "write" });
+  const r = rig([read, write], { "records.get": async ctx => { handlerCalls++; await ctx.call("records.create", {}); }, "records.create": () => { handlerCalls++; } }, {
+    preview: { read: async () => ({ finish: () => { finishes++; if (revoked) throw new Error("revoked during audit"); return { fields: {} }; } }) },
+    commit: async () => { revoked = true; return []; },
+  });
+  const preview = seed({ previewToken: "vas_private-memory-only", actingFor: "usr_eve" });
+  await assert.rejects(r.invoke("records.get", {}, preview));
+  assert.equal(handlerCalls, 0); assert.equal(finishes, 1); assert.ok(!r.order.includes("idem"));
+  await expectErr(r.invoke("records.create", {}, preview), "permission.no_grant");
+  await expectErr(r.invoke("records.get", {}, { ...preview, depth: 1 }), "permission.no_grant");
+  assert.equal(handlerCalls, 0);
+});
