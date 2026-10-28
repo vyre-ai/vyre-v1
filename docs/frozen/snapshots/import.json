@@ -14,7 +14,9 @@
     "import.suggest_mapping@1": "6774d1c3ac7e7de427250535f90e6f41394915005fc1e7ba1960e13f2bd9d66d",
     "import.template@1": "74ffe14070cc47625f1ea780e600f2e6c6792a5496c7ceeae1205b98a8a8aa94",
     "sessions.continue@1": "2e11d13df52b4be6f26ecd14941012f1f4bc2c05087d1acc84d8a97e48990356",
-    "sessions.import@1": "251c68b1a81438860a9d814070eddc5b3eb2ec5834748311f2689096fb8aaacb"
+    "sessions.get@1": "c13c9e4d2e5438527d6be4c42a44f1fee25363754a2e7e8f0216ba15e9fc85e8",
+    "sessions.import@1": "251c68b1a81438860a9d814070eddc5b3eb2ec5834748311f2689096fb8aaacb",
+    "sessions.list@1": "bc12db086e9ee40936ae9e7548ed882986b7838aadad41d6cea088a30fb4a0f7"
   },
   "events": {
     "import.completed": "af8f528fad05968638bc0cc2a531eba090429492ff7c7b64011f2846bb4106ec",

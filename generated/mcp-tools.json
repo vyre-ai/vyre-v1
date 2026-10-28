@@ -38737,6 +38737,32 @@
     },
     {
       "blocks": [],
+      "cap": "sessions.get",
+      "deferred": false,
+      "description": "Read an immutable imported session transcript owned by the signed-in person",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "conversationId": {
+            "examples": [
+              "isc_a1b2c3"
+            ],
+            "pattern": "^isc_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "conversationId"
+        ],
+        "type": "object"
+      },
+      "name": "sessions_get",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "sessions.import",
       "deferred": false,
       "description": "Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply only visible user and assistant text",
@@ -38885,6 +38911,30 @@
       },
       "name": "sessions_import",
       "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sessions.list",
+      "deferred": false,
+      "description": "List the current owner private imported session archive in this Personal Space",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "sessions_list",
+      "planMode": "allowed",
       "toolset": "chats",
       "v": 1
     },

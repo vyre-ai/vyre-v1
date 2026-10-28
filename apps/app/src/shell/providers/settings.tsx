@@ -1,6 +1,7 @@
 // The Settings place in the shell (spec 3.9): ten pages over the Space's data. The open Space is the one Space the runtime knows; leaving Settings (Vault, Console, Connections) goes
 // out through the shell's door. Before the runtime exists the place draws its loading frame.
 import { useMemo, useState } from "react";
+import { desktopSessionImporter } from "../../../../../client/src/session-import/desktop.ts";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
 import { SettingsDataProvider } from "../../places/settings/data.tsx";
@@ -17,6 +18,12 @@ export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["man
     screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name }, space: { id: rt.space.id, name: rt.space.name },
     spaces: [{ id: rt.space.id, name: rt.space.name, addr: "", kind: rt.space.kind, role: "", needsYou: 0, current: true }],
     name: nameOf(rt),
+    sessionImporter: rt.space.kind === "personal" ? desktopSessionImporter() : undefined,
+    async continueSession(conversationId) {
+      if (rt.space.kind !== "personal") throw new Error("Open your Personal Space to continue this session.");
+      const out = await rt.call("sessions.continue", { conversationId, destinationSpaceId: rt.space.id, destinationScope: "personal", agentId: rt.assistant.id }) as { threadId: string };
+      rt.open({ screen: "chats.conversation", args: { threadId: out.threadId } });
+    },
     nav: {
       openVault: () => rt.open({ screen: "vault.layout" }),
       openConsole: () => rt.open({ screen: "console.overview" }),

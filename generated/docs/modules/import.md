@@ -4,7 +4,7 @@ Lane L3. Kind module. Version 0.1.0.
 
 Requires: schema.
 
-## Capabilities (14)
+## Capabilities (16)
 
 - [import.commit](../capabilities/import.commit.md): Write the previewed rows as an import Run; no automations fire unless runAutomations is true
 - [import.discard](../capabilities/import.discard.md): Drop a staged import before it is committed
@@ -19,7 +19,9 @@ Requires: schema.
 - [import.suggest_mapping](../capabilities/import.suggest_mapping.md): Suggest which column feeds which field of a record type, with a confidence for each
 - [import.template](../capabilities/import.template.md): A CSV template for a record type: header row and one example row
 - [sessions.continue](../capabilities/sessions.continue.md): Start a separate live Vyre chat linked to an immutable imported conversation; it never writes back to the local provider store
+- [sessions.get](../capabilities/sessions.get.md): Read an immutable imported session transcript owned by the signed-in person
 - [sessions.import](../capabilities/sessions.import.md): Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply only visible user and assistant text
+- [sessions.list](../capabilities/sessions.list.md): List the current owner private imported session archive in this Personal Space
 
 ## Events (5)
 

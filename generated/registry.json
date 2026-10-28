@@ -2747,6 +2747,73 @@
       ],
       "type": "object"
     },
+    "s_22ee988823": {
+      "properties": {
+        "continuedThreadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "conversationId": {
+          "examples": [
+            "isc_a1b2c3"
+          ],
+          "pattern": "^isc_[a-z0-9]+$",
+          "type": "string"
+        },
+        "importedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "projectId": {
+          "examples": [
+            "prj_a1b2c3"
+          ],
+          "pattern": "^prj_[a-z0-9]+$",
+          "type": "string"
+        },
+        "provider": {
+          "enum": [
+            "codex",
+            "claude_code"
+          ],
+          "type": "string"
+        },
+        "sourceKey": {
+          "type": "string"
+        },
+        "sourceSessionId": {
+          "type": "string"
+        },
+        "startedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "conversationId",
+        "provider",
+        "sourceKey",
+        "sourceSessionId",
+        "title",
+        "startedAt",
+        "importedAt"
+      ],
+      "type": "object"
+    },
     "s_25d70fcceb": {
       "properties": {
         "enabled": {
@@ -6989,6 +7056,41 @@
         "resource"
       ],
       "type": "object"
+    },
+    "s_5b5f5d7449": {
+      "items": {
+        "properties": {
+          "at": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "type": "string"
+          },
+          "sourceMessageId": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sourceMessageId",
+          "role",
+          "text",
+          "at"
+        ],
+        "type": "object"
+      },
+      "type": "array"
     },
     "s_5b5fd6f127": {
       "properties": {
@@ -135669,6 +135771,95 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "conversationId": "isc_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "messages": [
+              {
+                "at": 1760000000000,
+                "role": "user",
+                "sourceMessageId": "example",
+                "text": "example"
+              }
+            ],
+            "session": {
+              "continuedThreadId": "thr_a1b2c3",
+              "conversationId": "isc_a1b2c3",
+              "importedAt": 1760000000000,
+              "projectId": "prj_a1b2c3",
+              "provider": "codex",
+              "sourceKey": "example",
+              "sourceSessionId": "example",
+              "startedAt": 1760000000000,
+              "title": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "conversationId": {
+            "examples": [
+              "isc_a1b2c3"
+            ],
+            "pattern": "^isc_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "conversationId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "import",
+      "name": "sessions.get",
+      "output": {
+        "properties": {
+          "messages": {
+            "$ref": "#/$defs/s_5b5f5d7449"
+          },
+          "session": {
+            "$ref": "#/$defs/s_22ee988823"
+          }
+        },
+        "required": [
+          "session",
+          "messages"
+        ],
+        "type": "object"
+      },
+      "permission": "chats.private",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Read an immutable imported session transcript owned by the signed-in person",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
       "audit": "always",
       "effects": "write",
       "emits": [
@@ -135794,39 +135985,7 @@
             "items": {
               "properties": {
                 "messages": {
-                  "items": {
-                    "properties": {
-                      "at": {
-                        "description": "Milliseconds since the Unix epoch",
-                        "examples": [
-                          1760000000000
-                        ],
-                        "minimum": 0,
-                        "type": "integer"
-                      },
-                      "role": {
-                        "enum": [
-                          "user",
-                          "assistant"
-                        ],
-                        "type": "string"
-                      },
-                      "sourceMessageId": {
-                        "type": "string"
-                      },
-                      "text": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "sourceMessageId",
-                      "role",
-                      "text",
-                      "at"
-                    ],
-                    "type": "object"
-                  },
-                  "type": "array"
+                  "$ref": "#/$defs/s_5b5f5d7449"
                 },
                 "repo": {
                   "properties": {
@@ -135967,6 +136126,90 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply only visible user and assistant text",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "cursor": "example",
+            "limit": 1
+          },
+          "name": "example",
+          "output": {
+            "next": "example",
+            "sessions": [
+              {
+                "continuedThreadId": "thr_a1b2c3",
+                "conversationId": "isc_a1b2c3",
+                "importedAt": 1760000000000,
+                "projectId": "prj_a1b2c3",
+                "provider": "codex",
+                "sourceKey": "example",
+                "sourceSessionId": "example",
+                "startedAt": 1760000000000,
+                "title": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "level": "view",
+      "module": "import",
+      "name": "sessions.list",
+      "output": {
+        "properties": {
+          "next": {
+            "type": "string"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/$defs/s_22ee988823"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "sessions"
+        ],
+        "type": "object"
+      },
+      "permission": "chats.private",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "List the current owner private imported session archive in this Personal Space",
       "surfaces": {
         "http": "auto",
         "mcp": {

@@ -7,6 +7,11 @@
 - Fixed fresh desktop connection: the first launch now accepts and verifies a Space address before sign-in, with retryable connection errors and the existing verified session persistence.
 
 ## Unreleased
+- Local session import: converge concurrent confirmations on one immutable source archive instead of failing a unique-key insert after project creation.
+- Desktop session import: keep provider roots and transcript paths behind native IPC, read committed Codex WAL rows without write access, move filesystem discovery off the app UI thread under one bounded Git-probe budget, recover Claude discovery when Codex metadata is damaged, attach CLI-only Claude repository identity after selected preview, keep native-verified repository roots authoritative over stale transcript metadata, normalize Codex and Claude checkout roots, and merge bounded Claude subagent history into its parent preview.
+- Local session import: remove instruction/environment wrappers and redact credential patterns before preview and again before immutable archive or conflict storage.
+- Personal history: connect native Codex and Claude Code discovery to selected transcript previews, explicit Personal import consent, owner-private archive reads, and linked continuation with copied visible context. Block Team imports, preserve import idempotency across the gateway, and let Personal project owners create projects without Team-only sharing calls.
+- Personal history: file every continued repository session into its imported Project, while loose sessions remain in the owner-private archive without creating empty Projects.
 - Web startup: import production Inbox, shell-phone, and sidebar components from their leaf modules so screenshot sample fixtures and the generated screen registry no longer enter the initial common bundle through UI barrels.
 - Records performance: reduce continuous-fling boundaries from eight rich rows to four while retaining twelve-row overscan, keeping forward, reverse, jump, and end-of-table viewports continuously covered.
 - Web startup: keep the native FlashList runtime behind Metro's native platform boundary, preserving the existing windowed web list while removing native-only code from the production web entry.
