@@ -454,6 +454,7 @@ mod tests {
         use std::io::Write;
         let root = std::env::temp_dir().join(format!("vyre-session-read-fixture-{}", std::process::id()));
         fs::create_dir_all(&root).unwrap();
+        let root = root.canonicalize().unwrap();
         let file = root.join("session.jsonl.gz");
         let mut zipped = flate2::write::GzEncoder::new(fs::File::create(&file).unwrap(), flate2::Compression::default());
         zipped.write_all(b"{\"visible\":true}\n").unwrap();
