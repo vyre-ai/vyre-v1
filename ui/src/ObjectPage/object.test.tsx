@@ -10,6 +10,7 @@ import {
   doneLine,
   frozenObjectPageProps,
   moveTab,
+  settleObjectAction,
   splitActions,
   statusTone,
   subtitle,
@@ -119,4 +120,17 @@ test("the body of the active tab is the children", () => {
   const html = renderToStaticMarkup(<ObjectPage {...frozenObjectPageProps}><p>Roles: Member</p></ObjectPage>);
   assert.ok(text(html).includes("Roles: Member"));
   assert.match(html, /data-testid="object-body"/);
+});
+
+test("object actions report success only after async work resolves and preserve a truthful failure", async () => {
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  let settled = false;
+  const work = settleObjectAction(() => pending).then((result) => { settled = result.ok; return result; });
+  await Promise.resolve();
+  assert.equal(settled, false, "a pending mutation is not reported done");
+  release();
+  assert.deepEqual(await work, { ok: true });
+  const failed = await settleObjectAction(async () => { throw new Error("permission held"); });
+  assert.deepEqual(failed, { ok: false, error: "permission held" });
 });
