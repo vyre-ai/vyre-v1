@@ -11,6 +11,8 @@
 - Allow only exact packaged desktop origins to reach capability/sync/local-key APIs across origins, with validated preflight headers and unchanged bearer authentication.
 # Changelog
 
+- Stopped inherited Space grants at canonical Personal Files roots while preserving deliberate folder/file shares. Repaired legacy root ancestry before the server listens, preserving owner, labels and holds, without copying Personal content into events. Added actual HTTP denial/share/Shared-root and idempotent restart regressions.
+
 - Extended the shared Space archive boundary to public Network writes and active queued host network commands, which can change the observed Space profile. Empty periodic polls leave stable exports alone. Added actual HTTP regression for an already-running network command, an empty poll during collection, and cleanup after a failed command-completion write.
 
 - Keep browser failure diagnostics from masking the original Apps failure, and verify the canonical wording in exported AI policy documents.

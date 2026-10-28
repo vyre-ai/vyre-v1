@@ -31,7 +31,7 @@ export async function registerRoots(ctx: Ctx): Promise<void> {
     if (key.startsWith("personal:") && key !== mine) continue;   // somebody else's Personal root is registered when they call
     if (registered.has(id)) continue;
     const personal = key === mine;
-    await host.resources.ensure({ id, type: "folder", parentId: typeof row["parent_id"] === "string" ? row["parent_id"] : null, ...(personal ? { ownerId: ctx.principal.id } : {}) });
+    await host.resources.ensure({ id, type: "folder", parentId: typeof row["parent_id"] === "string" ? row["parent_id"] : null, ...(personal ? { ownerId: ctx.principal.id, privateRoot: true } : {}) });
     registered.add(id);
   }
 }

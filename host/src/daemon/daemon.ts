@@ -729,6 +729,23 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const spaceStore = createSpaceStore({ path: spaceStorePath(paths.root), space: spaceId });
       closers.push(() => spaceStore.close());
       dispatchSystem = system;
+      const ensureFileRoot = async (f: { id: string; type: "folder"; parentId: string | null; ownerId?: string; privateRoot?: boolean }): Promise<void> => {
+        const old = access.snap.resource(f.id);
+        let privateOwner: string | undefined;
+        if (f.privateRoot) {
+          const row = db!.all("SELECT root_key, owner, parent_id FROM files_folder WHERE id = ?", f.id)[0] as { root_key: string; owner: string; parent_id: string | null } | undefined;
+          if (!row || row.root_key !== `personal:${row.owner}` || row.parent_id !== null) throw new Error("Only a canonical Personal root may stop Space inheritance.");
+          privateOwner = row.owner;
+          if (old?.parent_id === null) return;
+        }
+        if (!privateOwner && old) return;
+        const result = await spaceLog.appendResult({
+          id: privateOwner ? `evt_private_root_${f.id}_${headSeq}` : `evt_res_${f.id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: f.id,
+          payload: { id: f.id, type: f.type, parent_id: privateOwner ? null : f.parentId ?? spaceId, label: old?.label ?? 0, owner_id: old ? old.owner_id : privateOwner ?? f.ownerId ?? access.owner() ?? cfg.owner ?? "usr_owner", holds: old?.holds ?? 0 },
+        });
+        if (!result.ok) throw new Error(`could not register the folder: ${result.message}`);
+        if (!result.duplicate) { access.fold(result.event); accessPending.push(toAccessEvent(result.event)); headSeq = Math.max(headSeq, result.event.seq); await syncAccess(); }
+      };
       const hostDrivers: Record<string, SeamDriver> = {
         setPushPort: () => createPushPort(o.seams?.push),
         // portal invitations and sign-in links go out through mail.send from the service mailbox (P-L8_17)
@@ -753,14 +770,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // the files module's root folders are folders in the access projection (ruling 65): one resource.created each, with an id made from the folder's own, so a reboot repeats the same event
         setFilesHost: () => ({
           resources: {
-            ensure: async (f: { id: string; type: "folder"; parentId: string | null; ownerId?: string }) => {
-              const r = await spaceLog.appendResult({
-                id: `evt_res_${f.id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: f.id,
-                payload: { id: f.id, type: f.type, parent_id: f.parentId ?? spaceId, label: 0, owner_id: f.ownerId ?? access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
-              });
-              if (!r.ok) throw new Error(`could not register the folder: ${r.message}`);
-              if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
-            },
+            ensure: ensureFileRoot,
             setLabel: async (f: { id: string; type: "folder"; label: "public" | "internal" | "confidential" | "restricted" }) => {
               const changed = await hookRunner.call("access.set_resource_label", { resource: { type: f.type, id: f.id }, label: f.label });
               if (changed !== true && access.snap.resource(f.id)?.label !== f.label) throw new Error(`could not update the folder label: ${f.id}`);
@@ -881,6 +891,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           );
         } else db!.run("DELETE FROM health_probe WHERE name = ?", "module_drivers");
       }
+
+      // Repair legacy Personal roots before any HTTP request can use an inherited Space grant.
+      for (const row of db!.all("SELECT id FROM files_folder WHERE root_key LIKE 'personal:%'") as { id: string }[]) await ensureFileRoot({ id: row.id, type: "folder", parentId: null, privateRoot: true });
 
       // Runs the last server left queued or running are driven again from their step log (P-L6_24). Started, not awaited: boot does not wait for a Run, and shutdown waits for it.
       if (loaded.serving.get("runs") === "live") {
