@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createSampleVault } from "../layout/sample.ts";
-import { declineVaultRequest, fulfilVaultRequest, revokeVaultExport } from "../layout/routed-actions.ts";
+import { declineVaultRequest, fulfilVaultRequest, requestFields, revokeVaultExport } from "../layout/routed-actions.ts";
 
 test("a waiting Vault request can be fulfilled with an existing item", async () => {
   const s = createSampleVault();
@@ -32,6 +32,21 @@ test("a waiting Vault request can be fulfilled with newly entered fields", async
     },
   });
   assert.equal(s.replica.rows("requests")[0]?.["state"], "fulfilled");
+});
+
+test("request fulfilment preserves leading and trailing credential whitespace", async () => {
+  const s = createSampleVault();
+  const value = "  line one\nline two  \n";
+
+  await fulfilVaultRequest(s.data, "req_twilio", {
+    fields: requestFields(["TWILIO_AUTH_TOKEN"], { TWILIO_AUTH_TOKEN: value }),
+    folderId: "fld_ops",
+  });
+
+  assert.deepEqual(s.calls.at(-1), {
+    cap: "vault.requests.fulfil",
+    input: { requestId: "req_twilio", fields: [{ key: "TWILIO_AUTH_TOKEN", value }], folderId: "fld_ops" },
+  });
 });
 
 test("a waiting Vault request can be declined with a note", async () => {

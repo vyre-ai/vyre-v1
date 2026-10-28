@@ -1,7 +1,7 @@
 # Changelog
 
 ## Unreleased
-- Vault routing: consume tab hashes for item sharing, folder export, Advanced, and pending requests; managers can fulfil or decline key requests, list and revoke active export links, and open the live Backups, Devices, and Outside actors security surfaces instead of landing on inert placeholders.
+- Vault routing: consume tab hashes for item sharing, folder export, Advanced, and pending requests; managers can fulfil or decline key requests without changing credential whitespace, list and revoke active export links, retry failed request/export reads, and open the live Backups, Devices, and Outside actors security surfaces instead of landing on inert placeholders.
 - Web startup: import production Inbox, shell-phone, and sidebar components from their leaf modules so screenshot sample fixtures and the generated screen registry no longer enter the initial common bundle through UI barrels.
 - Records performance: reduce continuous-fling boundaries from eight rich rows to four while retaining twelve-row overscan, keeping forward, reverse, jump, and end-of-table viewports continuously covered.
 - Web startup: keep the native FlashList runtime behind Metro's native platform boundary, preserving the existing windowed web list while removing native-only code from the production web entry.

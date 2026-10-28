@@ -70,6 +70,14 @@ export function useScreenQuery<T>(screenId: string, name: string, state: Record<
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 
+/** Ask the live screen layer to retry failed reads when the host supports invalidation. */
+export function retryVaultQueries(screens: ScreenHooks): boolean {
+  const invalidate = (screens as ScreenHooks & { invalidate?: () => void }).invalidate;
+  if (typeof invalidate !== "function") return false;
+  invalidate.call(screens);
+  return true;
+}
+
 export function usePrincipals(): { name(id: string): string; all: readonly Principal[] } {
   const { principals } = useVaultData();
   const src = principals ?? NEVER;

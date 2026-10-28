@@ -9,7 +9,7 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { AddAnything, EditSheet, ItemEnv, NoItem } from "../itemenv/index.ts";
-import { VaultDataProvider, copyText, useOnline, useOptionalVaultData, usePrincipals, useScreenQuery, useVaultData } from "./data.tsx";
+import { VaultDataProvider, copyText, retryVaultQueries, useOnline, useOptionalVaultData, usePrincipals, useScreenQuery, useVaultData } from "./data.tsx";
 import type { VaultData } from "./data.tsx";
 import { ItemList } from "./ItemList.tsx";
 import { ALL, countItems, sameSelection, visibleItems } from "./model.ts";
@@ -17,7 +17,7 @@ import type { Folder, Health, Item, Provider, Selection } from "./model.ts";
 import { Btn, Glyph, IconBtn, QuietLine } from "./parts.tsx";
 import { Sidebar } from "./Sidebar.tsx";
 import { Sheet } from "./Sheet.tsx";
-import { declineVaultRequest, fulfilVaultRequest, revokeVaultExport } from "./routed-actions.ts";
+import { declineVaultRequest, fulfilVaultRequest, requestFields, revokeVaultExport } from "./routed-actions.ts";
 import { HealthView } from "../health/index.ts";
 import { ImportSheet } from "../import/index.ts";
 import type { Source } from "../import/index.ts";
@@ -273,6 +273,7 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
 }
 
 function RequestsView({ requests, items, onClose }: { requests: import("../../../../../../client/src/index.ts").QueryState<RequestsOut>; items: readonly Item[]; onClose(): void }): ReactElement {
+  const data = useVaultData();
   const names = usePrincipals();
   const cards: ReactElement[] = [];
   if (requests.status === "ready") for (const request of requests.data.requests) cards.push(<RequestCard key={request.id} request={request} items={items} requester={names.name(request.requester.id)} />);
@@ -280,7 +281,7 @@ function RequestsView({ requests, items, onClose }: { requests: import("../../..
     <View style={s.routed} testID="vault-requests">
       <View style={s.routedHead}><Btn label="Back" icon="back" onPress={onClose} /><Text accessibilityRole="header" style={s.routedTitle}>Requested</Text></View>
       <Text style={s.routedIntro}>Keys and fields that an Automation or agent is waiting for.</Text>
-      {requests.status !== "ready" ? <Text style={s.routedSub}>Loading</Text> : cards.length === 0 ? <States kind="empty" title="Nothing is waiting" icon="search" /> : cards}
+      {requests.status === "loading" && requests.error ? <States kind="error" message="Couldn't load Vault requests" cause={requests.error.message} {...(requests.error.code ? { code: requests.error.code } : {})} {...(requests.error.traceId ? { traceId: requests.error.traceId } : {})} retryable onRetry={() => { retryVaultQueries(data.screens); }} /> : requests.status !== "ready" ? <Text style={s.routedSub}>Loading</Text> : cards.length === 0 ? <States kind="empty" title="Nothing is waiting" icon="search" /> : cards}
     </View>
   );
 }
@@ -313,7 +314,7 @@ function RequestCard({ request, items, requester }: { request: RequestsOut["requ
         <View style={{ gap: 8 }}>
           <Text style={s.routedSub}>Save the requested fields as a new Vault item</Text>
           {fieldInputs}
-          <Btn label="Save and fulfil" primary disabled={busy || !fieldsReady} onPress={() => run(() => fulfilVaultRequest(data, request.id, { fields: request.fields.map((key) => ({ key, value: draft[key]!.trim() })), ...(request.folderId ? { folderId: request.folderId } : {}) }))} testID={`vault-request-fulfil-${request.id}`} />
+          <Btn label="Save and fulfil" primary disabled={busy || !fieldsReady} onPress={() => run(() => fulfilVaultRequest(data, request.id, { fields: requestFields(request.fields, draft), ...(request.folderId ? { folderId: request.folderId } : {}) }))} testID={`vault-request-fulfil-${request.id}`} />
         </View>
       )}
       <View style={s.requestActions}>
@@ -360,7 +361,7 @@ function ExportSheet({ folderId, folderName, onClose }: { folderId: string; fold
       {result ? <View style={{ gap: 8 }}><Text style={s.routedName}>Export ready</Text><Btn label="Copy download link" icon="copy" onPress={() => { void copyText(data, result.pullUrl); }} testID="vault-export-copy" /></View> : null}
       <View style={{ gap: 6 }} testID="vault-active-exports">
         <Text style={s.routedName}>Active exports</Text>
-        {exports.status !== "ready" ? <Text style={s.routedSub}>Loading</Text> : exports.data.exports.length === 0 ? <Text style={s.routedSub}>No open download links</Text> : exports.data.exports.map((item) => (
+        {exports.status === "loading" && exports.error ? <States kind="error" message="Couldn't load active exports" cause={exports.error.message} {...(exports.error.code ? { code: exports.error.code } : {})} {...(exports.error.traceId ? { traceId: exports.error.traceId } : {})} retryable onRetry={() => { retryVaultQueries(data.screens); }} /> : exports.status !== "ready" ? <Text style={s.routedSub}>Loading</Text> : exports.data.exports.length === 0 ? <Text style={s.routedSub}>No open download links</Text> : exports.data.exports.map((item) => (
           <Row key={item.id} id={`vault-export-${item.id}`} title={item.pulled ? "Downloaded" : "Not downloaded"} note={`Expires ${new Date(item.expiresAt).toLocaleString()}`} trailing={<Btn label="Revoke" danger onPress={() => { void revokeVaultExport(data, item.id).catch((error) => setFailure(error instanceof Error ? error.message : "Could not revoke export")); }} testID={`vault-export-revoke-${item.id}`} />} />
         ))}
       </View>
