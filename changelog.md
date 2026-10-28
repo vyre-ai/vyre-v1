@@ -1,3 +1,4 @@
+- Enforce grant label ceilings in single-record authorization, inherited grants, SQL list predicates and persisted Access projections, with classification and randomized parity regressions.
 - Complete Connector and Connection Console object controllers with typed creation, cursor pagination, real test/build/diff/publication/version controls, Files exports, Vault metadata references and truthful provider reconnection.
 - Align the onboarding prototype landing fixture with supported native/download callbacks, and assert unavailable actions stay hidden in both themes.
 - Complete the Comms Console object pages with typed provider/privacy/recipient controls, number routing and hours, shared-inbox access and routes, and hydrated full texting registration drafts with reviewed submission.

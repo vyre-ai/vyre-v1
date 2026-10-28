@@ -30,6 +30,7 @@ export interface GrantRec {
   readonly filter: Expr | null;
   readonly hidden: readonly string[];
   readonly hasHidden: boolean;
+  readonly ceiling: number;
 }
 
 const NONE: readonly string[] = Object.freeze([]);
@@ -142,6 +143,7 @@ export class AccessSnapshot {
         row, key: `${row.subject_kind}:${row.subject_id}`, rank: rankOf(row.level),
         exp: row.expires_at == null ? Infinity : row.expires_at, nb: c.notBefore ?? -Infinity, na: c.notAfter ?? Infinity,
         filter: c.rowFilter ?? null, hidden, hasHidden: hidden.length > 0,
+        ceiling: c.labelCeiling === undefined ? Infinity : Number.isFinite(c.labelCeiling) ? c.labelCeiling : -1,
       };
       const [map, k] = row.resource_id === null ? [tw, row.resource_type] as const : [on, row.resource_id] as const;
       const l = map.get(k); if (l) l.push(rec); else map.set(k, [rec]);

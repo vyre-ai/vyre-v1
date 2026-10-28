@@ -24,6 +24,8 @@ export type Expr =
   | { op: "and" | "or"; args: readonly Expr[] };
 
 export interface Conditions {
+  /** Maximum resource/field classification this grant permits. */
+  labelCeiling?: number | undefined;
   rowFilter?: Expr | undefined;
   hiddenFields?: readonly string[] | undefined;
   notBefore?: number | undefined;
