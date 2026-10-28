@@ -23,3 +23,14 @@ test('Speed renders units and direction correctly and never equates missing samp
 });
 
 test('actual Console routes select Network, Speed and Usage components',()=>{assert.equal(consolePageFor('network',{}).type,Network);assert.equal(consolePageFor('speed',{}).type,Speed);assert.equal(consolePageFor('usage',{}).type,Usage);});
+
+test('Usage exposes actual personal caps and current spend without replacing the period breakdown',()=>{
+ const html=draw(<Usage/>,{'console.usage':{rows:[],note:'Fixture beta pricing'},'engine.spend.get':{caps:{run:500000,dayMicros:2000000,monthMicros:20000000,turnsPerDay:100,timeMinutesPerRun:15},todayMicros:100000,monthMicros:500000,turnsToday:2,paused:false}});
+ assert.match(html,/Your limits/);assert.match(html,/Daily spend/);assert.match(html,/2\.00|\$2/);assert.match(html,/15 minutes/);assert.match(html,/No usage in this period/);assert.match(html,/Fixture beta pricing/);
+});
+
+test('ordinary Usage reads only the effective personal limits and offers no management navigation',()=>{
+ const base=createSampleConsole().data,calls:{cap:string;input:unknown}[]=[];
+ const data={...base,can:()=>false,screens:{...base.screens,capQuery:(cap:string,input:unknown)=>{calls.push({cap,input});const value={status:'ready',data:cap==='console.usage'?{rows:[],note:'Fixture beta pricing'}:cap==='engine.spend.get'?{caps:{},todayMicros:0,monthMicros:0,turnsToday:0,paused:false}:undefined};return{subscribe:()=>()=>undefined,getSnapshot:()=>value};}} as never};
+ const html=renderToStaticMarkup(<ConsoleDataProvider value={data}><Usage/></ConsoleDataProvider>);assert.deepEqual(calls.filter(row=>row.cap==='engine.spend.get').map(row=>row.input),[{scope:'person'}]);assert.doesNotMatch(html,/Manage limits|Space limits/);
+});
