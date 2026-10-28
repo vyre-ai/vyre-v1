@@ -25,6 +25,8 @@ export interface OpenSessionOptions {
   /** The Space's address, e.g. https://northwind.vyre.run. */
   baseUrl: string;
   token: string;
+  /** Device-local cards only; never another Space token or key. */
+  spaceCards?: readonly SpaceDef[];
   /** Where a click goes: the shell maps a screen or subject to a place and shows it. */
   navigate?(place: PlaceId, hash: string): void;
   /** A click that opens something of the shell itself (the search, a new tab, the Space switcher): screens whose place is `shell`. */
@@ -131,13 +133,14 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   };
 
   const who = (await reach("identity.whoami", {})) as Out<"identity.whoami">;
-  const [spaceOut, switcher, screens] = await Promise.all([
+  const [spaceOut, switcher, screens, kitChoice] = await Promise.all([
     reach("spaces.get", {}) as Promise<Out<"spaces.get">>,
     reach("spaces.switcher", {}).catch(() => null) as Promise<Out<"spaces.switcher"> | null>,
     (o.screens ?? loadScreens)(),
+    reach("settings.kit.get",{}).catch(()=>null) as Promise<Out<"settings.kit.get">|null>,
   ]);
   const space = spaceOut.space;
-  const deferred = createDeferred(who.deferred, who.deferredModules);
+  const deferred = createDeferred(who.deferred, (who as typeof who & {deferredModules?:readonly string[]}).deferredModules);
   const me: Principal = { id: who.principal.id, name: who.name, kind: "person" };
 
   // A 401 means signed out (once, to sign-in): it is never a failure state a screen reacts to by asking again.
@@ -226,8 +229,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     address: o.baseUrl.replace(/^https?:\/\//, ""),
     role: switcher?.role ?? "Member",
     tint: ["#6E5CF0", "#9B6BE8"],
-    kit: space.kind === "personal" ? "personal" : "northwind",
-    skinDefault: "system",
+    kit: space.kind === "personal" ? "personal" : kitChoice?.kit.effective ?? "northwind",
+    skinDefault: typeof space.defaults.skin==="string"?space.defaults.skin:"system",
     starred: true,
     needsYou: (switcher?.needsYou ?? 0) > 0,
     console: who.roles.some((r) => r === "owner" || r === "admin"),
@@ -249,6 +252,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     me,
     clock: () => ({ now: (o.now ?? Date.now)(), offsetMin: -new Date().getTimezoneOffset() }),
     space: { id: space.id, kind: space.kind, name: space.name },
+    ...(o.spaceCards?{knownSpaces:o.spaceCards}:{}),
     get assistant() { return assistant(); },
     get aiConnected() { return connected(AI_CONNECTORS); },
     get calendarConnected() { return connected(CALENDAR_CONNECTORS); },

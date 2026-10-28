@@ -1,3 +1,4 @@
+import{activationUrl,isPackagedOrigin,storedPlace}from'./space-catalog.ts';
 // The production session boundary. Signed-out and desktop-link flows stay in the startup chunk;
 // the authenticated application shell is loaded only after a stored or verified session exists.
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -243,24 +244,37 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     return () => { alive = false; unlisten?.(); };
   }, [bridge]);
 
+  const activateAddress=(stored:StoredSession,restoreTabs:boolean):boolean=>{
+    const loc=(globalThis as {location?:{origin:string;search:string;pathname:string;hash:string;assign(url:string):void};history?:History}).location;if(!loc)return true;
+    const where=restoreTabs?storedPlace(stored,(()=>{try{return globalThis.localStorage;}catch{return undefined;}})()):null;
+    if(where){const destination=activationUrl(stored,loc,where);if(destination.external){loc.assign(destination.url);return false;}globalThis.history?.replaceState(globalThis.history.state,'',destination.url);}
+    else if(isPackagedOrigin(loc.origin)){const query=new URLSearchParams(loc.search);query.set('space',stored.baseUrl);globalThis.history?.replaceState(globalThis.history.state,'',loc.pathname+'?'+query+loc.hash);}
+    return true;
+  };
+  const switchSpace=async(spaceId:string):Promise<void>=>{
+    if(phase.kind!=='shell'||phase.stored.def.spaceId===spaceId)return;const target=readStoredSpace(spaceId);if(!target)return;const previous=phase.stored;setReturnSession(previous);setNotice(false);setLocked(null);setDesktopRoute(null);
+    let chosen=target;
+    if(target.def.kind==='personal'&&bridge){const native=(globalThis as {__TAURI__?:{core?:{invoke?:Invoke}}}).__TAURI__?.core?.invoke;if(native){setPhase({kind:'opening-personal'});try{const local=await ensurePersonalSpace(native);if(local.spaceId!==target.def.spaceId||local.claimUrl)throw new Error('Personal Space identity changed');chosen=await resumePersonal(local,target,open);}catch{setConnectedAddress(target.baseUrl);setNotice(true);setPhase({kind:'signin'});return;}}}
+    if(!activateAddress(chosen,true))return;setConnectedAddress(chosen.baseUrl);setPhase({kind:'shell',stored:chosen});
+  };
   const signedOut = useCallback((why?: "manual", selected?: string) => { clearStored(undefined, selected); setNotice(why !== "manual"); setPhase({ kind: "signin" }); }, []);
-  const signedIn = useCallback((stored: StoredSession) => {clearLock();setLocked(null);setEntry(false);setReturnSession(null);setPhase({ kind: "shell", stored });}, []);
-  const signedInFromDesktop = useCallback((stored: StoredSession) => {consumeBrowserInvite();clearLock();setLocked(null);setEntry(false);setReturnSession(null);setDesktopRoute((route) => consumeDesktopRoute(route)); setPhase({ kind: "shell", stored }); }, []);
+  const signedIn = useCallback((stored: StoredSession) => {activateAddress(stored,!!returnSession);clearLock();setLocked(null);setEntry(false);setReturnSession(null);setPhase({ kind: "shell", stored });}, [returnSession]);
+  const signedInFromDesktop = useCallback((stored: StoredSession) => {activateAddress(stored,true);consumeBrowserInvite();clearLock();setLocked(null);setEntry(false);setReturnSession(null);setDesktopRoute((route) => consumeDesktopRoute(route)); setPhase({ kind: "shell", stored }); }, []);
 
   const connectSpace = (address: string): void => { setConnectedAddress(address); setDesktopRoute(null); setNotice(false); };
-  const chooseEntry=async(target:EntryTarget):Promise<void>=>{if(target.kind==='claim'){(globalThis as {location?:{assign(url:string):void}}).location?.assign(target.url);return;}if(target.kind==='signin'){try{await createCapCaller({baseUrl:target.address,token:()=>null})('identity.sign_in_options',{});}catch{throw new Error('Couldn’t reach this Space. Check its address and try again.');}}clearLock();setEntry(false);setLocked(null);setConnectedAddress(target.address);setDesktopRoute(target);setNotice(false);setPhase({kind:'signin'});};
+  const chooseEntry=async(target:EntryTarget):Promise<void>=>{const page=(globalThis as {location?:Location}).location;if(page&&!isPackagedOrigin(page.origin)&&new URL(target.kind==='claim'?target.url:target.address).origin!==page.origin){page.assign(target.kind==='claim'?target.url:new URL('/home',target.address).href);return;}if(target.kind==='claim'){(globalThis as {location?:{assign(url:string):void}}).location?.assign(target.url);return;}if(target.kind==='signin'){try{await createCapCaller({baseUrl:target.address,token:()=>null})('identity.sign_in_options',{});}catch{throw new Error('Couldn’t reach this Space. Check its address and try again.');}}clearLock();setEntry(false);setLocked(null);setConnectedAddress(target.address);setDesktopRoute(target);setNotice(false);setPhase({kind:'signin'});};
   const invoke=(globalThis as {__TAURI__?:{core?:{invoke?:Invoke}}}).__TAURI__?.core?.invoke;
   const createPersonal=async():Promise<void>=>{if(!invoke)throw new Error('Desktop shell required');const local=await ensurePersonalSpace(invoke);if(local.claimUrl){const link=new URL(local.claimUrl);setPersonalClaim({address:local.address,token:link.pathname.slice('/claim/'.length),fragment:link.hash});setEntry(false);}else {const old=readStoredSpace(local.spaceId);if(old?.def.kind==='personal'&&isLoopbackUrl(old.baseUrl)){const stored=await resumePersonal(local,old,open);setConnectedAddress(local.address);signedIn(stored);}else await chooseEntry({kind:'signin',address:local.address});}};
   if(personalClaim)return <Suspense fallback={null}><LocalClaim deviceClass="desktop" token={personalClaim.token} address={personalClaim.address} fragment={personalClaim.fragment} onDone={()=>{const stored=readStored(undefined,personalClaim.address);if(stored){setConnectedAddress(personalClaim.address);setPersonalClaim(null);signedIn(stored);}}} onSignIn={()=>{const address=personalClaim.address;setPersonalClaim(null);void chooseEntry({kind:'signin',address});}}/></Suspense>;
-  if(entry)return <SpaceEntry {...(invoke?{onCreatePersonal:createPersonal}:{})} onTarget={chooseEntry} onBack={()=>{setEntry(false);setDesktopRoute(null);const previous=returnSession??readStored(undefined,baseUrl??undefined);if(previous){consumeBrowserInvite();setDesktopRoute(null);setPhase({kind:'shell',stored:previous});}setReturnSession(null);}}/>;
+  if(entry)return <SpaceEntry {...(invoke?{onCreatePersonal:createPersonal}:{})} onTarget={chooseEntry} onBack={()=>{setEntry(false);setDesktopRoute(null);const previous=returnSession??readStored(undefined,baseUrl??undefined);if(previous){activateAddress(previous,true);setConnectedAddress(previous.baseUrl);consumeBrowserInvite();setDesktopRoute(null);setPhase({kind:'shell',stored:previous});}setReturnSession(null);}}/>;
   if (loadedAddress !== baseUrl || !ready) return baseUrl ? <View style={styles.fill} /> : <ConnectSpaceWelcome onConnect={connectSpace} onGetStarted={()=>setEntry(true)} />;
   if(phase.kind==='opening-personal')return <JoinFrame><Panel><Step id="opening-personal"><Title title="Opening your Personal Space" sub="Starting the Space on this computer…"/></Step></Panel></JoinFrame>;
-  if (phase.kind === "shell") return <Suspense fallback={<View style={styles.fill} />}><SignedInShell stored={phase.stored} open={open} onSignedOut={(why) => signedOut(why, phase.stored.baseUrl)} onHub={onHub} voice={props.voice} onAddSpace={()=>{setReturnSession(phase.stored);setEntry(true);}} onLocked={(identity)=>{clearStored();setReturnSession(null);setLocked(identity);setNotice(false);setPhase({kind:'signin'});}} /></Suspense>;
+  if (phase.kind === "shell") return <Suspense fallback={<View style={styles.fill} />}><SignedInShell key={phase.stored.baseUrl+phase.stored.personId} stored={phase.stored} open={open} onSignedOut={(why) => signedOut(why, phase.stored.baseUrl)} onHub={onHub} voice={props.voice} onSwitchSpace={id=>void switchSpace(id)} onAddSpace={()=>{setReturnSession(phase.stored);setEntry(true);}} onLocked={(identity)=>{clearStored();setReturnSession(null);setLocked(identity);setNotice(false);setPhase({kind:'signin'});}} /></Suspense>;
   if (desktopRoute?.kind === "pair") return <DesktopPairScreen key={`${desktopRoute.address}:${desktopRoute.code}`} route={desktopRoute} open={open} onSignedIn={signedInFromDesktop} />;
   if (desktopRoute?.kind === "join") return <DesktopJoinScreen key={`${desktopRoute.address}:${desktopRoute.code}`} route={desktopRoute} open={open} onSignedIn={signedInFromDesktop} onBack={()=>setEntry(true)} deviceClass={bridge?"desktop":"web"} />;
   const activeAddress = desktopRoute?.address ?? connectedAddress ?? locked?.address ?? baseUrl;
   if (!activeAddress) return <ConnectSpaceWelcome onConnect={connectSpace} onGetStarted={()=>setEntry(true)} />;
-  return <SignInScreen baseUrl={activeAddress} open={open} onSignedIn={signedIn} notice={notice} onBack={()=>setEntry(true)} {...(locked?{unlock:true}:{})} />;
+  return <SignInScreen baseUrl={activeAddress} open={open} onSignedIn={signedIn} notice={notice} onBack={()=>{if(returnSession){activateAddress(returnSession,true);setConnectedAddress(returnSession.baseUrl);setPhase({kind:'shell',stored:returnSession});setReturnSession(null);}else setEntry(true);}} {...(locked?{unlock:true}:{})} />;
 }
 
 const styles = StyleSheet.create({ fill: { flex: 1, backgroundColor: "var(--win)" as string } });

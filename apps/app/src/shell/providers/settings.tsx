@@ -16,7 +16,7 @@ import type { ShellRuntime } from "./runtime.tsx";
 export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["manageSecurity"]): SettingsData {
   return {
     screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name }, space: { id: rt.space.id, name: rt.space.name },
-    spaces: [{ id: rt.space.id, name: rt.space.name, addr: "", kind: rt.space.kind, role: "", needsYou: 0, current: true }],
+    spaces: rt.knownSpaces?.map(space=>({id:space.spaceId,name:space.name,addr:space.address,kind:space.kind,role:space.role,needsYou:space.needsYou?1:0,current:space.spaceId===rt.space.id}))??[{ id: rt.space.id, name: rt.space.name, addr: "", kind: rt.space.kind, role: "", needsYou: 0, current: true }],
     name: nameOf(rt),
     sessionImporter: rt.space.kind === "personal" ? desktopSessionImporter() : undefined,
     async continueSession(conversationId) {

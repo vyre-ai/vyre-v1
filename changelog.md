@@ -6,6 +6,7 @@
 
 - Prevent a device session from replacing established account identity or recovery keys through generic key uploads. Preserve existing Space-key epoch wraps, reject duplicates and reserve password/recovery/reset replacement for their proof-verified flows.
 - Refuse partial template-file overwrites, link full folder management to Files, wait for Computer host health before provisioning, and register the grant controller test with the TSX runner used by CI.
+- Connect the production Space switcher to validated saved sessions. Restore each Space’s own identity, Kit, skin and tabs, close the old runtime, retain unrelated sessions after sign-out, preserve global Lock, and navigate web origins without forwarding credentials.
 - Close pending live-socket handshakes immediately when leaving a Space, and transfer a connected WebSocket’s close ownership from the completed dial to its transport. Verify stopped races cannot reopen after late hello replies.
 - Apply restricted Records read rate limits before row scans, charge indexed fallbacks once, and preserve only the trusted host’s pre-authorized collection reads. Add all verified integration lifecycle browsers to release evidence.
 - Wire the complete Connector/Connection controllers and typed Webhook object lifecycle into Console navigation. Verify webhook payload conditions, one-time signing-secret rotation, disable/enable, failed test/replay outcomes, reviewed deletion and real Graphite/phone layouts against a production export.
