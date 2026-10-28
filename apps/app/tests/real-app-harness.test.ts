@@ -125,9 +125,9 @@ export async function bootSpace(): Promise<Space> {
 }
 
 /** A fresh install (ruling 71): an empty data directory. The host makes the Space and prints a one-time claim link; the owner becomes the owner by claiming it, as a person does. */
-export async function bootFreshSpace(): Promise<Space> {
+export async function bootFreshSpace(kind?:"personal"): Promise<Space> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-real-app-fresh-"));
-  const d = await startDaemon(dir, ["--space", "spc_fresh", "--space-name", "Fresh Co"]);
+  const d = await startDaemon(dir, ["--space", "spc_fresh", "--space-name", kind==="personal"?"Personal":"Fresh Co", ...(kind?["--space-kind",kind]:[])]);
   return { url: d.url, token: ADMIN_TOKEN, space: "spc_fresh", dir, stop: stopper(d.child), claim: d.claim };
 }
 

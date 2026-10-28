@@ -168,6 +168,8 @@ function sealKeyFile(file: string): string {
 }
 
 export interface DaemonOptions {
+  /** Lets the process entry resolve after an authenticated HTTP shutdown as well as a signal. */
+  onStopped?:()=>void;
   /** GitHub sign-in (default: VYRE_GH_OAUTH_CLIENT_ID and VYRE_GH_OAUTH_CLIENT_SECRET from the environment; null: not set up) */
   githubOAuth?: GithubOAuth | null;
   config: DaemonConfig;
@@ -1191,6 +1193,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     sink.log({ space: space ?? "-", level: 20, msg: "daemon.stopping", place: "boot" });
     for (const c of closers.reverse()) await Promise.resolve(c()).catch(() => {});
     clearInfo(paths);
+    o.onStopped?.();
   };
   requestStop = () => { void stop(); };
 

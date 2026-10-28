@@ -38,6 +38,7 @@ impl LinkHandoff {
 
 pub struct AppState {
     pub sidecar: Shared,
+    pub personal: Shared,
     pub links: Mutex<LinkHandoff>,
     pub native: crate::native::NativeState,
 }
@@ -60,6 +61,13 @@ pub fn desktop_info(app: AppHandle, state: State<'_, AppState>) -> Info {
         arch: std::env::consts::ARCH,
         sidecar: sidecar::current(&state.sidecar),
     }
+}
+
+/// Fixed local Personal profile only. The page supplies no executable, path, endpoint or shell input.
+#[tauri::command]
+pub async fn ensure_personal_space(app: AppHandle, state: State<'_, AppState>) -> Result<crate::personal::PersonalSpace, String> {
+    let shared=state.personal.clone();
+    tauri::async_runtime::spawn_blocking(move || crate::personal::ensure(&app,&shared)).await.map_err(|_| "Personal Space startup stopped".to_string())?
 }
 
 #[tauri::command]

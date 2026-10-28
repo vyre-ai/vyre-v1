@@ -9,6 +9,7 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
@@ -46,11 +47,16 @@ impl Status {
 #[derive(Default)]
 pub struct Sidecar {
     pub status: Mutex<Option<Status>>,
+    pub personal: bool,
+    pub ensure: Mutex<()>,
+    generation: AtomicU64,
     child: Mutex<Option<CommandChild>>,
     admin_token: Mutex<Option<String>>,
     stopping: Mutex<bool>,
     starts: Mutex<Vec<Instant>>,
 }
+
+impl Sidecar { pub fn personal() -> Self { Self { personal: true, ..Default::default() } } }
 
 pub type Shared = Arc<Sidecar>;
 
@@ -105,7 +111,7 @@ pub fn healthy(url: &str) -> bool {
 /// Ask the daemon itself to close its stores and remove its coordination file.
 /// This is deliberately a loopback-only, token-authenticated control call; on
 /// Windows a process kill cannot deliver Node's graceful signal handler.
-fn graceful_stop(url: &str, token: &str) -> bool {
+pub(crate) fn graceful_stop(url: &str, token: &str) -> bool {
     let addr = match host_port(url) {
         Some(a) => a,
         None => return false,
@@ -131,11 +137,17 @@ fn runtime_dir(app: &AppHandle) -> Result<PathBuf, String> {
     app.path().resource_dir().map(|d| d.join("runtime")).map_err(|e| e.to_string())
 }
 
+/// Fixed native process specification, also exercised by the real-daemon integration test.
+pub(crate) fn launch_args(entry: PathBuf, data: &std::path::Path, personal: bool) -> Result<Vec<String>,String> {
+ let mut args=vec![entry.to_string_lossy().to_string(),"--role".into(),if personal {"space,device"}else{"device"}.into(),"--data-dir".into(),data.to_string_lossy().to_string(),"--host".into(),"127.0.0.1".into(),"--port".into(),"0".into()];
+ if personal {args.extend(["--space-kind".into(),"personal".into(),"--space-name".into(),"Personal".into(),"--space".into(),crate::personal::profile_space_id(data)?]);}Ok(args)
+}
+
 fn set(app: &AppHandle, shared: &Shared, status: Status) {
     if let Ok(mut s) = shared.status.lock() {
         *s = Some(status.clone());
     }
-    let _ = app.emit(EVENT, status);
+    let _ = app.emit(if shared.personal { "vyre://personal-sidecar" } else { EVENT }, status);
 }
 
 fn may_start(shared: &Shared) -> bool {
@@ -161,12 +173,14 @@ pub fn start(app: &AppHandle, shared: &Shared, restarts: usize) {
         set(app, shared, st);
         return;
     }
+    let generation = shared.generation.fetch_add(1, Ordering::SeqCst) + 1;
+    if let Ok(mut child) = shared.child.lock() { if let Some(old) = child.take() { let _ = old.kill(); } }
     let mut st = Status::new(if restarts == 0 { Phase::Starting } else { Phase::Restarting });
     st.restarts = restarts;
     set(app, shared, st);
 
     let data = match app.path().app_data_dir() {
-        Ok(dir) => dir.join("vyred"),
+        Ok(dir) => dir.join(if shared.personal { "personal" } else { "vyred" }),
         Err(e) => {
             let mut st = Status::new(Phase::Failed);
             st.restarts = restarts;
@@ -179,17 +193,7 @@ pub fn start(app: &AppHandle, shared: &Shared, restarts: usize) {
         let runtime = runtime_dir(app)?;
         let entry = runtime.join("host").join("src").join("daemon").join("main.ts");
         std::fs::create_dir_all(&data).map_err(|e| e.to_string())?;
-        let args = vec![
-            entry.to_string_lossy().to_string(),
-            "--role".to_string(),
-            "device".to_string(),
-            "--data-dir".to_string(),
-            data.to_string_lossy().to_string(),
-            "--host".to_string(),
-            "127.0.0.1".to_string(),
-            "--port".to_string(),
-            "0".to_string(),
-        ];
+        let args = launch_args(entry, &data, shared.personal)?;
         let cmd = app.shell().sidecar("vyred").map_err(|e| e.to_string())?.args(args).current_dir(runtime);
         cmd.spawn().map_err(|e| e.to_string())
     })();
@@ -214,6 +218,7 @@ pub fn start(app: &AppHandle, shared: &Shared, restarts: usize) {
         let mut url: Option<String> = None;
         let mut version: Option<String> = None;
         while let Some(event) = rx.recv().await {
+            if shared2.generation.load(Ordering::SeqCst) != generation { break; }
             match event {
                 CommandEvent::Stdout(bytes) => {
                     let text = String::from_utf8_lossy(&bytes).to_string();
@@ -223,7 +228,7 @@ pub fn start(app: &AppHandle, shared: &Shared, restarts: usize) {
                             url = Some(u.clone());
                             let (a, s, v) = (app2.clone(), shared2.clone(), version.clone());
                             let data = data.clone();
-                            std::thread::spawn(move || wait_ready(&a, &s, u, v, restarts, data));
+                            std::thread::spawn(move || wait_ready(&a, &s, u, v, restarts, data, generation));
                         }
                     }
                 }
@@ -241,7 +246,7 @@ pub fn start(app: &AppHandle, shared: &Shared, restarts: usize) {
                     } else {
                         eprintln!("vyred ended with {:?} (url {:?}, version {:?}), restarting", payload.code, url, version);
                         std::thread::sleep(Duration::from_millis(800));
-                        start(&app2, &shared2, restarts + 1);
+                        if shared2.generation.load(Ordering::SeqCst) == generation { start(&app2, &shared2, restarts + 1); }
                     }
                     break;
                 }
@@ -251,10 +256,12 @@ pub fn start(app: &AppHandle, shared: &Shared, restarts: usize) {
     });
 }
 
-fn wait_ready(app: &AppHandle, shared: &Shared, url: String, version: Option<String>, restarts: usize, data: PathBuf) {
+fn wait_ready(app: &AppHandle, shared: &Shared, url: String, version: Option<String>, restarts: usize, data: PathBuf, generation: u64) {
     let begun = Instant::now();
     while begun.elapsed() < HEALTH_WAIT {
+        if shared.generation.load(Ordering::SeqCst) != generation { return; }
         if healthy(&url) {
+            if shared.generation.load(Ordering::SeqCst) != generation { return; }
             if let Ok(token) = std::fs::read_to_string(data.join("admin.token")) {
                 if let Ok(mut saved) = shared.admin_token.lock() { *saved = Some(token.trim().to_string()); }
             }

@@ -1,3 +1,4 @@
+- Desktop Personal Space creation starts a separate managed local profile, preserves the device daemon, and reuses the real owner claim flow inside the packaged app. Validated local handoff and single-flight startup prevent duplicate creation and remote endpoint injection. A persisted UUID keeps the Space identity across port changes, and authenticated HTTP shutdown now resolves the daemon entry point cleanly.
 - Allow only exact packaged desktop origins to reach capability/sync/local-key APIs across origins, with validated preflight headers and unchanged bearer authentication.
 # Changelog
 

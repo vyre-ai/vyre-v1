@@ -50,6 +50,9 @@ export function readStored(store: KeyValueStore | undefined = browserStore(), ba
   return baseUrl ? all[baseUrl] ?? null : Object.values(all)[0] ?? null;
 }
 
+/** A managed Personal profile keeps its Space identity when its loopback port changes. */
+export function readStoredSpace(spaceId:string,store:KeyValueStore|undefined=browserStore()):StoredSession|null{return Object.values(sessions(store)).find(s=>s.def.spaceId===spaceId)??null;}
+
 /** The gate never carries a prior Space across an address change. */
 export function phaseForStoredAddress<T>(stored: T | null): { kind: "signin" } | { kind: "shell"; stored: T } {
   return stored ? { kind: "shell", stored } : { kind: "signin" };

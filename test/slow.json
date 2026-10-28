@@ -1,5 +1,6 @@
 [
   {"file": "apps/app/tests/auth.entry.live.test.ts", "capSec": 180, "owner": "L9", "reason": "fresh daemon and actual Chromium verify signup, device lock/reload/password unlock and invited account entry against a production export", "heavy": true},
+  {"file": "apps/app/tests/auth.personal.live.test.ts", "capSec": 180, "owner": "L9", "reason": "fresh daemon and actual Chromium verify signup, device lock/reload/password unlock and invited account entry against a production export", "heavy": true},
   {"file": "images/vyred/smoke.heavy.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots two compose roles; about 16-22 s on loaded runners, over the 20 s fast cap"},
   {"file": "modules/sites/tests/builders.heavy.test.ts", "capSec": 120, "owner": "L8", "reason": "real Docker builds of site images; over the 20 s fast cap"},
   {"file": "host/tests/daemon.boot.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots the full daemon on the seeded Space three times; 14-22 s on loaded runners"},

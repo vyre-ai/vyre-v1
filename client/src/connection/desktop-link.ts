@@ -139,3 +139,14 @@ export function shellDesktopLinkBridge(g: TauriGlobal = globalThis as never): De
   const listen = g.__TAURI__?.event?.listen;
   return invoke && listen ? makeDesktopLinkBridge(invoke, listen) : null;
 }
+
+export interface DesktopPersonalSpace {address:string;spaceId:string;claimUrl:string|null}
+/** Native command has no caller arguments; validate its fixed local profile handoff before use. */
+export async function ensurePersonalSpace(invoke:Invoke):Promise<DesktopPersonalSpace>{
+ const raw=record(await invoke('ensure_personal_space'));const address=text(raw?.['address']),spaceId=text(raw?.['spaceId']),claimUrl=nullableText(raw?.['claimUrl']);
+ if(!address||!spaceId?.startsWith('spc_')||claimUrl===undefined)throw new Error('Invalid Personal Space response');
+ let base:URL;try{base=new URL(address);}catch{throw new Error('Invalid Personal Space address');}
+ if(base.protocol!=='http:'||base.hostname!=='127.0.0.1'||!base.port||base.pathname!=='/'||base.username||base.password||base.search||base.hash)throw new Error('Invalid Personal Space address');
+ if(claimUrl!==null){let claim:URL;try{claim=new URL(claimUrl);}catch{throw new Error('Invalid Personal Space setup');}if(claim.origin!==base.origin||claim.username||claim.password||claim.search||!/^\/claim\/[A-Za-z0-9_-]{16,256}$/.test(claim.pathname)||new URLSearchParams(claim.hash.slice(1)).get('s')!==spaceId||hasControlCharacters(claimUrl))throw new Error('Invalid Personal Space setup');}
+ return{address:base.origin,spaceId,claimUrl};
+}

@@ -127,3 +127,5 @@ test("claim logic: the Space's name comes from the link fragment, decoded, and i
   assert.equal(spaceNameOf("#fp=ab12cd34&s=spc_fresh"), null);
   assert.equal(spaceNameOf("#n="), null);
 });
+
+test('Native Personal owner claim registers the desktop device class',async()=>{const{d,calls}=deps();await claimOwner(d,{...input,deviceName:'Vyre desktop',deviceClass:'desktop'});assert.equal(calls[0]!.input['deviceClass'],'desktop');});
