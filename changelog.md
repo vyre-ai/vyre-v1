@@ -12,6 +12,8 @@
 
 ## Unreleased
 
+- Match the Files folder-search backend limit and wait for a name before querying. Actual production browser17/17 now proves named grant creation, one-week expiry edit, retained backend state after reload/revocation and named Checker decisions.
+
 - Replaced Console Grants and Checker identifier inputs with authorized named resource and subject pickers. Grants supports reviewed creation, retained-bound level/expiry edits and resumable bulk revocation; Checker uses typed levels, catalogue permissions and the agent’s acting person. Added focused tests and production mutation/readback/reload coverage; production browser verification is pending the shared disk/build pause. Owner is excluded from invite role choices.
 
 - Completed the typed invite fixture used to prove policy rejection leaves invites and account state unchanged; focused semantic and runtime checks pass.
