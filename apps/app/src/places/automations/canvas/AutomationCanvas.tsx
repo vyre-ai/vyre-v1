@@ -20,17 +20,22 @@ import type { ConnectTarget } from "../connect/route.ts";
 import { AutomationConfig } from "../config/AutomationConfig.tsx";
 import { Overlay } from "../config/Overlay.tsx";
 import { PromoteSheet } from "../config/PromoteSheet.tsx";
-import { AnalyticsPanel } from "../operations/StudioViews.tsx";
+import { BUILDER_MODES, DATA_SHELF_NAME, definitionCrumb, enrollmentsPinned } from "../chrome.ts";
+import type { BuilderMode } from "../chrome.ts";
+import { AnalyticsPanel, LiveEvents } from "../operations/StudioViews.tsx";
 import { statesFromSteps, stepsFromCall } from "../runs/ledger.ts";
+import type { StepRowLite } from "../runs/ledger.ts";
+import { attemptLine, childRunLine, containerForChildren } from "../runs/lineage.ts";
 import { definitionLabel } from "../versions/cohorts.ts";
 import { CohortMigration } from "../versions/CohortMigration.tsx";
 import { AddDot, StepCard, TriggerCard } from "./Cards.tsx";
 import type { CardHandlers } from "./Cards.tsx";
+import { layoutForWidth } from "./frame.ts";
 import { Inspector } from "./Inspector.tsx";
 import { Glyph } from "./icons.tsx";
 import { CANVAS, CONFIG, useAutomationsData, useScreenQuery } from "./data.tsx";
 import {
-  addAfter, addInto, addTrigger, check, clampZoom, describeTrigger, duplicateStep, fitScale, kindOfKey, layout, moveStep, neighbour, removeStep, removeTrigger, sortedIssues, titleOfKey,
+  addAfter, addInto, addTrigger, check, clampZoom, describeTrigger, duplicateStep, fitScale, kindOfKey, layout, liveBlockerStep, moveStep, neighbour, removeStep, removeTrigger, sortedIssues, titleOfKey,
 } from "./model.ts";
 import type { CardNode, DefTrigger, Definition, Issue, RunState } from "./model.ts";
 import { Dot, IconButton, SubTabs, TextButton, pointer, webOnly } from "./parts.tsx";
@@ -138,7 +143,13 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const [saving, setSaving] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [litRun, setLitRun] = useState<{ id: string; label: string; states: Readonly<Record<string, RunState>> } | null>(null);
+  const [mode, setMode] = useState<BuilderMode>("basic");
+  const [eventsOpen, setEventsOpen] = useState(false);
+  const [bodyW, setBodyW] = useState(0);
   const shownRun = run ?? litRun;
+  const activeRuns = useScreenQuery<RunsOut>(CONFIG, "runs", { subject: { type: "automation", id: a.id }, statuses: ["queued", "running", "waiting"], scope: "subject" });
+  const pinned = enrollmentsPinned(activeRuns.status === "ready" ? activeRuns.data.runs : undefined, activeRuns.status === "ready");
+  const studioLayout = layoutForWidth(bodyW);
 
   // the server checks against the live catalogue (connections, keys); the local check answers at once and the two lists merge
   const [serverIssues, setServerIssues] = useState<Issue[]>([]);
@@ -160,7 +171,8 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
     return () => { live = false; };
   }, [data]);
   const issues = useMemo(() => sortedIssues([...check(def, a.kind), ...serverIssues]), [def, a.kind, serverIssues]);
-  const lay = useMemo(() => layout(def, { issues, ...(shownRun ? { run: shownRun.states } : {}), keyName: (id) => data.keys.find((k) => k.id === id)?.name ?? data.name(id) }), [def, issues, shownRun, data]);
+  const tested = useMemo(() => new Set(Object.keys(samples)), [samples]);
+  const lay = useMemo(() => layout(def, { issues, tested, ...(shownRun ? { run: shownRun.states } : {}), keyName: (id) => data.keys.find((k) => k.id === id)?.name ?? data.name(id) }), [def, issues, shownRun, data, tested]);
   const errors = issues.filter((i) => i.severity === "error");
   const agentOf = (n: CardNode): string | undefined => (n.node?.ai?.agentId ? data.name(n.node.ai.agentId) : n.node?.ai ? "Assistant" : undefined);
 
@@ -315,8 +327,19 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
     try { await data.call("automations.test", { automationId: a.id, sample: true }); flash("Test run started with sample data"); }
     catch (e) { flash(e instanceof Error ? e.message : "The test did not start."); }
   };
+  const blockerId = liveBlockerStep(errors);
+  const goToBlocker = (): void => {
+    if (!blockerId) return;
+    if (blockerId === "trigger") openPanel("trigger", 0);
+    else openPanel(blockerId);
+    focusCard(blockerId);
+  };
   const setEnabled = async (enabled: boolean): Promise<void> => {
-    if (enabled && errors.length > 0) { flash(`Fix ${errors.length === 1 ? "the problem" : `the ${errors.length} problems`} before turning this on.`); return; }
+    if (enabled && errors.length > 0) {
+      goToBlocker();
+      flash(`Fix ${errors.length === 1 ? "the problem" : `the ${errors.length} problems`} before turning this on.`);
+      return;
+    }
     try { await data.call("automations.set_enabled", { automationId: a.id, enabled }); } catch (e) { flash(e instanceof Error ? e.message : "That did not change."); }
   };
   const rename = async (name: string): Promise<void> => {
@@ -368,12 +391,35 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   for (const card of lay.cards) {
     if (card.type !== "step") continue;
     stepCards.push(<StepCard key={card.id} card={card} selected={sel?.id === card.id} hovered={hover === card.id} handlers={handlers} agent={agentOf(card)} onHover={setHover} />);
-    if ((hover === card.id || sel?.id === card.id) && !(card.node && kindOfKey(card.node.key) === "stop")) {
+    if (!(card.node && kindOfKey(card.node.key) === "stop")) {
       addDots.push(<AddDot key={`add-${card.id}`} x={card.x + card.w / 2} y={card.y + card.h + 6} label={`Add a step after ${card.title}`} onPress={(px, py) => openAdd(card.id, px, py)} />);
     }
   }
   const inspect = panel && sel !== null && (selected !== null || trigSel);
+  const openShelf = (): void => {
+    const id = sel && sel.id !== "trigger" ? sel.id : (def.nodes[0]?.id ?? "trigger");
+    const trigger = id === "trigger" ? 0 : null;
+    openPanel(id, trigger);
+    setSections((cur) => ({ ...cur, [tabKey(id, trigger)]: "data" }));
+  };
   const stepSchema = selected && catalog.phase === "ready" ? catalog.steps.find((step) => step.key === selected.key)?.input : undefined;
+  const stack = studioLayout === "compact";
+  const inspectorPane = inspect && activeStep ? (
+    <Inspector
+      embedded={!stack}
+      layout={studioLayout}
+      mode={mode}
+      onMode={setMode}
+      section={sections[activeStep] ?? "configure"}
+      onSection={(next) => setSections((cur) => ({ ...cur, [activeStep]: next }))}
+      samples={samples}
+      version={a.version}
+      onStoreSample={(id, output) => setSamples((cur) => ({ ...cur, [id]: output }))}
+      def={def} node={selected} trigger={trigSel && sel?.trigger !== null && sel?.trigger !== undefined ? def.triggers[sel.trigger] ?? null : null} triggerIndex={trigSel ? sel?.trigger ?? null : null}
+      issues={issues} keys={data.keys} {...(data.keysStatus ? { keysStatus: data.keysStatus } : {})} {...(data.accounts ? { accounts: data.accounts } : {})} {...(data.lastPicks ? { lastPicks: data.lastPicks } : {})} {...(stepSchema !== undefined ? { inputSchema: stepSchema } : {})} onChange={edit} onClose={() => select(null)} onDelete={() => { if (sel && sel.id !== "trigger") { edit(removeStep(def, sel.id)); select(null); } }}
+      onAsk={(bundle) => data.nav.ask(a.id, bundle)}
+    />
+  ) : null;
   // Runs tab: the step graph sits beside the run list, read only, at the size that fits its column, lit by the run being shown
   const still: CardHandlers = { onSelect: () => undefined, onOpen: () => undefined, onMenu: () => undefined, onAdd: () => undefined, onKey: () => undefined };
   const graphCards: ReactElement[] = [];
@@ -404,20 +450,31 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
               <Text accessibilityRole="header" aria-level={1} numberOfLines={1} style={s.title}>{a.name}</Text>
             </Pressable>
           )}
+          <Text testID="definition-version" style={s.kindText}>{definitionLabel(a, dirty)}</Text>
         </View>
         <View style={s.kind} testID="kind"><Glyph name={a.kind === "space" ? "users" : "key"} size={13} color="var(--ink-3)" /><Text style={s.kindText}>{a.kind === "space" ? "Space" : "Personal"}</Text></View>
-        <Text testID="definition-version" style={s.kindText}>{definitionLabel(a)}</Text>
         {needs ? (<><View style={s.sep} /><View style={s.needs}><Dot tone="warn" size={6} /><Text numberOfLines={1} style={s.needsText}>{needs.replace(/^needs/i, "Needs")}</Text></View></>) : null}
         <View style={{ flex: 1 }} />
+        <View accessibilityLabel="Builder mode" testID="builder-mode" style={s.seg}>
+          {BUILDER_MODES.map((label) => {
+            const on = (label === "Advanced") === (mode === "advanced");
+            return (
+              <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: on }} testID={label === "Basic" ? "mode-basic" : "mode-advanced"} onPress={() => setMode(label === "Advanced" ? "advanced" : "basic")} style={[s.segBtn, on && s.segOn]}>
+                <Text style={[s.segText, on && s.segTextOn]}>{label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
         {connectTarget ? <TextButton label={`Connect ${connectTarget.service}`} icon="key" testID="connect" onPress={() => data.nav.connect(connectTarget)} /> : null}
         {!connectTarget && blockedIssue?.setup.blocked ? <Text testID="blocked-step" style={s.needsText}>{blockedIssue.setup.blocked}</Text> : null}
+        <TextButton label="Events" icon="bolt" testID="events" onPress={() => setEventsOpen(true)} />
+        <TextButton label="Test" icon="flask" testID="test-run" onPress={() => void test()} />
         {dirty ? <TextButton label={saving ? "Saving" : "Save"} primary disabled={saving || errors.length > 0} testID="save" onPress={() => void save()} /> : null}
         <Pressable accessibilityRole="button" accessibilityLabel={`Status: ${statusLabel}`} testID="status" onPress={openStatus} style={[s.status, pointer]}>
           <Dot tone={a.status === "on" ? "ok" : a.status === "paused" ? "warn" : "muted"} />
           <Text style={s.statusText}>{statusLabel}</Text>
           <Glyph name="chevD" size={11} color="var(--ink-3)" />
         </Pressable>
-        <TextButton label="Test run" icon="flask" testID="test-run" onPress={() => void test()} />
         <TextButton label="Ask" icon="sparkle" testID="ask" onPress={() => data.nav.ask(a.id)} />
         <IconButton icon="panel" label={paneOpen ? "Hide the side pane" : "Show the side pane"} on={paneOpen} testID="toggle-pane" onPress={onTogglePane} />
         <IconButton icon="more" label="More" testID="more" onPress={openMore} />
@@ -429,13 +486,21 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
             <View style={s.problems} testID="problems" accessibilityRole="alert">
               <Glyph name="warn" size={13} color="var(--danger)" />
               <Text style={s.problemsText} numberOfLines={1}>{`${errors.length} ${errors.length === 1 ? "thing" : "things"} to fix before this can run`}</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel="Show the first problem" testID="problem-go" onPress={() => { const i = errors[0]; if (i) { const id = i.nodeId ?? "trigger"; select(id); focusCard(id); } }} style={pointer}>
+              <Pressable accessibilityRole="button" accessibilityLabel={blockerId ? `Go to ${blockerId}. This step blocks going live.` : "Show the first problem"} testID="problem-go" onPress={goToBlocker} style={pointer}>
                 <Text style={s.problemsLink}>{errors[0]?.message ?? ""}</Text>
               </Pressable>
               {errors[0] ? <AskVyre bundle={askBundle(errors[0])} onOpen={(safe) => data.nav.ask(a.id, safe)} /> : null}
             </View>
           ) : null}
-          <View style={s.body}>
+          <View testID="tool-row" style={s.tool}>
+            <Text testID="definition-crumb" style={s.toolText}>{definitionCrumb({ status: a.status, dirty, pinned })}</Text>
+            <View style={{ flex: 1 }} />
+            <Pressable accessibilityRole="button" accessibilityLabel={DATA_SHELF_NAME} testID="open-data-shelf" onPress={openShelf} style={[s.shelfBtn, pointer]}>
+              <Glyph name="record" size={14} color="var(--ink-2)" />
+              <Text style={s.toolText}>{DATA_SHELF_NAME}</Text>
+            </Pressable>
+          </View>
+          <View style={[s.body, stack && s.stack]} onLayout={(e: LayoutChangeEvent) => setBodyW(e.nativeEvent.layout.width)}>
             <View style={s.surfaceWrap} onLayout={onSurface}>
               <Surface lay={lay} zoom={zoom} view={view}>
                 <TriggerCard
@@ -462,7 +527,19 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
               ) : null}
               {note ? <View style={s.toast} accessibilityLiveRegion="polite" testID="note"><Text style={s.toastText}>{note}</Text></View> : null}
             </View>
-            {inspect && activeStep ? (
+            {stack && inspectorPane ? (
+              <View testID="inspector-stack" style={s.inspectorStack}>
+                <View style={s.compactTabs}>
+                  {stepTabs.map((item) => (
+                    <Pressable key={item.key} accessibilityRole="tab" accessibilityState={{ selected: item.key === activeStep }} onPress={() => focusStepTab(item.key)} style={pointer}>
+                      <Text style={s.toolText}>{item.title}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                {inspectorPane}
+              </View>
+            ) : null}
+            {!stack && inspect && activeStep ? (
               <SidePane
                 paneKey={`automation-steps:${a.id}`}
                 toggle={{ open: true, onPress: () => select(null) }}
@@ -476,17 +553,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
                   if (activeStep === key) focusStepTab(next[next.length - 1]!.key);
                 }}
               >
-                <Inspector
-                  embedded
-                  section={sections[activeStep] ?? "configure"}
-                  onSection={(next) => setSections((cur) => ({ ...cur, [activeStep]: next }))}
-                  samples={samples}
-                  version={a.version}
-                  onStoreSample={(id, output) => setSamples((cur) => ({ ...cur, [id]: output }))}
-                  def={def} node={selected} trigger={trigSel && sel?.trigger !== null && sel?.trigger !== undefined ? def.triggers[sel.trigger] ?? null : null} triggerIndex={trigSel ? sel?.trigger ?? null : null}
-                  issues={issues} keys={data.keys} {...(data.keysStatus ? { keysStatus: data.keysStatus } : {})} {...(data.accounts ? { accounts: data.accounts } : {})} {...(data.lastPicks ? { lastPicks: data.lastPicks } : {})} {...(stepSchema !== undefined ? { inputSchema: stepSchema } : {})} onChange={edit} onClose={() => select(null)} onDelete={() => { if (sel && sel.id !== "trigger") { edit(removeStep(def, sel.id)); select(null); } }}
-                  onAsk={(bundle) => data.nav.ask(a.id, bundle)}
-                />
+                {inspectorPane}
               </SidePane>
             ) : null}
           </View>
@@ -495,7 +562,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
       {tab === "runs" ? (
         tabBodies.runs ? (
           <View style={s.runsBody}><View style={{ flex: 1, minWidth: 0 }}>{tabBodies.runs}</View>{runGraph}</View>
-        ) : <View style={s.pageBody}><RunsList automationId={a.id} onLight={(r) => { setLitRun(r); setTab("steps"); }} /></View>
+        ) : <View style={s.pageBody}><RunsList automationId={a.id} nodes={def.nodes} onLight={(r) => { setLitRun(r); setTab("steps"); }} onAsk={(message) => data.nav.ask(a.id, { resource: a.id, message })} /></View>
       ) : null}
       {tab === "analytics" ? <AnalyticsPanel automationId={a.id} /> : null}
       {tab === "versions" ? <View style={s.pageBody}>{tabBodies.versions ?? <VersionsList versions={versions} current={a.version} onRestore={(id) => void data.call("automations.restore_version", { automationId: a.id, versionId: id }).then(() => flash("Restored as a new version")).catch((x: unknown) => flash(x instanceof Error ? x.message : "That did not restore"))} />}<CohortMigration automationId={a.id} currentVersion={a.version} /></View> : null}
@@ -503,6 +570,11 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
       {promoteOpen ? (
         <Overlay label="Promote to Space" onClose={() => setPromoteOpen(false)} testID="promote-overlay">
           <PromoteSheet automation={a} onClose={() => setPromoteOpen(false)} />
+        </Overlay>
+      ) : null}
+      {eventsOpen ? (
+        <Overlay label="Live Event Explorer" onClose={() => setEventsOpen(false)} testID="events-overlay">
+          <View style={s.eventsSheet}><LiveEvents /></View>
         </Overlay>
       ) : null}
       {element}
@@ -550,34 +622,63 @@ function Surface({ lay, zoom, view, children }: { lay: ReturnType<typeof layout>
 }
 const webTransformOrigin = { transformOrigin: "0 0" } as unknown as Record<string, never>;
 
-function RunsList({ automationId, onLight }: { automationId: string; onLight(r: { id: string; label: string; states: Record<string, RunState> }): void }): ReactElement {
+function RunsList({ automationId, nodes, onLight, onAsk }: {
+  automationId: string;
+  nodes: readonly { id: string; key: string }[];
+  onLight(r: { id: string; label: string; states: Record<string, RunState> }): void;
+  onAsk(message: string): void;
+}): ReactElement {
   const q = useScreenQuery<RunsOut>(CONFIG, "runs", { subject: { type: "automation", id: automationId }, scope: "subject" });
   const data = useAutomationsData();
+  const [picked, setPicked] = useState<string | null>(null);
+  const [steps, setSteps] = useState<StepRowLite[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   if (q.status !== "ready") return <Text style={s.dim}>{q.error?.message ?? "Loading"}</Text>;
   if (q.data.runs.length === 0) return <Text style={s.dim}>No runs yet. Test run sends sample data through it.</Text>;
-  const light = (r: RunsOut["runs"][number]): void => {
+  const open = (r: RunsOut["runs"][number]): void => {
+    setPicked(r.id);
+    setSteps(null);
     setBusy(r.id);
     setErr(null);
     void data.call("runs.steps", { runId: r.id }).then((out) => {
-      const steps = stepsFromCall(out);
-      if (!steps) { setErr("The step log did not return steps."); return; }
-      onLight({ id: r.id, label: r.summary ?? "run", states: statesFromSteps(steps) });
+      const next = stepsFromCall(out);
+      if (!next) { setErr("The step log did not return steps."); return; }
+      setSteps(next);
     }).catch((e: unknown) => setErr(e instanceof Error ? e.message : "The step log did not load.")).finally(() => setBusy(null));
   };
+  const selected = q.data.runs.find((r) => r.id === picked) ?? null;
+  const container = containerForChildren(nodes);
+  const children = selected ? q.data.runs.filter((r) => r.parentRun === selected.id) : [];
   return (
-    <View testID="runs-list">
-      {err ? <Text style={s.dim}>{err}</Text> : null}
-      {q.data.runs.map((r) => (
-        <Row
-          key={r.id} id={`run-${r.id}`} title={r.summary ?? r.name ?? "Run"} note={`${r.status === "failed" ? "Failed" : r.status === "succeeded" ? "Done" : r.status === "waiting" ? "Waiting" : "Running"} · ${new Date(r.startedAt).toISOString().slice(0, 10)}${r.definitionVersion ? ` · v${r.definitionVersion}` : ""}${busy === r.id ? " · loading steps" : ""}`}
-          leading={<Dot tone={r.status === "failed" ? "danger" : r.status === "succeeded" ? "ok" : "warn"} />}
-          onPress={() => light(r)}
-        />
-      ))}
-      <View style={{ height: 8 }} />
-      <TextButton label="Open run history" onPress={() => data.nav.openRun(q.data.runs[0]!.id)} />
+    <View testID="runs-list" style={s.runsSplit}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        {err ? <Text style={s.dim}>{err}</Text> : null}
+        {q.data.runs.map((r) => (
+          <Row
+            key={r.id} id={`run-${r.id}`} title={r.summary ?? r.name ?? "Run"} note={`${r.status === "failed" ? "Failed" : r.status === "succeeded" ? "Done" : r.status === "waiting" ? "Waiting" : "Running"} · ${new Date(r.startedAt).toISOString().slice(0, 10)}${r.definitionVersion ? ` · v${r.definitionVersion}` : ""}${busy === r.id ? " · loading steps" : ""}`}
+            leading={<Dot tone={r.status === "failed" ? "danger" : r.status === "succeeded" ? "ok" : "warn"} />}
+            onPress={() => open(r)}
+          />
+        ))}
+        <View style={{ height: 8 }} />
+        <TextButton label="Open run history" onPress={() => data.nav.openRun(q.data.runs[0]!.id)} />
+      </View>
+      {selected ? (
+        <View testID="run-detail" style={s.runDetail}>
+          <Text style={s.kindText}>{selected.summary ?? selected.id}</Text>
+          {selected.parentRun ? <Text style={s.dim}>{`Parent ${selected.parentRun}`}</Text> : null}
+          {steps?.map((step, index) => (
+            <View key={`${step.step}-${index}`}>
+              <Text testID={`run-attempt-${step.step}`} style={s.dim}>{attemptLine(step)}</Text>
+              {container === step.step ? children.map((child) => <Text key={child.id} testID={`run-child-${child.id}`} style={s.dim}>{childRunLine({ runId: child.id })}</Text>) : null}
+            </View>
+          ))}
+          {container === null ? children.map((child) => <Text key={child.id} testID={`run-child-${child.id}`} style={s.dim}>{childRunLine({ runId: child.id })}</Text>) : null}
+          {selected.status === "failed" ? <AskVyre bundle={{ resource: automationId, message: selected.summary ?? "This run failed" }} onOpen={() => onAsk(selected.summary ?? "This run failed")} /> : null}
+          <TextButton label="Show on the canvas" testID="show-on-canvas" disabled={!steps} onPress={() => { if (steps) onLight({ id: selected.id, label: selected.summary ?? "run", states: statesFromSteps(steps) }); }} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -615,6 +716,20 @@ const s = StyleSheet.create({
   problemsText: { fontSize: 12.5, color: "var(--ink)" as string },
   problemsLink: { fontSize: 12.5, color: "var(--accent)" as string },
   body: { flex: 1, flexDirection: "row", minHeight: 0 },
+  stack: { flexDirection: "column" },
+  tool: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, minHeight: 36, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  toolText: { fontSize: 12.5, color: "var(--ink-2)" as string },
+  shelfBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 7, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
+  seg: { flexDirection: "row", borderRadius: 8, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--sunk)" as string, padding: 2 },
+  segBtn: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  segOn: { backgroundColor: "var(--raised)" as string },
+  segText: { fontSize: 12, color: "var(--ink-3)" as string },
+  segTextOn: { color: "var(--ink)" as string, fontWeight: "600" },
+  inspectorStack: { width: "100%" as unknown as number, maxHeight: "46%" as unknown as number, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  compactTabs: { flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingVertical: 6 },
+  eventsSheet: { width: 520, maxWidth: "100%" as unknown as number, maxHeight: 560, borderRadius: 12, overflow: "hidden", backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
+  runsSplit: { flexDirection: "row", gap: 16, alignItems: "flex-start" },
+  runDetail: { flex: 1, minWidth: 0, gap: 6, padding: 8, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
   surfaceWrap: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string, ...({ backgroundImage: "radial-gradient(var(--line) 1px, transparent 1px)", backgroundSize: "22px 22px" } as object) },
   scroll: { flex: 1 },
   zoom: { position: "absolute", left: 14, bottom: 14, height: 34, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 6, borderRadius: 10, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string },

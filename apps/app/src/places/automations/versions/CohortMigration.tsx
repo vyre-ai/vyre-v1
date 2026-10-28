@@ -4,8 +4,8 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useAutomationsData } from "../canvas/data.tsx";
 import { stepsFromCall } from "../runs/ledger.ts";
-import { MIGRATION_DISABLED, cohortPreview, cohortsOf, safeRunIds } from "./cohorts.ts";
-import type { CohortRun, CohortStep } from "./cohorts.ts";
+import { MIGRATION_DISABLED, cohortGroupLabel, cohortPreview, cohortsOf, previewGroups, safeRunIds } from "./cohorts.ts";
+import type { CohortRun, CohortStep, PreviewGroup } from "./cohorts.ts";
 
 export function CohortMigration({ automationId, currentVersion }: { automationId: string; currentVersion: number }): ReactElement {
   const data = useAutomationsData();
@@ -15,6 +15,7 @@ export function CohortMigration({ automationId, currentVersion }: { automationId
   const [runs, setRuns] = useState<CohortRun[]>([]);
   const [steps, setSteps] = useState<Record<string, CohortStep[]>>({});
   const [safeIds, setSafeIds] = useState<string[]>([]);
+  const [groups, setGroups] = useState<PreviewGroup[]>([]);
   const [previewNote, setPreviewNote] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -48,9 +49,12 @@ export function CohortMigration({ automationId, currentVersion }: { automationId
           }
         }
         let nextSafe: string[] = [];
+        let nextGroups: PreviewGroup[] = [];
         let note: string | null = null;
         try {
-          nextSafe = safeRunIds(await data.call("automations.migration_preview", { automationId, toVersion: currentVersion }));
+          const preview = await data.call("automations.migration_preview", { automationId, toVersion: currentVersion });
+          nextSafe = safeRunIds(preview);
+          nextGroups = previewGroups(preview);
         } catch (e) {
           note = e instanceof Error ? e.message : "The migration preview did not load.";
         }
@@ -58,6 +62,7 @@ export function CohortMigration({ automationId, currentVersion }: { automationId
         setRuns(cohortRuns);
         setSteps(byRun);
         setSafeIds(nextSafe);
+        setGroups(nextGroups);
         setPreviewNote(note);
         setPhase("ready");
       } catch (e) {
@@ -92,13 +97,14 @@ export function CohortMigration({ automationId, currentVersion }: { automationId
       <Text style={c.head}>Pinned versions</Text>
       {phase === "loading" ? <Text style={c.dim}>Loading pinned runs</Text> : null}
       {phase === "error" ? <Text style={c.err}>{message}</Text> : null}
-      {phase === "ready" && cohorts.length === 0 ? <Text style={c.dim}>No runs are pinned to a definition version yet.</Text> : null}
-      {cohorts.map((cohort) => (
+      {phase === "ready" && cohorts.length === 0 && groups.length === 0 ? <Text style={c.dim}>No runs are pinned to a definition version yet.</Text> : null}
+      {phase === "ready" && groups.length > 0 ? <CohortGroups currentVersion={currentVersion} groups={groups} /> : null}
+      {phase === "ready" && groups.length === 0 ? cohorts.map((cohort) => (
         <View key={cohort.version} style={c.group}>
           <Text style={c.ver}>{cohort.current ? `Version ${cohort.version}, current definition` : `Version ${cohort.version}, pinned`}</Text>
           {cohort.runs.map((member) => <Text key={member.id} style={c.dim}>{`${member.summary ?? member.id}. ${cohortPreview(member)}`}</Text>)}
         </View>
-      ))}
+      )) : null}
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ disabled: !canApply || busy }}
@@ -117,6 +123,20 @@ export function CohortMigration({ automationId, currentVersion }: { automationId
       ) : null}
       {!canApply && phase === "ready" ? <Text style={previewNote ? c.err : c.dim}>{previewNote ?? MIGRATION_DISABLED}</Text> : null}
       {applyError ? <Text style={c.err}>{applyError}</Text> : null}
+    </View>
+  );
+}
+
+export function CohortGroups({ currentVersion, groups }: { currentVersion: number; groups: readonly PreviewGroup[] }): ReactElement {
+  return (
+    <View testID="cohort-groups" style={c.wrap}>
+      {groups.map((group, index) => (
+        <View key={`${group.disposition}-${group.definitionVersion}-${index}`} testID={`cohort-${group.disposition}-${group.definitionVersion}`} style={c.group}>
+          <Text style={c.ver}>{cohortGroupLabel(currentVersion, group)}</Text>
+          {group.runIds.map((id) => <Text key={id} style={c.dim}>{id}</Text>)}
+          {group.reason ? <Text style={c.dim}>{group.reason}</Text> : null}
+        </View>
+      ))}
     </View>
   );
 }

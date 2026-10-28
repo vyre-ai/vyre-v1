@@ -5,6 +5,7 @@ export interface StepRowLite {
   step: string;
   state: string;
   attempt?: number;
+  branch?: string;
   error?: { code?: string; message?: string };
 }
 
@@ -44,6 +45,7 @@ export function stepsFromCall(out: unknown): StepRowLite[] | null {
       step: rec["step"],
       state: rec["state"],
       ...(typeof rec["attempt"] === "number" ? { attempt: rec["attempt"] } : {}),
+      ...(typeof rec["branch"] === "string" && rec["branch"].length > 0 ? { branch: rec["branch"] } : {}),
       ...(error ? { error: { ...(typeof error.code === "string" ? { code: error.code } : {}), ...(typeof error.message === "string" ? { message: error.message } : {}) } } : {}),
     });
   }

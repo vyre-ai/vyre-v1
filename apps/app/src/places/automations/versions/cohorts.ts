@@ -1,4 +1,5 @@
 // Active runs stay on the definition version they started with until a reviewed Apply moves a safe group.
+import { DRAFT_HAS_EDITS } from "../chrome.ts";
 export interface CohortRun {
   id: string;
   definitionVersion?: number;
@@ -53,18 +54,56 @@ export function cohortPreview(member: CohortMember): string {
 
 export interface VersionedDefinition {
   version: number;
+  status?: string;
   draftVersion?: number;
   liveVersion?: number;
 }
 
-/** The API has no draft field unless the record actually carries one. No invented edit count. */
-export function definitionLabel(record: VersionedDefinition): string {
-  const live = typeof record.liveVersion === "number" ? record.liveVersion : record.version;
-  if (typeof record.draftVersion === "number" && record.draftVersion !== live) return `Live v${live} · Draft differs`;
-  return `Current definition v${live}`;
+/** Live only when the record has a live version or is on. Draft edits only when the draft differs or the canvas is dirty. No edit count. */
+export function definitionLabel(record: VersionedDefinition, dirty = false): string {
+  const liveKnown = typeof record.liveVersion === "number";
+  const live = liveKnown ? record.liveVersion : record.version;
+  const showLive = liveKnown || record.status === "on";
+  const head = showLive ? `Live v${live}` : `v${record.version}`;
+  const draftDiffers = typeof record.draftVersion === "number" && record.draftVersion !== live;
+  if (!draftDiffers && !dirty) return head;
+  return `${head} · ${DRAFT_HAS_EDITS}`;
 }
 
 export const MIGRATION_DISABLED = "No safe group to move. Ambiguous runs stay on the version they started on.";
+
+export interface PreviewGroup {
+  disposition: "safe" | "ambiguous" | "inactive";
+  definitionVersion: number;
+  runIds: string[];
+  reason: string;
+}
+
+/** Groups the migration preview already returned. Safe can move. Ambiguous and finished stay pinned. */
+export function previewGroups(preview: unknown): PreviewGroup[] {
+  if (!preview || typeof preview !== "object" || !Array.isArray((preview as { cohorts?: unknown }).cohorts)) return [];
+  const out: PreviewGroup[] = [];
+  for (const cohort of (preview as { cohorts: unknown[] }).cohorts) {
+    if (!cohort || typeof cohort !== "object") continue;
+    const row = cohort as { disposition?: unknown; definitionVersion?: unknown; runIds?: unknown; reason?: unknown };
+    if (row.disposition !== "safe" && row.disposition !== "ambiguous" && row.disposition !== "inactive") continue;
+    if (typeof row.definitionVersion !== "number" || !Array.isArray(row.runIds)) continue;
+    out.push({
+      disposition: row.disposition,
+      definitionVersion: row.definitionVersion,
+      runIds: row.runIds.filter((id): id is string => typeof id === "string"),
+      reason: typeof row.reason === "string" ? row.reason : "",
+    });
+  }
+  return out;
+}
+
+export function cohortGroupLabel(currentVersion: number, group: PreviewGroup): string {
+  const where = group.definitionVersion === currentVersion ? `version ${group.definitionVersion}, current definition` : `version ${group.definitionVersion}, pinned`;
+  if (group.disposition === "safe") return `Safe group, ${where}`;
+  if (group.disposition === "ambiguous") return `Ambiguous group, ${where}`;
+  return `Finished group, ${where}`;
+}
 
 /** Run ids the server marked safe. Anything else stays pinned. */
 export function safeRunIds(preview: unknown): string[] {

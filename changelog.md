@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Automations: the studio chrome follows the prototype. The nav is Automations, Needs you, All runs, Live Event Explorer, Analytics, Dependencies, and Packages. Analytics opens the Space screen. The builder has Basic and Advanced, and the inspector tabs are Configure, Data, and Test. Empty screens stay empty. A browser pass was not run.
 - Automations: a killed host process resumes a waiting Run, the same loop child, a schedule catch-up, and each inner node of one graph once. A second recovery does not send again or open a second Needs you task. A browser pass was not run.
 - Automations: tests cover a loop of zero, one, and 1000 items, an any-join that stops the unfinished lane, and a safe cohort move that does not send a finished message again. A step test result omits a secret that was only in the input. Stopping a parent does not yet stop a waiting child. A pasted secret is still stored on a draft and in the run log.
 - Automations: the seven acceptance flows run on the host databases in this process. A revoked Google account fails the step with provider.auth_failed, Ask Vyre keeps the connection id and drops the token, and a retry uses that same connection id. A new host object on the same databases resumes a waiting Run once.

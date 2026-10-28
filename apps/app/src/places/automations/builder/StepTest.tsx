@@ -4,21 +4,24 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { AskVyre } from "../ask/AskVyre.tsx";
 import type { AskBundle } from "../ask/bundle.ts";
+import { NO_OUTWARD_EFFECT } from "../chrome.ts";
 import { fixtureNote } from "./fields.ts";
 import { fixtureValues, renderMessage } from "./compose.ts";
 import { useAutomationsData } from "../canvas/data.tsx";
 
-export function StepTest({ stepKey, nodeId, input, version, samples = {}, onUseOutput }: {
+export function StepTest({ stepKey, nodeId, input, version, samples = {}, onUseOutput, readyOutput }: {
   stepKey: string;
   nodeId: string;
   input: Record<string, unknown>;
   version: number;
   samples?: Readonly<Record<string, unknown>>;
   onUseOutput(output: unknown): void;
+  /** A test that already finished. The button offers that output on first paint. */
+  readyOutput?: unknown;
 }): ReactElement {
   const data = useAutomationsData();
-  const [phase, setPhase] = useState<"idle" | "running" | "done" | "error" | "unavailable">("idle");
-  const [output, setOutput] = useState<unknown>(undefined);
+  const [phase, setPhase] = useState<"idle" | "running" | "done" | "error" | "unavailable">(readyOutput !== undefined ? "done" : "idle");
+  const [output, setOutput] = useState<unknown>(readyOutput);
   const [error, setError] = useState<{ code?: string; message: string } | null>(null);
 
   const run = (): void => {
@@ -58,6 +61,7 @@ export function StepTest({ stepKey, nodeId, input, version, samples = {}, onUseO
       <Pressable accessibilityRole="button" accessibilityLabel="Test this step" testID="run-step-test" onPress={run} style={t.btn}>
         <Text style={t.btnText}>{phase === "running" ? "Testing" : "Test this step"}</Text>
       </Pressable>
+      <Text testID="no-outward-effect" style={t.hint}>{NO_OUTWARD_EFFECT}</Text>
       {phase === "unavailable" ? <Text style={t.err}>Step test is not available from this runtime.</Text> : null}
       {phase === "error" || phase === "unavailable" ? <Text style={t.err}>{error?.message ?? ""}</Text> : null}
       {phase === "done" ? (

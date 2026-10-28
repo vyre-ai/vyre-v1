@@ -3,6 +3,7 @@
 // and the local check that mirrors `automations.validate`, so errors show inline while someone builds, before the server answers.
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { messageSummary } from "../builder/compose.ts";
+import { LOOP_CHILD, PARALLEL_JOIN, parallelLaneMark } from "../chrome.ts";
 
 export type Automation = CapMap["automations.get"]["out"]["automation"];
 export type Definition = Automation["definition"];
@@ -128,6 +129,11 @@ export function titleOfKey(key: string): string {
   return STEP_PALETTE.find((p) => p.key === key)?.title ?? PRODUCT_TITLES[key] ?? key.replace(/[._]+/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
 
+/** Step group for the inspector subtitle. Unknown keys stay "Step". */
+export function groupOfKey(key: string): string {
+  return STEP_PALETTE.find((p) => p.key === key)?.group ?? "Step";
+}
+
 export function triggerMeta(key: string, config?: Record<string, unknown>): { title: string; icon: IconKey } {
   const base = TRIGGER_PALETTE.find((t) => t.key === key) ?? { title: titleOfKey(key), icon: "bolt" as IconKey };
   const label = config?.["label"];
@@ -186,6 +192,15 @@ export const TRIG_ROW = 54;
 const CHIP_H = 22;
 
 export type RunState = "done" | "failed" | "waiting" | "running" | "skipped" | "pending";
+export type StatusChip = "error" | "waiting" | "tested";
+
+/** A chip only for a real error, a waiting run, or a stored test sample. Never a live stamp. */
+export function stepStatusChip(id: string, issues: readonly { severity: string }[], state: RunState | undefined, tested: ReadonlySet<string> | undefined): StatusChip | null {
+  if (issues.some((issue) => issue.severity === "error") || state === "failed") return "error";
+  if (state === "waiting") return "waiting";
+  if (tested?.has(id)) return "tested";
+  return null;
+}
 
 export interface CardNode {
   id: string;
@@ -201,9 +216,10 @@ export interface CardNode {
   sub: string;
   issues: Issue[];
   state?: RunState;
+  chip?: StatusChip;
 }
 export interface Seg { x1: number; y1: number; x2: number; y2: number; lit?: boolean }
-export interface Chip { x: number; y: number; text: string; mono?: boolean; kind: "if" | "otherwise" | "each" | "lane"; lit?: boolean }
+export interface Chip { x: number; y: number; text: string; mono?: boolean; kind: "if" | "otherwise" | "each" | "lane" | "join"; lit?: boolean }
 export interface Frame { x: number; y: number; w: number; h: number; label: string }
 export interface Layout { cards: CardNode[]; segs: Seg[]; chips: Chip[]; frames: Frame[]; width: number; height: number; order: string[] }
 
@@ -225,7 +241,7 @@ export function subtitleOf(n: DefNode, names: { key?: (id: string) => string } =
     return `${c} ${c === 1 ? "path" : "paths"}${other ? " and Otherwise" : ""}, first match wins`;
   }
   if (k === "parallel") return `${n.branches?.length ?? 0} lanes at the same time, ${inp["waitFor"] === "any" ? "carry on when one finishes" : "carry on when all finish"}`;
-  if (k === "loop") return `For each item in ${str(inp["items"]) || "a list"}${inp["maxIterations"] !== undefined ? `, up to ${str(inp["maxIterations"])}` : ""}`;
+  if (k === "loop") return `For each item in ${str(inp["items"]) || "a list"}${inp["maxIterations"] !== undefined ? `, up to ${str(inp["maxIterations"])}` : ""}. ${LOOP_CHILD}`;
   if (k === "stop") return str(inp["message"]) || (inp["outcome"] === "failed" ? "The run ends as failed" : "The run ends here");
   if (k === "approval") return `${str(inp["summary"]) || "Waits for a yes"}${inp["timeout"] ? `, up to ${str(inp["timeout"])}` : ""}`;
   if (k === "wait") return str(inp["note"]) || (inp["event"] ? "Waits for an event" : inp["forDuration"] ? `Waits ${str(inp["forDuration"])}` : inp["until"] ? `Waits until ${str(inp["until"])}` : "Waits");
@@ -255,7 +271,7 @@ export function cardTitle(n: DefNode): string {
   return n.title && n.title.trim() ? n.title : titleOfKey(n.key);
 }
 
-export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?: Readonly<Record<string, RunState>>; keyName?: (id: string) => string } = {}): Layout {
+export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?: Readonly<Record<string, RunState>>; keyName?: (id: string) => string; tested?: ReadonlySet<string> } = {}): Layout {
   const by = new Map(def.nodes.map((n) => [n.id, n] as const));
   const issues = opts.issues ?? [];
   const issuesFor = (id: string): Issue[] => issues.filter((i) => i.nodeId === id);
@@ -309,6 +325,8 @@ export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?:
     };
     const st = stateOf(n.id);
     if (st) card.state = st;
+    const chip = stepStatusChip(n.id, card.issues, st, opts.tested);
+    if (chip) card.chip = chip;
     cards.push(card);
     order.push(n.id);
     placed.add(n.id);
@@ -350,7 +368,7 @@ export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?:
           const isOther = b.when === undefined;
           const litB = (stateOf(b.to) ?? "pending") !== "pending" && (stateOf(b.to) ?? "") !== "skipped";
           chips.push({
-            x: lcx, y: chipY, text: kindOfKey(n.key) === "parallel" ? b.label : isOther ? "Otherwise" : `If ${b.when}`, mono: !isOther && kindOfKey(n.key) !== "parallel",
+            x: lcx, y: chipY, text: kindOfKey(n.key) === "parallel" ? parallelLaneMark(b.label) : isOther ? "Otherwise" : `If ${b.when}`, mono: !isOther && kindOfKey(n.key) !== "parallel",
             kind: kindOfKey(n.key) === "parallel" ? "lane" : isOther ? "otherwise" : "if", lit: litB,
           });
           segs.push({ x1: lcx, y1: barY, x2: lcx, y2: chipY, lit: litB });
@@ -372,6 +390,7 @@ export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?:
           const open = ends2.filter((e) => !e.ended);
           for (const e of open) segs.push({ x1: e.x, y1: e.y, x2: e.x, y2: mergeY, lit: e.id ? stateOf(e.id) === "done" : false });
           if (open.length > 1) segs.push({ x1: Math.min(...open.map((e) => e.x)), y1: mergeY, x2: Math.max(...open.map((e) => e.x)), y2: mergeY });
+          if (kindOfKey(n.key) === "parallel") chips.push({ x: cx, y: mergeY, text: PARALLEL_JOIN, kind: "join" });
           // the merge bar feeds the join step, which the next turn of the loop places
           last = open.length > 0 ? "merge" : null;
           lastBottom = mergeY;
@@ -519,6 +538,13 @@ export function check(def: Definition, kind: "personal" | "space" = "space"): Is
   };
   for (const n of def.nodes) if (dfs(n.id)) { out.push({ nodeId: n.id, severity: "error", message: `${cardTitle(n)} leads back to an earlier step, so the run would never end` }); break; }
   return out;
+}
+
+/** The step that blocks turning the Automation on. A trigger blocker uses "trigger". */
+export function liveBlockerStep(issues: readonly Issue[]): string | null {
+  const error = issues.find((issue) => issue.severity === "error");
+  if (!error) return null;
+  return error.nodeId && error.nodeId.length > 0 ? error.nodeId : "trigger";
 }
 
 /** Errors first, then warnings, one per step id and text. */

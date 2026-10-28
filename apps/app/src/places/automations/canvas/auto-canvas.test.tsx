@@ -23,7 +23,7 @@ test("the header shows the name, the Space, why it needs attention and the actio
   assert.ok(has(out, ">Space<"), "kind");
   assert.ok(has(out, "Needs the Twilio key"), "why it is paused");
   assert.ok(!has(out, "Connect Twilio"), "a paused reason without a service does not open a connection");
-  for (const label of ["Paused", "Test run", "Ask", "Show the side pane", "More"]) assert.ok(has(out, label), label);
+  for (const label of ["Paused", ">Test<", "Ask", "Show the side pane", "More"]) assert.ok(has(out, label), label);
   assert.ok(!has(out, String.fromCharCode(0x2014)), "no em dash in any copy");
 });
 

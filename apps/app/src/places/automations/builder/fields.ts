@@ -17,6 +17,15 @@ export interface ShelfLine {
   text: string;
 }
 
+export interface ShelfRow {
+  id: string;
+  source: string;
+  name: string;
+  typeName: string;
+  presence: Presence;
+  value: string;
+}
+
 export interface StepFixture {
   definitionVersion: number;
   stepKey: string;
@@ -91,6 +100,45 @@ export function shelfLines(triggerSample: unknown, steps: readonly { id: string;
     lines.push({ id: step.id, text: `${step.title}${version} (${typeOf(output)}, ${presenceOf(true, output)}): ${sampleText(output)}` });
   }
   return lines;
+}
+
+function sourceLabel(title: string, sample: unknown, trigger: boolean): string {
+  if (isFixture(sample)) return trigger ? `Trigger version ${sample.definitionVersion}` : `${title}, version ${sample.definitionVersion}`;
+  return trigger ? "Trigger" : title;
+}
+
+function rowsFor(idPrefix: string, source: string, output: unknown): ShelfRow[] {
+  if (isRecord(output)) {
+    const keys = Object.keys(output);
+    if (keys.length > 0) {
+      return keys.map((key) => {
+        const value = output[key];
+        return { id: `${idPrefix}.${key}`, source, name: key, typeName: typeOf(value), presence: presenceOf(true, value), value: sampleText(value) };
+      });
+    }
+  }
+  return [{ id: idPrefix, source, name: source, typeName: typeOf(output), presence: presenceOf(true, output), value: sampleText(output) }];
+}
+
+/** Typed rows from a real trigger sample and prior step outputs. An object becomes one row per key. */
+export function shelfRows(triggerSample: unknown, steps: readonly { id: string; title: string; output: unknown }[]): ShelfRow[] {
+  const rows: ShelfRow[] = [];
+  if (triggerSample !== undefined) {
+    const output = isFixture(triggerSample) ? triggerSample.output : triggerSample;
+    rows.push(...rowsFor("trigger", sourceLabel("Trigger", triggerSample, true), output));
+  }
+  for (const step of steps) {
+    if (step.output === undefined) continue;
+    const output = isFixture(step.output) ? step.output.output : step.output;
+    rows.push(...rowsFor(step.id, sourceLabel(step.title, step.output, false), output));
+  }
+  return rows;
+}
+
+export function filterShelf(rows: readonly ShelfRow[], query: string): ShelfRow[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return [...rows];
+  return rows.filter((row) => `${row.source} ${row.name} ${row.typeName} ${row.presence} ${row.value}`.toLowerCase().includes(needle));
 }
 
 export function fixtureNote(version: number, stepKey: string): string {

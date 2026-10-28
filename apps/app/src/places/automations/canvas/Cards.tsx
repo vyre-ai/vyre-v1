@@ -28,16 +28,18 @@ export interface CardHandlers {
 
 const DOUBLE_MS = 450;
 
-export function StepCard({ card, selected, hovered, handlers, agent, onHover }: {
+export function StepCard({ card, selected, hovered, focused = false, handlers, agent, onHover }: {
   card: CardNode;
   selected: boolean;
   hovered: boolean;
+  /** Keyboard focus, so the more control is on the first paint. */
+  focused?: boolean;
   handlers: CardHandlers;
   /** The name of the agent on an AI step, for its face. */
   agent?: string | undefined;
   onHover(id: string | null): void;
 }): ReactElement {
-  const [focus, setFocus] = useState(false);
+  const [focus, setFocus] = useState(focused);
   const last = useRef(0);
   const errors = card.issues.filter((i) => i.severity === "error");
   const ring = card.state ? RUN_RING[card.state] : null;
@@ -76,6 +78,11 @@ export function StepCard({ card, selected, hovered, handlers, agent, onHover }: 
       {card.issues.length > 0 ? (
         <View testID={`issue-${card.id}`} accessibilityLabel={problem} {...webOnly({ title: problem })}>
           <Glyph name="warn" size={14} color={errors.length > 0 ? "var(--danger)" : "var(--warn)"} />
+        </View>
+      ) : null}
+      {card.chip ? (
+        <View testID={`chip-${card.id}`} style={[c.status, card.chip === "error" && c.statusBad, card.chip === "waiting" && c.statusWait, card.chip === "tested" && c.statusOk]}>
+          <Text style={c.statusText}>{card.chip}</Text>
         </View>
       ) : null}
       {card.node && isPreviewKey(card.node.key) ? <PreviewMark testID={`preview-${card.node.key}`} /> : null}
@@ -196,6 +203,11 @@ export const c = StyleSheet.create({
   text: { flex: 1, minWidth: 0, justifyContent: "center" },
   title: { fontSize: 13, lineHeight: 17, color: "var(--ink)" as string },
   sub: { fontSize: 11.5, lineHeight: 15, color: "var(--ink-3)" as string },
+  status: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--hover)" as string },
+  statusOk: { borderColor: "var(--ok)" as string },
+  statusWait: { borderColor: "var(--warn)" as string },
+  statusBad: { borderColor: "var(--danger)" as string },
+  statusText: { fontSize: 10, fontWeight: "600", color: "var(--ink-2)" as string },
   more: { position: "absolute", right: 6, top: 4 },
   trig: { position: "absolute", borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string, overflow: "hidden" },
   trigHead: { height: TRIG_HEAD, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 12, paddingRight: 6, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },

@@ -13,7 +13,7 @@ import { AutomationCanvas } from "../../places/automations/canvas/AutomationCanv
 import { accountsFromVault, picksByApp } from "../../places/automations/connect/accounts.ts";
 import type { AccountOption } from "../../places/automations/connect/accounts.ts";
 import { connectionRoute } from "../../places/automations/connect/route.ts";
-import { AllRuns, Dependencies, LiveEvents, NeedsYou, Packages } from "../../places/automations/operations/StudioViews.tsx";
+import { AllRuns, Dependencies, LiveEvents, NeedsYou, Packages, SpaceAnalytics } from "../../places/automations/operations/StudioViews.tsx";
 import { AutomationsSidebarSlot } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
 import type { StudioView } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
 import { keysFromProviders } from "../../places/automations/values/typed.ts";
@@ -93,6 +93,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const main = view === "needs" ? <NeedsYou />
     : view === "runs" ? <AllRuns />
     : view === "events" ? <LiveEvents />
+    : view === "analytics" ? <SpaceAnalytics />
     : view === "dependencies" ? <Dependencies />
     : view === "packages" ? <Packages />
     : openId && missing ? <NotFound what="automation" />

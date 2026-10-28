@@ -2,7 +2,8 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { shelfLines } from "./fields.ts";
+import { filterShelf, shelfRows } from "./fields.ts";
+import { ABSENCE, DATA_SHELF_NAME, INSPECTOR_TABS, SHELF_SEARCH } from "../chrome.ts";
 import { PREVIEW_NOTE } from "../catalog/model.ts";
 import { literalFromEditor, mappingIssues, presenceOf, refValue, typeOf } from "../values/typed.ts";
 import type { Presence, TypeRef } from "../values/typed.ts";
@@ -17,11 +18,7 @@ export function PreviewMark({ testID }: { testID: string }): ReactElement {
 }
 
 export function SectionRow({ section, onSection }: { section: "configure" | "data" | "test"; onSection(next: "configure" | "data" | "test"): void }): ReactElement {
-  const items: { key: "configure" | "data" | "test"; label: string }[] = [
-    { key: "configure", label: "Configure" },
-    { key: "data", label: "Data" },
-    { key: "test", label: "Test" },
-  ];
+  const items = INSPECTOR_TABS.map((label) => ({ key: label.toLowerCase() as "configure" | "data" | "test", label }));
   return (
     <View style={m.secs} accessibilityRole="tablist">
       {items.map((item) => (
@@ -35,6 +32,30 @@ export function SectionRow({ section, onSection }: { section: "configure" | "dat
 
 function isRef(value: unknown): value is { kind: "ref"; nodeId: string; path: string; valueType?: string } {
   return !!value && typeof value === "object" && (value as { kind?: string }).kind === "ref" && typeof (value as { nodeId?: unknown }).nodeId === "string";
+}
+
+/** Basic and Advanced both write this object. A number stays a number. Null and empty stay apart. */
+export function basicFieldEdit(input: Record<string, unknown>, name: string, text: string): Record<string, unknown> {
+  const has = Object.prototype.hasOwnProperty.call(input, name);
+  const current = has ? input[name] : undefined;
+  const presence = presenceOf(has, current);
+  const nextPresence: Presence = presence === "null" && text === "" ? "null" : presence === "empty" && text === "" ? "empty" : presence === "missing" && text === "" ? "missing" : "value";
+  const written = commitTyped(has ? current : "", text, nextPresence);
+  const next = { ...input };
+  if (written === undefined) delete next[name];
+  else next[name] = written;
+  return next;
+}
+
+/** The Advanced JSON editor. The object it returns is the same input Basic edits one field at a time. */
+export function advancedInputEdit(text: string): { ok: true; input: Record<string, unknown> } | { ok: false; message: string } {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { ok: false, message: "That is not valid JSON." };
+    return { ok: true, input: parsed as Record<string, unknown> };
+  } catch {
+    return { ok: false, message: "That is not valid JSON." };
+  }
 }
 
 /** Writes a field back without collapsing missing, null, empty, numbers, or booleans. */
@@ -83,13 +104,25 @@ export function MappingFix({ nodeIds, value }: { nodeIds: ReadonlySet<string>; v
 }
 
 export function DataShelf({ triggerSample, steps }: { triggerSample: unknown; steps: readonly { id: string; title: string; output: unknown }[] }): ReactElement {
-  const lines = shelfLines(triggerSample, steps);
-  if (lines.length === 0) {
-    return <Text testID="data-shelf-empty" style={m.hint}>No sample yet. Test a step or run to fill this shelf.</Text>;
-  }
+  const [query, setQuery] = useState("");
+  const rows = filterShelf(shelfRows(triggerSample, steps), query);
+  const empty = shelfRows(triggerSample, steps).length === 0;
   return (
     <View testID="data-shelf" style={m.shelf}>
-      {lines.map((line) => <Text key={line.id} style={m.hint}>{line.text}</Text>)}
+      <Text style={m.label}>{DATA_SHELF_NAME}</Text>
+      <TextInput accessibilityLabel={SHELF_SEARCH} placeholder={SHELF_SEARCH} value={query} onChangeText={setQuery} testID="data-shelf-search" style={m.input} />
+      {empty ? <Text testID="data-shelf-empty" style={m.hint}>No sample yet. Test a step or run to fill this shelf.</Text> : null}
+      {!empty && rows.length === 0 ? <Text style={m.hint}>No fields match.</Text> : null}
+      {rows.map((row) => (
+        <View key={row.id} style={m.row}>
+          <Text style={m.hint}>{row.name}</Text>
+          <Text style={m.hint}>{`${row.source} · ${row.typeName}${row.presence === "value" ? "" : ` · ${row.presence}`}`}</Text>
+        </View>
+      ))}
+      <Text style={m.label}>Typed absence</Text>
+      <View style={m.secs}>
+        {ABSENCE.map((label) => <Text key={label} style={m.hint}>{label}</Text>)}
+      </View>
     </View>
   );
 }
@@ -112,4 +145,5 @@ const m = StyleSheet.create({
   hint: { fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
   fix: { fontSize: 12.5, lineHeight: 17, color: "var(--warn)" as string },
   shelf: { gap: 6 },
+  row: { gap: 2, paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
 });

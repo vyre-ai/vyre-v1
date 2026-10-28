@@ -7,6 +7,9 @@ import { CONFIG, useAutomationsData, useScreenQuery } from "../canvas/data.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { CONNECT_LIMIT, connectorLine, shownConnectors } from "../connect/trust-view.ts";
 import type { ConnectorSource, ShownConnector } from "../connect/trust-view.ts";
+import {
+  ALL_RUNS_LINE, ALL_RUNS_SEARCH, ANALYTICS_LINE, DEPS_LINE, EMPTY_COMPLETED, EMPTY_DEPENDENCIES, EMPTY_EVENTS, EMPTY_PACKAGES, EVENTS_LINE, LISTENING, NEEDS_LINE, PACKAGES_LINE, SPACE_ANALYTICS_LINE, SPACE_ANALYTICS_TITLE,
+} from "../chrome.ts";
 import { countRuns, dependenciesFrom, eventRows, exportChoices, packageRows } from "./read.ts";
 import type { NamedRow } from "./read.ts";
 import type { DependencyNode } from "./read.ts";
@@ -38,10 +41,11 @@ function useCall<T>(cap: string, input: unknown, parse: (out: unknown) => T | nu
   return state;
 }
 
-function Frame({ testID, title, children }: { testID: string; title: string; children: ReactNode }): ReactElement {
+function Frame({ testID, title, line, children }: { testID: string; title: string; line?: string; children: ReactNode }): ReactElement {
   return (
     <View testID={testID} style={v.page}>
       <Text accessibilityRole="header" style={v.title}>{title}</Text>
+      {line ? <Text style={v.dim}>{line}</Text> : null}
       {children}
     </View>
   );
@@ -133,7 +137,7 @@ export function NeedsYou(): ReactElement {
     return items;
   });
   return (
-    <Frame testID="needs-you" title="Needs you">
+    <Frame testID="needs-you" title="Needs you" line={NEEDS_LINE}>
       <Status state={state} />
       {state.phase === "ready" && state.value.length === 0 ? <Text style={v.dim}>Nothing needs you</Text> : null}
       {state.phase === "ready" ? state.value.map((item) => (
@@ -147,6 +151,7 @@ export function NeedsYou(): ReactElement {
 }
 
 export function AllRuns(): ReactElement {
+  const [query, setQuery] = useState("");
   const state = useCall("runs.list", { scope: "all", limit: 50 }, (out) => {
     if (!out || typeof out !== "object" || !Array.isArray((out as { runs?: unknown }).runs)) return null;
     const rows: { id: string; title: string; status: string }[] = [];
@@ -158,33 +163,51 @@ export function AllRuns(): ReactElement {
     }
     return rows;
   });
+  const needle = query.trim().toLowerCase();
+  const shown = state.phase === "ready" ? state.value.filter((row) => needle === "" || `${row.title} ${row.status} ${row.id}`.toLowerCase().includes(needle)) : [];
   return (
-    <Frame testID="all-runs" title="All runs">
+    <Frame testID="all-runs" title="All runs" line={ALL_RUNS_LINE}>
+      <TextInput value={query} onChangeText={setQuery} placeholder={ALL_RUNS_SEARCH} accessibilityLabel={ALL_RUNS_SEARCH} testID="runs-search" style={v.input} />
       <Status state={state} />
-      {state.phase === "ready" && state.value.length === 0 ? <Text style={v.dim}>No Runs match</Text> : null}
-      {state.phase === "ready" ? state.value.map((row) => <Text key={row.id} style={v.row}>{`${row.title} · ${row.status}`}</Text>) : null}
+      {state.phase === "ready" && shown.length === 0 ? <Text style={v.dim}>No Runs match</Text> : null}
+      {shown.map((row) => <Text key={row.id} style={v.row}>{`${row.title} · ${row.status}`}</Text>)}
     </Frame>
   );
 }
 
 export function AnalyticsPanel({ automationId }: { automationId: string }): ReactElement {
   const q = useScreenQuery<RunsOut>(CONFIG, "runs", { subject: { type: "automation", id: automationId }, scope: "subject" });
-  if (q.status !== "ready") return <Frame testID="analytics" title="Analytics"><Text style={v.dim}>{q.error?.message ?? "Loading"}</Text></Frame>;
+  if (q.status !== "ready") return <Frame testID="analytics" title="Analytics" line={ANALYTICS_LINE}><Text style={v.dim}>{q.error?.message ?? "Loading"}</Text></Frame>;
   const counted = countRuns(q.data.runs);
   return (
-    <Frame testID="analytics" title="Analytics">
-      {q.data.runs.length === 0 || !counted ? <Text style={v.dim}>No completed Runs yet</Text> : <Text style={v.dim}>{counted.text}</Text>}
+    <Frame testID="analytics" title="Analytics" line={ANALYTICS_LINE}>
+      {q.data.runs.length === 0 || !counted ? <Text style={v.dim}>{EMPTY_COMPLETED}</Text> : <Text style={v.dim}>{counted.text}</Text>}
     </Frame>
   );
 }
 
-const EMPTY_EVENTS = "Listening for events. A trigger event will show here when one is published. None have arrived.";
-const EMPTY_DEPENDENCIES = "Choose a dependency. This fills when an Automation names another Automation, a mailbox, a number, or a connection. None are recorded yet.";
+/** Space home. The shell view "analytics" renders this. That switch lives outside this folder. */
+export function SpaceAnalytics(): ReactElement {
+  const state = useCall("runs.list", { scope: "all", limit: 50 }, (out) => {
+    if (!out || typeof out !== "object" || !Array.isArray((out as { runs?: unknown }).runs)) return null;
+    return (out as { runs: { status?: unknown; costMicros?: unknown }[] }).runs;
+  });
+  const counted = state.phase === "ready" ? countRuns(state.value) : null;
+  const empty = state.phase === "ready" && (state.value.length === 0 || !counted);
+  return (
+    <Frame testID="space-analytics" title={SPACE_ANALYTICS_TITLE} line={SPACE_ANALYTICS_LINE}>
+      <Status state={state} />
+      {empty ? <Text style={v.dim}>{EMPTY_COMPLETED}</Text> : null}
+      {state.phase === "ready" && counted && state.value.length > 0 ? <Text style={v.dim}>{counted.text}</Text> : null}
+    </Frame>
+  );
+}
 
 export function LiveEvents(): ReactElement {
   const state = useCall("events.list", { limit: 50 }, eventRows);
   return (
-    <Frame testID="live-events" title="Live Event Explorer">
+    <Frame testID="live-events" title="Live Event Explorer" line={EVENTS_LINE}>
+      {state.phase === "ready" ? <Text testID="events-listening" style={v.dim}>{LISTENING}</Text> : null}
       <Status state={state} />
       {state.phase === "ready" && state.value.length === 0 ? <Text style={v.dim}>{EMPTY_EVENTS}</Text> : null}
       {state.phase === "ready" ? state.value.map((row) => <Text key={row.id} style={v.row}>{row.line}</Text>) : null}
@@ -247,7 +270,7 @@ export function Dependencies(): ReactElement {
     return () => { live = false; };
   }, [data]);
   return (
-    <Frame testID="dependencies" title="Dependencies">
+    <Frame testID="dependencies" title="Dependencies" line={DEPS_LINE}>
       <Status state={state} />
       {note ? <Text style={v.err}>{note}</Text> : null}
       {state.phase === "ready" && state.value.length === 0 ? <Text style={v.dim}>{EMPTY_DEPENDENCIES}</Text> : null}
@@ -280,8 +303,6 @@ function ConnectorTrust(): ReactElement {
     </View>
   );
 }
-
-const EMPTY_PACKAGES = "No packages. Installed automation packages will list here when the catalog has any.";
 
 export function Packages(): ReactElement {
   const data = useAutomationsData();
@@ -335,7 +356,7 @@ export function Packages(): ReactElement {
     }
   }
   return (
-    <Frame testID="packages" title="Packages">
+    <Frame testID="packages" title="Packages" line={PACKAGES_LINE}>
       <Status state={packages} />
       {packages.phase === "ready" && packages.value.length === 0 ? <Text style={v.dim}>{EMPTY_PACKAGES}</Text> : null}
       {packages.phase === "ready" ? packages.value.map((row) => (

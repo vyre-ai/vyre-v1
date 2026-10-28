@@ -15,6 +15,8 @@ import { MainHead, QuietButton, Tile, pointer, statusColor, statusGlyph, webOnly
 import type { KeyEventLike } from "./parts.tsx";
 import { LiveRerun } from "./LiveRerun.tsx";
 import { SANDBOX_REPLAY_LABEL } from "./ledger.ts";
+import { RunLineage } from "./RunLineage.tsx";
+import type { LineageChild } from "./lineage.ts";
 import { RunLines } from "./RunLines.tsx";
 import { UndoPanel } from "./RunUndo.tsx";
 import { each } from "./each.ts";
@@ -31,13 +33,15 @@ export interface RunChatProps {
   openThoughts?: readonly string[];
   /** Open Undo this run at first render (a link from the Needs you row, and the screenshots). */
   initialUndo?: boolean;
+  /** Child runs the parent already loaded. Omit when none were loaded. Empty stays empty. */
+  childLinks?: readonly LineageChild[];
 }
 
 type UndoState = { phase: "loading" } | { phase: "ready"; preview: UndoPreview } | null;
 const EMPTY: readonly string[] = [];
 const NONE: ReadonlySet<string> = new Set();
 
-export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts = EMPTY, initialUndo = false }: RunChatProps): ReactElement {
+export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts = EMPTY, initialUndo = false, childLinks = [] }: RunChatProps): ReactElement {
   const data = useRunsData();
   const actions = useRunActions();
   const { element, show } = useMenu();
@@ -120,6 +124,7 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
   const body = (
     <>
       {stateBar}
+      <RunLineage parentRun={run.parentRun} steps={steps} children={childLinks} />
       <ScrollView style={s.scroll} contentContainerStyle={[s.scrollIn, wide && s.scrollWide]}>
         <RunLines
           run={run} lines={lines} me={data.me.id} name={(w) => data.name(w.id)} canRetry={canRetry} openThoughts={openThoughts}

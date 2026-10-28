@@ -7,17 +7,22 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { AskVyre } from "../ask/AskVyre.tsx";
 import type { AskBundle } from "../ask/bundle.ts";
+import { accountFixedLine, BUILDER_MODES, VAL_LABEL } from "../chrome.ts";
+import type { BuilderMode } from "../chrome.ts";
 import { accountDefaultInput, accountMenu, applyAccount } from "../connect/accounts.ts";
 import type { AccountOption } from "../connect/accounts.ts";
 import { fieldsFromSchema, asFixture } from "../builder/fields.ts";
 import { MessageComposer } from "../builder/MessageComposer.tsx";
-import { DataShelf, MappingFix, SectionRow, commitTyped, nodeIdSet } from "../builder/marks.tsx";
+import { DataShelf, MappingFix, SectionRow, advancedInputEdit, basicFieldEdit, commitTyped, nodeIdSet } from "../builder/marks.tsx";
+import { frameFor } from "./frame.ts";
+import type { StudioLayout } from "./frame.ts";
 import { StepTest } from "../builder/StepTest.tsx";
 import { isPreviewKey, PREVIEW_NOTE } from "../catalog/model.ts";
 import { CONNECT_LIMIT } from "../connect/trust-view.ts";
 import { presenceOf } from "../values/typed.ts";
 import { Glyph } from "./icons.tsx";
-import { ERROR_MODES, keyChoices, kindOfKey, setBranch, setTriggerConfig, titleOfKey, updateStep, triggerMeta } from "./model.ts";
+import { ERROR_MODES, groupOfKey, iconOfKey, keyChoices, kindOfKey, setBranch, setTriggerConfig, subtitleOf, titleOfKey, updateStep, triggerMeta } from "./model.ts";
+import type { IconKey } from "./model.ts";
 import type { DefNode, DefTrigger, Definition, Issue, KeyChoice } from "./model.ts";
 import type { KeysStatus } from "./data.tsx";
 import { IconButton, pointer, s as ps, webOnly } from "./parts.tsx";
@@ -31,7 +36,7 @@ function withKey(ai: DefNode["ai"], field: "keyId" | "backupKeyId", id: string |
 }
 const show = (v: unknown): string => (typeof v === "string" ? v : v === undefined || v === null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
 
-export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onChange, onClose, onDelete, testID = "inspector", embedded = false, section = "configure", onSection, samples = {}, version = 0, onStoreSample, onAsk, keysStatus, accounts = [], inputSchema, lastPicks }: {
+export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onChange, onClose, onDelete, testID = "inspector", embedded = false, layout, initialAdvanced = false, mode = "basic", onMode, section = "configure", onSection, samples = {}, version = 0, onStoreSample, onAsk, keysStatus, accounts = [], inputSchema, lastPicks }: {
   def: Definition;
   node: DefNode | null;
   trigger: DefTrigger | null;
@@ -43,6 +48,13 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
   onDelete(): void;
   testID?: string;
   embedded?: boolean;
+  /** Desktop keeps the 300px side column. Compact stacks the panel at full width. */
+  layout?: StudioLayout;
+  /** Open on Advanced so a test can show the JSON editor. The toggle still switches. */
+  initialAdvanced?: boolean;
+  /** When the builder header owns Basic and Advanced, this panel does not draw a second segment. */
+  mode?: BuilderMode;
+  onMode?(next: BuilderMode): void;
   section?: "configure" | "data" | "test";
   onSection?(next: "configure" | "data" | "test"): void;
   samples?: Readonly<Record<string, unknown>>;
@@ -58,7 +70,13 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
   lastPicks?: Readonly<Record<string, string>>;
 }): ReactElement {
   const { element, show: openMenu } = useMenu();
-  const [advanced, setAdvanced] = useState(false);
+  const headerMode = onMode !== undefined;
+  const [localAdvanced, setLocalAdvanced] = useState(initialAdvanced);
+  const advanced = headerMode ? mode === "advanced" : localAdvanced;
+  const setAdvanced = (next: boolean): void => {
+    if (headerMode) onMode?.(next ? "advanced" : "basic");
+    else setLocalAdvanced(next);
+  };
   const [jsonError, setJsonError] = useState<string | null>(null);
   const wroteDefault = useRef("");
   useEffect(() => {
@@ -124,8 +142,8 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
       }
     }
     return (
-      <View style={embedded ? [i.pane, i.embedded] : i.pane} testID={testID} accessibilityLabel="Trigger settings">
-        <Head title={meta?.title ?? "Trigger"} sub="Trigger" onClose={onClose} />
+      <View style={paneStyle(embedded, layout)} testID={testID} accessibilityLabel="Trigger settings">
+        <Head title={meta?.title ?? "Trigger"} sub="Trigger" icon={meta?.icon ?? "bolt"} onClose={onClose} />
         <ScrollView contentContainerStyle={i.body}>
           <SectionRow section={section} onSection={(next) => onSection?.(next)} />
           {section === "data" ? <DataShelf triggerSample={samples["trigger"]} steps={prior} /> : null}
@@ -133,7 +151,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
           {section === "configure" ? (
             <>
               {trigger && isPreviewKey(trigger.key, "trigger") ? <Text style={i.hint}>{PREVIEW_NOTE}</Text> : null}
-              {trigger ? <Text style={i.hint}>{`This is trigger ${(triggerIndex ?? 0) + 1} of ${def.triggers.length}. Any one of them starts a run.`}</Text> : <Text style={i.hint}>Every trigger is listed on the card. Any one starts a run.</Text>}
+              <Text testID="plain-language" style={i.hint}>{trigger ? `This is trigger ${(triggerIndex ?? 0) + 1} of ${def.triggers.length}. Any one of them starts a run.` : "Every trigger is listed on the card. Any one starts a run."}</Text>
               {configFields}
               <Problems list={mine} />
             </>
@@ -167,7 +185,8 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
       fields.push(<Field key={`${node.id}-l${n}`} label={`Lane ${n + 1} name`} value={b.label} testID={`field-lane-${n}`} onCommit={(t) => onChange(updateStep(def, node.id, { branches: setBranch(node, n, { label: t }) }))} />);
     }
   }
-  const composer = !advanced && (node.key === "send_email" || node.key === "send_sms");
+  const composer = node.key === "send_email" || node.key === "send_sms";
+  const fixedAccount = accountFixedLine(accountPick?.value);
   const hidden = new Set(node.key === "send_email"
     ? ["subject", "body", "to", "cc", "fileIds", "message"]
     : node.key === "send_sms"
@@ -204,23 +223,18 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
       continue;
     }
     fields.push(<Field key={`${node.id}-${field.name}`} label={label} value={show(current)} placeholder={field.enumValues.length > 0 ? field.enumValues.join(", ") : field.required ? "Required" : "Optional"} testID={`field-${field.name}`} onCommit={(t) => {
-      const presence = presenceOf(Object.prototype.hasOwnProperty.call(node.input, field.name), current);
-      const nextPresence = presence === "null" && t === "" ? "null" : presence === "empty" && t === "" ? "empty" : presence === "missing" && t === "" ? "missing" : "value";
-      writeInput(field.name, commitTyped(current, t, nextPresence));
+      onChange(updateStep(def, node.id, { input: basicFieldEdit(node.input ?? {}, field.name, t) }));
     }} />);
   }
   for (const k of inputKeys) {
     if (covered.has(k) || skipField(k)) continue;
     fields.push(<Field key={`${node.id}-${k}`} label={humanize(k)} value={show(node.input[k])} testID={`field-${k}`} onCommit={(t) => {
-      const cur = node.input[k];
-      const presence = presenceOf(true, cur);
-      const nextPresence = presence === "null" && t === "" ? "null" : presence === "empty" && t === "" ? "empty" : "value";
-      writeInput(k, commitTyped(cur, t, nextPresence));
+      onChange(updateStep(def, node.id, { input: basicFieldEdit(node.input ?? {}, k, t) }));
     }} />);
   }
   return (
-    <View style={embedded ? [i.pane, i.embedded] : i.pane} testID={testID} accessibilityLabel={`${node.title ?? titleOfKey(node.key)} settings`}>
-      <Head title={node.title ?? titleOfKey(node.key)} sub={titleOfKey(node.key)} onClose={onClose} />
+    <View style={paneStyle(embedded, layout)} testID={testID} accessibilityLabel={`${node.title ?? titleOfKey(node.key)} settings`}>
+      <Head title={node.title ?? titleOfKey(node.key)} sub={groupOfKey(node.key)} icon={iconOfKey(node.key)} onClose={onClose} />
       <ScrollView contentContainerStyle={i.body} keyboardShouldPersistTaps="handled">
         <SectionRow section={section} onSection={(next) => onSection?.(next)} />
         {section === "data" ? <DataShelf triggerSample={samples["trigger"]} steps={prior} /> : null}
@@ -229,7 +243,19 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
           <>
         {isPreviewKey(node.key) ? <Text style={i.hint}>{PREVIEW_NOTE}</Text> : null}
         {node.key === "connector_request" ? <Text style={i.hint}>{`${CONNECT_LIMIT} The request runs a named action on the connection.`}</Text> : null}
-        <Pressable accessibilityRole="button" testID="toggle-advanced" onPress={() => setAdvanced((on) => !on)} style={pointer}><Text style={i.hint}>{advanced ? "Basic" : "Advanced"}</Text></Pressable>
+        <Text testID="plain-language" style={i.hint}>{subtitleOf(node, { key: (id) => keys.find((k) => k.id === id)?.name ?? id })}</Text>
+        {headerMode ? null : (
+          <View accessibilityLabel="Builder mode" testID="inspector-mode" style={i.seg}>
+            {BUILDER_MODES.map((label) => {
+              const on = (label === "Advanced") === advanced;
+              return (
+                <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: on }} testID={label === "Advanced" ? "toggle-advanced" : "toggle-basic"} onPress={() => setAdvanced(label === "Advanced")} style={pointer}>
+                  <Text style={i.hint}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
         <Field label="Name" value={node.title ?? ""} placeholder={titleOfKey(node.key)} testID="field-title" onCommit={(t) => onChange(updateStep(def, node.id, { title: t }))} />
         {accountPick ? (
           <Choice
@@ -249,17 +275,17 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
             }}
           />
         ) : null}
-        {!advanced && composer ? <MessageComposer stepKey={node.key} nodeId={node.id} input={node.input ?? {}} samples={samples} onInput={(input) => onChange(updateStep(def, node.id, { input }))} /> : null}
+        {fixedAccount ? <Text testID="account-fixed" style={i.hint}>{fixedAccount}</Text> : null}
+        {composer ? <MessageComposer stepKey={node.key} nodeId={node.id} input={node.input ?? {}} samples={samples} onInput={(input) => onChange(updateStep(def, node.id, { input }))} /> : null}
+        {fields}
         {advanced ? (
-          <Field label="Input" value={JSON.stringify(node.input ?? {}, null, 2)} testID="field-input-json" onCommit={(t) => {
-            try {
-              const parsed: unknown = JSON.parse(t);
-              if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) { setJsonError("That is not valid JSON."); return; }
-              setJsonError(null);
-              onChange(updateStep(def, node.id, { input: parsed as Record<string, unknown> }));
-            } catch { setJsonError("That is not valid JSON."); }
+          <Field label={VAL_LABEL} value={JSON.stringify(node.input ?? {}, null, 2)} testID="field-input-json" onCommit={(t) => {
+            const edited = advancedInputEdit(t);
+            if (!edited.ok) { setJsonError(edited.message); return; }
+            setJsonError(null);
+            onChange(updateStep(def, node.id, { input: edited.input }));
           }} />
-        ) : fields}
+        ) : null}
         {jsonError ? <Text style={i.hint}>{jsonError}</Text> : null}
         {inputKeys.length === 0 && kind === "plain" && !advanced && !accountPick ? <Text style={i.hint}>Nothing is set on this step yet. Add what it needs in the fields the check names below.</Text> : null}
         {kind === "ai" ? (
@@ -285,7 +311,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
           {node.onError?.mode === "retry" ? <Field label="Tries" value={String(node.onError.max ?? 3)} testID="field-retries" onCommit={(t) => onChange(updateStep(def, node.id, { onError: { mode: "retry", max: Math.max(1, Math.min(10, Number.parseInt(t, 10) || 3)) } }))} /> : null}
           {node.onError?.mode === "substitute" ? (
             <Field
-              label="Result" testID="field-substitute" value={node.onError.output === undefined ? "" : JSON.stringify(node.onError.output)} placeholder="{\"ok\":false}"
+              label="Result" testID="field-substitute" value={node.onError.output === undefined ? "" : JSON.stringify(node.onError.output)} placeholder={'{"ok":false}'}
               onCommit={(t) => {
                 const trimmed = t.trim();
                 if (!trimmed) { onChange(updateStep(def, node.id, { onError: { mode: "substitute" } })); return; }
@@ -327,9 +353,10 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
   );
 }
 
-function Head({ title, sub, onClose }: { title: string; sub: string; onClose(): void }): ReactElement {
+function Head({ title, sub, icon, onClose }: { title: string; sub: string; icon: IconKey; onClose(): void }): ReactElement {
   return (
     <View style={i.head}>
+      <View style={i.tile}><Glyph name={icon} size={16} color="var(--ink-2)" /></View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text accessibilityRole="header" numberOfLines={1} style={i.title}>{title}</Text>
         <Text numberOfLines={1} style={i.sub}>{sub}</Text>
@@ -401,10 +428,17 @@ function Choice({ label, value, onOpen, testID }: { label: string; value: string
 
 void ps;
 
+function paneStyle(embedded: boolean, layout?: StudioLayout) {
+  const frame = layout ? frameFor(layout) : null;
+  return [i.pane, (embedded || frame?.compact) ? i.embedded : null, frame ? { width: frame.inspectorWidth } : null];
+}
+
 const i = StyleSheet.create({
   pane: { width: 300, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
   embedded: { width: "100%" as unknown as number, flex: 1, borderLeftWidth: 0 },
   head: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, height: 52, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  tile: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--hover)" as string },
+  seg: { flexDirection: "row", gap: 4 },
   title: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   sub: { fontSize: 11.5, color: "var(--ink-3)" as string },
   body: { padding: 14, gap: 12 },
