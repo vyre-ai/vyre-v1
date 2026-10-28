@@ -400,3 +400,8 @@ test('init refuses absent or denied Files output before connector or draft persi
  assert.equal(k.tx.all('SELECT * FROM cn_connectors WHERE key = ?','no_files').length,0);assert.equal(k.tx.all('SELECT * FROM cn_drafts WHERE key = ?','no_files').length,0);
  k.deps.writeFolder=async()=>{throw new Error('fixture files denied');};await assert.rejects(k.hs['connectors.init'](k.ctx,{key:'denied_files',title:'Denied Files',mode:'webhook_only'}),/fixture files denied/);assert.equal(k.tx.all('SELECT * FROM cn_connectors WHERE key = ?','denied_files').length,0);assert.equal(k.tx.all('SELECT * FROM cn_drafts WHERE key = ?','denied_files').length,0);
 });
+
+
+test('a Vault secret template cannot be placed in a query string',async()=>{
+ const {k,id}=await withAcme({actions:[{name:'query_key',url:'https://api.acme.test/query',query:{key:'{secret.Acme_Key}'}}]});await assert.rejects(k.hs['connectors.run'](k.ctx,{key:'acme',action:'query_key',connectionId:id,input:{}}),code('validation.bad_input'));assert.equal(k.sent.length,0);
+});

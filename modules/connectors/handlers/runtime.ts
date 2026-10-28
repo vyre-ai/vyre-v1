@@ -70,7 +70,7 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
     if (conn.state === "needs_reconnect") refuse(ctx, "provider.auth_failed", "The app rejected the sign-in: reconnect the connection.");
     if (conn.owner_kind === "person" && conn.owner_id !== actor) refuse(ctx, "permission.no_grant", "This connection belongs to someone else.");
   }
-  if (secretsIn(a.url).size) refuse(ctx, "validation.bad_input", "A secret cannot be part of the address.");
+  if (secretsIn(a.url).size || secretsIn(a.query).size) refuse(ctx, "validation.bad_input", "A secret cannot be part of the address.");
 
   // secrets, by name, at call time
   const needed = new Set<string>([...secretsIn(a.headers), ...secretsIn(a.body)]);
@@ -82,7 +82,7 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
     if (v === undefined && conn) {
       const handle = connectionSecrets(conn)[name];
       if (!handle) refuse(ctx, "validation.precondition_failed", `The connection has no Vault item for ${name}.`);
-      v = deps.resolveSecret ? await deps.resolveSecret(handle!) : undefined;
+      v = deps.resolveSecret ? await deps.resolveSecret(handle!, {connector:def.key,connectionId:conn.connection_id,slot:name}) : undefined;
       if (v === undefined) refuse(ctx, "validation.precondition_failed", `The Vault item for ${name} has no value.`);
     }
     if (v === undefined) refuse(ctx, "validation.precondition_failed", `No value for ${name}.`);
@@ -93,7 +93,7 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
   if (conn && deps.resolveSecret) {
     for (const [name, handle] of Object.entries(connectionSecrets(conn))) {
       if (name in values) continue;
-      try { const v = await deps.resolveSecret(handle); if (v) everySecret.push(v); } catch { /* an unreadable item has nothing to scrub */ }
+      try { const v = await deps.resolveSecret(handle, {connector:def.key,connectionId:conn.connection_id,slot:name}); if (v) everySecret.push(v); } catch { /* an unreadable item has nothing to scrub */ }
     }
   }
   const scrub = scrubber(everySecret);
@@ -177,7 +177,7 @@ export async function runCases(deps: ConnectorsDeps, ctx: ConnectorsCtx, def: Co
     if (!a.url) continue;
     secretsIn(a.headers, used);
     secretsIn(a.body, used);
-    if (secretsIn(a.url).size) bad.push(`${a.name}: a secret in the address`);
+    if (secretsIn(a.url).size || secretsIn(a.query).size) bad.push(`${a.name}: a secret in the address`);
     const probe = a.url.replace(/\{(input|connection)\.[A-Za-z0-9_.]+\}/g, "x");
     const eg = checkEgress(probe, def.domains);
     if (!eg.ok) bad.push(`${a.name}: ${eg.reason}`);

@@ -55,7 +55,7 @@ export interface ConnectorsDeps {
   builtins: BuiltinRow[];
   now?: () => number;
   /** The value of a Vault item by handle, resolved server side at call time. Values never come back out of a handler. */
-  resolveSecret?: (handle: string) => Promise<string | undefined>;
+  resolveSecret?: (handle: string, binding?: { connector:string; connectionId:string; slot:string }) => Promise<string | undefined>;
   /** Store a secret the module obtained (an OAuth token) in the Vault and return its handle. */
   storeSecret?: (name: string, value: string) => Promise<string>;
   /** The connector folder in Files: parsed into a def (connector.toml, tests). Drafts follow it. */

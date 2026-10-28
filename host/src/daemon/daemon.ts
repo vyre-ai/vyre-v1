@@ -68,6 +68,8 @@ import { createEventsHost } from "../seams/events-ports.ts";
 import { applyPendingRestore, clearRestoredTombstones, createBackupHost, readRestoredTombstones } from "../seams/backup.ts";
 import { createKitsHost } from "../seams/kits.ts";
 import { createTelemetryRecorder } from "../seams/telemetry.ts";
+import { createConnectorsHost } from "../seams/connectors.ts";
+import type { ConnectorNetwork } from "../seams/connectors.ts";
 import { createAuditRecorder } from "../seams/audit.ts";
 import { startRelayBox } from "../seams/relay.ts";
 import { createSyncSeam } from "../seams/sync.ts";
@@ -191,6 +193,8 @@ export interface DaemonOptions {
   extra?: { caps?: CapabilityDef[]; routes?: RouteRec[]; handlers?: Record<string, Handler>; events?: string[] };
   /** the network under ctx.http (each module still reaches only its connector's domains); tests answer provider calls with it. Omitted: the global fetch. */
   http?: FetchLike;
+  /** Replace only DNS/pinned transport in connector fixtures; policy checks remain active. */
+  connectorNetwork?: ConnectorNetwork;
   /** The Vault, as the connector seams use it. Without one the seams that need a secret refuse, which is right until the Vault module is live. */
   vault?: VaultPort;
   /** The Space ports the Google, Microsoft and IMAP seams read, and (for tests) setters that replace the ones the modules export as `hostSeams`. Omitted ports refuse. */
@@ -335,6 +339,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let ownerOfSpace: () => string | null = () => cfg.owner;
   let callerOf: (h: http.IncomingHttpHeaders) => Promise<{ person: string; sessionId?: string } | null> = () => Promise.resolve(null);
   const ownNode = (p: string): boolean => cfg.roles.includes("device") || p === ownerOfSpace();
+  const connectorPort=createConnectorsHost({publicBase:()=>{const address=cfg.address??`http://${cfg.host}:${boundPort}`;return /^https?:\/\//.test(address)?address:`https://${address}`;},own:caller=>ownNode(caller.actingFor??caller.principal.id),...(o.connectorNetwork?{network:o.connectorNetwork}:{})});
   const keyring = createKeyring({ allowed: ownNode, live: (id) => (db ? sessionLive(db, id) : false) });
   closers.push(() => keyring.clearAll());
   const fillRoute = createFillRoute();
@@ -860,7 +865,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         configureSync: () => createSyncSeam({ store: spaceStore, ...(loaded.serving.get("conflicts") === "live" ? { conflicts: { open: (c) => hookRunner.call("conflicts.park", c) as Promise<string>, history: async (e) => { await hookRunner.call("conflicts.record_history", e); } } } : {}), access: () => access.snap, space: spaceId, now, registryHash, invoke: (c, i, seed) => invoke(c, i, seed), keyed: (c, v) => capIndex?.get(c, v)?.idempotency === "key", ...(cfg.address ? { endpoints: () => [{ kind: "direct" as const, url: `wss://${cfg.address}/sync/v1/live` }] } : {}) }),
         setVaultKeyPort: () => ({ personKey: async (personId: string) => keyring.get(personId) }),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
-        configureVault: () => ({ sinks: o.seams?.vaultSinks ?? {}, db: db!, probe: createProviderProbe({ own: ownNode }), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
+        configureVault: () => ({ sinks: { ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode }), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
+        setConnectorsHost: () => connectorPort,
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
         setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open() }, now }),
         ...(o.seams?.drivers ?? {}),
