@@ -420,3 +420,12 @@ test("recovery codes are four groups of four from an alphabet with no look-alike
   }
   assert.equal(seen.size, 50);
 });
+
+test("auth forms use the reference mark and top Back before the reading column", () => {
+  const out = html({ stage: "signin", siUser: "dana" });
+  assert.match(out, /data-testid="auth-form-header"/);
+  assert.match(out, /data-testid="auth-form-mark"/);
+  assert.ok(out.indexOf('data-testid="back"') < out.indexOf('data-testid="step-sign-in"'), "Back belongs above the fields");
+  assert.ok(out.indexOf('data-testid="join-bar"') > out.indexOf('data-testid="si-password"'), "the primary action follows the fields");
+  assert.doesNotMatch(out, /data-testid="icon-space"/, "the small reference brand replaces the decorative tile");
+});

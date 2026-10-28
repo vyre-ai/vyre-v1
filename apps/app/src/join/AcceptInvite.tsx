@@ -8,7 +8,7 @@ import type { Dispatch, ReactNode } from "react";
 import { Avatar } from "../../../../ui/src/Avatar/index.tsx";
 import { ConnectAI } from "./ConnectAI.tsx";
 import {
-  AppIcon, Bar, Button, Caption, Check, ErrorLine, FieldRow, Foot, Group, AgentFace, Meter, Panel, Progress, Row, Sheet, Step, Switch, TextButton, Title, CheckBox,
+  Bar, Button, Caption, Check, ErrorLine, FieldRow, Foot, Group, AgentFace, Meter, Panel, Progress, Row, Sheet, Step, Switch, TextButton, Title, CheckBox,
   baseText, useJoin,
 } from "./kit.tsx";
 import { MONO } from "./palette.ts";
@@ -39,7 +39,7 @@ function Landing({ invite, onOpenApp, onDownload, dispatch, state }: Pick<Accept
   const { p } = useJoin();
   return (
     <Step id="accept" dir={state.dir}>
-      <AppIcon kind="space" letter={invite.space} />
+
       <Title title={`Join ${invite.space}`} sub={`${invite.by} invited you to join as a ${invite.role}.`} />
       <Group>
         <Row kind="action" testID="open-app" label="Open in Vyre" note="Installed" onPress={() => { onOpenApp?.(); dispatch({ t: "web" }); }} />
@@ -59,7 +59,7 @@ function Expired({ invite, onEmail }: Pick<AcceptInviteProps, "invite" | "onEmai
   const first = invite.by.split(" ")[0] ?? invite.by;
   return (
     <Step id="expired">
-      <AppIcon kind="clock" />
+
       <Title title="This invite has expired" sub={`Ask ${invite.by} for a new one.`} />
       <View style={{ alignItems: "center", marginTop: 24 }}>
         <Button large testID="email-inviter" label={`Email ${first}`} onPress={() => invite.email && onEmail?.(invite.email)} />
@@ -95,7 +95,7 @@ function Welcome({ invite, state, dispatch, onPickPhoto, rules }: Pick<AcceptInv
   void rules;
   return (
     <Step id="welcome" dir={state.dir}>
-      <AppIcon kind="space" letter={invite.space} />
+
       <Title title={`Welcome to ${invite.space}`} sub={`${invite.by} invited you to join.`} />
       <Photo state={state} onPick={onPickPhoto} />
       <Group>
@@ -165,7 +165,7 @@ function SignInStep({ invite, state, dispatch, rules }: Pick<AcceptInviteProps, 
   for (const x of sugg) tries.push(<TextButton key={x} small label={x} testID={`suggest-${x}`} onPress={() => set({ user: x })} />);
   return (
     <Step id="signin-details" dir={state.dir}>
-      <AppIcon kind="person" />
+
       <Title title="Your sign-in" sub="Your space, your username and your password. That is all it takes, on any device." />
       <Group>
         <Username state={state} invite={invite} ok={ok} onChange={(v) => set({ user: v })} onSubmit={next} />
@@ -190,7 +190,7 @@ function DeviceStep({ state, dispatch, newCode }: Pick<AcceptInviteProps, "state
   const set = (patch: Partial<FlowState>) => dispatch({ t: "set", patch });
   return (
     <Step id="device" dir={state.dir}>
-      <AppIcon kind="laptop" />
+
       <Title title="Set up this device" />
       <Group>
         <FieldRow testID="device" label="Device name" value={state.device} onChange={(v) => set({ device: v })} onSubmit={() => dispatch({ t: "next" })} />
@@ -237,7 +237,7 @@ function RunStep({ invite, state }: Pick<AcceptInviteProps, "invite" | "state">)
   const n = done ? steps.length : state.run;
   return (
     <Step id={done ? "done" : "run"}>
-      <AppIcon kind="space" letter={invite.space} />
+
       <Title title={done ? "You're all set" : `Setting up ${invite.space}`} sub={done ? `Welcome, ${state.first.trim()}.${state.ai === "none" ? " Your assistant is locked until you connect an AI account." : ""}` : undefined} />
       {done ? null : (
         <>

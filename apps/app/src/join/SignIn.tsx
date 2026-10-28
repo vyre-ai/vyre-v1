@@ -3,7 +3,7 @@
 // No passkey row: passkeys are not in v1.
 import { Text, TextInput, View } from "react-native";
 import type { Dispatch } from "react";
-import { AppIcon, Bar, Button, Caption, ErrorLine, FieldRow, Foot, Group, Panel, Row, Step, Title, baseText, useJoin } from "./kit.tsx";
+import { Bar, Button, Caption, ErrorLine, FieldRow, Foot, Group, Panel, Row, Step, Title, baseText, useJoin } from "./kit.tsx";
 import { cleanUsername, signInValid } from "./logic.ts";
 import type { Action, FlowState, JoinInvite } from "./logic.ts";
 
@@ -50,7 +50,7 @@ export function SignIn({ invite, state, dispatch, busy, onSubmit, onSso, onGithu
     <Panel center bar={bar}>
       {totp ? (
         <Step id="totp" dir={state.dir}>
-          <AppIcon kind="lock" />
+
           <Title title="Enter the code" sub={`Open your authenticator app and enter the 6 digit code for ${invite.space}.`} />
           <Group>
             <FieldRow testID="si-code" label="Code" value={state.siCode} onChange={(v) => dispatch({ t: "set", patch: { siCode: v.replace(/\D/g, "").slice(0, 6) } })} placeholder="000000" keyboard="numeric" maxLength={6} autoComplete="one-time-code" onSubmit={go} spaced />
@@ -60,7 +60,7 @@ export function SignIn({ invite, state, dispatch, busy, onSubmit, onSso, onGithu
         </Step>
       ) : (
         <Step id="sign-in" dir={state.dir}>
-          <AppIcon kind="space" letter={invite.space} />
+
           <Title title={`Sign in to ${invite.space}`} />
           <Group>
             <Name state={state} host={invite.host} dispatch={dispatch} onSubmit={go} />

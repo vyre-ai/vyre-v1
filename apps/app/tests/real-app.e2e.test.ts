@@ -115,6 +115,23 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       await page.goto(`${web.origin}/home`, { waitUntil: "load" });
       await page.getByTestId("si-user").waitFor({ timeout: 15_000 });
       assert.equal(await page.getByTestId("shell").count(), 0, "no shell before sign-in");
+      const header = await page.getByTestId("auth-form-header").boundingBox();
+      const column = await page.getByTestId("step-sign-in").boundingBox();
+      const primary = await page.getByTestId("next").boundingBox();
+      const surface = await page.getByTestId("join-panel").boundingBox();
+      assert.ok(header && column && primary && surface);
+      assert.ok(header.y < column.y && primary.y > column.y, "reference header and primary surround the reading column");
+      assert.ok(Math.abs(primary.width - column.width) < 2, "the primary fills the reading column");
+      assert.ok(surface.height < 624, "the sign-in form sizes to its content");
+      fs.mkdirSync("shots-evidence/auth-forms", { recursive: true });
+      await page.screenshot({ path: "shots-evidence/auth-forms/signin-light.png" });
+      await page.evaluate(() => document.documentElement.setAttribute("data-mode", "dark"));
+      await page.screenshot({ path: "shots-evidence/auth-forms/signin-dark.png" });
+      await page.setViewportSize({ width: 375, height: 812 });
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "the form fits phone web without sideways scrolling");
+      await page.screenshot({ path: "shots-evidence/auth-forms/signin-phone.png" });
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.evaluate(() => document.documentElement.removeAttribute("data-mode"));
     });
 
     await t.test("2 the owner claims the Space with the one-time link and lands in the shell", async (s) => {

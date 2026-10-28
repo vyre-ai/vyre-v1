@@ -1,5 +1,7 @@
 # Changelog
 
+- Matched non-Welcome auth forms to the 0.6.8 content-height reading frame, small Vyre mark and top Back action, with a full-width primary below the fields. Preserved the approved flat surface, restrained halftone and existing account/security contracts.
+
 - Restored the 0.6.8 welcome composition: open halftone canvas, approved Vyre mark, large greeting and round Space connection field, with verified v1 connection and retry handling.
 
 - Fixed invited-account AI setup through the member acceptance contract so invite permissions apply before session verification: provider choice and Mine API-key storage follow verified join; subscription sign-in uses real completion, failures retry without accepting the invite twice, and raw keys never enter device storage. Preserved the authenticated device session during password changes while revoking other devices. Added working password and authenticator controls and truthful account-recovery guidance.

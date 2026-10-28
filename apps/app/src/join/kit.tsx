@@ -2,7 +2,7 @@
 // a Back / progress / Continue bar and the system accent. Flat: no gradients, no blurs, no decorative splits. Every block paints from the join palette.
 import { Children, cloneElement, createContext, createElement, isValidElement, useContext, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Dimensions } from "react-native";
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Dimensions } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
 import { Avatar } from "../../../../ui/src/Avatar/index.tsx";
 import { HalftoneField } from "./HalftoneField.tsx";
@@ -68,33 +68,28 @@ export function JoinFrame({ children, mode, halftoneIntensity = "calm" }: { chil
   );
 }
 
-export function Panel({ children, bar, center }: { children: ReactNode; bar?: ReactNode; center?: boolean }) {
+export function Panel({ children, bar, center }: { children: ReactNode; bar?: ReactElement<BarProps>; center?: boolean }) {
   const { p, phone } = useJoin();
-  const { height } = useViewport();
-  const h = phone ? "100%" : Math.min(624, height - 48);
+  void center;
+  const back = bar?.props;
   return (
-    <View
-      testID="join-panel"
-      style={[
-        { width: phone ? "100%" : 620, maxWidth: "100%", height: h as number, backgroundColor: p.panel, overflow: "hidden", flexDirection: "column" },
-        phone ? null : { borderRadius: 14 },
-        phone ? null : shadow(`0 0 0 1px ${p.hair}, 0 24px 70px rgba(0,0,0,.18), 0 4px 14px rgba(0,0,0,.08)`),
-      ]}
-    >
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ flexGrow: 1, paddingTop: center ? 20 : 28, paddingBottom: phone ? 16 : 24, paddingHorizontal: phone ? 20 : 40, justifyContent: center ? "center" : "flex-start" }}
-      >
+    <ScrollView style={{ width: "100%", flex: 1 }} contentContainerStyle={{ flexGrow: 1, alignItems: "center", justifyContent: "center", paddingVertical: phone ? 24 : 32, paddingHorizontal: phone ? 16 : 24 }} keyboardShouldPersistTaps="handled">
+      <View testID="join-panel" style={{ width: "100%", maxWidth: 720, backgroundColor: p.panel, borderWidth: 1, borderColor: p.hair, borderRadius: 20, padding: phone ? 20 : 24, gap: 24 }}>
+        <View testID="auth-form-header" style={{ minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><Image testID="auth-form-mark" source={{ uri: "/vyre-mark.svg" }} accessible={false} style={{ width: 20, height: 20 }} /><Text style={[base(p), { fontSize: 14, fontWeight: "600" }]}>Vyre</Text></View>
+          {back?.onBack && !back.hideBack ? <Pressable accessibilityRole="button" onPress={back.onBack} testID="back" style={{ minHeight: 44, minWidth: 44, alignItems: "center", justifyContent: "center" }}><Text style={[base(p), { color: p.tx2, fontSize: 13 }]}>Back</Text></Pressable> : null}
+        </View>
+        {back?.steps ? <FormProgress step={back.step} steps={back.steps} /> : null}
         {children}
-      </ScrollView>
-      {bar ?? null}
-    </View>
+        {bar ?? null}
+      </View>
+    </ScrollView>
   );
 }
 
-/** One step's column: at most 440 wide, centred, and it slides in from the side it came from. */
+/** The reference reading column fills its content-height form surface. */
 export function Step({ children, dir = 1, id }: { children: ReactNode; dir?: 1 | -1; id: string }) {
-  const style: ViewStyle = { width: "100%", maxWidth: 440, alignSelf: "center" };
+  const style: ViewStyle = { width: "100%", alignSelf: "center" };
   if (!reduceMotion()) {
     const from = dir > 0 ? 12 : -12;
     Object.assign(style, {
@@ -113,8 +108,8 @@ export function Title({ title, sub }: { title: string; sub?: string }) {
   const { p } = useJoin();
   return (
     <View>
-      <Text accessibilityRole="header" style={[base(p), { marginTop: 24, textAlign: "center", fontSize: 26, lineHeight: 32, fontWeight: "600", letterSpacing: -0.5 }]}>{title}</Text>
-      {sub ? <Text style={[base(p), { marginTop: 6, alignSelf: "center", textAlign: "center", color: p.tx2, maxWidth: 360 }]}>{sub}</Text> : null}
+      <Text accessibilityRole="header" style={[base(p), { marginTop: 0, textAlign: "left", fontSize: 28, lineHeight: 32, fontWeight: "600", letterSpacing: -0.5 }]}>{title}</Text>
+      {sub ? <Text style={[base(p), { marginTop: 8, alignSelf: "stretch", textAlign: "left", color: p.tx2 }]}>{sub}</Text> : null}
     </View>
   );
 }
@@ -144,10 +139,10 @@ export function Button({ label, onPress, disabled, large, testID }: { label: str
     <Pressable
       accessibilityRole="button" aria-disabled={!!disabled} disabled={disabled} onPress={onPress} testID={testID}
       style={({ hovered, pressed }: { hovered?: boolean; pressed?: boolean }) => ({
-        minHeight: 44, justifyContent: "center", flexShrink: 0, opacity: disabled ? 0.4 : pressed ? 0.92 : hovered ? 0.94 : 1,
+        minHeight: 44, alignItems: "stretch", justifyContent: "center", flexShrink: 0, opacity: disabled ? 0.4 : pressed ? 0.92 : hovered ? 0.94 : 1,
       })}
     >
-      <View style={{ height: large ? 36 : 32, paddingHorizontal: large ? 22 : 18, borderRadius: 8, backgroundColor: p.blue, justifyContent: "center" }}>
+      <View style={{ minHeight: large ? 48 : 44, alignItems: "center", paddingHorizontal: large ? 22 : 18, borderRadius: 8, backgroundColor: p.blue, justifyContent: "center" }}>
         <Text numberOfLines={1} style={[base(p), { color: "#FFFFFF", fontSize: large ? 14 : 13, fontWeight: "600" }]}>{label}</Text>
       </View>
     </Pressable>
@@ -372,39 +367,14 @@ export function Progress({ pct }: { pct: number }) {
 
 // ---- the bar
 
-export function Bar({ onBack, hideBack, step, steps, cont, centre, testID }: { onBack?: () => void; hideBack?: boolean; step?: number; steps?: number; cont: ReactNode; /** the action sits in the middle of the bar, the dots at the left (the finish page) */ centre?: boolean; testID?: string }) {
-  const { p, phone } = useJoin();
-  const dots = steps ? (
-    <View accessibilityRole="progressbar" accessibilityLabel={`Step ${Math.min(steps, (step ?? 0) + 1)} of ${steps}`} aria-valuemin={1} aria-valuemax={steps} aria-valuenow={Math.min(steps, (step ?? 0) + 1)} testID="dots" style={{ flexDirection: "row", gap: 7 }}>
-      {Array.from({ length: steps }, (_, i) => <View key={i} style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: i === step ? p.tx : i < (step ?? 0) ? p.tx2 : p.hair }} />)}
-    </View>
-  ) : <View />;
-  return (
-    <View
-      testID={testID ?? "join-bar"}
-      style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 64, paddingHorizontal: 20, paddingVertical: phone ? 10 : 0, borderTopWidth: 1, borderTopColor: p.hair }}
-    >
-      {centre ? (
-        <>
-          <View style={{ flex: 1, alignItems: "flex-start" }}>{dots}</View>
-          <View style={{ flexShrink: 0, alignItems: "center" }}>{cont}</View>
-          <View style={{ flex: 1 }} />
-        </>
-      ) : (
-        <>
-          {hideBack ? null : (
-            <View style={{ flex: 1, alignItems: "flex-start" }}>
-              <Pressable accessibilityRole="button" onPress={onBack} testID="back" style={({ hovered }: { hovered?: boolean }) => ({ paddingVertical: 6, paddingHorizontal: 4, borderRadius: 6, opacity: hovered ? 0.75 : 1 })}>
-                <Text style={[base(p), { color: p.blue, fontSize: 13, fontWeight: "500" }]}>Back</Text>
-              </Pressable>
-            </View>
-          )}
-          {dots}
-          <View style={{ flex: hideBack ? 0 : 1, flexShrink: 0, alignItems: "flex-end" }}>{cont}</View>
-        </>
-      )}
-    </View>
-  );
+export interface BarProps { onBack?: () => void; hideBack?: boolean; step?: number; steps?: number; cont: ReactNode; centre?: boolean; testID?: string }
+function FormProgress({ step = 0, steps }: { step?: number; steps: number }) {
+  const { p } = useJoin();
+  const current = Math.min(steps, step + 1);
+  return <View style={{ gap: 8 }}><Text style={[base(p), { fontSize: 12, color: p.tx2 }]}>Step {current} of {steps}</Text><View accessibilityRole="progressbar" accessibilityLabel={`Step ${current} of ${steps}`} aria-valuemin={1} aria-valuemax={steps} aria-valuenow={current} testID="dots" style={{ flexDirection: "row", gap: 6 }}>{Array.from({ length: steps }, (_, i) => <View key={i} style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: i <= step ? p.tx : p.hair }} />)}</View></View>;
+}
+export function Bar({ cont, testID }: BarProps) {
+  return <View testID={testID ?? "join-bar"} style={{ width: "100%", alignItems: "stretch" }}>{cont}</View>;
 }
 
 // ---- the sheet
