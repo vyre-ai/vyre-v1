@@ -121,7 +121,14 @@ export async function sessionsContinue(ctx: ImportCtx, input: In): Promise<unkno
   if (input.destinationScope !== "personal" || input.destinationSpaceId !== ctx.space) raise(ctx, "validation.not_found", "That imported conversation does not exist.");
   const row = (ctx.db.all("SELECT conversationId, projectId, continuedThreadId FROM import_conversation WHERE conversationId = ? AND owner = ? AND spaceId = ? AND destinationScope = ?", input.conversationId, me(ctx), ctx.space, "personal") as Array<Record<string, unknown>>)[0];
   if (!row) raise(ctx, "validation.not_found", "That imported conversation does not exist.");
-  if (row["continuedThreadId"]) return { threadId: String(row["continuedThreadId"]), linkedFrom: String(row["conversationId"]) };
+  const fileInProject = async (threadId: string): Promise<void> => {
+    if (row["projectId"]) await call(ctx, "projects.file_chat", { projectId: String(row["projectId"]), threadId });
+  };
+  if (row["continuedThreadId"]) {
+    const threadId = String(row["continuedThreadId"]);
+    await fileInProject(threadId);
+    return { threadId, linkedFrom: String(row["conversationId"]) };
+  }
   if (typeof input.agentId !== "string" || !input.agentId.startsWith("agt_")) raise(ctx, "validation.bad_input", "Choose an agent to continue this session.");
   const history = ctx.db.all("SELECT role, text FROM import_message WHERE conversationId = ? ORDER BY at, rowid", row["conversationId"]) as Array<{ role: string; text: string }>;
   const context = history.map((m) => `${m.role}: ${sanitizeImportedText(m.text)}`).join("\n\n").slice(-60_000);
@@ -129,6 +136,7 @@ export async function sessionsContinue(ctx: ImportCtx, input: In): Promise<unkno
   const chat = await call(ctx, "chat.start", clean({ kind: "chat", agentIds: [input.agentId], title: "Continued imported session", scopeType: "imported_session", scopeId: row["conversationId"], first }), { idempotencyKey: `sessions-continue:${row["conversationId"]}` }) as { thread?: { threadId?: string } } | undefined;
   const threadId = chat?.thread?.threadId;
   if (!threadId) raise(ctx, "internal.unexpected", "The Chat service did not start a live chat.");
+  await fileInProject(threadId);
   ctx.db.run("UPDATE import_conversation SET continuedThreadId = ? WHERE conversationId = ?", threadId, row["conversationId"]);
   ctx.emit("sessions.continued", String(row["conversationId"]), { conversationId: row["conversationId"], threadId });
   return { threadId, linkedFrom: String(row["conversationId"]) };

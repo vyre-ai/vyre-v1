@@ -75,6 +75,7 @@ test("sessions.import never turns loose paths into projects and continues in a l
   const live = await sessionsContinue(h.ctx, { conversationId: imported.sessions[0]!.conversationId, destinationSpaceId: imported.sessions[0]!.destination.spaceId, destinationScope: imported.sessions[0]!.destination.scope, agentId: "agt_intake" });
   assert.equal(live.linkedFrom, imported.sessions[0]?.conversationId);
   assert.equal(h.only("chat.start").length, 1);
+  assert.equal(h.only("projects.file_chat").length, 0, "loose sessions stay in the Personal imported archive without an empty Project");
   assert.equal(h.rows("SELECT immutable FROM import_conversation")[0]?.immutable, 1);
 });
 
@@ -148,6 +149,11 @@ test("session project calls carry the required idempotency key in input and cont
     return create(input, opts);
   };
   const imported = await sessionsImport(h.ctx, payload);
-  await sessionsContinue(h.ctx, { conversationId: imported.sessions[0].conversationId, destinationSpaceId: h.ctx.space, destinationScope: "personal", agentId: "agt_intake" });
+  const continued = await sessionsContinue(h.ctx, { conversationId: imported.sessions[0].conversationId, destinationSpaceId: h.ctx.space, destinationScope: "personal", agentId: "agt_intake" });
   assert.match(h.only("chat.start")[0].input.first, /Ship the release/);
+  assert.deepEqual(h.only("projects.file_chat").map((call) => call.input), [{ projectId: imported.sessions[0].destination.projectId, threadId: continued.threadId }], "the continued chat is visible inside its imported repository Project");
+  const reopened = await sessionsContinue(h.ctx, { conversationId: imported.sessions[0].conversationId, destinationSpaceId: h.ctx.space, destinationScope: "personal", agentId: "agt_intake" });
+  assert.equal(reopened.threadId, continued.threadId);
+  assert.equal(h.only("chat.start").length, 1, "continuation remains idempotent");
+  assert.equal(h.only("projects.file_chat").length, 2, "reopening repairs Project filing if an earlier attempt was interrupted");
 });

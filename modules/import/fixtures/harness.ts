@@ -59,6 +59,7 @@ export function fakeWorld(clock: { t: number }) {
   const handlers: Record<string, Handler> = {
     "spaces.matrix": () => ({ kind: "personal", features: [] }),
     "projects.create": (i, o) => keyed(o, "project", () => ({ projectId: next("prj"), recordId: next("rec"), channelId: next("chn"), folderId: next("fld") })),
+    "projects.file_chat": () => ({ ok: true }),
     "chat.start": (i, o) => keyed(o, "chat", () => ({ thread: { threadId: next("thr"), kind: i.kind, listed: true } })),
     "files.read": (i) => {
       const f = files.get(i.fileId) ?? fail("validation.not_found", "no such file");
