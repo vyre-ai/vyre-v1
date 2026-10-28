@@ -42,8 +42,8 @@ function Landing({ invite, onOpenApp, onDownload, dispatch, state }: Pick<Accept
 
       <Title title={`Join ${invite.space}`} sub={`${invite.by} invited you to join as a ${invite.role}.`} />
       <Group>
-        <Row kind="action" testID="open-app" label="Open in Vyre" note="Installed" onPress={() => { onOpenApp?.(); dispatch({ t: "web" }); }} />
-        <Row kind="action" testID="download" label="Download Vyre" note={state.note === "dl" ? "Downloading…" : "Mac, Windows, Linux"} onPress={() => { onDownload?.(); dispatch({ t: "set", patch: { note: "dl" } }); }} />
+        {onOpenApp?<Row kind="action" testID="open-app" label="Open in Vyre" note="Desktop app" onPress={onOpenApp}/>:null}
+        {onDownload?<Row kind="action" testID="download" label="View downloads" note="Releases" onPress={onDownload}/>:null}
         <Row kind="action" testID="web" label="Continue in the browser" onPress={() => dispatch({ t: "web" })} />
       </Group>
       <Foot>The app keeps your files on this computer. The browser works anywhere, with less offline.</Foot>

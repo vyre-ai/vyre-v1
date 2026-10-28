@@ -15,7 +15,7 @@ import { JoinFrame } from "../../join/kit.tsx";
 import { Welcome } from "../../join/Welcome.tsx";
 import { completeReset } from "../../join/reset.ts";
 import { SpaceEntry } from "../../join/SpaceEntry.tsx";
-import { clearLock, consumeBrowserInvite, entryTarget, readLock } from "./entry.ts";
+import { clearLock, consumeBrowserInvite, inviteAppLink, VYRE_DOWNLOADS, entryTarget, readLock } from "./entry.ts";
 import type { EntryTarget, LockedIdentity } from "./entry.ts";
 import { ensurePersonalSpace } from "../../../../../client/src/connection/desktop-link.ts";
 import type { Invoke } from "../../../../../client/src/connection/desktop-link.ts";
@@ -187,7 +187,8 @@ function DesktopJoinScreen({ route, open, onSignedIn, onBack, deviceClass }: { r
   if (failed) return <JoinFrame><Panel><Step id="invite-error"><Title title="Couldn’t open this invite" sub="The invite is unavailable or expired."/><Button label="Try again" testID="invite-retry" onPress={()=>setAttempt(n=>n+1)}/><Button label="Back" testID="invite-back" onPress={onBack}/></Step></Panel></JoinFrame>;
   if (!join) return <JoinFrame><Panel><Step id="invite-loading"><Title title="Preparing your invite"/><Foot>Checking the Space and the invitation…</Foot></Step></Panel></JoinFrame>;
   const invite: JoinInvite = { space: join.preview.spaceName, host: hostOf(route.address), by: join.preview.invitedBy, role: join.preview.role, fingerprint: join.preview.fingerprint, sso: [], github: false, adminKey: false };
-  return <JoinFlow invite={invite} onJoin={onJoin} />;
+  const appLink=deviceClass==='web'?inviteAppLink(route):null;
+  return <JoinFlow invite={invite} onJoin={onJoin} {...(deviceClass==='desktop'?{initial:{stage:'steps' as const,step:0}}:{onDownload:()=>{(globalThis as {open?:(url:string,target:string,features:string)=>unknown}).open?.(VYRE_DOWNLOADS,'_blank','noopener,noreferrer');}})} {...(appLink?{onOpenApp:()=>{(globalThis as {location?:{assign(url:string):void}}).location?.assign(appLink);}}:{})} />;
 }
 
 async function resumePersonal(local:{address:string;spaceId:string},old:StoredSession,open:NonNullable<SessionGateProps['open']>):Promise<StoredSession>{const stored=await openVerifiedSession({baseUrl:local.address,token:old.token,continuity:{id:local.spaceId,marker:old.marker},open:()=>open({baseUrl:local.address,token:old.token}),getSpace:()=>authenticatedSpace(local.address,old.token)});if(old.baseUrl!==local.address)clearStored(undefined,old.baseUrl);return stored;}

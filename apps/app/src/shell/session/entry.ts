@@ -23,3 +23,7 @@ export function clearLock():void{try{storage()?.removeItem(LOCK_KEY);}catch{/* b
 
 /** Remove a spent or dismissed browser invite before shell navigation can remount the gate. */
 export function consumeBrowserInvite(browser: {location?:{pathname:string};history?:{replaceState(data:unknown,unused:string,url:string):void}}=globalThis as never):void{if(browser.location?.pathname.startsWith('/join/'))browser.history?.replaceState(null,'','/home');}
+
+/** The existing desktop join protocol accepts HTTPS Space addresses only. */
+export function inviteAppLink(route:Extract<DesktopRoute,{kind:'join'}>):string|null{if(!route.address.startsWith('https://'))return null;return`vyre://join?${new URLSearchParams({address:route.address,code:route.code,fp:route.fingerprint})}`;}
+export const VYRE_DOWNLOADS='https://github.com/vyre-ai/vyre-v1/releases';

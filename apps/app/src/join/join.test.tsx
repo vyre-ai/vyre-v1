@@ -236,12 +236,13 @@ test("sign-in goes username and password, then the code, then in; Back unwinds",
   assert.equal(step({ ...s, siCode: "123456" }, { t: "next" }).stage, "done");
 });
 
-test("the invite landing offers the app, the download, the browser and sign-in, and a join of a name only", () => {
-  const out = html({});
-  for (const text of ["Join Northwind", "Irfad Imtiaz invited you to join as a Member.", "Open in Vyre", "Download Vyre", "Mac, Windows, Linux", "Continue in the browser", "Already have an account?", "Sign in"]) {
+test("the invite landing offers supported app/download actions, browser and sign-in", () => {
+  const out = html({}, {onOpenApp:()=>undefined,onDownload:()=>undefined});
+  for (const text of ["Join Northwind", "Irfad Imtiaz invited you to join as a Member.", "Open in Vyre", "View downloads", "Releases", "Continue in the browser", "Already have an account?", "Sign in"]) {
     assert.ok(out.includes(text), text);
   }
   assert.equal(out.match(/data-testid="step-accept"/g)?.length, 1);
+  assert.ok(!html({}).includes('data-testid="open-app"'));assert.ok(!html({}).includes('data-testid="download"'));
   assert.doesNotMatch(out, /data-testid="join-bar"/, "the landing has no Back and Continue bar");
 });
 
