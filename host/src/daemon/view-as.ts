@@ -5,6 +5,7 @@ import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 import { authorize, type AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import type { Store, StoredRecord } from "../../../kernel/src/store/types.ts";
 import { fail } from "../routes/errors.ts";
+import {recordSensitivity} from "./record-sensitivity.ts";
 
 export const PREVIEW_READ_CAPS = ["records.get", "records.query"] as const;
 export interface PreviewIdentity { space: string; requester: string; target: string; sessionId: string; device: string; expiresAt: number }
@@ -49,14 +50,14 @@ export function createViewAs(ports: PreviewPorts) {
     }
     return false;
   }
-  function project(entry: Entry, row: StoredRecord, trace: string) {
+  function project(entry: Entry, row: StoredRecord, trace: string, cap: string, labels:Readonly<Record<string,number>>) {
     const snap = live(entry, trace), resource = snap.resource(row.id);
     if (!resource || resource.type !== "record" || !shared(snap, row.id) || row.deleted_at !== undefined) return null;
-    const decisions = [entry.requester, entry.target].map(principal => authorize(snap, { principal, action: { perm: null, level: "view" }, resource: { type: "record", id: row.id }, row: { ...row.data, id: row.id, owner_id: resource.owner_id }, now: ports.now() }));
+    const decisions = [entry.requester, entry.target].map(principal => authorize(snap, { principal, cap, action: { perm: null, level: "view" }, resource: { type: "record", id: row.id }, row: { ...row.data, id: row.id, owner_id: resource.owner_id }, now: ports.now() }));
     if (decisions.some(d => d.effect !== "allow")) return null;
     const hidden = new Set(decisions.flatMap(d => [...(d.scope?.hiddenFields ?? [])]));
     const ceiling = Math.min(...decisions.map(d => d.scope?.labelCeiling ?? -1));
-    const fields = Object.fromEntries(Object.entries(row.data).filter(([field]) => !hidden.has(field) && snap.fieldLabel(row.type, field) <= ceiling && snap.fieldLabel("record", field) <= ceiling));
+    const fields = Object.fromEntries(Object.entries(row.data).filter(([field]) => !hidden.has(field) && (labels[field]??0)<=ceiling && snap.fieldLabel(row.type, field) <= ceiling && snap.fieldLabel("record", field) <= ceiling));
     return { id: row.id, type: row.type, version: row.version, label: resource.label, fields, createdAt: row.created_at, updatedAt: row.updated_at, holds: resource.holds };
   }
   return {
@@ -81,12 +82,13 @@ export function createViewAs(ports: PreviewPorts) {
       const input = raw as Record<string, unknown>;
       if (!input || typeof input !== "object" || typeof input["type"] !== "string") throw fail("validation.bad_input", trace);
       const type = input["type"];
+      const labels=await recordSensitivity(ports.store(),type);
       if (cap === "records.get") {
         if (Object.keys(input).some(key => !["type", "recordId"].includes(key)) || typeof input["recordId"] !== "string") throw fail("validation.bad_input", trace);
         const row = await ports.store().get(type, input["recordId"]);
-        const record = row && project(entry, row, trace);
+        const record = row && project(entry, row, trace, cap,labels);
         if (!record) return deny(trace);
-        return { finish: () => { const latest = project(entry, row, trace); if (!latest) return deny(trace); return { record: latest }; } };
+        return { finish: async () => { const labels=await recordSensitivity(ports.store(),type);const latest = project(entry, row, trace, cap,labels); if (!latest) return deny(trace); return { record: latest }; } };
       }
       if (Object.keys(input).some(key => !["type", "limit", "cursor"].includes(key))) throw fail("validation.bad_input", trace, { message: "Preview queries support type, limit and cursor only." });
       const limit = input["limit"] ?? 25;
@@ -105,7 +107,7 @@ export function createViewAs(ports: PreviewPorts) {
         live(entry, trace);
         const row = page.rows[0];
         cursor = page.next_cursor;
-        if (row && project(entry, row, trace)) rows.push(row);
+        if (row && project(entry, row, trace, cap,labels)) rows.push(row);
         if (!cursor) break;
       }
       // Redact again after all awaited reads: permission changes during paging
@@ -115,7 +117,7 @@ export function createViewAs(ports: PreviewPorts) {
         if (entry.cursors.size >= 100) entry.cursors.delete(entry.cursors.keys().next().value!);
         next = random(); entry.cursors.set(next, { type, cursor });
       }
-      return { finish: () => { live(entry, trace); return { rows: rows.map(row => project(entry, row, trace)).filter(row => row !== null), ...(next ? { next } : {}) }; } };
+      return { finish: async () => { const labels=await recordSensitivity(ports.store(),type);live(entry, trace); return { rows: rows.map(row => project(entry, row, trace, cap,labels)).filter(row => row !== null), ...(next ? { next } : {}) }; } };
     },
   };
 }

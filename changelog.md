@@ -1,6 +1,10 @@
 - Wire the complete Connector/Connection controllers and typed Webhook object lifecycle into Console navigation. Verify webhook payload conditions, one-time signing-secret rotation, disable/enable, failed test/replay outcomes, reviewed deletion and real Graphite/phone layouts against a production export.
 - Preserve the trusted host’s internal record-read authority for validated shared project links, while retaining scoped projection checks for anonymous actors, tenant services and direct callers.
 - Add an isolated read-only shared Records preview to the Access checker, with memory-only expiring credentials, canceled pending requests, hidden-field redaction, explicit exit and preserved normal Owner session.
+# Changelog
+
+- Complete conditional Records collection reads through the canonical typed store: requester/acting-person authorization runs per actual row, authorized pages fill across hidden rows, counts and text searches respect visible content, and opaque cursors bind to the caller and query. Normal and View-as reads now honor explicit canonical schema sensitivity and refresh that classification after audit before releasing data. Restricted pagination cursors expire after an hour or server restart and require a list refresh. Unrestricted reads retain the indexed query path.
+
 - Enforce grant label ceilings in single-record authorization, inherited grants, SQL list predicates and persisted Access projections, with classification and randomized parity regressions.
 - Scope the release grant-update check to its persistent object-body feedback, retaining actual expiry mutation and readback after reload.
 - Prove full Connector/Connection lifecycle through the real gateway, including actual Files export navigation, Vault metadata-only account setup, version restore and Graphite/phone layouts.
