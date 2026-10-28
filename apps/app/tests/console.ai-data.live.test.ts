@@ -93,6 +93,14 @@ test("production Console AI/Data: policies, spend, Gate, review, incidents, hold
     await page.getByRole("button", { name: "Create record type", exact: true }).click(); await page.getByLabel("Type key", { exact: true }).fill("browser_ai_data"); await page.getByLabel("Singular title", { exact: true }).fill("Browser AI datum"); await page.getByLabel("Plural title", { exact: true }).fill("Browser AI data");
     await page.getByTestId("schema-preview").click(); await page.getByRole("button", { name: "Apply exact preview", exact: true }).click(); await page.getByText("Schema updated", { exact: true }).waitFor();
     assert.ok((await api("schema.describe", {}) as { types: { key: string }[] }).types.some((type) => type.key === "browser_ai_data"));
+    await page.getByText("Browser AI datum", { exact: true }).first().click(); await page.getByRole("button", { name: "Add field", exact: true }).click();
+    await page.getByLabel("Field key", { exact: true }).fill("risk_score"); await page.getByLabel("Field title", { exact: true }).fill("Risk score"); await page.getByRole("button", { name: "Field type", exact: true }).click(); await page.getByRole("menuitem", { name: "Number", exact: true }).click();
+    await page.getByTestId("schema-preview").click(); await page.getByRole("button", { name: "Apply exact preview", exact: true }).click(); await page.getByText("Schema updated", { exact: true }).waitFor();
+    const typed = (await api("schema.describe", {}) as { types: { key: string; fields: { key: string; type: string }[] }[] }).types.find((type) => type.key === "browser_ai_data"); assert.equal(typed?.fields.find((field) => field.key === "risk_score")?.type, "number");
+
+    await open("console.labels", '[data-testid="console-labels"]', "labels");
+    await page.getByText("Restricted", { exact: true }).click(); await page.getByRole("button", { name: "Resource", exact: true }).click(); await page.getByRole("menuitem", { name: "Browser AI datum", exact: true }).click(); await page.getByTestId("label-set").click(); await page.getByText("Label updated", { exact: true }).waitFor();
+    assert.equal((await api("schema.describe", {}) as { types: { key: string; label: string }[] }).types.find((type) => type.key === "browser_ai_data")?.label, "restricted");
 
     assert.deepEqual(errors, []); assert.deepEqual(refused, []);
   } finally { await context.close(); await browser.close(); web.close(); await space.stop(); fs.rmSync(space.dir, { recursive: true, force: true }); }
