@@ -25,6 +25,9 @@ test("production Apps: create a form and campaign, reload their real editors, in
     await page.getByTestId("claim-password").fill("fixture password 123"); await page.getByTestId("claim-confirm").fill("fixture password 123");
     await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click();
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
+    const token = await page.evaluate(() => { const saved = JSON.parse(localStorage.getItem("vyre.session.v1")!); return saved.sessions?.[location.origin]?.token ?? saved.token; });
+    const fixtureCompany = await context.request.post(`${web.origin}/v1/records/create`, { headers: { authorization: `Bearer ${token}` }, data: { type: "company", fields: { name: "Fixture relation company" }, idempotencyKey: "apps-company-fixture" } });
+    assert.equal(fixtureCompany.status(), 200, await fixtureCompany.text());
     await page.goto(`${web.origin}/sites`, { waitUntil: "load" });
     await page.getByTestId("apps-new-group").click();
     await page.getByRole("menuitem", { name: "New form", exact: true }).click();
@@ -36,6 +39,18 @@ test("production Apps: create a form and campaign, reload their real editors, in
     await page.getByTestId("apps-form-detail").waitFor({ timeout: 20_000 });
     await page.getByRole("button", { name: "Mode for Name", exact: true }).click();
     await page.getByRole("menuitem", { name: "Ask", exact: true }).click();
+    for (const label of ['Email','Company','Deliverability']) { await page.getByRole('button',{name:`Mode for ${label}`,exact:true}).click();await page.getByRole('menuitem',{name:'Ask',exact:true}).click(); }
+    await page.getByLabel('Accent color',{exact:true}).fill('#123456');
+    await page.getByRole('button',{name:'Add condition',exact:true}).click();
+    await page.getByLabel('Match value 1',{exact:true}).fill('show');
+    await page.getByRole('button',{name:'Target question 1',exact:true}).click();await page.getByRole('menuitem',{name:'Email',exact:true}).click();
+    await page.getByTestId('row-name').click();
+    await page.getByLabel('Preview answer',{exact:true}).fill('show');
+    await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="email"]').waitFor();
+    assert.ok((await page.frameLocator('iframe[title="Form preview"]').locator('select[data-field="company"] option').allTextContents()).includes('Fixture relation company'));
+    assert.ok(await page.frameLocator('iframe[title="Form preview"]').locator('select[data-field="deliverability"] option').count()>1);
+    await page.getByLabel('Preview answer',{exact:true}).fill('hide');
+    await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="email"]').waitFor({state:'detached'});
     await page.getByRole("button", { name: "Code", exact: true }).click();
     await page.getByLabel("Custom CSS", { exact: true }).fill("input { border-color: rgb(110, 80, 190); }");
     await page.getByRole("button", { name: "Build", exact: true }).click();
@@ -46,6 +61,10 @@ test("production Apps: create a form and campaign, reload their real editors, in
     assert.equal(await page.getByLabel("Form name", { exact: true }).inputValue(), "Browser fixture renamed");
     await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="name"]').waitFor();
     assert.equal(await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="name"]').evaluate((el) => getComputedStyle(el).borderTopColor), "rgb(110, 80, 190)");
+    assert.equal(await page.getByLabel('Accent color',{exact:true}).inputValue(),'#123456');
+    assert.equal(await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="email"]').count(),0);
+    await page.getByTestId('row-name').click();await page.getByLabel('Preview answer',{exact:true}).fill('show');
+    await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="email"]').waitFor();
     const captures = process.env["VYRE_APPS_SHOTS"];
     if (captures) { fs.mkdirSync(captures, { recursive: true }); await page.screenshot({ path: path.join(captures, "form-editor-desktop.png") }); }
     await page.getByRole("button", { name: "Back to Apps", exact: true }).click();
@@ -61,7 +80,7 @@ test("production Apps: create a form and campaign, reload their real editors, in
     await page.getByTestId("apps-place").waitFor({ timeout: 20_000 });
     await page.getByTestId("apps-title").filter({ hasText: "Templates" }).waitFor();
     // Create a real draft fixture through the authenticated API, then save and install it through the UI.
-    const token = await page.evaluate(() => { const saved = JSON.parse(localStorage.getItem("vyre.session.v1")!); return saved.sessions?.[location.origin]?.token ?? saved.token; });
+
     const source = await context.request.post(`${web.origin}/v1/automations/create`, { headers: { authorization: `Bearer ${token}` }, data: { name: "Browser fixture draft", idempotencyKey: "browser-template-source" } });
     assert.equal(source.status(), 200, await source.text());
     await page.getByTestId("apps-new").click();
@@ -110,6 +129,6 @@ test("production Apps: create a form and campaign, reload their real editors, in
     await page.getByTestId("apps-form-canvas").waitFor();
     await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="name"]').waitFor();
     if (out) await page.screenshot({ path: path.join(out, "form-preview-phone.png") });
-  } catch (e) { console.error(`Apps browser failure: ${await page.locator("body").innerText().catch(() => "no body")}\n${refused.join("\n")}`); throw e; }
+  } catch (e) { await page.screenshot({path:"/tmp/vyre-apps-browser-shots/design-failure.png"});console.error("preview-box",await page.locator('iframe[title="Form preview"]').boundingBox()); console.error(`Apps browser failure: ${await page.locator("body").innerText().catch(() => "no body")}\n${refused.join("\n")}`); throw e; }
   finally { await context.close(); await browser.close(); web.close(); await space.stop(); fs.rmSync(space.dir, { recursive: true, force: true }); }
 });
