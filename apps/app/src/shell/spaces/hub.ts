@@ -62,6 +62,8 @@ export interface HubOptions {
   spaces: readonly SpaceDef[];
   openId: string;
   personId: string;
+  /** A person can have a distinct identity on each server. */
+  personIds?: Readonly<Record<string,string>>;
   deviceId: string;
   /** This device's storage for tabs; null keeps them in memory. */
   storage: TabsStorage | null;
@@ -132,7 +134,7 @@ export function createShellHub(options: HubOptions): ShellHub {
   const sessions = new Map<string, SpaceSession>();
 
   for (const def of defs) {
-    const tabs = createTabsController({ deviceId: options.deviceId, personId: options.personId, spaceId: def.spaceId, storage: options.storage, start: kitById(def.kit).start });
+    const tabs = createTabsController({ deviceId: options.deviceId, personId: options.personIds?.[def.spaceId] ?? options.personId, spaceId: def.spaceId, storage: options.storage, start: kitById(def.kit).start });
     const first = activeEntry(tabs.state());
     sessions.set(def.spaceId, {
       def,

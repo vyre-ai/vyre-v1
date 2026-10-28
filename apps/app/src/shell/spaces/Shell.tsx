@@ -50,6 +50,8 @@ export interface ShellProps {
   onOpenWaiting?: () => void;
   /** Sign out, Add a Space and the like leave the shell; it tells you. */
   onSpaceAction?: (action: SpaceAction) => void;
+  /** Production activates the target server session; sample hubs can switch locally. */
+  onSwitchSpace?: (spaceId:string) => void;
   /** Called when a person points at or focuses a place in the rail or a tab: the session reads that place's first queries ahead of the click. */
   onPrefetchPlace?: (place: PlaceId) => void;
   /** Who and where, for remembering a collapsed sidebar on this device. Without it the choice lasts for the session. */
@@ -118,6 +120,7 @@ export function Shell(props: ShellProps): ReactElement {
   };
 
   const switchBy = (spaceId: string): void => {
+    if(props.onSwitchSpace){props.onSwitchSpace(spaceId);return;}
     const to = hub.spaces().find((s) => s.spaceId === spaceId);
     if (hub.switchTo(spaceId) && to !== undefined) hub.flash(`Switched to ${to.name}`);
   };
