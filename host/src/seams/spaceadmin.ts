@@ -30,11 +30,10 @@ export function createSpaceAdmin(d: SpaceAdminDeps) {
       } catch { /* identity has no Space row yet */ }
       return "0000 0000 0000 0000";
     },
-    isMember: async (personId: string) => d.access().principal(personId)?.status === "active",
+    isMember: async (personId: string) => {const p=d.access().principal(personId);return p?.kind === "person" && p.status === "active";},
     async transferOwner(from: string, to: string) {
-      await d.system("access.roles.assign", { subject: { kind: "person", id: to }, roleId: "owner" });
-      await d.system("access.roles.assign", { subject: { kind: "person", id: from }, roleId: "admin" });
-      await d.system("access.roles.unassign", { subject: { kind: "person", id: from }, roleId: "owner" });
+      if(from!==d.owner()||from===to||(d.access().principal(to)?.status!=='active'||d.access().principal(to)?.kind!=='person'))throw fail('validation.precondition_failed',none,{message:'Ownership changed or the selected person is no longer active. Refresh and try again.'});
+      // The caller emits one ownership event; its projection changes owner and both role assignments together.
       return { epoch: d.headSeq() };
     },
     async applyAddress(_mode: "relay" | "own_domain", _host: string | null) { /* recorded on the profile by the module; routes follow from it */ },

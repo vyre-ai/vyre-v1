@@ -5971,6 +5971,32 @@
     },
     {
       "blocks": [],
+      "cap": "backup.export_status",
+      "deferred": false,
+      "description": "Read current-owner private export readiness and file metadata",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "runId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId"
+        ],
+        "type": "object"
+      },
+      "name": "backup_export_status",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "backup.list",
       "deferred": false,
       "description": "List backups with size, sequence number and verification state",

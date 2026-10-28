@@ -241,6 +241,7 @@ test("config_set checks the target, proves a write and arms the schedule", async
   w.target.down = false;
   w.setNow(NOW);
   assert.deepEqual(await call("backup.config_set", w.ctx, { target: MEMORY_TARGET, schedule: "30 2 * * *", enabled: true }), { ok: true });
+  assert.equal((await call("backup.config_get", w.ctx, {}) as {enabled:boolean}).enabled, true);
   const cfg = readConfig(w.ctx);
   assert.deepEqual([cfg.target, cfg.schedule, cfg.enabled], [MEMORY_TARGET, "30 2 * * *", true]);
   const cron = parseCron("30 2 * * *")!;
@@ -253,6 +254,7 @@ test("config_set checks the target, proves a write and arms the schedule", async
   w.scheduled.length = 0;
   await call("backup.config_set", w.ctx, { target: MEMORY_TARGET, schedule: "30 2 * * *", enabled: false });
   assert.deepEqual(w.scheduled, []);
+  assert.equal((await call("backup.config_get", w.ctx, {}) as {enabled:boolean}).enabled, false);
   assert.equal(readConfig(w.ctx).nextAt, null);
   assert.equal((w.events.at(-1)!.payload as { schedule: string }).schedule, "off");
 });
@@ -314,10 +316,10 @@ test("health reads the age of the last good backup and whether the target takes 
 
 test("config_get reports the target, schedule, encryption and the last good backup", async () => {
   const w = await ready();
-  assert.deepEqual(await call("backup.config_get", w.ctx, {}), { target: MEMORY_TARGET, schedule: "0 3 * * *", encrypted: true });
+  assert.deepEqual(await call("backup.config_get", w.ctx, {}), { target: MEMORY_TARGET, schedule: "0 3 * * *", enabled: true, encrypted: true });
   await call("backup.run", w.ctx, {});
-  assert.deepEqual(await call("backup.config_get", w.ctx, {}), { target: MEMORY_TARGET, schedule: "0 3 * * *", encrypted: true, lastBackupAt: NOW });
-  assert.deepEqual(await call("backup.config_get", world().ctx, {}), { schedule: "0 3 * * *", encrypted: true });
+  assert.deepEqual(await call("backup.config_get", w.ctx, {}), { target: MEMORY_TARGET, schedule: "0 3 * * *", enabled: true, encrypted: true, lastBackupAt: NOW });
+  assert.deepEqual(await call("backup.config_get", world().ctx, {}), { schedule: "0 3 * * *", enabled: false, encrypted: true });
 });
 
 // ---- the pieces
@@ -449,6 +451,6 @@ test("impl.ts exposes every backup handler, the host wiring and no projections",
   assert.deepEqual(impl.consumers, {});
   assert.deepEqual(impl.codecs, {});
   assert.deepEqual(Object.keys(impl.handlers).sort(), [
-    "backup.config_get", "backup.config_set", "backup.delete", "backup.export_start", "backup.health", "backup.list", "backup.restore", "backup.restore_preview", "backup.run", "backup.verify",
+    "backup.config_get", "backup.config_set", "backup.delete", "backup.export_start", "backup.export_status", "backup.health", "backup.list", "backup.restore", "backup.restore_preview", "backup.run", "backup.verify",
   ]);
 });

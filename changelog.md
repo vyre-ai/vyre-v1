@@ -11,6 +11,7 @@
 - Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads. Removed an unused viewer barrel so every restored production file has executable coverage.
 
 ## Unreleased
+- Console: add Updates review/history, Space profile and owner transfer controls, and local/drive/S3 backup settings with encryption and schedule readback. Add expiring current-owner archive status and authenticated chunked downloads; fix null-Space export authorization, atomically project ownership/resource/role changes across restart, and preserve the Space when server-side deletion refuses. Keep the existing shared-history-only export scope explicit.
 - Console: add live Server logs, service restart review, storage probes, Diagnostics and Support pages with real requester-private downloads. Scope administrative export ports to approved handlers, preserve current permissions and actor attribution, scrub content, and expire encrypted artifacts and caches after 24 hours. Drain accepted log rows and spans before closing the sink and ignore late shutdown callbacks.
 - Console access checks render decision steps with the shared row component and named pass/fail indicators.
 - Local session import: converge concurrent confirmations on one immutable source archive instead of failing a unique-key insert after project creation.

@@ -3154,6 +3154,7 @@ export type BackupConfigGetOut = {
     vaultName?: string;
   };
   schedule: string;
+  enabled: boolean;
   encrypted: boolean;
   lastBackupAt?: number;
 };
@@ -3182,6 +3183,17 @@ export type BackupExportStartIn = {
 };
 export type BackupExportStartOut = {
   runId: string;
+};
+export type BackupExportStatusIn = {
+  runId: string;
+};
+export type BackupExportStatusOut = {
+  runId: string;
+  state: "ready";
+  fileId: string;
+  name: string;
+  sizeBytes: number;
+  expiresAt: number;
 };
 export type BackupHealthIn = Record<string, unknown>;
 export type BackupHealthOut = {
@@ -26813,6 +26825,7 @@ export interface CapMap {
   "backup.config_set": { in: BackupConfigSetIn; out: BackupConfigSetOut };
   "backup.delete": { in: BackupDeleteIn; out: BackupDeleteOut };
   "backup.export_start": { in: BackupExportStartIn; out: BackupExportStartOut };
+  "backup.export_status": { in: BackupExportStatusIn; out: BackupExportStatusOut };
   "backup.health": { in: BackupHealthIn; out: BackupHealthOut };
   "backup.list": { in: BackupListIn; out: BackupListOut };
   "backup.restore": { in: BackupRestoreIn; out: BackupRestoreOut };

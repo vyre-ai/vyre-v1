@@ -9,6 +9,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "backup.config_set": Handler<"backup.config_set", X>;
   "backup.delete": Handler<"backup.delete", X>;
   "backup.export_start": Handler<"backup.export_start", X>;
+  "backup.export_status": Handler<"backup.export_status", X>;
   "backup.health": Handler<"backup.health", X>;
   "backup.list": Handler<"backup.list", X>;
   "backup.restore": Handler<"backup.restore", X>;
