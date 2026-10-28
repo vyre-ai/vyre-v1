@@ -44,6 +44,8 @@
 - Console Sensitivity labels now use named resource and record-type pickers, verify schema-label readback, and let owners apply individual scan suggestions.
 - Console Schema now offers the server-declared field types as a named picker instead of asking administrators to type internal field-type keys.
 
+- Closed administrator reset takeover of the canonical Owner account. A typed read-only owner port guards issuance and redemption, including legacy codes and ownership changes during hashing. Self resets use account settings/recovery instead. Validate password and wrapped-key bundle before consuming a one-time reset credential, preserve expiry/replay behavior and original issuer attribution. Actual HTTP and identity regressions30/30 pass.
+
 - Match the Files folder-search backend limit and wait for a name before querying. Actual production browser17/17 now proves named grant creation, one-week expiry edit, retained backend state after reload/revocation and named Checker decisions.
 
 - Replaced Console Grants and Checker identifier inputs with authorized named resource and subject pickers. Grants supports reviewed creation, retained-bound level/expiry edits and resumable bulk revocation; Checker uses typed levels, catalogue permissions and the agent’s acting person. Added focused tests and production mutation/readback/reload coverage; production browser verification is pending the shared disk/build pause. Owner is excluded from invite role choices.

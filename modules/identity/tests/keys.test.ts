@@ -100,7 +100,7 @@ test("a saved recovery code restores access without a session", async () => {
   const fresh = { ...KEYS, personKeyByPassword: "cmUtd3JhcHBlZC1ieS1uZXc=", personKeyByRecovery: wrap };
   await assert.rejects(handlers["identity.recovery_restore"](h.anon, { username: P.username, recoveryProof: "wrong", newPassword: NEW_PASSWORD, keys: fresh, ...DEVICE }), (e) => codeOf(e) === "auth.invalid_code");
   await assert.rejects(handlers["identity.recovery_restore"](h.anon, { username: "nobody", recoveryProof: sha(wrap), newPassword: NEW_PASSWORD, keys: fresh, ...DEVICE }), (e) => codeOf(e) === "auth.invalid_code");
-  const back = await handlers["identity.recovery_restore"](h.anon, { username: P.username, recoveryProof: sha(wrap), newPassword: NEW_PASSWORD, keys: fresh, ...DEVICE });
+  const back = await handlers["identity.recovery_restore"]({...h.anon,spaceOwner:()=>P.personId}, { username: P.username, recoveryProof: sha(wrap), newPassword: NEW_PASSWORD, keys: fresh, ...DEVICE });
   assert.equal(back.status, "ok");
   assert.deepEqual(back.keys, fresh);
   assert.equal(sessionOfToken(h.anon, out.session!.token), undefined);

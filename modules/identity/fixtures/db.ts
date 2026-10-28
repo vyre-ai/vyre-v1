@@ -320,6 +320,7 @@ export function harness(now = NOW) {
   let clock = now;
   const base = {
     space: SPACE,
+    spaceOwner:()=>"usr_owner",
     trace: { traceId: TRACE },
     now: () => clock,
     db,

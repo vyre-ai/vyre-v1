@@ -1,0 +1,43 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import {sha} from "../../modules/identity/projections.ts";
+import {fakePlatform} from "../src/platform/index.ts";
+import {loadConfig} from "../src/daemon/config.ts";
+import {startDaemon} from "../src/daemon/daemon.ts";
+const PASSWORD="correct horse battery staple 9";
+const KEYS={personKeyByPassword:"cGVyc29uLWJ5LXBhc3N3b3Jk",publicKey:"cHVibGljLWtleQ==",privateKeyWrapped:"cHJpdmF0ZS13cmFwcGVk",spaceKeys:[{epoch:1,wrapped:"c3BhY2Uta2V5LTE="}]};
+const OFF={secondFactor:"off",requireSso:false,allowPassword:true,allowGithub:true};
+test("HTTP Admin cannot reset canonical Owner, and invalid recipient input never consumes a legal reset code",async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),"vyre-reset-owner-"));
+ const d=await startDaemon({config:loadConfig(["--data-dir",dir,"--port","0","--space","spc_policy","--address","policy.example.com"],{},"1.2.3"),platform:fakePlatform({os:"linux",hostname:"policy",free:80e9,commands:{[`findmnt -n -o SOURCE --target ${dir}`]:{stdout:"/dev/mapper/vyre\n"},"lsblk -s -n -o TYPE /dev/mapper/vyre":{stdout:"crypt\ndisk\n"},"docker info --format {{.ServerVersion}}":{stdout:"27.1.1\n"}}}),fetch:async()=>({ok:true,status:200,headers:{get:()=>null},text:async()=>'{"apps":{"http":{}}}'}),intervals:{fast:3600000,slow:3600000,encryption:3600000,commands:3600000,hooks:3600000}});
+ const post=async(cap:string,input:unknown,token?:string)=>{const r=await fetch(`${d.url}/v1/${cap.replaceAll(".","/")}`,{method:"POST",headers:{"content-type":"application/json",...(token?{authorization:`Bearer ${token}`}:{})},body:JSON.stringify(input)});return {status:r.status,body:await r.json() as {data?:any;error?:{code:string}}};};
+ const device={deviceName:"Policy test",deviceClass:"desktop"};
+ const signIn=()=>post("identity.sign_in",{username:"olivia",password:PASSWORD,...device});
+ try{
+  const code=decodeURIComponent(new URL(d.claim!.url).pathname.split("/").pop()??"");
+  assert.equal((await post("identity.claim_owner",{code,spaceId:"spc_policy",username:"olivia",displayName:"Olivia",password:PASSWORD,...device,keys:KEYS})).status,200);
+  const owner=(await signIn()).body.data.session.token as string;const ownerId=(await post("identity.whoami",{},owner)).body.data.principal.id as string;
+  const roles=(await post("access.roles.list",{},owner)).body.data.roles as {id:string;name:string}[];
+  const join=async(name:string,role:string)=>{const invitation=await post("members.invites.create",{role:roles.find(value=>value.name===role)!.id,idempotencyKey:`reset-${name}`},owner);assert.equal(invitation.status,200);const code=decodeURIComponent(new URL(invitation.body.data.link).pathname.split("/").pop()??"");const joined=await post("members.accept",{code,username:name,displayName:name,password:PASSWORD,keys:KEYS,...device});assert.equal(joined.status,200);assert.equal((await post("identity.whoami",{},joined.body.data.token)).status,200);return {token:joined.body.data.token as string,id:joined.body.data.personId as string};};
+  const admin=await join("resetadmin","Admin"),member=await join("resetmember","Member");
+  const codes=()=>d.db!.all("SELECT code_hash FROM identity_codes WHERE kind = ?","reset").length;const before=codes();
+  const denied=await post("identity.reset_start",{personId:ownerId,idempotencyKey:"owner-reset-attempt"},admin.token);assert.equal(denied.status,403);assert.equal(denied.body.data,undefined);assert.equal(codes(),before,"no reset credential is created");assert.equal((await post("identity.whoami",{},owner)).status,200,"Owner session remains active");
+  assert.equal((await post("identity.reset_start",{personId:ownerId,idempotencyKey:"self-reset-attempt"},owner)).status,422);assert.equal(codes(),before);
+  const legacyCode="rst_legacy-owner-boundary";d.db!.run("INSERT INTO identity_codes (code_hash,kind,person_id,purpose,expires_at,used_at) VALUES (?,?,?,?,?,?)",sha(`reset:${legacyCode}`),"reset",ownerId,null,Date.now()+3600000,null);
+  assert.equal((await post("identity.reset_complete",{resetCode:legacyCode,newPassword:"new valid password 123",keys:KEYS,...device})).status,403,"a pre-upgrade code cannot take over the current Owner");
+  assert.equal((await post("identity.whoami",{},owner)).status,200);
+  const started=await post("identity.reset_start",{personId:member.id,idempotencyKey:"legal-member-reset"},owner);assert.equal(started.status,200);const resetCode=started.body.data.resetCode as string;
+  assert.equal((await post("identity.whoami",{},member.token)).status,401,"the legal reset ends the target's old sessions");
+  assert.equal((await post("identity.reset_complete",{resetCode,newPassword:"short",keys:KEYS,...device})).status,422);
+  assert.equal((await post("identity.reset_complete",{resetCode,newPassword:"new valid password 123",keys:{...KEYS,publicKey:"not base64 !"},...device})).status,422);
+  const done=await post("identity.reset_complete",{resetCode,newPassword:"new valid password 123",keys:KEYS,...device});assert.equal(done.status,200,"valid retry can still spend the same reset code");assert.equal((await post("identity.whoami",{},done.body.data.session.token)).body.data.principal.id,member.id);
+  assert.equal((await post("identity.reset_complete",{resetCode,newPassword:"another valid password 123",keys:KEYS,...device})).status,401,"successful code cannot replay");
+  const next=await post("identity.reset_start",{personId:member.id,idempotencyKey:"member-now-owner"},owner);assert.equal(next.status,200);
+  assert.equal((await post("spaces.transfer_ownership",{to:member.id},owner)).status,200);
+  assert.equal((await post("identity.reset_complete",{resetCode:next.body.data.resetCode,newPassword:"new valid password 456",keys:KEYS,...device})).status,403,"a pending reset cannot take over a person who became the current Owner");
+  assert.equal(d.db!.all("SELECT used_at FROM identity_codes WHERE kind = ? AND person_id = ?","reset",member.id).filter(row=>(row as {used_at:number|null}).used_at===null).length,1,"the Owner guard does not consume the pending code");
+ }finally{await d.stop();fs.rmSync(dir,{recursive:true,force:true});}
+});

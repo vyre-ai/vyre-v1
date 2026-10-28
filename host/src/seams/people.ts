@@ -121,7 +121,7 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
   };
   const extras: Record<string, Record<string, unknown>> = {
     identity: {
-      signInPolicy:{current:currentSignInPolicy,methods:signInMethods},
+      signInPolicy:{current:currentSignInPolicy,methods:signInMethods},spaceOwner,
       directory,
       // a person the access projection does not know as active gets no session, whatever proves who they are; the one exception is the call that creates the person (the account comes first, the principal event commits with the call)
       membership: {
