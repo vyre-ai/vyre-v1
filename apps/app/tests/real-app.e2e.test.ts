@@ -8,6 +8,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { createCapCaller } from "../../../client/src/gateway/index.ts";
+import { routes } from "../../../generated/routes.ts";
 import { bootFreshSpace, claimOnEdge, edge, liveModules, todoFor } from "./real-app-harness.test.ts";
 
 function exportApp(): string {
@@ -139,6 +141,47 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.getByTestId("files-place").waitFor({ timeout: 15_000 });
         await page.locator('[data-testid="files-list"], [data-testid="state-empty"]').first().waitFor({ timeout: 15_000 });
       });
+    });
+
+    await t.test("6b real project, record and file routes open, reload and navigate back", async () => {
+      assert.ok(signedIn, "the owner must be signed in");
+      const token = await page.evaluate(() => {
+        const saved = JSON.parse(localStorage.getItem("vyre.session.v1") ?? "{}");
+        return saved.sessions?.[location.origin]?.token ?? saved.token;
+      });
+      const api = createCapCaller({ baseUrl: web.origin, token: () => token, routes: async () => routes });
+      const project = await api("projects.create", { type: "project", title: "Release route project", idempotencyKey: "e2e.route.project" }) as { projectId: string; recordId: string; folderId: string };
+      const file = (await api("files.create", { folderId: project.folderId, name: "release-route.md", content: { text: "# Release route proof\nThe saved file opens in its viewer." }, idempotencyKey: "e2e.route.file" }) as { file: { fileId: string } }).file;
+      await page.goto(`${web.origin}/records#type=project`, { waitUntil: "load" });
+      await page.getByText("Release route project", { exact: true }).first().waitFor({ timeout: 15_000 });
+      await page.getByText("Release route project", { exact: true }).first().dblclick();
+      await page.getByTestId("project-page").waitFor({ timeout: 15_000 });
+      assert.ok(page.url().includes("subject="), "opening the record writes its URL");
+      await page.getByRole("tab", { name: "Plan", exact: true }).click();
+      await page.getByTestId("project-plan").waitFor({ timeout: 15_000 });
+      await page.reload({ waitUntil: "load" });
+      await page.getByTestId("project-page").waitFor({ timeout: 15_000 });
+      await page.goBack();
+      await page.getByTestId("records-table").waitFor({ timeout: 15_000 });
+      await page.goto(`${web.origin}/records#screen=records.record-page&type=project&recordId=${project.recordId}`, { waitUntil: "load" });
+      await page.getByTestId("record-page").waitFor({ timeout: 15_000 });
+      await page.goto(`${web.origin}/files#subject=folder:${project.folderId}`, { waitUntil: "load" });
+      await page.getByText("release-route.md", { exact: true }).first().waitFor({ timeout: 15_000 });
+      await page.getByText("release-route.md", { exact: true }).first().dblclick();
+      await page.getByTestId("file-viewer").waitFor({ timeout: 15_000 });
+      await page.getByText("The saved file opens in its viewer.").first().waitFor({ timeout: 15_000 });
+      assert.ok(page.url().includes(file.fileId), "the file URL survives refresh");
+      await page.reload({ waitUntil: "load" });
+      await page.getByTestId("file-viewer").waitFor({ timeout: 15_000 });
+      await page.goBack();
+      await page.getByTestId("files-list").waitFor({ timeout: 15_000 });
+      await page.goto(`${web.origin}/files#subject=file:${file.fileId}`, { waitUntil: "load" });
+      await page.getByTestId("file-viewer").waitFor({ timeout: 15_000 });
+      fs.mkdirSync("shots-evidence/record-file-routes", { recursive: true });
+      await page.screenshot({ path: "shots-evidence/record-file-routes/file.png" });
+      await page.goto(`${web.origin}/records#subject=project:${project.projectId}`, { waitUntil: "load" });
+      await page.getByTestId("project-page").waitFor({ timeout: 15_000 });
+      await page.screenshot({ path: "shots-evidence/record-file-routes/project.png" });
     });
 
     await t.test("7 every place draws on its own page load, with no page errors", async (s) => {
