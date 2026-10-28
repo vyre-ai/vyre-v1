@@ -1,5 +1,7 @@
 # Changelog
 
+- Enforced scope authorization on AI spend reads: people retain their own totals and limits; other-person and Space aggregates require existing spend-management authority; explicitly managed agents retain their scoped reads. Delegation still intersects agent and person authority. Added actual HTTP cross-person/Space denial, legal owner/agent-manager reads and both delegated-authority directions.
+
 - Serialized server apply/rollback operations per Space and shared their CLI lock. A contending updater no longer removes another process’s lock during cleanup, and a busy installer never triggers rollback of an active installation. Added deterministic concurrency, lock-ownership, failure-release and actual HTTP competing-operation regressions.
 
 - Added older/newer/latest Server log navigation through existing cursors, paused auto-refresh on older pages, preserved whole-filter private exports, and rendered actual log rows in trace detail. Added production browser proof with 120 authenticated fixture entries, cross-page export and trace readback.

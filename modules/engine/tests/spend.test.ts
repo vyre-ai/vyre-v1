@@ -286,3 +286,10 @@ test("record_usage keeps the Vault item a turn ran on, usage.query filters by it
   await engine.idle(THREAD);
 });
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+
+test('spend reads cannot expose another person or Space totals without spend-management authority',()=>{
+ const h=harness();ensure(h.db);h.db.run('INSERT INTO engine_usage (turn_id,thread_id,agent_id,person_id,model,at,tokens_in,tokens_out,cost_micros) VALUES (?,?,?,?,?,?,?,?,?)','trn_privatespend',THREAD,AGENT,'usr_sam','fixture-model',h.ctx.now(),10,5,7310000);h.setManager(false);
+  assert.throws(()=>spendGet(h.ctx,{scope:'person',scopeId:'usr_sam'}),error=>codeOf(error)==='permission.no_grant');
+  assert.throws(()=>spendGet(h.ctx,{scope:'space'}),error=>codeOf(error)==='permission.no_grant');
+  assert.equal(spendGet(h.ctx,{scope:'person'}).monthMicros,0);
+});
