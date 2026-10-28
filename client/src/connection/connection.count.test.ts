@@ -75,3 +75,16 @@ test("one connection per Space: every caller of connectionFor gets the same one"
   forgetConnections();
   assert.equal(conn.status(), "stopped");
 });
+
+test("leaving a Space closes pending hello transports immediately, before the handshake timeout", async () => {
+  const {srv,conn,sched}=make();
+  srv.slow("wss://direct.example/live");srv.slow("wss://relay.example/live");
+  conn.start();await settle();
+  assert.equal(srv.open(),2);
+  conn.stop();await settle();
+  assert.equal(srv.open(),0,"both in-flight transports close on stop");
+  srv.slow("wss://direct.example/live",false);srv.slow("wss://relay.example/live",false);
+  await elapse(sched,30_000);
+  assert.equal(srv.open(),0,"late hello replies cannot reopen a stopped Space");
+  assert.equal(conn.status(),"stopped");
+});
