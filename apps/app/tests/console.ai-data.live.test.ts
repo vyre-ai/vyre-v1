@@ -39,45 +39,55 @@ test("production Console AI/Data: policies, spend, Gate, review, incidents, hold
     await page.getByRole("button", { name: "Accounts agents may use", exact: true }).click(); await page.getByRole("menuitem", { name: "Company accounts only", exact: true }).click();
     await page.getByTestId("models-policy-review").click(); await page.getByTestId("models-policy-apply").click(); await page.getByText("AI policy saved", { exact: true }).waitFor();
     assert.equal((await api("engine.policy.get", {}) as { allowedAccounts: string }).allowedAccounts, "company");
+    t.diagnostic("PASS Models policy mutation and readback");
 
     await open("console.ai-spend", '[data-testid="console-ai-spend"]');
     await page.getByRole("button", { name: "Edit limits", exact: true }).click(); await page.getByLabel("Per day ($)", { exact: true }).fill("3.5");
     await page.getByRole("button", { name: "Review limit changes", exact: true }).click(); await page.getByRole("button", { name: "Apply limits", exact: true }).click(); await page.getByText("Limits updated", { exact: true }).waitFor();
     assert.equal((await api("engine.spend.get", { scope: "space" }) as { caps: { dayMicros?: number } }).caps.dayMicros, 3_500_000);
+    t.diagnostic("PASS Spend cap mutation and readback");
 
     await open("gate.rules", '[data-testid="console"]');
     await page.getByText(/Send a message · medium risk/i).click(); await page.getByRole("button", { name: "Decision", exact: true }).click(); await page.getByRole("menuitem", { name: "Require approval", exact: true }).click();
     await page.getByTestId("gate-rule-review").click(); await page.getByTestId("gate-rule-apply").click(); await page.getByText("Gate rule saved", { exact: true }).waitFor();
     assert.equal((await api("gate.rules.list", { scope: "space" }) as { rules: { act: string; mode: string }[] }).rules.find((rule) => rule.act === "send")?.mode, "hold");
+    t.diagnostic("PASS Gate mutation and readback");
 
     await open("console.logging", '[data-testid="console-ai-logging"]');
     await page.getByRole("button", { name: "Detail kept for each turn", exact: true }).click(); await page.getByRole("menuitem", { name: "Steps and tool input/output", exact: true }).click(); await page.getByText("Logging policy updated", { exact: true }).waitFor();
     assert.equal((await api("settings.get", { key: "engine.logging" }) as { row: { value: string } }).row.value, "steps_and_tool_io");
+    t.diagnostic("PASS Logging mutation and readback");
 
     await open("console.ai-review", '[data-testid="console-ai-review"]');
     await page.getByLabel("Percent of turns", { exact: true }).fill("25"); await page.getByRole("button", { name: "Review sampling change", exact: true }).click(); await page.getByRole("button", { name: "Apply sampling", exact: true }).click(); await page.getByText("Review sampling updated", { exact: true }).waitFor();
     assert.equal((await api("settings.get", { key: "engine.review_sampling" }) as { row: { value: { percent: number } } }).row.value.percent, 25);
+    t.diagnostic("PASS Review sampling mutation and readback");
 
     await open("console.ai-incidents", '[data-testid="console-ai-incidents"]');
     await page.getByLabel("Title", { exact: true }).fill("Browser AI incident"); await page.getByLabel("Opening note", { exact: true }).fill("Opened by production proof"); await page.getByRole("button", { name: "Open incident", exact: true }).click();
     await page.getByText("Browser AI incident", { exact: true }).first().waitFor();
     const incident = (await api("engine.incidents.list", { state: ["open"], limit: 100 }) as { incidents: { incidentId: string; title: string }[] }).incidents.find((row) => row.title === "Browser AI incident"); assert.ok(incident);
-    await page.getByTestId("object-action-assign").click(); await page.getByRole("button", { name: "Owner", exact: true }).click(); await page.getByRole("menuitem", { name: "AI Data Owner", exact: true }).click(); await page.getByRole("button", { name: "Assign owner", exact: true }).click(); await page.getByText("Incident assigned", { exact: true }).waitFor();
+    await page.getByTestId("object-action-assign").click(); await page.getByRole("button", { name: "Owner", exact: true }).click();
+    const principals = (await api("access.principals.list", { kind: "person", limit: 100 }) as { principals: { id: string; name: string }[] }).principals; const owner = principals[0]; assert.ok(owner, "the claimed Space exposes its owner principal");
+    const ownerMenu = await page.getByRole("menuitem").allTextContents(); t.diagnostic(`Incident owner evidence: principals=${JSON.stringify(principals.map((person) => `${person.id}:${person.name}`))} menu=${JSON.stringify(ownerMenu)}`); assert.ok(ownerMenu.includes(owner.name), "the assignment menu names the live owner principal");
+    await page.getByRole("menuitem", { name: owner.name, exact: true }).click(); await page.getByTestId("object-sheet").getByRole("button", { name: "Assign owner", exact: true }).click(); await page.getByText("Incident assigned", { exact: true }).waitFor();
     await page.getByLabel("Resolution or note", { exact: true }).fill("Verified note"); await page.getByRole("button", { name: "Add note", exact: true }).click(); await page.getByText("Note added", { exact: true }).waitFor();
     await page.getByTestId("object-more").click(); await page.getByRole("menuitem", { name: "Resolve incident", exact: true }).click(); await page.getByTestId("object-confirm-go").click(); await page.getByText("Incident resolved", { exact: true }).waitFor();
     const resolved = await api("engine.incident.get", { incidentId: incident.incidentId }) as { incident: { state: string; ownerId?: string; notes: { text: string }[] } };
-    assert.equal(resolved.incident.state, "resolved"); assert.equal(resolved.incident.ownerId, (await api("access.principals.list", { kind: "person", limit: 100 }) as { principals: { id: string; name: string }[] }).principals.find((person) => person.name === "AI Data Owner")?.id); assert.ok(resolved.incident.notes.some((note) => note.text === "Verified note"));
+    assert.equal(resolved.incident.state, "resolved"); assert.equal(resolved.incident.ownerId, owner.id); assert.ok(resolved.incident.notes.some((note) => note.text === "Verified note"));
+    t.diagnostic("PASS Incident open, named assignment, note, resolve and readback");
 
     await open("governance.holds", 'text="Place a hold"', "holds");
-    await page.getByLabel("Find a person, file, folder, channel or thread", { exact: true }).fill("AI Data Owner"); await page.getByRole("button", { name: "Search", exact: true }).click();
-    await page.getByRole("button", { name: "Target", exact: true }).click(); await page.getByRole("menuitem", { name: /AI Data Owner · person/i }).click();
+    const holdSection = page.getByTestId("section-Place a hold");
+    await page.getByLabel("Find a person, file, folder, channel or thread", { exact: true }).fill(owner.name); await holdSection.getByRole("button", { name: "Search", exact: true }).click();
+    await holdSection.getByRole("button", { name: "Target", exact: true }).click(); await page.getByRole("menuitem", { name: `${owner.name} · person`, exact: true }).click();
     await page.getByLabel("Reason", { exact: true }).fill("Production browser release proof"); await page.getByRole("button", { name: "Review hold", exact: true }).click(); await page.getByRole("button", { name: "Place hold", exact: true }).click(); await page.getByText("Hold placed", { exact: true }).waitFor();
     const held = (await api("governance.holds.list", { kind: "person", limit: 100 }) as { holds: { target: { id: string }; reason: string }[] }).holds.find((hold) => hold.reason === "Production browser release proof"); assert.ok(held);
-    await page.getByText("AI Data Owner", { exact: true }).first().click(); await page.getByRole("button", { name: "Release hold", exact: true }).click(); await page.getByText("Hold released", { exact: true }).waitFor();
+    await page.getByText(owner.name, { exact: true }).first().click(); await page.getByRole("button", { name: "Release hold", exact: true }).click(); await page.getByText("Hold released", { exact: true }).waitFor();
     assert.ok(!(await api("governance.holds.list", { kind: "person", limit: 100 }) as { holds: { target: { id: string } }[] }).holds.some((hold) => hold.target.id === held.target.id));
 
     await open("governance.erase", 'text="Find a person"', "erase");
-    await page.getByLabel("Name", { exact: true }).fill("AI Data Owner"); await page.getByRole("button", { name: "Find data", exact: true }).click(); await page.getByText("Erase preview", { exact: true }).waitFor(); await page.getByText("Preview expires", { exact: true }).waitFor();
+    await page.getByLabel("Name", { exact: true }).fill(owner.name); await page.getByRole("button", { name: "Find data", exact: true }).click(); await page.getByText("Erase preview", { exact: true }).waitFor(); await page.getByText("Preview expires", { exact: true }).waitFor();
     assert.equal((await api("governance.erase.list", { limit: 100 }) as { erasures: unknown[] }).erasures.length, 0, "previewing a real person must not start erasure");
 
     await open("console.ai-spend", '[data-testid="ai-policy-export"]', "aipolicy");
@@ -103,5 +113,10 @@ test("production Console AI/Data: policies, spend, Gate, review, incidents, hold
     assert.equal((await api("schema.describe", {}) as { types: { key: string; label: string }[] }).types.find((type) => type.key === "browser_ai_data")?.label, "restricted");
 
     assert.deepEqual(errors, []); assert.deepEqual(refused, []);
+  } catch (error) {
+    const captureDir = process.env["VYRE_TEST_CAPTURE_DIR"] ?? "/tmp/vyre-console-ai-lifecycle"; fs.mkdirSync(captureDir, { recursive: true });
+    await page.screenshot({ path: `${captureDir}/failure.png`, fullPage: true }).catch(() => undefined);
+    fs.writeFileSync(`${captureDir}/failure.txt`, `${await page.locator("body").innerText().catch(() => "No DOM text")}${refused.length ? `\n\nRefused:\n${refused.join("\n")}` : ""}`);
+    throw error;
   } finally { await context.close(); await browser.close(); web.close(); await space.stop(); fs.rmSync(space.dir, { recursive: true, force: true }); }
 });

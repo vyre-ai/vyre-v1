@@ -23,6 +23,11 @@ export function mergeHolds(first: readonly Hold[], second: readonly Hold[]): Hol
   for (const hold of second) rows.set(`${hold.target.kind}:${hold.target.id}`, hold);
   return [...rows.values()];
 }
+export function namedPeopleForHold(people: readonly { id: string; name: string }[], query: string): NamedTarget[] {
+  const needle = query.trim().toLocaleLowerCase();
+  if (!needle) return [];
+  return people.filter((person) => person.name.toLocaleLowerCase().includes(needle)).map((person) => ({ kind: "person", id: person.id, title: person.name }));
+}
 
 export function Holds(): ReactElement {
   const data = useConsoleData();
@@ -48,10 +53,13 @@ export function Holds(): ReactElement {
     void Promise.all([
       data.call("search.query", { q: query.trim(), types: ["person", "file", "channel", "chat"], mode: "keyword", limit: 50 }),
       data.call("files.folder.search", { q: query.trim(), scope: "folders", limit: 50 }),
-    ]).then(([found, folders]) => {
+      data.call("access.principals.list", { kind: "person", limit: 100 }),
+    ]).then(([found, folders, people]) => {
       const hits = (found as CapMap["search.query"]["out"]).hits.map(holdTargetOf).filter((item): item is NamedTarget => item !== null);
       const folderHits = (folders as CapMap["files.folder.search"]["out"]).folders.map((folder) => ({ kind: "folder" as const, id: folder.folderId, title: folder.name }));
-      setResults([...hits, ...folderHits]);
+      const peopleHits = namedPeopleForHold((people as CapMap["access.principals.list"]["out"]).principals, query);
+      const unique = new Map([...hits, ...folderHits, ...peopleHits].map((item) => [`${item.kind}:${item.id}`, item]));
+      setResults([...unique.values()]);
     }, () => setResults([])).finally(() => setSearching(false));
   };
   const verifyPlaced = async (expected: { target: Target; reason: string }): Promise<string> => {
