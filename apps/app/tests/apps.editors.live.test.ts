@@ -129,6 +129,14 @@ test("production Apps: create a form and campaign, reload their real editors, in
     await page.getByTestId("apps-form-canvas").waitFor();
     await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="name"]').waitFor();
     if (out) await page.screenshot({ path: path.join(out, "form-preview-phone.png") });
-  } catch (e) { await page.screenshot({path:"/tmp/vyre-apps-browser-shots/design-failure.png"});console.error("preview-box",await page.locator('iframe[title="Form preview"]').boundingBox()); console.error(`Apps browser failure: ${await page.locator("body").innerText().catch(() => "no body")}\n${refused.join("\n")}`); throw e; }
+  } catch (e) {
+    const failureDir = process.env["VYRE_APPS_SHOTS"] ?? "/tmp/vyre-apps-browser-shots";
+    fs.mkdirSync(failureDir, { recursive: true });
+    await page.screenshot({ path: path.join(failureDir, "design-failure.png") }).catch(() => {});
+    console.error("Apps first failure", e);
+    console.error("preview-box", await page.locator('iframe[title="Form preview"]').boundingBox({ timeout: 1000 }).catch(() => null));
+    console.error(`Apps browser failure at ${page.url()}: ${await page.locator("body").innerText().catch(() => "no body")}\n${refused.join("\n")}`);
+    throw e;
+  }
   finally { await context.close(); await browser.close(); web.close(); await space.stop(); fs.rmSync(space.dir, { recursive: true, force: true }); }
 });

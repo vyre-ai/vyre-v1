@@ -1,5 +1,7 @@
 # Changelog
 
+- Keep browser failure diagnostics from masking the original Apps failure, and verify the canonical wording in exported AI policy documents.
+
 - Mark the synthetic export-redaction credential fixture for the existing secret scanner without changing production credential checks.
 
 - Verify imported Claude Code and Codex checkout identity across Git's Windows path spelling and Windows canonical extended-length paths, while retaining exact provider-to-provider metadata agreement.

@@ -104,7 +104,7 @@ test("production Console AI/Data: policies, spend, Gate, review, incidents, hold
     const exported = exportBody.data;
     await page.getByTestId("file-viewer").waitFor({ timeout: 20_000 });
     const file = await api("files.viewer_data", { fileId: exported.fileId }) as { file: { name: string; mime: string }; text?: string };
-    assert.match(file.file.name, /^AI use policy .*\.md$/); assert.equal(file.file.mime, "text/markdown"); assert.match(file.text ?? "", /^# AI use policy/m); assert.match(file.text ?? "", /Accounts: Company accounts only/);
+    assert.match(file.file.name, /^AI use policy .*\.md$/); assert.equal(file.file.mime, "text/markdown"); assert.match(file.text ?? "", /^# AI use policy/m); assert.match(file.text ?? "", /Allowed accounts: company accounts only/i);
     await capture("ai-policy-export");
 
     await open("console.schema", '[data-testid="console-schema"]', "schema");
