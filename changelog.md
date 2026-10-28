@@ -25,6 +25,12 @@
 - Console Sensitivity labels now use named resource and record-type pickers, verify schema-label readback, and let owners apply individual scan suggestions.
 - Console Schema now offers the server-declared field types as a named picker instead of asking administrators to type internal field-type keys.
 
+- Closed a grant escalation path: grant updates and share upserts now require independent current resource authority and retain its level, expiry/window, row-filter, hidden-field and declared sensitivity bounds. A grant cannot renew itself. Validate every condition before mutating the grant and preserve issuer/source. Actual HTTP escalation/contained delegation/rollback/restart regressions pass with existing sharing properties.
+
+- Added typed Console Policies objects, reviewed public-link and sign-in editors, prerequisite-backed authenticator setup, indexed Activity and links to the owning AI/Data controls. Production browser proves public-link save/readback/reload plus dark/fresh-phone rendering; required MFA remains unavailable until the server supports invited-member enrollment. Fixed direct-read enable transitions.
+
+- Enforce the current Space sign-in policy at authentication and session issuance through a typed read-only host port. Only advertise implemented methods; reject password lockout, unsupported SSO and required MFA without actual Owner enrollment and a supported new-member enrollment path. Reject unavailable invite sign-up before accepting the invite or creating an account. Added real HTTP authentication/readback and policy Activity regressions.
+
 - Authorization tests: keep the unchanged 200-world SQL/predicate property and its coverage floors, retain legacy Owner-group worlds, and add valid direct Admin diversity. Add a deterministic SQLite regression proving Owner-group denial while ordinary group/Admin grants survive.
 
 - Console Access Reviews: add the shared review list/object, real start/keep/remove/close actions, reviewed grant removal, indexed Activity, and a tasks.get-backed review-task sheet. Expose existing reviewer/task links in the typed review response; preserve external Home task routing as a separate open gap.
