@@ -153,7 +153,7 @@ export async function acceptCreateAccount(
   await provisionAccount(ctx, { personId, username, name: input.displayName?.trim() || username, secret: input.password });
   setKeys(ctx, personId, input.keys, "first_device");
   await ctx.invites.accept(invite.inviteId, personId);
-  ctx.emit("principal.created", personId, { principalId: personId, kind: "person" });
+  ctx.emit("principal.created", personId, { principalId: personId, kind: "person", name: input.displayName?.trim() || username });
   ctx.emit("member.joined", personId, { personId, inviteId: invite.inviteId, role: invite.role, invitedBy: invite.invitedBy });
   return await issueSession(ctx, mustAccount(ctx, personId), input, "password", { joining: true });
 }

@@ -30230,6 +30230,7 @@ export type PreviewReadyPayload = {
 export type PrincipalCreatedPayload = {
   principalId: string;
   kind: "person" | "agent" | "actor" | "service";
+  name?: string;
   owner?: string;
 };
 export type PrincipalReactivatedPayload = {

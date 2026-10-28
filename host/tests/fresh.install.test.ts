@@ -81,9 +81,11 @@ test("a fresh install: claim link, claim, sign in, work, invite a member who joi
     const invite = await post(owner, "/v1/members/invites/create", { role: "rol_member", idempotencyKey: "fresh-invite" });
     assert.equal(invite.status, 200, JSON.stringify(invite.body));
     const inviteCode = decodeURIComponent(new URL(invite.body.data.link as string).pathname.split("/").pop() ?? "");
-    const joined = await post(null, "/v1/members/accept", { code: inviteCode, username: "maya", password: PASSWORD, ...device("Maya's Mac"), keys: KEYS });
+    const joined = await post(null, "/v1/members/accept", { code: inviteCode, username: "maya", displayName:"Maya Chen", password: PASSWORD, ...device("Maya's Mac"), keys: KEYS });
     assert.equal(joined.status, 200, JSON.stringify(joined.body));
     const maya = joined.body.data.token as string;
+    assert.equal((await post(owner,"/v1/access/principals/get",{principal:{kind:"person",id:joined.body.data.personId}})).body.data.principal.name,"Maya Chen");
+    assert.equal((await post(owner,"/v1/access/principals/get",{principal:{kind:"person",id:who.body.data.principal.id}})).body.data.principal.name,"Olivia");
     const acted = await post(maya, "/v1/records/create", { idempotencyKey: "fresh-maya", type: "rt_company", fields: { name: "Maya Ltd" } });
     assert.equal(acted.status, 200, `the member acts: ${JSON.stringify(acted.body)}`);
     assert.equal((await post(maya, "/v1/schema/apply", { idempotencyKey: "fresh-maya-type", ops: [COMPANY] })).status, 403, "and is not an owner");
@@ -96,6 +98,7 @@ test("a fresh install: claim link, claim, sign in, work, invite a member who joi
     await d.stop();
     d = await boot();
     assert.equal(d.claim, null, "a claimed Space has no claim link");
+    assert.equal((await post(owner,"/v1/access/principals/get",{principal:{kind:"person",id:joined.body.data.personId}})).body.data.principal.name,"Maya Chen","verified display name survives restart");
     const afterRestart = await post(owner, "/v1/records/query", { type: "rt_company" });
     assert.equal(afterRestart.status, 200, JSON.stringify(afterRestart.body));
     assert.ok(JSON.stringify(afterRestart.body.data).includes("Acme") && JSON.stringify(afterRestart.body.data).includes("Maya Ltd"));

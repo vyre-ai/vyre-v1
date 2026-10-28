@@ -76,7 +76,12 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number): boolean
       const seeded = str(p["id"]) !== undefined;
       const have = store.principals.get(id);
       // identity and access announce an account the module already holds: keep what it has
-      if (have && !seeded) return false;
+      if (have && !seeded) {
+        const name=str(p["name"])?.trim();
+        const placeholder=have.name===id||(have.name==="Owner"&&[...store.resources.values()].some(resource=>resource.type==="space"&&resource.ownerId===id));
+        if(name&&placeholder&&have.kind===pkind(p["kind"])&&name!==have.name){have.name=name;return true;}
+        return false;
+      }
       const given = p["status"];
       const status: Status = given === "suspended" || given === "removed" ? given : "active";
       const next = { id, kind: pkind(p["kind"]), name: str(p["name"]) ?? have?.name ?? id, status, createdAt: have?.createdAt ?? at, ...(str(p["owner"]) ? { owner: str(p["owner"])! } : {}) };
