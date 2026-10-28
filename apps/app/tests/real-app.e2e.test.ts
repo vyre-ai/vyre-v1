@@ -301,6 +301,14 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.getByText("Last permission change",{exact:true}).waitFor();
         await page.screenshot({path:"shots-evidence/console/roles.png"});
         await openConsole("access.groups");
+        await page.getByTestId("group-list").focus();
+        await page.keyboard.press("ArrowDown");
+        assert.equal(await page.getByTestId("group-object").count(),0,"Arrow movement focuses a list row before opening an object");
+        await page.keyboard.press("Space");
+        await page.getByText("1 selected",{exact:true}).waitFor();
+        await page.keyboard.press("Shift+F10");
+        await page.getByText("Open",{exact:true}).waitFor();
+        await page.keyboard.press("Escape");
         await page.getByTestId("group-create-open").click();
         await page.getByTestId("group-name").fill("Release group proof");
         await page.getByTestId("group-create").click();
@@ -334,6 +342,15 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.getByText("Group details changed", {exact:true}).first().waitFor();
         await page.getByText("Role assigned", {exact:true}).waitFor();
         await page.screenshot({path:"shots-evidence/console/groups-activity.png"});
+        await page.getByTestId("console-skin").click();
+        await page.getByText("Obsidian",{exact:true}).click();
+        await page.screenshot({path:"shots-evidence/console/groups-dark.png"});
+        await page.setViewportSize({width:390,height:844});
+        await page.screenshot({path:"shots-evidence/console/groups-phone.png"});
+        assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),"phone Console does not overflow horizontally");
+        await page.setViewportSize({width:1280,height:800});
+        await page.getByTestId("console-skin").click();
+        await page.getByText("System",{exact:true}).click();
         await page.getByRole("tab", {name:/^Members/}).click();
         await page.getByRole("button", {name:"Remove…", exact:true}).click();
         await page.getByTestId("group-member-remove-confirm").click();
@@ -378,7 +395,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       // One fresh page per place: a place that loops or throws takes its whole page down, and must not hide the places after it.
       const places: [string, string][] = [
         ["home", '[data-testid="s-needs"], [data-testid="home-place"]'], ["chat", '[data-testid="chats-place"]'], ["mail", '[data-testid="inbox-place"]'], ["records", '[data-testid="records-place"]'],
-        ["files", '[data-testid="files-place"]'], ["sites", '[data-testid="place-sites"], [data-testid="place-sites-failed"]'], ["automations", '[data-testid="automations-place"]'],
+        ["files", '[data-testid="files-place"]'], ["sites", '[data-testid="apps-place"]'], ["automations", '[data-testid="automations-place"]'],
         ["vault", '[data-testid="vault-place"]'], ["settings", '[data-testid="settings-place"]'],
       ];
       const failures: string[] = [];

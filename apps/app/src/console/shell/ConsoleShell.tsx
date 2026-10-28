@@ -156,7 +156,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
       const open = (pageState["open"] as string | undefined) ?? initialAudit?.open;
       return <Audit key={JSON.stringify(pageState)} {...(filter ? { initialFilter: filter } : {})} {...(open ? { initialOpen: open } : {})} />;
     }
-    return renderPage?.(def.id, pageState) ?? <States kind="error" message={`${def.title} is not implemented in this candidate yet.`} />;
+    return <>{renderPage?.(def.id, pageState) ?? <States kind="error" message={`${def.title} is not implemented in this candidate yet.`} />}</>;
   })();
 
   return (

@@ -12,6 +12,8 @@
 
 ## Unreleased
 
+- Console interactions: separate list keyboard focus from opening objects, restore Audit row context menus, fit standard object frames to phone widths, and regenerate approved Access/Audit contract snapshots. Production browser covers context keys, bulk selection, role diffs and dark/phone layouts.
+
 - Administrative exports: recheck current authority and expiry after awaited blob reads; reauthorize across save waits and remove newly written blobs/metadata when revocation, registration or storage prevents completion.
 
 - Access ownership: reject public Owner role assignment/removal for people and groups, ignore legacy group Owner inheritance, and keep ownership transfer as the single durable path updating both the Space owner and sole Owner assignment. Add real Admin HTTP denial and restart regressions.

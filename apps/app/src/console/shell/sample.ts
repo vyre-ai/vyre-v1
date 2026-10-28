@@ -79,7 +79,7 @@ export function createSampleConsole(o: { viewer?: Viewer; busy?: boolean } = {})
   const failing = new Set<string>();
   const perms = new Set(PERMS[viewer]);
 
-  replica.put("audit", AUDIT.map((r) => ({ id: r.id, ...r }) as never));
+  replica.put("audit", AUDIT.map((r) => ({ ...r }) as never));
   replica.resolve("console.overview", () => overviewFor(o.busy ?? true));
   replica.resolve("audit.list", (_t, input) => {
     const q = (input.q ?? "").toLowerCase();
