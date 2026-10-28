@@ -13,6 +13,7 @@
 ## Unreleased
 - Console AI incidents: add searchable/filterable incident objects, named owner assignment, notes, reviewed resolution, and person-report creation through the live incident contracts.
 - Console AI oversight: configure turn logging and sensitivity-based review sampling through typed Space settings; review sampled turns on standard object pages and mark them fine or flag them into incidents with impact confirmation.
+- Console AI policy: derive provider and model modes from the latest policy until editing begins, verify saved policy readback before clearing the draft, and retain restrictive empty per-label rules without allowing empty global selections to broaden access.
 - Console AI spend: add Space/person/agent caps, reviewed limit edits, usage breakdowns, impact-confirmed global pause/resume, and one-time or permanent limit raises through the live engine contracts.
 - Console AI policy: add typed provider, model, account and sensitivity-label controls with restrictive selected-only validation, reviewed policy application, and direct navigation to Vault for provider credentials.
 - Console object lists: pass row context-menu and keyboard-menu handlers through the supported web DOM seam so right-click and Menu-key actions work on shared rows.

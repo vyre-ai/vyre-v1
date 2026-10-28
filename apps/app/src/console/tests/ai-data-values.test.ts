@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { amountInMicros, limitDraft, policySelection, reviewSampling } from "../pages/ai-data-values.ts";
+import { amountInMicros, limitDraft, policyMatches, policyMode, policySelection, reviewSampling } from "../pages/ai-data-values.ts";
 
 test("spend limits preserve exact six-decimal dollar values and reject unsafe values", () => {
   assert.equal(amountInMicros(" 12.000001 "), 12_000_001);
@@ -23,4 +23,16 @@ test("selected-only policies cannot accidentally broaden access when their last 
 test("review sampling accepts only a bounded percent and known labels", () => {
   assert.deepEqual(reviewSampling({ percent: 25, labels: ["confidential", "restricted"] }), { percent: 25, labels: ["confidential", "restricted"] });
   for (const value of [{ percent: -1, labels: [] }, { percent: 101, labels: [] }, { percent: 5.5, labels: [] }, { percent: 5, labels: ["secret"] }, null]) assert.throws(() => reviewSampling(value));
+});
+
+test("policy readback must match the applied provider, model, account and label rules", () => {
+  const expected = { allowedAccounts: "company" as const, allowedProviders: ["openai"], allowedModels: ["gpt-5"], labelProviders: { restricted: [] } };
+  assert.equal(policyMatches({ ...expected, hops: { agentHops: 4, reviewLoops: 2, ciFixLoops: 3 } }, expected), true);
+  assert.equal(policyMatches({ ...expected, allowedProviders: [], hops: { agentHops: 4, reviewLoops: 2, ciFixLoops: 3 } }, expected), false);
+});
+
+test("policy mode follows refreshed policy until a person starts an explicit draft", () => {
+  assert.equal(policyMode([], null), "all");
+  assert.equal(policyMode(["openai"], null), "selected");
+  assert.equal(policyMode(["openai"], "all"), "all");
 });

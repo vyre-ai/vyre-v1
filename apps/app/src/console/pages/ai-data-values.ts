@@ -30,6 +30,29 @@ export function policySelection(mode: "all" | "selected", values: readonly strin
   return unique;
 }
 
+export function policyMode(values: readonly string[], draft: "all" | "selected" | null): "all" | "selected" {
+  return draft ?? (values.length === 0 ? "all" : "selected");
+}
+
+const sameSelection = (left: readonly string[], right: readonly string[]): boolean => {
+  const a = [...new Set(left)].sort();
+  const b = [...new Set(right)].sort();
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+};
+
+export function policyMatches(actual: CapMap["engine.policy.get"]["out"], expected: CapMap["engine.policy.set"]["in"]): boolean {
+  if (actual.allowedAccounts !== expected.allowedAccounts) return false;
+  if (!sameSelection(actual.allowedProviders, expected.allowedProviders ?? [])) return false;
+  if (!sameSelection(actual.allowedModels, expected.allowedModels ?? [])) return false;
+  const labels = new Set([...Object.keys(actual.labelProviders), ...Object.keys(expected.labelProviders ?? {})]);
+  return [...labels].every((label) => {
+    const actualRule = actual.labelProviders[label];
+    const expectedRule = expected.labelProviders?.[label];
+    return actualRule === undefined && expectedRule === undefined
+      || actualRule !== undefined && expectedRule !== undefined && sameSelection(actualRule, expectedRule);
+  });
+}
+
 const LABELS = new Set(["public", "internal", "confidential", "restricted"]);
 export function reviewSampling(value: unknown): { percent: number; labels: string[] } {
   if (!value || typeof value !== "object") throw new Error("Review sampling is not configured correctly.");
