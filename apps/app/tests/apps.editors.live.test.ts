@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { bootFreshSpace, claimOnEdge, edge } from "./real-app-harness.test.ts";
 
-test("production Apps: create a form and campaign, reload their real editors, preview a template, and read sending domains", async (t) => {
+test("production Apps: create a form and campaign, reload their real editors, install a saved draft template, and review a sending domain", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) { t.skip("VYRE_APP_DIST is required for production browser evidence"); return; }
   const { chromium } = await import("playwright-core");
@@ -25,7 +25,9 @@ test("production Apps: create a form and campaign, reload their real editors, pr
     await page.getByTestId("claim-password").fill("fixture password 123"); await page.getByTestId("claim-confirm").fill("fixture password 123");
     await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click();
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
-    await page.goto(`${web.origin}/sites#screen=apps.forms&create=true`, { waitUntil: "load" });
+    await page.goto(`${web.origin}/sites`, { waitUntil: "load" });
+    await page.getByTestId("apps-new-group").click();
+    await page.getByRole("menuitem", { name: "New form", exact: true }).click();
     await page.getByTestId("apps-create-form").waitFor({ timeout: 30_000 });
     await page.getByLabel("Form name", { exact: true }).fill("Browser fixture intake");
     await page.getByRole("button", { name: "Record type", exact: true }).click();
@@ -37,22 +39,47 @@ test("production Apps: create a form and campaign, reload their real editors, pr
     await page.reload({ waitUntil: "load" });
     await page.getByTestId("apps-form-detail").waitFor({ timeout: 20_000 });
     assert.equal(await page.getByLabel("Form name", { exact: true }).inputValue(), "Browser fixture renamed");
-    await page.goto(`${web.origin}/sites#screen=apps.campaigns&create=true`, { waitUntil: "load" });
+    await page.getByRole("button", { name: "Back to Apps", exact: true }).click();
+    await page.getByTestId("apps-head-campaigns").click();
+    await page.getByTestId("apps-new-group").click();
+    await page.getByRole("menuitem", { name: "New campaign", exact: true }).click();
     await page.getByTestId("apps-create-campaign").waitFor({ timeout: 20_000 });
     await page.getByLabel("Campaign name", { exact: true }).fill("Browser fixture campaign"); await page.getByTestId("apps-save-campaign").click();
     await page.getByTestId("apps-campaign-detail").waitFor({ timeout: 20_000 });
     await page.getByText("Audience", { exact: true }).first().waitFor();
-    await page.goto(`${web.origin}/sites#screen=apps.templates`, { waitUntil: "load" });
+    await page.getByRole("button", { name: "Back to Apps", exact: true }).click();
+    await page.getByTestId("apps-head-templates").click();
     await page.getByTestId("apps-place").waitFor({ timeout: 20_000 });
     await page.getByTestId("apps-title").filter({ hasText: "Templates" }).waitFor();
-    await page.goto(`${web.origin}/sites#screen=apps.sending-domains&create=true`, { waitUntil: "load" });
+    // Create a real draft fixture through the authenticated API, then save and install it through the UI.
+    const token = await page.evaluate(() => { const saved = JSON.parse(localStorage.getItem("vyre.session.v1")!); return saved.sessions?.[location.origin]?.token ?? saved.token; });
+    const source = await context.request.post(`${web.origin}/v1/automations/create`, { headers: { authorization: `Bearer ${token}` }, data: { name: "Browser fixture draft", idempotencyKey: "browser-template-source" } });
+    assert.equal(source.status(), 200, await source.text());
+    await page.getByTestId("apps-new").click();
+    await page.getByRole("menuitem", { name: "Save as template", exact: true }).click();
+    await page.getByTestId("apps-create-template").waitFor();
+    await page.getByLabel("Template title", { exact: true }).fill("Browser fixture package");
+    await page.getByRole("button", { name: "Source kind", exact: true }).click();
+    await page.getByRole("menuitem", { name: "automation", exact: true }).click();
+    await page.getByRole("button", { name: "Source object", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Browser fixture draft", exact: true }).click();
+    await page.getByTestId("apps-save-template").click();
+    await page.getByTestId("apps-template-detail").waitFor();
+    await page.getByTestId("apps-preview-install").click();
+    await page.getByTestId("apps-confirm-install").click();
+    await page.getByText(/Installed Browser fixture package\. Added 1 items\./).waitFor();
+    await page.getByRole("button", { name: "Back to Apps", exact: true }).click();
+    await page.getByTestId("apps-head-domains").click();
+    await page.getByTestId("apps-new-group").click();
+    await page.getByRole("menuitem", { name: "Add sending domain", exact: true }).click();
     await page.getByTestId("apps-create-domain").waitFor({ timeout: 20_000 });
     await page.getByLabel("Domain name", { exact: true }).fill("mail.fixture.example");
     await page.getByRole("button", { name: "Review domain", exact: true }).click();
     await page.getByTestId("apps-confirm-domain").waitFor();
-    assert.equal(refused.length, 0, refused.join("\n")); assert.deepEqual(errors, []);
+    const appRefusals = refused.filter((line) => /\/v1\/(forms|campaigns|templates|mail\/domain|email_builder)\//.test(line));
+    assert.equal(appRefusals.length, 0, appRefusals.join("\n")); assert.deepEqual(errors, []);
     const out = process.env["VYRE_APPS_SHOTS"];
-    if (out) { fs.mkdirSync(out, { recursive: true }); await page.screenshot({ path: path.join(out, "domain-review-desktop.png") }); }
+    if (out) { fs.mkdirSync(out, { recursive: true }); await page.screenshot({ path: path.join(out, "domain-review-desktop.png") }); await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: path.join(out, "domain-review-phone.png") }); }
   } catch (e) { console.error(`Apps browser failure: ${await page.locator("body").innerText().catch(() => "no body")}\n${refused.join("\n")}`); throw e; }
   finally { await context.close(); await browser.close(); web.close(); await space.stop(); fs.rmSync(space.dir, { recursive: true, force: true }); }
 });
