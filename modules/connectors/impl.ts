@@ -67,13 +67,18 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
     const key=typeof args['key']==='string'?args['key']:typeof args['connector']==='string'?args['connector']:connection?.connector;
     const stored=key?handle.tx.get<{def:string;state:string}>('SELECT def,state FROM cn_connectors WHERE key = ?',key):undefined;
     const definition=stored?JSON.parse(stored.def) as ConnectorDef:undefined;
-    const usedVaultItems=new Set<string>();
+    const usedVaultItems=new Set<string>(), usedBindings=new Map<string,{connector:string;connectionId:string;slot:string;handle:string}>();
     const assertAuthorized=()=>{
       const current=key?handle.tx.get<{def:string;state:string}>('SELECT def,state FROM cn_connectors WHERE key = ?',key):undefined;
       if(!current||current.state!=='live'||current.def!==stored?.def)return refuse(cc,'validation.precondition_failed','The connector changed while preparing this request. Try again.');
       const resource=name==='connections.complete_auth'?{type:'space',id:ctx.space}:name==='connectors.run'?{type:'connector',id:key!}:{type:'connection',id:connectionId??''};
       const action={perm:name==='connectors.run'||name==='sync_types.discover'?'connectors.manage':null,level:name==='connectors.run'||name==='connections.complete_auth'?'use' as const:'view' as const};
       if(ctx.authorize(action,resource).effect!=='allow')return refuse(cc,'permission.no_grant','Access changed before this connector request.');
+      for(const binding of usedBindings.values()){
+        const row=handle.tx.get<ConnectionDb>('SELECT * FROM cn_connections WHERE connection_id = ?',binding.connectionId);
+        if(!row||row.connector!==binding.connector||(row.owner_kind==='person'&&row.owner_id!==(ctx.actingFor??ctx.principal.id))||(JSON.parse(row.secrets) as Record<string,string>)[binding.slot]!==binding.handle||(name!=='connections.complete_auth'&&['paused','pending','needs_reconnect'].includes(row.state)))return refuse(cc,'validation.precondition_failed','The connection changed while preparing this request. Try again.');
+        if(ctx.authorize({perm:null,level:'view'},{type:'connection',id:row.connection_id}).effect!=='allow')return refuse(cc,'permission.no_grant','Connection access changed before this request.');
+      }
       for(const id of usedVaultItems)if(ctx.authorize({perm:null,level:'use'},{type:'vault_item',id}).effect!=='allow')return refuse(cc,'permission.no_grant','Vault access changed before this connector request.');
     };
     const execution={...ctx,rememberVaultItem:(id:string)=>usedVaultItems.add(id),assertAuthorized};
@@ -91,6 +96,7 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
         const def=row?JSON.parse(row.def) as ConnectorDef:undefined;
         if(!selected||selected.connector!==binding.connector||!def?.secrets.some(slot=>slot.name===binding.slot)||(JSON.parse(selected.secrets) as Record<string,string>)[binding.slot]!==secretHandle||(selected.owner_kind==='person'&&selected.owner_id!==cc.actor))return refuse(cc,'permission.no_grant','That connection cannot use this Vault item.');
         await ctx.call('connections.get',{connectionId:selected.connection_id});
+        usedBindings.set(`${binding.connectionId}:${binding.slot}`,{...binding,handle:secretHandle});
         return port.fill(execution,{...binding,handle:secretHandle});
       },
     }: {}) });

@@ -37,6 +37,8 @@
 - Allow only exact packaged desktop origins to reach capability/sync/local-key APIs across origins, with validated preflight headers and unchanged bearer authentication.
 # Changelog
 
+- Rechecked selected connection ownership, state and slot bindings after DNS resolution, stopping credential sends when a connection pauses or changes. Preserved authorization/precondition refusals instead of reporting them as provider outages; added an actual HTTP pause-during-DNS regression.
+
 - Used the supported Web Crypto runtime for connector one-use references, keeping the host seam within its crypto boundary.
 
 - Bound live connector credentials to the selected authorized Connection and declared secret slots through canonical Vault fill with one-use, caller/delegation/execution-bound references. Added published-domain HTTPS/DNS pinning, safe redirect handling, send-time authority rechecks and output/error scrubbing proof. Denied secret templates in query strings and stopped other people consuming personal OAuth states. Configured callback origins are absolute; generic OAuth callback/token storage remains incomplete.
