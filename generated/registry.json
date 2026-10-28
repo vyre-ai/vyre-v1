@@ -52661,9 +52661,7 @@
       },
       "permission": "connectors.manage",
       "resource": {
-        "create": true,
-        "parent": "/key",
-        "type": "connector"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",

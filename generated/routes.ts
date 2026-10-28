@@ -6232,9 +6232,7 @@ export const routes: Route[] = [
     "permission": "connectors.manage",
     "level": "edit",
     "resource": {
-      "type": "connector",
-      "create": true,
-      "parent": "/key"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",

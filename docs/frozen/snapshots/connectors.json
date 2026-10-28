@@ -16,7 +16,7 @@
     "connectors.export@1": "ee1f3fa4d93d3b2ff5ef99e3bdda6f86fced6489224f8fab954b8f519d8d4272",
     "connectors.get@1": "50853cf472e21f2f93c9ad06a86ba8a3a5a94de92bbab6af7be7c33619e61430",
     "connectors.health@1": "1edbf7e2865c717f686e3a22229411ddb43894f9e925e51565576d0b27696625",
-    "connectors.init@1": "e30aa2ef5e9f6e49ec2e11d51207b63d63aa982babdffc3e8ecdcfa011e3ffc5",
+    "connectors.init@1": "7d4e00f218d2836f5396edc49a7da43348a3550ad2cc4251ff803b5a6bcdfb2b",
     "connectors.list@1": "41d4682bd3dd6776e3fd46d549959aa6a77ddbf84958a0e547c7115b04e05e62",
     "connectors.outbox.cancel@1": "a349d205d42cd4bb707c2873c72222b48aa176603b642d4dff403f6317fa1865",
     "connectors.outbox.list@1": "58c08f7509a71f610bd904380cdb38bf83c521bfaa1c79b1284c2d66ee3c2057",

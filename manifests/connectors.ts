@@ -114,7 +114,8 @@ export default defineManifest({
     read('connectors.list', 'List connectors: built-in, installed and drafts', { in: { state: t.opt(t.enm('live', 'draft', 'failing_tests')), ...pageIn }, out: { connectors: t.arr(connectorRow), ...pageOut }, perm: 'connectors.manage', tool: 'engineer', cli: 'vyre connector list' }),
     read('connectors.get', 'Read one connector: auth, egress domains, secret names, sources, synced types and actions', { in: { key: id.connector }, out: { connector: connectorRow }, on: ['connector', '/key'], tool: 'engineer' }),
     create('connectors.init', 'Scaffold a connector folder: connector.toml, transforms.js, tests, README', {
-      in: { key: id.connector, title: t.str(), mode, docsUrl: t.opt(t.str()) }, out: { key: id.connector, folderId: id.folder }, make: ['connector', '/key'],
+      in: { key: id.connector, title: t.str(), mode, docsUrl: t.opt(t.str()) }, out: { key: id.connector, folderId: id.folder },
+      // The key names the new connector, never an existing parent. Authorize its Space; connector.created registers the new resource there.
       perm: 'connectors.manage', emits: ['connector.created'], audit: 'always', tool: 'engineer', cli: 'vyre connector init',
     }),
     write('connectors.build', 'Run the build-connector flow: read the app docs, draft the connector, ask for a key through a Vault request, run the harness', {
