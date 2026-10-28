@@ -18,6 +18,10 @@ const SAMPLE_STEP_ROWS: readonly { key: string; title: string; category: string 
   { key: "approval", title: "Approval", category: "control" },
   { key: "paths", title: "Paths", category: "control" },
   { key: "stop", title: "Stop", category: "control" },
+  { key: "transform", title: "Transform", category: "control" },
+  { key: "collect", title: "Collect", category: "control" },
+  { key: "group_by", title: "Group by", category: "control" },
+  { key: "call_automation", title: "Run another automation", category: "journey" },
 ];
 
 export const SAMPLE_STEPS: readonly CatalogStep[] = SAMPLE_STEP_ROWS.map((row) => {

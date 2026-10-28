@@ -30757,6 +30757,292 @@
     {
       "effects": "write",
       "emits": [
+        "automation.runs_migrated"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "automationId": "aut_a1b2c3",
+            "runIds": [
+              "run_a1b2c3"
+            ],
+            "toVersion": 1
+          },
+          "name": "example",
+          "output": {
+            "moved": [
+              {
+                "atStepId": "example",
+                "fromVersion": 1,
+                "runId": "run_a1b2c3",
+                "toVersion": 1
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "runIds": {
+            "items": {
+              "examples": [
+                "run_a1b2c3"
+              ],
+              "pattern": "^run_[a-z0-9]+$",
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "toVersion": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "automationId",
+          "toVersion",
+          "runIds"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "automations",
+      "name": "automations.migrate_runs",
+      "output": {
+        "properties": {
+          "moved": {
+            "items": {
+              "properties": {
+                "atStepId": {
+                  "type": "string"
+                },
+                "fromVersion": {
+                  "type": "integer"
+                },
+                "runId": {
+                  "examples": [
+                    "run_a1b2c3"
+                  ],
+                  "pattern": "^run_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "toVersion": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "runId",
+                "fromVersion",
+                "toVersion",
+                "atStepId"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "moved"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/automationId",
+        "type": "automation"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Move selected active runs onto a definition version without replaying finished steps",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "automationId": "aut_a1b2c3",
+            "toVersion": 1
+          },
+          "name": "example",
+          "output": {
+            "cohorts": [
+              {
+                "currentStepId": "example",
+                "definitionVersion": 1,
+                "disposition": "safe",
+                "proposedStepId": "example",
+                "reason": "example",
+                "repeatedEffects": [
+                  "example"
+                ],
+                "runIds": [
+                  "run_a1b2c3"
+                ],
+                "skippedEffects": [
+                  "example"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "toVersion": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "automationId",
+          "toVersion"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.migration_preview",
+      "output": {
+        "properties": {
+          "cohorts": {
+            "items": {
+              "properties": {
+                "currentStepId": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "definitionVersion": {
+                  "type": "integer"
+                },
+                "disposition": {
+                  "enum": [
+                    "safe",
+                    "ambiguous",
+                    "inactive"
+                  ],
+                  "type": "string"
+                },
+                "proposedStepId": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "repeatedEffects": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "runIds": {
+                  "items": {
+                    "examples": [
+                      "run_a1b2c3"
+                    ],
+                    "pattern": "^run_[a-z0-9]+$",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "skippedEffects": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "definitionVersion",
+                "currentStepId",
+                "runIds",
+                "disposition",
+                "proposedStepId",
+                "reason",
+                "repeatedEffects",
+                "skippedEffects"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "cohorts"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/automationId",
+        "type": "automation"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Group active runs by the step they are on before moving them to a definition version",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
         "automation.moved"
       ],
       "errors": [
@@ -130175,6 +130461,95 @@
       "v": 1
     },
     {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "definitionVersion": 1,
+            "runId": "run_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "run": {
+              "costMicros": 1,
+              "definitionVersion": 1,
+              "endedAt": 1760000000000,
+              "id": "run_a1b2c3",
+              "keyUsed": "example",
+              "kind": "automation",
+              "modelUsed": "example",
+              "name": "example",
+              "owner": "usr_a1b2c3",
+              "parentRun": "run_a1b2c3",
+              "startedAt": 1760000000000,
+              "startedBy": "example",
+              "status": "queued",
+              "subject": {
+                "id": "rec_a1b2c3",
+                "type": "space"
+              },
+              "summary": "example",
+              "threadId": "thr_a1b2c3",
+              "traceId": "0123456789abcdef0123456789abcdef",
+              "trigger": {
+                "channelId": "chn_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "threadId": "thr_a1b2c3"
+              },
+              "waitReason": "approval"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "definitionVersion": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "runId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId",
+          "definitionVersion"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "runs",
+      "name": "runs.pin_version",
+      "output": {
+        "$ref": "#/$defs/s_6d2c83cc88"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/runId",
+        "type": "run"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Move an active Run onto a definition version without replaying its steps",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -172894,6 +173269,49 @@
     },
     {
       "module": "automations",
+      "name": "automation.runs_migrated",
+      "payload": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "runIds": {
+            "items": {
+              "examples": [
+                "run_a1b2c3"
+              ],
+              "pattern": "^run_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "toVersion": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "automationId",
+          "toVersion",
+          "runIds"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/automationId",
+        "type": "automation"
+      },
+      "summary": "Active runs moved to a later definition version without replaying finished steps",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "automations",
       "name": "automation.trigger_dropped",
       "payload": {
         "properties": {
@@ -212448,6 +212866,71 @@
       }
     },
     {
+      "category": "journey",
+      "editor": "ui:StepCallAutomation",
+      "effects": "write",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "trigger": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "automationId",
+          "trigger"
+        ],
+        "type": "object"
+      },
+      "key": "call_automation",
+      "kind": "control",
+      "module": "steps-core",
+      "output": {
+        "properties": {
+          "runId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId",
+          "status"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "runId": "run_a1b2c3",
+        "status": "example"
+      },
+      "title": "Run another automation"
+    },
+    {
       "category": "code",
       "editor": "ui:StepCode",
       "effects": "read",
@@ -212513,6 +212996,66 @@
         "result": {}
       },
       "title": "Run code"
+    },
+    {
+      "category": "control",
+      "editor": "ui:StepCollect",
+      "effects": "read",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "items": {
+            "description": "Any JSON value"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "key": "collect",
+      "kind": "control",
+      "module": "steps-core",
+      "output": {
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "description": "Any JSON value"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items",
+          "count"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "count": 1,
+        "items": [
+          {}
+        ]
+      },
+      "title": "Collect"
     },
     {
       "cap": "tasks.create",
@@ -212603,6 +213146,84 @@
         "taskId": "tsk_a1b2c3"
       },
       "title": "Create a task"
+    },
+    {
+      "category": "control",
+      "editor": "ui:StepGroupBy",
+      "effects": "read",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "items": {
+            "description": "Any JSON value"
+          }
+        },
+        "required": [
+          "items",
+          "by"
+        ],
+        "type": "object"
+      },
+      "key": "group_by",
+      "kind": "control",
+      "module": "steps-core",
+      "output": {
+        "properties": {
+          "groups": {
+            "items": {
+              "properties": {
+                "count": {
+                  "type": "integer"
+                },
+                "items": {
+                  "items": {
+                    "description": "Any JSON value"
+                  },
+                  "type": "array"
+                },
+                "key": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "items",
+                "count"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "groups"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "groups": [
+          {
+            "count": 1,
+            "items": [
+              {}
+            ],
+            "key": "example"
+          }
+        ]
+      },
+      "title": "Group by"
     },
     {
       "category": "control",
@@ -213898,6 +214519,56 @@
       "title": "Stop"
     },
     {
+      "category": "control",
+      "editor": "ui:StepTransform",
+      "effects": "read",
+      "errors": [
+        "validation.bad_input",
+        "internal.unexpected"
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "mapping": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "value": {
+            "description": "Any JSON value"
+          }
+        },
+        "required": [
+          "value",
+          "mapping"
+        ],
+        "type": "object"
+      },
+      "key": "transform",
+      "kind": "control",
+      "module": "steps-core",
+      "output": {
+        "properties": {
+          "value": {
+            "additionalProperties": true,
+            "type": "object"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "type": "object"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 500,
+        "max": 3
+      },
+      "sample": {
+        "value": {}
+      },
+      "title": "Transform"
+    },
+    {
       "category": "wait",
       "editor": "ui:StepWait",
       "effects": "read",
@@ -213928,6 +214599,35 @@
               "30d"
             ],
             "type": "string"
+          },
+          "hours": {
+            "properties": {
+              "days": {
+                "items": {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "end": {
+                "type": "string"
+              },
+              "start": {
+                "type": "string"
+              },
+              "timezone": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "timezone",
+              "days",
+              "start",
+              "end"
+            ],
+            "type": "object"
           },
           "timeout": {
             "description": "Duration such as 90m, 6h or 30d",

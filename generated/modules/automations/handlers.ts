@@ -20,6 +20,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.groups.rename": Handler<"automations.groups.rename", X>;
   "automations.list": Handler<"automations.list", X>;
   "automations.make_personal_copy": Handler<"automations.make_personal_copy", X>;
+  "automations.migrate_runs": Handler<"automations.migrate_runs", X>;
+  "automations.migration_preview": Handler<"automations.migration_preview", X>;
   "automations.move": Handler<"automations.move", X>;
   "automations.preview_promote": Handler<"automations.preview_promote", X>;
   "automations.promote": Handler<"automations.promote", X>;

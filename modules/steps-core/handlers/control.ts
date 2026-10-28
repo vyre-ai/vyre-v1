@@ -9,6 +9,9 @@
 // DECISION: a Wait that is resumed and has no way to tell why (no startedAt from the engine) is over; a Wait that is cancelled by one of its cancel-on events is ended by the engine, not here.
 // A relative milestone that is already past succeeds with missed output so later outward steps can be skipped. An anchor id is re-read from the calendar when the wait resumes.
 import { registry } from "../../../generated/registry.ts";
+import { collectItems, groupItems, transformValue } from "./data-steps.ts";
+import { nextOpen } from "./hours.ts";
+import type { OpenHours } from "./hours.ts";
 import { SHEET_STEPS } from "./sheets.ts";
 import { clean, durationMs, evalExpr, momentMs, raise, render, stepError, truthy } from "../projections.ts";
 import type { Scope, StepsCtx } from "../projections.ts";
@@ -33,6 +36,8 @@ export interface WaitSpec {
   cancelOn?: string[];
   /** calendar event this milestone follows; a matching delete ends the wait */
   anchorId?: string;
+  /** another Run this step is waiting on */
+  runId?: string;
 }
 export interface LoopIteration { iterationKey: string; iterationIndex: number; item: unknown }
 /** One child Run as the host last read it. `id` is the lane id or the iteration key. */
@@ -71,7 +76,7 @@ export interface StepCall {
 }
 export interface StepEnv {
   ctx: StepsCtx;
-  run: { id: string; label?: string; automation?: string };
+  run: { id: string; label?: string; automation?: string; depth?: number };
   defaults?: { mailboxId?: string; numberId?: string };
   /** AI and code steps run in the agent and sandbox services */
   ai?: (node: StepNode, input: Record<string, unknown>, call: StepCall) => Promise<StepResult>;
@@ -287,13 +292,23 @@ async function milestoneStep(env: StepEnv, call: StepCall, i: In): Promise<StepR
   return { wait: milestoneWaitSpec("a milestone", target, anchorId) };
 }
 
+function openHours(raw: unknown): OpenHours | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw stepError("validation.bad_input", "Open hours need a time zone, days, a start, and an end.", false);
+  const h = raw as Record<string, unknown>;
+  const days = Array.isArray(h.days) ? h.days.filter((day): day is number => typeof day === "number") : [];
+  return { timezone: typeof h.timezone === "string" ? h.timezone : "", days, start: typeof h.start === "string" ? h.start : "", end: typeof h.end === "string" ? h.end : "" };
+}
+
 async function waitStep(env: StepEnv, call: StepCall, i: In): Promise<StepResult> {
   const now = env.ctx.now();
   const start = call.startedAt ?? now;
   const hasEvent = i.event && typeof i.event === "object" && typeof i.event.event === "string";
   if (isMilestone(i, hasEvent)) return milestoneStep(env, call, i);
   if (i.forDuration === undefined && i.until === undefined && !hasEvent) throw stepError("validation.bad_input", "Wait needs a duration, a time or an event.");
-  const at = i.forDuration !== undefined ? start + durationMs(String(i.forDuration)) : i.until !== undefined ? momentMs(i.until, start) : undefined;
+  const rawAt = i.forDuration !== undefined ? start + durationMs(String(i.forDuration)) : i.until !== undefined ? momentMs(i.until, start) : undefined;
+  const hours = openHours(i.hours);
+  const at = rawAt !== undefined && hours ? nextOpen(rawAt, hours) : rawAt;
   const timeoutAt = hasEvent ? start + durationMs(String(i.timeout ?? DAY30)) : undefined;
   const label = hasEvent ? `event ${i.event.event}` : i.forDuration !== undefined ? `${i.forDuration}` : "a time";
   if (call.resumed) {
@@ -351,6 +366,26 @@ async function approvalStep(env: StepEnv, node: StepNode, call: StepCall, i: In)
     return decided("timed_out");
   }
   return { wait: { reason: "approval", taskId, on: "an approval", cancelOn: ["task.withdrawn"] } };
+}
+
+/** Start another Automation and wait until that Run finishes. The same step key returns the same Run. */
+export async function callAutomation(env: StepEnv, call: StepCall, i: In): Promise<StepResult> {
+  if (!env.ctx.call) throw stepError("internal.unavailable", "Runs are not available right now.", true);
+  const automationId = typeof i.automationId === "string" ? i.automationId : "";
+  const trigger = typeof i.trigger === "string" ? i.trigger : "";
+  if (!automationId || !trigger) throw stepError("validation.bad_input", "Run another automation needs an automation and a trigger.", false);
+  const depth = (env.run.depth ?? 0) + 1;
+  const origin = env.run.automation ? `automation:${env.run.automation}` : undefined;
+  const fired = await env.ctx.call("automations.fire", clean({
+    automationId, trigger, payload: i.payload && typeof i.payload === "object" && !Array.isArray(i.payload) ? i.payload : {},
+    depth, idempotencyKey: call.key, ...(origin ? { origin } : {}),
+  })) as { runId?: string; dropped?: string };
+  if (fired.dropped || !fired.runId) throw stepError("validation.precondition_failed", `That automation did not start${fired.dropped ? `: ${fired.dropped}` : "."}`, false);
+  const got = await env.ctx.call("runs.get", { runId: fired.runId }) as { run?: { status?: string; summary?: string } };
+  const status = got?.run?.status ?? "queued";
+  if (status === "succeeded") return { output: { runId: fired.runId, status } };
+  if (status === "failed" || status === "stopped") throw stepError("step.failed", got?.run?.summary || "The other automation did not finish.", false);
+  return { wait: { reason: "background", on: automationId, runId: fired.runId } };
 }
 
 // ---- capability-call steps ----
@@ -462,6 +497,10 @@ export async function runStep(env: StepEnv, node: StepNode, call: StepCall): Pro
     case "wait": return waitStep(env, call, input);
     case "wait_stage": return waitStage(env, call, input);
     case "approval": return approvalStep(env, node, call, input);
+    case "transform": return { output: { value: transformValue(input.value, input.mapping ?? {}) } };
+    case "collect": return { output: collectItems(input.items, input.fields) };
+    case "group_by": return { output: { groups: groupItems(input.items, String(input.by ?? "")) } };
+    case "call_automation": return callAutomation(env, call, input);
     default: break;
   }
   if (def.kind === "ai") {

@@ -16,6 +16,8 @@
     "automations.groups.rename@1": "309a1c3f77613ed005baf23c010076a8f648cda715f84853fde58ef5ee35a679",
     "automations.list@1": "865e6ed0a4001d1beb85db4c0e9f9469ee02f5135dd57c91f483f686220951d9",
     "automations.make_personal_copy@1": "811814da8435e6d2c7d413975a29e041cc598c0c3c008f0785c11dfaf1b5af62",
+    "automations.migrate_runs@1": "3f1c5a593a78b2575fc14efb686e1a33b90477ebd14de1a0c9941a8c7ee1ef0c",
+    "automations.migration_preview@1": "f67648d3b4ae9fa124c56b2f0813c2f9ea85d154ffcbf1fea6f7ae96c5af098a",
     "automations.move@1": "376d641d094518fc7169361fd26daeb772e7a1f6fa06d579d899c100650361b3",
     "automations.preview_promote@1": "06a3bc4398189c78c8755be2d30702637bda8c5713a272e4e41229cd51d034b9",
     "automations.promote@1": "bbafdf5123ac3d94040a3a84458048cb0a0ab4facd34e42d41a0b82f4538ceb4",
@@ -52,6 +54,7 @@
     "automation.promoted": "894408fcec56ee177e1875cca9451dfc42fed8b2822a6b805472fd6a0da5068e",
     "automation.restored": "90e25d6b5c207d72afb34c7a3c656f60739b1017258473098d9bb2989ff7ca04",
     "automation.run_started": "87fa457501b85719719f0ae48441e9cefcf7fd2c56cf58e4b511b82125356629",
+    "automation.runs_migrated": "81a64e09688830f6ac512a5a75a8346608dbc987bb0ef9110f644d4d032afa50",
     "automation.trigger_dropped": "ff7888dcc5f58c89b3059e3428bf2135b047f721a31bf3dfa5aa6dda630e2f7b",
     "automation.updated": "2e8b21de032a518cf75325b81489e9d15c0ab3b11d28395e4da097ec0d1b7ef5",
     "automation.version_restored": "267cf68a8b4de15918239a9b7ecb9ddcd041ef5b94ac03f9a12641bf626f963f"

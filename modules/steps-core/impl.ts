@@ -2,6 +2,7 @@
 // `runStep` is what the Run executor calls for each step of an Automation, Journey or Campaign; `evalExpr` and `render` are the expression language the editor checks against.
 import { handlers } from "./handlers/index.ts";
 import { runStep } from "./handlers/control.ts";
+import { runUserCode } from "./handlers/code-run.ts";
 import type { StepCall, StepNode } from "./handlers/control.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 
@@ -16,6 +17,10 @@ export { durationMs, evalExpr, momentMs, render, renderText, truthy } from "./pr
  * The Run, the step and what the engine hands it arrive as JSON; the answer is what `runStep` answers (an output, where to go next, or a wait).
  */
 export const hostCalls = {
-  "steps-core.run_step": (ctx: Ctx, i: { node: StepNode; call: StepCall; run: { id: string; label?: string; automation?: string } }) =>
-    runStep({ ctx, run: i.run }, i.node, i.call),
+  "steps-core.run_step": (ctx: Ctx, i: { node: StepNode; call: StepCall; run: { id: string; label?: string; automation?: string; depth?: number } }) =>
+    runStep({
+      ctx,
+      run: i.run,
+      code: async (_node, input) => ({ output: runUserCode(String(input.source ?? ""), input.input) }),
+    }, i.node, i.call),
 };

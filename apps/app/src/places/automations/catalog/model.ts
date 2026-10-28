@@ -1,5 +1,5 @@
 // Catalog availability for the builder. The product list comes from automations.steps.list and automations.triggers.list.
-// ai and code stay Preview until a live executor exists. Parallel, Loop, and a schedule are ordinary flow steps.
+// ai stays Preview. code runs in the step sandbox. Parallel, Loop, and a schedule are ordinary flow steps.
 import type { IconKey } from "../canvas/model.ts";
 
 export type Availability = "available" | "needs_setup" | "preview" | "unavailable";
@@ -30,7 +30,7 @@ export interface CatalogTrigger {
 const LOGIC = new Set(["paths", "if", "parallel", "loop", "wait", "wait_stage", "stop"]);
 
 export function availabilityFor(key: string, kind: "step" | "trigger"): Availability {
-  if (kind === "step" && (key === "ai" || key === "code")) return "preview";
+  if (kind === "step" && key === "ai") return "preview";
   return "available";
 }
 

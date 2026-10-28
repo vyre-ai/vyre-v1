@@ -91,7 +91,12 @@ export default defineManifest({
     // wait
     step('wait', 'Wait', 'wait', 'wait', {
       effects: 'read',
-      in: { forDuration: t.opt(duration), until: t.opt(t.str({ description: 'A time or an expression that yields one' })), event: t.opt(t.obj({ event: t.str(), filter: t.opt(t.json()) })), timeout: t.opt(duration) },
+      in: {
+        forDuration: t.opt(duration), until: t.opt(t.str({ description: 'A time or an expression that yields one' })), event: t.opt(t.obj({ event: t.str(), filter: t.opt(t.json()) })), timeout: t.opt(duration),
+        hours: t.opt(t.obj({
+          timezone: t.str(), days: t.arr(t.int({ minimum: 0, maximum: 6 }), { minItems: 1 }), start: t.str(), end: t.str(),
+        })),
+      },
       out: { resumedBy: t.enm('duration', 'time', 'event', 'timeout'), at: t.ts() },
       waits: { timeoutDefault: '30d', cancelsOn: ['record.deleted'] },
     }),
@@ -109,6 +114,18 @@ export default defineManifest({
     }),
     step('stop', 'Stop', 'control', 'control', {
       effects: 'read', in: { outcome: t.opt(t.enm('succeeded', 'failed')), message: t.opt(tpl('Why the run stops')) }, out: { stopped: t.bool() },
+    }),
+    step('transform', 'Transform', 'control', 'control', {
+      effects: 'read', in: { value: t.json(), mapping: t.rec() }, out: { value: t.rec() },
+    }),
+    step('collect', 'Collect', 'control', 'control', {
+      effects: 'read', in: { items: t.json(), fields: t.opt(t.arr(t.str())) }, out: { items: t.arr(t.json()), count: t.int() },
+    }),
+    step('group_by', 'Group by', 'control', 'control', {
+      effects: 'read', in: { items: t.json(), by: t.str() }, out: { groups: t.arr(t.obj({ key: t.str(), items: t.arr(t.json()), count: t.int() })) },
+    }),
+    step('call_automation', 'Run another automation', 'journey', 'control', {
+      effects: 'write', in: { automationId: id.automation, trigger: t.str(), payload: t.opt(t.rec()) }, out: { runId: id.run, status: t.str() },
     }),
     step('approval', 'Approval', 'control', 'control', {
       effects: 'write', idempotency: 'key', compensate: 'tasks.transition',

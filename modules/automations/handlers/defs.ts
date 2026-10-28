@@ -99,15 +99,14 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
 }
 const hasErrors = (issues: readonly Issue[]): boolean => issues.some((i) => i.severity === "error");
 
-// AI and Run code are visible in the builder. The live host has no executor for them yet.
-// A draft may contain them. Turning the Automation on may not. A schedule can be turned on.
-const PREVIEW_STEPS = new Set(["ai", "code"]);
+// AI stays a preview. Run code executes in the step sandbox and can be turned on.
+// A draft may contain an AI step. Turning the Automation on may not. A schedule can be turned on.
+const PREVIEW_STEPS = new Set(["ai"]);
 export function previewLiveIssues(def: Definition): Issue[] {
   const out: Issue[] = [];
   for (const n of def.nodes) {
     if (!PREVIEW_STEPS.has(n.key)) continue;
-    const title = n.key === "ai" ? "AI step" : "Run code";
-    out.push(issue("error", `${title} is a preview and cannot be turned on.`, n.id));
+    out.push(issue("error", "AI step is a preview and cannot be turned on.", n.id));
   }
   return out;
 }

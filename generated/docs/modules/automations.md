@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (34)
+## Capabilities (36)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
@@ -21,6 +21,8 @@ Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, recor
 - [automations.groups.rename](../capabilities/automations.groups.rename.md): Rename a Group
 - [automations.list](../capabilities/automations.list.md): List Automations by section (Personal, Shared with me, Space), folder and Group
 - [automations.make_personal_copy](../capabilities/automations.make_personal_copy.md): Make a Personal copy of a Space Automation; it runs with only your access
+- [automations.migrate_runs](../capabilities/automations.migrate_runs.md): Move selected active runs onto a definition version without replaying finished steps
+- [automations.migration_preview](../capabilities/automations.migration_preview.md): Group active runs by the step they are on before moving them to a definition version
 - [automations.move](../capabilities/automations.move.md): Move an Automation into a Group, or out with null
 - [automations.preview_promote](../capabilities/automations.preview_promote.md): Show what Promote to Space grants as an access diff, and which subscription keys must be replaced by shared API keys
 - [automations.promote](../capabilities/automations.promote.md): Promote a Personal Automation to the Space: keeps history and versions, runs on access granted to the automation itself
@@ -41,7 +43,7 @@ Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, recor
 - [automations.webhook_url.get](../capabilities/automations.webhook_url.get.md): The inbound webhook URL of an Automation that has a webhook trigger
 - [automations.webhook_url.rotate](../capabilities/automations.webhook_url.rotate.md): Rotate the secret in the webhook URL; the old URL stops working
 
-## Events (18)
+## Events (19)
 
 - [automation.alerts_changed](../events/automation.alerts_changed.md): Error alerts and the escalation chain changed
 - [automation.copied](../events/automation.copied.md): A Space Automation was copied to a Personal Automation
@@ -58,6 +60,7 @@ Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, recor
 - [automation.promoted](../events/automation.promoted.md): A Personal Automation became a Space Automation with access granted to the automation itself
 - [automation.restored](../events/automation.restored.md): An Automation came back from Trash
 - [automation.run_started](../events/automation.run_started.md): An Automation run started from a trigger, by hand or in test mode
+- [automation.runs_migrated](../events/automation.runs_migrated.md): Active runs moved to a later definition version without replaying finished steps
 - [automation.trigger_dropped](../events/automation.trigger_dropped.md): A trigger event was ignored: self-trigger, chain depth 8 or paused
 - [automation.updated](../events/automation.updated.md): An Automation definition or settings changed; a definition change saves a version
 - [automation.version_restored](../events/automation.version_restored.md): An earlier version was restored as the newest version

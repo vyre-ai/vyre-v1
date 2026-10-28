@@ -1,4 +1,4 @@
-// Active runs stay on the definition version they started with. Migration is not applied from this screen.
+// Active runs stay on the definition version they started with until a reviewed Apply moves a safe group.
 export interface CohortRun {
   id: string;
   definitionVersion?: number;
@@ -64,4 +64,17 @@ export function definitionLabel(record: VersionedDefinition): string {
   return `Current definition v${live}`;
 }
 
-export const MIGRATION_DISABLED = "Applying a migration is a separate reviewed action.";
+export const MIGRATION_DISABLED = "No safe group to move. Ambiguous runs stay on the version they started on.";
+
+/** Run ids the server marked safe. Anything else stays pinned. */
+export function safeRunIds(preview: unknown): string[] {
+  if (!preview || typeof preview !== "object" || !Array.isArray((preview as { cohorts?: unknown }).cohorts)) return [];
+  const ids: string[] = [];
+  for (const cohort of (preview as { cohorts: unknown[] }).cohorts) {
+    if (!cohort || typeof cohort !== "object") continue;
+    const row = cohort as { disposition?: unknown; runIds?: unknown };
+    if (row.disposition !== "safe" || !Array.isArray(row.runIds)) continue;
+    for (const id of row.runIds) if (typeof id === "string") ids.push(id);
+  }
+  return ids;
+}

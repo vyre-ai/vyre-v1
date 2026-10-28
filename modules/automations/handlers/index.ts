@@ -4,6 +4,7 @@ import {
   restoreVersion, setEnabled, stepsList, triggersList, undelete, update, validate, versions, webhookGet, webhookRotate,
 } from "./defs.ts";
 import { accountPicks } from "./accounts.ts";
+import { migrateRuns, migrationPreview } from "./migrate.ts";
 import { scheduleChoose } from "./schedule.ts";
 import { fire, replay, retry, run, stop, test } from "./triggers.ts";
 
@@ -23,6 +24,8 @@ export const handlers = {
   "automations.groups.rename": groupsRename,
   "automations.list": list,
   "automations.make_personal_copy": makePersonalCopy,
+  "automations.migrate_runs": migrateRuns,
+  "automations.migration_preview": migrationPreview,
   "automations.move": move,
   "automations.preview_promote": previewPromote,
   "automations.promote": promote,

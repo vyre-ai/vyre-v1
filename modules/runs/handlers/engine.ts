@@ -8,7 +8,7 @@
 // DECISION: step cap lives in the engine (opts.maxSteps, default 500); runs.record_step has no cap field and only refuses a runaway log (HARD_STEP_ROWS).
 import {
   DEFAULT_WAIT_MS, HARD_STEP_ROWS, allSteps, allWaits, clean, clearWait, countRuns, countStepRows, emitRun, engineHealth, findRun, findStep, idemKeyFor, isActive,
-  isTerminalStep, latestSteps, listRuns, manageRun, newRunId, newSpanId, newThreadId, page, patchExtra, raise, readExtra, readTrigger, readWait, runOut, saveRun, saveStep, saveWait, seeRun, stepOut, touch,
+  isTerminalStep, latestSteps, listRuns, manageRun, mayManage, newRunId, newSpanId, newThreadId, page, patchExtra, raise, readExtra, readTrigger, readWait, runOut, saveRun, saveStep, saveWait, seeRun, stepOut, touch,
 } from "../projections.ts";
 import { isSystemCall, isTrustedService } from "../../../lib/trust.ts";
 import type { Db, ResourceRef, Run, RunKind, RunStatus, RunsCtx, StepRow, StepState, WaitReason, WaitRow } from "../projections.ts";
@@ -126,6 +126,19 @@ export function resumeRun(ctx: RunsCtx, run: Run, reason?: WaitReason): Run {
 }
 export async function resume(ctx: RunsCtx, input: In): Promise<unknown> {
   return { run: ((x) => runOut(x, readTrigger(ctx.db, x.id)))(resumeRun(ctx, seeRun(ctx, input.runId), input.reason)) };
+}
+
+/** Move an active Run onto a definition version. Finished steps stay in the log. This does not resume, retry, or start the Run. */
+export async function pinVersion(ctx: RunsCtx, input: In): Promise<unknown> {
+  const run = seeRun(ctx, input.runId);
+  if (!mayManage(ctx, run)) raise(ctx, "permission.role_lacks_permission", "Only the owner or someone who manages runs can do that.", { reason: "manage_required" });
+  const version = input.definitionVersion;
+  if (typeof version !== "number" || !Number.isInteger(version) || version < 1) raise(ctx, "validation.bad_input", "A definition version is a whole number.");
+  if (!isActive(run.status)) raise(ctx, "validation.precondition_failed", "That run has already finished.", { reason: "run_finished", status: run.status });
+  if (run.definitionVersion === version) return { run: runOut(run, readTrigger(ctx.db, run.id)) };
+  run.definitionVersion = version;
+  touch(ctx, run);
+  return { run: runOut(run, readTrigger(ctx.db, run.id)) };
 }
 
 /** How many of this owner's most recent finished Runs of the same kind and name failed in a row, this one included. */
@@ -442,6 +455,8 @@ export interface StepWait {
   cancelOn?: string[];
   /** calendar event a milestone wait follows */
   anchorId?: string;
+  /** another Run this wait follows; a matching run.succeeded, run.failed, or run.stopped wakes it */
+  runId?: string;
 }
 export interface StepCall {
   attempt: number;
@@ -649,7 +664,7 @@ function milestoneSkip(outputs: Record<string, unknown>): boolean {
 }
 
 function waitExtras(w: StepWait): Partial<WaitRow> {
-  const on = clean({ event: w.event?.event, filter: w.event?.filter, at: w.at, anchorId: w.anchorId });
+  const on = clean({ event: w.event?.event, filter: w.event?.filter, at: w.at, anchorId: w.anchorId, run: w.runId });
   return clean({
     ...(Object.keys(on).length ? { on } : {}), untilAt: w.timeoutAt, cancelOn: w.cancelOn && w.cancelOn.length ? w.cancelOn : undefined,
   }) as Partial<WaitRow>;

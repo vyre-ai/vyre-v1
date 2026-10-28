@@ -4798,6 +4798,80 @@
     },
     {
       "blocks": [],
+      "cap": "automations.migrate_runs",
+      "deferred": false,
+      "description": "Move selected active runs onto a definition version without replaying finished steps",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "runIds": {
+            "items": {
+              "examples": [
+                "run_a1b2c3"
+              ],
+              "pattern": "^run_[a-z0-9]+$",
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "toVersion": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "automationId",
+          "toVersion",
+          "runIds"
+        ],
+        "type": "object"
+      },
+      "name": "automations_migrate_runs",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.migration_preview",
+      "deferred": false,
+      "description": "Group active runs by the step they are on before moving them to a definition version",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "toVersion": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "automationId",
+          "toVersion"
+        ],
+        "type": "object"
+      },
+      "name": "automations_migration_preview",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.move",
       "deferred": false,
       "description": "Move an Automation into a Group, or out with null",

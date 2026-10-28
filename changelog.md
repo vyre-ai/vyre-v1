@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Automations: a reviewed Apply moves only safe cohorts onto the chosen definition version. Finished steps stay finished, and ambiguous or finished runs stay pinned.
+- Automations: Live Event Explorer, Dependencies, and Analytics read the event log, named accounts, and run counts. Packages stay empty until an automation package catalog exists.
+- Automations: Transform, Collect, and Group by run as ordinary steps. A wait can move to the next open hours. Run another automation starts that automation and waits for it. Run code executes in a sandbox with no network and no files. An AI step stays a preview.
 - Automations: a step can retry, skip, substitute, stop, or route on a named error code. Skip and substitute do not run the step again. The step menu offers each of those.
 - Automations: Send an email and Send a text cannot be turned on until the step names its mailbox or number.
 - Automations: the step lists the accounts a person can use, writes a default id when the step has none, and does not pick a mailbox or number the step did not name.

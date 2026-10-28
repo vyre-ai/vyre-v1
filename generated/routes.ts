@@ -2229,6 +2229,44 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/automations/migrate_runs",
+    "cap": "automations.migrate_runs",
+    "v": 1,
+    "module": "automations",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "automation",
+      "id": "/automationId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/migration_preview",
+    "cap": "automations.migration_preview",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "automation",
+      "id": "/automationId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/automations/move",
     "cap": "automations.move",
     "v": 1,
@@ -21080,6 +21118,25 @@ export const routes: Route[] = [
     "method": "POST",
     "path": "/v1/runs/mark_waiting",
     "cap": "runs.mark_waiting",
+    "v": 1,
+    "module": "runs",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "run",
+      "id": "/runId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/runs/pin_version",
+    "cap": "runs.pin_version",
     "v": 1,
     "module": "runs",
     "effects": "write",

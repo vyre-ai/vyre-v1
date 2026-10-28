@@ -5,6 +5,8 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AskVyre } from "../ask/AskVyre.tsx";
 import { CONFIG, useAutomationsData, useScreenQuery } from "../canvas/data.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { countRuns, dependenciesFrom, eventRows } from "./read.ts";
+import type { DependencyNode } from "./read.ts";
 import { choiceStartsRuns, readChoiceResult, scheduleRequestFromTask } from "./recovery.ts";
 import type { ScheduleChoiceKey } from "./recovery.ts";
 
@@ -165,11 +167,10 @@ export function AllRuns(): ReactElement {
 export function AnalyticsPanel({ automationId }: { automationId: string }): ReactElement {
   const q = useScreenQuery<RunsOut>(CONFIG, "runs", { subject: { type: "automation", id: automationId }, scope: "subject" });
   if (q.status !== "ready") return <Frame testID="analytics" title="Analytics"><Text style={v.dim}>{q.error?.message ?? "Loading"}</Text></Frame>;
-  const succeeded = q.data.runs.filter((run) => run.status === "succeeded").length;
-  const failed = q.data.runs.filter((run) => run.status === "failed").length;
+  const counted = countRuns(q.data.runs);
   return (
     <Frame testID="analytics" title="Analytics">
-      {q.data.runs.length === 0 || succeeded + failed === 0 ? <Text style={v.dim}>No completed Runs yet</Text> : <Text style={v.dim}>{`${succeeded} succeeded and ${failed} failed in the runs list.`}</Text>}
+      {q.data.runs.length === 0 || !counted ? <Text style={v.dim}>No completed Runs yet</Text> : <Text style={v.dim}>{counted.text}</Text>}
     </Frame>
   );
 }
@@ -182,12 +183,82 @@ export function HonestEmpty({ testID, title, body }: { testID: string; title: st
   );
 }
 
+const EMPTY_EVENTS = "Listening for events. A trigger event will show here when one is published. None have arrived.";
+const EMPTY_DEPENDENCIES = "Choose a dependency. This fills when an Automation names another Automation, a mailbox, a number, or a connection. None are recorded yet.";
+
 export function LiveEvents(): ReactElement {
-  return <HonestEmpty testID="live-events" title="Live Event Explorer" body="Listening for events. A trigger event will show here when one is published. None have arrived." />;
+  const state = useCall("events.list", { limit: 50 }, eventRows);
+  return (
+    <Frame testID="live-events" title="Live Event Explorer">
+      <Status state={state} />
+      {state.phase === "ready" && state.value.length === 0 ? <Text style={v.dim}>{EMPTY_EVENTS}</Text> : null}
+      {state.phase === "ready" ? state.value.map((row) => <Text key={row.id} style={v.row}>{row.line}</Text>) : null}
+    </Frame>
+  );
+}
+
+function nodesOf(out: unknown): DependencyNode[] | null {
+  if (!out || typeof out !== "object") return null;
+  const automation = (out as { automation?: { definition?: { nodes?: unknown } } }).automation;
+  const nodes = automation?.definition?.nodes;
+  if (!Array.isArray(nodes)) return null;
+  const parsed: DependencyNode[] = [];
+  for (const node of nodes) {
+    if (!node || typeof node !== "object") continue;
+    const row = node as { key?: unknown; input?: unknown };
+    if (typeof row.key !== "string") continue;
+    const input = row.input && typeof row.input === "object" && !Array.isArray(row.input) ? row.input as Record<string, unknown> : {};
+    parsed.push({ key: row.key, input });
+  }
+  return parsed;
 }
 
 export function Dependencies(): ReactElement {
-  return <HonestEmpty testID="dependencies" title="Dependencies" body="Choose a dependency. This fills when an Automation names another Automation it waits on. None are recorded yet." />;
+  const data = useAutomationsData();
+  const [state, setState] = useState<Phase<{ id: string; line: string }[]>>({ phase: "loading" });
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    setState({ phase: "loading" });
+    setNote(null);
+    void (async () => {
+      try {
+        const listed = await data.call("automations.list", { limit: 50 });
+        if (!listed || typeof listed !== "object" || !Array.isArray((listed as { automations?: unknown }).automations)) {
+          if (live) setState({ phase: "error", message: "That list did not return rows." });
+          return;
+        }
+        const page: { id: string; name: string; nodes: DependencyNode[] }[] = [];
+        let failed: string | null = null;
+        for (const row of (listed as { automations: unknown[] }).automations) {
+          if (!row || typeof row !== "object") continue;
+          const rec = row as { id?: unknown; name?: unknown };
+          if (typeof rec.id !== "string" || typeof rec.name !== "string") continue;
+          try {
+            const nodes = nodesOf(await data.call("automations.get", { automationId: rec.id }));
+            if (nodes) page.push({ id: rec.id, name: rec.name, nodes });
+          } catch (e) {
+            failed = e instanceof Error ? e.message : "One automation did not load.";
+          }
+        }
+        if (!live) return;
+        setNote(failed);
+        setState({ phase: "ready", value: dependenciesFrom(page) });
+      } catch (e) {
+        if (!live) return;
+        setState({ phase: "error", message: e instanceof Error ? e.message : "That did not load." });
+      }
+    })();
+    return () => { live = false; };
+  }, [data]);
+  return (
+    <Frame testID="dependencies" title="Dependencies">
+      <Status state={state} />
+      {note ? <Text style={v.err}>{note}</Text> : null}
+      {state.phase === "ready" && state.value.length === 0 ? <Text style={v.dim}>{EMPTY_DEPENDENCIES}</Text> : null}
+      {state.phase === "ready" ? state.value.map((row) => <Text key={row.id} style={v.row}>{row.line}</Text>) : null}
+    </Frame>
+  );
 }
 
 export function Packages(): ReactElement {

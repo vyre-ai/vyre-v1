@@ -512,7 +512,7 @@ test("the module answers every capability its manifest declares, and nothing els
 test("every step the manifest declares can be run by runStep: control, capability, wait, AI and code steps all have a runner", () => {
   const mine = registry.steps.filter((s) => s.module === "steps-core");
   assert.ok(mine.length >= 25);
-  const control = new Set(["if", "paths", "parallel", "loop", "stop", "wait", "wait_stage", "approval"]);
+  const control = new Set(["if", "paths", "parallel", "loop", "stop", "wait", "wait_stage", "approval", "transform", "collect", "group_by", "call_automation"]);
   for (const s of mine) {
     const known = control.has(s.key) || s.kind === "ai" || s.kind === "code" || s.key.startsWith("sheet.") || s.kind === "capability";
     assert.ok(known, `${s.key} has no runner`);

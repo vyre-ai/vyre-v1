@@ -20,7 +20,7 @@ interface GNode {
 interface Scope {
   containerNodeId: string; laneId?: string; iterationIndex?: number; iterationKey?: string; item?: unknown; held?: boolean;
 }
-interface PlanLink { principal: { kind: "person" | "agent" | "service"; id: string }; payload?: unknown; automationId: string; scope?: Scope }
+interface PlanLink { principal: { kind: "person" | "agent" | "service"; id: string }; payload?: unknown; automationId: string; scope?: Scope; depth?: number }
 interface Plan { link: PlanLink; definition: { nodes: GNode[]; start?: string[] } }
 interface PlanStep {
   id: string; key?: string; input?: unknown; next?: string | null;
@@ -305,7 +305,7 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
         ...(scope?.item !== undefined || scope?.iterationKey !== undefined ? { item: scope.item, index: scope.iterationIndex } : {}),
       };
       return (await d.call("steps-core.run_step", {
-        node, call: withItem, run: { id: run.id, automation: p.link.automationId },
+        node, call: withItem, run: { id: run.id, automation: p.link.automationId, ...(typeof p.link.depth === "number" ? { depth: p.link.depth } : {}) },
       }, { principal: p.link.principal })) as StepResult;
     };
     const finish = (node: GNode, r: StepResult): StepResult => {

@@ -73,6 +73,9 @@ export default defineManifest({
     ev('automation.promoted', 'A Personal Automation became a Space Automation with access granted to the automation itself', { p: { automationId: id.automation, ownerId: t.str(), grants: t.int(), keysReplaced: t.int() }, subject: ['automation', '/automationId'], retention: 'audit' }),
     ev('automation.copied', 'A Space Automation was copied to a Personal Automation', { p: { automationId: id.automation, fromId: id.automation }, subject: ['automation', '/automationId'] }),
     ev('automation.moved', 'An Automation moved to a Group', { p: { automationId: id.automation, groupId: t.nullable(groupId) }, subject: ['automation', '/automationId'] }),
+    ev('automation.runs_migrated', 'Active runs moved to a later definition version without replaying finished steps', {
+      p: { automationId: id.automation, toVersion: t.int(), runIds: t.arr(id.run) }, subject: ['automation', '/automationId'], retention: 'audit',
+    }),
     ev('automation.alerts_changed', 'Error alerts and the escalation chain changed', { p: { automationId: id.automation }, subject: ['automation', '/automationId'] }),
     ev('automation.follower_added', 'A follower was added', { p: { automationId: id.automation, follower: t.str() }, subject: ['automation', '/automationId'] }),
     ev('automation.follower_removed', 'A follower was removed', { p: { automationId: id.automation, follower: t.str() }, subject: ['automation', '/automationId'] }),
@@ -91,6 +94,17 @@ export default defineManifest({
       out: { automations: t.arr(summary), ...pageOut }, tool: 'automations', label: 'filter', cli: 'vyre automations list',
     }),
     read('automations.get', 'Read an Automation with its definition, alerts and followers', { in: target, out: { automation: row }, on: ['automation', '/automationId'], tool: 'automations', label: 'check', cli: 'vyre automations get' }),
+    read('automations.migration_preview', 'Group active runs by the step they are on before moving them to a definition version', {
+      in: { ...target, toVersion: t.int({ minimum: 1 }) },
+      out: {
+        cohorts: t.arr(t.obj({
+          definitionVersion: t.int(), currentStepId: t.nullable(t.str()), runIds: t.arr(id.run),
+          disposition: t.enm('safe', 'ambiguous', 'inactive'), proposedStepId: t.nullable(t.str()), reason: t.str(),
+          repeatedEffects: t.arr(t.str()), skippedEffects: t.arr(t.str()),
+        })),
+      },
+      on: ['automation', '/automationId'], tool: 'automations',
+    }),
     create('automations.create', 'Create an Automation; it starts Personal', {
       in: { name: t.str({ minLength: 1 }), description: t.opt(t.str()), definition: t.opt(definition), groupId: t.opt(groupId), folderId: t.opt(id.folder) },
       out: { automation: row }, make: ['automation', '/folderId'], perm: 'automations.personal', emits: ['automation.created'], tool: 'automations', cli: 'vyre automations create',
@@ -98,6 +112,12 @@ export default defineManifest({
     write('automations.update', 'Change the name, description or definition; a definition change saves a new version', {
       in: { ...target, name: t.opt(t.str()), description: t.opt(t.str()), definition: t.opt(definition), expectedVersion: t.opt(t.int()) },
       out: { automation: row }, on: ['automation', '/automationId'], emits: ['automation.updated'], tool: 'automations', errors: ['validation.version_conflict', 'validation.bad_input'],
+    }),
+    write('automations.migrate_runs', 'Move selected active runs onto a definition version without replaying finished steps', {
+      in: { ...target, toVersion: t.int({ minimum: 1 }), runIds: t.arr(id.run, { minItems: 1 }) },
+      out: { moved: t.arr(t.obj({ runId: id.run, fromVersion: t.int(), toVersion: t.int(), atStepId: t.str() })) },
+      on: ['automation', '/automationId'], emits: ['automation.runs_migrated'], tool: 'automations',
+      errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     write('automations.set_enabled', 'Turn an Automation on or off', {
       in: { ...target, enabled: t.bool() }, out: { automation: row }, on: ['automation', '/automationId'], emits: ['automation.enabled', 'automation.disabled'], tool: 'automations',

@@ -608,6 +608,18 @@
     },
     {
       "deferred": false,
+      "name": "automations_migrate_runs",
+      "summary": "Move selected active runs onto a definition version without replaying finished steps",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_migration_preview",
+      "summary": "Group active runs by the step they are on before moving them to a definition version",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_move",
       "summary": "Move an Automation into a Group, or out with null",
       "toolset": "automations"

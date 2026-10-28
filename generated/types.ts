@@ -2369,6 +2369,35 @@ export type AutomationsMakePersonalCopyOut = {
     updatedAt: number;
   };
 };
+export type AutomationsMigrateRunsIn = {
+  automationId: string;
+  toVersion: number;
+  runIds: Array<string>;
+};
+export type AutomationsMigrateRunsOut = {
+  moved: Array<{
+      runId: string;
+      fromVersion: number;
+      toVersion: number;
+      atStepId: string;
+    }>;
+};
+export type AutomationsMigrationPreviewIn = {
+  automationId: string;
+  toVersion: number;
+};
+export type AutomationsMigrationPreviewOut = {
+  cohorts: Array<{
+      definitionVersion: number;
+      currentStepId: string | null;
+      runIds: Array<string>;
+      disposition: "safe" | "ambiguous" | "inactive";
+      proposedStepId: string | null;
+      reason: string;
+      repeatedEffects: Array<string>;
+      skippedEffects: Array<string>;
+    }>;
+};
 export type AutomationsMoveIn = {
   automationId: string;
   groupId: string | null;
@@ -19254,6 +19283,40 @@ export type RunsMarkWaitingOut = {
     };
   };
 };
+export type RunsPinVersionIn = {
+  runId: string;
+  definitionVersion: number;
+};
+export type RunsPinVersionOut = {
+  run: {
+    id: string;
+    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
+    name?: string;
+    owner: string;
+    startedBy: string;
+    subject?: {
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      id: string;
+    };
+    status: "queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped";
+    waitReason?: "approval" | "background" | "key";
+    definitionVersion?: number;
+    keyUsed?: string;
+    modelUsed?: string;
+    costMicros: number;
+    startedAt: number;
+    endedAt?: number;
+    parentRun?: string;
+    threadId?: string;
+    traceId: string;
+    summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
+  };
+};
 export type RunsPreviewUndoIn = {
   runId: string;
 };
@@ -26794,6 +26857,8 @@ export interface CapMap {
   "automations.groups.rename": { in: AutomationsGroupsRenameIn; out: AutomationsGroupsRenameOut };
   "automations.list": { in: AutomationsListIn; out: AutomationsListOut };
   "automations.make_personal_copy": { in: AutomationsMakePersonalCopyIn; out: AutomationsMakePersonalCopyOut };
+  "automations.migrate_runs": { in: AutomationsMigrateRunsIn; out: AutomationsMigrateRunsOut };
+  "automations.migration_preview": { in: AutomationsMigrationPreviewIn; out: AutomationsMigrationPreviewOut };
   "automations.move": { in: AutomationsMoveIn; out: AutomationsMoveOut };
   "automations.preview_promote": { in: AutomationsPreviewPromoteIn; out: AutomationsPreviewPromoteOut };
   "automations.promote": { in: AutomationsPromoteIn; out: AutomationsPromoteOut };
@@ -27822,6 +27887,7 @@ export interface CapMap {
   "runs.get": { in: RunsGetIn; out: RunsGetOut };
   "runs.list": { in: RunsListIn; out: RunsListOut };
   "runs.mark_waiting": { in: RunsMarkWaitingIn; out: RunsMarkWaitingOut };
+  "runs.pin_version": { in: RunsPinVersionIn; out: RunsPinVersionOut };
   "runs.preview_undo": { in: RunsPreviewUndoIn; out: RunsPreviewUndoOut };
   "runs.purge": { in: RunsPurgeIn; out: RunsPurgeOut };
   "runs.record_key": { in: RunsRecordKeyIn; out: RunsRecordKeyOut };
@@ -28465,6 +28531,11 @@ export type AutomationRunStartedPayload = {
   test: boolean;
   depth: number;
   origin?: string;
+};
+export type AutomationRunsMigratedPayload = {
+  automationId: string;
+  toVersion: number;
+  runIds: Array<string>;
 };
 export type AutomationTriggerDroppedPayload = {
   automationId: string;
@@ -31597,6 +31668,7 @@ export interface EventMap {
   "automation.promoted": AutomationPromotedPayload;
   "automation.restored": AutomationRestoredPayload;
   "automation.run_started": AutomationRunStartedPayload;
+  "automation.runs_migrated": AutomationRunsMigratedPayload;
   "automation.trigger_dropped": AutomationTriggerDroppedPayload;
   "automation.updated": AutomationUpdatedPayload;
   "automation.version_restored": AutomationVersionRestoredPayload;
