@@ -10,6 +10,8 @@ import { Backups } from "../../console/pages/Backups.tsx";
 import { Devices } from "../../console/pages/Devices.tsx";
 import { Grants, People, Roles } from "../../console/pages/Access.tsx";
 import { Checker } from "../../console/pages/Checker.tsx";
+import { Models } from "../../console/pages/Models.tsx";
+import { Spend } from "../../console/pages/Spend.tsx";
 import { Assistant } from "../../console/Assistant.tsx";
 import { usePlaceHash } from "../hash/context.tsx";
 import { nameLookup } from "./records-live.ts";
@@ -17,6 +19,11 @@ import { useOptionalShellRuntime } from "./runtime.tsx";
 
 export function consolePagesFromNav(out: { groups: Array<{ pages: Array<{ key: string }> }> }): ReadonlySet<string> {
   return new Set(out.groups.flatMap((group) => group.pages.map((page) => page.key)));
+}
+export function aiDataPageFor(id: string): ReactElement | null {
+  if (id === "models") return <Models />;
+  if (id === "spend" || id === "usage") return <Spend />;
+  return null;
 }
 export default function ConsolePlace(): ReactElement {
   const rt = useOptionalShellRuntime();
@@ -50,5 +57,5 @@ export default function ConsolePlace(): ReactElement {
   if (!rt || !data) return <States kind="empty" title="Opening the Console…" icon="search" />;
   const requestedPage = target.args.page && pageById(target.args.page)?.screen === target.screen ? target.args.page : null;
   const page = requestedPage ?? PAGES.find((entry) => entry.screen === target.screen)?.id ?? "overview";
-  return <ConsoleDataProvider value={data}><ConsoleShell initialPage={page} skin={skin} onSkin={(id) => { theme?.setSkin(id); setSkin(id); }} assistant={<Assistant rt={rt} page={target.screen ?? "console.overview"} />} renderPage={(id) => id === "backups" ? <Backups /> : id === "sessions" ? <Devices /> : id === "people" ? <People /> : id === "roles" ? <Roles /> : id === "grants" ? <Grants {...(target.args.resourceType && target.args.resourceId ? { initialResource: { type: target.args.resourceType, id: target.args.resourceId } } : {})} /> : id === "checker" ? <Checker /> : <States kind="error" message={`${pageById(id)?.title ?? id} is not implemented in this candidate yet.`} />} /></ConsoleDataProvider>;
+  return <ConsoleDataProvider value={data}><ConsoleShell initialPage={page} skin={skin} onSkin={(id) => { theme?.setSkin(id); setSkin(id); }} assistant={<Assistant rt={rt} page={target.screen ?? "console.overview"} />} renderPage={(id) => aiDataPageFor(id) ?? (id === "backups" ? <Backups /> : id === "sessions" ? <Devices /> : id === "people" ? <People /> : id === "roles" ? <Roles /> : id === "grants" ? <Grants {...(target.args.resourceType && target.args.resourceId ? { initialResource: { type: target.args.resourceType, id: target.args.resourceId } } : {})} /> : id === "checker" ? <Checker /> : <States kind="error" message={`${pageById(id)?.title ?? id} is not implemented in this candidate yet.`} />)} /></ConsoleDataProvider>;
 }

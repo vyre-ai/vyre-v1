@@ -11,6 +11,7 @@
 - Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads. Removed an unused viewer barrel so every restored production file has executable coverage.
 
 ## Unreleased
+- Console AI spend: add Space/person/agent caps, reviewed limit edits, usage breakdowns, impact-confirmed global pause/resume, and one-time or permanent limit raises through the live engine contracts.
 - Console AI policy: add typed provider, model, account and sensitivity-label controls with restrictive selected-only validation, reviewed policy application, and direct navigation to Vault for provider credentials.
 - Console object lists: pass row context-menu and keyboard-menu handlers through the supported web DOM seam so right-click and Menu-key actions work on shared rows.
 - Console objects: wait for real asynchronous mutations before showing completion or Undo, preserve failed/held actions as visible errors, guard duplicate action submits, and synchronize externally changed tabs and quick-edit sheets.
