@@ -7,6 +7,7 @@ function fixture() {
         cap: string;
         input: any;
     }[] = [];
+    // secret-scan: fake; fixed synthetic provider-shaped credential used only to test archive exclusion.
     const token = 'sk-proj-abcdefghijklmnopqrstuvwxyz123456';
     const records = [{ id: 'rec_current', type: 'contact', version: 2, label: 0, fields: { name: 'Current name', tax_id: { sealed: 'tax_id', ref: 'private-sealed-reference', present: true } }, createdAt: 1, updatedAt: 2, holds: 0 }];
     const read = async (cap: string, input: any): Promise<any> => {
