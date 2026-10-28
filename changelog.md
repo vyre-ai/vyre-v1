@@ -11,6 +11,7 @@
 - Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads. Removed an unused viewer barrel so every restored production file has executable coverage.
 
 ## Unreleased
+- Console retention: edit global and per-record-type policies with typed durations, review and verified readback; reset overrides and start retention jobs with live state, removal and hold-skip results.
 - Console AI review: paginate sampled turns within each review state, reset cursor state when switching views, and keep the latest unique turn status across pages.
 - Console Gate rules: create first agent overrides from the inherited floor or Space rule, paginate the named agent picker, keep owner-floor changes owner-only, and verify saved rule readback before reporting success.
 - Console AI incidents: show open, assigned and resolved incidents by default, paginate the full incident register without duplicate rows, and surface detail-read failures with retry instead of stale fallback data.

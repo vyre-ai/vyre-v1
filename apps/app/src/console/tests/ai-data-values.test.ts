@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { amountInMicros, capsMatch, limitDraft, policyMatches, policyMode, policySelection, raiseAmount, reviewSampling } from "../pages/ai-data-values.ts";
+import { amountInMicros, capsMatch, limitDraft, policyMatches, policyMode, policySelection, raiseAmount, retentionValue, reviewSampling } from "../pages/ai-data-values.ts";
 
 test("spend limits preserve exact six-decimal dollar values and reject unsafe values", () => {
   assert.equal(amountInMicros(" 12.000001 "), 12_000_001);
@@ -49,4 +49,9 @@ test("raise amounts use dollars for money and whole native units for turns and t
 test("cap readback must equal the immutable reviewed payload", () => {
   assert.equal(capsMatch({ dayMicros: 2_000_000, turnsPerDay: 12 }, { turnsPerDay: 12, dayMicros: 2_000_000 }), true);
   assert.equal(capsMatch({ dayMicros: 3_000_000, turnsPerDay: 12 }, { turnsPerDay: 12, dayMicros: 2_000_000 }), false);
+});
+
+test("retention accepts declared durations and rejects ambiguous policy text", () => {
+  for (const value of ["30d", "12w", "2m", "1y", "forever", "per_policy"]) assert.equal(retentionValue(value), value);
+  for (const value of ["30 days", "0.5y", "", "never"]) assert.throws(() => retentionValue(value));
 });

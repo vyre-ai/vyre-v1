@@ -35,6 +35,12 @@ export function capsMatch(left: CapMap["engine.spend.caps.set"]["in"]["caps"], r
   return (["run", "dayMicros", "monthMicros", "turnsPerDay", "timeMinutesPerRun"] as const).every((key) => left[key] === right[key]);
 }
 
+export function retentionValue(raw: string): string {
+  const value = raw.trim();
+  if (!/^(?:forever|per_policy|[0-9]+[dwmy])$/.test(value)) throw new Error("Use a whole duration such as 30d, 12w, 2m or 1y, or choose forever or per policy.");
+  return value;
+}
+
 export function policySelection(mode: "all" | "selected", values: readonly string[]): string[] {
   if (mode === "all") return [];
   const unique = [...new Set(values)];
