@@ -12,6 +12,8 @@
 
 ## Unreleased
 
+- Added real Console People reactivation, typed server removal/handoff plan and reviewed impacts, plus loss-previewed administrator reset issuance. Codes stay component-only, clear on hide/exit/timeout, and never enter URLs, device storage or audit metadata. Production browser17/17 proves member project creation, suspension/revocation/reactivation, reset/redeem, project lead handoff/removal and reload; authenticated names appear in risk review. Full person object/common-interaction work remains tracked separately.
+
 - Carry verified account display names into the access directory on invite acceptance and first Owner claim. The declared event field is additive; the consumer fills only matching-kind ID/bootstrap placeholders and preserves named identities, status, roles and canonical ownership. Actual HTTP name/restart and authority regressions pass.
 
 - Closed administrator reset takeover of the canonical Owner account. A typed read-only owner port guards issuance and redemption, including legacy codes and ownership changes during hashing. Self resets use account settings/recovery instead. Validate password and wrapped-key bundle before consuming a one-time reset credential, preserve expiry/replay behavior and original issuer attribution. Actual HTTP and identity regressions30/30 pass.
