@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Automations: an OpenAPI document already in memory drafts typed actions at draft level. A host outside that document's servers is rejected. Secret examples are not copied. The generator does not fetch docs, call the API, or promote the draft.
 - Automations: stopping a parent stops unfinished children. A child that already finished stays finished. A pasted secret is refused on a draft, and the step log keeps the field name without the secret value.
 - Automations: a compact builder reads canvas overview, selected step, data, then test. Cards, tabs, insert controls, and mappings name the action and the state. Focus uses the existing accent line. A browser pass was not run.
 - Automations: the studio chrome follows the prototype. The nav is Automations, Needs you, All runs, Live Event Explorer, Analytics, Dependencies, and Packages. Analytics opens the Space screen. The builder has Basic and Advanced, and the inspector tabs are Configure, Data, and Test. Empty screens stay empty. A browser pass was not run.
