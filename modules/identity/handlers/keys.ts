@@ -1,3 +1,4 @@
+import {assertNewMemberPolicy} from "../policy.ts";
 // Wrapped key storage, password change, recovery and admin reset (spec 3.13, 2.25). The server holds ciphertext only: it checks that a bundle is base64 and stores it,
 // it never receives a personKey and never returns a key to anyone but the signed-in person.
 import type { Device, IdentityCtx, KeyBundle, SignInOut } from "../projections.ts";
@@ -135,6 +136,7 @@ export async function acceptCreateAccount(
   checkNewSecret(ctx, input.password);
   if (!validBundle(input.keys)) raise(tid, "validation.bad_input", "keys must be base64 ciphertext");
   const personId = nid("usr");
+  assertNewMemberPolicy(ctx);
   await provisionAccount(ctx, { personId, username, name: input.displayName?.trim() || username, secret: input.password });
   setKeys(ctx, personId, input.keys, "first_device");
   await ctx.invites.accept(invite.inviteId, personId);

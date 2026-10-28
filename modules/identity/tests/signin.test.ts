@@ -36,7 +36,7 @@ test("sign-in options and username check", async () => {
   assert.equal(o.name, "Maya Studio");
   assert.equal(o.fingerprint, "ab12 cd34 ef56 7890");
   assert.equal(o.password, true);
-  assert.equal(o.github, true);
+  assert.equal(o.github, false, "a static Space flag does not advertise an absent GitHub exchange port");
   assert.equal((await handlers["identity.username_available"](h.anon, { username: "maya" })).available, false);
   assert.equal((await handlers["identity.username_available"](h.anon, { username: "omar" })).available, true);
   assert.equal((await handlers["identity.username_available"](h.anon, { username: "Bad Name!" })).available, false);

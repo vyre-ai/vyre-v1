@@ -29,6 +29,8 @@ export function auditTargets(cap: string, input: unknown, output: unknown): Audi
   } else if (cap.startsWith("access.reviews.")) {
     add("review", i.reviewId ?? object(o.review).id, "rvw");
     add("grant", i.grantId, "gnt");
+  } else if (cap === "members.sign_in_policy.set") {
+    targets.push({kind:"policy",id:"sign_in"});
   } else if (cap === "access.policies.set") {
     if (typeof i.key === "string" && /^(gate|spend|limit|provider_label|retention|sign_in|sharing|vault)[.][a-z0-9_.:-]{1,120}$/.test(i.key)) targets.push({ kind: "policy", id: i.key });
   } else if (cap.startsWith("members.") || cap === "identity.reset_start") {

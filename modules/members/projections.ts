@@ -1,3 +1,4 @@
+import type {SignInMethods} from "../../lib/sign-in-policy.ts";
 // Members projections (spec 3.13, 3.10, 2.1, ARCH 7.13, 7.10): invites, the join effects, suspend and remove state, sign-in policy and SSO rows.
 // Durable tables: migrations/0001_members.sql. Handlers reach them only through ctx.db (members_* only, ARCH B2).
 // Other modules are reached through ctx.call (access, devices, spaces, projects, channels) or through the optional seams below,
@@ -17,6 +18,8 @@ export type RemovalAction = "pause" | "reassign" | "revoke" | "export" | "retain
 export interface OwnedItem { count: number; sample: { type: string; id: string; title: string }[] }
 
 export interface MembersCtx {
+  signInMethods?: Readonly<SignInMethods>;
+  spaceOwner?(): string | null;
   space: string;
   /** Absent on the pre-auth join calls (caller 'pending'). */
   principal?: { kind: string; id: string };

@@ -12,6 +12,8 @@
 
 ## Unreleased
 
+- Enforce the current Space sign-in policy at authentication and session issuance through a typed read-only host port. Only advertise implemented methods; reject password lockout, unsupported SSO and required MFA without actual Owner enrollment and a supported new-member enrollment path. Reject unavailable invite sign-up before accepting the invite or creating an account. Added real HTTP authentication/readback and policy Activity regressions.
+
 - Authorization tests: keep the unchanged 200-world SQL/predicate property and its coverage floors, retain legacy Owner-group worlds, and add valid direct Admin diversity. Add a deterministic SQLite regression proving Owner-group denial while ordinary group/Admin grants survive.
 
 - Console Access Reviews: add the shared review list/object, real start/keep/remove/close actions, reviewed grant removal, indexed Activity, and a tasks.get-backed review-task sheet. Expose existing reviewer/task links in the typed review response; preserve external Home task routing as a separate open gap.

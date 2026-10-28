@@ -1,3 +1,5 @@
+import type {SignInPolicy,SignInMethods} from "../../lib/sign-in-policy.ts";
+import {assertSignInPolicy} from "./policy.ts";
 // Identity projections (spec 3.13, 2.25, ARCH 7.13). Accounts, sessions, challenges, one-time codes and the wrapped key bundle.
 // The server keeps a salted Argon2id verifier of the login secret, never the secret, and never an unwrapped key.
 // Durable tables: migrations/0001_identity.sql. Handlers reach them only through ctx.db.
@@ -12,6 +14,7 @@ export interface Db {
 }
 export interface Github { resolve(code: string): Promise<{ id: string; login: string }> }
 export interface IdentityCtx {
+  signInPolicy?: {current():Readonly<SignInPolicy>;methods:Readonly<SignInMethods>};
   space: string;
   /** Absent on pre-auth calls (caller 'anonymous'). */
   principal?: { kind: string; id: string };
@@ -240,12 +243,14 @@ export function configureSessionTokens(t: SessionTokens | null): void { sessionT
 /** Open a per-device session: devices.register makes the device and its session, the host mints the token for that session, and identity keeps the row that sign-out and reset act on. */
 export async function issueSession(ctx: IdentityCtx, a: Account, dev: Device, method: Method, opts: { joining?: boolean } = {}): Promise<SignInOut> {
   const tid = ctx.trace.traceId;
+  assertSignInPolicy(ctx,a,method);
   if (!sessionTokens || typeof ctx.call !== "function") raise(tid, "internal.unavailable", "Sign-in cannot open a device session on this server yet.");
   // a suspended or removed person gets no session by any route (password, pair code, reset, recovery, GitHub): they are told what a wrong password is told
   const member = ctx.membership?.check(a.person_id, opts);
   if (member === "unavailable") raise(tid, "internal.unavailable", "Access is being re-checked on this server. Try again in a moment.");
   if (member === "refused") raise(tid, "auth.bad_credentials");
   const reg = (await ctx.call("devices.register", { person: a.person_id, name: dev.deviceName, class: dev.deviceClass, idempotencyKey: nid("sin") })) as { device?: { id?: unknown }; sessionId?: unknown };
+  assertSignInPolicy(ctx,a,method);
   const deviceId = typeof reg?.device?.id === "string" ? reg.device.id : "";
   const sessionId = typeof reg?.sessionId === "string" ? reg.sessionId : "";
   if (!deviceId || !sessionId) raise(tid, "internal.unexpected", "The device could not be registered.");
