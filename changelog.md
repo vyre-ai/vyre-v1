@@ -4,6 +4,7 @@
 
 - Keep browser failure diagnostics from masking the original Apps failure, and verify the canonical wording in exported AI policy documents.
 - Restore the auth entry chooser and canonical invite links, connect Add a Space on desktop and phone, keep Get started available before choosing an address, and add password-based Lock/Unlock using the existing session revocation and key-drop path. Preserve the approved clean 0.6.8 auth kit and signed-in v1 visual language.
+- Added typed Console Network, Speed and Usage pages with reviewed network changes, observed status, performance budget units and trace drilldown, and independent usage grouping. Fixed the first successful queued domain apply leaving the reported address stale. Added production browser coverage and command failure regression.
 
 - Mark the synthetic export-redaction credential fixture for the existing secret scanner without changing production credential checks.
 

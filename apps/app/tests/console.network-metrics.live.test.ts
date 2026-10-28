@@ -1,0 +1,18 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { bootFreshSpace, claimOnEdge, edge } from './real-app-harness.test.ts';
+test('production Network Speed and Usage use actual authenticated routes and controls',async(t)=>{
+ const dist=process.env.VYRE_APP_DIST;if(!dist){t.skip('VYRE_APP_DIST required');return;}
+ const {chromium}=await import('playwright-core');const space=await bootFreshSpace(),web=await edge(dist,space.url),browser=await chromium.launch({executablePath:process.env.CHROME_BIN||chromium.executablePath(),args:['--no-sandbox']}),context=await browser.newContext({viewport:{width:1360,height:960}}),page=await context.newPage();const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+ const shot=async(name:string)=>{const dir=process.env.VYRE_CONSOLE_SHOTS;if(dir){fs.mkdirSync(dir,{recursive:true});await page.screenshot({path:path.join(dir,name)});}};
+ try{
+  await page.goto(claimOnEdge(space.claim!,web.origin),{waitUntil:'load'});await page.getByTestId('claim-name').fill('Infrastructure fixture owner');await page.getByTestId('claim-username').fill('infrafixture');await page.getByTestId('claim-password').fill('fixture password 123');await page.getByTestId('claim-confirm').fill('fixture password 123');await page.getByTestId('claim-next').click();await page.getByTestId('claim-saved').click();await page.getByTestId('claim-create').click();await page.getByTestId('shell').waitFor({timeout:30000});
+  await page.goto(`${web.origin}/console`,{waitUntil:'load'});await page.getByTestId('console').waitFor({timeout:30000});await page.getByTestId('navgroup-Infrastructure').click();await page.getByTestId('row-nav-network').click();await page.getByTestId('console-network-infra').waitFor();await page.getByTestId('row-network-address').waitFor({timeout:15000});
+  await page.getByTestId('infra-network-domain').fill('not a domain');await page.getByRole('button',{name:'Review domain…',exact:true}).click();assert.equal(await page.getByTestId('infra-network-confirm').count(),1);await page.getByTestId('infra-network-confirm').click();await page.getByText(/That is not a domain name/).waitFor();await page.getByRole('button',{name:'Cancel',exact:true}).click();await page.getByRole('button',{name:'Create join code',exact:true}).click();await page.getByText(/VYRE-[A-Z2-9]{4}-[A-Z2-9]{4} · Expires/).waitFor();await shot('console-network-desktop.png');
+  await page.getByTestId('row-nav-speed').click();await page.getByTestId('console-speed-infra').waitFor();await page.getByRole('button',{name:'Sample window',exact:true}).click();await page.getByText('Last 15 minutes',{exact:true}).click();await page.getByRole('button',{name:'Refresh speed',exact:true}).click();await page.getByText(/No speed samples|Median .*p95/).first().waitFor();await shot('console-speed-desktop.png');
+  await page.getByTestId('row-nav-usage').click();await page.getByTestId('console-usage-infra').waitFor();await page.getByRole('button',{name:'Period',exact:true}).click();await page.getByText('Last 7 days',{exact:true}).click();await page.getByRole('button',{name:'Group usage by',exact:true}).click();await page.getByText('Model',{exact:true}).click();await page.getByText(/Vyre is in design beta/).waitFor();await shot('console-usage-desktop.png');assert.deepEqual(errors,[]);
+ }catch(error){console.error(await page.locator('body').innerText().catch(()=> 'No page'));throw error;}
+ finally{await context.close();await browser.close();web.close();await space.stop();fs.rmSync(space.dir,{recursive:true,force:true});}
+});

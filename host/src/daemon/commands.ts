@@ -102,7 +102,12 @@ async function runNetwork(d: CommandDeps, kind: string, target: string): Promise
         "INSERT INTO network_dns (domain, ok, records_json, checked_at) VALUES (?, ?, ?, ?) ON CONFLICT(domain) DO UPDATE SET ok = excluded.ok, records_json = excluded.records_json, checked_at = excluded.checked_at",
         target, r.ok ? 1 : 0, JSON.stringify(r.records), t,
       );
-      if (r.ok) await d.network.applyAddress({ mode: "own_domain", address: target });
+      if (r.ok) {
+        await d.network.applyAddress({ mode: "own_domain", address: target });
+        // Only acknowledge the new address after the driver accepted it. DNS alone
+        // does not establish that the host has installed the ingress route.
+        d.db.run("UPDATE network_config SET address = ?, mode = 'own_domain', domain = ?, reported_at = ? WHERE id = 1", target, target, d.now());
+      }
       return;
     }
     case "set_mode": {
