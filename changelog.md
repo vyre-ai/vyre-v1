@@ -1,5 +1,7 @@
 # Changelog
 
+- Mark the synthetic export-redaction credential fixture for the existing secret scanner without changing production credential checks.
+
 - Verify imported Claude Code and Codex checkout identity across Git's Windows path spelling and Windows canonical extended-length paths, while retaining exact provider-to-provider metadata agreement.
 
 - Matched non-Welcome auth forms to the 0.6.8 content-height reading frame, small Vyre mark and top Back action, with a full-width primary below the fields. Preserved the approved flat surface, restrained halftone and existing account/security contracts. Made username/password fields fill the reading column and refresh the verified Space name without discarding typed credentials or in-flight sign-in. Scope delayed metadata to the destination host and origin, remount credentials when the address changes, and prevent duplicate pending sign-in requests.

@@ -12,6 +12,7 @@ test('owned export ports are source-specific, scrubbed, preserve effective reque
  try{
   assert.equal(exports.forExecution('files.create',execution),undefined);assert.equal(exports.forExecution('constructor',execution),undefined);
   const port=exports.forExecution('logs.export',execution) as {logs(rows:unknown):Promise<string>};assert.equal('save' in port,false);await assert.rejects(port.logs('unfiltered bytes'));await assert.rejects(port.logs([{at:1,level:'info',msg:'test',path:'/tmp/target'}]));
+  // secret-scan: fake (synthetic provider-shaped token verifies export redaction)
   const token='sk-proj-abcdefghijklmnopqrstuvwxyz123456';const id=await port.logs([{at:now,level:'info',msg:'export.fixture',attrs:{api_key:token,note:`Bearer ${token}`,body:'private message body'}}]);
   const row=db.all('SELECT * FROM host_owned_export WHERE id = ?',id)[0] as Record<string,unknown>;assert.equal(row.owner_kind,'person');assert.equal(row.owner_id,'usr_requester');assert.equal(row.actor_kind,'agent');assert.equal(row.actor_id,'agt_fixture');assert.deepEqual(resources,[{id,ownerId:'usr_requester'}]);
   const {actingFor:_actingFor,...withoutBehalf}=execution;const owner={...withoutBehalf,principal:{kind:'person' as const,id:'usr_requester'}};const content=await exports.read('files.read',owner,{fileId:id,as:'text'}) as {text:string};assert.ok(!content.text.includes(token));assert.ok(!content.text.includes('private message body'));
