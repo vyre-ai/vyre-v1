@@ -13,6 +13,7 @@
 - Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads. Removed an unused viewer barrel so every restored production file has executable coverage.
 
 ## Unreleased
+- Space archives: refuse snapshots while relevant writes are active, advance mutation revisions on completion, and enforce a cumulative retained-item budget across roots and descendants. Add deterministic HTTP coverage for writes blocked before the snapshot baseline and between DB/log phases.
 - Label the fixed synthetic collector and HTTP archive credential fixtures with the documented secret-scan marker; keep production scanner enforcement unchanged.
 - Space archives: collect current shared records/schema, retained file versions and canonical current pointers, public channel messages and Space settings through the original owner’s capabilities. Include an exact hashed manifest, explicit privacy/credential omissions and mutation guards through persistence; refuse missing snapshots and inconsistent exports instead of returning a partial ZIP.
 - Space archives: recheck current owner, export permissions and expiry after blob retrieval before returning status or bytes; withhold ready pointers until resource registration finishes, and delete encrypted artifacts after failed persistence or registration.

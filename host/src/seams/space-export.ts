@@ -28,7 +28,8 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
     manifest: Obj;
 }> {
     const started = o.now(), entries: Entry[] = [], exclusions: Obj[] = [], records: Obj[] = [], files: Obj[] = [], chats: Obj[] = [], sourceChecks: (() => Promise<void>)[] = [];
-    let total = 0, items = 0;
+    let total = 0, items = 0,retainedItems=0;
+    const retain=(count:number):void=>{retainedItems+=count;if(retainedItems>MAX_ITEMS)throw new SpaceExportError('The retained export item limit was reached. No partial archive was created.');};
     const check = async (): Promise<void> => { await o.assertOwner(); if (++items > MAX_ITEMS || o.now() - started > 120000)
         throw new SpaceExportError('This Space export exceeds the bounded snapshot window. Try again with fewer retained items.'); };
     const read = async (cap: string, input: Record<string, unknown> = {}): Promise<any> => { await check(); return o.read(cap, input); };
@@ -80,6 +81,7 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
     const schema = await read('schema.describe');
     if (!Array.isArray(schema.types))
         throw new SpaceExportError('The Space schema is unavailable.');
+    retain(schema.types.length);
     const types: Obj[] = schema.types.filter((type: Obj) => { if (type.scope !== undefined && type.scope !== 'space') {
         exclusions.push({ category: 'record_type', id: type.key, reason: 'non_space_scope' });
         return false;
@@ -127,7 +129,7 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
         const page = await read('files.list', { section: 'space', limit: 200, ...(rootCursor ? { cursor: rootCursor } : {}) });
         if (!Array.isArray(page.folders) || !Array.isArray(page.files))
             throw new SpaceExportError('The Space root contents are unavailable.');
-        roots.push(...page.folders);
+        retain(page.folders.length+page.files.length);roots.push(...page.folders);
         fileRows.push(...page.files);
         rootCursor = page.next;
         if (rootCursor) {
@@ -152,7 +154,7 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
             const page = await read('files.list', { section: 'space', folder: id, limit: 200, ...(cursor ? { cursor } : {}) });
             if (!Array.isArray(page.files) || !Array.isArray(page.folders))
                 throw new SpaceExportError('A required Space folder is unavailable.');
-            fileRows.push(...page.files);
+            retain(page.files.length+page.folders.length);fileRows.push(...page.files);
             for (const child of page.folders) {
                 if (child.scope === 'space')
                     queue.push(child);
@@ -182,7 +184,7 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
         const versionsOut = await read('files.versions', { fileId: id });
         if (!Array.isArray(versionsOut.versions) || !versionsOut.versions.length)
             throw new SpaceExportError(`Retained versions are unavailable for ${id}.`);
-        const versions: Obj[] = versionsOut.versions, parts: Entry[] = [], metadata: Obj[] = [];
+        retain(versionsOut.versions.length);const versions: Obj[] = versionsOut.versions, parts: Entry[] = [], metadata: Obj[] = [];
         let pendingBytes = 0;
         for (const version of versions) {
             const versionId = safeId(version.versionId);
@@ -278,7 +280,7 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
             const page = await read('chat.messages.list', { threadId: id, after, limit: 200 });
             if (!Array.isArray(page.messages))
                 throw new SpaceExportError(`Shared chat messages are unavailable: ${id}.`);
-            for (const message of page.messages) {
+            retain(page.messages.length);for (const message of page.messages) {
                 if (message.threadId !== id)
                     throw new SpaceExportError('A chat returned a message from another thread.');
                 if (message.enc > 0 && credentialContent(JSON.stringify(message), o.secrets))
