@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Local session import: remove instruction/environment wrappers and redact credential patterns before preview and again before immutable archive or conflict storage.
 - Personal history: connect native Codex and Claude Code discovery to selected transcript previews, explicit Personal import consent, owner-private archive reads, and linked continuation with copied visible context. Block Team imports, preserve import idempotency across the gateway, and let Personal project owners create projects without Team-only sharing calls.
 - Web startup: import production Inbox, shell-phone, and sidebar components from their leaf modules so screenshot sample fixtures and the generated screen registry no longer enter the initial common bundle through UI barrels.
 - Records performance: reduce continuous-fling boundaries from eight rich rows to four while retaining twelve-row overscan, keeping forward, reverse, jump, and end-of-table viewports continuously covered.

@@ -19,6 +19,19 @@ const payload = {
   }],
 };
 
+test("direct import sanitizes messages and titles before immutable storage or conflicts", async () => {
+  const h = harness();
+  const secret = "ghp_fixtureOnlyPrivateToken0123456789abcd";
+  const unsafe = { ...payload, sessions: [{ ...payload.sessions[0]!, title: `API_KEY=${secret}`, messages: [{ sourceMessageId: "secret", role: "user" as const, text: `<system-reminder>Internal agent policy</system-reminder>\nShip it.\nTOKEN=${secret}`, at: 1 }] }] };
+  await sessionsImport(h.ctx, unsafe);
+  await sessionsImport(h.ctx, { ...unsafe, sessions: [{ ...unsafe.sessions[0]!, messages: [{ ...unsafe.sessions[0]!.messages[0]!, text: `New visible text\nTOKEN=${secret}` }] }] });
+  const persisted = JSON.stringify({ rows: h.rows("SELECT title FROM import_conversation"), messages: h.rows("SELECT text FROM import_message"), conflicts: h.rows("SELECT incomingText FROM import_session_conflict") });
+  assert.ok(!persisted.includes(secret));
+  assert.ok(!persisted.includes("Internal agent policy"));
+  assert.match(persisted, /Ship it/);
+  assert.match(persisted, /REDACTED/);
+});
+
 test("sessions.import requires previewed consent, persists provenance immutably, and is idempotent", async () => {
   const h = harness();
   const created = await sessionsImport(h.ctx, payload);

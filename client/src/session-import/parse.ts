@@ -1,4 +1,5 @@
 // Pure parsing boundary shared by packaged clients. Never reads local files.
+import { sanitizeImportedText } from "../../../lib/import-text.ts";
 export interface SessionSource { provider: "codex" | "claude"; sessionId: string; sessionKey: string; cwd?: string | null; gitOriginUrl?: string | null }
 export interface SessionMessage { sourceMessageId: string; role: "user" | "assistant"; text: string; at: number }
 export interface SessionPayload { sourceSessionId: string; title: string; startedAt: number; repo?: { root?: string; remote?: string }; messages: SessionMessage[] }
@@ -29,17 +30,19 @@ export function parseSession(source: SessionSource, text: string): SessionPayloa
     const m = source.provider === "codex" ? payload : object(line.message);
     if (source.provider === "codex" ? line.type !== "response_item" || m.type !== "message" : line.type !== "user" && line.type !== "assistant") continue;
     if (m.role !== "user" && m.role !== "assistant") continue;
+    if (m.role === "assistant" && (m.channel === "analysis" || m.channel === "reasoning")) continue;
     const content = m.content;
     const visible = typeof content === "string" && source.provider === "claude" ? content : Array.isArray(content) ? content.flatMap((v) => {
       const p = object(v);
       return (p.type === "text" || p.type === "input_text" || p.type === "output_text") && typeof p.text === "string" ? [p.text] : [];
     }).join("\n") : "";
-    if (!visible.trim()) continue;
+    const safeText = sanitizeImportedText(visible);
+    if (!safeText) continue;
     const sourceMessageId = String(source.provider === "claude" ? line.uuid ?? `line:${index}` : m.id ?? `line:${index}`);
     if (ids.has(sourceMessageId)) continue;
     ids.add(sourceMessageId);
     const at = typeof line.timestamp === "string" ? Date.parse(line.timestamp) : NaN;
-    messages.push({ sourceMessageId, role: m.role, text: visible, at: Number.isFinite(at) ? at : index });
+    messages.push({ sourceMessageId, role: m.role, text: safeText, at: Number.isFinite(at) ? at : index });
   }
   return { sourceSessionId: source.sessionId, title: messages.find((m) => m.role === "user")?.text.slice(0, 100) ?? "Imported session", startedAt: messages[0]?.at ?? 0, ...(root || origin ? { repo: { ...(root ? { root } : {}), ...(origin ? { remote: origin } : {}) } } : {}), messages };
 }
