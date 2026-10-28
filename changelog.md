@@ -11,6 +11,7 @@
 - Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads. Removed an unused viewer barrel so every restored production file has executable coverage.
 
 ## Unreleased
+- Console access checks render decision steps with the shared row component and named pass/fail indicators.
 - Local session import: converge concurrent confirmations on one immutable source archive instead of failing a unique-key insert after project creation.
 - Desktop session import: keep provider roots and transcript paths behind native IPC, read committed Codex WAL rows without write access, move filesystem discovery off the app UI thread under one bounded Git-probe budget, recover Claude discovery when Codex metadata is damaged, attach CLI-only Claude repository identity after selected preview, keep native-verified repository roots authoritative over stale transcript metadata, normalize Codex and Claude checkout roots, and merge bounded Claude subagent history into its parent preview.
 - Local session import: remove instruction/environment wrappers and redact credential patterns before preview and again before immutable archive or conflict storage.
