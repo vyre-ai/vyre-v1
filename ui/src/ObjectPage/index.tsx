@@ -3,9 +3,9 @@
 // Keys: Left and Right move between tabs (Home and End jump), Escape closes the side sheet or a confirm. Menus use the shared Menu.
 // Colours are skin tokens (CSS variables on web), so a skin switch repaints with no re-render.
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { MenuIcon, menuTrigger, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 import { OBJECT_PAGE_BASE_TABS } from "./props.ts";
@@ -66,6 +66,16 @@ export function doneLine(action: ObjectAction, name: string): string {
   return `${action.label}: ${name}.`;
 }
 
+export type ObjectActionResult = { ok: true } | { ok: false; error: string };
+export async function settleObjectAction(run: () => void | boolean | Promise<void | boolean>): Promise<ObjectActionResult> {
+  try {
+    const result = await run();
+    return result === false ? { ok: false, error: "The action did not complete." } : { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "The action did not complete." };
+  }
+}
+
 /** True when the status reads as healthy (a green dot). */
 export function statusTone(status: string): "ok" | "warn" | "off" {
   const s = status.trim().toLowerCase();
@@ -103,7 +113,7 @@ export interface ObjectPageViewProps extends ObjectPageProps {
   /** Impact lines for destructive actions, by action id: "Removing Omar reassigns 3 things." */
   impacts?: Readonly<Record<string, string>>;
   /** Called when an action is chosen. For a destructive one it is called after the person confirms. */
-  onAction?: (id: string) => void;
+  onAction?: (id: string) => void | boolean | Promise<void | boolean>;
   /** After a destructive action ran: Undo puts it back. */
   onUndo?: (id: string) => void;
   onTab?: (id: string) => void;
@@ -121,14 +131,26 @@ interface Pending {
 
 export function ObjectPage(props: ObjectPageViewProps): ReactElement {
   const { name, kind, owner, status, actions, tabs, density, sheetOpen, impacts, onAction, onUndo, onTab, onBack } = props;
-  const compact = density === "compact";
+  const measuredWidth = useWindowDimensions().width;
+  const compact = density === "compact" || measuredWidth > 0 && measuredWidth < 720;
   const [active, setActive] = useState(props.activeTabId);
   const [pending, setPending] = useState<Pending | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [sheet, setSheet] = useState(sheetOpen);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const activeProp = useRef(props.activeTabId);
+  const sheetProp = useRef(props.sheetOpen);
   const { element: menuElement, show } = useMenu();
   const split = splitActions(actions);
   const tone = statusTone(status);
+
+  useEffect(() => {
+    if (activeProp.current !== props.activeTabId) { activeProp.current = props.activeTabId; setActive(props.activeTabId); }
+  }, [props.activeTabId]);
+  useEffect(() => {
+    if (sheetProp.current !== props.sheetOpen) { sheetProp.current = props.sheetOpen; setSheet(props.sheetOpen); }
+  }, [props.sheetOpen]);
 
   const select = useCallback((id: string) => {
     setActive(id);
@@ -136,22 +158,29 @@ export function ObjectPage(props: ObjectPageViewProps): ReactElement {
   }, [onTab]);
 
   const choose = useCallback((action: ObjectAction) => {
+    if (busyAction !== null) return;
     if (action.destructive) {
       setPending({ actionId: action.id });
       setDone(null);
+      setActionError(null);
       return;
     }
-    if (onAction) onAction(action.id);
-  }, [onAction]);
+    if (!onAction) return;
+    setBusyAction(action.id); setActionError(null);
+    void settleObjectAction(() => onAction(action.id)).then((result) => { if (!result.ok) setActionError(result.error); }).finally(() => setBusyAction(null));
+  }, [busyAction, onAction]);
 
-  const confirm = useCallback(() => {
-    if (pending === null) return;
+  const confirm = useCallback(async () => {
+    if (pending === null || busyAction !== null) return;
     const action = actions.find((a) => a.id === pending.actionId);
-    setPending(null);
     if (action === undefined) return;
-    if (onAction) onAction(action.id);
-    setDone(action.id);
-  }, [pending, actions, onAction]);
+    if (!onAction) { setPending(null); return; }
+    setBusyAction(action.id); setActionError(null);
+    const result = await settleObjectAction(() => onAction(action.id));
+    setBusyAction(null);
+    if (!result.ok) { setActionError(result.error); return; }
+    setPending(null); setDone(action.id);
+  }, [pending, busyAction, actions, onAction]);
 
   const closeSheet = useCallback(() => {
     setSheet(false);
@@ -194,7 +223,7 @@ export function ObjectPage(props: ObjectPageViewProps): ReactElement {
   const doneAction = done === null ? null : actions.find((a) => a.id === done) ?? null;
   const more = menuFor(compact);
   const secondaryButtons: ReactNode[] = [];
-  if (!compact) for (const a of split.secondary) secondaryButtons.push(<HeadButton key={a.id} label={a.label} testID={`object-action-${a.id}`} onPress={() => choose(a)} />);
+  if (!compact) for (const a of split.secondary) secondaryButtons.push(<HeadButton key={a.id} label={a.label} testID={`object-action-${a.id}`} disabled={busyAction !== null} onPress={() => choose(a)} />);
   const tabNodes: ReactNode[] = [];
   for (const tab of tabs) {
     const on = tab.id === active;
@@ -250,7 +279,7 @@ export function ObjectPage(props: ObjectPageViewProps): ReactElement {
             <Text style={styles.sub} numberOfLines={1} testID="object-subtitle">{props.subtitle ?? subtitle(kind, owner)}</Text>
           </View>
           <View style={styles.actions}>
-            {!compact && split.primary !== null ? <HeadButton label={split.primary.label} outlined testID={`object-action-${split.primary.id}`} onPress={() => choose(split.primary as ObjectAction)} /> : null}
+            {!compact && split.primary !== null ? <HeadButton label={split.primary.label} outlined testID={`object-action-${split.primary.id}`} disabled={busyAction !== null} onPress={() => choose(split.primary as ObjectAction)} /> : null}
             {secondaryButtons}
             {more.length > 0 ? (
               <Pressable
@@ -277,11 +306,13 @@ export function ObjectPage(props: ObjectPageViewProps): ReactElement {
           <View style={styles.confirm} testID="object-confirm" role="alertdialog" aria-label={confirmLine(pendingAction, name, impacts?.[pendingAction.id])}>
             <Text style={styles.confirmText}>{confirmLine(pendingAction, name, impacts?.[pendingAction.id])}</Text>
             <View style={styles.confirmBtns}>
-              <HeadButton label="Cancel" testID="object-cancel" onPress={() => setPending(null)} />
-              <HeadButton label={pendingAction.label} danger testID="object-confirm-go" onPress={confirm} />
+              <HeadButton label="Cancel" testID="object-cancel" disabled={busyAction !== null} onPress={() => setPending(null)} />
+              <HeadButton label={busyAction === pendingAction.id ? `${pendingAction.label}…` : pendingAction.label} danger testID="object-confirm-go" disabled={busyAction !== null} onPress={() => { void confirm(); }} />
             </View>
           </View>
         ) : null}
+
+        {actionError !== null ? <View style={styles.error} role="alert" testID="object-action-error"><Text style={styles.errorText}>{actionError}</Text></View> : null}
 
         {doneAction !== null ? (
           <View style={styles.done} testID="object-done" role="status">
@@ -340,17 +371,18 @@ const sectionStyles = StyleSheet.create({
   card: { borderRadius: 10, boxShadow: "0 0 0 1px var(--line)" as string, backgroundColor: "var(--raised)" as string, padding: 4 },
 });
 
-function HeadButton({ label, onPress, testID, outlined = false, danger = false }: { label: string; onPress: () => void; testID: string; outlined?: boolean; danger?: boolean }): ReactElement {
+function HeadButton({ label, onPress, testID, outlined = false, danger = false, disabled = false }: { label: string; onPress: () => void; testID: string; outlined?: boolean; danger?: boolean; disabled?: boolean }): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <Pressable
       role="button"
       aria-label={label}
       testID={testID}
+      disabled={disabled}
       onPress={onPress}
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
-      style={[styles.btn, outlined && styles.btnOutlined, danger && styles.btnDanger, over && !danger && styles.btnOver]}
+      style={[styles.btn, outlined && styles.btnOutlined, danger && styles.btnDanger, over && !danger && styles.btnOver, disabled && styles.disabled]}
     >
       <Text style={[styles.btnText, danger && styles.btnTextDanger]}>{label}</Text>
     </Pressable>
@@ -386,6 +418,7 @@ const styles = StyleSheet.create({
   btnDanger: { backgroundColor: "var(--danger)" as string },
   btnText: { color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "500" },
   btnTextDanger: { color: "#fff" },
+  disabled: { opacity: 0.5 },
   tabsBox: { borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, marginHorizontal: 18 },
   tabs: { gap: 20 },
   tab: { flexDirection: "row", alignItems: "center", gap: 6, height: 38, borderBottomWidth: 2, borderBottomColor: "transparent" },
@@ -398,6 +431,8 @@ const styles = StyleSheet.create({
   confirmBtns: { flexDirection: "row", gap: 8, justifyContent: "flex-end" },
   done: { margin: 18, marginBottom: 0, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: "var(--sunk)" as string, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   doneText: { color: "var(--ink-2)" as string, fontSize: 12.5 },
+  error: { marginHorizontal: 18, marginTop: 8, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 8, backgroundColor: "var(--danger-bg)" as string },
+  errorText: { color: "var(--danger)" as string, fontSize: 12.5 },
   body: { flex: 1 },
   bodyInner: { padding: 18, gap: 18 },
   sheet: { width: 340, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },

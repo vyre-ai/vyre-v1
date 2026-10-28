@@ -1834,6 +1834,7 @@
                 "examples": [
                   "usr_a1b2c3"
                 ],
+                "pattern": "^(usr|agt|act|svc|grp)_[a-z0-9]+$",
                 "type": "string"
               },
               "kind": {
@@ -1841,7 +1842,8 @@
                   "person",
                   "agent",
                   "actor",
-                  "service"
+                  "service",
+                  "group"
                 ],
                 "type": "string"
               }
@@ -1980,6 +1982,9 @@
             "maximum": 500,
             "minimum": 1,
             "type": "integer"
+          },
+          "q": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -2043,6 +2048,7 @@
                 "examples": [
                   "usr_a1b2c3"
                 ],
+                "pattern": "^(usr|agt|act|svc|grp)_[a-z0-9]+$",
                 "type": "string"
               },
               "kind": {
@@ -2050,7 +2056,8 @@
                   "person",
                   "agent",
                   "actor",
-                  "service"
+                  "service",
+                  "group"
                 ],
                 "type": "string"
               }
@@ -3770,6 +3777,40 @@
             ],
             "type": "object"
           },
+          "target": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "usr_a1b2c3"
+                ],
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "person",
+                  "agent",
+                  "actor",
+                  "service",
+                  "group",
+                  "role",
+                  "grant",
+                  "policy",
+                  "review",
+                  "device",
+                  "session",
+                  "invite"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
           "to": {
             "description": "Milliseconds since the Unix epoch",
             "examples": [
@@ -3921,6 +3962,40 @@
             },
             "required": [
               "type",
+              "id"
+            ],
+            "type": "object"
+          },
+          "target": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "usr_a1b2c3"
+                ],
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "person",
+                  "agent",
+                  "actor",
+                  "service",
+                  "group",
+                  "role",
+                  "grant",
+                  "policy",
+                  "review",
+                  "device",
+                  "session",
+                  "invite"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
               "id"
             ],
             "type": "object"
@@ -5966,6 +6041,32 @@
       },
       "name": "backup_delete",
       "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "backup.export_status",
+      "deferred": false,
+      "description": "Read current-owner private export readiness and file metadata",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "runId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId"
+        ],
+        "type": "object"
+      },
+      "name": "backup_export_status",
+      "planMode": "allowed",
       "toolset": "engineer",
       "v": 1
     },

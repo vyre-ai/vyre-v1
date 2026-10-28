@@ -18,7 +18,7 @@ const CURSOR = "seed_cursor";
 /** the event names access.sync folds; the host sends only these */
 export const ACCESS_EVENTS = [
   "role.defined", "principal.created", "principal.role_set", "group.member_added", "resource.created", "grant.created", "grant.revoked",
-  "principal.suspended", "principal.reactivated", "member.removed",
+  "principal.suspended", "principal.reactivated", "member.removed", "space.ownership_transferred",
 ] as const;
 
 const rec = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {});
@@ -99,6 +99,15 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number): boolean
       g.members.push({ kind: store.principals.get(mid)?.kind ?? "person", id: mid });
       store.groups.set(gid, g);
       return true;
+    }
+    case "space.ownership_transferred": {
+      const from=str(p['from']),to=str(p['to']);if(!from||!to||from===to||(store.principals.get(to)?.status!=='active'||store.principals.get(to)?.kind!=='person'))return false;
+      const spaces=[...store.resources.values()].filter(row=>row.type==='space'&&row.ownerId===from);if(spaces.length!==1)return false;
+      const row=spaces[0]!;store.resources.set(row.id,{...row,ownerId:to});
+      const isOwner=(id:string):boolean=>id==='owner'||id==='rol_owner'||store.roles.get(id)?.name.toLowerCase()==='owner';
+      for (const [holder, roles] of store.assignments) store.setRoles(holder, roles.filter(id => !isOwner(id)));
+      store.assignments.set(from,[...new Set([...store.rolesOf(from),'rol_admin'])]);
+      store.assignments.set(to,[...new Set([...store.rolesOf(to),'rol_owner'])]);return true;
     }
     case "resource.created": {
       const id = str(p["id"]), type = str(p["type"]);

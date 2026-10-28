@@ -253,9 +253,9 @@ export async function deleteSpace(ctx: ExtraCtx, input: { confirmName: string })
   // the name outsiders see is the one to type; a Space without a legal name asks for its name
   const expected = p.legalName ?? p.name;
   if (input.confirmName !== expected) return failWith(ctx.trace.traceId, "validation.precondition_failed", `Type ${expected} exactly to delete this Space.`);
+  await d.deleteSpace();
   ctx.db.run("UPDATE spaces_profile_extra SET deleted_at = ? WHERE id = ?", ctx.now(), ctx.space);
   ctx.emit("space.deleted" as never, `entity/${ctx.principal.id}`, { by: ctx.principal.id });
-  await d.deleteSpace();
   return { ok: true };
 }
 

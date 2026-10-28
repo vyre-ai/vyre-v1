@@ -17,6 +17,32 @@
 ## Unreleased
 - Welcome uses stable exported markup before showing the device's local greeting, preventing hydration failures after a time-zone change or midnight.
 - Browser release evidence requires the real Forms/Campaigns/Apps surface instead of accepting the retired Sites placeholder or its error state.
+
+- Console interactions: separate list keyboard focus from opening objects, restore Audit row context menus, fit standard object frames to phone widths, and regenerate approved Access/Audit contract snapshots. Production browser covers context keys, bulk selection, role diffs and dark/phone layouts.
+
+- Administrative exports: recheck current authority and expiry after awaited blob reads; reauthorize across save waits and remove newly written blobs/metadata when revocation, registration or storage prevents completion.
+
+- Access ownership: reject public Owner role assignment/removal for people and groups, ignore legacy group Owner inheritance, and keep ownership transfer as the single durable path updating both the Space owner and sole Owner assignment. Add real Admin HTTP denial and restart regressions.
+
+- Console Roles: add the generated permission matrix, locked built-ins and staged exact-preview changes, plus object holders, clearance, grants and permission history. Persist the last successful permission diff and block deleting roles held by empty groups.
+
+- Console Groups: add the shared searchable object list and object tabs, paginated member/manager selection, real group roles, grants and indexed Activity, with confirmed deletion and deep-link browser coverage. Reject invalid manager updates before changing the group.
+
+- Access: allow validated group role assignments, expose direct holders, and enforce human-only role restrictions when groups gain agent members and when evaluating legacy assignments.
+- Audit: add a bounded typed target filter for object Activity, indexed and hash-bound to declared metadata; preserve Space authorization and exclude credential values.
+- Wired live invoke audit metadata into the append-only audit chain while retaining operational logs. Actor and on-behalf-of attribution and whitelisted object target IDs now reach Console Activity without copying request bodies or credentials. Generated permission metadata now loads in the browser for the real role matrix.
+- Console object lists: pass row context-menu and keyboard-menu handlers through the supported web DOM seam so right-click and Menu-key actions work on shared rows.
+- Console Agent computers: replace the raw agent-ID provisioning field with named eligible-agent choices and mark agents that already have a computer.
+- Console Outside actors: filter Activity by audit target so owners see changes to the actor, including access, scope, Engineer MCP and revocation changes, instead of unrelated actions performed by that actor.
+- Console Schema: construct Apply from the exact reviewed diff, including destructive confirmations and a fresh idempotency key, so the production control reaches `schema.apply` instead of failing locally before the request.
+- Console object polish: resolve Agent, computer and outside-actor owners to human names, replace raw outside-actor role IDs with a named picker and add/remove review, and require impact confirmation before changing Engineer MCP access.
+- Console Agents and Data: migrate Agent and Agent computer registers to the shared searchable object model with standard object tabs, impact-confirmed bulk/destructive actions and quick edits; replace raw Schema JSON operations with a typed record-type and field builder bound to exact diff previews.
+- Console surfaces: wire capability-backed first implementations for Agents, Data, Comms and Integrations; Outside actors now uses the shared object model with production create/readback/edit proof, while the scope ledger names the remaining acceptance gaps for every other adapter.
+- Console objects: wait for real asynchronous mutations before showing completion or Undo, preserve failed/held actions as visible errors, guard duplicate action submits, and synchronize externally changed tabs and quick-edit sheets.
+- Console: add a shared searchable, filterable and keyboard-selectable object-list framework with checked filter counts, bulk selection, pagination and real row context actions; it composes with the existing standard object header, tabs and quick-edit sheet.
+- Space archives: recheck current owner, export permissions and expiry after blob retrieval before returning status or bytes; withhold ready pointers until resource registration finishes, and delete encrypted artifacts after failed persistence or registration.
+- Console: add Updates review/history, Space profile and owner transfer controls, and local/drive/S3 backup settings with encryption and schedule readback. Add expiring current-owner archive status and authenticated chunked downloads; fix null-Space export authorization, atomically project ownership/resource/role changes across restart, and preserve the Space when server-side deletion refuses. Keep the existing shared-history-only export scope explicit.
+- Console: add live Server logs, service restart review, storage probes, Diagnostics and Support pages with real requester-private downloads. Scope administrative export ports to approved handlers, preserve current permissions and actor attribution, scrub content, and expire encrypted artifacts and caches after 24 hours. Drain accepted log rows and spans before closing the sink and ignore late shutdown callbacks.
 - Console access checks render decision steps with the shared row component and named pass/fail indicators.
 - Web startup: keep optional phone data, Console conversations, Plan views, telephony controls, and rich composers behind their owning lazy place chunks. Places still load required controls before the app marks them usable, while the signed-out first load falls from 1.71 MB to 1.36 MB raw without changing the 1.5-second phone budget.
 - Local session import: converge concurrent confirmations on one immutable source archive instead of failing a unique-key insert after project creation.

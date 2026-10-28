@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { fail } from "../../host/src/routes/errors.ts";
 import { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
-import { isElevatedRole } from "../../kernel/src/authorize/snapshot.ts";
+import { isElevatedRole, isOwnerRole } from "../../kernel/src/authorize/snapshot.ts";
 import type { Expr, GrantRow, Policy, PrincipalRow } from "../../kernel/src/authorize/index.ts";
 
 type ProviderPolicy = Extract<Policy, { kind: "provider_label" }>;
@@ -18,6 +18,7 @@ export type PolicyKind = "gate" | "spend" | "limit" | "provider_label" | "retent
 export type Status = "invited" | "active" | "suspended" | "removed";
 
 export interface Ref { kind: PKind; id: string }
+export interface RoleHolder { kind: PKind | "group"; id: string }
 export interface SubjectRef { kind: SubjectKind; id: string }
 export interface ResourceRef { type: string; id: string }
 export interface Cond {
@@ -35,6 +36,7 @@ export interface RoleRec {
   assignableToAgents: boolean;
   permissions: string[];
 }
+export interface RoleChangeRec { before: string[]; after: string[]; by: Ref; at: number }
 export interface GroupRec { id: string; name: string; builtIn: boolean; members: Ref[]; managers: Ref[] }
 export interface PrincipalRec {
   id: string;
@@ -108,7 +110,7 @@ const AGENT_OK: Record<(typeof ROLE_NAMES)[number], boolean> = {
 };
 const OPS = new Set(["eq", "ne", "lt", "lte", "gt", "gte", "in", "owner_me", "and", "or"]);
 const TABLES = [
-  "access_meta", "access_roles", "access_groups", "access_principals", "access_assignments",
+  "access_meta", "access_role_changes", "access_roles", "access_groups", "access_principals", "access_assignments",
   "access_grants", "access_resources", "access_policies", "access_actors", "access_fields", "access_acl",
 ];
 
@@ -214,6 +216,7 @@ export class AccessStore {
   epoch = 0;
   catalogue = new Set<string>();
   roles = new Map<string, RoleRec>();
+  roleChanges = new Map<string, RoleChangeRec>();
   groups = new Map<string, GroupRec>();
   principals = new Map<string, PrincipalRec>();
   grants = new Map<string, GrantRec>();
@@ -275,7 +278,7 @@ export class AccessStore {
     const snap = new AccessSnapshot();
     snap.labelNames = ["Public", "Internal", "Confidential", "Restricted"];
     for (const r of this.roles.values()) {
-      snap.putRole({ id: r.id, clearance: labelRank(r.clearance), perms: r.permissions, name: r.name });
+      snap.putRole({ id: r.id, clearance: labelRank(r.clearance), perms: r.permissions, name: r.name, assignableToAgents: r.assignableToAgents });
     }
     snap.putRole({ id: "rol_engineer_mcp", clearance: 0, perms: ["engineer.mcp"], name: "Engineer MCP" });
     for (const p of this.principals.values()) {
@@ -315,6 +318,16 @@ export class AccessStore {
   rolesOf(holder: string): string[] { return this.assignments.get(holder) ?? []; }
   setRoles(holder: string, roles: string[]): void { this.assignments.set(holder, [...new Set(roles)]); }
 
+  directHoldersOf(roleId: string): RoleHolder[] {
+    const out: RoleHolder[] = [];
+    for (const [holder, roles] of this.assignments) if (roles.includes(roleId)) {
+      const person = this.principals.get(holder);
+      if (person) out.push({ kind: person.kind, id: person.id });
+      else if (this.groups.has(holder)) out.push({ kind: "group", id: holder });
+    }
+    return out;
+  }
+
   holdersOf(roleId: string): Ref[] {
     const out: Ref[] = [];
     const seen = new Set<string>();
@@ -322,13 +335,15 @@ export class AccessStore {
       if (seen.has(id)) return;
       const p = this.principals.get(id);
       if (!p) return;
+      const role = this.roles.get(roleId);
+      if (p.kind === "agent" && role && (isElevatedRole(roleId, role.name) || !role.assignableToAgents)) return;
       seen.add(id);
       out.push({ kind: p.kind, id: p.id });
     };
     for (const [holder, roles] of this.assignments) if (roles.includes(roleId)) {
       if (this.principals.has(holder)) push(holder);
       const g = this.groups.get(holder);
-      if (g) for (const m of g.members) push(m.id);
+      if (g && !isOwnerRole(roleId, this.roles.get(roleId)?.name)) for (const m of g.members) push(m.id);
     }
     return out;
   }
@@ -337,7 +352,7 @@ export class AccessStore {
   permsExcept(id: string, skip: string): Set<string> {
     const p = this.principals.get(id);
     const roleIds = new Set<string>(this.rolesOf(id));
-    for (const g of this.groups.values()) if (g.members.some((m) => m.id === id)) for (const r of this.rolesOf(g.id)) roleIds.add(r);
+    for (const g of this.groups.values()) if (g.members.some((m) => m.id === id)) for (const r of this.rolesOf(g.id)) { if (!isOwnerRole(r, this.roles.get(r)?.name)) roleIds.add(r); }
     const out = new Set<string>();
     for (const rid of roleIds) {
       if (rid === skip) continue;
@@ -362,6 +377,7 @@ export class AccessStore {
         r.id, r.name, r.builtIn ? 1 : 0, r.clearance, r.assignableToAgents ? 1 : 0, JSON.stringify(r.permissions), 1,
       );
     }
+    for (const [roleId, change] of this.roleChanges) db.run("INSERT INTO access_role_changes (role_id,before_json,after_json,by_kind,by_id,at) VALUES (?,?,?,?,?,?)", roleId, JSON.stringify(change.before), JSON.stringify(change.after), change.by.kind, change.by.id, change.at);
     for (const g of this.groups.values()) {
       db.run(
         "INSERT INTO access_groups (id,name,members,managers,builtIn,version) VALUES (?,?,?,?,?,?)",
@@ -406,7 +422,7 @@ export class AccessStore {
   }
 
   hydrate(db: Db): void {
-    this.roles.clear(); this.groups.clear(); this.principals.clear(); this.grants.clear();
+    this.roles.clear(); this.roleChanges.clear(); this.groups.clear(); this.principals.clear(); this.grants.clear();
     this.resources.clear(); this.policies.clear(); this.actors.clear(); this.assignments.clear(); this.fieldLabels.clear();
     this.catalogue.clear();
     const meta = db.all("SELECT * FROM access_meta") as { epoch: number }[];
@@ -419,6 +435,7 @@ export class AccessStore {
       this.roles.set(rec.id, rec);
       if (rec.builtIn) for (const k of permissions) this.catalogue.add(k);
     }
+    for (const change of db.all("SELECT * FROM access_role_changes") as { role_id: string; before_json: string; after_json: string; by_kind: PKind; by_id: string; at: number }[]) this.roleChanges.set(change.role_id, { before: JSON.parse(change.before_json), after: JSON.parse(change.after_json), by: {kind:change.by_kind,id:change.by_id}, at:change.at });
     for (const g of db.all("SELECT * FROM access_groups") as Record<string, unknown>[]) {
       this.groups.set(String(g.id), {
         id: String(g.id), name: String(g.name), builtIn: !!g.builtIn,

@@ -4,12 +4,13 @@ Lane L7b. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (10)
+## Capabilities (11)
 
 - [backup.config_get](../capabilities/backup.config_get.md): Read the backup target, schedule and encryption status
 - [backup.config_set](../capabilities/backup.config_set.md): Set the backup target and schedule (one switch)
 - [backup.delete](../capabilities/backup.delete.md): Delete a backup file from the target
 - [backup.export_start](../capabilities/backup.export_start.md): Start the owner full export as a zip (never secret values, never other people private chats or personal memory)
+- [backup.export_status](../capabilities/backup.export_status.md): Read current-owner private export readiness and file metadata
 - [backup.health](../capabilities/backup.health.md): Backup health probe: age of the last good backup
 - [backup.list](../capabilities/backup.list.md): List backups with size, sequence number and verification state
 - [backup.restore](../capabilities/backup.restore.md): Restore from a backup (takes a fresh backup first, replays tombstones before opening for traffic)

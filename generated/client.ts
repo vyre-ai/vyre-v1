@@ -207,6 +207,7 @@ export function createClient(transport: Transport) {
       config_set: call("backup.config_set", 1),
       delete: call("backup.delete", 1),
       export_start: call("backup.export_start", 1),
+      export_status: call("backup.export_status", 1),
       health: call("backup.health", 1),
       list: call("backup.list", 1),
       restore: call("backup.restore", 1),

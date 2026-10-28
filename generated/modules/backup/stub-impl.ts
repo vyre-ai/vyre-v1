@@ -4,10 +4,11 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
-  "backup.config_get": async () => ({"encrypted":true,"lastBackupAt":1760000000000,"schedule":"example","target":{"bucket":"example","kind":"s3","path":"example","region":"example","vaultName":"example"}} as unknown) as never,
+  "backup.config_get": async () => ({"enabled":true,"encrypted":true,"lastBackupAt":1760000000000,"schedule":"example","target":{"bucket":"example","kind":"s3","path":"example","region":"example","vaultName":"example"}} as unknown) as never,
   "backup.config_set": async () => ({"ok":true} as unknown) as never,
   "backup.delete": async () => ({"deleted":true} as unknown) as never,
   "backup.export_start": async () => ({"runId":"run_a1b2c3"} as unknown) as never,
+  "backup.export_status": async () => ({"expiresAt":1760000000000,"fileId":"fil_a1b2c3","name":"example","runId":"run_a1b2c3","sizeBytes":1,"state":"ready"} as unknown) as never,
   "backup.health": async () => ({"ageHours":1,"detail":"example","latencyMs":1,"state":"healthy"} as unknown) as never,
   "backup.list": async () => ({"backups":[{"at":1760000000000,"backupId":"bkp_a1b2c3","kind":"scheduled","seq":1,"sizeBytes":1,"target":"example","verified":true}],"next":"example","total":1} as unknown) as never,
   "backup.restore": async () => ({"runId":"run_a1b2c3"} as unknown) as never,

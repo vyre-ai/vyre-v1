@@ -114,7 +114,7 @@ export function Audit({ initialFilter = NO_FILTER, initialOpen = null }: AuditPr
                     leading={<Avatar name={name(r.actor.id)} size={26} />}
                     trailing={<View style={s.trail}><Text style={s.time}>{ago(now, r.at)}</Text><Glyph name={classIcon(r.class)} size={14} color="var(--ink-3)" /></View>}
                     onPress={() => setOpen(r.id)}
-                    trigger={menuTrigger((x, y) => menu.show(rowMenu(r), x, y, "context", { label: "Audit event" }))}
+                    domProps={menuTrigger((x, y) => menu.show(rowMenu(r), x, y, "context", { label: "Audit event" }))}
                   />
               )}
             />

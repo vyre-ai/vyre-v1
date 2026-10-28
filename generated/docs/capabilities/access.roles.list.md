@@ -25,6 +25,7 @@ List roles with their permissions, clearance and holder counts
 
 ```ts
 type In = {
+  q?: string;
   cursor?: string;
   limit?: number;
 };
@@ -62,7 +63,8 @@ type Out = {
   "name": "example",
   "input": {
     "cursor": "example",
-    "limit": 1
+    "limit": 1,
+    "q": "example"
   },
   "output": {
     "next": "example",

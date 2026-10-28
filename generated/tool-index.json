@@ -728,6 +728,12 @@
     },
     {
       "deferred": false,
+      "name": "backup_export_status",
+      "summary": "Read current-owner private export readiness and file metadata",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "backup_list",
       "summary": "List backups with size, sequence number and verification state",
       "toolset": "engineer"
