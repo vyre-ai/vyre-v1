@@ -7,6 +7,8 @@
 
 - Keep browser failure diagnostics from masking the original Apps failure, and verify the canonical wording in exported AI policy documents.
 - Restore the auth entry chooser and canonical invite links, connect Add a Space on desktop and phone, keep Get started available before choosing an address, and add password-based Lock/Unlock using the existing session revocation and key-drop path. Preserve the approved clean 0.6.8 auth kit and signed-in v1 visual language.
+- Added older/newer/latest Server log navigation through existing cursors, paused auto-refresh on older pages, preserved whole-filter private exports, and rendered actual log rows in trace detail. Added production browser proof with 120 authenticated fixture entries, cross-page export and trace readback.
+
 - Kept the audited Speed trace drilldown on a direct authenticated read, matching Server trace handling and avoiding repeat reads from global query invalidation.
 
 - Pinned server updates to the reviewed channel, version, artifact hash and signed feed before installation. Reject changed artifacts before download, validate updater flags before action, persist the daily channel/feed only after healthy success, and stop dry-run before unpack/image/backup steps. Added actual HTTP installer-argument proof and POSIX signature/pinning/dry-run/rollback regressions.

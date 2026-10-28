@@ -1,0 +1,20 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { bootFreshSpace, claimOnEdge, edge } from './real-app-harness.test.ts';
+test('production Server pages actual log results, exports its whole filter and renders trace logs',async(t)=>{
+ const dist=process.env.VYRE_APP_DIST;if(!dist){t.skip('VYRE_APP_DIST required');return;}
+ const {chromium}=await import('playwright-core');const space=await bootFreshSpace(),web=await edge(dist,space.url),browser=await chromium.launch({executablePath:process.env.CHROME_BIN||chromium.executablePath(),args:['--no-sandbox']}),context=await browser.newContext({viewport:{width:1360,height:960},acceptDownloads:true}),page=await context.newPage();const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+ try{
+  await page.goto(claimOnEdge(space.claim!,web.origin),{waitUntil:'load'});await page.getByTestId('claim-name').fill('Server fixture owner');await page.getByTestId('claim-username').fill('serverfixture');await page.getByTestId('claim-password').fill('fixture password 123');await page.getByTestId('claim-confirm').fill('fixture password 123');await page.getByTestId('claim-next').click();await page.getByTestId('claim-saved').click();await page.getByTestId('claim-create').click();await page.getByTestId('shell').waitFor({timeout:30000});
+  await page.goto(`${web.origin}/console`,{waitUntil:'load'});await page.getByTestId('console').waitFor({timeout:30000});await page.getByTestId('navgroup-Infrastructure').click();const requested=page.waitForRequest(request=>request.url().includes('/v1/logs/query'));await page.getByTestId('row-nav-server').click();const headers=await(await requested).allHeaders();
+  const uploaded=await context.request.post(`${web.origin}/v1/logs/client_upload`,{headers:{authorization:headers.authorization!},data:{device:'dev_pagingfixture',entries:Array.from({length:120},(_,index)=>({at:Date.now()+index,traceId:'1'.repeat(32),level:'error',msg:`paging.fixture_${String(index).padStart(3,'0')}`}))}});assert.equal(uploaded.status(),200);assert.equal((await uploaded.json()).data.accepted,120);
+  await page.getByRole('button',{name:'Minimum level',exact:true}).click();await page.getByText('Error',{exact:true}).click();await page.getByTestId('infra-log-search').click();await page.getByText('paging.fixture_119',{exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Older logs',exact:true}).count(),1);
+  await page.getByRole('button',{name:'Older logs',exact:true}).click();await page.getByText('paging.fixture_019',{exact:true}).waitFor();assert.equal(await page.getByText('paging.fixture_119',{exact:true}).count(),0);
+  await page.getByRole('button',{name:'Export filtered logs',exact:true}).click();await page.getByRole('link',{name:'Download log export',exact:true}).waitFor();const event=page.waitForEvent('download');await page.getByRole('link',{name:'Download log export',exact:true}).click();const saved=await(await event).path();assert.ok(saved);const contents=fs.readFileSync(saved!,'utf8');assert.match(contents,/paging.fixture_119/);assert.match(contents,/paging.fixture_000/,'export covers the filter, including the other page');
+  await page.getByRole('button',{name:'Newer logs',exact:true}).click();await page.getByText('paging.fixture_119',{exact:true}).waitFor();await page.getByRole('button',{name:'Trace',exact:true}).first().click();await page.getByTestId('section-Trace').getByText('paging.fixture_000',{exact:true}).waitFor();assert.deepEqual(errors,[]);
+  const dir=process.env.VYRE_CONSOLE_SHOTS;if(dir){fs.mkdirSync(dir,{recursive:true});await page.getByTestId('section-Trace').getByText('paging.fixture_000',{exact:true}).scrollIntoViewIfNeeded();await page.screenshot({path:path.join(dir,'console-server-paging-trace.png')});}
+ }catch(error){console.error(await page.locator('body').innerText().catch(()=> 'No page'));throw error;}
+ finally{await context.close();await browser.close();web.close();await space.stop();fs.rmSync(space.dir,{recursive:true,force:true});}
+});
