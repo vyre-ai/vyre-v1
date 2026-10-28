@@ -117,7 +117,9 @@ test("a fresh connection starts at the one-column Welcome back screen before cre
   for (const text of ["Welcome back", "Connect a Space", "Space address", "Sign in", "Get started"]) assert.ok(out.includes(text), text);
   assert.match(out, /data-testid="space-address"/);
   assert.doesNotMatch(out, /Sign in to Northwind/, "credentials wait for a verified Space");
-  assert.equal(out.match(/data-testid="join-panel"/g)?.length, 1);
+  assert.doesNotMatch(out, /data-testid="join-panel"/, "the 0.6.8 welcome sits on the open canvas, outside the setup panel");
+  assert.match(out, /data-testid="welcome-hero"/);
+  assert.match(out, /The command center for AI-native teams/);
   assert.equal(out.match(/data-testid="step-/g)?.length, 1);
 });
 
