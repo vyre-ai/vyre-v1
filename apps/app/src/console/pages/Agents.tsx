@@ -50,6 +50,7 @@ function AgentObject({ agent, busy, note, onBack, onRun }: { agent: Agent; busy:
 
 type Actors = CapMap["access.actors.list"]["out"];
 type Actor = Actors["actors"][number];
+export const actorActivityQuery = (actorId: string) => ({ target: { kind: "actor", id: actorId }, limit: 50 } as const);
 export function OutsideActors({ initialActorId = null }: { initialActorId?: string | null } = {}): ReactElement {
   const consoleData = useConsoleData();
   const list = useRead<Actors>("access.actors.list", {});
@@ -77,13 +78,13 @@ function ActorObject({ actor, busy, note, onBack, onRun }: { actor: Actor; busy:
   const [roleIds, setRoleIds] = useState<ReadonlySet<string>>(new Set(actor.roles));
   const roles = useRead<CapMap["access.roles.list"]["out"]>("access.roles.list", {});
   const effective = useRead<CapMap["access.principals.effective"]["out"]>("access.principals.effective", { principal: { kind: "actor", id: actor.id } });
-  const activity = useRead<CapMap["audit.list"]["out"]>("audit.list", { actor: { kind: "actor", id: actor.id }, limit: 50 });
+  const activity = useRead<CapMap["audit.list"]["out"]>("audit.list", actorActivityQuery(actor.id));
   const run = (id: string): void | Promise<boolean> => {
     if (id === "edit") { setEditing(true); return; }
     if (id === "engineer") return onRun("access.actors.set_engineer_mcp", { actorId: actor.id, enabled: !actor.engineerMcp }, "Engineer MCP access updated").then((out) => out !== undefined);
     if (id === "revoke") return onRun("access.actors.revoke", { actorId: actor.id }, "Actor revoked").then((out) => { if (out !== undefined) onBack(); return out !== undefined; });
   };
-  const body = tab === "access" ? <ObjectSection title="Effective access" count={effective.data?.permissions.length ?? 0}>{effective.data ? <><Row id="actor-roles" title="Roles" note={effective.data.roles.map((id) => roles.data?.roles.find((role) => role.id === id)?.name ?? id).join(", ") || "No roles"} /><Row id="actor-permissions" title="Permissions" note={effective.data.permissions.join(", ") || "No permissions"} /><Row id="actor-engineer" title="Engineer MCP" note={actor.engineerMcp ? "Allowed" : "Not allowed"} /></> : <ReadState error={effective.error} retry={effective.refresh} />}</ObjectSection> : tab === "activity" ? <ObjectSection title="Activity" count={activity.data?.rows.length ?? 0}>{activity.data ? (activity.data.rows.length ? activity.data.rows.map((row) => <Row key={row.id} id={`actor-activity-${row.id}`} title={row.action} note={`${row.class} · ${new Date(row.at).toLocaleString()}`} />) : <Note>No actions by this actor. Changes to this actor require the pending audit-target query contract.</Note>) : <ReadState error={activity.error} retry={activity.refresh} />}</ObjectSection> : <ObjectSection title="Overview"><Row id="actor-provider" title="Provider" note={actor.provider} /><Row id="actor-owner" title="Owner" note={consoleData.name(actor.owner)} /><Row id="actor-last-seen" title="Last seen" note={actor.lastSeenAt ? new Date(actor.lastSeenAt).toLocaleString() : "Never"} /></ObjectSection>;
+  const body = tab === "access" ? <ObjectSection title="Effective access" count={effective.data?.permissions.length ?? 0}>{effective.data ? <><Row id="actor-roles" title="Roles" note={effective.data.roles.map((id) => roles.data?.roles.find((role) => role.id === id)?.name ?? id).join(", ") || "No roles"} /><Row id="actor-permissions" title="Permissions" note={effective.data.permissions.join(", ") || "No permissions"} /><Row id="actor-engineer" title="Engineer MCP" note={actor.engineerMcp ? "Allowed" : "Not allowed"} /></> : <ReadState error={effective.error} retry={effective.refresh} />}</ObjectSection> : tab === "activity" ? <ObjectSection title="Activity" count={activity.data?.rows.length ?? 0}>{activity.data ? (activity.data.rows.length ? activity.data.rows.map((row) => <Row key={row.id} id={`actor-activity-${row.id}`} title={row.action} note={`${row.class} · ${new Date(row.at).toLocaleString()}`} />) : <Note>No changes to this actor.</Note>) : <ReadState error={activity.error} retry={activity.refresh} />}</ObjectSection> : <ObjectSection title="Overview"><Row id="actor-provider" title="Provider" note={actor.provider} /><Row id="actor-owner" title="Owner" note={consoleData.name(actor.owner)} /><Row id="actor-last-seen" title="Last seen" note={actor.lastSeenAt ? new Date(actor.lastSeenAt).toLocaleString() : "Never"} /></ObjectSection>;
   const added = [...roleIds].filter((id) => !actor.roles.includes(id));
   const removed = actor.roles.filter((id) => !roleIds.has(id));
   const roleName = (id: string): string => roles.data?.roles.find((role) => role.id === id)?.name ?? id;

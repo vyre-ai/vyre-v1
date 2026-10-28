@@ -35,6 +35,11 @@ test("Agents and actors pages expose their live registers and object actions", a
   assert.match(draw(<pages.AgentTemplate />, { "agents.template.get": { version: 2, files: ["AGENT.md"], mode: "suggest", agents: 1 }, "agents.suggestions.list": { suggestions: [] } }), /Version 2|Preview for all agents|AGENT.md/);
 });
 
+test("Outside-actor Activity requests changes to the actor, not actions by it", async () => {
+  const { actorActivityQuery } = await import("../pages/Agents.tsx");
+  assert.deepEqual(actorActivityQuery("act_one"), { target: { kind: "actor", id: "act_one" }, limit: 50 });
+});
+
 test("Schema and sensitivity pages expose record-type objects and live label controls", async () => {
   const pages = await import("../pages/Data.tsx").catch(() => null);
   assert.ok(pages, "the owned Data Console surfaces exist");
