@@ -53,6 +53,7 @@ export function ErasePerson(): ReactElement {
     </Group></Section>
     {finding ? <Section title="Erase preview"><Group>
       <Row title="Preview expires" note={new Date(finding.expiresAt).toLocaleString()} />
+      {/* ui-rows-lint: not a list (selectable erase-kind fieldsets containing Row samples) */}
       {finding.groups.map((group) => <Group key={group.kind}><Tick label={`Erase ${group.kind} · ${group.count}${group.onHold ? ` · ${group.onHold} on hold` : ""}`} checked={include.has(group.kind)} onChange={() => { setInclude((current) => { const next = new Set(current); if (next.has(group.kind)) next.delete(group.kind); else next.add(group.kind); return next; }); setReviewed(null); setOwnerConfirmed(false); }} />{group.samples.map((sample) => <Row key={`${group.kind}:${sample.id}`} title={sample.title} note={sample.type} />)}</Group>)}
       {finding.groups.some((group) => include.has(group.kind) && group.onHold > 0) ? <><Note>Selected data is on hold. Only the Space owner can override it.</Note><Field label="Hold override reason" value={overrideReason} onChange={(value) => { setOverrideReason(value); setReviewed(null); setOwnerConfirmed(false); }} multiline /><Button label={ownerConfirmed ? "✓ Owner confirms hold override" : "Owner confirmation required"} disabled={!owner} onPress={() => { setOwnerConfirmed((value) => !value); setReviewed(null); }} /></> : null}
       {error ? <Note>{error}</Note> : null}
