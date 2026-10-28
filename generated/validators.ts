@@ -44245,6 +44245,8 @@ if ("scopes" in o2788) d_s_7ef11a2071(o2788["scopes"], p + "/sessions" + '/' + i
 if ("startedAt" in o2788) lf(o2788["startedAt"], p + "/sessions" + '/' + i2787 + "/startedAt", e, L17);
 if ("lastCallAt" in o2788) lf(o2788["lastCallAt"], p + "/sessions" + '/' + i2787 + "/lastCallAt", e, L17);
 if ("calls" in o2788) lf(o2788["calls"], p + "/sessions" + '/' + i2787 + "/calls", e, L13);
+if ("closedAt" in o2788) lf(o2788["closedAt"], p + "/sessions" + '/' + i2787 + "/closedAt", e, L17);
+if ("expiresAt" in o2788) lf(o2788["expiresAt"], p + "/sessions" + '/' + i2787 + "/expiresAt", e, L17);
 }
 }
 }

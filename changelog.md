@@ -227,3 +227,5 @@
 - Keep auth HTTP regression tests within architecture layers using kernel hashing and an independent authenticator client. Configure golden and browser invite fixtures at server startup, retaining the real DNS requirement for runtime domain changes.
 
 - Keep release browser proof aligned with the configured invite host and direct native account setup, retaining provider retry, key ownership and one-time acceptance assertions.
+
+- Replace API-key enum inputs with named client/channel and explicit scope controls. Audit one-time key reveal/copy, clear ephemeral display on expiry or exit, and verify registration/replay/session closure through the real gateway. Show closed and expired recent sessions using additive public timestamps without exposing token hashes.

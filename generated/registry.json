@@ -104247,6 +104247,8 @@
               {
                 "actingFor": "example",
                 "calls": 1,
+                "closedAt": 1760000000000,
+                "expiresAt": 1760000000000,
                 "kind": "outside",
                 "lastCallAt": 1760000000000,
                 "name": "example",
@@ -104304,6 +104306,22 @@
                   "type": "string"
                 },
                 "calls": {
+                  "type": "integer"
+                },
+                "closedAt": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "expiresAt": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
                   "type": "integer"
                 },
                 "kind": {

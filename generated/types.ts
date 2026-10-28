@@ -15209,6 +15209,8 @@ export type McpSessionsListOut = {
       startedAt: number;
       lastCallAt?: number;
       calls: number;
+      closedAt?: number;
+      expiresAt?: number;
     }>;
   next?: string;
   total?: number;

@@ -246,3 +246,11 @@ test("sessions.list: newest first, filtered by kind, paged", async () => {
   assert.deepEqual([last.sessions.length, last.next], [1, undefined]);
   assert.equal(drivers.sessions[0].principal, "agt_4");
 });
+
+test("sessions.list retains closed and expiry timestamps so recent sessions cannot appear open", async () => {
+ const hn=harness();const session=await call(hn,"mcp.session.mint",{principal:"agt_a",actingFor:"usr_dana",threadId:"thr_1",traceId:"a".repeat(32),ttlSec:60});
+ await call(hn,"mcp.session.close",{sessionId:session.sessionId});
+ const out=await call(hn,"mcp.sessions.list",{});const row=out.sessions.find((item:{sessionId:string})=>item.sessionId===session.sessionId);
+ assert.equal(row.closedAt,hn.clock.t);assert.equal(row.expiresAt,session.expiresAt);
+ assert.equal('tokenHash' in row,false);assert.equal('sessionToken' in row,false);
+});

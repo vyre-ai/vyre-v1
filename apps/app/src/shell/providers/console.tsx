@@ -73,7 +73,7 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "connectors") return <IntegrationsPage mode="connectors" />;
   if (id === "connections") return <IntegrationsPage mode="connections" />;
   if (id === "webhooks") return <WebhooksPage />;
-  if (id === "keys") return <ApiKeysPage />;
+  if (id === "keys") return <ApiKeysPage {...(args.sessionId?{initialSessionId:args.sessionId}:{})} />;
   return <States kind="error" message={`${pageById(id)?.title ?? id} is not implemented in this candidate yet.`} />;
 }
 export function aiDataPageFor(id: string): ReactElement | null {
