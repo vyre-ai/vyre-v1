@@ -2,6 +2,7 @@
 // Everything here is data in, data out: the layout of a definition into cards and connectors, the lane a run took, the edits a person makes (add, remove, move, rename),
 // and the local check that mirrors `automations.validate`, so errors show inline while someone builds, before the server answers.
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { messageSummary } from "../builder/compose.ts";
 
 export type Automation = CapMap["automations.get"]["out"]["automation"];
 export type Definition = Automation["definition"];
@@ -174,6 +175,8 @@ export function triggerCardHeight(count: number): number {
 export function subtitleOf(n: DefNode, names: { key?: (id: string) => string } = {}): string {
   const k = kindOfKey(n.key);
   const inp = n.input ?? {};
+  const composed = messageSummary(n.key, inp);
+  if (composed) return composed;
   if (typeof inp["summary"] === "string" && k === "plain") return inp["summary"];
   const str = (v: unknown): string => (typeof v === "string" ? v : v === undefined || v === null ? "" : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
   if (k === "paths") {

@@ -429,7 +429,8 @@ const ADAPTERS: Record<string, Adapter> = {
     input: (i, _env, call) => {
       const numberId = i.numberId;
       if (!numberId) throw stepError("validation.precondition_failed", "Send a text needs a number. Pick one in the step.", false);
-      return { numberId, to: i.to, body: i.body, ...(i.recordId ? { contactId: i.recordId } : {}), idempotencyKey: call.key };
+      const media = Array.isArray(i.mediaFileIds) ? i.mediaFileIds.filter((id) => typeof id === "string" && id.length > 0) : [];
+      return { numberId, to: i.to, body: i.body, ...(media.length > 0 ? { mediaFileIds: media } : {}), ...(i.recordId ? { contactId: i.recordId } : {}), idempotencyKey: call.key };
     },
     output: (o) => ({ messageId: o?.smsId ?? o?.messageId }),
   },

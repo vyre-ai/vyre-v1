@@ -10,6 +10,7 @@ import type { AskBundle } from "../ask/bundle.ts";
 import { accountDefaultInput, accountMenu, applyAccount } from "../connect/accounts.ts";
 import type { AccountOption } from "../connect/accounts.ts";
 import { fieldsFromSchema, asFixture } from "../builder/fields.ts";
+import { MessageComposer } from "../builder/MessageComposer.tsx";
 import { DataShelf, MappingFix, SectionRow, commitTyped, nodeIdSet } from "../builder/marks.tsx";
 import { StepTest } from "../builder/StepTest.tsx";
 import { isPreviewKey, PREVIEW_NOTE } from "../catalog/model.ts";
@@ -165,7 +166,14 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
       fields.push(<Field key={`${node.id}-l${n}`} label={`Lane ${n + 1} name`} value={b.label} testID={`field-lane-${n}`} onCommit={(t) => onChange(updateStep(def, node.id, { branches: setBranch(node, n, { label: t }) }))} />);
     }
   }
+  const composer = !advanced && (node.key === "send_email" || node.key === "send_sms");
+  const hidden = new Set(node.key === "send_email"
+    ? ["subject", "body", "to", "cc", "fileIds", "message"]
+    : node.key === "send_sms"
+      ? ["body", "to", "message", "mediaFileIds"]
+      : []);
   const skipAccount = (name: string): boolean => !!accountPick && (name === "connectionId" || name === "mailboxId" || name === "numberId" || (accountPick.field === "connectionId" && name === "connector"));
+  const skipField = (name: string): boolean => skipAccount(name) || (composer && hidden.has(name));
   const writeInput = (name: string, next: unknown): void => {
     const input = { ...node.input };
     if (next === undefined) delete input[name];
@@ -175,7 +183,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
   const schemaFields = fieldsFromSchema(inputSchema, node.input ?? {});
   const covered = new Set(schemaFields.map((field) => field.name));
   for (const field of schemaFields) {
-    if (skipAccount(field.name)) continue;
+    if (skipField(field.name)) continue;
     const current = node.input[field.name];
     const label = `${humanize(field.name)}${field.presence === "value" ? "" : ` (${field.presence})`}`;
     if (field.enumValues.length > 0 && field.enumValues.length <= 8) {
@@ -201,7 +209,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
     }} />);
   }
   for (const k of inputKeys) {
-    if (covered.has(k) || skipAccount(k)) continue;
+    if (covered.has(k) || skipField(k)) continue;
     fields.push(<Field key={`${node.id}-${k}`} label={humanize(k)} value={show(node.input[k])} testID={`field-${k}`} onCommit={(t) => {
       const cur = node.input[k];
       const presence = presenceOf(true, cur);
@@ -215,7 +223,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
       <ScrollView contentContainerStyle={i.body} keyboardShouldPersistTaps="handled">
         <SectionRow section={section} onSection={(next) => onSection?.(next)} />
         {section === "data" ? <DataShelf triggerSample={samples["trigger"]} steps={prior} /> : null}
-        {section === "test" ? <StepTest stepKey={node.key} nodeId={node.id} input={node.input ?? {}} version={version} onUseOutput={(output) => onStoreSample?.(node.id, asFixture(version, node.key, output))} /> : null}
+        {section === "test" ? <StepTest stepKey={node.key} nodeId={node.id} input={node.input ?? {}} version={version} samples={samples} onUseOutput={(output) => onStoreSample?.(node.id, asFixture(version, node.key, output))} /> : null}
         {section === "configure" ? (
           <>
         {isPreviewKey(node.key) ? <Text style={i.hint}>{PREVIEW_NOTE}</Text> : null}
@@ -239,6 +247,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
             }}
           />
         ) : null}
+        {!advanced && composer ? <MessageComposer stepKey={node.key} nodeId={node.id} input={node.input ?? {}} samples={samples} onInput={(input) => onChange(updateStep(def, node.id, { input }))} /> : null}
         {advanced ? (
           <Field label="Input" value={JSON.stringify(node.input ?? {}, null, 2)} testID="field-input-json" onCommit={(t) => {
             try {

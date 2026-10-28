@@ -157,6 +157,8 @@ test("card text: the title falls back to the step's name and the second line say
   assert.equal(byId(l.cards, "wait").sub, "They reply by text, up to 1 day");
   assert.equal(subtitleOf({ id: "s", key: "stop", input: {} }), "The run ends here");
   assert.equal(subtitleOf({ id: "s", key: "ai", input: {} }), "Pick a key for this step");
+  assert.equal(subtitleOf({ id: "m", key: "send_email", input: { to: ["ada@example.com"], subject: "Hello", message: { version: 2 } } }), "Email ada@example.com: Hello, template v2");
+  assert.equal(subtitleOf({ id: "t", key: "send_sms", input: { to: "+1555", body: "Hi" } }), "Text +1555, 1 segment");
   assert.equal(describeTrigger({ key: "record_change", filter: { where: "Source is Meta" } }), "Only when Source is Meta");
   assert.equal(describeTrigger({ key: "form_submit" }), "Every time");
 });

@@ -447,8 +447,9 @@ test("send_email and send_sms use only the id on the step", async () => {
   const mail = await runStep(h.env, node("mail", "send_email", { mailboxId: "mbx_named", to: ["a@b.c"], subject: "s", body: "b" }), callOf());
   assert.equal(h.only("mail.send")[0]!.input.mailboxId, "mbx_named");
   assert.deepEqual(mail.output, { messageId: "eml_1" });
-  const sms = await runStep(h.env, node("sms", "send_sms", { numberId: "num_named", to: "+1555", body: "hi" }), callOf());
+  const sms = await runStep(h.env, node("sms", "send_sms", { numberId: "num_named", to: "+1555", body: "hi", mediaFileIds: ["file_1"] }), callOf());
   assert.equal(h.only("telephony.send_sms")[0]!.input.numberId, "num_named");
+  assert.deepEqual(h.only("telephony.send_sms")[0]!.input.mediaFileIds, ["file_1"]);
   assert.deepEqual(sms.output, { messageId: "sms_1" });
   assert.equal(h.only("mail.mailbox.list").length, 0);
   assert.equal(h.only("telephony.number.list").length, 0);

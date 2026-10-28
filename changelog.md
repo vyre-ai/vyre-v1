@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Automations: Send an email uses the shared email builder. Send a text uses the shared rich editor. The canvas names the message, a test fills it from fixture data, and a text shows its segment count. Links are not shortened.
 - Automations: export saves a portable copy of an Automation definition. The package list stays empty until that person exports one. Import creates a draft from a package they own.
 - Automations: the step panel lists every field the schema names, including one that is still missing. The data shelf shows type and whether a value is missing, null, or empty. A step test stores the definition version with the output.
 - Automations: turning an Automation on checks each step's capability contract. An AI step stays a preview. Every other catalogue step has a schema, an effect, documented errors, and a test mode.
