@@ -8,6 +8,7 @@ import {createOwnerArchives} from './owner-archives.ts';
 //           the Chrome bridge register as supervised services (`options.services`) when their lanes land.
 // Nothing here knows a module's internals: module code only ever sees the ctx the loader builds.
 import fs from "node:fs";
+import {createHash} from "node:crypto";
 import { formUploadAllowed } from "./forms-authority.ts";
 import { createOwnedExports } from "./owned-exports.ts";
 import type http from "node:http";
@@ -129,7 +130,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The repo (or install) root that holds generated/, modules/ and host/modules.json. */
 export const CODE_ROOT = path.resolve(HERE, "../../..");
 /** What a device compares its registry with at hello (sync): the hash of registry.json, which the generated module no longer exports (ci: no global hash). */
-const registryHash = sha256b64(fs.readFileSync(new URL("../../../generated/registry.json", import.meta.url)));
+const registryHash = createHash("sha256").update(fs.readFileSync(new URL("../../../generated/registry.json", import.meta.url))).digest("hex");
 const ZERO_TRACE = "0".repeat(32);
 const RING = 5000;
 

@@ -6,6 +6,7 @@
 
 - Prevent a device session from replacing established account identity or recovery keys through generic key uploads. Preserve existing Space-key epoch wraps, reject duplicates and reserve password/recovery/reset replacement for their proof-verified flows.
 - Refuse partial template-file overwrites, link full folder management to Files, wait for Computer host health before provisioning, and register the grant controller test with the TSX runner used by CI.
+- Match the daemon’s registry fingerprint to the production web build’s lowercase SHA256 hex of the same registry bytes. Verify a real signed-in device receives live for that exact build hash while an unknown hash still requires resync.
 - Advertise canonical WebSocket origins from configured Space addresses, preserving ports and HTTPS while permitting HTTP only on exact loopback hosts. Append the socket route once in the client and verify authenticated hello through the real advertised endpoint.
 - Connect the production Space switcher to validated saved sessions. Restore each Space’s own identity, Kit, skin and tabs, close the old runtime, retain unrelated sessions after sign-out, preserve global Lock, and navigate web origins without forwarding credentials.
 - Close pending live-socket handshakes immediately when leaving a Space, and transfer a connected WebSocket’s close ownership from the completed dial to its transport. Verify stopped races cannot reopen after late hello replies.
