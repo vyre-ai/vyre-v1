@@ -5,7 +5,8 @@ import { Text, View } from "react-native";
 import type { SessionPayload, SessionSource } from "../../../../../client/src/session-import/parse.ts";
 import { confirmedSessionInput } from "./session-import-model.ts";
 import { useSettingsData } from "./data.tsx";
-import { Section, SettingsRow, SmallButton } from "./ui.tsx";
+import { Row } from "../../../../../ui/src/Row/index.tsx";
+import { Section, SmallButton } from "./ui.tsx";
 interface Archive { conversationId: string; title: string; provider: string; projectId?: string }
 interface Transcript { session: Archive; messages: { role: string; text: string }[] }
 export function SessionImport(): ReactElement | null {
@@ -29,11 +30,12 @@ export function SessionImport(): ReactElement | null {
   return <Section title="Imported coding sessions">
     <Text>Copy selected Codex and Claude Code history into this Personal Space. Review the visible messages before confirming. Original sessions stay on your computer.</Text>
     {data.sessionImporter ? <SmallButton label="Find local sessions" testID="sessions-discover" disabled={busy} onPress={() => void run(async () => { setSources(await data.sessionImporter!.discover()); setPreview(null); setNotice(""); })} /> : <Text>Open the desktop app to import local sessions.</Text>}
-    {sources.map((source) => <SettingsRow key={source.sessionKey} id={source.sessionKey} label={`${source.provider === "codex" ? "Codex" : "Claude Code"}: ${source.sessionId}`} sub={source.cwd ?? "Local session"} control={<SmallButton label="Preview" disabled={busy} testID={`preview-${source.sessionKey}`} onPress={() => void run(async () => { const session = await data.sessionImporter!.preview(source); setPreview({ source, session, at: data.clock().now }); })} />} />)}
+    {sources.map((source) => <Row key={source.sessionKey} id={source.sessionKey} title={`${source.provider === "codex" ? "Codex" : "Claude Code"}: ${source.sessionId}`} note={source.cwd ?? "Local session"} trailing={<SmallButton label="Preview" disabled={busy} testID={`preview-${source.sessionKey}`} onPress={() => void run(async () => { const session = await data.sessionImporter!.preview(source); setPreview({ source, session, at: data.clock().now }); })} />} />)}
     {preview ? <View testID="sessions-preview">
       <Text accessibilityRole="header">{preview.session.title}</Text>
       <Text>{preview.session.repo?.root && preview.session.repo?.remote ? `Personal project: ${preview.session.repo.root}` : "Personal imported sessions"}</Text>
       <Text>{`${preview.session.messages.length} visible messages will be copied`}</Text>
+      {/* ui-rows-lint: not a list (transcript paragraphs preserve complete visible messages) */}
       {preview.session.messages.map((m) => <View key={m.sourceMessageId}><Text>{m.role}</Text><Text selectable>{m.text}</Text></View>)}
       <SmallButton label="Cancel preview" disabled={busy} onPress={() => setPreview(null)} />
       <SmallButton label="Confirm import into Personal" testID="sessions-confirm" disabled={busy || !preview.session.messages.length} onPress={() => void run(async () => {
@@ -43,9 +45,12 @@ export function SessionImport(): ReactElement | null {
     </View> : null}
     {notice ? <Text>{notice}</Text> : null}
     {error ? <Text accessibilityRole="alert">{error}</Text> : null}
-    {archives.map((a) => <SettingsRow key={a.conversationId} id={a.conversationId} label={a.title} sub={`${a.provider} · ${a.projectId ? "Personal project" : "Imported sessions"}`} control={<SmallButton label="Read archive" disabled={busy} onPress={() => void run(async () => setTranscript(await data.call("sessions.get", { conversationId: a.conversationId }) as Transcript))} />} />)}
+    <SmallButton label="Refresh archive" disabled={busy} onPress={() => void run(() => load())} />
+    {archives.map((a) => <Row key={a.conversationId} id={a.conversationId} title={a.title} note={`${a.provider} · ${a.projectId ? "Personal project" : "Imported sessions"}`} trailing={<SmallButton label="Read archive" disabled={busy} onPress={() => void run(async () => setTranscript(await data.call("sessions.get", { conversationId: a.conversationId }) as Transcript))} />} />)}
     {next ? <SmallButton label="More sessions" disabled={busy} onPress={() => void run(() => load(next))} /> : null}
-    {transcript ? <View testID="sessions-transcript"><Text accessibilityRole="header">{transcript.session.title}</Text>{transcript.messages.map((m, i) => <View key={i}><Text>{m.role}</Text><Text selectable>{m.text}</Text></View>)}
+    {transcript ? <View testID="sessions-transcript"><Text accessibilityRole="header">{transcript.session.title}</Text>
+      {/* ui-rows-lint: not a list (immutable transcript paragraphs preserve message bodies) */}
+      {transcript.messages.map((m, i) => <View key={i}><Text>{m.role}</Text><Text selectable>{m.text}</Text></View>)}
       <SmallButton label="Close archive" onPress={() => setTranscript(null)} />
       {data.continueSession ? <SmallButton label="Continue with your assistant" disabled={busy} testID="sessions-continue" onPress={() => void run(() => data.continueSession!(transcript.session.conversationId))} /> : null}
     </View> : null}

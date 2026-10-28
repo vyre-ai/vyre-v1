@@ -169,6 +169,10 @@ pub fn read_session_source(session_key: String) -> Result<serde_json::Value, Str
     let sources = discover_session_sources(CodexDiscoveryOptions::default())?;
     let source = sources.into_iter().find(|s| s.session_key == session_key).ok_or("Choose a discovered local session first.")?;
     let root = if source.provider == "codex" { codex_root(None) } else { claude_root(None) }.ok_or("The provider folder is unavailable.")?;
+    read_discovered_source(&source, &root)
+}
+
+fn read_discovered_source(source: &SessionSource, root: &Path) -> Result<serde_json::Value, String> {
     let file = PathBuf::from(&source.transcript_path).canonicalize().map_err(|_| "The transcript is unavailable.")?;
     if !contained_file(&root, &file) { return Err("The transcript is outside its provider folder.".into()); }
     let reader = fs::File::open(&file).map_err(|_| "The transcript is unavailable.")?;
@@ -443,6 +447,22 @@ mod tests {
         assert_eq!(tooltip(0), "Vyre");
         assert_eq!(tooltip(1), "Vyre, 1 thing needs you");
         assert_eq!(tooltip(3), "Vyre, 3 things need you");
+    }
+
+    #[test]
+    fn selected_transcript_reads_gzip_and_rejects_outside_paths() {
+        use std::io::Write;
+        let root = std::env::temp_dir().join(format!("vyre-session-read-fixture-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let file = root.join("session.jsonl.gz");
+        let mut zipped = flate2::write::GzEncoder::new(fs::File::create(&file).unwrap(), flate2::Compression::default());
+        zipped.write_all(b"{\"visible\":true}\n").unwrap();
+        zipped.finish().unwrap();
+        let source = SessionSource { provider: "claude".into(), session_id: "fixture".into(), session_key: "claude:fixture".into(), project_key: "unknown".into(), transcript_path: file.to_string_lossy().into(), cwd: None, created_at: None, updated_at: None, git_branch: None, git_origin_url: None };
+        let value = read_discovered_source(&source, &root).unwrap();
+        assert_eq!(value["text"], "{\"visible\":true}\n");
+        assert!(read_discovered_source(&source, &root.join("other")).is_err());
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
