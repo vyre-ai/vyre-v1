@@ -23,3 +23,9 @@ Regression proof: 89 backend/module tests pass, including the final managed HTTP
 ## Remaining action audit
 
 Compute server enrollment, reconnect and disconnect still need a real server-manager protocol. The candidate exposes that limitation and does not generate an unusable join code in the Console. This is a named v1 blocker, not completed functionality. Actual public DNS/ACME production issuance was not attempted against operator infrastructure; the tests use deterministic DNS, Caddy protocol fixtures and a booted HTTP pipeline.
+
+## Space address security increment
+
+`spaces.switch_address` now requires server.network at manage level, matching the dedicated Network mutations. Its prior view-level requirement allowed an explicit view-only role to change the profile; the HTTP regression reproduced status 200 before the fix and requires 403 afterward. The host verifies DNS and applies the same managed network driver before the module persists the profile. Missing drivers fail explicitly. The profile reads the current host-observed address, including changes made from Network. Personal profiles keep their device-only address.
+
+The actual HTTP fixture covers a server.network view role reading status, denial of its address mutation, failed DNS and failed Caddy application preserving the address, successful owner application, and restart persistence. The Space module and HTTP regressions pass 42 tests. Focused semantic checks find no new diagnostics in the touched seam, module, or daemon block; existing transitive kernel and UI diagnostics remain. Ingress-check copy states that it reports the server's current observation; the existing capability is not an outside-network probe.

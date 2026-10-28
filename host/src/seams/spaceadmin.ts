@@ -1,8 +1,7 @@
 // The spaces module's host drivers (rulings 31 and 32): what space administration needs and a module cannot know (modules/spaces/handlers/extra/core.ts, SpaceAdminDrivers).
 //   owner, fingerprint, isMember   read from the access projection and the identity tables
 //   transferOwner                  the new Owner and the old one an Admin, through the access module as the host
-// DECISION: an address change does not reconfigure Caddy or the relay. applyAddress accepts, the module records the address on the profile (the invite link reads it), and routes follow only when the
-//   network module reconciles them; until then changing the address changes what links say, not what the server answers on.
+// Address changes verify DNS and apply the managed host driver before the module records a new profile.
 // DECISION: deleting a Space is refused over HTTP (internal.unavailable). A Space is removed on its server with the command line, where the person is at the machine and the data directory is theirs to remove.
 // DECISION: the Space key fingerprint is a placeholder (identity.ensure_space). The server holds no Space key, the admin's device wraps it, so the fingerprint a join page shows is derived from the Space id
 //   until a device sets the real one; devices must not pin it.
@@ -17,6 +16,8 @@ export interface SpaceAdminDeps {
   /** run a capability as the host */
   system(cap: string, input: unknown): Promise<unknown>;
   headSeq(): number;
+  changeAddress?(mode: "relay" | "own_domain", host: string | null): Promise<void>;
+  address?(): {mode: "relay" | "own_domain"; host?: string} | undefined;
 }
 
 export function createSpaceAdmin(d: SpaceAdminDeps) {
@@ -36,7 +37,11 @@ export function createSpaceAdmin(d: SpaceAdminDeps) {
       // The caller emits one ownership event; its projection changes owner and both role assignments together.
       return { epoch: d.headSeq() };
     },
-    async applyAddress(_mode: "relay" | "own_domain", _host: string | null) { /* recorded on the profile by the module; routes follow from it */ },
+    address: async () => d.address?.(),
+    async applyAddress(mode: "relay" | "own_domain", host: string | null) {
+      if (!d.changeAddress) throw fail("internal.unavailable", none, { message: "The server has no network driver configured. No address changed." });
+      await d.changeAddress(mode, host);
+    },
     async deleteSpace(): Promise<void> {
       throw fail("internal.unavailable", none, { message: "A Space is deleted on its server with the command line, not from the app." });
     },

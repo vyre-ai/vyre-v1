@@ -281,7 +281,7 @@ Capabilities:
 - spaces.onboarding.complete (write, grant only, level view)
 - spaces.onboarding.dismiss (write, grant only, level view)
 - spaces.onboarding.get (read, grant only, level view)
-- spaces.switch_address (write, server.network, level view)
+- spaces.switch_address (write, server.network, level manage)
 - spaces.switcher (read, grant only, level view)
 - spaces.transfer_ownership (write, grant only, level manage)
 - spaces.update (write, policy.manage, level view)

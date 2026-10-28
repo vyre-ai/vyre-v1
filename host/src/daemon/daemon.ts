@@ -803,7 +803,23 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // the git module: working trees under the data directory; a GitHub token arrives only through ctx.vault.fill (git_credential), which waits on the Vault module (w12a, P-L7_LIVE)
         setGitHost: () => ({ treesDir: path.join(paths.root, "trees"), takeCredential: () => undefined }),
         ...spaceStoreDrivers(spaceStore),
-        configureSpaceAdmin: () => createSpaceAdmin({ access: () => access.snap, owner: () => access.owner() ?? cfg.owner ?? "usr_owner", space: spaceId, db: db!, system, headSeq: () => headSeq }),
+        configureSpaceAdmin: () => createSpaceAdmin({ access: () => access.snap, owner: () => access.owner() ?? cfg.owner ?? "usr_owner", space: spaceId, db: db!, system, headSeq: () => headSeq,
+          address: () => {
+            const value = db!.all("SELECT mode, address FROM network_config WHERE id = 1")[0] as {mode?:string;address?:string}|undefined;
+            return value?.address ? { mode: value.mode === 'relay' ? 'relay' : 'own_domain', host: value.address } : undefined;
+          },
+          changeAddress: async (mode, host) => {
+            const config = db!.all("SELECT relay_address FROM network_config WHERE id = 1")[0] as {relay_address?:string}|undefined;
+            const address = mode === 'own_domain' ? host : config?.relay_address;
+            if (!address) throw fail('validation.precondition_failed', ZERO_TRACE, {message:'No address is configured for this mode.'});
+            if (mode === 'own_domain') {
+              const dns = await network.checkDns(address, config?.relay_address ?? null);
+              if (!dns.ok) throw fail('validation.precondition_failed', ZERO_TRACE, {message:'DNS is not verified for this Space. Configure the domain in Network first.'});
+            }
+            await network.applyAddress({mode, address});
+            db!.run("UPDATE network_config SET address = ?, mode = ?, domain = CASE WHEN ? = 'own_domain' THEN ? ELSE domain END, reported_at = ? WHERE id = 1", address, mode, mode, address, now());
+          },
+        }),
         configureSync: () => createSyncSeam({ store: spaceStore, ...(loaded.serving.get("conflicts") === "live" ? { conflicts: { open: (c) => hookRunner.call("conflicts.park", c) as Promise<string>, history: async (e) => { await hookRunner.call("conflicts.record_history", e); } } } : {}), access: () => access.snap, space: spaceId, now, registryHash, invoke: (c, i, seed) => invoke(c, i, seed), keyed: (c, v) => capIndex?.get(c, v)?.idempotency === "key", ...(cfg.address ? { endpoints: () => [{ kind: "direct" as const, url: `wss://${cfg.address}/sync/v1/live` }] } : {}) }),
         setVaultKeyPort: () => ({ personKey: async (personId: string) => keyring.get(personId) }),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),

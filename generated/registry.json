@@ -142981,7 +142981,7 @@
         ],
         "type": "object"
       },
-      "level": "view",
+      "level": "manage",
       "module": "spaces",
       "name": "spaces.switch_address",
       "output": {
