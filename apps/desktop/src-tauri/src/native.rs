@@ -32,6 +32,8 @@ const MAX_BODY: usize = 240;
 const MAX_FILTERS: usize = 8;
 const MAX_SESSION_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_SUBAGENTS: usize = 64;
+const MAX_REPO_PROBES: usize = 128;
+const REPO_DISCOVERY_BUDGET: Duration = Duration::from_secs(5);
 
 pub struct Notice {
     pub link: String,
@@ -162,28 +164,34 @@ pub struct SessionDocument {
 
 /// Read `state_5.sqlite` only, through SQLite's immutable file URI.
 #[tauri::command]
-pub fn discover_codex_sessions() -> Result<Vec<SessionSource>, String> {
-    codex_sources(None)
+pub async fn discover_codex_sessions() -> Result<Vec<SessionSource>, String> {
+    tauri::async_runtime::spawn_blocking(|| codex_sources(None)).await.map_err(|_| "Local session discovery stopped unexpectedly.".to_string())?
 }
 
 /// Metadata-only source discovery for packaged clients. Provider roots are resolved independently and transcript bodies are never opened here.
 #[tauri::command]
-pub fn discover_session_sources() -> Result<Vec<SessionSource>, String> {
-    Ok(discover_session_sources_at(CodexDiscoveryOptions::default()))
+pub async fn discover_session_sources() -> Result<Vec<SessionSource>, String> {
+    let sources = tauri::async_runtime::spawn_blocking(|| discover_session_sources_at(CodexDiscoveryOptions::default())).await.map_err(|_| "Local session discovery stopped unexpectedly.".to_string())?;
+    Ok(sources)
 }
 
 fn discover_session_sources_at(options: CodexDiscoveryOptions) -> Vec<SessionSource> {
+    let mut repos = RepoProbeCache::new();
     // A damaged or mid-upgrade Codex database must not hide an otherwise valid Claude store.
-    let mut out = codex_sources(options.codex_home.as_deref()).unwrap_or_default();
-    out.extend(claude_sources(options.claude_home.as_deref(), options.claude_desktop_home.as_deref()));
+    let mut out = codex_sources_with_repos(options.codex_home.as_deref(), &mut repos).unwrap_or_default();
+    out.extend(claude_sources_with_repos(options.claude_home.as_deref(), options.claude_desktop_home.as_deref(), &mut repos));
     out.sort_by(|a, b| a.session_key.cmp(&b.session_key));
     out
 }
 
 /// Only a discovered provider source key crosses the read boundary, never a page-supplied path.
 #[tauri::command]
-pub fn read_session_source(session_key: String) -> Result<serde_json::Value, String> {
-    let sources = discover_session_sources()?;
+pub async fn read_session_source(session_key: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || read_session_source_at(session_key)).await.map_err(|_| "The selected session could not be read.".to_string())?
+}
+
+fn read_session_source_at(session_key: String) -> Result<serde_json::Value, String> {
+    let sources = discover_session_sources_at(CodexDiscoveryOptions::default());
     let source = sources.into_iter().find(|s| s.session_key == session_key).ok_or("Choose a discovered local session first.")?;
     let root = if source.provider == "codex" { codex_root(None) } else { claude_root(None) }.ok_or("The provider folder is unavailable.")?;
     read_discovered_source(&source, &root)
@@ -243,6 +251,10 @@ fn claude_subagent_files(root: &Path, parent: &Path) -> Vec<PathBuf> {
 }
 
 fn codex_sources(configured: Option<&str>) -> Result<Vec<SessionSource>, String> {
+    codex_sources_with_repos(configured, &mut RepoProbeCache::new())
+}
+
+fn codex_sources_with_repos(configured: Option<&str>, repos: &mut RepoProbeCache) -> Result<Vec<SessionSource>, String> {
     let Some(root) = codex_root(configured) else { return Ok(Vec::new()); };
     let state = root.join("state_5.sqlite");
     if !contained_file(&root, &state) { return Ok(Vec::new()); }
@@ -256,19 +268,13 @@ fn codex_sources(configured: Option<&str>) -> Result<Vec<SessionSource>, String>
         ))
     }).map_err(|e| format!("cannot query Codex thread metadata: {e}"))?;
     let mut out = Vec::new();
-    let mut repos: HashMap<String, Option<(String, Option<String>)>> = HashMap::new();
     for row in rows {
         let (id, rollout, cwd, created_at, updated_at, git_branch, git_origin_url) = row.map_err(|e| e.to_string())?;
         let Some(rollout) = rollout else { continue; };
         let transcript = transcript_path(&root, &rollout);
         if !contained_file(&root, &transcript) { continue; }
         let safe_remote = safe_git_remote(git_origin_url);
-        let repo = cwd.as_deref().and_then(|value| {
-            if let Some(found) = repos.get(value) { return found.clone(); }
-            let found = local_repo_metadata(value);
-            repos.insert(value.to_string(), found.clone());
-            found
-        });
+        let repo = cwd.as_deref().and_then(|value| repos.resolve(value));
         let normalized_cwd = repo.as_ref().map(|value| value.0.clone()).or(cwd);
         let normalized_remote = repo.and_then(|value| value.1.or(safe_remote));
         let project_key = normalized_cwd.as_deref().map(|value| format!("codex:{value}")).unwrap_or_else(|| "codex:unknown".to_string());
@@ -278,10 +284,13 @@ fn codex_sources(configured: Option<&str>) -> Result<Vec<SessionSource>, String>
 }
 
 fn claude_sources(configured: Option<&str>, configured_desktop: Option<&str>) -> Vec<SessionSource> {
+    claude_sources_with_repos(configured, configured_desktop, &mut RepoProbeCache::new())
+}
+
+fn claude_sources_with_repos(configured: Option<&str>, configured_desktop: Option<&str>, repos: &mut RepoProbeCache) -> Vec<SessionSource> {
     let Some(root) = claude_root(configured) else { return Vec::new(); };
     // Claude Desktop lives outside ~/.claude. It receives its own containment root, never the provider root.
     let metadata = claude_desktop_metadata(claude_desktop_root(configured_desktop));
-    let mut repos: HashMap<String, Option<(String, Option<String>)>> = HashMap::new();
     let mut out = Vec::new();
     for area in ["projects", "projects-archive"] {
         let base = root.join(area);
@@ -291,12 +300,7 @@ fn claude_sources(configured: Option<&str>, configured_desktop: Option<&str>) ->
             let Some(id) = claude_session_id(file.file_name().and_then(|name| name.to_str())) else { continue; };
             let project = file.strip_prefix(&base).ok().and_then(|relative| relative.components().next()).and_then(|part| part.as_os_str().to_str()).unwrap_or("unknown");
             let extra = metadata.get(&id);
-            let repo = extra.and_then(|value| value.0.as_deref()).and_then(|cwd| {
-                if let Some(found) = repos.get(cwd) { return found.clone(); }
-                let found = local_repo_metadata(cwd);
-                repos.insert(cwd.to_string(), found.clone());
-                found
-            });
+            let repo = extra.and_then(|value| value.0.as_deref()).and_then(|cwd| repos.resolve(cwd));
             out.push(SessionSource {
                 provider: "claude".to_string(), session_key: format!("claude:{id}"), session_id: id,
                 project_key: format!("claude:{project}"), transcript_path: file.to_string_lossy().into_owned(),
@@ -309,20 +313,45 @@ fn claude_sources(configured: Option<&str>, configured_desktop: Option<&str>) ->
     out
 }
 
+struct RepoProbeCache {
+    values: HashMap<String, Option<(String, Option<String>)>>,
+    remaining: usize,
+    deadline: Instant,
+}
+
+impl RepoProbeCache {
+    fn new() -> Self {
+        Self { values: HashMap::new(), remaining: MAX_REPO_PROBES, deadline: Instant::now() + REPO_DISCOVERY_BUDGET }
+    }
+
+    fn resolve(&mut self, cwd: &str) -> Option<(String, Option<String>)> {
+        if let Some(found) = self.values.get(cwd) { return found.clone(); }
+        if self.remaining == 0 || Instant::now() >= self.deadline { return None; }
+        self.remaining -= 1;
+        let found = local_repo_metadata_until(cwd, self.deadline);
+        self.values.insert(cwd.to_string(), found.clone());
+        found
+    }
+}
+
 fn local_repo_metadata(cwd: &str) -> Option<(String, Option<String>)> {
+    local_repo_metadata_until(cwd, Instant::now() + Duration::from_secs(2))
+}
+
+fn local_repo_metadata_until(cwd: &str, deadline: Instant) -> Option<(String, Option<String>)> {
     let cwd = PathBuf::from(cwd).canonicalize().ok().filter(|path| path.is_dir())?;
-    let root = git_output(&cwd, &["rev-parse", "--show-toplevel"])?;
+    let root = git_output(&cwd, &["rev-parse", "--show-toplevel"], deadline)?;
     if !root.status.success() { return None; }
     let root = String::from_utf8(root.stdout).ok()?.trim().to_string();
     if root.is_empty() { return None; }
-    let remote = git_output(&cwd, &["config", "--get", "remote.origin.url"])
+    let remote = git_output(&cwd, &["config", "--get", "remote.origin.url"], deadline)
         .filter(|output| output.status.success()).and_then(|output| String::from_utf8(output.stdout).ok()).map(|value| value.trim().to_string()).filter(|value| !value.is_empty() && value.len() <= 2048);
     Some((root, safe_git_remote(remote)))
 }
 
-fn git_output(cwd: &Path, args: &[&str]) -> Option<Output> {
+fn git_output(cwd: &Path, args: &[&str], budget_deadline: Instant) -> Option<Output> {
     let mut child = Command::new("git").arg("-C").arg(cwd).args(args).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().ok()?;
-    let deadline = Instant::now() + Duration::from_secs(2);
+    let deadline = std::cmp::min(Instant::now() + Duration::from_secs(2), budget_deadline);
     loop {
         if child.try_wait().ok()?.is_some() { return child.wait_with_output().ok(); }
         if Instant::now() >= deadline { let _ = child.kill(); let _ = child.wait(); return None; }
@@ -649,5 +678,12 @@ mod tests {
         assert_eq!(sources.len(), 1);
         assert_eq!(sources[0].provider, "claude");
         fs::remove_dir_all(fixture).unwrap();
+    }
+
+    #[test]
+    fn repository_discovery_stops_when_its_shared_probe_budget_is_spent() {
+        let mut repos = RepoProbeCache { values: HashMap::new(), remaining: 0, deadline: Instant::now() + Duration::from_secs(1) };
+        assert_eq!(repos.resolve("/"), None);
+        assert!(repos.values.is_empty(), "an exhausted store never starts another filesystem or Git probe");
     }
 }
