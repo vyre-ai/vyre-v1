@@ -186,6 +186,92 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       await page.screenshot({ path: "shots-evidence/record-file-routes/project.png" });
     });
 
+    await t.test("6c Console uses real backup, device and access capabilities in its standalone frame", async () => {
+      const token = await page.evaluate(() => {
+        const saved = JSON.parse(localStorage.getItem("vyre.session.v1") ?? "{}");
+        return saved.sessions?.[location.origin]?.token ?? saved.token;
+      });
+      const api = createCapCaller({ baseUrl: web.origin, token: () => token, routes: async () => routes });
+      const backupDir = fs.mkdtempSync("/tmp/vyre-console-backups-");
+      const openConsole = async (screen: string): Promise<void> => {
+        await page.goto(`${web.origin}/console#screen=${screen}`, { waitUntil: "load" });
+        await page.getByTestId("console").waitFor({ timeout: 15_000 });
+        assert.equal(await page.getByTestId("shell").count(), 0, "Console has its own frame");
+      };
+      try {
+        await openConsole("console.backups");
+        await page.getByTestId("backup-path").fill(backupDir);
+        await page.getByTestId("backup-config-save").click();
+        await page.getByText("Backup target saved", { exact: true }).waitFor();
+        page.on("response", async (response) => { if (new URL(response.url()).pathname === "/v1/backup/run" && response.status() >= 400) console.log(`backup refusal: ${await response.text()}`); });
+        await page.getByTestId("backup-run").click();
+        const restore = page.locator('[data-testid^="restore-bkp_"]').first();
+        await restore.waitFor({ timeout: 20_000 }).catch(async (error) => { console.log(`backup run: list=${JSON.stringify(await api("backup.list", {}))}, screen=${(await page.locator("body").innerText()).replace(/\s+/g, " ").slice(-1200)}`); throw error; });
+        const backupId = (await restore.getAttribute("data-testid"))!.replace("restore-", "");
+        await page.getByTestId(`verify-${backupId}`).click();
+        await page.getByText("Backup verified", { exact: true }).waitFor({ timeout: 20_000 });
+        await restore.click();
+        await page.getByTestId("backup-restore-confirm").waitFor();
+        fs.mkdirSync("shots-evidence/console", { recursive: true });
+        await page.screenshot({ path: "shots-evidence/console/restore-confirm.png" });
+        await page.getByTestId("backup-restore-confirm").click();
+        await page.getByText("Restore requested. A staged restore takes effect when the server restarts.", { exact: true }).waitFor({ timeout: 20_000 });
+        const pair = await api("identity.pair_create", { purpose: "app", idempotencyKey: "e2e.console.pair" }) as { code: string };
+        const anonymous = createCapCaller({ baseUrl: web.origin, token: () => null, routes: async () => routes });
+        const second = await anonymous("identity.pair_redeem", { code: pair.code, deviceName: "Console revocation proof", deviceClass: "desktop" }) as { session: { token: string; deviceId: string } };
+        await openConsole("devices.sessions");
+        await page.getByTestId(`row-console-device-${second.session.deviceId}`).getByRole("button", { name: "Revoke…", exact: true }).click();
+        await page.getByTestId("console-revoke-confirm").click();
+        await page.getByText("Revoked", { exact: true }).waitFor();
+        const secondApi = createCapCaller({ baseUrl: web.origin, token: () => second.session.token, routes: async () => routes });
+        await assert.rejects(secondApi("identity.whoami", {}));
+        await api("identity.whoami", {});
+        await page.screenshot({ path: "shots-evidence/console/devices.png" });
+        await api("spaces.switch_address", { mode: "own_domain", host: "console-fixture.example" });
+        await openConsole("access.people");
+        const roles = await api("access.roles.list", {}) as { roles: { id: string; name: string; permissions: string[] }[] };
+        const member = roles.roles.find((role) => /member/i.test(role.name))!;
+        await page.getByTestId(`row-invite-role-${member.id}`).click();
+        await page.getByTestId("console-invite-create").click();
+        await page.getByTestId("console-invite-link").waitFor();
+        assert.match(await page.getByTestId("console-invite-link").innerText(), /console-fixture\.example/);
+        await openConsole("access.roles");
+        await page.getByTestId(`row-console-role-${member.id}`).click();
+        await page.getByTestId("console-role-name").fill("Release role proof");
+        await page.getByRole("button", { name: "Clone role", exact: true }).click();
+        await page.getByText("Role cloned", { exact: true }).waitFor();
+        const cloned = (await api("access.roles.list", {}) as { roles: { id: string; name: string; permissions: string[] }[] }).roles.find((role) => role.name === "Release role proof")!;
+        await page.getByTestId(`row-console-role-${cloned.id}`).click();
+        await page.getByTestId("console-role-permissions").fill(member.permissions.slice(0, 2).join("\n"));
+        await page.getByTestId("console-role-preview").click();
+        await page.getByTestId("console-role-apply").click();
+        await page.getByText("Role updated", { exact: true }).waitFor();
+        await page.screenshot({ path: "shots-evidence/console/roles.png" });
+        const project = await api("projects.create", { type: "project", title: "Console access proof", idempotencyKey: "e2e.console.resource" }) as { folderId: string };
+        await openConsole("access.grants");
+        await page.getByTestId("grant-resource-id").fill(project.folderId);
+        await page.getByLabel("Subject kind (person, agent, group or role)").fill("role");
+        await page.getByTestId("grant-subject-id").fill(member.id);
+        await page.getByTestId("grant-add").click();
+        await page.getByText("Access granted", { exact: true }).waitFor();
+        const grants = await api("access.grants.list", { resource: { type: "folder", id: project.folderId } }) as { grants: { id: string; subject: { kind: string; id: string } }[] };
+        const grant = grants.grants.find((item) => item.subject.kind === "role" && item.subject.id === member.id)!;
+        assert.ok(grant);
+        await page.getByTestId(`row-console-grant-${grant.id}`).getByRole("button", { name: "Revoke…", exact: true }).click();
+        await page.getByTestId("grant-revoke-confirm").click();
+        await page.getByText("Grant revoked", { exact: true }).waitFor();
+        await openConsole("access.checker");
+        const who = await api("identity.whoami", {}) as { principal: { id: string } };
+        await page.getByTestId("checker-principal").fill(who.principal.id);
+        await page.getByTestId("checker-resource").fill(project.folderId);
+        await page.getByTestId("checker-run").click();
+        await page.getByTestId("checker-decision").filter({ hasText: "allow" }).waitFor();
+        await page.screenshot({ path: "shots-evidence/console/access-checker.png" });
+        await page.getByTestId("console-open-app").click();
+        await page.getByTestId("shell").waitFor();
+      } finally { fs.rmSync(backupDir, { recursive: true, force: true }); }
+    });
+
     await t.test("7 every place draws on its own page load, with no page errors", async (s) => {
       const gap = signedIn ? null : "needs the claimed owner session (step 2)";
       if (gap) { todo.push(gap); s.todo(gap); return; }
