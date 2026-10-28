@@ -1,5 +1,7 @@
 # Changelog
 
+- Extended the shared Space archive boundary to public Network writes and active queued host network commands, which can change the observed Space profile. Empty periodic polls leave stable exports alone. Added actual HTTP regression for an already-running network command, an empty poll during collection, and cleanup after a failed command-completion write.
+
 - Keep browser failure diagnostics from masking the original Apps failure, and verify the canonical wording in exported AI policy documents.
 
 - Mark the synthetic export-redaction credential fixture for the existing secret scanner without changing production credential checks.
