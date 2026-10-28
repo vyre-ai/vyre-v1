@@ -29,6 +29,8 @@ export interface DesktopSessionDeps {
   open: Open;
   getSpace: (token: string) => Promise<VerifiedSpace>;
   persist?: Persist;
+  /** Browser invite links share the verified acceptance path without pretending to be native devices. */
+  deviceClass?: "web" | "desktop";
 }
 
 export interface DesktopInvitePreview {
@@ -155,8 +157,8 @@ export async function acceptDesktopJoin(join: PreviewedDesktopJoin, values: Join
       username: values.username,
       displayName: values.displayName,
       password: values.password,
-      deviceName: values.deviceName || "Vyre desktop",
-      deviceClass: "desktop",
+      deviceName: values.deviceName || (deps.deviceClass === "web" ? "Web browser" : "Vyre desktop"),
+      deviceClass: deps.deviceClass ?? "desktop",
       keys: { ...wrappedKeys, ...(values.recoveryCode ? { personKeyByRecovery } : {}), spaceKeys },
     }, "Could not finish joining this Space. Try again.");
     const accepted = object(answer);

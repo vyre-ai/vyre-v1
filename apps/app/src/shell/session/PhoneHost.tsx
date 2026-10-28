@@ -21,13 +21,15 @@ function useLive<T>(q: LiveQuery<T> | null): QueryState<T> {
   return useSyncExternalStore(live.subscribe, live.getSnapshot, live.getSnapshot);
 }
 
-function You({ session, nav, onSignOut }: { session: RealSession; nav: MobileNav; onSignOut(): void }): ReactElement {
+function You({ session, nav, onSignOut, onAddSpace, onLock }: { session: RealSession; nav: MobileNav; onSignOut(): void;onAddSpace?:()=>void;onLock?:()=>void }): ReactElement {
   const work = useLive(session.hooks.capQuery<CapMap["tasks.my_work"]["out"]>("tasks.my_work", {}));
   const stars = useLive(session.hooks.capQuery<CapMap["stars.list"]["out"]>("stars.list", {}));
   return (
     <View style={{ flex: 1 }}>
       <YouScreen nav={nav} data={{ name: session.me.name, space: session.def.name, workOpen: work.status === "ready" ? work.data.tasks.length : 0, starred: stars.status === "ready" ? stars.data.stars.length : 0 }} />
       {session.runtime.space.kind === "team" ? <Row id="you-apps" title="Apps" note="Forms, campaigns and templates" onPress={() => nav.open(entryFor("apps", "")!)} /> : null}
+      {onAddSpace?<Row id="you-add-space" title="Add a Space" note="Create or join another Space" onPress={onAddSpace}/>:null}
+      {onLock?<Row id="you-lock" title="Lock Vyre" note="Sign in again to continue" onPress={onLock}/>:null}
       <Row id="you-sign-out" title="Sign out" note={`Of ${session.def.name} on this device`} onPress={onSignOut} />
     </View>
   );
@@ -41,9 +43,11 @@ export interface PhoneHostProps {
   registerGo(go: ((place: PlaceId, hash: string) => void) | null): void;
   /** Sign out of this Space on this device: lock the key on this computer, end the session, return to sign-in. */
   onSignOut(): void;
+  onAddSpace?:()=>void;
+  onLock?:()=>void;
 }
 
-export function PhoneHost({ session, needsYou, registerGo, onSignOut }: PhoneHostProps): ReactElement {
+export function PhoneHost({ session, needsYou, registerGo, onSignOut, onAddSpace, onLock }: PhoneHostProps): ReactElement {
   const navRef = useRef<MobileNav | null>(null);
 
   const go = useCallback((place: PlaceId, hash: string): void => {
@@ -57,7 +61,7 @@ export function PhoneHost({ session, needsYou, registerGo, onSignOut }: PhoneHos
 
   const render = (e: Entry, nav: MobileNav): ReactNode => {
     navRef.current = nav;
-    if (e.screen === "you") return session ? <You session={session} nav={nav} onSignOut={onSignOut} /> : null;
+    if (e.screen === "you") return session ? <You session={session} nav={nav} onSignOut={onSignOut} {...(onAddSpace?{onAddSpace}:{})} {...(onLock?{onLock}:{})} /> : null;
     const where = placeOf(e);
     if (!where) return null;
     const opened: PlaceHash["opened"] = (t) => {

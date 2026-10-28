@@ -43,6 +43,8 @@ export interface JoinFlowProps {
   onCopyCode?: (code: string) => void;
   onSaveCode?: (code: string) => void;
   newCode?: () => string;
+  onBackFromSignIn?: () => void;
+  unlock?: boolean;
 }
 
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ23456789";
@@ -124,11 +126,12 @@ function JoinFlowForHost(props: JoinFlowProps) {
     const on = (e: { key: string; preventDefault(): void }): void => {
       if (e.key !== "Escape") return;
       e.preventDefault();
-      dispatch(state.sheet ? { t: "recovery_close" } : { t: "back" });
+      if (!state.sheet && state.stage === "signin" && state.si === "pw" && props.onBackFromSignIn) props.onBackFromSignIn();
+      else dispatch(state.sheet ? { t: "recovery_close" } : { t: "back" });
     };
     doc.addEventListener("keydown", on);
     return () => doc.removeEventListener("keydown", on);
-  }, [state.sheet]);
+  }, [state.sheet, state.stage, state.si, props.onBackFromSignIn]);
 
   const signIn = async (): Promise<void> => {
     if (signInInFlight.current || !signInValid(state)) return;
@@ -175,13 +178,13 @@ function JoinFlowForHost(props: JoinFlowProps) {
   const page = state.stage === "connect"
     ? <Welcome address={state.spaceAddress} busy={state.spaceResolving} error={state.spaceError} onAddressChange={changeSpaceAddress} onSignIn={() => void resolveSpace("signin")} onGetStarted={() => void resolveSpace("onboarding")} />
     : state.stage === "signin"
-    ? <SignIn invite={invite} state={state} dispatch={dispatch} busy={signingIn} onSubmit={() => void signIn()} onSso={props.onSso} onGithub={props.onGithub} onRecoveryCode={props.onRecoveryCode} />
+    ? <SignIn invite={invite} state={state} dispatch={dispatch} busy={signingIn} onSubmit={() => void signIn()} {...(props.onSso?{onSso:props.onSso}:{})} {...(props.onGithub?{onGithub:props.onGithub}:{})} {...(props.onRecoveryCode?{onRecoveryCode:props.onRecoveryCode}:{})} {...(props.onBackFromSignIn ? {onBack:props.onBackFromSignIn} : {})} {...(props.unlock ? {unlock:true} : {})} />
     : (
       <AcceptInvite
-        invite={invite} state={state} dispatch={dispatch} rules={rules} expired={props.expired}
-        onOpenApp={props.onOpenApp} onDownload={props.onDownload} onPickPhoto={props.onPickPhoto}
+        invite={invite} state={state} dispatch={dispatch} rules={rules} {...(props.expired===undefined?{}:{expired:props.expired})}
+        {...(props.onOpenApp?{onOpenApp:props.onOpenApp}:{})} {...(props.onDownload?{onDownload:props.onDownload}:{})} {...(props.onPickPhoto?{onPickPhoto:props.onPickPhoto}:{})}
         onCopyCode={props.onCopyCode ?? copyText} onSaveCode={props.onSaveCode ?? ((c) => saveText(`${invite.host}-recovery-code.txt`, `${invite.space} recovery code\n${c}\n`))}
-        newCode={props.newCode ?? makeRecoveryCode} onEmail={props.onEmail} onOpen={props.onOpen}
+        newCode={props.newCode ?? makeRecoveryCode} {...(props.onEmail?{onEmail:props.onEmail}:{})} {...(props.onOpen?{onOpen:props.onOpen}:{})}
       />
     );
   return <JoinFrame {...(props.mode ? { mode: props.mode } : {})} halftoneIntensity={state.stage === "connect" ? "full" : "calm"}>{page}</JoinFrame>;

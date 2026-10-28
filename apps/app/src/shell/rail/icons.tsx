@@ -7,9 +7,10 @@ const sq = (x: number, y: number): string => `M${x + 1.2} ${y}h2.1a1.2 1.2 0 011
 
 export type ShellIconName =
   | "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console" | "join"
-  | "moon" | "search" | "chev" | "sync" | "cloudOff" | "user" | "userPlus" | "signOut" | "terminal" | "check" | "more";
+  | "moon" | "search" | "chev" | "sync" | "cloudOff" | "user" | "userPlus" | "signOut" | "terminal" | "check" | "more" | "lock";
 
 export const SHELL_ICONS: Readonly<Record<ShellIconName, readonly string[]>> = {
+  lock:["M5 7V5a3 3 0 016 0v2","M4 7h8a1 1 0 011 1v5a1 1 0 01-1 1H4a1 1 0 01-1-1V8a1 1 0 011-1z","M8 10v1"],
   home: ["M2.5 7.5L8 3l5.5 4.5V13a.5.5 0 01-.5.5H3a.5.5 0 01-.5-.5z", "M6.5 13.5v-4h3v4"],
   chats: ["M3 3.5h10a1 1 0 011 1v6a1 1 0 01-1 1H7l-3 2.5v-2.5H3a1 1 0 01-1-1v-6a1 1 0 011-1z"],
   inbox: ["M2.5 9.5l1.6-5.2a1 1 0 011-.8h5.8a1 1 0 011 .8l1.6 5.2V12a1 1 0 01-1 1h-9a1 1 0 01-1-1z", "M2.5 9.5h3l1 1.5h3l1-1.5h3"],

@@ -25,6 +25,8 @@ import { PlaceHost } from "./PlaceHost.tsx";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
 import { clearStored, readStored, verifyStoredSession, writeStored } from "./stored.ts";
 import type { StoredSession } from "./stored.ts";
+import { lockedIdentity, storeLock } from "./entry.ts";
+import type { LockedIdentity } from "./entry.ts";
 
 const PhoneHost = lazy(() => import("./PhoneHost.tsx").then((m) => ({ default: m.PhoneHost })));
 
@@ -41,9 +43,11 @@ export interface ShellHostProps {
   hub?: ShellHub;
   initialSearchOpen?: boolean;
   voice?: LoadVoiceDevice | undefined;
+  onAddSpace?:()=>void;
+  onLocked?:(identity:LockedIdentity)=>void;
 }
 
-export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initialSearchOpen = false, voice }: ShellHostProps): ReactElement {
+export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initialSearchOpen = false, voice, onAddSpace, onLocked }: ShellHostProps): ReactElement {
   const navRef = useRef<ShellHub | null>(null);
   const phoneGo = useRef<((p: PlaceId, hash: string) => void) | null>(null);
   const width = useWindowDimensions().width;
@@ -134,12 +138,19 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     void session?.call("identity.sign_out", {}).catch(() => undefined);
     onSignedOut("manual");
   };
+  const lock=():void=>{
+    const identity=lockedIdentity({...stored,name:session?.me.name??stored.def.name});
+    storeLock(identity);clearStored();
+    void dropKeyOnOwnNode(stored.baseUrl,stored.token).catch(()=>undefined);
+    void session?.call("identity.sign_out",{}).catch(()=>undefined);
+    if(onLocked)onLocked(identity);else onSignedOut("manual");
+  };
   const renderNewTab = (): ReactElement => (search ? <NewTabSearch data={search} /> : <States kind="empty" title="Open anything, or start something" icon="search" />);
   if (location.place === "console") return <HubProvider hub={hub}>{renderPlace({ place: "console", hash: location.hash } as PlaceContext)}</HubProvider>;
-  if (narrow) return <Suspense fallback={<View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />}><PhoneHost session={session} needsYou={stored.def.counts.chats ?? 0} registerGo={registerGo} onSignOut={signOut} /></Suspense>;
+  if (narrow) return <Suspense fallback={<View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />}><PhoneHost session={session} needsYou={stored.def.counts.chats ?? 0} registerGo={registerGo} onSignOut={signOut} onLock={lock} {...(onAddSpace?{onAddSpace}:{})} /></Suspense>;
   return (
     <>
-      <Shell hub={hub} renderPlace={renderPlace} renderNewTab={renderNewTab} onSearch={() => setSearchOpen(true)} onSpaceAction={(a) => { if (a === "sign-out") signOut(); }} {...(phone ? { phone: { device: phone.device, data: phone.data } } : {})} {...(purge ? { purge } : {})} />
+      <Shell hub={hub} renderPlace={renderPlace} renderNewTab={renderNewTab} onSearch={() => setSearchOpen(true)} onSpaceAction={(a) => { if (a === "sign-out") signOut(); else if(a==='lock')lock();else if(a==='add')onAddSpace?.(); }} {...(phone ? { phone: { device: phone.device, data: phone.data } } : {})} {...(purge ? { purge } : {})} />
       {searchOpen && search ? <CmdK data={search} onClose={() => setSearchOpen(false)} /> : null}
     </>
   );

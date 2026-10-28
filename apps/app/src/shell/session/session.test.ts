@@ -783,3 +783,12 @@ test("session: after a 401 the session makes no further calls to the Space, and 
   assert.equal(renameCalls, 0, "no call reaches the Space after the session ended");
   s.close();
 });
+
+test('browser invite acceptance registers a web device instead of a native desktop',async()=>{
+ const route=routeDesktopLink({action:'join',params:{address:'https://northwind.vyre.run',code:'invite-code',fp:'display-only'}});assert.ok(route&&route.kind==='join');
+ let accepted:Record<string,unknown>|undefined;
+ const anonymous=async(cap:string,input:unknown)=>{if(cap==='members.invites.preview')return{spaceId:'spc_nw',spaceName:'Northwind',invitedBy:'Maya',role:'Member',expiresAt:1,fingerprint:'server-display'};accepted=input as Record<string,unknown>;return{token:'vst_webjoin'};};
+ const join=await previewDesktopJoin(route,anonymous);
+ await acceptDesktopJoin(join,{username:'webmember',displayName:'Web member',password:'fixture browser password',deviceName:'',trustDevice:true,ai:{choice:'none'}},{deviceClass:'web',anonymous,open:async()=>({def:{spaceId:'spc_nw',name:'Northwind'},me:{id:'usr_web'},close:()=>undefined} as never),getSpace:async()=>({id:'spc_nw',marker:'display'}),persist:()=>undefined});
+ assert.equal(accepted?.['deviceClass'],'web');assert.equal(accepted?.['deviceName'],'Web browser');
+});

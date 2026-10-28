@@ -16,17 +16,19 @@ export interface SignInProps {
   onSso?: (provider: string) => void;
   onGithub?: () => void;
   onRecoveryCode?: () => void;
+  onBack?: () => void;
+  unlock?: boolean;
 }
 
 
-export function SignIn({ invite, state, dispatch, busy, onSubmit, onSso, onGithub, onRecoveryCode }: SignInProps) {
+export function SignIn({ invite, state, dispatch, busy, onSubmit, onSso, onGithub, onRecoveryCode, onBack, unlock }: SignInProps) {
   const { p } = useJoin();
   const totp = state.si === "totp";
   const go = () => (onSubmit ? onSubmit() : dispatch({ t: "next" }));
   const bar = (
     <Bar
-      onBack={() => dispatch({ t: "back" })}
-      cont={<Button testID="next" label={totp ? "Sign in" : "Continue"} disabled={!signInValid(state) || !!busy} onPress={go} />}
+      onBack={() => { if (!totp && onBack) onBack(); else dispatch({ t: "back" }); }}
+      cont={<Button testID="next" label={unlock ? "Unlock" : totp ? "Sign in" : "Continue"} disabled={!signInValid(state) || !!busy} onPress={go} />}
     />
   );
   return (
@@ -44,7 +46,7 @@ export function SignIn({ invite, state, dispatch, busy, onSubmit, onSso, onGithu
       ) : (
         <Step id="sign-in" dir={state.dir}>
 
-          <Title title={`Sign in to ${invite.space}`} />
+          <Title title={unlock ? "Unlock Vyre" : `Sign in to ${invite.space}`} {...(unlock ? {sub:`Sign in again to ${invite.space} to continue.`} : {})} />
           <Group>
             <FieldRow testID="si-user" label="Username" value={state.siUser} onChange={(v) => dispatch({ t: "set", patch: { siUser: cleanUsername(v) } })} placeholder="Your username" autoComplete="username" onSubmit={go} stacked />
             <FieldRow testID="si-password" label="Password" value={state.siPw} onChange={(v) => dispatch({ t: "set", patch: { siPw: v } })} placeholder="Required" secure revealable visibilityTestID="si-password-visibility" autoComplete="current-password" onSubmit={go} stacked />

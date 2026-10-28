@@ -11,7 +11,7 @@ import { ShellIcon, iconMarkup } from "../rail/icons.tsx";
 import { initialOf, othersNeedingYou, tileGradient } from "./model.ts";
 import type { SpaceDef } from "./model.ts";
 
-export type SpaceAction = "add" | "invite" | "settings" | "terminal" | "away" | "profile" | "sign-out";
+export type SpaceAction = "add" | "invite" | "settings" | "terminal" | "away" | "profile" | "sign-out" | "lock";
 
 export interface SpaceMenuInput {
   spaces: readonly SpaceDef[];
@@ -43,6 +43,7 @@ export function spaceMenuEntries(input: SpaceMenuInput): MenuEntry[] {
   out.push({ separator: true });
   out.push({ label: input.away ? "I'm Back" : "Set Yourself Away", icon: iconMarkup(input.away ? "check" : "moon"), onSelect: () => input.onAction("away") });
   out.push({ label: "Your Profile", icon: iconMarkup("user"), onSelect: () => input.onAction("profile") });
+  out.push({ label: "Lock Vyre", icon: iconMarkup("lock"), onSelect: () => input.onAction("lock") });
   out.push({ label: "Sign Out", icon: iconMarkup("signOut"), onSelect: () => input.onAction("sign-out") });
   return out;
 }

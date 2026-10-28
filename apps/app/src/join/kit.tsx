@@ -233,9 +233,9 @@ function FormRow({ label, children, divider, testID, labelWidth = 112, small, st
 }
 
 export function FieldRow({
-  label, value, onChange, placeholder, secure, revealable, visibilityTestID, testID, autoComplete, mono, keyboard, maxLength, divider, onSubmit, spaced, stacked, trailing,
+  label, value, onChange, placeholder, secure, revealable, visibilityTestID, testID, autoComplete, mono, keyboard, maxLength, divider, onSubmit, spaced, stacked, trailing, disabled,
 }: RowProps & {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string; secure?: boolean; revealable?: boolean; visibilityTestID?: string; autoComplete?: string; mono?: boolean; keyboard?: "numeric"; maxLength?: number; onSubmit?: () => void; spaced?: boolean; stacked?: boolean; trailing?: ReactNode;
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; secure?: boolean; revealable?: boolean; visibilityTestID?: string; autoComplete?: string; mono?: boolean; keyboard?: "numeric"; maxLength?: number; onSubmit?: () => void; spaced?: boolean; stacked?: boolean; trailing?: ReactNode; disabled?:boolean;
 }) {
   const { p } = useJoin();
   const [visible, setVisible] = useState(false);
@@ -243,6 +243,7 @@ export function FieldRow({
     <FormRow label={label} divider={divider} stacked={stacked}>
       <TextInput
         testID={testID} accessibilityLabel={label} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={p.tx2}
+        editable={!disabled}
         secureTextEntry={secure && !visible} autoCapitalize="none" autoCorrect={false} spellCheck={false} maxLength={maxLength} inputMode={keyboard}
         {...(autoComplete ? ({ autoComplete } as object) : {})} onSubmitEditing={onSubmit}
         style={[base(p), noOutline, { flex: 1, minWidth: 0, height: stacked ? 44 : "100%" as unknown as number, textAlign: stacked ? "left" : "right", color: p.tx, padding: 0 }, mono ? { fontFamily: MONO } : null, spaced ? { letterSpacing: 3 } : null]}
