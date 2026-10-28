@@ -1,3 +1,4 @@
+- Add an isolated read-only shared Records preview to the Access checker, with memory-only expiring credentials, canceled pending requests, hidden-field redaction, explicit exit and preserved normal Owner session.
 - Enforce grant label ceilings in single-record authorization, inherited grants, SQL list predicates and persisted Access projections, with classification and randomized parity regressions.
 - Repair release Apps screenshot drawing gate to require the mounted v1 apps-place rather than obsolete Sites or deferred frames; prove Paper and Graphite routes with a real claimed daemon.
 - Fix connector creation authorization to check its canonical Space rather than require the new connector key as an existing parent; retain connectors.manage/edit and register the real birth under Space.

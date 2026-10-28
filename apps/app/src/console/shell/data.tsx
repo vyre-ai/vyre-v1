@@ -1,3 +1,4 @@
+import type {RecordsPreviewTicket,RecordsPreviewReader} from "../../../../../client/src/gateway/records-preview.ts";
 // Console data: the one context every page reads. Lists are live queries over the local copy (the registry's screens); every change goes through `call`, one capability per action.
 // The shell supplies the value; a page never decides how another page opens.
 import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
@@ -12,6 +13,7 @@ export interface ConsoleNav {
 }
 
 export interface ConsoleData {
+  createRecordsPreview?(ticket:RecordsPreviewTicket):RecordsPreviewReader;
   connection?: { get(): "online" | "offline"; subscribe(listener: () => void): () => void };
   screens: ScreenHooks;
   call(cap: string, input: unknown): Promise<unknown>;
