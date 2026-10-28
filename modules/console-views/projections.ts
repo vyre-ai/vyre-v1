@@ -211,8 +211,8 @@ const C = "console.access";
 export const NAV: readonly NavGroup[] = [
   { key: "overview", title: "Overview", pages: [{ key: "console.overview", title: "Overview", perm: C }, { key: "console.usage", title: "Usage", perm: C }] },
   { key: "access", title: "Access", pages: [
-    { key: "access.people", title: "People", perm: C }, { key: "access.groups", title: "Groups", perm: C }, { key: "access.roles", title: "Roles", perm: C },
-    { key: "access.grants", title: "Grants", perm: C }, { key: "access.policies", title: "Policies", perm: "policy.manage" }, { key: "access.checker", title: "Access checker", perm: "access.manage" },
+    { key: "access.people", title: "People", perm: "access.manage" }, { key: "access.groups", title: "Groups", perm: "access.manage" }, { key: "access.roles", title: "Roles", perm: "access.manage" },
+    { key: "access.grants", title: "Grants", perm: "access.manage" }, { key: "access.policies", title: "Policies", perm: "policy.manage" }, { key: "access.checker", title: "Access checker", perm: "access.manage" },
     { key: "access.reviews", title: "Access reviews", perm: "access.manage" }, { key: "devices.sessions", title: "Sessions and devices", perm: "access.manage" },
   ] },
   { key: "agents", title: "Agents and actors", pages: [

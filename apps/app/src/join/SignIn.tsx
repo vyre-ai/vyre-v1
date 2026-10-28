@@ -67,6 +67,7 @@ export function SignIn({ invite, state, dispatch, busy, onSubmit, onSso, onGithu
             <FieldRow testID="si-password" label="Password" value={state.siPw} onChange={(v) => dispatch({ t: "set", patch: { siPw: v } })} placeholder="Required" secure revealable visibilityTestID="si-password-visibility" autoComplete="current-password" onSubmit={go} />
           </Group>
           {state.error ? <ErrorLine testID="join-error">{state.error}</ErrorLine> : null}
+          {onRecoveryCode ? <Foot><Text accessibilityRole="link" testID="signin-help" onPress={onRecoveryCode} style={{ color: p.blue }}>Need help signing in?</Text></Foot> : null}
           {invite.sso.length || invite.github ? (
             <>
               {invite.sso.length ? <><Caption>Single sign-on</Caption><Group top={0} testID="sign-in-sso">{invite.sso.map((n) => <Row kind="action" key={n} testID={`sso-${n.toLowerCase()}`} label={n} note="OpenID Connect" onPress={() => onSso?.(n)} />)}</Group></> : null}

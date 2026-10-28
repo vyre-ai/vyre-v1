@@ -1,7 +1,7 @@
 // join/ConnectAI: the last account step (spec 3.13, 4.14). The assistant needs an AI account to answer. Three ways in, or not now.
 // The person's own subscription, their own key (kept in the vault, never shown again), or the key an admin shares with the Space.
 import { Text, View } from "react-native";
-import { Foot, Group, FieldRow, Row, AppIcon, Title, TextButton, baseText, useJoin, ErrorLine } from "./kit.tsx";
+import { Foot, Group, FieldRow, Row, AppIcon, Title, baseText, useJoin, ErrorLine } from "./kit.tsx";
 import type { AiChoice, JoinInvite } from "./logic.ts";
 
 export interface ConnectAIProps {
@@ -10,6 +10,8 @@ export interface ConnectAIProps {
   apiKey: string;
   /** "subok" once the subscription sign-in finished */
   note: string;
+  providerKey?: "openrouter" | "anthropic" | "openai";
+  onProvider?: (key: "openrouter" | "anthropic" | "openai") => void;
   error?: string;
   onPick: (ai: AiChoice) => void;
   onKey: (v: string) => void;
@@ -30,7 +32,7 @@ function InlineLink({ label, onPress, testID }: { label: string; onPress: () => 
   return <Text accessibilityRole="link" testID={testID} onPress={onPress} style={{ color: p.blue }}>{label}</Text>;
 }
 
-export function ConnectAI({ invite, ai, apiKey, note, error, onPick, onKey, onSubscribe }: ConnectAIProps) {
+export function ConnectAI({ invite, ai, apiKey, error, onPick, onKey, providerKey = "openrouter", onProvider }: ConnectAIProps) {
   const { p } = useJoin();
   return (
     <View>
@@ -42,14 +44,15 @@ export function ConnectAI({ invite, ai, apiKey, note, error, onPick, onKey, onSu
       </Group>
       {ai === "key" ? (
         <Group top={24}>
-          <FieldRow label="API key" value={apiKey} onChange={onKey} placeholder="Paste your API key" secure testID="ai-key-field" />
+          {(["openrouter", "anthropic", "openai"] as const).map((key) => <Row key={key} kind="option" testID={`ai-provider-${key}`} title={key === "openrouter" ? "OpenRouter" : key === "anthropic" ? "Anthropic" : "OpenAI"} checked={providerKey === key} onPress={() => onProvider?.(key)} />)}
+          <FieldRow label={`${providerKey === "openrouter" ? "OpenRouter" : providerKey === "anthropic" ? "Anthropic" : "OpenAI"} API key`} value={apiKey} onChange={onKey} placeholder="Paste your API key" secure testID="ai-key-field" />
         </Group>
       ) : null}
       {ai === "sub" ? (
         <Group top={24}>
           <Row>
             <Text style={[baseText(p), { flex: 1 }]}>Claude account</Text>
-            <TextButton testID="ai-subscribe" label={note === "subok" ? `Connected as ${invite.email ?? "your account"}` : "Sign in…"} onPress={onSubscribe} />
+            <Text style={[baseText(p), { color: p.tx2 }]} testID="ai-subscribe-after-join">Sign in after joining</Text>
           </Row>
         </Group>
       ) : null}

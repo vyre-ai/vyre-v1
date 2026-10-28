@@ -6,12 +6,15 @@ import { memo, useCallback, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Platform, ScrollView, View } from "react-native";
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from "react-native";
+import { NativeList } from "./NativeList";
 import type { VirtualListProps, VirtualWindow } from "./props.ts";
 
 export type { VirtualListProps, VirtualWindow, RowHeight } from "./props.ts";
 
 const OVERSCAN = 4;
-const SCROLL_BUFFER_PX = 2736; // 72 Files rows: fewer than 5% of frames replace the React window during the 120 px/frame perf fling.
+// Keep scrolling swaps small enough to commit inside one frame. A larger buffer updates less often, but each boundary then mounts dozens of
+// Files rows at once; 456 px is 12 list rows (or four grid rows) and keeps the work of one swap bounded.
+const SCROLL_BUFFER_PX = 456;
 const ESTIMATE = 44;
 const DEFAULT_VIEWPORT = 640;
 
@@ -45,6 +48,30 @@ export function windowFor(offsets: Float64Array, scrollTop: number, viewport: nu
   return { start: Math.max(0, first - overscan), end: Math.min(count, last + 1 + overscan) };
 }
 
+/** The web scrolling policy: enough hysteresis to avoid updating every frame, without mounting a large batch at a boundary. */
+export function scrollWindowFor(
+  offsets: Float64Array,
+  scrollTop: number,
+  viewport: number,
+  rowHeight: number | "measure",
+  current?: VirtualWindow,
+): VirtualWindow {
+  const height = typeof rowHeight === "number" ? rowHeight : ESTIMATE;
+  return windowFor(offsets, scrollTop, viewport, Math.max(OVERSCAN, Math.ceil(SCROLL_BUFFER_PX / height)), current);
+}
+
+/** Reuse a cached scrolling window only while it still covers the viewport under the current offsets. */
+export function renderWindowFor(
+  offsets: Float64Array,
+  scrollTop: number,
+  viewport: number,
+  current?: VirtualWindow,
+): VirtualWindow {
+  const visible = windowFor(offsets, scrollTop, viewport, 0);
+  if (current && current.end <= offsets.length - 1 && current.start <= visible.start && current.end >= visible.end) return current;
+  return windowFor(offsets, scrollTop, viewport);
+}
+
 export function VirtualList<T>(props: VirtualListProps<T>) {
   if (Platform.OS === "web") return <WindowedList {...props} />;
   return <NativeList {...props} />;
@@ -63,9 +90,10 @@ function WindowedList<T>({ data, renderItem, rowHeight, window: controlled, keyO
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data.length, rowHeight, version],
   );
+  // Keep the first paint lean. The slightly wider scrolling window is created only after the initial viewport is crossed.
   const computed = useMemo(() => windowFor(offsets, scrollTop.current, viewport), [offsets, viewport]);
-  const scrollingOverscan = Math.max(OVERSCAN, Math.ceil(SCROLL_BUFFER_PX / (typeof rowHeight === "number" ? rowHeight : ESTIMATE)));
-  const win = controlled ?? (scrolled && scrolled.end <= data.length ? scrolled : computed);
+  // Measured rows can move the viewport beyond a cached window without another scroll event. Revalidate it on every offsets version.
+  const win = controlled ?? renderWindowFor(offsets, scrollTop.current, viewport, scrolled ?? undefined);
   const total = offsets[data.length];
 
   const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -75,13 +103,13 @@ function WindowedList<T>({ data, renderItem, rowHeight, window: controlled, keyO
     const height = e.nativeEvent.layoutMeasurement.height || viewport;
     setScrolled((cur) => {
       const prior = cur ?? computed;
-      const next = windowFor(offsets, y, height, scrollingOverscan, prior);
+      const next = scrollWindowFor(offsets, y, height, rowHeight, prior);
       return next === prior ? cur : next;
     });
     const nearEnd = y + e.nativeEvent.layoutMeasurement.height >= total - 1;
     if (nearEnd && !ended.current) { ended.current = true; onEndReached?.(); }
     if (!nearEnd) ended.current = false;
-  }, [onEndReached, total, offsets, viewport, computed, scrollingOverscan]);
+  }, [onEndReached, total, offsets, viewport, computed, rowHeight]);
 
   const onMeasure = useCallback((i: number, h: number) => {
     if (h > 0 && measured.current.get(i) !== h) { measured.current.set(i, h); setVersion((v) => v + 1); }
@@ -129,17 +157,3 @@ const Cell = memo(function Cell<T>({ item, index, top, height, render, onMeasure
     </View>
   );
 }) as unknown as <T>(props: CellProps<T>) => ReactNode;
-
-function NativeList<T>({ data, renderItem, rowHeight, keyOf, onEndReached }: VirtualListProps<T>) {
-  // Loaded only on native: the flash-list module needs the native view manager.
-  const { FlashList } = require("@shopify/flash-list") as typeof import("@shopify/flash-list");
-  return (
-    <FlashList
-      data={data as T[]}
-      renderItem={({ item, index }: { item: T; index: number }) => renderItem(item, index) as ReactNode}
-      keyExtractor={(item: T, index: number) => (keyOf ? keyOf(item, index) : String(index))}
-      overrideItemLayout={typeof rowHeight === "number" ? (layout: { size?: number }) => { layout.size = rowHeight; } : undefined}
-      onEndReached={onEndReached}
-    />
-  );
-}

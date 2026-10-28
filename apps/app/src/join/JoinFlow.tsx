@@ -16,7 +16,7 @@ export interface JoinValues {
   deviceName: string;
   trustDevice: boolean;
   recoveryCode?: string;
-  ai: { choice: "sub" | "key" | "admin" | "none"; key?: string };
+  ai: { choice: "sub" | "key" | "admin" | "none"; key?: string; providerKey?: "openrouter" | "anthropic" | "openai" };
 }
 export interface JoinFlowProps {
   invite: JoinInvite;
@@ -87,7 +87,7 @@ export function JoinFlow(props: JoinFlowProps) {
     const total = RUN_STEPS(invite.space).length;
     const values: JoinValues = {
       username: state.user, displayName: fullName(state), password: state.pw, deviceName: state.device, trustDevice: state.trust,
-      ...(state.rec ? { recoveryCode: state.code } : {}), ai: { choice: state.ai, ...(state.ai === "key" ? { key: state.key } : {}) },
+      ...(state.rec ? { recoveryCode: state.code } : {}), ai: { choice: state.ai, providerKey: state.aiProvider, ...(state.ai === "key" ? { key: state.key } : {}) },
     };
     const joined = props.onJoin ? props.onJoin(values).catch((e: unknown) => { failed = true; if (!off) dispatch({ t: "failed", message: messageOf(e) }); }) : Promise.resolve();
     void (async () => {

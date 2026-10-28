@@ -6,7 +6,7 @@
 
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { StyleProp, TextStyle } from "react-native";
 import { AskButton } from "../AskButton/index.tsx";
 import { Composer } from "../Composer/index.tsx";
@@ -121,8 +121,8 @@ function blockHtml(b: EmailBlock, values: Readonly<Record<string, string>> | und
     case "spacer":
     case "social": return emailBlockHtml(b) ?? "";
     case "saved": { const inner = savedInner(b); return inner === null ? "" : blockHtml(inner, values, st, dark); }
-    case "image": return `<div style="margin:0 0 14px;background:${dark ? "#2A2A2E" : "#E9E9EC"};height:140px;text-align:center;font:13px/140px ${face};color:${c.muted}">${esc(b.text ?? "Image")}</div>`;
-    case "button": return `<p style="margin:0 0 14px"><a href="#" style="display:inline-block;padding:10px 18px;border-radius:${Math.min(st.radius, 12)}px;background:${c.button};color:${c.buttonText};font:600 14px ${face};text-decoration:none">${esc(b.text ?? "Open")}</a></p>`;
+    case "image": return b.src && /^https:\/\//i.test(b.src) ? `<img src="${esc(b.src)}" alt="${esc(b.alt ?? b.text ?? "")}" style="max-width:100%;height:auto"/>` : `<div style="margin:0 0 14px;background:${dark ? "#2A2A2E" : "#E9E9EC"};height:140px;text-align:center;font:13px/140px ${face};color:${c.muted}">${esc(b.text ?? "Image")}</div>`;
+    case "button": return `<p style="margin:0 0 14px"><a href="${esc(b.href && /^(https?:\/\/|mailto:)/i.test(b.href) ? b.href : "#")}" style="display:inline-block;padding:10px 18px;border-radius:${Math.min(st.radius, 12)}px;background:${c.button};color:${c.buttonText};font:600 14px ${face};text-decoration:none">${esc(b.text ?? "Open")}</a></p>`;
     case "columns": return `<table role="presentation" width="100%" style="margin:0 0 14px"><tr>${each(b.children ?? [], (k) => `<td valign="top" width="50%">${blockHtml(k, values, st, dark)}</td>`).join("")}</tr></table>`;
     case "divider": return `<hr style="border:0;border-top:1px solid ${dark ? "#3A3A40" : "#E4E4E7"};margin:18px 0">`;
     case "merge": return `<span style="font:${st.size}px/${line}px ${face};color:${c.text}">${values === undefined ? esc(mergeToken(b.field ?? "", b.text ?? "")) : esc(values[b.field ?? ""] ?? b.text ?? "")}</span>`;
@@ -325,7 +325,13 @@ export function splitTokens(text: string): readonly { token?: string; field?: st
   return out;
 }
 
-export interface EmailBuilderViewProps extends EmailBuilderProps {
+export interface EmailBuilderViewProps extends Omit<EmailBuilderProps, "onTestSend" | "onAcceptDiff"> {
+  onTestSend?: () => void | Promise<void>;
+  onAcceptDiff?: (id: string) => void | boolean;
+  /** External persistence state, when a capability-backed editor saves the design. */
+  saveState?: string;
+  savedVersions?: readonly { version: number; at: number; by: string }[];
+  onRestoreSavedVersion?: (version: number) => Promise<void>;
   /** The shared Ask control's props; the header shows it when given. */
   ask?: AskButtonProps;
   /** Field values of the record behind `previewRecordId`, for the preview. */
@@ -369,7 +375,7 @@ export interface EmailBuilderViewProps extends EmailBuilderProps {
   /** Saved blocks (email_builder.saved_blocks.list): the Saved button on the rail drops one into the design. */
   savedBlocks?: readonly SavedBlock[];
   /** Called when "Save selected block" is chosen: the name typed and the block (email_builder.saved_blocks.save). */
-  onSaveBlock?: (name: string, block: EmailBlock) => void;
+  onSaveBlock?: (name: string, block: EmailBlock) => void | Promise<void>;
   /** Starting email style (width, font, sizes, colours). */
   emailStyle?: EmailStyle;
   /** The firm's brand, shown in the Style pane. */
@@ -411,7 +417,7 @@ function Btn(p: { label: string; icon?: string; on?: boolean; disabled?: boolean
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={p.label} accessibilityState={{ disabled: p.disabled === true, selected: p.on === true }} disabled={p.disabled === true}
       onPress={p.onPress} testID={p.testID}
-      style={({ hovered }: { hovered?: boolean }) => [s.btn, p.on === true && s.btnOn, p.strong === true && s.btnStrong, hovered === true && s.btnOver, p.disabled === true && s.btnOff]}>
+      style={(state) => [s.btn, p.on === true && s.btnOn, p.strong === true && s.btnStrong, (state as { hovered?: boolean }).hovered === true && s.btnOver, p.disabled === true && s.btnOff]}>
       {p.icon !== undefined ? <MenuIcon icon={p.icon} /> : null}
       {p.icon === undefined || p.strong === true ? <Text style={[s.btnText, p.strong === true && s.btnTextStrong]}>{p.label}</Text> : null}
     </Pressable>
@@ -432,7 +438,7 @@ function Segmented(p: { value: EmailMode; onPick: (m: EmailMode) => void }): Rea
 
 function Frame(p: { html: string; width: number }): ReactElement {
   if (Platform.OS !== "web") return <Text style={s.note}>{p.html.length} characters of HTML</Text>;
-  return createElement("iframe", { title: "Email preview", srcDoc: p.html, style: { border: 0, background: "#fff", borderRadius: 10, width: p.width, maxWidth: "100%", height: 520 }, "data-testid": "em-frame" }) as ReactElement;
+  return createElement("iframe", { title: "Email preview", srcDoc: p.html, sandbox: "", referrerPolicy: "no-referrer", style: { border: 0, background: "#fff", borderRadius: 10, width: p.width, maxWidth: "100%", height: 520 }, "data-testid": "em-frame" }) as ReactElement;
 }
 
 export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
@@ -454,6 +460,17 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   const initial: EmailSnapshot = { subjectB: props.subjectB ?? null, subject: props.subject, previewText: props.previewText ?? "", blocks: props.blocks ?? [], html: props.html ?? "", plain: props.plain ?? "" };
   const [hist, setHist] = useState<EmailHistory>({ entries: [initial], at: 0 });
   const [sent, setSent] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const sendTest = async (): Promise<void> => {
+    if (sending) return;
+    setSent(false); setSendError(null); setSending(true);
+    try {
+      if (!onTestSend) throw new Error("Connect a sending account before sending a test.");
+      await onTestSend(); setSent(true);
+    } catch (e) { setSendError(e instanceof Error ? e.message : "The test email was not sent."); }
+    finally { setSending(false); }
+  };
   const [style, setStyle] = useState<EmailStyle>(props.emailStyle ?? DEFAULT_EMAIL_STYLE);
   const menu = useMenu();
   const fontBtn = useRef<{ measureInWindow?: (cb: (x: number, y: number, w: number, h: number) => void) => void } | null>(null);
@@ -467,6 +484,10 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   const refs = useRef<Record<string, { measureInWindow?: (cb: (x: number, y: number, w: number, h: number) => void) => void } | null>>({});
   const [thread, setThread] = useState<readonly AskMessage[]>(props.askThread ?? []);
 
+  useEffect(() => setSubject(props.subject), [props.subject]);
+  useEffect(() => setHtml(props.html ?? ""), [props.html]);
+  useEffect(() => setPlain(props.plain ?? ""), [props.plain]);
+  useEffect(() => setBlocks(props.blocks ?? []), [props.blocks]);
   useEffect(() => setMode(props.mode), [props.mode]);
   useEffect(() => setFocus(props.focus === true), [props.focus]);
   useEffect(() => { if (props.preview !== undefined) setPreview(props.preview); }, [props.preview]);
@@ -516,7 +537,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
     changeBlocks(next, `Added ${blockLabel(kind).toLowerCase()}`);
     setSelected(b.id);
   };
-  const accept = (d: EmailDiff): void => { setAccepted((a) => new Set([...a, d.id])); onAcceptDiff?.(d.id); commit(snap, `Accepted: ${d.summary}`); };
+  const accept = (d: EmailDiff): void => { if (!onAcceptDiff) { setSendError("Connect an editor before applying this change."); return; } if (onAcceptDiff(d.id) === false) return; setAccepted((a) => new Set([...a, d.id])); };
 
   const anchorMenu = (name: string, items: Parameters<typeof menu.show>[0]): void => {
     const r = refs.current[name];
@@ -537,6 +558,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   ]);
   const historyMenu = (): void => anchorMenu("history", [
     { head: "Versions" },
+    ...(props.savedVersions ?? []).map((v) => ({ label: `Saved version ${v.version}`, onSelect: () => { if (props.onRestoreSavedVersion) void props.onRestoreSavedVersion(v.version).catch((e) => setSendError(e instanceof Error ? e.message : "Could not restore that version.")); } })),
     ...each(hist.entries, (e, i) => ({ label: `Version ${i + 1}${i === hist.at ? " (current)" : ""}`, checked: i === hist.at, onSelect: () => {
       setHist({ entries: hist.entries, at: i }); setSubject(e.subject); setSubjectB(e.subjectB ?? null); setPreviewText(e.previewText); setBlocks(e.blocks); setHtml(e.html); setPlain(e.plain); setStyle(e.style ?? DEFAULT_EMAIL_STYLE);
       onChange?.(e, `Restored version ${i + 1}`);
@@ -557,6 +579,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   const postComment = (): void => {
     const text = draftComment.trim();
     if (text === "") return;
+    if (!props.onComment) { setSendError("Comments need a connected discussion."); return; }
     setLocalComments((c) => [...c, { id: `lc${c.length + 1}`, by: "You", text }]);
     setDraftComment(""); props.onComment?.(text);
   };
@@ -575,8 +598,8 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
       { label: "Save selected block", onSelect: () => {
         if (sel === null || sel.kind === "saved") return;
         const name = `${blockLabel(sel.kind)} ${list.length + 1}`;
-        props.onSaveBlock?.(name, sel);
-        setSavedNote(`Saved as ${name}`);
+        if (!props.onSaveBlock) { setSavedNote("Connect a block library before saving."); return; }
+        void Promise.resolve().then(() => props.onSaveBlock!(name, sel)).then(() => setSavedNote(`Saved as ${name}`)).catch((e) => setSavedNote(e instanceof Error ? e.message : "The block was not saved."));
       } },
     ];
     anchorMenu("rail-saved", items);
@@ -615,19 +638,19 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
       {narrow ? null : <View style={s.sep} />}
       <Segmented value={mode} onPick={pickMode} />
       <View style={s.grow} />
-      {narrow ? null : <Text style={s.stat} testID="em-version">{`Saved v${version}`}</Text>}
+      {narrow ? null : <Text style={s.stat} testID="em-version">{props.saveState ?? `Saved v${version}`}</Text>}
       {(props.contacts?.length ?? 0) > 0 ? (
-        <Pressable ref={refOf("previewas-head")} accessibilityRole="button" accessibilityLabel="Preview as" testID="em-previewas" onPress={() => contactMenu("previewas-head")} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}>
+        <Pressable ref={refOf("previewas-head")} accessibilityRole="button" accessibilityLabel="Preview as" testID="em-previewas" onPress={() => contactMenu("previewas-head")} style={(state) => [s.btn, (state as { hovered?: boolean }).hovered === true && s.btnOver]}>
           <Text style={s.btnText}>{narrow ? "Preview as" : `Preview as ${previewAs ?? "…"}`}</Text><MenuIcon icon={ICON.down} />
         </Pressable>
       ) : null}
-      <Pressable ref={refOf("templates")} accessibilityRole="button" accessibilityLabel="Templates" testID="em-templates" onPress={templatesMenu} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}>
+      <Pressable ref={refOf("templates")} accessibilityRole="button" accessibilityLabel="Templates" testID="em-templates" onPress={templatesMenu} style={(state) => [s.btn, (state as { hovered?: boolean }).hovered === true && s.btnOver]}>
         <MenuIcon icon={ICON.templates} />{narrow ? null : <Text style={s.btnText}>Templates</Text>}
       </Pressable>
-      <Pressable ref={refOf("history")} accessibilityRole="button" accessibilityLabel="Version history" testID="em-history" onPress={historyMenu} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}><MenuIcon icon={ICON.history} /></Pressable>
+      <Pressable ref={refOf("history")} accessibilityRole="button" accessibilityLabel="Version history" testID="em-history" onPress={historyMenu} style={(state) => [s.btn, (state as { hovered?: boolean }).hovered === true && s.btnOver]}><MenuIcon icon={ICON.history} /></Pressable>
       <Btn label="Comments" icon={ICON.comment} on={commentsOpen} onPress={() => setCommentsOpen((o) => !o)} testID="em-comments" />
       <Btn label="Focus" icon={ICON.focus} onPress={() => setFocusMode(true)} testID="em-focus" />
-      <Btn label="Test send" icon={ICON.send} onPress={() => { setSent(true); onTestSend?.(); }} testID="em-test-send" />
+      <Btn label="Test send" icon={ICON.send} onPress={() => void sendTest()} testID="em-test-send" />
       {props.ask !== undefined ? <AskButton {...props.ask} compact={compact} /> : null}
     </View>
   );
@@ -649,7 +672,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
         <Text style={s.envLabel}>Subject</Text>
         <TextInput accessibilityLabel="Subject" testID="em-subject" value={subject} placeholder="Subject" placeholderTextColor="var(--ink-4)" style={s.envInput}
           onChangeText={(t) => { setSubject(t); commit({ ...snap, subject: t }, "Changed the subject"); }} />
-        <Pressable ref={refOf("suggest")} accessibilityRole="button" accessibilityLabel={`Suggest ${SUBJECT_IDEAS} subject lines`} testID="em-suggest" onPress={suggest} style={({ hovered }: { hovered?: boolean }) => [s.suggest, hovered === true && s.btnOver]}>
+        <Pressable ref={refOf("suggest")} accessibilityRole="button" accessibilityLabel={`Suggest ${SUBJECT_IDEAS} subject lines`} testID="em-suggest" onPress={suggest} style={(state) => [s.suggest, (state as { hovered?: boolean }).hovered === true && s.btnOver]}>
           <Text style={s.suggestText}>{`Suggest ${SUBJECT_IDEAS}`}</Text>
         </Pressable>
         <Btn label="A/B test" strong on={subjectB !== null} onPress={toggleAB} testID="em-ab" />
@@ -676,7 +699,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
     <View style={[s.rail, narrow && s.railNarrow]} testID="em-rail" accessibilityLabel="Blocks">
       {each(RAIL_ORDER, (k) => (
         <Pressable key={k} ref={refOf(`rail-${k}`)} accessibilityRole="button" accessibilityLabel={k === "saved" ? "Saved blocks" : `Add ${blockLabel(k)}`} testID={`em-add-${k}`} onPress={() => (k === "saved" ? savedMenu() : add(k))}
-          style={({ hovered }: { hovered?: boolean }) => [s.railBtn, hovered === true && s.btnOver]}>
+          style={(state) => [s.railBtn, (state as { hovered?: boolean }).hovered === true && s.btnOver]}>
           <MenuIcon icon={BLOCK_ICON[k]} />
           <Text style={s.railText}>{blockLabel(k)}</Text>
         </Pressable>
@@ -688,7 +711,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
     const on = b.id === selected;
     return (
       <Pressable key={b.id} testID={`em-block-${b.id}`} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`${blockLabel(b.kind)} block`} onPress={() => setSelected(b.id)}
-        style={({ hovered }: { hovered?: boolean }) => [s.blk, (on || hovered === true) && s.blkOver, on && s.blkOn]}>
+        style={(state) => [s.blk, (on || (state as { hovered?: boolean }).hovered === true) && s.blkOver, on && s.blkOn]}>
         {isTextual(b.kind) && editing !== b.id ? (
           <Text style={textStyle(b)} testID={`em-text-${b.id}`} onPress={() => { setSelected(b.id); setEditing(b.id); }}>
             {each(splitTokens(b.text ?? ""), (r, i) => r.token === undefined ? r.text
@@ -701,7 +724,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
             style={b.kind === "button" ? s.btnBlock : textStyle(b)} onFocus={() => setSelected(b.id)} onBlur={() => setEditing((e) => (e === b.id ? null : e))}
             onChangeText={(t) => changeBlocks(editBlock(blocks, b.id, { text: t }), "Edited text")} />
         ) : null}
-        {b.kind === "image" ? <View style={s.imgBlock}><Text style={s.imgText}>{b.text ?? "Image"}</Text></View> : null}
+        {b.kind === "image" ? b.src && /^https:\/\//i.test(b.src) ? <Image source={{ uri: b.src }} accessibilityLabel={b.alt ?? b.text ?? "Email image"} style={{ width: "100%", height: 180 }} resizeMode="contain" /> : <View style={s.imgBlock}><Text style={s.imgText}>Add an image URL in Style</Text></View> : null}
         {b.kind === "divider" ? <View style={s.divBlock} /> : null}
         {b.kind === "spacer" ? <View style={[s.spacerBlock, { height: clampSpacer(b.size ?? 24) }]} testID={`em-spacer-${b.id}`}><Text style={s.imgText}>{`${clampSpacer(b.size ?? 24)} px`}</Text></View> : null}
         {b.kind === "social" ? (
@@ -737,12 +760,12 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
             </View>
             <Btn label="Dark" icon={ICON.moon} on={preview === "dark"} strong onPress={() => pickPreview(preview === "dark" ? "desktop" : "dark")} testID="em-pv-dark" />
             {(props.contacts?.length ?? 0) > 0 ? (
-              <Pressable ref={refOf("previewas-stage")} accessibilityRole="button" accessibilityLabel="Preview as" testID="em-previewas-stage" onPress={() => contactMenu("previewas-stage")} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}>
+              <Pressable ref={refOf("previewas-stage")} accessibilityRole="button" accessibilityLabel="Preview as" testID="em-previewas-stage" onPress={() => contactMenu("previewas-stage")} style={(state) => [s.btn, (state as { hovered?: boolean }).hovered === true && s.btnOver]}>
                 <Text style={s.btnText}>{`Preview as ${previewAs ?? "…"}`}</Text><MenuIcon icon={ICON.down} />
               </Pressable>
             ) : null}
             <View style={s.grow} />
-            <Btn label="Send test" icon={ICON.send} strong onPress={() => { setSent(true); onTestSend?.(); }} testID="em-stage-send" />
+            <Btn label="Send test" icon={ICON.send} strong onPress={() => void sendTest()} testID="em-stage-send" />
           </View>
           <View style={s.frame}><Frame html={preHtml} width={PREVIEW_WIDTH[preview]} /></View>
         </ScrollView>
@@ -825,7 +848,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
             </View>
             <View style={s.ctl}>
               <Text style={s.ctlLabel}>Font</Text>
-              <Pressable ref={(r) => { fontBtn.current = r as unknown as typeof fontBtn.current; }} accessibilityRole="button" accessibilityLabel="Font" testID="em-font" onPress={pickFont} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}>
+              <Pressable ref={(r) => { fontBtn.current = r as unknown as typeof fontBtn.current; }} accessibilityRole="button" accessibilityLabel="Font" testID="em-font" onPress={pickFont} style={(state) => [s.btn, (state as { hovered?: boolean }).hovered === true && s.btnOver]}>
                 <Text style={s.btnText}>{style.font}</Text><MenuIcon icon={ICON.down} />
               </Pressable>
             </View>
@@ -856,6 +879,11 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
             {mergeFieldsOf(`${subject} ${compiled}`).length === 0 ? <Text style={s.note}>No merge fields yet. The Merge field block adds one.</Text>
               : each(mergeFieldsOf(`${subject} ${compiled}`), (f) => <View key={f} testID={`em-field-${f}`}><Row id={f} title={f} /></View>)}
             <Text style={s.sec}>Selected block</Text>
+            {sel !== null && (sel.kind === "image" || sel.kind === "button") ? <View style={s.ctl}>
+              <Text style={s.ctlLabel}>{sel.kind === "image" ? "Image URL (HTTPS)" : "Button destination"}</Text>
+              <TextInput accessibilityLabel={sel.kind === "image" ? "Image URL" : "Button URL"} value={sel.kind === "image" ? sel.src ?? "" : sel.href ?? ""} onChangeText={(value) => changeBlocks(editBlock(blocks, sel.id, sel.kind === "image" ? { src: value } : { href: value }), "Changed a URL")} style={s.envInput} />
+              {sel.kind === "image" ? <TextInput accessibilityLabel="Image alternative text" value={sel.alt ?? ""} onChangeText={(alt) => changeBlocks(editBlock(blocks, sel.id, { alt }), "Changed image description")} style={s.envInput} /> : null}
+            </View> : null}
             {sel !== null && (sel.kind === "heading" || sel.kind === "footer") ? (
               <View testID="em-textopts">
                 <View style={s.ctl} testID="em-align">
@@ -905,7 +933,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
                 </View>
                 {each(sel.links ?? [], (l, i) => (
                   <View key={i} style={s.ctl} testID={`em-link-${i}`}>
-                    <Pressable ref={refOf(`net-${i}`)} accessibilityRole="button" accessibilityLabel={`Network ${i + 1}`} testID={`em-link-net-${i}`} onPress={() => netMenu(sel, i)} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}>
+                    <Pressable ref={refOf(`net-${i}`)} accessibilityRole="button" accessibilityLabel={`Network ${i + 1}`} testID={`em-link-net-${i}`} onPress={() => netMenu(sel, i)} style={(state) => [s.btn, (state as { hovered?: boolean }).hovered === true && s.btnOver]}>
                       <Text style={s.btnText}>{netLabel(l.network)}</Text><MenuIcon icon={ICON.down} />
                     </Pressable>
                     <TextInput accessibilityLabel={`Address ${i + 1}`} testID={`em-link-url-${i}`} value={l.url} autoCapitalize="none" spellCheck={false} placeholder="https://" placeholderTextColor="var(--ink-4)" style={s.linkUrl}
@@ -963,7 +991,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
             <Text style={s.sec}>Send a test</Text>
             <Row id="to" title={props.testTo ?? "You"} note="To" />
             <View style={s.testRow}>
-              <Btn label="Send test" strong onPress={() => { setSent(true); onTestSend?.(); }} testID="em-preview-send" />
+              <Btn label="Send test" strong onPress={() => void sendTest()} testID="em-preview-send" />
               <Text style={s.note}>Merge fields are filled in for the record.</Text>
             </View>
           </View>
@@ -999,6 +1027,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
       </View>
       {focus ? <Text style={s.hint} testID="em-focus-hint">Focus mode. Esc or Shift-Cmd-F to leave.</Text> : null}
       {menu.element}
+      {sendError ? <Text accessibilityRole="alert" style={s.toast} testID="em-send-error">{sendError}</Text> : null}
       {sent ? <Text style={s.toast} testID="em-sent">Test email sent to you.</Text> : null}
     </View>
   );

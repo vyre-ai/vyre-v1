@@ -3154,6 +3154,7 @@ export type BackupConfigGetOut = {
     vaultName?: string;
   };
   schedule: string;
+  enabled: boolean;
   encrypted: boolean;
   lastBackupAt?: number;
 };
@@ -3182,6 +3183,17 @@ export type BackupExportStartIn = {
 };
 export type BackupExportStartOut = {
   runId: string;
+};
+export type BackupExportStatusIn = {
+  runId: string;
+};
+export type BackupExportStatusOut = {
+  runId: string;
+  state: "ready";
+  fileId: string;
+  name: string;
+  sizeBytes: number;
+  expiresAt: number;
 };
 export type BackupHealthIn = Record<string, unknown>;
 export type BackupHealthOut = {
@@ -9952,7 +9964,18 @@ export type FormsGetOut = {
       field: string;
       mode: "ask" | "show" | "hide";
       prefillKey?: string;
+      step?: number;
     }>;
+  settings: {
+    consentText: string;
+    captcha: boolean;
+    rateLimit: number;
+    thankYou?: {
+      text?: string;
+      redirect?: string;
+    };
+  };
+  css?: string;
   theme?: Record<string, unknown>;
   logic?: unknown;
 };
@@ -20231,6 +20254,28 @@ export type SessionsContinueOut = {
   threadId: string;
   linkedFrom: string;
 };
+export type SessionsGetIn = {
+  conversationId: string;
+};
+export type SessionsGetOut = {
+  session: {
+    conversationId: string;
+    provider: "codex" | "claude_code";
+    sourceKey: string;
+    sourceSessionId: string;
+    title: string;
+    startedAt: number;
+    importedAt: number;
+    projectId?: string;
+    continuedThreadId?: string;
+  };
+  messages: Array<{
+      sourceMessageId: string;
+      role: "user" | "assistant";
+      text: string;
+      at: number;
+    }>;
+};
 export type SessionsImportIn = {
   provider: "codex" | "claude_code";
   sourceKey: string;
@@ -20271,6 +20316,24 @@ export type SessionsImportOut = {
         spaceId: string;
       };
     }>;
+};
+export type SessionsListIn = {
+  cursor?: string;
+  limit?: number;
+};
+export type SessionsListOut = {
+  sessions: Array<{
+      conversationId: string;
+      provider: "codex" | "claude_code";
+      sourceKey: string;
+      sourceSessionId: string;
+      title: string;
+      startedAt: number;
+      importedAt: number;
+      projectId?: string;
+      continuedThreadId?: string;
+    }>;
+  next?: string;
 };
 export type SettingsCopyProfileIn = {
   fields: Array<"photo" | "name" | "handle" | "timezone" | "hours" | "contact">;
@@ -26762,6 +26825,7 @@ export interface CapMap {
   "backup.config_set": { in: BackupConfigSetIn; out: BackupConfigSetOut };
   "backup.delete": { in: BackupDeleteIn; out: BackupDeleteOut };
   "backup.export_start": { in: BackupExportStartIn; out: BackupExportStartOut };
+  "backup.export_status": { in: BackupExportStatusIn; out: BackupExportStatusOut };
   "backup.health": { in: BackupHealthIn; out: BackupHealthOut };
   "backup.list": { in: BackupListIn; out: BackupListOut };
   "backup.restore": { in: BackupRestoreIn; out: BackupRestoreOut };
@@ -27827,7 +27891,9 @@ export interface CapMap {
   "search.recent.record": { in: SearchRecentRecordIn; out: SearchRecentRecordOut };
   "search.related": { in: SearchRelatedIn; out: SearchRelatedOut };
   "sessions.continue": { in: SessionsContinueIn; out: SessionsContinueOut };
+  "sessions.get": { in: SessionsGetIn; out: SessionsGetOut };
   "sessions.import": { in: SessionsImportIn; out: SessionsImportOut };
+  "sessions.list": { in: SessionsListIn; out: SessionsListOut };
   "settings.copy_profile": { in: SettingsCopyProfileIn; out: SettingsCopyProfileOut };
   "settings.copy_source": { in: SettingsCopySourceIn; out: SettingsCopySourceOut };
   "settings.floor_set": { in: SettingsFloorSetIn; out: SettingsFloorSetOut };

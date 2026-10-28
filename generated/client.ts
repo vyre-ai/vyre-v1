@@ -207,6 +207,7 @@ export function createClient(transport: Transport) {
       config_set: call("backup.config_set", 1),
       delete: call("backup.delete", 1),
       export_start: call("backup.export_start", 1),
+      export_status: call("backup.export_status", 1),
       health: call("backup.health", 1),
       list: call("backup.list", 1),
       restore: call("backup.restore", 1),
@@ -1682,7 +1683,9 @@ export function createClient(transport: Transport) {
     },
     sessions: {
       continue: call("sessions.continue", 1),
+      get: call("sessions.get", 1),
       import: call("sessions.import", 1),
+      list: call("sessions.list", 1),
     },
     settings: {
       copy_profile: call("settings.copy_profile", 1),

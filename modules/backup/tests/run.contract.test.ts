@@ -51,7 +51,7 @@ async function populated(): Promise<World> {
 afterEach(() => configureBackup(null));
 
 test("a real handler exists for exactly the capabilities the registry declares for backup", () => {
-  assert.equal(caps.length, 10);
+  assert.equal(caps.length, 11);
   assert.deepEqual(Object.keys(handlers).sort(), caps.map((c) => c.name).sort());
 });
 

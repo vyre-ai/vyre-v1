@@ -274,8 +274,8 @@ export function AcceptInvite(props: AcceptInviteProps) {
     body = (
       <Step id="connect-ai" dir={state.dir}>
         <ConnectAI
-          invite={invite} ai={state.ai} apiKey={state.key} note={state.note} error={state.error}
-          onPick={(ai) => dispatch({ t: "pick_ai", ai })} onKey={(v) => dispatch({ t: "set", patch: { key: v } })} onSubscribe={() => dispatch({ t: "set", patch: { note: "subok" } })}
+          invite={invite} ai={state.ai} apiKey={state.key} note={state.note} error={state.error} providerKey={state.aiProvider} onProvider={(aiProvider) => dispatch({ t: "set", patch: { aiProvider } })}
+          onPick={(ai) => dispatch({ t: "pick_ai", ai })} onKey={(v) => dispatch({ t: "set", patch: { key: v } })} onSubscribe={() => undefined}
         />
       </Step>
     );

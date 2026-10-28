@@ -5,16 +5,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { States } from "../../../../../../ui/src/States/index.tsx";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { AddAnything, EditSheet, ItemEnv, NoItem } from "../itemenv/index.ts";
-import { VaultDataProvider, copyText, useOnline, useOptionalVaultData, useScreenQuery, useVaultData } from "./data.tsx";
+import { VaultDataProvider, copyText, retryVaultQueries, useOnline, useOptionalVaultData, usePrincipals, useScreenQuery, useVaultData } from "./data.tsx";
 import type { VaultData } from "./data.tsx";
 import { ItemList } from "./ItemList.tsx";
 import { ALL, countItems, sameSelection, visibleItems } from "./model.ts";
 import type { Folder, Health, Item, Provider, Selection } from "./model.ts";
-import { Glyph, IconBtn, QuietLine } from "./parts.tsx";
+import { Btn, Glyph, IconBtn, QuietLine } from "./parts.tsx";
 import { Sidebar } from "./Sidebar.tsx";
+import { Sheet } from "./Sheet.tsx";
+import { declineVaultRequest, fulfilVaultRequest, requestFields, revokeVaultExport } from "./routed-actions.ts";
 import { HealthView } from "../health/index.ts";
 import { ImportSheet } from "../import/index.ts";
 import type { Source } from "../import/index.ts";
@@ -30,6 +33,7 @@ type ItemsOut = CapMap["vault.items.list"]["out"];
 type FoldersOut = CapMap["vault.folders.list"]["out"];
 type ProvidersOut = CapMap["providers.list"]["out"];
 type RequestsOut = CapMap["vault.requests.list"]["out"];
+type ExportsOut = CapMap["vault.exports.list"]["out"];
 
 export const WIDE = 900;
 export const TWO_PANE = 720;
@@ -43,7 +47,14 @@ function titleOf(sel: Selection, folders: readonly Folder[]): string {
 interface QuietNote { id: number; text: string; undo: (() => Promise<void> | void) | undefined }
 const LINE_MS = 9000;
 
-function Page({ initial, sheet, view }: { initial?: Selection | undefined; sheet?: InitialSheet | undefined; view?: "env" | "fields" | undefined }): ReactElement {
+export type VaultRoute =
+  | { surface: "layout" }
+  | { surface: "share"; itemId: string }
+  | { surface: "export"; folderId: string }
+  | { surface: "advanced" }
+  | { surface: "requests" };
+
+function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selection | undefined; sheet?: InitialSheet | undefined; view?: "env" | "fields" | undefined; route: VaultRoute; onRouteClose(): void }): ReactElement {
   const data = useVaultData();
   const online = useOnline();
   const { width } = useWindowDimensions();
@@ -55,10 +66,11 @@ function Page({ initial, sheet, view }: { initial?: Selection | undefined; sheet
   const health = useScreenQuery<Health>("vault.health", "health", {});
   const requests = useScreenQuery<RequestsOut>("vault_requests.list", "requests", { state: "waiting" });
   const menu = useMenu();
-  const [selection, setSelection] = useState<Selection>(initial ?? ALL);
+  const routeSelection: Selection | undefined = route.surface === "requests" ? { kind: "requested" } : route.surface === "export" ? { kind: "folder", folderId: route.folderId } : undefined;
+  const [selection, setSelection] = useState<Selection>(routeSelection ?? initial ?? ALL);
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(route.surface === "share" ? route.itemId : null);
+  const [detailOpen, setDetailOpen] = useState(route.surface === "share");
   const [adding, setAdding] = useState<{ paste?: string; app?: string } | null>(sheet?.add ?? null);
   const [editing, setEditing] = useState<string | null>(sheet?.edit ?? null);
   const [addingProvider, setAddingProvider] = useState<boolean>(sheet?.addProvider !== undefined);
@@ -81,6 +93,12 @@ function Page({ initial, sheet, view }: { initial?: Selection | undefined; sheet
   const counts = useMemo(() => countItems(all, providerIds, health.status === "ready" ? health.data : null, requested), [all, providerIds, health, requested]);
   const visible = useMemo(() => visibleItems(all, selection, query, providerIds, healthIds), [all, selection, query, providerIds, healthIds]);
   const clock = data.clock();
+
+  useEffect(() => {
+    if (route.surface === "share") { setSelection(ALL); setSelectedId(route.itemId); setDetailOpen(true); }
+    else if (route.surface === "requests") { setSelection({ kind: "requested" }); setSelectedId(null); setDetailOpen(false); }
+    else if (route.surface === "export") { setSelection({ kind: "folder", folderId: route.folderId }); setSelectedId(null); setDetailOpen(false); }
+  }, [route]);
 
   const showNote = useCallback((text: string, undo?: () => Promise<void> | void) => {
     if (timer.current) clearTimeout(timer.current);
@@ -219,12 +237,18 @@ function Page({ initial, sheet, view }: { initial?: Selection | undefined; sheet
     </View>
   ) : <NoItem text={loading ? "" : visible.length === 0 ? "" : "Select an item to see its fields"} />;
 
+  const routed = route.surface === "advanced"
+    ? <AdvancedView onClose={onRouteClose} />
+    : route.surface === "requests"
+      ? <RequestsView requests={requests} items={all} onClose={onRouteClose} />
+      : null;
+
   return (
     <View style={s.page} testID="vault-place">
       {menu.element}
       {wide ? <Sidebar counts={counts} folders={folderList} selection={selection} onSelect={select} onAdvanced={data.nav.openAdvanced} onNewFolder={createFolder} onFolderMenu={folderMenu} canCreateShared /> : null}
-      {twoPane || !showDetail ? listPane : null}
-      {showDetail ? <View style={s.detail}>{detail}</View> : null}
+      {routed ?? <>{twoPane || !showDetail ? listPane : null}{showDetail ? <View style={s.detail}>{detail}</View> : null}</>}
+      {route.surface === "export" ? <ExportSheet folderId={route.folderId} folderName={folderList.find((f) => f.id === route.folderId)?.name ?? "folder"} onClose={onRouteClose} /> : null}
       {adding ? (
         <AddAnything
           lastFolderId={lastFolder} initialPaste={adding.paste} initialApp={adding.app} onClose={() => setAdding(null)}
@@ -245,6 +269,104 @@ function Page({ initial, sheet, view }: { initial?: Selection | undefined; sheet
       {importing ? <ImportSheet folders={folderList.filter((f) => f.yourLevel === "edit" || f.yourLevel === "manage")} {...(typeof sheet?.importFrom === "string" ? { initialSource: sheet.importFrom } : {})} onClose={() => setImporting(false)} onDone={(t) => showNote(t)} /> : null}
       {editing ? <EditSheet itemId={editing} addField={addField} onClose={() => { setEditing(null); setAddField(false); }} onSaved={(text) => showNote(text)} /> : null}
     </View>
+  );
+}
+
+function RequestsView({ requests, items, onClose }: { requests: import("../../../../../../client/src/index.ts").QueryState<RequestsOut>; items: readonly Item[]; onClose(): void }): ReactElement {
+  const data = useVaultData();
+  const names = usePrincipals();
+  const cards: ReactElement[] = [];
+  if (requests.status === "ready") for (const request of requests.data.requests) cards.push(<RequestCard key={request.id} request={request} items={items} requester={names.name(request.requester.id)} />);
+  return (
+    <View style={s.routed} testID="vault-requests">
+      <View style={s.routedHead}><Btn label="Back" icon="back" onPress={onClose} /><Text accessibilityRole="header" style={s.routedTitle}>Requested</Text></View>
+      <Text style={s.routedIntro}>Keys and fields that an Automation or agent is waiting for.</Text>
+      {requests.status === "loading" && requests.error ? <States kind="error" message="Couldn't load Vault requests" cause={requests.error.message} {...(requests.error.code ? { code: requests.error.code } : {})} {...(requests.error.traceId ? { traceId: requests.error.traceId } : {})} retryable onRetry={() => { retryVaultQueries(data.screens); }} /> : requests.status !== "ready" ? <Text style={s.routedSub}>Loading</Text> : cards.length === 0 ? <States kind="empty" title="Nothing is waiting" icon="search" /> : cards}
+    </View>
+  );
+}
+
+function RequestCard({ request, items, requester }: { request: RequestsOut["requests"][number]; items: readonly Item[]; requester: string }): ReactElement {
+  const data = useVaultData();
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState("");
+  const candidates = items.filter((item) => request.fields.every((field) => item.fieldKeys.includes(field)));
+  const run = (action: () => Promise<void>): void => {
+    setBusy(true); setFailure("");
+    void action().catch((error) => setFailure(error instanceof Error ? error.message : "That did not work")).finally(() => setBusy(false));
+  };
+  const fieldsReady = request.fields.length > 0 && request.fields.every((field) => (draft[field] ?? "").trim() !== "");
+  const candidateButtons: ReactElement[] = [];
+  for (const item of candidates) candidateButtons.push(<Btn key={item.id} label={`Use ${item.name}`} disabled={busy} onPress={() => run(() => fulfilVaultRequest(data, request.id, { itemId: item.id }))} testID={`vault-request-use-${request.id}-${item.id}`} />);
+  const fieldInputs: ReactElement[] = [];
+  for (const field of request.fields) fieldInputs.push(<TextInput key={field} value={draft[field] ?? ""} onChangeText={(value) => setDraft((cur) => ({ ...cur, [field]: value }))} placeholder={field} accessibilityLabel={field} secureTextEntry style={s.requestInput} testID={`vault-request-field-${request.id}-${field}`} />);
+  return (
+    <View style={s.requestCard} testID={`vault-request-${request.id}`}>
+      <Text style={s.routedName}>{request.name}</Text>
+      <Text style={s.routedSub}>{`${requester} · ${request.reason}`}</Text>
+      {candidates.length ? (
+        <View style={s.requestActions}>
+          {candidateButtons}
+        </View>
+      ) : (
+        <View style={{ gap: 8 }}>
+          <Text style={s.routedSub}>Save the requested fields as a new Vault item</Text>
+          {fieldInputs}
+          <Btn label="Save and fulfil" primary disabled={busy || !fieldsReady} onPress={() => run(() => fulfilVaultRequest(data, request.id, { fields: requestFields(request.fields, draft), ...(request.folderId ? { folderId: request.folderId } : {}) }))} testID={`vault-request-fulfil-${request.id}`} />
+        </View>
+      )}
+      <View style={s.requestActions}>
+        <TextInput value={note} onChangeText={setNote} placeholder="Note for requester (optional)" accessibilityLabel="Decline note" style={[s.requestInput, { flex: 1 }]} />
+        <Btn label="Decline" danger disabled={busy} onPress={() => run(() => declineVaultRequest(data, request.id, note))} testID={`vault-request-decline-${request.id}`} />
+      </View>
+      {failure ? <Text style={s.error} accessibilityRole="alert">{failure}</Text> : null}
+    </View>
+  );
+}
+
+function AdvancedView({ onClose }: { onClose(): void }): ReactElement {
+  const { nav } = useVaultData();
+  const rows = [
+    ["Backups", "Review, verify, restore, or run encrypted Space backups", nav.openBackups],
+    ["Devices", "See and revoke the computers that can open this Vault", nav.openDevices],
+    ["Outside agents", "Create, scope, or revoke access for Claude Code, Codex, and other tools", nav.openOutsideActors],
+  ] as const;
+  return (
+    <View style={s.routed} testID="vault-advanced">
+      <View style={s.routedHead}><Btn label="Back" icon="back" onPress={onClose} /><Text accessibilityRole="header" style={s.routedTitle}>Advanced</Text></View>
+      {rows.map(([title, sub, open]) => <Row key={title} id={`vault-advanced-${title.toLowerCase().replace(/\s+/g, "-")}`} title={title} note={sub} tall onPress={open} trailing={<Glyph name="chevron" />} />)}
+    </View>
+  );
+}
+
+function ExportSheet({ folderId, folderName, onClose }: { folderId: string; folderName: string; onClose(): void }): ReactElement {
+  const data = useVaultData();
+  const exports = useScreenQuery<ExportsOut>("vault.export", "open", { folderId });
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ pullUrl: string; expiresAt: number } | null>(null);
+  const [failure, setFailure] = useState("");
+  const exportFolder = async (): Promise<void> => {
+    setBusy(true); setFailure("");
+    try {
+      const out = await data.call("vault.export_env", { folderId, expiresIn: "1h", idempotencyKey: `vault-export:${folderId}:${Date.now()}` }) as { pullUrl: string; expiresAt: number };
+      setResult(out);
+    } catch (error) { setFailure(error instanceof Error ? error.message : "Couldn't export this folder"); }
+    finally { setBusy(false); }
+  };
+  return (
+    <Sheet title={`Export ${folderName} as .env`} onClose={onClose} testID="vault-export-sheet" footer={<><View style={{ flex: 1 }} /><Btn label="Cancel" onPress={onClose} /><Btn label={busy ? "Exporting…" : "Create export"} primary disabled={busy} onPress={() => { void exportFolder(); }} testID="vault-export-create" /></>}>
+      <Text style={s.routedIntro}>Creates a one-hour, logged download. Values stay hidden in the Vault.</Text>
+      {result ? <View style={{ gap: 8 }}><Text style={s.routedName}>Export ready</Text><Btn label="Copy download link" icon="copy" onPress={() => { void copyText(data, result.pullUrl); }} testID="vault-export-copy" /></View> : null}
+      <View style={{ gap: 6 }} testID="vault-active-exports">
+        <Text style={s.routedName}>Active exports</Text>
+        {exports.status === "loading" && exports.error ? <States kind="error" message="Couldn't load active exports" cause={exports.error.message} {...(exports.error.code ? { code: exports.error.code } : {})} {...(exports.error.traceId ? { traceId: exports.error.traceId } : {})} retryable onRetry={() => { retryVaultQueries(data.screens); }} /> : exports.status !== "ready" ? <Text style={s.routedSub}>Loading</Text> : exports.data.exports.length === 0 ? <Text style={s.routedSub}>No open download links</Text> : exports.data.exports.map((item) => (
+          <Row key={item.id} id={`vault-export-${item.id}`} title={item.pulled ? "Downloaded" : "Not downloaded"} note={`Expires ${new Date(item.expiresAt).toLocaleString()}`} trailing={<Btn label="Revoke" danger onPress={() => { void revokeVaultExport(data, item.id).catch((error) => setFailure(error instanceof Error ? error.message : "Could not revoke export")); }} testID={`vault-export-revoke-${item.id}`} />} />
+        ))}
+      </View>
+      {failure ? <Text style={s.error} accessibilityRole="alert">{failure}</Text> : null}
+    </Sheet>
   );
 }
 
@@ -295,15 +417,19 @@ export interface VaultProps {
   sheet?: InitialSheet | undefined;
   /** The card's first view for the opening item. */
   view?: "env" | "fields" | undefined;
+  /** The shell route currently open inside the Vault. */
+  route?: VaultRoute | undefined;
+  /** Clears a routed sheet/page back to the Vault root. */
+  onRouteClose?: (() => void) | undefined;
 }
 
-export default function VaultLayout({ data, initial, sheet, view }: VaultProps): ReactElement {
+export default function VaultLayout({ data, initial, sheet, view, route = { surface: "layout" }, onRouteClose = () => undefined }: VaultProps): ReactElement {
   const provided = useOptionalVaultData();
   const d = data ?? provided;
   if (!d) return <VaultLoading />;
   return (
     <VaultDataProvider value={d}>
-      <Page initial={initial} sheet={sheet} view={view} />
+      <Page initial={initial} sheet={sheet} view={view} route={route} onRouteClose={onRouteClose} />
     </VaultDataProvider>
   );
 }
@@ -324,6 +450,16 @@ const s = StyleSheet.create({
   empty: { flex: 1, alignItems: "center", justifyContent: "center" },
   lineSlot: { height: 32, paddingHorizontal: 18, justifyContent: "center" },
   offline: { fontSize: 12, color: "var(--ink-3)" as string, paddingHorizontal: 18, paddingBottom: 8 },
+  routed: { flex: 1, minWidth: 0, padding: 24, gap: 10 },
+  routedHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  routedTitle: { fontSize: 20, fontWeight: "600", color: "var(--ink)" as string },
+  routedIntro: { fontSize: 13, color: "var(--ink-3)" as string },
+  routedName: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
+  routedSub: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  requestCard: { gap: 10, padding: 14, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 10, backgroundColor: "var(--raised)" as string },
+  requestActions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
+  requestInput: { minHeight: 34, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 7, paddingHorizontal: 10, color: "var(--ink)" as string, backgroundColor: "var(--win)" as string },
+  error: { fontSize: 12.5, color: "var(--danger)" as string },
   skRow: { height: 44, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 8 },
   skLogo: { width: 30, height: 30, borderRadius: 8, backgroundColor: "var(--sel)" as string },
   skBar: { height: 11, borderRadius: 4, backgroundColor: "var(--sel)" as string },

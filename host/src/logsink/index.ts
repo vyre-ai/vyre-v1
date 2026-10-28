@@ -54,6 +54,7 @@ export class LogSink implements SpanSink {
   private rows: { at: number; row: LogRow }[] = [];
   private spans: SpanRow[] = [];
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private closed = false;
   private batchMs: number;
   private now: () => number;
   private secrets: () => readonly string[];
@@ -79,10 +80,12 @@ export class LogSink implements SpanSink {
   }
 
   log(row: LogRow): void {
+    if (this.closed) return;
     this.rows.push({ at: this.now(), row });
     this.schedule();
   }
   span(row: SpanRow): void {
+    if (this.closed) return;
     this.spans.push(row);
     this.schedule();
   }
@@ -93,6 +96,7 @@ export class LogSink implements SpanSink {
 
   /** Write everything queued as one transaction. */
   flush(): void {
+    if (this.closed) return;
     if (this.timer) { clearTimeout(this.timer); this.timer = null; }
     if (!this.rows.length && !this.spans.length) return;
     const rows = this.rows, spans = this.spans;
@@ -140,5 +144,11 @@ export class LogSink implements SpanSink {
   /** Erase a person: rows keep ids only, and reads blank the actor. */
   erase(actor: string): void { this.flush(); this.db.prepare("INSERT OR REPLACE INTO log_tombstones (actor, at) VALUES (?, ?)").run(actor, this.now()); }
 
-  close(): void { this.flush(); this.db.close(); }
+  /** Drain all accepted records before closure; shutdown callbacks may append later. */
+  close(): void {
+    if (this.closed) return;
+    this.flush();
+    this.closed = true;
+    this.db.close();
+  }
 }

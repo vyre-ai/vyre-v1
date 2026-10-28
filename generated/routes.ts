@@ -2622,6 +2622,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/backup/export_status",
+    "cap": "backup.export_status",
+    "v": 1,
+    "module": "backup",
+    "effects": "read",
+    "permission": "server.backups",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/backup/health",
     "cap": "backup.health",
     "v": 1,
@@ -22157,6 +22175,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/sessions/get",
+    "cap": "sessions.get",
+    "v": 1,
+    "module": "import",
+    "effects": "read",
+    "permission": "chats.private",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/sessions/import",
     "cap": "sessions.import",
     "v": 1,
@@ -22169,6 +22205,24 @@ export const routes: Route[] = [
     },
     "idempotency": "key",
     "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/sessions/list",
+    "cap": "sessions.list",
+    "v": 1,
+    "module": "import",
+    "effects": "read",
+    "permission": "chats.private",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
     "offline": null,
     "teamOnly": false,
     "gate": null

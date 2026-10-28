@@ -14,6 +14,10 @@ export interface VaultNav {
   openExport(folderId: string): void;
   /** The Advanced page: emergency access, recovery key, backups, devices, outside-agent passes. */
   openAdvanced(): void;
+  /** Contract-backed security surfaces linked from Advanced. */
+  openBackups(): void;
+  openDevices(): void;
+  openOutsideActors(): void;
   /** The Automation or agent that is asking for a key. */
   openRequests(): void;
   openAgent(agentId: string): void;
@@ -64,6 +68,14 @@ export function useScreenQuery<T>(screenId: string, name: string, state: Record<
   const key = JSON.stringify(state);
   const q = useMemo(() => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>, [screens, screenId, name, key]);
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
+}
+
+/** Ask the live screen layer to retry failed reads when the host supports invalidation. */
+export function retryVaultQueries(screens: ScreenHooks): boolean {
+  const invalidate = (screens as ScreenHooks & { invalidate?: () => void }).invalidate;
+  if (typeof invalidate !== "function") return false;
+  invalidate.call(screens);
+  return true;
 }
 
 export function usePrincipals(): { name(id: string): string; all: readonly Principal[] } {
