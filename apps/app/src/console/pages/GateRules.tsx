@@ -41,14 +41,14 @@ export function GateRules(): ReactElement {
   const floorRules = useRead<CapMap["gate.rules.list"]["out"]>("gate.rules.list", { scope: "floor" });
   const acts = useRead<CapMap["gate.acts.list"]["out"]>("gate.acts.list");
   const agents = useRead<CapMap["agents.list"]["out"]>("agents.list", { section: "space", limit: 100 });
-  const people = useRead<CapMap["access.principals.list"]["out"]>("access.principals.list", { kind: "person", limit: 100 });
+  const me = useRead<CapMap["access.principals.get"]["out"]>("access.principals.get", { principal: { kind: "person", id: data.me.id } });
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<Rule | null>(null);
   const [preview, setPreview] = useState<CapMap["gate.rules.set"]["in"] | null>(null);
   const refresh = (): void => { rules.refresh(); spaceRules.refresh(); floorRules.refresh(); };
   const action = useAction(() => { refresh(); setDraft(null); setPreview(null); });
-  if (!rules.data || !spaceRules.data || !floorRules.data || !acts.data || !agents.data || !people.data) return <ReadState error={rules.error ?? spaceRules.error ?? floorRules.error ?? acts.error ?? agents.error ?? people.error} retry={() => { refresh(); acts.refresh(); agents.refresh(); people.refresh(); }} />;
-  const owner = canEditOwnerFloor(people.data.principals.find((person) => person.id === data.me.id)?.roles ?? []);
+  if (!rules.data || !spaceRules.data || !floorRules.data || !acts.data || !agents.data || !me.data) return <ReadState error={rules.error ?? spaceRules.error ?? floorRules.error ?? acts.error ?? agents.error ?? me.error} retry={() => { refresh(); acts.refresh(); agents.refresh(); me.refresh(); }} />;
+  const owner = canEditOwnerFloor(me.data.principal.roles);
   const allAgents = mergeGateAgents(agents.data.agents, moreAgents);
   const nextAgent = agentPage.loaded ? agentPage.next : agents.data.next;
   const loadAgents = (): void => {

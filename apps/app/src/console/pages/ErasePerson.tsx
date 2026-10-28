@@ -14,7 +14,7 @@ export const eraseFindingExpired = (expiresAt: number, now = Date.now()): boolea
 export function ErasePerson(): ReactElement {
   const data = useConsoleData();
   const history = useRead<CapMap["governance.erase.list"]["out"]>("governance.erase.list", { limit: 100 });
-  const people = useRead<CapMap["access.principals.list"]["out"]>("access.principals.list", { kind: "person", limit: 100 });
+  const me = useRead<CapMap["access.principals.get"]["out"]>("access.principals.get", { principal: { kind: "person", id: data.me.id } });
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -25,10 +25,10 @@ export function ErasePerson(): ReactElement {
   const [reviewed, setReviewed] = useState<CapMap["governance.erase.apply"]["in"] | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const refresh = (): void => { history.refresh(); people.refresh(); };
+  const refresh = (): void => { history.refresh(); me.refresh(); };
   const action = useAction(refresh);
-  if (!history.data || !people.data) return <ReadState error={history.error ?? people.error} retry={refresh} />;
-  const owner = people.data.principals.find((person) => person.id === data.me.id)?.roles.includes("rol_owner") ?? false;
+  if (!history.data || !me.data) return <ReadState error={history.error ?? me.error} retry={refresh} />;
+  const owner = me.data.principal.roles.includes("rol_owner");
   const subject = { ...(name.trim() ? { name: name.trim() } : {}), ...(email.trim() ? { email: email.trim() } : {}), ...(phone.trim() ? { phone: phone.trim() } : {}) };
   const onEdit = (): void => { setFinding(null); setReviewed(null); setRunId(null); setError(""); };
   const find = (): void => {
