@@ -22,7 +22,7 @@ import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts"
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 
 /** The part of the host Ctx the backup handlers use. The full Ctx satisfies it. */
-export type BackupCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "call" | "seal" | "schedule" | "run" | "authorize"> & {ownerArchive?:{saveZip?(runId:string,name:string,bytes:Uint8Array):Promise<{fileId:string}>;status?(runId:string):Promise<unknown>}};
+export type BackupCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "call" | "seal" | "schedule" | "run" | "authorize"> & {ownerArchive?:{collect?():Promise<SnapshotEntry[]>;saveZip?(runId:string,name:string,bytes:Uint8Array):Promise<{fileId:string}>;status?(runId:string):Promise<unknown>}};
 
 // ---- the drivers the host supplies
 
@@ -757,11 +757,15 @@ export async function export_start(ctx: BackupCtx, _input: Record<string, unknow
   const secrets = (await d.source.secretValues()).filter((s) => s.length >= 6);
   const keep: SnapshotEntry[] = [];
   let skipped = 0;
-  for (const e of await d.source.exportEntries()) {
-    if (exportBlocked(e.path) || secrets.some((s) => contains(e.bytes, s) || e.path.includes(s))) { skipped++; continue; }
+  const collected=ctx.ownerArchive?.collect!==undefined;
+  for (const e of await (collected ? ctx.ownerArchive!.collect!() : d.source.exportEntries())) {
+    if (exportBlocked(e.path) || secrets.some((s) => contains(e.bytes, s) || e.path.includes(s))) {
+      if(collected)return failWith(ctx.trace.traceId,"validation.precondition_failed","A prohibited entry was detected after snapshot collection. No partial archive was created.");
+      skipped++; continue;
+    }
     keep.push(e);
   }
-  const readme = enc.encode(`Vyre export of ${ctx.space}\nTaken ${new Date(at).toISOString()} by ${ctx.principal.id}.\n${keep.length} files. ${skipped} left out (secrets, keys and private items are never exported).\n`);
+  const readme = enc.encode(`Vyre export of ${ctx.space}\n${collected ? "Scope: shared Space. Current records and schema, retained Files versions, public channels and Space settings. See manifest.json for exact inclusions, exclusions and hashes. Private/group chats, Personal files, personal memory and secret values are excluded.\n" : ""}Taken ${new Date(at).toISOString()} by ${ctx.principal.id}.\n${keep.length} files. ${skipped} left out (secrets, keys and private items are never exported).\n`);
   const bytes = zip([{ path: "README.txt", bytes: readme }, ...keep], at);
   const name=`vyre-export-${new Date(at).toISOString().slice(0, 10)}.zip`;
   const saved = ctx.ownerArchive?.saveZip ? await ctx.ownerArchive.saveZip(runId,name,bytes) : await d.exports.save(name,bytes);

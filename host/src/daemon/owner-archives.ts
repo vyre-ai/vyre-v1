@@ -25,6 +25,7 @@ export function createOwnerArchives(o: {
     now(): number;
     register(id: string, ctx: Execution): Promise<void>;
     collect?(ctx:Execution,assertOwner:()=>void):Promise<{path:string;bytes:Uint8Array}[]>;
+    assertSnapshot?(ctx:Execution):void;
 }) {
     const port = o.blobs.forModule('owner_archives');
     o.db.run('CREATE TABLE IF NOT EXISTS host_owner_archive (id TEXT PRIMARY KEY,space TEXT NOT NULL,requester TEXT NOT NULL,run_id TEXT NOT NULL,blob_id TEXT NOT NULL,name TEXT NOT NULL,size INTEGER NOT NULL,at INTEGER NOT NULL,expires_at INTEGER NOT NULL)');
@@ -51,13 +52,13 @@ export function createOwnerArchives(o: {
             return{runId,state:'ready',fileId:row.id,name:row.name,sizeBytes:row.size,expiresAt:row.expires_at};
         }});
         return Object.freeze({...(o.collect?{collect:()=>o.collect!(ctx,()=>check(ctx))}:{}),saveZip:async(runId:string,name:string,bytes:Uint8Array)=>{
-            check(ctx);await cleanup();check(ctx);
+            check(ctx);await cleanup();check(ctx);o.assertSnapshot?.(ctx);
             if(!/^run_[A-Za-z0-9]+$/.test(runId)||!(bytes instanceof Uint8Array)||bytes.length<4||bytes[0]!==80||bytes[1]!==75||bytes[2]!==3||bytes[3]!==4||bytes.length>MAX||!/^vyre-export-\d{4}-\d{2}-\d{2}\.zip$/.test(name))throw fail('validation.bad_input',ctx.trace.traceId,{message:'The generated Space archive is invalid or exceeds 256 MB.'});
             const at=o.now(),id=`fil_${mintUuid(at).replaceAll('-','')}`,blob=await port.put(bytes,'application/zip');
             try {
                 const saved=await port.get(blob.id);
                 if(!saved||saved.bytes.length!==bytes.length||!saved.bytes.every((value,index)=>value===bytes[index]))throw fail('internal.unavailable',ctx.trace.traceId,{message:'The Space archive could not be verified after storage.'});
-                check(ctx);await o.register(id,ctx);check(ctx);
+                check(ctx);o.assertSnapshot?.(ctx);await o.register(id,ctx);check(ctx);o.assertSnapshot?.(ctx);
                 if(at+TTL<=o.now())throw fail('validation.precondition_failed',ctx.trace.traceId,{message:'This archive expired during persistence. Create it again.'});
                 // Status cannot see a ready pointer until verification and resource registration both finish.
                 o.db.run('INSERT INTO host_owner_archive VALUES (?,?,?,?,?,?,?,?,?)',id,o.space,ctx.principal.id,runId,blob.id,name,bytes.length,at,at+TTL);
