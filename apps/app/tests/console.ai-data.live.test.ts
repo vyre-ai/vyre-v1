@@ -26,7 +26,7 @@ test("production Console AI/Data: policies, spend, Gate, review, incidents, hold
     await page.getByTestId("claim-password").fill("fixture password 123"); await page.getByTestId("claim-confirm").fill("fixture password 123");
     await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click();
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
-    const token = await page.evaluate(() => { const saved = JSON.parse(localStorage.getItem("vyre.session.v1")!); return saved.sessions?.[location.origin]?.token ?? saved.token; });
+    const token = await page.evaluate(() => { const saved = JSON.parse(localStorage.getItem("vyre.session.v1")!); const origin = (globalThis as unknown as { location: { origin: string } }).location.origin; return saved.sessions?.[origin]?.token ?? saved.token; });
     const api = createCapCaller({ baseUrl: web.origin, token: () => token, routes: async () => routes });
     const open = async (screen: string, marker: string, pageId?: string): Promise<void> => {
       const pageArg = pageId ? `&page=${pageId}` : "";
