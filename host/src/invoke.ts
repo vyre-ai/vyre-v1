@@ -97,6 +97,7 @@ export interface InvokeDeps {
   recordAccess?: {
     facts(cap:string,input:unknown,req:AuthReq,trace:string):Promise<AuthReq>;
     project(cap:string,input:unknown,seed:CtxSeed,output:unknown,trace:string):Promise<()=>unknown>;
+    collection?(cap:string,input:unknown,seed:CtxSeed,req:AuthReq,trace:string):Promise<{finish():unknown}|null>;
   };
   preview?: { read(token: string, cap: string, input: unknown, trace: string): Promise<{ finish(): unknown }> };
   caps: CapIndex;
@@ -218,7 +219,18 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         if (!deps.preview || seed.preAuth || depth !== 0 || c.effects !== "read") throw fail("permission.no_grant", traceId);
         const result = await deps.preview.read(seed.previewToken, c.name, input, traceId);
         await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events: [], audit: { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: `dec_${hex(16)}`, reason: "ok", resource: null, traceId, spanId: trace.spanId, at: now(), risk: c.risk } });
-        return { status: "ok", output: result.finish(), traceId };
+        return { status: "ok", output: await result.finish(), traceId };
+      }
+
+      if(deps.recordAccess?.collection&&["records.query","records.search","records.counts"].includes(c.name)){
+        const resource=resolveResource(c,input,seed.space,deps.resolveItem);
+        const req:AuthReq={principal:seed.principal.id,actingFor:seed.actingFor,provider:seed.provider,action:{perm:c.permission,level:"view"},resource,now:now(),cap:c.name,input};
+        const scoped=await deps.recordAccess.collection(c.name,input,seed,req,traceId);
+        if(scoped){
+          if(c.rate&&deps.rate&&!deps.rate.take(c.rate.scope==="space"?`space:${seed.space}:${c.name}`:`${seed.principal.id}:${c.name}`,c.rate,now()))throw fail("rate_limit.exceeded",traceId,{details:{cap:c.name,perSeconds:c.rate.perSeconds}});
+          await deps.commit({cap:c.name,v:c.v,principal:seed.principal.id,events:[],audit:{class:"allow",cap:c.name,v:c.v,principal:seed.principal.id,actingFor:seed.actingFor,decisionId:`dec_${hex(16)}`,reason:"ok",resource,traceId,spanId:trace.spanId,at:now(),risk:c.risk}});
+          return{status:"ok",output:await scoped.finish(),traceId};
+        }
       }
 
       // 3 idempotency: a 'key' capability requires the key; the stored result of a repeat is returned without running anything
@@ -332,7 +344,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     if (events.length || auditRow) stored = await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events, audit: auditRow });
     // 8 publish after commit
     if (stored.length) deps.publish?.(stored);
-    return { status: "ok", output:finishOutput?finishOutput():output, traceId };
+    return { status: "ok", output:finishOutput?await finishOutput():output, traceId };
   }
 
   async function park(c: CapabilityDef, input: unknown, seed: CtxSeed, traceId: string, decisionId: string, act: string, row: AuditRow | null): Promise<InvokeResult> {

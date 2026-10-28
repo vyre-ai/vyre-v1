@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
 import type { Store, StoredRecord } from "../../kernel/src/store/types.ts";
 import { createViewAs } from "../src/daemon/view-as.ts";
+import {registry} from "../../generated/registry.ts";
 
 function fixture() {
   const snap = new AccessSnapshot(); let now = 1000, sourceLive = true;
@@ -20,7 +21,7 @@ function fixture() {
   for (const person of ["admin", "target"]) snap.putGrant({ id: person, subject_kind: "actor", subject_id: person, resource_type: "record_type", resource_id: "type", level: "view", conditions: { rowFilter: { op: "eq", field: "region", value: "eu" }, hiddenFields: person === "admin" ? ["region"] : ["secret"] } });
   snap.setFieldLabel("type", "restricted", 3);
   const store = {
-    get: async (_type: string, id: string) => rows.find(row => row.id === id) ?? null,
+    types:async()=>[], get: async (_type: string, id: string) => rows.find(row => row.id === id) ?? null,
     query: async (_type: string, spec: { page: { cursor?: string } }) => { const offset = Number(spec.page.cursor ?? 0); return { rows: rows.slice(offset, offset + 1), ...(offset + 1 < rows.length ? { next_cursor: String(offset + 1) } : {}) }; },
   } as unknown as Store;
   const ports = { space: "space", snapshot: () => snap, sourceLive: () => sourceLive, store: () => store, now: () => now };
@@ -30,12 +31,16 @@ function fixture() {
   return { snap, store, preview, token, ports, source, expire: () => { now += 600_000; }, revoke: () => { sourceLive = false; } };
 }
 
+test("preview permissions track the canonical Records read contracts",()=>{
+ for(const name of ["records.get","records.query"]){const cap=registry.capabilities.find(cap=>cap.name===name);assert.ok(cap);assert.equal(cap.effects,"read");assert.equal(cap.permission,null,"If the canonical permission changes, update the closed preview facade too.");}
+});
+
 test("preview intersects real row filters, hidden fields, labels and opaque pagination", async () => {
   const f = fixture();
-  const first = (await f.preview.read(f.token, "records.query", { type: "type", limit: 1 }, "trace")).finish() as { rows: { id: string; fields: unknown }[]; next: string };
+  const first = await (await f.preview.read(f.token, "records.query", { type: "type", limit: 1 }, "trace")).finish() as { rows: { id: string; fields: unknown }[]; next: string };
   assert.deepEqual(first.rows, [{ id: "one", type: "type", version: 1, label: 0, fields: { name: "one" }, createdAt: 1, updatedAt: 1, holds: 0 }]);
   assert.match(first.next, /^[a-f0-9]{64}$/);
-  const next = (await f.preview.read(f.token, "records.query", { type: "type", cursor: first.next }, "trace")).finish() as { rows: { id: string }[] };
+  const next = await (await f.preview.read(f.token, "records.query", { type: "type", cursor: first.next }, "trace")).finish() as { rows: { id: string }[] };
   assert.deepEqual(next.rows.map(row => row.id), ["three"]);
   await assert.rejects(f.preview.read(f.token, "records.get", { type: "type", recordId: "two" }, "trace"));
   await assert.rejects(f.preview.read(f.token, "records.query", { type: "type", filter: {} }, "trace"));
@@ -51,13 +56,13 @@ test("preview rejects every nonallowlisted capability, expiry, restart and cross
 
 test("revocation and target permission changes after awaited reads block release", async () => {
   const f = fixture(); const pending = await f.preview.read(f.token, "records.get", { type: "type", recordId: "one" }, "trace");
-  f.revoke(); assert.throws(() => pending.finish()); assert.equal(f.preview.resolve(f.token), null);
+  f.revoke(); await assert.rejects(pending.finish()); assert.equal(f.preview.resolve(f.token), null);
   const g = fixture(); const row = await g.preview.read(g.token, "records.get", { type: "type", recordId: "one" }, "trace");
-  g.snap.putPrincipal({ id: "target", kind: "person", status: "suspended" }); assert.throws(() => row.finish());
+  g.snap.putPrincipal({ id: "target", kind: "person", status: "suspended" }); await assert.rejects(row.finish());
   const h = fixture(); const read = await h.preview.read(h.token, "records.get", { type: "type", recordId: "one" }, "trace");
-  h.snap.putRole({ id: "manager", clearance: 3, perms: [] }); assert.throws(() => read.finish(), "losing requester access.manage revokes preview immediately");
+  h.snap.putRole({ id: "manager", clearance: 3, perms: [] }); await assert.rejects(read.finish(), "losing requester access.manage revokes preview immediately");
   const i = fixture(); const labeled = await i.preview.read(i.token, "records.get", { type: "type", recordId: "one" }, "trace");
-  i.snap.putResource({ id: "one", type: "record", parent_id: "type", label: 3, owner_id: "admin", holds: 0 }); assert.throws(() => labeled.finish(), "target clearance still caps owner-visible data");
+  i.snap.putResource({ id: "one", type: "record", parent_id: "type", label: 3, owner_id: "admin", holds: 0 }); await assert.rejects(labeled.finish(), "target clearance still caps owner-visible data");
   assert.throws(() => i.preview.issue({ ...i.source, sessionId: "" }, "target", "trace"));
   assert.throws(() => i.preview.issue(i.source, "admin", "trace"));
 });
@@ -74,5 +79,5 @@ test("a blocked canonical read cannot outlive source revocation", async () => {
   let release!: (value: StoredRecord | null) => void;
   f.store.get = () => new Promise(resolve => { release = resolve; });
   const pending = f.preview.read(f.token, "records.get", { type: "type", recordId: "one" }, "trace");
-  f.revoke(); release(row); await assert.rejects(pending);
+  await new Promise<void>(resolve=>setImmediate(resolve));f.revoke(); release(row); await assert.rejects(pending);
 });

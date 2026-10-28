@@ -1,5 +1,7 @@
 # Changelog
 
+- Complete conditional Records collection reads through the canonical typed store: requester/acting-person authorization runs per actual row, authorized pages fill across hidden rows, counts and text searches respect visible content, and opaque cursors bind to the caller and query. Normal and View-as reads now honor explicit canonical schema sensitivity and refresh that classification after audit before releasing data. Restricted pagination cursors expire after an hour or server restart and require a list refresh. Unrestricted reads retain the indexed query path.
+
 - Enforce grant label ceilings in single-record authorization, inherited grants, SQL list predicates and persisted Access projections, with classification and randomized parity regressions.
 - Complete Connector and Connection Console object controllers with typed creation, cursor pagination, real test/build/diff/publication/version controls, Files exports, Vault metadata references and truthful provider reconnection.
 - Align the onboarding prototype landing fixture with supported native/download callbacks, and assert unavailable actions stay hidden in both themes.
