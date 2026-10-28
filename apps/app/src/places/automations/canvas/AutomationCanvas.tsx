@@ -20,6 +20,7 @@ import type { ConnectTarget } from "../connect/route.ts";
 import { AutomationConfig } from "../config/AutomationConfig.tsx";
 import { Overlay } from "../config/Overlay.tsx";
 import { PromoteSheet } from "../config/PromoteSheet.tsx";
+import { installFocusRing, insertLabel, keyNeighbour, moreLabel, tabLabel } from "../a11y.ts";
 import { BUILDER_MODES, DATA_SHELF_NAME, definitionCrumb, enrollmentsPinned } from "../chrome.ts";
 import type { BuilderMode } from "../chrome.ts";
 import { AnalyticsPanel, LiveEvents } from "../operations/StudioViews.tsx";
@@ -30,7 +31,7 @@ import { definitionLabel } from "../versions/cohorts.ts";
 import { CohortMigration } from "../versions/CohortMigration.tsx";
 import { AddDot, StepCard, TriggerCard } from "./Cards.tsx";
 import type { CardHandlers } from "./Cards.tsx";
-import { layoutForWidth } from "./frame.ts";
+import { canvasScale, COMPACT_REGIONS, compactRegionLabel, frameFor, layoutForWidth } from "./frame.ts";
 import { Inspector } from "./Inspector.tsx";
 import { Glyph } from "./icons.tsx";
 import { CANVAS, CONFIG, useAutomationsData, useScreenQuery } from "./data.tsx";
@@ -100,7 +101,8 @@ export function AutomationCanvas({ automationId, tabBodies, initialTab = "steps"
 }
 
 function Frame({ children }: { children: ReactNode }): ReactElement {
-  return <View testID="canvas-frame" style={s.frame}>{children}</View>;
+  useEffect(() => { installFocusRing(); }, []);
+  return <View testID="canvas-frame" style={s.frame} {...webOnly({ dataSet: { vyreFocus: "1" } })}>{children}</View>;
 }
 
 type CatalogPhase = { phase: "loading" } | { phase: "ready"; steps: CatalogStep[]; triggers: CatalogTrigger[] } | { phase: "unavailable"; message: string };
@@ -150,6 +152,8 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const activeRuns = useScreenQuery<RunsOut>(CONFIG, "runs", { subject: { type: "automation", id: a.id }, statuses: ["queued", "running", "waiting"], scope: "subject" });
   const pinned = enrollmentsPinned(activeRuns.status === "ready" ? activeRuns.data.runs : undefined, activeRuns.status === "ready");
   const studioLayout = layoutForWidth(bodyW);
+  const frame = frameFor(studioLayout);
+  const ordered = frame.ordered;
 
   // the server checks against the live catalogue (connections, keys); the local check answers at once and the two lists merge
   const [serverIssues, setServerIssues] = useState<Issue[]>([]);
@@ -170,6 +174,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
     });
     return () => { live = false; };
   }, [data]);
+  useEffect(() => { installFocusRing(); }, []);
   const issues = useMemo(() => sortedIssues([...check(def, a.kind), ...serverIssues]), [def, a.kind, serverIssues]);
   const tested = useMemo(() => new Set(Object.keys(samples)), [samples]);
   const lay = useMemo(() => layout(def, { issues, tested, ...(shownRun ? { run: shownRun.states } : {}), keyName: (id) => data.keys.find((k) => k.id === id)?.name ?? data.name(id) }), [def, issues, shownRun, data, tested]);
@@ -392,7 +397,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
     if (card.type !== "step") continue;
     stepCards.push(<StepCard key={card.id} card={card} selected={sel?.id === card.id} hovered={hover === card.id} handlers={handlers} agent={agentOf(card)} onHover={setHover} />);
     if (!(card.node && kindOfKey(card.node.key) === "stop")) {
-      addDots.push(<AddDot key={`add-${card.id}`} x={card.x + card.w / 2} y={card.y + card.h + 6} label={`Add a step after ${card.title}`} onPress={(px, py) => openAdd(card.id, px, py)} />);
+      addDots.push(<AddDot key={`add-${card.id}`} x={card.x + card.w / 2} y={card.y + card.h + 6} label={insertLabel(card.title)} onPress={(px, py) => openAdd(card.id, px, py)} />);
     }
   }
   const inspect = panel && sel !== null && (selected !== null || trigSel);
@@ -403,7 +408,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
     setSections((cur) => ({ ...cur, [tabKey(id, trigger)]: "data" }));
   };
   const stepSchema = selected && catalog.phase === "ready" ? catalog.steps.find((step) => step.key === selected.key)?.input : undefined;
-  const stack = studioLayout === "compact";
+  const stack = frame.compact;
   const inspectorPane = inspect && activeStep ? (
     <Inspector
       embedded={!stack}
@@ -436,7 +441,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   ) : null;
 
   return (
-    <View testID="canvas-frame" style={s.frame}>
+    <View testID="canvas-frame" style={s.frame} {...webOnly({ dataSet: { vyreFocus: "1" } })}>
       <View style={s.head}>
         <View style={[s.tile, { backgroundColor: "var(--accent-wash)" as string }]}><Glyph name="bolt" size={16} color="var(--accent)" /></View>
         <View style={s.titleBox}>
@@ -459,7 +464,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
           {BUILDER_MODES.map((label) => {
             const on = (label === "Advanced") === (mode === "advanced");
             return (
-              <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: on }} testID={label === "Basic" ? "mode-basic" : "mode-advanced"} onPress={() => setMode(label === "Advanced" ? "advanced" : "basic")} style={[s.segBtn, on && s.segOn]}>
+              <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={tabLabel(label, on)} testID={label === "Basic" ? "mode-basic" : "mode-advanced"} onPress={() => setMode(label === "Advanced" ? "advanced" : "basic")} {...webOnly({ tabIndex: 0, dataSet: { vyreFocus: "1" }, onKeyDown: (e: KeyEventLike) => { const next = keyNeighbour([...BUILDER_MODES], label, e.key ?? ""); if (!next) return; e.preventDefault?.(); setMode(next === "Advanced" ? "advanced" : "basic"); } })} style={[s.segBtn, on && s.segOn]}>
                 <Text style={[s.segText, on && s.segTextOn]}>{label}</Text>
               </Pressable>
             );
@@ -477,7 +482,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
         </Pressable>
         <TextButton label="Ask" icon="sparkle" testID="ask" onPress={() => data.nav.ask(a.id)} />
         <IconButton icon="panel" label={paneOpen ? "Hide the side pane" : "Show the side pane"} on={paneOpen} testID="toggle-pane" onPress={onTogglePane} />
-        <IconButton icon="more" label="More" testID="more" onPress={openMore} />
+        <IconButton icon="more" label={moreLabel(a.name)} testID="more" onPress={openMore} />
       </View>
       <SubTabs tabs={tabs} active={tab} onSelect={(k) => setTab(k as CanvasTab)} label="Automation" />
       {tab === "steps" ? (
@@ -500,22 +505,22 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
               <Text style={s.toolText}>{DATA_SHELF_NAME}</Text>
             </Pressable>
           </View>
-          <View style={[s.body, stack && s.stack]} onLayout={(e: LayoutChangeEvent) => setBodyW(e.nativeEvent.layout.width)}>
-            <View style={s.surfaceWrap} onLayout={onSurface}>
-              <Surface lay={lay} zoom={zoom} view={view}>
+          <View testID="builder-body" accessibilityLabel={compactRegionLabel(studioLayout) ?? undefined} style={[s.body, stack && s.stack]} onLayout={(e: LayoutChangeEvent) => setBodyW(e.nativeEvent.layout.width)}>
+            <View testID="region-canvas" accessibilityLabel={ordered ? COMPACT_REGIONS[0] : undefined} style={s.surfaceWrap} onLayout={onSurface}>
+              <Surface lay={lay} zoom={canvasScale(ordered, zoom)} view={view}>
                 <TriggerCard
                   card={lay.cards[0]!} triggers={def.triggers} selected={trigSel} hovered={hover === "trigger"} onHover={setHover} handlers={handlers}
                   selectedIndex={trigSel ? sel?.trigger ?? null : null} onSelectTrigger={(i) => select("trigger", i)} onOpenTrigger={(i) => openPanel("trigger", i)} onAddTrigger={openTriggerAdd} onTriggerMenu={openTriggerMenu} describe={describe}
                 />
                 {stepCards}
                 {addDots}
-                {def.nodes.length === 0 ? <AddDot x={lay.cards[0]!.x + lay.cards[0]!.w / 2} y={lay.cards[0]!.y + lay.cards[0]!.h + 6} label="Add the first step" onPress={(px, py) => openAdd(null, px, py)} /> : null}
+                {def.nodes.length === 0 ? <AddDot x={lay.cards[0]!.x + lay.cards[0]!.w / 2} y={lay.cards[0]!.y + lay.cards[0]!.h + 6} label={insertLabel(null)} onPress={(px, py) => openAdd(null, px, py)} /> : null}
               </Surface>
               <View style={s.zoom} testID="zoom">
-                <IconButton icon="x" label="Zoom out" testID="zoom-out" onPress={() => setZoom((z) => clampZoom(z - 0.1))} />
-                <Text style={s.zoomText} testID="zoom-level">{`${Math.round(zoom * 100)}%`}</Text>
+                <IconButton icon="x" label="Zoom out" testID="zoom-out" onPress={() => setZoom((z) => canvasScale(ordered, clampZoom(z - 0.1)))} />
+                <Text style={s.zoomText} testID="zoom-level">{`${Math.round(canvasScale(ordered, zoom) * 100)}%`}</Text>
                 <IconButton icon="plus" label="Zoom in" testID="zoom-in" onPress={() => setZoom((z) => clampZoom(z + 0.1))} />
-                <Pressable accessibilityRole="button" accessibilityLabel="Fit to the window" testID="zoom-fit" onPress={() => setZoom(fitScale(lay, view.w, view.h))} style={[s.fit, pointer]}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Fit to the window" testID="zoom-fit" onPress={() => setZoom(canvasScale(ordered, fitScale(lay, view.w, view.h)))} style={[s.fit, pointer]}>
                   <Glyph name="fit" size={13} color="var(--ink-2)" /><Text style={s.fitText}>Fit</Text>
                 </Pressable>
               </View>
@@ -528,13 +533,16 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
               {note ? <View style={s.toast} accessibilityLiveRegion="polite" testID="note"><Text style={s.toastText}>{note}</Text></View> : null}
             </View>
             {stack && inspectorPane ? (
-              <View testID="inspector-stack" style={s.inspectorStack}>
-                <View style={s.compactTabs}>
-                  {stepTabs.map((item) => (
-                    <Pressable key={item.key} accessibilityRole="tab" accessibilityState={{ selected: item.key === activeStep }} onPress={() => focusStepTab(item.key)} style={pointer}>
-                      <Text style={s.toolText}>{item.title}</Text>
-                    </Pressable>
-                  ))}
+              <View testID="inspector-stack" accessibilityLabel={COMPACT_REGIONS.slice(1).join(", ")} style={s.inspectorStack}>
+                <View accessibilityRole="tablist" accessibilityLabel="Open steps" style={s.compactTabs}>
+                  {stepTabs.map((item) => {
+                    const on = item.key === activeStep;
+                    return (
+                      <Pressable key={item.key} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={tabLabel(item.title, on)} testID={`compact-step-${item.key}`} onPress={() => focusStepTab(item.key)} {...webOnly({ tabIndex: on ? 0 : -1, dataSet: { vyreFocus: "1" }, onKeyDown: (e: KeyEventLike) => { const next = keyNeighbour(stepTabs.map((tabItem) => tabItem.key), item.key, e.key ?? ""); if (!next) return; e.preventDefault?.(); focusStepTab(next); const doc = (globalThis as { document?: { querySelector(sel: string): { focus?: () => void } | null } }).document; setTimeout(() => doc?.querySelector(`[data-testid="compact-step-${next}"]`)?.focus?.(), 0); } })} style={pointer}>
+                        <Text style={s.toolText}>{item.title}</Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
                 {inspectorPane}
               </View>

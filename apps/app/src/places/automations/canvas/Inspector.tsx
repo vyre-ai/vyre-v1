@@ -7,6 +7,7 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { AskVyre } from "../ask/AskVyre.tsx";
 import type { AskBundle } from "../ask/bundle.ts";
+import { installFocusRing } from "../a11y.ts";
 import { accountFixedLine, BUILDER_MODES, VAL_LABEL } from "../chrome.ts";
 import type { BuilderMode } from "../chrome.ts";
 import { accountDefaultInput, accountMenu, applyAccount } from "../connect/accounts.ts";
@@ -70,6 +71,8 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
   lastPicks?: Readonly<Record<string, string>>;
 }): ReactElement {
   const { element, show: openMenu } = useMenu();
+  const ordered = layout ? frameFor(layout).ordered : false;
+  useEffect(() => { installFocusRing(); }, []);
   const headerMode = onMode !== undefined;
   const [localAdvanced, setLocalAdvanced] = useState(initialAdvanced);
   const advanced = headerMode ? mode === "advanced" : localAdvanced;
@@ -142,10 +145,10 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
       }
     }
     return (
-      <View style={paneStyle(embedded, layout)} testID={testID} accessibilityLabel="Trigger settings">
+      <View style={paneStyle(embedded, layout)} testID={testID} accessibilityLabel="Trigger settings" {...webOnly({ dataSet: { vyreFocus: "1" } })}>
         <Head title={meta?.title ?? "Trigger"} sub="Trigger" icon={meta?.icon ?? "bolt"} onClose={onClose} />
         <ScrollView contentContainerStyle={i.body}>
-          <SectionRow section={section} onSection={(next) => onSection?.(next)} />
+          <SectionRow section={section} ordered={ordered} onSection={(next) => onSection?.(next)} />
           {section === "data" ? <DataShelf triggerSample={samples["trigger"]} steps={prior} /> : null}
           {section === "test" ? <Text style={i.hint}>Pick a step to test it.</Text> : null}
           {section === "configure" ? (
@@ -233,10 +236,10 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
     }} />);
   }
   return (
-    <View style={paneStyle(embedded, layout)} testID={testID} accessibilityLabel={`${node.title ?? titleOfKey(node.key)} settings`}>
+    <View style={paneStyle(embedded, layout)} testID={testID} accessibilityLabel={`${node.title ?? titleOfKey(node.key)} settings`} {...webOnly({ dataSet: { vyreFocus: "1" } })}>
       <Head title={node.title ?? titleOfKey(node.key)} sub={groupOfKey(node.key)} icon={iconOfKey(node.key)} onClose={onClose} />
       <ScrollView contentContainerStyle={i.body} keyboardShouldPersistTaps="handled">
-        <SectionRow section={section} onSection={(next) => onSection?.(next)} />
+        <SectionRow section={section} ordered={ordered} onSection={(next) => onSection?.(next)} />
         {section === "data" ? <DataShelf triggerSample={samples["trigger"]} steps={prior} /> : null}
         {section === "test" ? <StepTest stepKey={node.key} nodeId={node.id} input={node.input ?? {}} version={version} samples={samples} onUseOutput={(output) => onStoreSample?.(node.id, asFixture(version, node.key, output))} /> : null}
         {section === "configure" ? (

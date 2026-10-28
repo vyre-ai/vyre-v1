@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import { Glyph } from "./icons.tsx";
+import { cardLabel, moreLabel, runStateText, triggerLabel } from "../a11y.ts";
 import { PreviewMark } from "../builder/marks.tsx";
 import { isPreviewKey } from "../catalog/model.ts";
 import { CARD_H, CARD_W, TRIG_HEAD, TRIG_ROW, messages, triggerMeta } from "./model.ts";
@@ -48,10 +49,11 @@ export function StepCard({ card, selected, hovered, focused = false, handlers, a
   const trig = menuTrigger((x, y) => handlers.onMenu(card.id, x, y));
   const trigKey = (trig as { onKeyDown?: (e: unknown) => void }).onKeyDown;
   const problem = messages(card.issues).join(". ");
+  const runWord = runStateText(card.chip, card.state);
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${card.title}. ${card.sub}${card.issues.length ? `. ${card.issues.length} to fix` : ""}`}
+      accessibilityLabel={cardLabel({ title: card.title, sub: card.sub, issues: card.issues.length, chip: card.chip, state: card.state })}
       accessibilityState={{ selected }}
       aria-selected={selected}
       testID={`card-${card.id}`}
@@ -61,7 +63,7 @@ export function StepCard({ card, selected, hovered, focused = false, handlers, a
       onFocus={() => { setFocus(true); handlers.onFocusId?.(card.id); }}
       onBlur={() => setFocus(false)}
       {...trig}
-      {...webOnly({ onKeyDown: (e: KeyEventLike) => { handlers.onKey(e, card.id); trigKey?.(e); }, tabIndex: 0, dataSet: { card: card.id } })}
+      {...webOnly({ onKeyDown: (e: KeyEventLike) => { handlers.onKey(e, card.id); trigKey?.(e); }, tabIndex: 0, dataSet: { card: card.id, vyreFocus: "1" } })}
       style={[
         c.card, { left: card.x, top: card.y, width: card.w, height: card.h }, pointer,
         errors.length > 0 && { borderColor: "var(--danger)" as string },
@@ -85,11 +87,12 @@ export function StepCard({ card, selected, hovered, focused = false, handlers, a
           <Text style={c.statusText}>{card.chip}</Text>
         </View>
       ) : null}
+      {runWord ? <Text testID={`state-${card.id}`} style={c.statusText}>{runWord}</Text> : null}
       {card.node && isPreviewKey(card.node.key) ? <PreviewMark testID={`preview-${card.node.key}`} /> : null}
       {card.kind === "ai" && agent ? <Face name={agent} kind="agent" size={18} /> : null}
       {tools ? (
         <View style={c.more}>
-          <IconButton icon="more" label={`More for ${card.title}`} size={22} testID={`more-${card.id}`} onPress={() => handlers.onMenu(card.id, -1, -1)} />
+          <IconButton icon="more" label={moreLabel(card.title)} size={22} testID={`more-${card.id}`} onPress={() => handlers.onMenu(card.id, -1, -1)} />
         </View>
       ) : null}
     </Pressable>
@@ -125,8 +128,9 @@ export function TriggerCard({ card, triggers, selected, hovered, onHover, handle
   return (
     <View
       testID="card-trigger"
+      accessibilityLabel={triggerLabel(triggers.length, selected)}
       style={[c.trig, { left: card.x, top: card.y, width: card.w, height: card.h }, selected && c.cardSel, selected && shadow("0 0 0 3px var(--accent-wash)"), issues.some((i) => i.severity === "error") && { borderColor: "var(--danger)" as string }]}
-      {...webOnly({ onKeyDown: (e: KeyEventLike) => handlers.onKey(e, "trigger") })}
+      {...webOnly({ tabIndex: 0, dataSet: { card: "trigger", vyreFocus: "1" }, onKeyDown: (e: KeyEventLike) => handlers.onKey(e, "trigger") })}
     >
       <View style={c.trigHead}>
         <Text style={c.trigLabel}>Trigger</Text>
@@ -167,7 +171,7 @@ function TriggerRow({ index, title, sub, icon, selected, onPress, onOpen, onMenu
         <Text numberOfLines={1} style={c.sub}>{sub}</Text>
       </View>
       {preview ? <PreviewMark testID={`preview-trigger-${index}`} /> : null}
-      {over || selected || hovered ? <IconButton icon="more" label={`More for ${title}`} size={22} onPress={() => onMenu(-1, -1)} /> : null}
+      {over || selected || hovered ? <IconButton icon="more" label={moreLabel(title)} size={22} onPress={() => onMenu(-1, -1)} /> : null}
     </Pressable>
   );
 }
@@ -183,7 +187,7 @@ export function AddDot({ x, y, label, onPress }: { x: number; y: number; label: 
       onPress={() => onPress(-1, -1)}
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
-      {...webOnly({ title: label })}
+      {...webOnly({ title: label, tabIndex: 0, dataSet: { vyreFocus: "1" } })}
       style={[c.addDot, { left: x - 9, top: y }, over && { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string }, pointer]}
     >
       <Glyph name="plus" size={11} color={over ? "var(--accent-ink)" : "var(--ink-3)"} />

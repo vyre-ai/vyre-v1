@@ -3,8 +3,12 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { filterShelf, shelfRows } from "./fields.ts";
+import { keyNeighbour, mappingLabel, tabLabel } from "../a11y.ts";
 import { ABSENCE, DATA_SHELF_NAME, INSPECTOR_TABS, SHELF_SEARCH } from "../chrome.ts";
 import { PREVIEW_NOTE } from "../catalog/model.ts";
+import { COMPACT_REGIONS, COMPACT_SECTION } from "../canvas/frame.ts";
+import { webOnly } from "../canvas/parts.tsx";
+import type { KeyEventLike } from "../canvas/parts.tsx";
 import { literalFromEditor, mappingIssues, presenceOf, refValue, typeOf } from "../values/typed.ts";
 import type { Presence, TypeRef } from "../values/typed.ts";
 import type { Definition } from "../canvas/model.ts";
@@ -17,15 +21,27 @@ export function PreviewMark({ testID }: { testID: string }): ReactElement {
   );
 }
 
-export function SectionRow({ section, onSection }: { section: "configure" | "data" | "test"; onSection(next: "configure" | "data" | "test"): void }): ReactElement {
+export function SectionRow({ section, onSection, ordered = false }: { section: "configure" | "data" | "test"; onSection(next: "configure" | "data" | "test"): void; ordered?: boolean }): ReactElement {
   const items = INSPECTOR_TABS.map((label) => ({ key: label.toLowerCase() as "configure" | "data" | "test", label }));
+  const onKey = (key: "configure" | "data" | "test") => (e: KeyEventLike): void => {
+    const next = keyNeighbour(items.map((item) => item.key), key, e.key ?? "");
+    if (!next) return;
+    e.preventDefault?.();
+    onSection(next as "configure" | "data" | "test");
+    const doc = (globalThis as { document?: { querySelector(s: string): { focus?: () => void } | null } }).document;
+    setTimeout(() => doc?.querySelector(`[data-testid="section-${next}"]`)?.focus?.(), 0);
+  };
   return (
-    <View style={m.secs} accessibilityRole="tablist">
-      {items.map((item) => (
-        <Pressable key={item.key} accessibilityRole="tab" accessibilityState={{ selected: section === item.key }} testID={`section-${item.key}`} onPress={() => onSection(item.key)} style={[m.sec, section === item.key && m.secOn]}>
-          <Text style={[m.secText, section === item.key && m.secTextOn]}>{item.label}</Text>
-        </Pressable>
-      ))}
+    <View style={m.secs} accessibilityRole="tablist" accessibilityLabel={ordered ? COMPACT_REGIONS.slice(1).join(", ") : "Step sections"}>
+      {items.map((item) => {
+        const on = section === item.key;
+        const name = ordered ? COMPACT_SECTION[item.key] : item.label;
+        return (
+          <Pressable key={item.key} accessibilityRole="tab" accessibilityState={{ selected: on }} aria-selected={on} accessibilityLabel={tabLabel(name, on)} testID={`section-${item.key}`} onPress={() => onSection(item.key)} {...webOnly({ onKeyDown: onKey(item.key), tabIndex: on ? 0 : -1, dataSet: { vyreFocus: "1" } })} style={[m.sec, on && m.secOn]}>
+            <Text style={[m.secText, on && m.secTextOn]}>{item.label}</Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -114,7 +130,23 @@ export function DataShelf({ triggerSample, steps }: { triggerSample: unknown; st
       {empty ? <Text testID="data-shelf-empty" style={m.hint}>No sample yet. Test a step or run to fill this shelf.</Text> : null}
       {!empty && rows.length === 0 ? <Text style={m.hint}>No fields match.</Text> : null}
       {rows.map((row) => (
-        <View key={row.id} style={m.row}>
+        <View
+          key={row.id}
+          style={m.row}
+          accessibilityLabel={mappingLabel(row)}
+          testID={`mapping-${row.id}`}
+          {...webOnly({
+            tabIndex: 0,
+            dataSet: { mapping: row.id, vyreFocus: "1" },
+            onKeyDown: (e: KeyEventLike) => {
+              const next = keyNeighbour(rows.map((item) => item.id), row.id, e.key ?? "");
+              if (!next) return;
+              e.preventDefault?.();
+              const doc = (globalThis as { document?: { querySelector(s: string): { focus?: () => void } | null } }).document;
+              setTimeout(() => doc?.querySelector(`[data-testid="mapping-${next}"]`)?.focus?.(), 0);
+            },
+          })}
+        >
           <Text style={m.hint}>{row.name}</Text>
           <Text style={m.hint}>{`${row.source} · ${row.typeName}${row.presence === "value" ? "" : ` · ${row.presence}`}`}</Text>
         </View>
