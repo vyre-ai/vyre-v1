@@ -1,5 +1,7 @@
 # Changelog
 
+- Closed a verified Guest hidden-field disclosure in ordinary Records reads. The host now supplies canonical row facts for point authorization and rechecks/redacts get, query, search and history output after audit; hidden values cannot leak through sort cursors, filter probes, text-search matches or unfiltered totals. Conditional collection authorization remains under active completion.
+
 - Added a source-session-bound, ten-minute shared Records preview for View-as. The memory-only token permits a closed canonical read facade with requester/target grant intersection, row filtering, field redaction and label ceilings; it refuses Personal ancestry, module handlers, nested calls, writes, credentials, exports and other transports. Reads recheck authority after awaited storage and audit work; source sign-out, target suspension, expiry and restart invalidate previews. The normal Console preview control remains hidden until the isolated client is integrated.
 
 - Restored the 0.6.8 welcome composition: open halftone canvas, approved Vyre mark, large greeting and round Space connection field, with verified v1 connection and retry handling.

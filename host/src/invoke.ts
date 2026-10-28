@@ -94,6 +94,10 @@ export interface GateHook {
 }
 
 export interface InvokeDeps {
+  recordAccess?: {
+    facts(cap:string,input:unknown,req:AuthReq,trace:string):Promise<AuthReq>;
+    project(cap:string,input:unknown,seed:CtxSeed,output:unknown,trace:string):Promise<()=>unknown>;
+  };
   preview?: { read(token: string, cap: string, input: unknown, trace: string): Promise<{ finish(): unknown }> };
   caps: CapIndex;
   validateInput(cap: string, v: number, input: unknown): string[];
@@ -137,6 +141,7 @@ export type InvokeResult =
 
 const defaultHex = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 const DESTRUCTIVE = /(^|[._])(delete|remove|purge|erase|destroy)([._]|$)/;
+const SCOPED_RECORD_READS=new Set(["records.get","records.query","records.search","records.history"]);
 const noop = (): void => {};
 const nullLogger: Logger = { debug: noop, info: noop, warn: noop, error: noop };
 
@@ -258,11 +263,12 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       }
       approved = seed.approval !== undefined && deps.gate !== undefined && deps.gate.verify(seed.approval, { cap: c, input, seed });
       const memberOnly = c.level === "member";
-      const req: AuthReq = {
+      let req: AuthReq = {
         principal: seed.principal.id, actingFor: seed.actingFor,
         action: { perm: c.permission, level: c.level === "member" ? "view" : c.level, destructive: DESTRUCTIVE.test(c.name) },
         resource, provider: seed.provider, cap: c.name, input, spendMicros: deps.spend?.(seed.principal.id), approved, now: t,
       };
+      if(deps.recordAccess&&SCOPED_RECORD_READS.has(c.name))req=await deps.recordAccess.facts(c.name,input,req,traceId);
       // level 'member' (ruling 69): any role or grant in the Space is enough, so a person whose only grant is one folder can sync that folder; the handler filters rows per resource. A stranger is refused as before.
       const d = memberOnly && deps.membership ? (deps.membership(seed.principal.id, seed.actingFor) ? memberAllow(mintId("dec", t)) : deps.authorize(req)) : deps.authorize(req);
       kd = d;
@@ -317,6 +323,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     }
 
     // 7 commit: events, inline projections and the audit row land together
+    const finishOutput=SCOPED_RECORD_READS.has(c.name)?await deps.recordAccess?.project(c.name,input,seed,output,traceId):undefined;
     const targets = shouldAudit(c) ? auditTargets(c.name, input, output) : undefined;
     const auditRow: AuditRow | null = shouldAudit(c)
       ? { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: did(), reason: "ok", resource, traceId, spanId: trace.spanId, at: t, risk: c.risk, ...(targets ? { targets } : {}) }
@@ -325,7 +332,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     if (events.length || auditRow) stored = await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events, audit: auditRow });
     // 8 publish after commit
     if (stored.length) deps.publish?.(stored);
-    return { status: "ok", output, traceId };
+    return { status: "ok", output:finishOutput?finishOutput():output, traceId };
   }
 
   async function park(c: CapabilityDef, input: unknown, seed: CtxSeed, traceId: string, decisionId: string, act: string, row: AuditRow | null): Promise<InvokeResult> {
