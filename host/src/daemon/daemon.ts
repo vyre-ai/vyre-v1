@@ -109,6 +109,7 @@ import { alive, clearInfo, ensureAdminToken, ensureDirs, pathsFor, readInfo, wri
 import type { DaemonConfig, DaemonPaths, Role } from "./config.ts";
 import { migrate } from "./hosttables.ts";
 import { requestListener } from "./http.ts";
+import { desktopCors } from "./desktop-cors.ts";
 import { createChromeBridge } from "../bridge/chrome.ts";
 import type { ChromeBridge } from "../bridge/chrome.ts";
 import { coerceQuery } from "./query.ts";
@@ -1098,6 +1099,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     });
     const mcpRoute = createMcpRoute(() => mcpRuntime);
     server.on("request", (req, res) => {
+      if(desktopCors(req,res))return;
       const stop = req.method === "POST" && req.url === "/local/daemon/stop";
       if (stop) {
         if (!loopback(req.socket.remoteAddress) || !sameToken(bearer(req.headers.authorization) ?? "", token)) {

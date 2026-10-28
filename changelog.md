@@ -1,3 +1,4 @@
+- Allow only exact packaged desktop origins to reach capability/sync/local-key APIs across origins, with validated preflight headers and unchanged bearer authentication.
 # Changelog
 
 - Keep browser failure diagnostics from masking the original Apps failure, and verify the canonical wording in exported AI policy documents.
