@@ -392,3 +392,11 @@ test("health: all good, some failing, all failing", async () => {
   k.tx.run("UPDATE cn_connections SET state = 'paused'");
   assert.equal((await k.hs["connectors.health"](k.ctx, {})).state, "healthy", "a paused connection is not a problem");
 });
+
+
+test('init refuses absent or denied Files output before connector or draft persistence',async()=>{
+ const k=kit();k.deps.writeFolder=undefined as never;
+ await assert.rejects(k.hs['connectors.init'](k.ctx,{key:'no_files',title:'No Files',mode:'webhook_only'}),code('internal.unavailable'));
+ assert.equal(k.tx.all('SELECT * FROM cn_connectors WHERE key = ?','no_files').length,0);assert.equal(k.tx.all('SELECT * FROM cn_drafts WHERE key = ?','no_files').length,0);
+ k.deps.writeFolder=async()=>{throw new Error('fixture files denied');};await assert.rejects(k.hs['connectors.init'](k.ctx,{key:'denied_files',title:'Denied Files',mode:'webhook_only'}),/fixture files denied/);assert.equal(k.tx.all('SELECT * FROM cn_connectors WHERE key = ?','denied_files').length,0);assert.equal(k.tx.all('SELECT * FROM cn_drafts WHERE key = ?','denied_files').length,0);
+});

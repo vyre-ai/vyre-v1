@@ -343,10 +343,11 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         auth: { type: input.mode === "webhook_only" ? "none" : "api_key", ...(input.mode === "webhook_only" ? {} : { secret: `${input.title.replace(/[^A-Za-z0-9]+/g, "_")}_Key` }) },
         domains: [], secrets: input.mode === "webhook_only" ? [] : [{ name: `${input.title.replace(/[^A-Za-z0-9]+/g, "_")}_Key`, description: `API key for ${input.title}` }], actions: [], tests: [],
       };
+      if (!deps.writeFolder) refuse(ctx, "internal.unavailable", "Files is not available to write the connector folder.");
+      const folderId = await deps.writeFolder!(input.key, folderFiles(def));
       tx.run("INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES (?, ?, ?, ?, 0, '0.0.0', 'draft', ?, ?, ?)", input.key, input.title, def.mode, def.scope, JSON.stringify(def), now, now);
       const draftId = mintShort("cdr", now);
       tx.run("INSERT INTO cn_drafts (draft_id, key, def, note, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", draftId, input.key, JSON.stringify(def), input.docsUrl ?? null, ctx.actor ?? null, now, now);
-      const folderId = deps.writeFolder ? await deps.writeFolder(input.key, folderFiles(def)) : mintShort("fld", now);
       ctx.emit("connector.created", `connector/${input.key}`, { key: input.key });
       return { key: input.key, folderId };
     },
