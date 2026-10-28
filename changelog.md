@@ -28,6 +28,8 @@
 - Console Sensitivity labels now use named resource and record-type pickers, verify schema-label readback, and let owners apply individual scan suggestions.
 - Console Schema now offers the server-declared field types as a named picker instead of asking administrators to type internal field-type keys.
 
+- Replaced Console Grants and Checker identifier inputs with authorized named resource and subject pickers. Grants supports reviewed creation, retained-bound level/expiry edits and resumable bulk revocation; Checker uses typed levels, catalogue permissions and the agent’s acting person. Added focused tests and production mutation/readback/reload coverage; production browser verification is pending the shared disk/build pause. Owner is excluded from invite role choices.
+
 - Completed the typed invite fixture used to prove policy rejection leaves invites and account state unchanged; focused semantic and runtime checks pass.
 
 - Closed a grant escalation path: grant updates and share upserts now require independent current resource authority and retain its level, expiry/window, row-filter, hidden-field and declared sensitivity bounds. A grant cannot renew itself. Validate every condition before mutating the grant and preserve issuer/source. Actual HTTP escalation/contained delegation/rollback/restart regressions pass with existing sharing properties.
