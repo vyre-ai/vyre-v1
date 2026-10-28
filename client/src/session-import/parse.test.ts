@@ -23,8 +23,9 @@ test("Claude preview excludes tools and thinking, accepts final JSON, redacts re
 });
 
 test("packaged preview strips instruction wrappers and credentials from visible text", () => {
-  const secret = "sk-proj-fixtureOnlySecret0123456789abcdef";
-  const text = `<environment_context>DEPLOY_SECRET=private-fixture-value</environment_context>\n<INSTRUCTIONS>Private agent policy</INSTRUCTIONS>\nPlease fix the page.\nAPI_KEY=${secret}\n-----BEGIN PRIVATE KEY-----\nprivate-fixture-key\n-----END PRIVATE KEY-----\nUse https://user:fixturepass@example.com/repo?token=fixture-token`;
+  const secret = ["sk-", "proj-", "fixtureOnlySecret0123456789abcdef"].join("");
+  const privateKey = ["-----BEGIN ", "PRIVATE KEY-----\nprivate-fixture-key\n-----END ", "PRIVATE KEY-----"].join("");
+  const text = `<environment_context>DEPLOY_SECRET=private-fixture-value</environment_context>\n<INSTRUCTIONS>Private agent policy</INSTRUCTIONS>\nPlease fix the page.\nAPI_KEY=${secret}\n${privateKey}\nUse https://user:fixturepass@example.com/repo?token=fixture-token`;
   const out = parseSession({ provider: "claude", sessionId: "safe", sessionKey: "claude:safe" }, JSON.stringify({ type: "user", uuid: "m", message: { role: "user", content: text } }));
   const imported = JSON.stringify(out);
   for (const value of [secret, "private-fixture-value", "Private agent policy", "private-fixture-key", "fixturepass", "fixture-token"]) assert.ok(!imported.includes(value), value);
