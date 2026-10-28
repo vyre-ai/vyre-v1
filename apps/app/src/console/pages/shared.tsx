@@ -27,10 +27,10 @@ export function useAction(refresh: () => void) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const inflight = useRef(false);
-  const run = async <T,>(cap: string, input: unknown, success: string | ((out: T) => string)): Promise<T | undefined> => {
+  const run = async <T,>(cap: string, input: unknown, success: string | ((out: T) => string | Promise<string>)): Promise<T | undefined> => {
     if (inflight.current) return undefined;
     inflight.current = true; setBusy(true); setNote("");
-    try { const out = await call(cap, input); setNote(typeof success === "function" ? success(out as T) : success); refresh(); return out as T; }
+    try { const out = await call(cap, input); setNote(typeof success === "function" ? await success(out as T) : success); refresh(); return out as T; }
     catch (e) { const error = e as { code?: string; traceId?: string }; setNote(`Couldn’t complete this action${error.code ? ` (${error.code})` : ""}.${error.traceId ? ` Trace ${error.traceId}` : ""}`); return undefined; }
     finally { inflight.current = false; setBusy(false); }
   };
