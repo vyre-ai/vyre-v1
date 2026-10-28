@@ -356,6 +356,9 @@ test("the shell registers the tray, notification and dialog plugins and exposes 
   for (const fn of ["notify", "discover_codex_sessions", "discover_session_sources", "pick_paths", "set_badge"]) assert.match(native, new RegExp(`#\\[tauri::command\\]\\s*pub (async )?fn ${fn}\\(`), fn);
   const bridge = fs.readFileSync(path.join(DESKTOP, "src", "bridge.ts"), "utf8");
   for (const c of ["notify", "discover_codex_sessions", "discover_session_sources", "pick_paths", "set_badge"]) assert.ok(bridge.includes(`"${c}"`), `the bridge calls ${c}`);
+  assert.match(native, /pub fn discover_session_sources\(\) -> Result<Vec<SessionSource>, String>/, "the renderer cannot choose filesystem roots");
+  assert.match(native, /pub fn discover_codex_sessions\(\) -> Result<Vec<SessionSource>, String>/, "the legacy command also uses the fixed Codex root");
+  assert.match(native, /#\[serde\(skip_serializing\)\]\s*pub transcript_path:/, "native transcript paths remain opaque to the renderer");
   assert.match(read("Cargo.toml"), /tauri = \{ version = "2", features = \["tray-icon"\] \}/);
 });
 

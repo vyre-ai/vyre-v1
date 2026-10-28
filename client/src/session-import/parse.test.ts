@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseSession } from "./parse.ts";
+import { parseSession, parseSessionDocuments } from "./parse.ts";
 test("Codex preview keeps visible canonical messages without payload ids, metadata and valid final lines", () => {
   const text = [
     { type: "session_meta", payload: { cwd: "/work/acme", git: { repository_url: "git@github.com:acme/app.git" } } },
@@ -31,4 +31,27 @@ test("packaged preview strips instruction wrappers and credentials from visible 
   for (const value of [secret, "private-fixture-value", "Private agent policy", "private-fixture-key", "fixturepass", "fixture-token"]) assert.ok(!imported.includes(value), value);
   assert.match(imported, /Please fix the page/);
   assert.match(imported, /REDACTED/);
+});
+
+test("Claude parent previews merge bounded subagent documents with stable namespaced ids", () => {
+  const parent = JSON.stringify({ type: "user", uuid: "same", message: { role: "user", content: "Parent request" } });
+  const subagent = JSON.stringify({ type: "assistant", uuid: "same", message: { role: "assistant", content: [{ type: "text", text: "Research result" }] } });
+  const out = parseSessionDocuments(
+    { provider: "claude", sessionId: "parent", sessionKey: "claude:parent" },
+    [{ namespace: "main", text: parent }, { namespace: "subagent:child", text: subagent }],
+  );
+  assert.deepEqual(out.messages.map((message) => [message.sourceMessageId, message.text]), [
+    ["same", "Parent request"],
+    ["subagent:child:same", "Research result"],
+  ]);
+});
+
+test("combined previews stop at five thousand visible messages across documents", () => {
+  const text = (prefix: string, count: number): string => Array.from({ length: count }, (_, index) => JSON.stringify({ type: "user", uuid: `${prefix}-${index}`, message: { role: "user", content: `${prefix} ${index}` } })).join("\n");
+  const out = parseSessionDocuments(
+    { provider: "claude", sessionId: "parent", sessionKey: "claude:parent" },
+    [{ namespace: "main", text: text("parent", 4_999) }, { namespace: "subagent:child", text: text("child", 2) }, { namespace: "subagent:later", text: text("later", 2) }],
+  );
+  assert.equal(out.messages.length, 5_000);
+  assert.equal(out.messages.at(-1)?.sourceMessageId, "subagent:child:child-0");
 });

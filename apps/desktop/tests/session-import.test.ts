@@ -15,19 +15,48 @@ const FIXTURES = path.join(TESTS, "fixtures", "session-import");
 const codex = path.join(FIXTURES, "codex");
 const claude = path.join(FIXTURES, "claude");
 
-test("the shell exposes a metadata-only Codex discovery command with a configured home", async () => {
+test("the shell exposes metadata-only Codex discovery without renderer-selected roots", async () => {
   const calls: { command: string; args?: Record<string, unknown> }[] = [];
   const source = { provider: "codex", sessionId: "11111111-1111-4111-8111-111111111111", sessionKey: "codex:11111111-1111-4111-8111-111111111111", projectKey: "codex:/workspace/vyre", transcriptPath: "/safe/sessions/rollout-11111111-1111-4111-8111-111111111111.jsonl" };
   const bridge = makeBridge(async (command, args) => { calls.push({ command, args }); return [source]; });
-  assert.deepEqual(await bridge.discoverCodexSessions({ codexHome: "/safe" }), [source]);
-  assert.deepEqual(calls, [{ command: "discover_codex_sessions", args: { options: { codexHome: "/safe" } } }]);
+  assert.deepEqual(await bridge.discoverCodexSessions(), [source]);
+  assert.deepEqual(calls, [{ command: "discover_codex_sessions", args: undefined }]);
 });
 
-test("the shell discovers both providers natively and keeps the Claude Desktop metadata root separate", async () => {
+test("the shell discovers both providers natively from fixed provider roots", async () => {
   const calls: { command: string; args?: Record<string, unknown> }[] = [];
   const bridge = makeBridge(async (command, args) => { calls.push({ command, args }); return []; });
-  assert.deepEqual(await bridge.discoverSessionSources({ codexHome: "/safe/codex", claudeHome: "/safe/claude", claudeDesktopHome: "/safe/Library/Application Support/Claude" }), []);
-  assert.deepEqual(calls, [{ command: "discover_session_sources", args: { options: { codexHome: "/safe/codex", claudeHome: "/safe/claude", claudeDesktopHome: "/safe/Library/Application Support/Claude" } } }]);
+  assert.deepEqual(await bridge.discoverSessionSources(), []);
+  assert.deepEqual(calls, [{ command: "discover_session_sources", args: undefined }]);
+});
+
+test("the packaged bridge lifecycle maps a Claude fixture parent, subagents, and safe repository identity", async () => {
+  const calls: { command: string; args?: Record<string, unknown> }[] = [];
+  const parentId = "22222222-2222-4222-8222-222222222222";
+  const childId = "33333333-3333-4333-8333-333333333333";
+  const source = { provider: "claude" as const, sessionId: parentId, sessionKey: `claude:${parentId}` };
+  const selected = { ...source, cwd: "/workspace/vyre", gitOriginUrl: "https://example.com/acme/vyre.git" };
+  const project = path.join(claude, "projects", "-workspace-vyre");
+  const invoke = async (command: string, args?: Record<string, unknown>): Promise<unknown> => {
+    calls.push({ command, args });
+    if (command === "discover_session_sources") return [source];
+    return { source: selected, documents: [
+      { namespace: "main", text: fs.readFileSync(path.join(project, `${parentId}.jsonl`), "utf8") },
+      { namespace: `subagent:${childId}`, text: fs.readFileSync(path.join(project, parentId, "subagents", `agent-${childId}.jsonl`), "utf8") },
+    ] };
+  };
+  const { desktopSessionImporter } = await import("../../../client/src/session-import/desktop.ts");
+  const importer = desktopSessionImporter({ __TAURI__: { core: { invoke } } });
+  assert.ok(importer);
+  const [found] = await importer.discover();
+  const preview = await importer.preview(found!);
+  assert.deepEqual(calls.map((call) => [call.command, call.args]), [
+    ["discover_session_sources", undefined],
+    ["read_session_source", { sessionKey: `claude:${parentId}` }],
+  ]);
+  assert.deepEqual(preview.repo, { root: "/workspace/vyre", remote: "https://example.com/acme/vyre.git" });
+  assert.deepEqual(preview.messages.map((message) => message.sourceMessageId), ["u-1", "a-1", "u-2", "a-2", `subagent:${childId}:sub-u`, `subagent:${childId}:sub-a`]);
+  assert.deepEqual(preview.messages.slice(-2).map((message) => message.text), ["Research it", "Research result."]);
 });
 
 test("configured homes win over defaults and discovery returns metadata without opening transcript bodies", async () => {

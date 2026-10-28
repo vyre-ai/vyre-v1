@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Output, Stdio};
 use std::sync::Mutex;
 use std::io::Read;
 use std::time::{Duration, Instant};
@@ -29,6 +30,8 @@ pub const TRAY_EVENT: &str = "vyre://tray";
 const MAX_TITLE: usize = 120;
 const MAX_BODY: usize = 240;
 const MAX_FILTERS: usize = 8;
+const MAX_SESSION_BYTES: u64 = 8 * 1024 * 1024;
+const MAX_SUBAGENTS: usize = 64;
 
 pub struct Notice {
     pub link: String,
@@ -123,7 +126,7 @@ pub struct PickOptions {
     pub start_in: Option<String>,
 }
 
-/// Configuration supplied by the page. No transcript path is accepted from the page.
+/// Fixture-only provider roots used by native unit tests. Renderer commands always resolve the packaged app's fixed provider roots.
 #[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CodexDiscoveryOptions {
@@ -132,14 +135,15 @@ pub struct CodexDiscoveryOptions {
     pub claude_desktop_home: Option<String>,
 }
 
-/// Metadata from Codex's state database. Transcript bodies remain unread until a user selects this source.
-#[derive(Serialize)]
+/// Provider metadata returned behind an opaque session key. The native transcript path is never serialized to the renderer.
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionSource {
     pub provider: String,
     pub session_id: String,
     pub session_key: String,
     pub project_key: String,
+    #[serde(skip_serializing)]
     pub transcript_path: String,
     pub cwd: Option<String>,
     pub created_at: Option<String>,
@@ -148,25 +152,36 @@ pub struct SessionSource {
     pub git_origin_url: Option<String>,
 }
 
+#[derive(Serialize)]
+pub struct SessionDocument {
+    pub namespace: String,
+    pub text: String,
+}
+
 /// Read `state_5.sqlite` only, through SQLite's immutable file URI.
 #[tauri::command]
-pub fn discover_codex_sessions(options: CodexDiscoveryOptions) -> Result<Vec<SessionSource>, String> {
-    codex_sources(options.codex_home.as_deref())
+pub fn discover_codex_sessions() -> Result<Vec<SessionSource>, String> {
+    codex_sources(None)
 }
 
 /// Metadata-only source discovery for packaged clients. Provider roots are resolved independently and transcript bodies are never opened here.
 #[tauri::command]
-pub fn discover_session_sources(options: CodexDiscoveryOptions) -> Result<Vec<SessionSource>, String> {
-    let mut out = codex_sources(options.codex_home.as_deref())?;
+pub fn discover_session_sources() -> Result<Vec<SessionSource>, String> {
+    Ok(discover_session_sources_at(CodexDiscoveryOptions::default()))
+}
+
+fn discover_session_sources_at(options: CodexDiscoveryOptions) -> Vec<SessionSource> {
+    // A damaged or mid-upgrade Codex database must not hide an otherwise valid Claude store.
+    let mut out = codex_sources(options.codex_home.as_deref()).unwrap_or_default();
     out.extend(claude_sources(options.claude_home.as_deref(), options.claude_desktop_home.as_deref()));
     out.sort_by(|a, b| a.session_key.cmp(&b.session_key));
-    Ok(out)
+    out
 }
 
 /// Only a discovered provider source key crosses the read boundary, never a page-supplied path.
 #[tauri::command]
 pub fn read_session_source(session_key: String) -> Result<serde_json::Value, String> {
-    let sources = discover_session_sources(CodexDiscoveryOptions::default())?;
+    let sources = discover_session_sources()?;
     let source = sources.into_iter().find(|s| s.session_key == session_key).ok_or("Choose a discovered local session first.")?;
     let root = if source.provider == "codex" { codex_root(None) } else { claude_root(None) }.ok_or("The provider folder is unavailable.")?;
     read_discovered_source(&source, &root)
@@ -175,15 +190,53 @@ pub fn read_session_source(session_key: String) -> Result<serde_json::Value, Str
 fn read_discovered_source(source: &SessionSource, root: &Path) -> Result<serde_json::Value, String> {
     let file = PathBuf::from(&source.transcript_path).canonicalize().map_err(|_| "The transcript is unavailable.")?;
     if !contained_file(&root, &file) { return Err("The transcript is outside its provider folder.".into()); }
-    let reader = fs::File::open(&file).map_err(|_| "The transcript is unavailable.")?;
-    const MAX: u64 = 8 * 1024 * 1024;
+    let mut remaining = MAX_SESSION_BYTES;
+    let mut documents = vec![SessionDocument { namespace: "main".into(), text: read_session_text(&file, &mut remaining)? }];
+    let mut selected = source.clone();
+    if source.provider == "claude" {
+        if let Some(cwd) = claude_cwd(&documents[0].text) {
+            if let Some((repo_root, remote)) = local_repo_metadata(&cwd) {
+                selected.cwd = Some(repo_root);
+                selected.git_origin_url = remote.or(selected.git_origin_url);
+            }
+        }
+        let children = claude_subagent_files(root, &file);
+        if children.len() > MAX_SUBAGENTS { return Err(format!("This session has more than {MAX_SUBAGENTS} subagent transcripts.")); }
+        for child in children {
+            let id = claude_session_id(child.file_name().and_then(|name| name.to_str())).ok_or("A subagent transcript has an invalid name.")?;
+            documents.push(SessionDocument { namespace: format!("subagent:{id}"), text: read_session_text(&child, &mut remaining)? });
+        }
+    }
+    Ok(serde_json::json!({ "source": selected, "documents": documents }))
+}
+
+fn claude_cwd(text: &str) -> Option<String> {
+    for line in text.lines().take(256) {
+        if line.len() > 64 * 1024 { continue; }
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else { continue; };
+        if let Some(cwd) = value.get("cwd").and_then(|item| item.as_str()).filter(|item| item.len() <= 4096) { return Some(cwd.to_string()); }
+    }
+    None
+}
+
+fn read_session_text(file: &Path, remaining: &mut u64) -> Result<String, String> {
+    let reader = fs::File::open(file).map_err(|_| "The transcript is unavailable.")?;
     let mut bytes = Vec::new();
     if file.extension().and_then(|s| s.to_str()) == Some("gz") {
-        flate2::read::GzDecoder::new(reader).take(MAX + 1).read_to_end(&mut bytes).map_err(|_| "Cannot decode the transcript.")?;
-    } else { reader.take(MAX + 1).read_to_end(&mut bytes).map_err(|_| "Cannot read the transcript.")?; }
-    if bytes.len() as u64 > MAX { return Err("Choose a transcript smaller than 8 MB.".into()); }
-    let text = String::from_utf8(bytes).map_err(|_| "The transcript is not UTF-8 text.")?;
-    Ok(serde_json::json!({ "source": source, "text": text }))
+        flate2::read::GzDecoder::new(reader).take(*remaining + 1).read_to_end(&mut bytes).map_err(|_| "Cannot decode the transcript.")?;
+    } else { reader.take(*remaining + 1).read_to_end(&mut bytes).map_err(|_| "Cannot read the transcript.")?; }
+    if bytes.len() as u64 > *remaining { return Err("Choose a session whose combined transcripts are smaller than 8 MB.".into()); }
+    *remaining -= bytes.len() as u64;
+    String::from_utf8(bytes).map_err(|_| "The transcript is not UTF-8 text.".into())
+}
+
+fn claude_subagent_files(root: &Path, parent: &Path) -> Vec<PathBuf> {
+    let name = parent.file_name().and_then(|value| value.to_str()).unwrap_or("").trim_end_matches(".gz").trim_end_matches(".jsonl");
+    let Some(project) = parent.parent() else { return Vec::new(); };
+    let mut files = contained_files(root, &project.join(name).join("subagents"));
+    files.retain(|file| file.file_name().and_then(|value| value.to_str()).and_then(|value| value.strip_prefix("agent-")).and_then(|value| claude_session_id(Some(value))).is_some());
+    files.sort();
+    files
 }
 
 fn codex_sources(configured: Option<&str>) -> Result<Vec<SessionSource>, String> {
@@ -200,13 +253,23 @@ fn codex_sources(configured: Option<&str>) -> Result<Vec<SessionSource>, String>
         ))
     }).map_err(|e| format!("cannot query Codex thread metadata: {e}"))?;
     let mut out = Vec::new();
+    let mut repos: HashMap<String, Option<(String, Option<String>)>> = HashMap::new();
     for row in rows {
         let (id, rollout, cwd, created_at, updated_at, git_branch, git_origin_url) = row.map_err(|e| e.to_string())?;
         let Some(rollout) = rollout else { continue; };
         let transcript = transcript_path(&root, &rollout);
         if !contained_file(&root, &transcript) { continue; }
-        let project_key = cwd.as_deref().map(|value| format!("codex:{value}")).unwrap_or_else(|| "codex:unknown".to_string());
-        out.push(SessionSource { provider: "codex".to_string(), session_key: format!("codex:{id}"), session_id: id, project_key, transcript_path: transcript.to_string_lossy().into_owned(), cwd, created_at, updated_at, git_branch, git_origin_url: safe_git_remote(git_origin_url) });
+        let safe_remote = safe_git_remote(git_origin_url);
+        let repo = cwd.as_deref().and_then(|value| {
+            if let Some(found) = repos.get(value) { return found.clone(); }
+            let found = local_repo_metadata(value);
+            repos.insert(value.to_string(), found.clone());
+            found
+        });
+        let normalized_cwd = repo.as_ref().map(|value| value.0.clone()).or(cwd);
+        let normalized_remote = repo.and_then(|value| value.1.or(safe_remote));
+        let project_key = normalized_cwd.as_deref().map(|value| format!("codex:{value}")).unwrap_or_else(|| "codex:unknown".to_string());
+        out.push(SessionSource { provider: "codex".to_string(), session_key: format!("codex:{id}"), session_id: id, project_key, transcript_path: transcript.to_string_lossy().into_owned(), cwd: normalized_cwd, created_at, updated_at, git_branch, git_origin_url: normalized_remote });
     }
     Ok(out)
 }
@@ -215,23 +278,53 @@ fn claude_sources(configured: Option<&str>, configured_desktop: Option<&str>) ->
     let Some(root) = claude_root(configured) else { return Vec::new(); };
     // Claude Desktop lives outside ~/.claude. It receives its own containment root, never the provider root.
     let metadata = claude_desktop_metadata(claude_desktop_root(configured_desktop));
+    let mut repos: HashMap<String, Option<(String, Option<String>)>> = HashMap::new();
     let mut out = Vec::new();
     for area in ["projects", "projects-archive"] {
         let base = root.join(area);
         for file in contained_files(&root, &base) {
+            let Ok(relative) = file.strip_prefix(&base) else { continue; };
+            if relative.components().count() != 2 { continue; }
             let Some(id) = claude_session_id(file.file_name().and_then(|name| name.to_str())) else { continue; };
             let project = file.strip_prefix(&base).ok().and_then(|relative| relative.components().next()).and_then(|part| part.as_os_str().to_str()).unwrap_or("unknown");
             let extra = metadata.get(&id);
+            let repo = extra.and_then(|value| value.0.as_deref()).and_then(|cwd| {
+                if let Some(found) = repos.get(cwd) { return found.clone(); }
+                let found = local_repo_metadata(cwd);
+                repos.insert(cwd.to_string(), found.clone());
+                found
+            });
             out.push(SessionSource {
                 provider: "claude".to_string(), session_key: format!("claude:{id}"), session_id: id,
                 project_key: format!("claude:{project}"), transcript_path: file.to_string_lossy().into_owned(),
-                cwd: extra.and_then(|value| value.0.clone()), created_at: None, updated_at: extra.and_then(|value| value.1.clone()), git_branch: None, git_origin_url: None,
+                cwd: repo.as_ref().map(|value| value.0.clone()).or_else(|| extra.and_then(|value| value.0.clone())), created_at: None, updated_at: extra.and_then(|value| value.1.clone()), git_branch: None, git_origin_url: repo.and_then(|value| value.1),
             });
         }
     }
     out.sort_by(|a, b| a.session_key.cmp(&b.session_key));
     out.dedup_by(|a, b| a.session_key == b.session_key);
     out
+}
+
+fn local_repo_metadata(cwd: &str) -> Option<(String, Option<String>)> {
+    let cwd = PathBuf::from(cwd).canonicalize().ok().filter(|path| path.is_dir())?;
+    let root = git_output(&cwd, &["rev-parse", "--show-toplevel"])?;
+    if !root.status.success() { return None; }
+    let root = String::from_utf8(root.stdout).ok()?.trim().to_string();
+    if root.is_empty() { return None; }
+    let remote = git_output(&cwd, &["config", "--get", "remote.origin.url"])
+        .filter(|output| output.status.success()).and_then(|output| String::from_utf8(output.stdout).ok()).map(|value| value.trim().to_string()).filter(|value| !value.is_empty() && value.len() <= 2048);
+    Some((root, safe_git_remote(remote)))
+}
+
+fn git_output(cwd: &Path, args: &[&str]) -> Option<Output> {
+    let mut child = Command::new("git").arg("-C").arg(cwd).args(args).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().ok()?;
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        if child.try_wait().ok()?.is_some() { return child.wait_with_output().ok(); }
+        if Instant::now() >= deadline { let _ = child.kill(); let _ = child.wait(); return None; }
+        std::thread::sleep(Duration::from_millis(10));
+    }
 }
 
 fn claude_root(configured: Option<&str>) -> Option<PathBuf> {
@@ -461,7 +554,7 @@ mod tests {
         zipped.finish().unwrap();
         let source = SessionSource { provider: "claude".into(), session_id: "fixture".into(), session_key: "claude:fixture".into(), project_key: "unknown".into(), transcript_path: file.to_string_lossy().into(), cwd: None, created_at: None, updated_at: None, git_branch: None, git_origin_url: None };
         let value = read_discovered_source(&source, &root).unwrap();
-        assert_eq!(value["text"], "{\"visible\":true}\n");
+        assert_eq!(value["documents"][0]["text"], "{\"visible\":true}\n");
         assert!(read_discovered_source(&source, &root.join("other")).is_err());
         fs::remove_dir_all(root).unwrap();
     }
@@ -491,5 +584,65 @@ mod tests {
         assert_eq!(safe_git_remote(Some("https://token:secret@example.com/acme/vyre.git".to_string())), Some("https://example.com/acme/vyre.git".to_string()));
         assert_eq!(safe_git_remote(Some("git@github.com:acme/vyre.git".to_string())), Some("git@github.com:acme/vyre.git".to_string()));
         assert_eq!(safe_git_remote(Some("https://github.com/acme/vyre.git".to_string())), Some("https://github.com/acme/vyre.git".to_string()));
+    }
+
+    #[test]
+    fn claude_discovery_keeps_parent_only_and_enriches_it_from_the_local_repo() {
+        let fixture = std::env::temp_dir().join(format!("vyre-claude-parent-fixture-{}", std::process::id()));
+        let claude = fixture.join(".claude");
+        let project = claude.join("projects").join("-work-vyre");
+        let parent = "22222222-2222-4222-8222-222222222222";
+        let child = "33333333-3333-4333-8333-333333333333";
+        let repo = fixture.join("work").join("vyre");
+        fs::create_dir_all(repo.join("packages").join("app")).unwrap();
+        assert!(Command::new("git").arg("init").arg(&repo).output().unwrap().status.success());
+        assert!(Command::new("git").arg("-C").arg(&repo).args(["remote", "add", "origin", "https://token:secret@example.com/acme/vyre.git"]).output().unwrap().status.success());
+        fs::create_dir_all(project.join(parent).join("subagents")).unwrap();
+        fs::write(project.join(format!("{parent}.jsonl")), format!(r#"{{"type":"user","cwd":{},"message":{{"role":"user","content":"Parent"}}}}\n"#, serde_json::to_string(repo.join("packages").join("app").to_str().unwrap()).unwrap())).unwrap();
+        fs::write(project.join(parent).join("subagents").join(format!("agent-{child}.jsonl")), "{}\n").unwrap();
+        let sources = claude_sources(Some(claude.to_str().unwrap()), None);
+        assert_eq!(sources.len(), 1, "subagents belong to their parent and are not selectable sessions");
+        assert_eq!(sources[0].session_id, parent);
+        assert_eq!(sources[0].git_origin_url, None, "discovery does not read transcript metadata");
+        assert_eq!(sources[0].cwd, None, "CLI-only Claude Code has no Desktop metadata");
+        let root = claude.canonicalize().unwrap();
+        let read = read_discovered_source(&sources[0], &root).unwrap();
+        assert_eq!(read["documents"].as_array().map(Vec::len), Some(2));
+        assert_eq!(read["documents"][1]["namespace"], format!("subagent:{child}"));
+        assert_eq!(read["source"]["cwd"], repo.to_str().unwrap());
+        assert_eq!(read["source"]["gitOriginUrl"], "https://example.com/acme/vyre.git");
+        let codex = fixture.join(".codex");
+        fs::create_dir_all(&codex).unwrap();
+        fs::write(codex.join("rollout.jsonl"), "{}\n").unwrap();
+        let db = Connection::open(codex.join("state_5.sqlite")).unwrap();
+        db.execute_batch("CREATE TABLE threads(id TEXT, rollout_path TEXT, cwd TEXT, created_at INTEGER, updated_at INTEGER, git_branch TEXT, git_origin_url TEXT);").unwrap();
+        db.execute("INSERT INTO threads VALUES (?1,?2,?3,?4,?5,?6,?7)", rusqlite::params!["fixture", "rollout.jsonl", repo.join("packages").join("app").to_str().unwrap(), 1, 2, "main", "https://fallback.example/acme/vyre.git"]).unwrap();
+        db.execute("INSERT INTO threads VALUES (?1,?2,?3,?4,?5,?6,?7)", rusqlite::params!["missing", "rollout.jsonl", fixture.join("deleted-repo").to_str().unwrap(), 1, 2, "main", "https://example.com/acme/deleted.git"]).unwrap();
+        drop(db);
+        let codex_sources = codex_sources(Some(codex.to_str().unwrap())).unwrap();
+        let codex_source = codex_sources.iter().find(|source| source.session_id == "fixture").unwrap().clone();
+        assert_eq!(codex_source.cwd.as_deref(), repo.to_str());
+        assert_eq!(codex_source.git_origin_url.as_deref(), Some("https://example.com/acme/vyre.git"));
+        assert_eq!(read["source"]["cwd"], codex_source.cwd.clone().unwrap());
+        assert_eq!(read["source"]["gitOriginUrl"], codex_source.git_origin_url.clone().unwrap());
+        let missing = codex_sources.iter().find(|source| source.session_id == "missing").unwrap();
+        assert_eq!(missing.git_origin_url, None, "a deleted checkout cannot create a repository Project from stale metadata");
+        fs::remove_dir_all(fixture).unwrap();
+    }
+
+    #[test]
+    fn corrupt_codex_state_does_not_hide_claude_sources() {
+        let fixture = std::env::temp_dir().join(format!("vyre-provider-failure-fixture-{}", std::process::id()));
+        let codex = fixture.join(".codex");
+        let claude = fixture.join(".claude");
+        fs::create_dir_all(&codex).unwrap();
+        fs::write(codex.join("state_5.sqlite"), "not sqlite").unwrap();
+        let project = claude.join("projects").join("-work-vyre");
+        fs::create_dir_all(&project).unwrap();
+        fs::write(project.join("44444444-4444-4444-8444-444444444444.jsonl"), "{}\n").unwrap();
+        let sources = discover_session_sources_at(CodexDiscoveryOptions { codex_home: Some(codex.to_string_lossy().into()), claude_home: Some(claude.to_string_lossy().into()), claude_desktop_home: None });
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].provider, "claude");
+        fs::remove_dir_all(fixture).unwrap();
     }
 }
