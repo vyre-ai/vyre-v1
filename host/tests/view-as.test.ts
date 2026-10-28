@@ -21,7 +21,7 @@ function fixture() {
   for (const person of ["admin", "target"]) snap.putGrant({ id: person, subject_kind: "actor", subject_id: person, resource_type: "record_type", resource_id: "type", level: "view", conditions: { rowFilter: { op: "eq", field: "region", value: "eu" }, hiddenFields: person === "admin" ? ["region"] : ["secret"] } });
   snap.setFieldLabel("type", "restricted", 3);
   const store = {
-    types:async()=>[], get: async (_type: string, id: string) => rows.find(row => row.id === id) ?? null,
+    types:async()=>[{name:"type",fields:["name","region","secret","restricted"].map(name=>({name,kind:"text"}))}], get: async (_type: string, id: string) => rows.find(row => row.id === id) ?? null,
     query: async (_type: string, spec: { page: { cursor?: string } }) => { const offset = Number(spec.page.cursor ?? 0); return { rows: rows.slice(offset, offset + 1), ...(offset + 1 < rows.length ? { next_cursor: String(offset + 1) } : {}) }; },
   } as unknown as Store;
   const ports = { space: "space", snapshot: () => snap, sourceLive: () => sourceLive, store: () => store, now: () => now };
@@ -80,4 +80,13 @@ test("a blocked canonical read cannot outlive source revocation", async () => {
   f.store.get = () => new Promise(resolve => { release = resolve; });
   const pending = f.preview.read(f.token, "records.get", { type: "type", recordId: "one" }, "trace");
   await new Promise<void>(resolve=>setImmediate(resolve));f.revoke(); release(row); await assert.rejects(pending);
+});
+test("preview schema drops cannot turn a formerly classified field or missing type public",async()=>{
+ const f=fixture(),row=await f.store.get("type","one");assert.ok(row);
+ f.store.get=async()=>({...row,data:{...row.data,canonical:"classified value"}});
+ f.store.types=async()=>[{name:"type",fields:[...Object.keys(row.data).map(name=>({name,kind:"text"})),{name:"canonical",kind:"text",sensitivity:"restricted"}]}];
+ const prepared=await f.preview.read(f.token,"records.get",{type:"type",recordId:"one"},"trace");
+ f.store.types=async()=>[{name:"type",fields:Object.keys(row.data).map(name=>({name,kind:"text"}))}];
+ const result=await prepared.finish();assert.equal((result as {record:{fields:Record<string,unknown>}}).record.fields["canonical"],undefined);
+ f.store.types=async()=>[];await assert.rejects(prepared.finish());
 });

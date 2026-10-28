@@ -24,7 +24,7 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
    const hidden=new Set(exact.effect==="allow"?exact.scope?.hiddenFields??[]:grants.flatMap(grant=>[...grant.hidden]));
    let ceiling=exact.effect==="allow"?exact.scope?.labelCeiling??-1:Math.min(info.clearance,...grants.map(grant=>grant.ceiling));
    if(req.provider)for(const policy of snapshot.policies())if(policy.kind==="provider_label")ceiling=Math.min(ceiling,policy.allow[req.provider]??policy.defaultMax??Infinity);
-   if(touched.some(path=>{const field=path.split(".")[0]!;return hidden.has(field)||(labels[field]??0)>ceiling||snapshot.fieldLabel(type,field)>ceiling||snapshot.fieldLabel("record",field)>ceiling;}))throw fail("permission.no_grant",trace,{message:"Filtering, grouping or sorting by a hidden field is not allowed."});
+   if(touched.some(path=>{const field=path.split(".")[0]!;return hidden.has(field)||(!["id","version","created_at","updated_at"].includes(field)&&labels[field]===undefined)||(labels[field]??0)>ceiling||snapshot.fieldLabel(type,field)>ceiling||snapshot.fieldLabel("record",field)>ceiling;}))throw fail("permission.no_grant",trace,{message:"Filtering, grouping or sorting by a hidden field is not allowed."});
   }
  }
  function mayRead(req:Req,type:string):boolean{
@@ -54,7 +54,7 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
  function fields(seed:ReadSeed,row:StoredRecord,original:Record<string,unknown>,trace:string){
   const result=decision(seed,row);if(!result)throw fail("permission.no_grant",trace);
   const snapshot=ports.snapshot(),hidden=new Set(result.scope?.hiddenFields??[]);let ceiling=result.scope?.labelCeiling??-1;if(seed.provider)for(const policy of snapshot.policies())if(policy.kind==="provider_label")ceiling=Math.min(ceiling,policy.allow[seed.provider]??policy.defaultMax??Infinity);
-  return Object.fromEntries(Object.entries(original).filter(([key])=>!hidden.has(key)&&(seed.labels?.[key]??0)<=ceiling&&snapshot.fieldLabel(row.type,key)<=ceiling&&snapshot.fieldLabel("record",key)<=ceiling));
+  return Object.fromEntries(Object.entries(original).filter(([key])=>!hidden.has(key)&&seed.labels?.[key]!==undefined&&seed.labels[key]<=ceiling&&snapshot.fieldLabel(row.type,key)<=ceiling&&snapshot.fieldLabel("record",key)<=ceiling));
  }
  return{
   async collection(cap:string,input:unknown,seed:ReadSeed,req:Req,trace:string):Promise<{finish():unknown}|null>{
@@ -62,7 +62,7 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
    seed={...seed,readCap:cap,readInput:input};
    const value=object(input),type=value["type"];if(typeof type!=="string")throw fail("validation.bad_input",trace);
    if(!mayRead(req,type))throw fail("permission.no_grant",trace);
-   seed={...seed,labels:await recordSensitivity(ports.store(),type)};
+   seed={...seed,labels:await recordSensitivity(ports.store(),type,trace)};
    const snapshot=ports.snapshot(),parent=authorize(snapshot,req),scope=parent.scope;
    if(parent.effect==="hold")throw fail("permission.needs_approval",trace);
    if(parent.effect==="allow"&&scope&&!scope.rowFilter&&!scope.hiddenFields.length&&scope.labelCeiling>=3&&!seed.provider)return null;
@@ -111,7 +111,7 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
     next=random();cursors.set(next,{key,cursor,expires:ports.now()+3600000,skip});
    }
    return{finish:async()=>{
-    seed={...seed,labels:await recordSensitivity(ports.store(),type)};
+    seed={...seed,labels:await recordSensitivity(ports.store(),type,trace)};
     if(!mayRead(req,type))throw fail("permission.no_grant",trace);
     assertFields(req,type,seed.labels??{},touched,trace);
     if(cap==="records.counts")return{count:rows.filter(row=>{if(!decision(seed,row))return false;const visible=fields(seed,row,row.data,trace);return touched.every(field=>["id","version","created_at","updated_at"].includes(field)||Object.hasOwn(visible,field));}).length};
@@ -121,7 +121,7 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
   async facts(cap:string,input:unknown,req:Req,trace:string):Promise<Req>{
    if(cap==="records.query"){
     const value=object(input),type=value["type"];
-    if(typeof type==="string"){const labels=await recordSensitivity(ports.store(),type);
+    if(typeof type==="string"){const labels=await recordSensitivity(ports.store(),type,trace);
      const touched:string[]=[];const visit=(item:unknown):void=>{if(Array.isArray(item)){item.forEach(visit);return;}if(!item||typeof item!=="object")return;const row=object(item);if(typeof row["field"]==="string")touched.push(row["field"]);Object.values(row).forEach(visit);};
      visit(value["filter"]);visit(value["sort"]);if(typeof value["group"]==="string")touched.push(value["group"]);
      assertFields(req,type,labels,touched,trace);
@@ -142,12 +142,12 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
    if(cap==="records.history"){
     const id=value["recordId"];const row=typeof id==="string"?await ports.store().get(type,id):null;
     if(!row)throw fail("permission.no_grant",trace);
-    return async()=>{seed={...seed,labels:await recordSensitivity(ports.store(),type)};const visible=fields(seed,row,row.data,trace);return{...result,entries:(Array.isArray(result["entries"])?result["entries"]:[]).filter(entry=>typeof object(entry)["field"]==="string"&&Object.hasOwn(visible,object(entry)["field"] as string))};};
+    return async()=>{seed={...seed,labels:await recordSensitivity(ports.store(),type,trace)};const visible=fields(seed,row,row.data,trace);return{...result,entries:(Array.isArray(result["entries"])?result["entries"]:[]).filter(entry=>typeof object(entry)["field"]==="string"&&Object.hasOwn(visible,object(entry)["field"] as string))};};
    }
    const originals=cap==="records.get"?[object(result["record"])]:Array.isArray(result["rows"])?result["rows"].map(object):[];
    const stored=await Promise.all(originals.map(row=>typeof row["id"]==="string"?ports.store().get(type,row["id"]):Promise.resolve(null)));
    return async()=>{
-    seed={...seed,labels:await recordSensitivity(ports.store(),type)};
+    seed={...seed,labels:await recordSensitivity(ports.store(),type,trace)};
     const rows=originals.flatMap((original,index)=>{const row=stored[index];if(!row||!decision(seed,row))return[];const visible=fields(seed,row,object(original["fields"]),trace);
      if(cap==="records.query"){const touched=[...references(value["filter"]),...references(value["sort"]),...(typeof value["group"]==="string"?[value["group"]]:[])].map(field=>field.split(".")[0]!);const complete=fields(seed,row,row.data,trace);if(touched.some(field=>!["id","version","created_at","updated_at"].includes(field)&&!Object.hasOwn(complete,field)))throw fail("permission.no_grant",trace);}
      if(cap==="records.search"){const words=String(value["q"]??"").toLocaleLowerCase().match(/[\p{L}\p{N}_]+/gu)??[];const body=Object.values(visible).filter(item=>typeof item==="string").join(" ").toLocaleLowerCase();const actual=body.match(/[\p{L}\p{N}_]+/gu)??[];if(!words.length||!words.every(word=>actual.some(item=>item.startsWith(word))))return[];}
