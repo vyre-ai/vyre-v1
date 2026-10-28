@@ -83,6 +83,7 @@ import { createMcpRoute } from "../routes/mcp.ts";
 import type { McpRuntime } from "../routes/mcp.ts";
 import { createKeyring } from "../seams/keyring.ts";
 import { createPeopleExtras, githubOAuthFromEnv } from "../seams/people.ts";
+import {createRecoveryCommit} from "../seams/recovery.ts";
 import type { GithubOAuth } from "../seams/people.ts";
 import { createSpaceAdmin } from "../seams/spaceadmin.ts";
 import { preAuthSession } from "./preauth.ts";
@@ -726,7 +727,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       // the drivers that need the daemon's own state (the Space log, the access snapshot, the pipeline); the registry in seams/ builds the rest from the Vault
       const spaceLog = log;
-      peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, call: (n, i, as) => hookRunner.call(n, i, as), keyring, github: o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env) });
+      peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, recoveryCommit:createRecoveryCommit({db:db!,now}),call: (n, i, as) => hookRunner.call(n, i, as), keyring, github: o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env) });
       // `trace`: a call the host makes on behalf of a caller keeps that caller's trace (only the principal changes), so the events it writes stay in the caller's trace
       const system = (cap: string, input: unknown, trace?: { traceId: string; spanId: string }): Promise<unknown> =>
         invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook", ...(trace ? { trace } : {}) }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));

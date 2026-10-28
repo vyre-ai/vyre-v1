@@ -42,6 +42,8 @@ function pubOfPriv(privB64: string): string {
   const priv = crypto.createPrivateKey({ key: Buffer.concat([X25519_PKCS8, raw(privB64)]), format: "der", type: "pkcs8" });
   return String(crypto.createPublicKey(priv).export({ format: "jwk" }).x);
 }
+/** Raw public half for an existing X25519 private seed (base64url). */
+export const x25519Public = (privB64:string):string => pubOfPriv(privB64);
 export function x25519Shared(privB64: string, pubB64: string): Buffer {
   const priv = crypto.createPrivateKey({ key: { kty: "OKP", crv: "X25519", d: privB64, x: pubOfPriv(privB64) }, format: "jwk" });
   const pub = crypto.createPublicKey({ key: { kty: "OKP", crv: "X25519", x: pubB64 }, format: "jwk" });

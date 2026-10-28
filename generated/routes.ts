@@ -13536,6 +13536,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/identity/recovery_fetch",
+    "cap": "identity.recovery_fetch",
+    "v": 1,
+    "module": "identity",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/identity/recovery_restore",
     "cap": "identity.recovery_restore",
     "v": 1,

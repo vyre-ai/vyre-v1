@@ -7,6 +7,7 @@
 # Changelog
 
 - Add real Space Agent-template file editing through the canonical Files root: create folders/text files, read and update optimistic file versions, browse/search/paginate folders, configure template behavior and preview/apply to a named single agent before selecting all agents. Production proof creates, edits, reloads and applies the exact text into the agent’s Files home in light/dark/phone layouts. Show actual Computer-host health with retry and disable provisioning when the host reports unavailable; live container lifecycle still requires the Docker acceptance test.
+- Replace ciphertext-hash account recovery with a sealed, five-minute one-use nonce proving possession of the existing X25519 private key. Anonymous fetch returns recovery-only wrapped keys and never the password wrap; bounded fake bundles use a private durable Space seed. A narrow host transaction consumes the proven challenge, CASes the account/bundle, replaces the password wrap and revokes old identity/device sessions together. Preserve legacy encrypted recovery bundles, reject old cipher-hash proofs, retain keys and challenges on invalid replacement input, and prevent permanent recovery loss from public wrong attempts.
 
 - Fail closed when a Record type disappears between preparation and output. Ordinary and View-as projections exclude dropped or unknown schema fields instead of treating missing classification as public, while preserving record identity/version metadata. Regressions drop classified fields and types before final output in both paths.
 
