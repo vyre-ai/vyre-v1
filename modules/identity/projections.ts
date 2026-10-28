@@ -7,6 +7,7 @@ import {assertSignInPolicy} from "./policy.ts";
 import { argon2id } from "../../kernel/src/identity/stretch.ts";
 import { sameMac, sha256b64 } from "../../kernel/src/seal/wire.ts";
 import { fail } from "../../host/src/routes/errors.ts";
+import type {RecoveryCommit} from "../../packages/contracts/src/identity-recovery.ts";
 
 export interface Db {
   all(sql: string, ...args: unknown[]): unknown[];
@@ -14,6 +15,7 @@ export interface Db {
 }
 export interface Github { resolve(code: string): Promise<{ id: string; login: string }> }
 export interface IdentityCtx {
+  recoveryCommit?:RecoveryCommit;
   signInPolicy?: {current():Readonly<SignInPolicy>;methods:Readonly<SignInMethods>};
   /** Current canonical Space owner, supplied read-only by the access projection. */
   spaceOwner?():string|null;
@@ -211,9 +213,8 @@ export function me(ctx: IdentityCtx): Account {
 }
 export function setKeys(ctx: IdentityCtx, personId: string, keys: KeyBundle, reason: string): void {
   if (!validBundle(keys)) raise(ctx.trace.traceId, "validation.bad_input", "keys must be base64 ciphertext");
-  const recovery = keys.personKeyByRecovery;
   ctx.db.run(`UPDATE identity_accounts SET keys_json = ?, epoch = ?, recovery_hash = ? WHERE person_id = ?`,
-    JSON.stringify(keys), epochOf(keys), recovery ? sha(recovery) : null, personId);
+    JSON.stringify(keys), epochOf(keys), null, personId);
   ctx.emit("keys.stored", personId, { personId, reason });
 }
 
@@ -286,6 +287,10 @@ export function revokeSessions(ctx: IdentityCtx, personId: string, except?: stri
   const live = ctx.db.all(`SELECT id FROM identity_sessions WHERE person_id = ? AND revoked_at IS NULL AND id != ?`, personId, except ?? "") as { id: string }[];
   ctx.db.run(`UPDATE identity_sessions SET revoked_at = ? WHERE person_id = ? AND revoked_at IS NULL AND id != ?`, ctx.now(), personId, except ?? "");
   for (const r of live) sessionTokens?.end(r.id);
+}
+/** The private recovery transaction already revoked both durable session tables. */
+export function finishRecoverySessions(ctx:IdentityCtx,personId:string,sessions:readonly string[]):void{
+ ctx.keyring?.clear(personId);for(const id of sessions)sessionTokens?.end(id);
 }
 /** Resolve a bearer token to its live session; the host gateway calls this to build the principal. */
 export function sessionOfToken(ctx: IdentityCtx, token: string): { sessionId: string; personId: string; deviceId: string } | undefined {

@@ -60,39 +60,13 @@ export async function recoverySave(ctx: IdentityCtx, input: { personKeyByRecover
   return ok;
 }
 
-/**
- * Recovery proof: base64url(sha256(personKeyByRecovery)), which the client can recompute from the recovery code because the recovery wrap is deterministic.
- * CONTRACT-CHANGE request to the lead: a signed-out client cannot fetch the stored ciphertext to unwrap it; a pre-auth `identity.recovery_fetch` (username + proof returns the ciphertext) is needed.
- */
-export async function recoveryRestore(ctx: IdentityCtx, input: Device & { username: string; recoveryProof: string; newPassword: string; keys: KeyBundle }): Promise<SignInOut> {
-  const name = input.username.trim().toLowerCase();
-  const a = accountByName(ctx, name);
-  if (!a || !a.recovery_hash || lockedFor(a, ctx.now()) > 0) {
-    await burnVerify(input.newPassword);
-    noteFail(ctx, a, name, a && lockedFor(a, ctx.now()) > 0 ? "locked" : "bad_code");
-    raise(ctx.trace.traceId, "auth.invalid_code");
-  }
-  if (input.recoveryProof !== a.recovery_hash) {
-    noteFail(ctx, a, name, "bad_code");
-    // the recovery code is burned after LOCK_AFTER wrong tries, whoever made them: it guards the person's keys, and a new one is saved from a signed-in device
-    if (a.fails + 1 >= LOCK_AFTER) ctx.db.run(`UPDATE identity_accounts SET recovery_hash = NULL WHERE person_id = ?`, a.person_id);
-    raise(ctx.trace.traceId, "auth.invalid_code");
-  }
-  checkNewSecret(ctx, input.newPassword);
-  const verifier = await makeVerifier(input.newPassword);
-  ctx.db.run(`UPDATE identity_accounts SET verifier = ? WHERE person_id = ?`, verifier, a.person_id);
-  setKeys(ctx, a.person_id, input.keys, "recovery");
-  revokeSessions(ctx, a.person_id);
-  clearFails(ctx, a);
-  ctx.emit("password.reset", a.person_id, { personId: a.person_id, by: a.person_id, recovered: true });
-  return await issueSession(ctx, mustAccount(ctx, a.person_id), input, "recovery");
-}
+export {recoveryRestore,recoveryFetch} from "./recovery.ts";
 
 export async function resetPreview(ctx: IdentityCtx, input: { personId: string }) {
   const a = mustAccount(ctx, input.personId);
   const n = ctx.losses?.of(a.person_id) ?? { vault_mine: 0, private_chats: 0, personal_memory: 0 };
   const losses = (["vault_mine", "private_chats", "personal_memory"] as const).map((kind) => ({ kind, count: n[kind] })).filter((l) => l.count > 0);
-  return { hasRecoveryCode: !!a.recovery_hash, losses };
+  return { hasRecoveryCode: !!bundleOf(a)?.personKeyByRecovery, losses };
 }
 
 function resetOwner(ctx:IdentityCtx):string {

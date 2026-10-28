@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access, members.
 
-## Capabilities (27)
+## Capabilities (28)
 
 - [identity.change_password](../capabilities/identity.change_password.md): Change my own password; keys are re-wrapped on the device first
 - [identity.claim_owner](../capabilities/identity.claim_owner.md): Claim a fresh Space as its owner with the one-time link: pick a username and password, store the wrapped keys, and sign in
@@ -17,6 +17,7 @@ Requires: access, members.
 - [identity.pair_redeem](../capabilities/identity.pair_redeem.md): Trade a pair code or invite code for a session on a new device
 - [identity.passkey_register](../capabilities/identity.passkey_register.md): Add a passkey as a second factor (ships later)
 - [identity.passkey_remove](../capabilities/identity.passkey_remove.md): Remove a passkey (ships later)
+- [identity.recovery_fetch](../capabilities/identity.recovery_fetch.md): Fetch recovery-only encrypted keys and a short-lived sealed private-key possession challenge
 - [identity.recovery_restore](../capabilities/identity.recovery_restore.md): Set a new password with a recovery code (keys unwrapped by the code, re-wrapped by the password)
 - [identity.recovery_save](../capabilities/identity.recovery_save.md): Save a recovery code so a reset keeps Mine vault items, private chats and personal memory
 - [identity.reset_complete](../capabilities/identity.reset_complete.md): The person sets a new password from the reset link and makes fresh keys

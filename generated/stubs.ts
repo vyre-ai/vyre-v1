@@ -1026,6 +1026,7 @@ export function stubs(ctx: CallCtx) {
       pair_redeem: call("identity.pair_redeem"),
       passkey_register: call("identity.passkey_register"),
       passkey_remove: call("identity.passkey_remove"),
+      recovery_fetch: call("identity.recovery_fetch"),
       recovery_restore: call("identity.recovery_restore"),
       recovery_save: call("identity.recovery_save"),
       reset_complete: call("identity.reset_complete"),

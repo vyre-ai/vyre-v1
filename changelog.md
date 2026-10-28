@@ -4,6 +4,8 @@
 - Add an isolated read-only shared Records preview to the Access checker, with memory-only expiring credentials, canceled pending requests, hidden-field redaction, explicit exit and preserved normal Owner session.
 # Changelog
 
+- Replace ciphertext-hash account recovery with a sealed, five-minute one-use nonce proving possession of the existing X25519 private key. Anonymous fetch returns recovery-only wrapped keys and never the password wrap; bounded fake bundles use a private durable Space seed. A narrow host transaction consumes the proven challenge, CASes the account/bundle, replaces the password wrap and revokes old identity/device sessions together. Preserve legacy encrypted recovery bundles, reject old cipher-hash proofs, retain keys and challenges on invalid replacement input, and prevent permanent recovery loss from public wrong attempts.
+
 - Fail closed when a Record type disappears between preparation and output. Ordinary and View-as projections exclude dropped or unknown schema fields instead of treating missing classification as public, while preserving record identity/version metadata. Regressions drop classified fields and types before final output in both paths.
 
 - Add typed Grant condition editing: pick a Record type by name, compose schema-field row predicates, hide named fields, choose a sensitivity ceiling and set validated UTC access windows. Preserve existing complex conditions until explicitly replaced and review changes before saving. Verify real grant creation/readback/reload in light, dark and phone layouts; fix stale success notices after a previous revocation.
