@@ -39,7 +39,7 @@ export function ImportedHistoryView({ archives, transcript = null, now, busy, er
       trailing={<View style={{ flexDirection: "row", alignItems: "center" }}><Button label="Read archive" onPress={() => onRead(archive.conversationId)} disabled={busy} />{archive.continuedThreadId ? <Button label="Open continued chat" onPress={() => onOpenThread(archive.continuedThreadId!)} disabled={busy} /> : null}</View>} />)}
     {transcript ? <View testID="project-imported-transcript" style={{ gap: 8, marginTop: 12, padding: 12, borderRadius: 10, backgroundColor: "var(--sunk)" as string }}>
       <Text accessibilityRole="header" style={{ fontSize: 14, fontWeight: "600", color: "var(--ink)" as string }}>{transcript.session.title}</Text>
-      {/* ui-rows-lint: transcript paragraphs preserve the immutable visible history. */}
+      {/* ui-rows-lint: not a list (transcript paragraphs preserve the immutable visible history) */}
       {transcript.messages.map((message) => <View key={message.sourceMessageId}><Text style={{ fontSize: 11.5, color: "var(--ink-3)" as string }}>{message.role}</Text><Text selectable style={{ fontSize: 13, lineHeight: 19, color: "var(--ink)" as string }}>{message.text}</Text></View>)}
       <View style={{ flexDirection: "row", alignItems: "center" }}>
         <Button label="Close archive" onPress={() => onClose?.()} disabled={busy} />
