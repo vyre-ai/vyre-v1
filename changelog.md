@@ -1,5 +1,7 @@
 # Changelog
 
+- Routed the Console Network and Speed entries to their live pages and separated Usage from the AI Spend editor.
+
 - Added typed Console Network, Speed and Usage pages with reviewed network changes, observed status, performance budget units and trace drilldown, and independent usage grouping. Fixed the first successful queued domain apply leaving the reported address stale. Added production browser coverage and command failure regression.
 
 - Mark the synthetic export-redaction credential fixture for the existing secret scanner without changing production credential checks.
