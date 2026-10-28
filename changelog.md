@@ -19,6 +19,7 @@
 - Access: allow validated group role assignments, expose direct holders, and enforce human-only role restrictions when groups gain agent members and when evaluating legacy assignments.
 - Audit: add a bounded typed target filter for object Activity, indexed and hash-bound to declared metadata; preserve Space authorization and exclude credential values.
 - Wired live invoke audit metadata into the append-only audit chain while retaining operational logs. Actor and on-behalf-of attribution and whitelisted object target IDs now reach Console Activity without copying request bodies or credentials. Generated permission metadata now loads in the browser for the real role matrix.
+- Console surfaces: wire capability-backed first implementations for Agents, Data, Comms and Integrations; Outside actors now uses the shared object model with production create/readback/edit proof, while the scope ledger names the remaining acceptance gaps for every other adapter.
 - Console objects: wait for real asynchronous mutations before showing completion or Undo, preserve failed/held actions as visible errors, guard duplicate action submits, and synchronize externally changed tabs and quick-edit sheets.
 - Console: add a shared searchable, filterable and keyboard-selectable object-list framework with checked filter counts, bulk selection, pagination and real row context actions; it composes with the existing standard object header, tabs and quick-edit sheet.
 - Console access checks render decision steps with the shared row component and named pass/fail indicators.
