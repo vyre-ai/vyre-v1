@@ -7,11 +7,12 @@
 import { readFileSync } from "node:fs";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
+import type { SupportExportContent } from "../../../lib/admin-export.ts";
 import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 
 /** The part of the host Ctx the health handlers use. The full Ctx satisfies it. */
-export type HealthCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "call">;
+export type HealthCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "call"> & { exports?: { support(body: SupportExportContent): Promise<string> } };
 
 export type State = "healthy" | "degraded" | "down";
 export type Area = "automations" | "sync" | "sends" | "campaigns";

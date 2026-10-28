@@ -70,7 +70,6 @@ async function part(ctx: HealthCtx, name: string, cap: CapName, input: unknown):
  */
 export async function supportBundle(ctx: HealthCtx, input: { traceIds?: string[] }): Promise<{ bundleId: string; fileId: string }> {
   const bundleId = mint("bnd");
-  const fileId = mint("fil");
   const now = ctx.now();
   const traceIds = (input.traceIds ?? []).slice(0, BUNDLE_TRACES);
   const parts: Part[] = [
@@ -84,6 +83,8 @@ export async function supportBundle(ctx: HealthCtx, input: { traceIds?: string[]
     parts: Object.fromEntries(parts.map((p) => [p.name, "error" in p ? { error: p.error } : p.value])),
     missing: parts.filter((p) => "error" in p).map((p) => p.name),
   };
+  if(!ctx.exports)return failWith(ctx.trace.traceId,"internal.unavailable","Private support-bundle storage is unavailable.");
+  const fileId=await ctx.exports.support(body);
   const text = JSON.stringify(body);
   const sizeBytes = new TextEncoder().encode(text).length;
   ctx.db.run("INSERT INTO health_bundle (id, file_id, by_principal, at, size_bytes, body) VALUES (?, ?, ?, ?, ?, ?)", bundleId, fileId, ctx.principal.id, now, sizeBytes, text);
