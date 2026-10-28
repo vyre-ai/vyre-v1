@@ -223,11 +223,32 @@ export async function finish(ctx: RunsCtx, input: In): Promise<unknown> {
 
 // ---- stop, retry, replay ----
 
+function childIds(db: Db, parentId: string): string[] {
+  return (db.all(
+    "SELECT id FROM runs_items WHERE parent_run = ? AND deleted_at IS NULL ORDER BY started_at ASC, id ASC",
+    parentId,
+  ) as { id: string }[]).map((r) => r.id);
+}
+
+/** Stop this run, then every unfinished descendant. A run that already finished stays as it is. The parent is stopped first so a child cannot wake it. */
+async function halt(ctx: RunsCtx, run: Run, reason: string | undefined, seen: Set<string>): Promise<void> {
+  if (seen.has(run.id)) return;
+  seen.add(run.id);
+  const fresh = findRun(ctx.db, run.id);
+  if (!fresh) return;
+  if (isActive(fresh.status)) await finishRun(ctx, fresh, "stopped", { by: ctx.principal.id, reason });
+  for (const id of childIds(ctx.db, fresh.id)) {
+    const child = findRun(ctx.db, id);
+    if (child) await halt(ctx, child, reason, seen);
+  }
+}
+
 export async function stop(ctx: RunsCtx, input: In): Promise<unknown> {
   const run = manageRun(ctx, input.runId);
-  if (run.status === "stopped") return { run: runOut(run, readTrigger(ctx.db, run.id)) };
-  if (!isActive(run.status)) raise(ctx, "validation.precondition_failed", "That run has already finished.", { reason: "run_finished", status: run.status });
-  return { run: ((x) => runOut(x, readTrigger(ctx.db, x.id)))(await finishRun(ctx, run, "stopped", { by: ctx.principal.id, reason: input.reason })) };
+  if (run.status !== "stopped" && !isActive(run.status)) raise(ctx, "validation.precondition_failed", "That run has already finished.", { reason: "run_finished", status: run.status });
+  await halt(ctx, run, input.reason, new Set());
+  const done = findRun(ctx.db, run.id) ?? run;
+  return { run: runOut(done, readTrigger(ctx.db, done.id)) };
 }
 
 export async function retry(ctx: RunsCtx, input: In): Promise<unknown> {
@@ -502,6 +523,37 @@ function caught(e: unknown): Caught {
 }
 const parseJson = (s: string | undefined): unknown => { if (s === undefined) return undefined; try { return JSON.parse(s); } catch { return undefined; } };
 
+// Same shapes containsSecret flags. A page token is a cursor, not a secret, even though the name contains "token".
+const SECRET_KEY = /(secret|password|authorization|cookie|token|api[-_]?key|credential)/i;
+const SECRET_VALUE = /^(?:bearer\s+|sk-|key_)/i;
+
+function pageTokenField(key: string): boolean {
+  if (!/page[-_]?tokens?/i.test(key)) return false;
+  const rest = key.replace(/page[-_]?tokens?/gi, "");
+  return !SECRET_KEY.test(rest);
+}
+
+function redactString(value: string): string {
+  if (SECRET_VALUE.test(value.trim())) return "[redacted]";
+  return value.replace(/bearer\s+\S+/gi, "Bearer [redacted]").replace(/\bsk-\S+/g, "[redacted]");
+}
+
+/** Field names stay. Secret values do not. A page token value stays unless that value is itself a secret. */
+function redactForLog(value: unknown): unknown {
+  if (typeof value === "string") return redactString(value);
+  if (Array.isArray(value)) return value.map((item) => redactForLog(item));
+  if (!value || typeof value !== "object") return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    out[key] = !pageTokenField(key) && SECRET_KEY.test(key) ? "[redacted]" : redactForLog(item);
+  }
+  return out;
+}
+
+function logJson(value: unknown): string {
+  return JSON.stringify(redactForLog(value ?? null));
+}
+
 /** Recorded outputs of the Run a replay copies, by step. */
 function recordedOutputs(db: Db, runId: string): Record<string, unknown> {
   const src = readExtra(db, runId).replayOf;
@@ -563,8 +615,8 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
       const key = idemKeyFor(runId, cur, 1);
       const output = { skipped: true, reason: "milestone_passed" };
       saveStep(ctx.db, {
-        runId, step: cur, attempt: 1, state: "skipped", inputRef: `in:${key}`, inputJson: JSON.stringify(step.input ?? null),
-        outputRef: `out:${key}`, outputJson: JSON.stringify(output), idemKey: key, startedAt: ctx.now(), endedAt: ctx.now(), traceSpan: newSpanId(),
+        runId, step: cur, attempt: 1, state: "skipped", inputRef: `in:${key}`, inputJson: logJson(step.input),
+        outputRef: `out:${key}`, outputJson: logJson(output), idemKey: key, startedAt: ctx.now(), endedAt: ctx.now(), traceSpan: newSpanId(),
         ...(step.next !== undefined ? { nextStep: step.next } : {}),
       });
       outputs[cur] = output;
@@ -590,7 +642,7 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
     const startedAt = last?.startedAt !== undefined && resumed ? last.startedAt : ctx.now();
     const priorSnap = resumed ? parseJson(last?.outputJson) as { at?: unknown } | undefined : undefined;
     const priorAt = typeof priorSnap?.at === "number" ? priorSnap.at : undefined;
-    const inputJson = JSON.stringify(step.input ?? null);
+    const inputJson = logJson(step.input);
     saveStep(ctx.db, {
       runId, step: cur, attempt, state: "running", inputRef: `in:${key}`, inputJson, idemKey: key, startedAt,
       traceSpan: resumed && last?.traceSpan ? last.traceSpan : newSpanId(),
@@ -641,7 +693,7 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
       }
       return { status: "waiting" };
     }
-    const outputJson = result.output === undefined ? undefined : JSON.stringify(result.output);
+    const outputJson = result.output === undefined ? undefined : logJson(result.output);
     saveStep(ctx.db, {
       ...rowOf(ctx.db, runId, cur, attempt), state: "succeeded", outputRef: `out:${key}`, ...(outputJson !== undefined ? { outputJson } : {}),
       ...(result.next !== undefined ? { nextStep: result.next } : {}), endedAt: ctx.now(),

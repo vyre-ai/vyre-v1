@@ -247,6 +247,42 @@ test("a wait inside a lane parks only that child, then the parent joins once", a
   assert.deepEqual(w.steps(parentId).map((s) => [s.step, s.state]), [["par", "succeeded"], ["join", "succeeded"]]);
 });
 
+test("stopping a parent stops a waiting child and does not run its later step", async () => {
+  for (const via of ["runs", "automations"] as const) {
+    const w = rig();
+    const { automationId, parentId } = await w.boot(parallelDef(true), `Stop ${via}`);
+    w.host.enqueue(parentId);
+    await w.drain();
+    const left = w.children(parentId).find((k) => k.scope?.laneId === "Left")!;
+    const right = w.children(parentId).find((k) => k.scope?.laneId === "Right")!;
+    assert.equal(w.run(left.runId)?.status, "waiting");
+    assert.equal(w.run(right.runId)?.status, "succeeded");
+    const creates = () => w.caps("records.create").filter((c) => (c.input.fields as { lane?: string }).lane === "left").length;
+    assert.equal(creates(), 1);
+
+    if (via === "runs") await w.runsH.call("runs.stop", { runId: parentId, reason: "stop parent" }, engine);
+    else await w.autoH.call("automations.stop", { automationId, runId: parentId, pause: false }, alice);
+
+    assert.equal(w.run(parentId)?.status, "stopped", via);
+    assert.equal(w.run(left.runId)?.status, "stopped", via);
+    assert.equal(w.run(right.runId)?.status, "succeeded", via);
+
+    w.advance(HOUR);
+    const woken = await w.runsH.engineRun(engine, (ctx) => sweepWaits(ctx));
+    for (const id of woken) w.host.enqueue(id);
+    w.host.enqueue(parentId);
+    w.host.enqueue(left.runId);
+    await w.drain();
+
+    assert.equal(w.run(parentId)?.status, "stopped", via);
+    assert.equal(w.run(left.runId)?.status, "stopped", via);
+    assert.equal(w.run(right.runId)?.status, "succeeded", via);
+    assert.equal(w.steps(left.runId).some((s) => s.step === "a3"), false, via);
+    assert.equal(w.caps("records.update").length, 0, via);
+    assert.equal(creates(), 1, via);
+  }
+});
+
 test("a crashed child resumes at the incomplete step and a parked parent wakes when its children are terminal", async () => {
   const w = rig();
   const { parentId } = await w.boot(parallelDef(true), "Crash resume");

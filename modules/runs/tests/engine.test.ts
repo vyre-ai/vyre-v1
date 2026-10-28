@@ -154,6 +154,64 @@ test("an error that cannot succeed on a retry fails the step at once", async () 
   assert.equal(readExtra(h.db, id).errorCode, "permission.no_grant");
 });
 
+test("stopping a parent stops a waiting child and does not run its later step", async () => {
+  const h = harness();
+  const parent = await started(h);
+  const child = await started(h, { parentRun: parent });
+  const done = await started(h, { parentRun: parent });
+  await h.call("runs.finish", { runId: done, status: "succeeded", summary: "done" }, engine);
+  const ran: string[] = [];
+  const exec: Executor = async (s) => {
+    if (s.id === "later") { ran.push(s.id); return { output: { step: "later" } }; }
+    return { wait: { reason: "background", on: "a moment" } };
+  };
+  const plan = [step("hold"), step("later", { effects: "outward", input: { patch: { step: "later" } } })];
+  assert.equal((await h.engineRun(engine, (ctx) => drive(ctx, child, plan, exec))).status, "waiting");
+  await h.call("runs.stop", { runId: parent, reason: "stop parent" }, alice);
+  assert.equal((await runOf(h, parent)).status, "stopped");
+  assert.equal((await runOf(h, child)).status, "stopped");
+  assert.equal((await runOf(h, done)).status, "succeeded");
+  assert.equal((await h.engineRun(engine, (ctx) => drive(ctx, child, plan, exec))).status, "stopped");
+  assert.deepEqual(ran, []);
+});
+
+test("the step log keeps field names and does not store a secret value", async () => {
+  const h = harness();
+  const id = await started(h);
+  const input = { pageToken: "next-page", apiKey: "sk-live-secret", note: "Bearer pasted-token", name: "Ada", detail: "use pageToken, saw sk-live-abcdefghij" };
+  const exec: Executor = async () => ({ output: { pageToken: "next-page", token: "secret-value", authorization: "Bearer abc", ok: true, detail: "use pageToken" } });
+  assert.equal((await h.engineRun(engine, (ctx) => drive(ctx, id, [step("a", { input })], exec))).status, "succeeded");
+  const row = allSteps(h.db, id)[0]!;
+  const storedIn = JSON.parse(row.inputJson!) as Record<string, unknown>;
+  const storedOut = JSON.parse(row.outputJson!) as Record<string, unknown>;
+  assert.equal(storedIn.pageToken, "next-page");
+  assert.equal(storedIn.name, "Ada");
+  assert.equal(storedIn.apiKey, "[redacted]");
+  assert.equal(storedIn.note, "[redacted]");
+  assert.equal(String(storedIn.detail).includes("sk-live"), false);
+  assert.equal(String(storedIn.detail).includes("pageToken"), true);
+  assert.equal(storedOut.pageToken, "next-page");
+  assert.equal(storedOut.ok, true);
+  assert.equal(storedOut.detail, "use pageToken");
+  assert.equal(storedOut.token, "[redacted]");
+  assert.equal(storedOut.authorization, "[redacted]");
+  assert.equal(JSON.stringify(storedIn).includes("sk-live-secret"), false);
+  assert.equal(JSON.stringify(storedOut).includes("Bearer abc"), false);
+});
+
+test("a provider error string stays on the step error", async () => {
+  const h = harness();
+  tasksCreate(h);
+  const id = await started(h);
+  const message = "Google rejected Bearer ya29.super-secret-token";
+  const exec: Executor = async () => { throw errorOf("provider.auth_failed", message, false); };
+  assert.equal((await h.engineRun(engine, (ctx) => drive(ctx, id, [step("gmail", { input: { connectionId: "con_1", q: "newer" } })], exec))).status, "failed");
+  const row = allSteps(h.db, id)[0]!;
+  assert.equal(row.error?.code, "provider.auth_failed");
+  assert.match(row.error?.message ?? "", /ya29\.super-secret-token/);
+  assert.equal(JSON.parse(row.inputJson!).connectionId, "con_1");
+});
+
 test("stop is read before every step: the step in flight finishes, the next one never starts", async () => {
   const h = harness();
   const id = await started(h);

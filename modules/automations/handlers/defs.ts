@@ -1,6 +1,7 @@
 // Automation definitions (spec 2.12, 3.7; ARCH 7.7): create, update with versions, validation against the step and trigger catalogue, Groups, followers, alerts,
 // webhook URL, Promote to the Space with its access diff, and the Personal copy. Starting Runs and the trigger consumer are in triggers.ts.
 // DECISION: a new Automation is a draft. It turns on only when validate finds no error; saving a definition with errors is allowed while it is not on, refused while it is.
+// A pasted secret is refused in every status, including a draft. The connection holds it.
 // DECISION: a definition change appends a version; a name or description change does not.
 // DECISION: Promote keeps the id, history and versions, makes the Automation a Space one owned by the named person and run as its own Service principal. The access it was
 // confirmed with is stored (automations_access) with the vault names it may use (automations_vault); subscription keys must be replaced by shared API keys first.
@@ -101,7 +102,32 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
     path.pop(); state.set(id, 2);
   };
   for (const n of def.nodes) if ((state.get(n.id) ?? 0) === 0) dfs(n.id);
+  if (hasPastedSecret(def)) out.push(issue("error", "A definition cannot hold a secret. Use a connection."));
   return out;
+}
+
+// `pageToken` is a normal cursor. The letters "token" inside it are not a secret field.
+function pageTokenField(key: string): boolean {
+  if (!/page[-_]?tokens?/i.test(key)) return false;
+  const rest = key.replace(/page[-_]?tokens?/gi, "");
+  return !containsSecret({ [rest || "ok"]: 1 });
+}
+
+/** A secret anywhere in the definition: a secret-like field, or a value that is a bearer, sk-, or key_ secret. */
+function hasPastedSecret(value: unknown): boolean {
+  if (typeof value === "string") return containsSecret(value);
+  if (!value || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some((item) => hasPastedSecret(item));
+  return Object.entries(value as Record<string, unknown>).some(([key, item]) => {
+    if (pageTokenField(key)) return hasPastedSecret(item);
+    if (containsSecret({ [key]: 1 })) return true;
+    return hasPastedSecret(item);
+  });
+}
+
+function refuseSecret(ctx: AutoCtx, def: Definition): void {
+  if (!hasPastedSecret(def)) return;
+  raise(ctx, "validation.bad_input", "A definition cannot hold a secret. Use a connection.", { reason: "secret" });
 }
 const hasErrors = (issues: readonly Issue[]): boolean => issues.some((i) => i.severity === "error");
 
@@ -209,6 +235,7 @@ export async function create(ctx: AutoCtx, input: In): Promise<unknown> {
   if (!name) raise(ctx, "validation.bad_input", "An automation needs a name.");
   const def: Definition = input.definition ?? EMPTY;
   checkStructure(ctx, def);
+  refuseSecret(ctx, def);
   if (input.groupId && !findGroup(ctx.db, input.groupId)) raise(ctx, "validation.not_found", "That Group does not exist.", { reason: "no_group" });
   const now = ctx.now();
   const owner = me(ctx);
@@ -236,6 +263,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   let definitionChanged = false;
   if (input.definition !== undefined && !same(input.definition, a.definition)) {
     checkStructure(ctx, input.definition);
+    refuseSecret(ctx, input.definition);
     const policy = readPolicy(ctx.db);
     const blocking = a.status === "on" ? blocksGoingLive(input.definition, policy) : validateDefinition(input.definition, policy);
     if (a.status === "on" && hasErrors(blocking)) {
@@ -308,6 +336,7 @@ export async function restoreVersion(ctx: AutoCtx, input: In): Promise<unknown> 
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   const v = versionById(ctx.db, a.id, input.versionId);
   if (!v) raise(ctx, "validation.not_found", "That version does not exist.", { reason: "no_version" });
+  refuseSecret(ctx, v.definition);
   const restored = a.status === "on" ? blocksGoingLive(v.definition, readPolicy(ctx.db)) : validateDefinition(v.definition, readPolicy(ctx.db));
   if (a.status === "on" && hasErrors(restored)) {
     raise(ctx, "validation.precondition_failed", "Turn the automation off before restoring a version with errors.", { reason: "invalid_definition" });

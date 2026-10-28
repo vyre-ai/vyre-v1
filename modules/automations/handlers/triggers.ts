@@ -7,7 +7,7 @@
 import { registry } from "../../../generated/registry.ts";
 import { validateDefinition } from "./defs.ts";
 import {
-  allAutomations, clean, emitAuto, findRunLink, getAutomation, me, principalFor, raise, readPolicy, saveRunLink, touch, vaultAllowlist, versionDefinition,
+  allAutomations, clean, emitAuto, findRunLink, getAutomation, listChildLinks, me, principalFor, raise, readPolicy, saveRunLink, touch, vaultAllowlist, versionDefinition,
 } from "../projections.ts";
 import type { AutoCtx, Automation, Definition, Policy, RunLink, RunScope, TriggerRef } from "../projections.ts";
 
@@ -119,19 +119,70 @@ export async function replay(ctx: AutoCtx, input: In): Promise<unknown> {
   return { runId };
 }
 
+const ACTIVE_RUN = ["queued", "running", "waiting"] as const;
+
+function childRunIds(db: AutoCtx["db"], root: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>([root]);
+  const walk = (id: string): void => {
+    for (const child of listChildLinks(db, id)) {
+      if (seen.has(child.runId)) continue;
+      seen.add(child.runId);
+      out.push(child.runId);
+      walk(child.runId);
+    }
+  };
+  walk(root);
+  return out;
+}
+
+/** Parents before children, so a child finishing cannot wake a parent this stop is about to end. */
+function runsToStop(db: AutoCtx["db"], roots: readonly string[], active: ReadonlySet<string>): string[] {
+  const rootSet = new Set(roots);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const visit = (id: string): void => {
+    if (seen.has(id)) return;
+    seen.add(id);
+    if (rootSet.has(id) || active.has(id)) out.push(id);
+    for (const child of listChildLinks(db, id)) visit(child.runId);
+  };
+  const linked = new Set<string>();
+  for (const id of roots) for (const childId of childRunIds(db, id)) linked.add(childId);
+  const tops = roots.filter((id) => !linked.has(id));
+  for (const id of tops.length ? tops : roots) visit(id);
+  for (const id of roots) visit(id);
+  return out;
+}
+
+function runAlreadyFinished(e: unknown): boolean {
+  const err = (e as { error?: { code?: string; details?: { reason?: unknown } } } | null)?.error;
+  return err?.code === "validation.precondition_failed" && err.details?.reason === "run_finished";
+}
+
 export async function stop(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = getAutomation(ctx, input.automationId);
   if (!ctx.call) raise(ctx, "internal.unavailable", "Runs are not available right now.");
-  let ids: string[];
+  const listed = (await ctx.call("runs.list", {
+    scope: "subject", subject: { type: "automation", id: a.id }, statuses: [...ACTIVE_RUN], limit: 500,
+  })) as { runs?: { id: string }[] } | null;
+  const active = new Set((listed?.runs ?? []).map((x) => x.id));
+  let roots: string[];
   if (input.runId) {
     if (findRunLink(ctx.db, input.runId)?.automationId !== a.id) raise(ctx, "validation.precondition_failed", "That run does not belong to this automation.", { reason: "not_a_run_of_this" });
-    ids = [input.runId];
-  } else {
-    const r = (await ctx.call("runs.list", { scope: "subject", subject: { type: "automation", id: a.id }, statuses: ["queued", "running", "waiting"], limit: 500 })) as { runs?: { id: string }[] } | null;
-    ids = (r?.runs ?? []).map((x) => x.id);
-  }
+    roots = [input.runId];
+  } else roots = [...active];
+  // Unfinished children stop with the parent. A child that already finished is not asked again.
+  const ids = runsToStop(ctx.db, roots, active);
   let stopped = 0;
-  for (const id of ids) { await ctx.call("runs.stop", { runId: id, reason: "Stopped from the automation" }); stopped += 1; }
+  for (const id of ids) {
+    try {
+      await ctx.call("runs.stop", { runId: id, reason: "Stopped from the automation" });
+      stopped += 1;
+    } catch (e) {
+      if (!runAlreadyFinished(e)) throw e;
+    }
+  }
   const pause = input.pause === true || (input.runId === undefined && input.pause !== false);
   if (pause && a.status !== "paused") {
     a.status = "paused";

@@ -44,6 +44,28 @@ test("an authenticated request needs a connection and cannot store a secret", as
   assert.ok(missing.issues.some((i) => /needs a connection/.test(i.message)));
 });
 
+test("create and update refuse a pasted secret anywhere, including a draft, and keep a page token", async () => {
+  const h = harness();
+  const withPatch = (patch: Record<string, unknown>) => ({ triggers: trig, nodes: [node("a", "records.update", { type: "contact", recordId: "rec_abc", patch })] });
+  await refused(h.call("automations.create", create({ definition: withPatch({ note: "sk-live-pasted" }) }), alice), "validation.bad_input", "secret");
+  await refused(h.call("automations.create", create({ definition: withPatch({ note: "Bearer pasted-token" }) }), alice), "validation.bad_input", "secret");
+  await refused(h.call("automations.create", create({ definition: withPatch({ apiKey: "not-a-token" }) }), alice), "validation.bad_input", "secret");
+  await refused(h.call("automations.create", create({ definition: { triggers: [{ key: "manual", filter: { token: "x" } }], nodes: [] } }), alice), "validation.bad_input", "secret");
+  assert.equal((await h.call("automations.list", {}, alice)).automations.length, 0);
+  const page = withPatch({ pageToken: "next", status: "active" });
+  const made = await h.call("automations.create", create({ definition: page }), alice);
+  const id = made.automation.id as string;
+  assert.equal(made.automation.status, "draft");
+  assert.equal(made.automation.definition.nodes[0].input.patch.pageToken, "next");
+  await refused(h.call("automations.update", { automationId: id, definition: withPatch({ note: "key_live_pasted" }) }, alice), "validation.bad_input", "secret");
+  const still = await h.call("automations.get", { automationId: id }, alice);
+  assert.equal(still.automation.version, 1);
+  assert.equal(still.automation.definition.nodes[0].input.patch.pageToken, "next");
+  const reported = await validate(h, withPatch({ authorization: "x" }));
+  assert.equal(reported.ok, false);
+  assert.ok(reported.issues.some((i) => /cannot hold a secret/.test(i.message)));
+});
+
 test("steps and triggers that are not in the catalogue are errors", async () => {
   const h = harness();
   const r = await validate(h, { triggers: [{ key: "teleport" }], nodes: [node("a", "do_magic", {})] });
