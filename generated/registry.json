@@ -88895,6 +88895,7 @@
       "caller": "anonymous",
       "effects": "write",
       "emits": [
+        "principal.created",
         "keys.stored",
         "signin.succeeded"
       ],
@@ -184939,6 +184940,9 @@
               "actor",
               "service"
             ],
+            "type": "string"
+          },
+          "name": {
             "type": "string"
           },
           "owner": {

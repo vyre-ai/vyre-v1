@@ -72946,6 +72946,7 @@ if (!("principalId" in o4637)) e.push(p + "/principalId" + ': required');
 if (!("kind" in o4637)) e.push(p + "/kind" + ': required');
 if ("principalId" in o4637) lf(o4637["principalId"], p + "/principalId", e, L244);
 if ("kind" in o4637) lf(o4637["kind"], p + "/kind", e, L218);
+if ("name" in o4637) lf(o4637["name"], p + "/name", e, L2);
 if ("owner" in o4637) lf(o4637["owner"], p + "/owner", e, L244);
 }
 }

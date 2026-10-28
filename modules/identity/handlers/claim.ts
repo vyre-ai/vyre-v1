@@ -24,6 +24,7 @@ export async function claimOwner(
   if (accountById(ctx, row.person_id)) raise(tid, "auth.invalid_code");
   const personId = spendCode(ctx, "claim", code).personId;
   await provisionAccount(ctx, { personId, username, name: input.displayName?.trim() || username, secret: input.password });
+  ctx.emit("principal.created",personId,{principalId:personId,kind:"person",name:input.displayName?.trim()||username});
   setKeys(ctx, personId, input.keys, "first_device");
   return await issueSession(ctx, mustAccount(ctx, personId), input, "password", { joining: true });
 }

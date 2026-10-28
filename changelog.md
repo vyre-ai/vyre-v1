@@ -12,6 +12,8 @@
 
 ## Unreleased
 
+- Carry verified account display names into the access directory on invite acceptance and first Owner claim. The declared event field is additive; the consumer fills only matching-kind ID/bootstrap placeholders and preserves named identities, status, roles and canonical ownership. Actual HTTP name/restart and authority regressions pass.
+
 - Closed administrator reset takeover of the canonical Owner account. A typed read-only owner port guards issuance and redemption, including legacy codes and ownership changes during hashing. Self resets use account settings/recovery instead. Validate password and wrapped-key bundle before consuming a one-time reset credential, preserve expiry/replay behavior and original issuer attribution. Actual HTTP and identity regressions30/30 pass.
 
 - Match the Files folder-search backend limit and wait for a name before querying. Actual production browser17/17 now proves named grant creation, one-week expiry edit, retained backend state after reload/revocation and named Checker decisions.

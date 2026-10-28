@@ -104,7 +104,7 @@ export default defineManifest({
     // bundle from the password they pick (the server never sees the personKey) and calls this once. The code is stored hashed, works once and lasts 24 hours.
     write('identity.claim_owner', 'Claim a fresh Space as its owner with the one-time link: pick a username and password, store the wrapped keys, and sign in', {
       ...V, caller: 'anonymous', in: { code: t.str(), spaceId: t.str({ description: 'The Space id from the claim link (#s=); the first Space key is sealed to it and a different Space is refused', examples: ['spc_a1b2c3'] }), username: t.str({ pattern: '^[a-z0-9_.-]{2,32}$', examples: ['olivia'] }), displayName: t.opt(t.str()), password: t.str(), ...deviceIn, keys: keyBundle }, out: signInOut,
-      emits: ['keys.stored', 'signin.succeeded'], audit: 'always', offline: 'online', rate: { n: 5, perSeconds: 300, scope: 'principal' }, errors: ['auth.invalid_code', 'auth.expired', 'validation.duplicate'],
+      emits: ['principal.created', 'keys.stored', 'signin.succeeded'], audit: 'always', offline: 'online', rate: { n: 5, perSeconds: 300, scope: 'principal' }, errors: ['auth.invalid_code', 'auth.expired', 'validation.duplicate'],
     }),
     read('identity.reset_preview', 'Admin: what a password reset would lose for this person (Mine items, private chats, personal memory) and whether a recovery code exists', {
       ...V, in: { personId: id.user }, out: { hasRecoveryCode: t.bool(), losses: t.arr(t.obj({ kind: t.enm('vault_mine', 'private_chats', 'personal_memory'), count: t.int({ minimum: 0 }) })) }, perm: 'access.manage', tool: 'engineer', team: true,

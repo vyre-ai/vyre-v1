@@ -72,7 +72,7 @@ export default defineManifest({
     ev('access.everyone_defaults_changed', 'The default grants of the Everyone group changed', { p: { grants: t.int({ minimum: 0 }), by: t.str() }, subject: ['entity', '/by'], retention: 'audit' }),
     ev('grant.revoked', 'A grant was removed', { p: { grantId: id.grant, subject: subjectRef, resource: resourceRef, reason: t.opt(t.str()) }, subject: ['entity', '/grantId'], retention: 'audit' }),
     ev('policy.changed', 'A Space policy was set or reset (Gate rule, spend, label rule, sign-in, sharing, retention, vault)', { p: { key: t.str(), scope: t.str(), kind: t.str(), by: t.str() }, subject: ['entity', '/key'], retention: 'audit' }),
-    ev('principal.created', 'A person, agent, outside actor or service came to exist', { p: { principalId: pid, kind: t.enm('person', 'agent', 'actor', 'service'), owner: t.opt(pid) }, subject: ['entity', '/principalId'], retention: 'audit' }),
+    ev('principal.created', 'A person, agent, outside actor or service came to exist', { p: { principalId: pid, kind: t.enm('person', 'agent', 'actor', 'service'), name: t.opt(t.str()), owner: t.opt(pid) }, subject: ['entity', '/principalId'], retention: 'audit' }),
     ev('principal.suspended', 'A principal was suspended', { p: { principalId: pid, reason: t.opt(t.str()) }, subject: ['entity', '/principalId'], retention: 'audit' }),
     ev('principal.reactivated', 'A suspended principal was reactivated', { p: { principalId: pid }, subject: ['entity', '/principalId'], retention: 'audit' }),
     ev('token.revoked', 'An outside actor token was revoked', { p: { actorId: id.actor, by: t.str() }, subject: ['entity', '/actorId'], retention: 'audit' }),
