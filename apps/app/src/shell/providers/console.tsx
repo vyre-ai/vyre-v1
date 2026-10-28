@@ -17,6 +17,7 @@ import { Incidents } from "../../console/pages/Incidents.tsx";
 import { AiPolicy } from "../../console/pages/AiPolicy.tsx";
 import { GateRules } from "../../console/pages/GateRules.tsx";
 import { Retention } from "../../console/pages/Retention.tsx";
+import { Holds } from "../../console/pages/Holds.tsx";
 import { Assistant } from "../../console/Assistant.tsx";
 import { usePlaceHash } from "../hash/context.tsx";
 import { nameLookup } from "./records-live.ts";
@@ -34,6 +35,7 @@ export function aiDataPageFor(id: string): ReactElement | null {
   if (id === "aipolicy") return <AiPolicy />;
   if (id === "gate") return <GateRules />;
   if (id === "retention") return <Retention />;
+  if (id === "holds") return <Holds />;
   return null;
 }
 export default function ConsolePlace(): ReactElement {

@@ -4,6 +4,7 @@ import { aiDataPageFor } from "../../shell/providers/console.tsx";
 import { incidentDefaultFilters, mergeIncidentPages } from "../pages/Incidents.tsx";
 import { canEditOwnerFloor, gateRuleDraft, mergeGateAgents } from "../pages/GateRules.tsx";
 import { mergeReviewPages } from "../pages/AiSettings.tsx";
+import { holdTargetOf, mergeHolds } from "../pages/Holds.tsx";
 
 test("Models and providers mounts a real Console page", () => {
   const page = aiDataPageFor("models");
@@ -16,6 +17,7 @@ test("Models and providers mounts a real Console page", () => {
   assert.ok(aiDataPageFor("aipolicy"));
   assert.ok(aiDataPageFor("gate"));
   assert.ok(aiDataPageFor("retention"));
+  assert.ok(aiDataPageFor("holds"));
   assert.equal(aiDataPageFor("not-ai-data"), null);
 });
 
@@ -37,4 +39,11 @@ test("a new agent Gate override inherits a real parent rule and owner floors sta
 test("sampled turn pagination keeps the latest unique turn state", () => {
   const item = (turnId: string, state: "waiting" | "ok" | "flagged") => ({ turnId, threadId: "thr_1", agentId: "agt_1", sampledAt: 1, state });
   assert.deepEqual(mergeReviewPages([item("trn_1", "waiting")], [item("trn_1", "ok"), item("trn_2", "flagged")]).map((row) => `${row.turnId}:${row.state}`), ["trn_1:ok", "trn_2:flagged"]);
+});
+
+test("hold search maps named app objects to governance targets and paginates uniquely", () => {
+  assert.deepEqual(holdTargetOf({ kind: "chat", id: "thr_1", title: "Matter room" }), { kind: "thread", id: "thr_1", title: "Matter room" });
+  assert.deepEqual(holdTargetOf({ kind: "file", id: "fil_1", title: "Brief" }), { kind: "file", id: "fil_1", title: "Brief" });
+  const row = (id: string, reason: string) => ({ target: { kind: "file" as const, id }, title: id, reason, by: "usr_1", at: 1 });
+  assert.deepEqual(mergeHolds([row("fil_1", "old")], [row("fil_1", "new"), row("fil_2", "two")]).map((item) => item.reason), ["new", "two"]);
 });
