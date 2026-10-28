@@ -67,6 +67,8 @@ type Out = {
         source?: string;
         createdAt: number;
       };
+      reviewer?: string;
+      taskId?: string;
       lastUsedAt?: number;
       decision?: "keep" | "remove";
     }>;
@@ -120,7 +122,9 @@ type Out = {
             "kind": "person"
           }
         },
-        "lastUsedAt": 1760000000000
+        "lastUsedAt": 1760000000000,
+        "reviewer": "usr_a1b2c3",
+        "taskId": "tsk_a1b2c3"
       }
     ],
     "review": {

@@ -10,6 +10,7 @@ import { PAGES, pageById } from "../../console/shell/nav.ts";
 import { Server, Diagnostics, Support } from "../../console/pages/Infrastructure.tsx";
 import { Backups } from "../../console/pages/Backups.tsx";
 import { Devices } from "../../console/pages/Devices.tsx";
+import { Reviews } from "../../console/pages/Reviews.tsx";
 import { Roles } from "../../console/pages/Roles.tsx";
 import { Grants, People } from "../../console/pages/Access.tsx";
 import { Groups } from "../../console/pages/Groups.tsx";
@@ -48,6 +49,7 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "backups") return <Backups />;
   if (id === "sessions") return <Devices />;
   if (id === "people") return <People />;
+  if (id === "reviews") return <Reviews {...(args.reviewId?{initialId:args.reviewId}:{})} />;
   if (id === "roles") return <Roles {...(args.roleId ? { initialId: args.roleId } : {})} />;
   if (id === "groups") return <Groups {...(args.groupId ? { initialId: args.groupId } : {})} />;
   if (id === "grants") return <Grants {...(args.resourceType && args.resourceId ? { initialResource: { type: args.resourceType, id: args.resourceId } } : {})} />;

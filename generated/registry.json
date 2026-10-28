@@ -23718,7 +23718,9 @@
                     "kind": "person"
                   }
                 },
-                "lastUsedAt": 1760000000000
+                "lastUsedAt": 1760000000000,
+                "reviewer": "usr_a1b2c3",
+                "taskId": "tsk_a1b2c3"
               }
             ],
             "review": {
@@ -23773,6 +23775,20 @@
                   ],
                   "minimum": 0,
                   "type": "integer"
+                },
+                "reviewer": {
+                  "examples": [
+                    "usr_a1b2c3"
+                  ],
+                  "pattern": "^usr_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "taskId": {
+                  "examples": [
+                    "tsk_a1b2c3"
+                  ],
+                  "pattern": "^tsk_[a-z0-9]+$",
+                  "type": "string"
                 }
               },
               "required": [
