@@ -173,7 +173,7 @@ export class FakeNetworkDb implements RawDb {
   readonly log: string[] = [];
 
   constructor(migrationPath: string = MIGRATION) {
-    this.tables = parseMigration(readFileSync(migrationPath, "utf8"));
+    this.tables = parseMigration(readFileSync(migrationPath, "utf8") + "\n" + readFileSync(new URL("../migrations/0002_command_results.sql", import.meta.url), "utf8"));
   }
 
   rows(table: string): Row[] { return this.table(table).rows.map((r) => ({ ...r })); }

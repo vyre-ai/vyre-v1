@@ -6842,6 +6842,8 @@ export type ConsoleSpeedIn = {
 export type ConsoleSpeedOut = {
   rows: Array<{
       budgetId: string;
+      unit: string;
+      sense: "min" | "max" | "exact";
       p50: number;
       p95: number;
       budgetP95: number;
@@ -17227,6 +17229,13 @@ export type NetworkStatusOut = {
     state: "healthy" | "degraded" | "down";
   };
   publicIngress: boolean;
+  commands: Array<{
+      kind: string;
+      target: string;
+      state: "pending" | "applied" | "failed";
+      at: number;
+      detail?: string;
+    }>;
 };
 export type NotificationsAwayClearIn = Record<string, unknown>;
 export type NotificationsAwayClearOut = {
