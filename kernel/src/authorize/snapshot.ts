@@ -121,6 +121,7 @@ export class AccessSnapshot {
     for (const g of groups) keys.add(`group:${g}`);
     for (const rid of roleIds) {
       const r = this.roles.get(rid);
+      if (isOwnerRole(rid, r?.name) && p.kind !== "person") continue;
       if (p.kind === "agent" && (isElevatedRole(rid, r?.name) || r?.assignableToAgents === false)) continue;
       if (!r) continue;
       keys.add(`role:${rid}`); names.push(r.name ?? r.id);

@@ -22,6 +22,9 @@ test("HTTP Admin cannot assign or revoke Owner, groups cannot hold it, and only 
  try{
   for(const who of ["usr_adam","usr_olivia"]){assert.equal((await call("access.roles.assign",{roleId:"rol_owner",subject:{kind:"person",id:"usr_sana"}},who)).status,422);assert.equal((await call("access.roles.unassign",{roleId:"rol_owner",subject:{kind:"person",id:"usr_olivia"}},who)).status,422);}
   for(const members of [[],[{kind:"person",id:"usr_sana"}]]){const made=await call("access.groups.create",{name:members.length?"Human owner attempt":"Empty owner attempt",members,idempotencyKey:members.length?"owner-human":"owner-empty"});assert.equal(made.status,200);assert.equal((await call("access.roles.assign",{roleId:"rol_owner",subject:{kind:"group",id:made.data.group.id}})).status,422);}
+  const actor=await call("access.actors.create",{name:"Owner boundary tool",provider:"codex",roleIds:["rol_member"],idempotencyKey:"owner-actor"});assert.equal(actor.status,200,"create an ordinary outside actor without logging its credential");
+  assert.equal((await call("access.actors.update",{actorId:actor.data.actor.id,provider:"changed",roleIds:["rol_owner"]})).status,422);
+  const actors=await call("access.actors.list",{});const unchanged=actors.data.actors.find((row:{id:string})=>row.id===actor.data.actor.id);assert.equal(unchanged.provider,"codex");assert.ok(!unchanged.roles.includes("rol_owner"));
   assert.equal((await call("spaces.transfer_ownership",{to:"usr_sana"})).status,403);
   assert.equal((await getSpace("usr_olivia")).data.space.owner,"usr_olivia");
   assert.equal((await call("spaces.transfer_ownership",{to:"usr_sana"},"usr_olivia")).status,200);await assertOwner();

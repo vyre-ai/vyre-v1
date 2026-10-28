@@ -21,6 +21,8 @@
 - Browser release evidence requires the real Forms/Campaigns/Apps surface instead of accepting the retired Sites placeholder or its error state.
 - Console Schema now offers the server-declared field types as a named picker instead of asking administrators to type internal field-type keys.
 
+- Outside actors: reject canonical Owner through create/update before mutating actor state, strip legacy non-person Owner authority, and preserve provider changes on validation failure. Update obsolete Owner fixtures while retaining agent/provider authorization coverage; use shared rows for actor roles and computer-agent choices.
+
 - Console interactions: separate list keyboard focus from opening objects, restore Audit row context menus, fit standard object frames to phone widths, and regenerate approved Access/Audit contract snapshots. Production browser covers context keys, bulk selection, role diffs and dark/phone layouts.
 
 - Administrative exports: recheck current authority and expiry after awaited blob reads; reauthorize across save waits and remove newly written blobs/metadata when revocation, registration or storage prevents completion.
