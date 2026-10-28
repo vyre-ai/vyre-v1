@@ -56,7 +56,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
     return;
   }
   const live = liveModules();
-  const space = await bootFreshSpace();
+  const space = await bootFreshSpace(undefined,true);
   const dist = exportApp();
   const web = await edge(dist, space.url);
   const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
@@ -315,14 +315,14 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await assert.rejects(secondApi("identity.whoami", {}));
         await api("identity.whoami", {});
         await page.screenshot({ path: "shots-evidence/console/devices.png" });
-        await api("spaces.switch_address", { mode: "own_domain", host: "console-fixture.example" });
+        assert.equal(((await api("spaces.get",{})) as {space:{address?:{host:string}}}).space.address?.host,new URL(space.url).host);
         await openConsole("access.people");
         const roles = await api("access.roles.list", {}) as { roles: { id: string; name: string; permissions: string[] }[] };
         const member = roles.roles.find((role) => /member/i.test(role.name))!;
         await page.getByTestId(`row-invite-role-${member.id}`).click();
         await page.getByTestId("console-invite-create").click();
         await page.getByTestId("console-invite-link").waitFor();
-        assert.match(await page.getByTestId("console-invite-link").innerText(), /console-fixture\.example/);
+        assert.equal(new URL(await page.getByTestId("console-invite-link").innerText()).host,new URL(space.url).host);
         await openConsole("access.roles");
         await page.getByTestId("permission-matrix").waitFor();
         await page.screenshot({path:"shots-evidence/console/roles-matrix.png"});
@@ -571,7 +571,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       const roles = (await api("access.roles.list", {})) as { roles: Array<{ id: string; name: string }> };
       const role = roles.roles.find((r) => /member/i.test(r.name)) ?? roles.roles[0];
       assert.ok(role, "the Space has an invite role");
-      await api("spaces.switch_address", { mode: "own_domain", host: "provider-fixture.example" });
+      assert.equal(((await api("spaces.get",{})) as {space:{address?:{host:string}}}).space.address?.host,new URL(space.url).host);
       const invited = await api("members.invites.create", { role: role.id, idempotencyKey: "e2e.provider.invite" }) as { link: string };
       const inviteUrl = new URL(invited.link);
       const code = inviteUrl.pathname.split("/").filter(Boolean).at(-1)!;
@@ -599,7 +599,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       joined.on("response", (r) => { if (r.status() >= 400) joinErrors.push(`${r.status()} ${new URL(r.url()).pathname}`); });
       let accepted = 0;
       let providerAttempts = 0;
-      joined.on("request", (r) => { if (r.url().includes("/v1/members/accept")) accepted++; });
+      joined.on("request", (r) => { if (r.url().includes("/v1/members/accept")||r.url().includes("/v1/invites/accept_create_account")) accepted++; });
       await joined.route("**/v1/providers/add", async (route) => {
         providerAttempts++;
         if (providerAttempts === 1) await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: { code: "internal.unavailable", message: "Transient fixture failure", traceId: "fixture-provider" } }) });
@@ -607,8 +607,8 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       });
       try {
         await joined.goto(`${secureWeb.origin}/home`, { waitUntil: "load" });
-        await joined.getByTestId("web").waitFor({ timeout: 15_000 }).catch(async (error) => { console.log(`invite landing: errors=${joinErrors.join(" | ")}, screen=${(await joined.locator("body").innerText()).replace(/\s+/g, " ").slice(0,600)}`); throw error; });
-        await joined.getByTestId("web").click();
+        await joined.getByTestId("first").waitFor({timeout:15000});
+        assert.equal(await joined.getByTestId("web").count(),0,"native invite goes directly to account setup");
         await joined.getByTestId("first").fill("Casey");
         await joined.getByTestId("last").fill("Builder");
         await joined.getByTestId("next").click();

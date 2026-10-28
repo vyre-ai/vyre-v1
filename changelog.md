@@ -216,3 +216,5 @@
 - Normalize observed Space addresses to a host and port before building invite links, rejecting credentials and unsupported schemes. Exercise real auth invites using the fixture server’s actual configured endpoint instead of an unverified public domain.
 
 - Keep auth HTTP regression tests within architecture layers using kernel hashing and an independent authenticator client. Configure golden and browser invite fixtures at server startup, retaining the real DNS requirement for runtime domain changes.
+
+- Keep release browser proof aligned with the configured invite host and direct native account setup, retaining provider retry, key ownership and one-time acceptance assertions.
