@@ -12,6 +12,21 @@ const object=(value:unknown):Record<string,unknown>=>value!==null&&typeof value=
 export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapshot;now():number;fresh():boolean}){
  const cursors=new Map<string,{key:string;cursor:string;expires:number;skip:number}>();
  const random=()=>Array.from(crypto.getRandomValues(new Uint8Array(24)),byte=>byte.toString(16).padStart(2,"0")).join("");
+ function related(resourceId:string|null,type:string):boolean{const snapshot=ports.snapshot();return resourceId!==null&&(snapshot.chain(type)?.some(parent=>parent.id===resourceId)===true||snapshot.chain(resourceId)?.some(parent=>parent.id===type)===true);}
+ function subjects(req:Req):string[]{const output=[req.principal,...(req.actingFor?[req.actingFor]:[])];for(let at=0;at<output.length;at++){const info=ports.snapshot().info(output[at]!);if(info?.p.kind==="svc"&&info.p.owner&&!output.includes(info.p.owner))output.push(info.p.owner);}return output;}
+ function assertFields(req:Req,type:string,labels:Readonly<Record<string,number>>,touched:readonly string[],trace:string):void{
+  if(!touched.length)return;
+  const snapshot=ports.snapshot();
+  for(const principal of subjects(req)){
+   const info=snapshot.info(principal);if(!info)throw fail("permission.no_grant",trace);
+   const exact=authorize(snapshot,{...req,principal,actingFor:undefined});
+   const grants=snapshot.allGrantRecs().filter(grant=>info.keys.has(grant.key)&&grant.rank>=1&&grant.exp>ports.now()&&grant.nb<=ports.now()&&grant.na>=ports.now()&&(related(grant.row.resource_id,type)||(grant.row.resource_id===null&&grant.row.resource_type==="record")));
+   const hidden=new Set(exact.effect==="allow"?exact.scope?.hiddenFields??[]:grants.flatMap(grant=>[...grant.hidden]));
+   let ceiling=exact.effect==="allow"?exact.scope?.labelCeiling??-1:Math.min(info.clearance,...grants.map(grant=>grant.ceiling));
+   if(req.provider)for(const policy of snapshot.policies())if(policy.kind==="provider_label")ceiling=Math.min(ceiling,policy.allow[req.provider]??policy.defaultMax??Infinity);
+   if(touched.some(path=>{const field=path.split(".")[0]!;return hidden.has(field)||(labels[field]??0)>ceiling||snapshot.fieldLabel(type,field)>ceiling||snapshot.fieldLabel("record",field)>ceiling;}))throw fail("permission.no_grant",trace,{message:"Filtering, grouping or sorting by a hidden field is not allowed."});
+  }
+ }
  function mayRead(req:Req,type:string):boolean{
   const snapshot=ports.snapshot();if(!ports.fresh()||snapshot.resource(type)?.type!=="record_type")return false;
   const required=[req.principal,...(req.actingFor?[req.actingFor]:[])];
@@ -23,7 +38,7 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
     if(!info.keys.has(grant.key)||grant.rank<1||grant.exp<=ports.now()||grant.nb>ports.now()||grant.na<ports.now())continue;
     if(grant.row.resource_id===null&&grant.row.resource_type==="record")return true;
     const resource=grant.row.resource_id?snapshot.resource(grant.row.resource_id):undefined;
-    if(resource&&(resource.id===type||snapshot.chain(resource.id)?.some(parent=>parent.id===type)))return true;
+    if(resource&&related(resource.id,type))return true;
    }
    return [...snapshot.allResources()].some(resource=>resource.type==="record"&&resource.owner_id===principal&&snapshot.chain(resource.id)?.some(parent=>parent.id===type));
   });
@@ -68,6 +83,7 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
    const sort=[...(Array.isArray(value["sort"])?value["sort"]:[])] as Sort[];
    if(typeof value["group"]==="string"&&!sort.some(row=>row.field===value["group"]))sort.unshift({field:value["group"],dir:"asc"});
    const touched=[...references(value["filter"]),...sort.map(row=>row.field)].map(field=>field.split(".")[0]!);
+   assertFields(req,type,seed.labels??{},touched,trace);
    const requested=Array.isArray(value["fields"])?new Set(value["fields"] as string[]):null;
    const words=cap==="records.search"?(String(value["q"]??"").toLocaleLowerCase().match(/[\p{L}\p{N}_]+/gu)??[]):[];
    const rows:StoredRecord[]=[];let scanned=0;
@@ -85,6 +101,7 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
       else if(skip>0)skip--;else {rows.push(row);if(rows.length>limit){rows.pop();cursor=before;break;}}
      }
     }
+    if(cap==="records.counts"&&cursor&&scanned>=5000)throw fail("validation.precondition_failed",trace,{message:"This restricted count exceeds the 5,000-row scan limit. Narrow the filter and retry."});
     if(cap!=="records.counts"&&(scanned>=2000))break;
    }while(cursor);
    let next:string|undefined;
@@ -96,17 +113,18 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
    return{finish:async()=>{
     seed={...seed,labels:await recordSensitivity(ports.store(),type)};
     if(!mayRead(req,type))throw fail("permission.no_grant",trace);
+    assertFields(req,type,seed.labels??{},touched,trace);
     if(cap==="records.counts")return{count:rows.filter(row=>{if(!decision(seed,row))return false;const visible=fields(seed,row,row.data,trace);return touched.every(field=>["id","version","created_at","updated_at"].includes(field)||Object.hasOwn(visible,field));}).length};
     return{rows:rows.flatMap(row=>{const result=decision(seed,row);if(!result)return[];const resource=ports.snapshot().resource(row.id)!;const projected=fields(seed,row,row.data,trace);if(!touched.every(field=>["id","version","created_at","updated_at"].includes(field)||Object.hasOwn(projected,field)))return[];if(cap==="records.search"){const actual=Object.values(projected).filter(item=>typeof item==="string").join(" ").toLocaleLowerCase().match(/[\p{L}\p{N}_]+/gu)??[];if(!words.every(word=>actual.some(item=>item.startsWith(word))))return[];}return[{id:row.id,type:row.type,version:row.version,label:resource.label,fields:requested?Object.fromEntries(Object.entries(projected).filter(([field])=>requested.has(field))):projected,createdAt:row.created_at,updatedAt:row.updated_at,holds:resource.holds}];}),...(next?{next}:{})};
    }};
   },
   async facts(cap:string,input:unknown,req:Req,trace:string):Promise<Req>{
    if(cap==="records.query"){
-    const value=object(input),type=value["type"],snapshot=ports.snapshot(),scope=authorize(snapshot,req).scope;
-    if(typeof type==="string"&&scope){const labels=await recordSensitivity(ports.store(),type);
+    const value=object(input),type=value["type"];
+    if(typeof type==="string"){const labels=await recordSensitivity(ports.store(),type);
      const touched:string[]=[];const visit=(item:unknown):void=>{if(Array.isArray(item)){item.forEach(visit);return;}if(!item||typeof item!=="object")return;const row=object(item);if(typeof row["field"]==="string")touched.push(row["field"]);Object.values(row).forEach(visit);};
      visit(value["filter"]);visit(value["sort"]);if(typeof value["group"]==="string")touched.push(value["group"]);
-     if(touched.some(path=>{const field=path.split(".")[0]!;return scope.hiddenFields.includes(field)||(labels[field]??0)>scope.labelCeiling||snapshot.fieldLabel(type,field)>scope.labelCeiling||snapshot.fieldLabel("record",field)>scope.labelCeiling;}))throw fail("permission.no_grant",trace,{message:"Filtering, grouping or sorting by a hidden field is not allowed."});
+     assertFields(req,type,labels,touched,trace);
     }
     return req;
    }
