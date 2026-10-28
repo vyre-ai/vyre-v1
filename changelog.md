@@ -1,5 +1,7 @@
 # Changelog
 
+- Add typed Grant condition editing: pick a Record type by name, compose schema-field row predicates, hide named fields, choose a sensitivity ceiling and set validated UTC access windows. Preserve existing complex conditions until explicitly replaced and review changes before saving. Verify real grant creation/readback/reload in light, dark and phone layouts; fix stale success notices after a previous revocation.
+
 - Harden conditional Record queries before scanning: filters, sorts and grouping must prove field visibility across applicable grants even when the parent decision has no scope; hidden probes reject before any row query. Include conditional Space/folder ancestors in collection eligibility, recheck field eligibility before output and cap restricted counts at 5,000 scanned rows with an explicit narrow-filter error.
 
 - Complete conditional Records collection reads through the canonical typed store: requester/acting-person authorization runs per actual row, authorized pages fill across hidden rows, counts and text searches respect visible content, and opaque cursors bind to the caller and query. Normal and View-as reads now honor explicit canonical schema sensitivity and refresh that classification after audit before releasing data. Restricted pagination cursors expire after an hour or server restart and require a list refresh. Unrestricted reads retain the indexed query path.
