@@ -9,6 +9,7 @@ import { AskVyre } from "../ask/AskVyre.tsx";
 import type { AskBundle } from "../ask/bundle.ts";
 import { accountDefaultInput, accountMenu, applyAccount } from "../connect/accounts.ts";
 import type { AccountOption } from "../connect/accounts.ts";
+import { fieldsFromSchema, asFixture } from "../builder/fields.ts";
 import { DataShelf, MappingFix, SectionRow, commitTyped, nodeIdSet } from "../builder/marks.tsx";
 import { StepTest } from "../builder/StepTest.tsx";
 import { isPreviewKey, PREVIEW_NOTE } from "../catalog/model.ts";
@@ -164,17 +165,48 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
       fields.push(<Field key={`${node.id}-l${n}`} label={`Lane ${n + 1} name`} value={b.label} testID={`field-lane-${n}`} onCommit={(t) => onChange(updateStep(def, node.id, { branches: setBranch(node, n, { label: t }) }))} />);
     }
   }
+  const skipAccount = (name: string): boolean => !!accountPick && (name === "connectionId" || name === "mailboxId" || name === "numberId" || (accountPick.field === "connectionId" && name === "connector"));
+  const writeInput = (name: string, next: unknown): void => {
+    const input = { ...node.input };
+    if (next === undefined) delete input[name];
+    else input[name] = next;
+    onChange(updateStep(def, node.id, { input }));
+  };
+  const schemaFields = fieldsFromSchema(inputSchema, node.input ?? {});
+  const covered = new Set(schemaFields.map((field) => field.name));
+  for (const field of schemaFields) {
+    if (skipAccount(field.name)) continue;
+    const current = node.input[field.name];
+    const label = `${humanize(field.name)}${field.presence === "value" ? "" : ` (${field.presence})`}`;
+    if (field.enumValues.length > 0 && field.enumValues.length <= 8) {
+      fields.push(
+        <Choice
+          key={`${node.id}-${field.name}`}
+          label={label}
+          value={typeof current === "string" && current.length > 0 ? current : "Choose"}
+          testID={`field-${field.name}`}
+          onOpen={(x, y) => openMenu(field.enumValues.map((item) => ({
+            label: item,
+            checked: current === item,
+            onSelect: () => writeInput(field.name, item),
+          })), x, y, "other")}
+        />,
+      );
+      continue;
+    }
+    fields.push(<Field key={`${node.id}-${field.name}`} label={label} value={show(current)} placeholder={field.enumValues.length > 0 ? field.enumValues.join(", ") : field.required ? "Required" : "Optional"} testID={`field-${field.name}`} onCommit={(t) => {
+      const presence = presenceOf(Object.prototype.hasOwnProperty.call(node.input, field.name), current);
+      const nextPresence = presence === "null" && t === "" ? "null" : presence === "empty" && t === "" ? "empty" : presence === "missing" && t === "" ? "missing" : "value";
+      writeInput(field.name, commitTyped(current, t, nextPresence));
+    }} />);
+  }
   for (const k of inputKeys) {
-    if (accountPick && (k === "connectionId" || k === "mailboxId" || (accountPick.field === "connectionId" && k === "connector"))) continue;
+    if (covered.has(k) || skipAccount(k)) continue;
     fields.push(<Field key={`${node.id}-${k}`} label={humanize(k)} value={show(node.input[k])} testID={`field-${k}`} onCommit={(t) => {
       const cur = node.input[k];
       const presence = presenceOf(true, cur);
       const nextPresence = presence === "null" && t === "" ? "null" : presence === "empty" && t === "" ? "empty" : "value";
-      const next = commitTyped(cur, t, nextPresence);
-      const input = { ...node.input };
-      if (next === undefined) delete input[k];
-      else input[k] = next;
-      onChange(updateStep(def, node.id, { input }));
+      writeInput(k, commitTyped(cur, t, nextPresence));
     }} />);
   }
   return (
@@ -183,7 +215,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
       <ScrollView contentContainerStyle={i.body} keyboardShouldPersistTaps="handled">
         <SectionRow section={section} onSection={(next) => onSection?.(next)} />
         {section === "data" ? <DataShelf triggerSample={samples["trigger"]} steps={prior} /> : null}
-        {section === "test" ? <StepTest stepKey={node.key} nodeId={node.id} input={node.input ?? {}} version={version} onUseOutput={(output) => onStoreSample?.(node.id, output)} /> : null}
+        {section === "test" ? <StepTest stepKey={node.key} nodeId={node.id} input={node.input ?? {}} version={version} onUseOutput={(output) => onStoreSample?.(node.id, asFixture(version, node.key, output))} /> : null}
         {section === "configure" ? (
           <>
         {isPreviewKey(node.key) ? <Text style={i.hint}>{PREVIEW_NOTE}</Text> : null}

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Automations: the step panel lists every field the schema names, including one that is still missing. The data shelf shows type and whether a value is missing, null, or empty. A step test stores the definition version with the output.
 - Automations: turning an Automation on checks each step's capability contract. An AI step stays a preview. Every other catalogue step has a schema, an effect, documented errors, and a test mode.
 - Automations: a reviewed Apply moves only safe cohorts onto the chosen definition version. Finished steps stay finished, and ambiguous or finished runs stay pinned.
 - Automations: Live Event Explorer, Dependencies, and Analytics read the event log, named accounts, and run counts. Packages stay empty until an automation package catalog exists.

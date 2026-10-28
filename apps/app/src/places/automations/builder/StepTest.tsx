@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { AskVyre } from "../ask/AskVyre.tsx";
 import type { AskBundle } from "../ask/bundle.ts";
+import { fixtureNote } from "./fields.ts";
 import { useAutomationsData } from "../canvas/data.tsx";
 
 export function StepTest({ stepKey, nodeId, input, version, onUseOutput }: {
@@ -49,7 +50,7 @@ export function StepTest({ stepKey, nodeId, input, version, onUseOutput }: {
 
   return (
     <View testID="step-test" style={t.wrap}>
-      <Text style={t.hint}>Reads may run live. Writes and sends stay stubbed.</Text>
+      <Text style={t.hint}>{fixtureNote(version, stepKey)}</Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Test this step" testID="run-step-test" onPress={run} style={t.btn}>
         <Text style={t.btnText}>{phase === "running" ? "Testing" : "Test this step"}</Text>
       </Pressable>

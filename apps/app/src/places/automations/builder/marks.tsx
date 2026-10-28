@@ -2,6 +2,7 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { shelfLines } from "./fields.ts";
 import { PREVIEW_NOTE } from "../catalog/model.ts";
 import { literalFromEditor, mappingIssues, presenceOf, refValue, typeOf } from "../values/typed.ts";
 import type { Presence, TypeRef } from "../values/typed.ts";
@@ -82,14 +83,13 @@ export function MappingFix({ nodeIds, value }: { nodeIds: ReadonlySet<string>; v
 }
 
 export function DataShelf({ triggerSample, steps }: { triggerSample: unknown; steps: readonly { id: string; title: string; output: unknown }[] }): ReactElement {
-  const filled = steps.filter((step) => step.output !== undefined);
-  if (triggerSample === undefined && filled.length === 0) {
+  const lines = shelfLines(triggerSample, steps);
+  if (lines.length === 0) {
     return <Text testID="data-shelf-empty" style={m.hint}>No sample yet. Test a step or run to fill this shelf.</Text>;
   }
   return (
     <View testID="data-shelf" style={m.shelf}>
-      {triggerSample !== undefined ? <Text style={m.hint}>{`Trigger sample: ${JSON.stringify(triggerSample)}`}</Text> : <Text style={m.hint}>No trigger sample.</Text>}
-      {filled.map((step) => <Text key={step.id} style={m.hint}>{`${step.title}: ${JSON.stringify(step.output)}`}</Text>)}
+      {lines.map((line) => <Text key={line.id} style={m.hint}>{line.text}</Text>)}
     </View>
   );
 }
