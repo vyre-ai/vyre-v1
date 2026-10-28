@@ -71,7 +71,9 @@ export function ensure(db: Db): void {
 
 export async function call<T>(ctx: ImportCtx, cap: string, input: unknown, opts?: { idempotencyKey?: string }): Promise<T> {
   if (!ctx.call) raise(ctx, "internal.unexpected", "That part of the app is not available right now.", { cap });
-  return (await ctx.call(cap, input, opts)) as T;
+  const body = opts?.idempotencyKey !== undefined && input !== null && typeof input === "object" && !Array.isArray(input) && !("idempotencyKey" in input)
+    ? { ...(input as Record<string, unknown>), idempotencyKey: opts.idempotencyKey } : input;
+  return (await ctx.call(cap, body, opts)) as T;
 }
 export async function tolerant<T>(ctx: ImportCtx, cap: string, input: unknown, fallback: T): Promise<T> {
   if (!ctx.call) return fallback;

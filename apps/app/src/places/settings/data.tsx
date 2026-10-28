@@ -26,6 +26,8 @@ export interface SpaceSecurity { totp: boolean; passkeys: readonly string[]; flo
 export interface AccountSecurity { passwordChanged: string; github: string | null }
 
 export interface SettingsData {
+  sessionImporter?: import("../../../../../client/src/session-import/desktop.ts").SessionImporter | undefined;
+  continueSession?(conversationId: string): Promise<void>;
   screens: ScreenHooks;
   call(cap: string, input: unknown): Promise<unknown>;
   me: { id: string; name: string };

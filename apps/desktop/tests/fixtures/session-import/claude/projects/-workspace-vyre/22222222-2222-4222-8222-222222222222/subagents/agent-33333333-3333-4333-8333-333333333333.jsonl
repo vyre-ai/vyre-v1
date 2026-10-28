@@ -1,0 +1,2 @@
+{"type":"user","uuid":"sub-u","sessionId":"33333333-3333-4333-8333-333333333333","parentUuid":"a-1","timestamp":"2026-10-24T08:00:01.500Z","message":{"role":"user","content":"Research it"}}
+{"type":"assistant","uuid":"sub-a","parentUuid":"sub-u","sessionId":"33333333-3333-4333-8333-333333333333","timestamp":"2026-10-24T08:00:02.500Z","message":{"role":"assistant","content":"Research result."}}

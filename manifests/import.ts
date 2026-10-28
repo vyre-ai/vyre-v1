@@ -18,6 +18,8 @@ const importedSession = t.obj({
 const sessionDestination = t.obj({ kind: t.enm('personal') });
 const importedConversation = t.obj({ conversationId: t.id('isc'), provider: sessionProvider, destination: t.obj({ kind: t.enm('project', 'imported_sessions'), projectId: t.opt(id.project), scope: t.enm('personal'), spaceId: id.space }) });
 
+const archiveSession = t.obj({ conversationId: t.id('isc'), provider: sessionProvider, sourceKey: t.str(), sourceSessionId: t.str(), title: t.str(), startedAt: t.ts(), importedAt: t.ts(), projectId: t.opt(id.project), continuedThreadId: t.opt(id.thread) });
+
 const column = t.obj({ name: t.str(), inferred: t.str({ description: 'Field type key the column looks like', examples: ['email'] }), sample: t.arr(t.str()), distinct: t.int({ minimum: 0 }), empty: t.int({ minimum: 0 }) });
 const table = t.obj({ name: t.str(), rowCount: t.int({ minimum: 0 }), columns: t.arr(column) });
 const parseOut = { importId, source: sourceKind, tables: t.arr(table), expiresAt: t.ts() };
@@ -101,6 +103,8 @@ export default defineManifest({
     read('import.template', 'A CSV template for a record type: header row and one example row', {
       in: { type: id.recordType }, out: { text: t.str(), fileId: t.opt(id.file) }, on: ['record_type', '/type'], tool: 'records',
     }),
+    read('sessions.list', 'List the current owner private imported session archive in this Personal Space', { in: pageIn, out: { sessions: t.arr(archiveSession), next: t.opt(t.str()) }, perm: 'chats.private', tool: 'chats' }),
+    read('sessions.get', 'Read an immutable imported session transcript owned by the signed-in person', { in: { conversationId: t.id('isc') }, out: { session: archiveSession, messages: t.arr(importedMessage) }, perm: 'chats.private', tool: 'chats', errors: ['validation.not_found'] }),
     write('sessions.import', 'Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply only visible user and assistant text', {
       in: { provider: sessionProvider, sourceKey: t.str(), consent: t.obj({ previewedAt: t.ts(), confirmedAt: t.ts() }), destination: t.opt(sessionDestination), sessions: t.arr(importedSession, { minItems: 1 }) },
       out: { imported: t.int(), updated: t.int(), sessions: t.arr(importedConversation) }, perm: 'chats.private', idem: 'key', audit: 'always', emits: ['sessions.imported'], tool: 'chats', errors: ['validation.precondition_failed', 'validation.bad_input'],

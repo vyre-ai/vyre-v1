@@ -1682,7 +1682,9 @@ export function stubs(ctx: CallCtx) {
     },
     sessions: {
       continue: call("sessions.continue"),
+      get: call("sessions.get"),
       import: call("sessions.import"),
+      list: call("sessions.list"),
     },
     settings: {
       copy_profile: call("settings.copy_profile"),

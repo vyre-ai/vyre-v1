@@ -29,7 +29,9 @@ function resourcesOf(p: Project): Array<{ type: string; id: string }> {
 export async function grantOnProject(ctx: ProjectsCtx, projectId: string): Promise<void> {
   const p = projectBy(ctx.db, projectId);
   if (!p) return;
+  const matrix = await tolerant<{ kind?: string }>(ctx, "spaces.matrix", {}, {});
   for (const m of membersOf(ctx.db, projectId)) {
+    if (matrix.kind === "personal" && m.principal === me(ctx)) continue;
     await call(ctx, "access.share", { resource: { type: "project", id: projectId }, subject: subjectOf(m), level: LEVEL_OF[m.role], source: sourceTag(projectId) }, { idempotencyKey: `prj-share:${projectId}:${m.principal}:${m.role}:project` });
   }
 }
@@ -50,7 +52,9 @@ async function applyRole(ctx: ProjectsCtx, p: Project, principal: string, role: 
   if (!kind) raise(ctx, "validation.bad_input", "A person, an agent or a group holds a project role.", { principal });
   const before = memberOf(ctx.db, p.projectId, principal);
   const member: Member = { principal, role, kind, since: before?.since ?? ctx.now() };
-  for (const r of resourcesOf(p)) {
+  const matrix = await tolerant<{ kind?: string }>(ctx, "spaces.matrix", {}, {});
+  const ownPersonal = matrix.kind === "personal" && principal === me(ctx);
+  for (const r of ownPersonal ? [] : resourcesOf(p)) {
     // a project that is being made is not a resource yet: it becomes one when this call commits, so the grants on it follow (grantOnProject)
     if (deferProject && r.type === "project") continue;
     if (before) await call(ctx, "access.unshare", { resource: r, subject: subjectOf(member), source: sourceTag(p.projectId) });
