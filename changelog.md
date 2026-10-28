@@ -12,6 +12,8 @@
 
 ## Unreleased
 
+- Authorization tests: keep the unchanged 200-world SQL/predicate property and its coverage floors, retain legacy Owner-group worlds, and add valid direct Admin diversity. Add a deterministic SQLite regression proving Owner-group denial while ordinary group/Admin grants survive.
+
 - Console Access Reviews: add the shared review list/object, real start/keep/remove/close actions, reviewed grant removal, indexed Activity, and a tasks.get-backed review-task sheet. Expose existing reviewer/task links in the typed review response; preserve external Home task routing as a separate open gap.
 
 - Outside actors: reject canonical Owner through create/update before mutating actor state, strip legacy non-person Owner authority, and preserve provider changes on validation failure. Update obsolete Owner fixtures while retaining agent/provider authorization coverage; use shared rows for actor roles and computer-agent choices.
