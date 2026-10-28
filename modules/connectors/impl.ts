@@ -7,6 +7,7 @@ import { openRecordStore } from "../../kernel/src/store/records.ts";
 import type { ProjectionHost, Tx } from "../../kernel/src/store/projection.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
 import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
+import { writeConnectorFolder } from "./handlers/files.ts";
 import { createConnectorsHandlers } from "./handlers/index.ts";
 import type { ConnectorsHandlers } from "./handlers/index.ts";
 import { ensureTables, seedBuiltins } from "./projections.ts";
@@ -60,7 +61,9 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
       trace: ctx.trace, emit: (n, s, p, o) => ctx.emit(n, s, p, o), call: (c, i) => ctx.call(c, i), http: (u, i) => ctx.http(u, i),
       ...(ctx.log ? { log: ctx.log } : {}), ...(ctx.principal ? { actor: ctx.principal.id } : {}),
     };
-    return (live().handlers[name] as (c: ConnectorsCtx, i: unknown) => Promise<unknown>)(cc, input);
+    const handle = live();
+    const bound = createConnectorsHandlers({ ...handle.deps, writeFolder: (key, files) => writeConnectorFolder(cc, key, files) });
+    return (bound[name] as (c: ConnectorsCtx, i: unknown) => Promise<unknown>)(cc, input);
   };
 }
 
