@@ -13,6 +13,7 @@ import { TabStrip } from "../../../../../../ui/src/TabStrip/index.tsx";
 import { useProjectPageData } from "./data.tsx";
 import { ROLE_WORDS, TAB_SPECS, ago, dateWords, dueWords, editsBetween, isoDay, planStages, planTasks, plural } from "./model.ts";
 import type { Overview, PlanOut, TabKey } from "./model.ts";
+import { ImportedHistory } from "./ImportedHistory.tsx";
 
 export interface ProjectPageProps {
   projectId: string;
@@ -96,7 +97,7 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
         </View>
       ) : null}
       {tab === "files" ? <FilesTab o={o} /> : null}
-      {tab === "chat" ? <ChatTab o={o} channelName={`#${p.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`} now={now} /> : null}
+      {tab === "chat" ? <ChatTab o={o} projectId={projectId} channelName={`#${p.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`} now={now} /> : null}
       {note ? <Text style={s.note} accessibilityLiveRegion="polite" testID="project-note">{note}</Text> : null}
     </View>
   );
@@ -163,7 +164,7 @@ export function FilesTab({ o }: { o: Overview }): ReactElement {
   );
 }
 
-export function ChatTab({ o, channelName, now }: { o: Overview; channelName: string; now: number }): ReactElement {
+export function ChatTab({ o, channelName, now, projectId }: { o: Overview; channelName: string; now: number; projectId?: string }): ReactElement {
   const d = useProjectPageData();
   const rows: ReactElement[] = [];
   for (const t of o.recentThreads) {
@@ -177,6 +178,7 @@ export function ChatTab({ o, channelName, now }: { o: Overview; channelName: str
       <Text style={s.lead} testID="project-chat-is-channel">{`This project has one chat. It is the channel ${channelName}, so everything said here is said there.`}</Text>
       <Pressable accessibilityRole="button" testID="project-open-channel" onPress={() => d.nav.openChannel(o.project.channelId)} style={s.open}><Text style={s.openText}>{`Open ${channelName} in Chats`}</Text></Pressable>
       <Section title="Threads" count={o.recentThreads.length} id="project-threads">{rows.length ? rows : <Text style={s.dim}>No threads yet.</Text>}</Section>
+      {projectId ? <ImportedHistory projectId={projectId} /> : null}
     </ScrollView>
   );
 }

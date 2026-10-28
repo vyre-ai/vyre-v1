@@ -2,6 +2,31 @@
 // hash, `subject=project:<id>`); the screenshot mount and the tests pass their own.
 import { createContext, useContext } from "react";
 import type { ReactElement, ReactNode } from "react";
+import type { CapMap } from "../../../../../../generated/types.ts";
+
+export type ImportedSessionArchive = CapMap["sessions.list"]["out"]["sessions"][number];
+export type ImportedSessionTranscript = CapMap["sessions.get"]["out"];
+
+export interface ProjectImports {
+  list(projectId: string): Promise<ImportedSessionArchive[]>;
+  read(conversationId: string): Promise<ImportedSessionTranscript>;
+  continue(conversationId: string): Promise<string>;
+}
+
+export async function listProjectImports(call: ProjectPageData["call"], projectId: string): Promise<ImportedSessionArchive[]> {
+  const found: ImportedSessionArchive[] = [];
+  let cursor: string | undefined;
+  const seen = new Set<string>();
+  do {
+    const input = { limit: 100, ...(cursor ? { cursor } : {}) };
+    const out = await call("sessions.list", input) as CapMap["sessions.list"]["out"];
+    found.push(...out.sessions.filter((session) => session.projectId === projectId));
+    if (!out.next || seen.has(out.next)) break;
+    seen.add(out.next);
+    cursor = out.next;
+  } while (true);
+  return found;
+}
 
 export interface ProjectNav {
   /** The project's one channel opens in Chats. */
@@ -25,6 +50,8 @@ export interface ProjectPageData {
   nav: ProjectNav;
   /** Names of files by id, for the pinned files. */
   fileName?(fileId: string): string;
+  /** Present only in a Personal Space, where imported coding history is private to its owner. */
+  imports?: ProjectImports;
 }
 
 const Ctx = createContext<ProjectPageData | null>(null);
