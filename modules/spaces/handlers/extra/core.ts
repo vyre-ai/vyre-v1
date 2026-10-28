@@ -50,6 +50,8 @@ export interface SpaceAdminDrivers {
   transferOwner(from: string, to: string): Promise<{ epoch: number }>;
   /** Point the Space at the relay or at an own domain (the Caddy and relay settings). The Space key does not change. */
   applyAddress(mode: "relay" | "own_domain", host: string | null): Promise<void>;
+  /** Current host-observed ingress, when running on a server with a network driver. */
+  address?(): Promise<{mode: "relay" | "own_domain"; host?: string} | undefined>;
   /** Remove the Space's data and stop serving it. Called once, after the name was typed correctly. */
   deleteSpace(): Promise<void>;
   /** Where the Space runs ("Vyre Server on a Mac mini", "Railway"), when the host knows. */
@@ -148,10 +150,10 @@ function readProfile(ctx: ExtraCtx): Profile {
 
 async function spaceRow(ctx: ExtraCtx, p: Profile) {
   const d = need(ctx);
-  const [owner, fingerprint, hostedOn, madeAt] = await Promise.all([d.owner(), d.fingerprint(), d.hostedOn?.(), d.createdAt?.()]);
+  const [owner, fingerprint, hostedOn, madeAt, observedAddress] = await Promise.all([d.owner(), d.fingerprint(), d.hostedOn?.(), d.createdAt?.(), p.kind === 'personal' ? undefined : d.address?.()]);
   return {
     id: p.id, name: p.name, ...(p.legalName ? { legalName: p.legalName } : {}), ...(p.logoFileId ? { logoFileId: p.logoFileId } : {}), kind: p.kind, owner, fingerprint,
-    address: p.address, ...(hostedOn ? { hostedOn } : {}), defaults: p.defaults, createdAt: madeAt ?? p.createdAt,
+    address: observedAddress ?? p.address, ...(hostedOn ? { hostedOn } : {}), defaults: p.defaults, createdAt: madeAt ?? p.createdAt,
   };
 }
 
@@ -270,7 +272,8 @@ export async function switchAddress(ctx: ExtraCtx, input: { mode: "relay" | "own
     host = (input.host ?? "").trim().toLowerCase();
     if (!HOST.test(host)) return failWith(ctx.trace.traceId, "validation.bad_input", "Use a domain name like team.example.com.", { errors: ["host: not a domain name"] });
   }
-  const same = p.address.mode === input.mode && (p.address.host ?? null) === host;
+  const currentAddress = await d.address?.() ?? p.address;
+  const same = currentAddress.mode === input.mode && (input.mode === "relay" || (currentAddress.host ?? null) === host);
   if (!same) {
     await d.applyAddress(input.mode, host);
     ctx.db.run("UPDATE spaces_profile_extra SET address_mode = ?, address_host = ? WHERE id = ?", input.mode, host, ctx.space);

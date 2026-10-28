@@ -76,7 +76,7 @@ export default defineManifest({
       level: 'manage', in: { confirmName: t.str() }, out: ok, emits: ['space.deleted'], gate: { act: 'delete', when: "actor.kind != 'person'" }, audit: 'always', risk: 'high', tool: 'meta', errors: ['validation.precondition_failed'],
     }),
     write('spaces.switch_address', 'Move the Space between the relay and an own domain; devices pin the Space key, so nobody is re-invited', {
-      ...V, in: { mode: t.enm('relay', 'own_domain'), host: t.opt(t.str({ examples: ['team.example.com'] })) }, out: { space: spaceRow }, perm: 'server.network', emits: ['space.address_changed'], audit: 'always', risk: 'high', tool: 'engineer', team: true,
+      level: 'manage', in: { mode: t.enm('relay', 'own_domain'), host: t.opt(t.str({ examples: ['team.example.com'] })) }, out: { space: spaceRow }, perm: 'server.network', emits: ['space.address_changed'], audit: 'always', risk: 'high', tool: 'engineer', team: true,
     }),
   ],
 

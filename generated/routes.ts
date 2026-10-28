@@ -23563,7 +23563,7 @@ export const routes: Route[] = [
     "module": "spaces",
     "effects": "write",
     "permission": "server.network",
-    "level": "view",
+    "level": "manage",
     "resource": {
       "type": "space"
     },
