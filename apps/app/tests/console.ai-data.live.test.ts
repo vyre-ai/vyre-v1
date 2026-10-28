@@ -90,13 +90,15 @@ test("production Console AI/Data: policies, spend, Gate, review, incidents, hold
     await capture("person-hold-placed");
     await page.getByText(owner.name, { exact: true }).first().click(); await page.getByRole("button", { name: "Release hold", exact: true }).click(); await page.getByText("Hold released", { exact: true }).waitFor();
     assert.ok(!(await api("governance.holds.list", { kind: "person", limit: 100 }) as { holds: { target: { id: string } }[] }).holds.some((hold) => hold.target.id === held.target.id));
+    t.diagnostic("PASS Person hold place, readback, release and readback");
 
     await open("governance.erase", 'text="Find a person"', "erase");
     await page.getByLabel("Name", { exact: true }).fill(owner.name); await page.getByRole("button", { name: "Find data", exact: true }).click(); await page.getByText("Erase preview", { exact: true }).waitFor(); await page.getByText("Preview expires", { exact: true }).waitFor();
     assert.equal((await api("governance.erase.list", { limit: 100 }) as { erasures: unknown[] }).erasures.length, 0, "previewing a real person must not start erasure");
+    await capture("erase-person-preview"); t.diagnostic("PASS Erase real-Person finding without apply");
 
     await open("console.ai-spend", '[data-testid="ai-policy-export"]', "aipolicy");
-    const exportResponse = page.waitForResponse((response) => response.url().includes("/v1/engine/use-policy/export") && response.status() === 200);
+    const exportResponse = page.waitForResponse((response) => response.url().includes("/v1/engine/use_policy/export") && response.status() === 200);
     await page.getByTestId("ai-policy-export").click();
     const exportBody = await (await exportResponse).json() as { data: { fileId: string } };
     const exported = exportBody.data;
