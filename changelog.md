@@ -12,6 +12,8 @@
 
 ## Unreleased
 
+- Access ownership: reject public Owner role assignment/removal for people and groups, ignore legacy group Owner inheritance, and keep ownership transfer as the single durable path updating both the Space owner and sole Owner assignment. Add real Admin HTTP denial and restart regressions.
+
 - Console Roles: add the generated permission matrix, locked built-ins and staged exact-preview changes, plus object holders, clearance, grants and permission history. Persist the last successful permission diff and block deleting roles held by empty groups.
 
 - Console Groups: add the shared searchable object list and object tabs, paginated member/manager selection, real group roles, grants and indexed Activity, with confirmed deletion and deep-link browser coverage. Reject invalid manager updates before changing the group.

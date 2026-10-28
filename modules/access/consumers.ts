@@ -105,7 +105,8 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number): boolean
       const spaces=[...store.resources.values()].filter(row=>row.type==='space'&&row.ownerId===from);if(spaces.length!==1)return false;
       const row=spaces[0]!;store.resources.set(row.id,{...row,ownerId:to});
       const isOwner=(id:string):boolean=>id==='owner'||id==='rol_owner'||store.roles.get(id)?.name.toLowerCase()==='owner';
-      store.assignments.set(from,[...new Set([...store.rolesOf(from).filter(id=>!isOwner(id)),'rol_admin'])]);
+      for (const [holder, roles] of store.assignments) store.setRoles(holder, roles.filter(id => !isOwner(id)));
+      store.assignments.set(from,[...new Set([...store.rolesOf(from),'rol_admin'])]);
       store.assignments.set(to,[...new Set([...store.rolesOf(to),'rol_owner'])]);return true;
     }
     case "resource.created": {

@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { fail } from "../../host/src/routes/errors.ts";
 import { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
-import { isElevatedRole } from "../../kernel/src/authorize/snapshot.ts";
+import { isElevatedRole, isOwnerRole } from "../../kernel/src/authorize/snapshot.ts";
 import type { Expr, GrantRow, Policy, PrincipalRow } from "../../kernel/src/authorize/index.ts";
 
 type ProviderPolicy = Extract<Policy, { kind: "provider_label" }>;
@@ -343,7 +343,7 @@ export class AccessStore {
     for (const [holder, roles] of this.assignments) if (roles.includes(roleId)) {
       if (this.principals.has(holder)) push(holder);
       const g = this.groups.get(holder);
-      if (g) for (const m of g.members) push(m.id);
+      if (g && !isOwnerRole(roleId, this.roles.get(roleId)?.name)) for (const m of g.members) push(m.id);
     }
     return out;
   }
@@ -352,7 +352,7 @@ export class AccessStore {
   permsExcept(id: string, skip: string): Set<string> {
     const p = this.principals.get(id);
     const roleIds = new Set<string>(this.rolesOf(id));
-    for (const g of this.groups.values()) if (g.members.some((m) => m.id === id)) for (const r of this.rolesOf(g.id)) roleIds.add(r);
+    for (const g of this.groups.values()) if (g.members.some((m) => m.id === id)) for (const r of this.rolesOf(g.id)) { if (!isOwnerRole(r, this.roles.get(r)?.name)) roleIds.add(r); }
     const out = new Set<string>();
     for (const rid of roleIds) {
       if (rid === skip) continue;

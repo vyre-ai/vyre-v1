@@ -1,4 +1,5 @@
 // Roles, groups, grants and principals. Role permission changes stage as a diff, then Apply swaps the whole set.
+import { isOwnerRole } from "../../../kernel/src/authorize/snapshot.ts";
 import type { AccessCtx, Cond, GrantRec, GroupRec, PKind, PrincipalRec, Ref, RoleHolder, ResourceRef, RoleRec, SubjectRef } from "../projections.ts";
 import {
   changed, EVERYONE, fnv, grantView, groupView, isExpr, nid, page, principalView, raise, roleView, storeOf,
@@ -166,6 +167,7 @@ function checkAgentRole(role: RoleRec, trace: string): void {
 export async function rolesAssign(ctx: AccessCtx, input: { subject: RoleHolder; roleId: string }) {
   const store = storeOf(ctx);
   const role = mustRole(store, input.roleId, ctx.trace.traceId);
+  if (isOwnerRole(input.roleId, store.roles.get(input.roleId)?.name)) raise(ctx.trace.traceId, "validation.precondition_failed", "Space ownership changes only through Transfer ownership in Space settings");
   const holder = roleHolder(store, input.subject, ctx.trace.traceId);
   if (holder.kind === "agent") checkAgentRole(role, ctx.trace.traceId);
   if (holder.kind === "group" && store.groups.get(holder.id)!.members.some((member) => store.principals.get(member.id)?.kind === "agent")) checkAgentRole(role, ctx.trace.traceId);
@@ -177,6 +179,7 @@ export async function rolesAssign(ctx: AccessCtx, input: { subject: RoleHolder; 
 export async function rolesUnassign(ctx: AccessCtx, input: { subject: RoleHolder; roleId: string }) {
   const store = storeOf(ctx);
   mustRole(store, input.roleId, ctx.trace.traceId);
+  if (isOwnerRole(input.roleId, store.roles.get(input.roleId)?.name)) raise(ctx.trace.traceId, "validation.precondition_failed", "Space ownership changes only through Transfer ownership in Space settings");
   const holder = roleHolder(store, input.subject, ctx.trace.traceId);
   store.setRoles(holder.id, store.rolesOf(holder.id).filter((role) => role !== input.roleId));
   changed(ctx, store, "assignment");

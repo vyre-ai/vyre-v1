@@ -7,6 +7,7 @@ import type { Conditions, Expr, GrantRow, GroupMemberRow, Level, Policy, Princip
 export const ELEVATED_ROLES: ReadonlySet<string> = new Set(["owner", "admin", "rol_owner", "rol_admin"]);
 const ELEVATED_NAMES: ReadonlySet<string> = new Set(["owner", "admin"]);
 /** True for a role an agent must never hold: by id, or by the built-in name. */
+export const isOwnerRole = (id: string, name?: string): boolean => id === "owner" || id === "rol_owner" || name?.toLowerCase() === "owner";
 export const isElevatedRole = (id: string, name?: string): boolean => ELEVATED_ROLES.has(id) || (name !== undefined && ELEVATED_NAMES.has(name.toLowerCase()));
 
 export interface SubjectInfo {
@@ -113,7 +114,7 @@ export class AccessSnapshot {
     if (!p) { this.infoCache.set(id, null); return null; }
     const groups = this.groupsOf(id);
     const roleIds = new Set<string>();
-    for (const h of [id, ...groups]) for (const r of this.holderRoles.get(h) ?? []) roleIds.add(r);
+    for (const h of [id, ...groups]) for (const r of this.holderRoles.get(h) ?? []) { if (h !== id && isOwnerRole(r, this.roles.get(r)?.name)) continue; roleIds.add(r); }
     const perms = new Set<string>(), names: string[] = [];
     let clearance = 0;
     const keys = new Set<string>([`actor:${id}`]);
