@@ -207,3 +207,5 @@
 - Mount canonical Task pages with verified edits, offered actions, working notes, activity and copied phone links; keep Home cold start independent through lazy loading. Share screen input pointer resolution across gateway and replica.
 - Preserve editor state during navigation by writing the shell URL to browser history synchronously, retaining copied links and Back/Forward. Refresh form preview documents when their content changes and contain nested menu pointer events. Warm the Records type catalogue without issuing an invalid unscoped saved-view read.
 - Verify Retention save/reset readback and require the new auth, Personal, Task and infrastructure browser workflows in release evidence.
+
+- Normalize observed Space addresses to a host and port before building invite links, rejecting credentials and unsupported schemes. Exercise real auth invites using the fixture server’s actual configured endpoint instead of an unverified public domain.

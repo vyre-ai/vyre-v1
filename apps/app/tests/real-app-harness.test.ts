@@ -86,8 +86,8 @@ export interface Space { url: string; token: string; space: string; dir: string;
 const stopper = (child: ChildProcess): (() => Promise<void>) => () => new Promise<void>((resolve) => { child.once("exit", () => resolve()); child.kill("SIGTERM"); setTimeout(() => child.kill("SIGKILL"), 10_000).unref(); });
 
 /** Starts the daemon as a person does and reads the address it prints (and, on a fresh install, the claim link it prints right after). */
-async function startDaemon(dir: string, extra: string[]): Promise<{ child: ChildProcess; url: string; claim: string | null }> {
-  const child: ChildProcess = spawn(process.execPath, ["host/src/daemon/main.ts", "--role", "space", "--data-dir", dir, "--port", "0", ...extra], {
+async function startDaemon(dir: string, extra: string[], port=0): Promise<{ child: ChildProcess; url: string; claim: string | null }> {
+  const child: ChildProcess = spawn(process.execPath, ["host/src/daemon/main.ts", "--role", "space", "--data-dir", dir, "--port", String(port), ...extra], {
     cwd: REPO, env: { ...process.env, VYRE_ADMIN_TOKEN: ADMIN_TOKEN }, stdio: ["ignore", "pipe", "inherit"],
   });
   const printed = await new Promise<{ url: string; claim: string | null }>((resolve, reject) => {
@@ -125,9 +125,12 @@ export async function bootSpace(): Promise<Space> {
 }
 
 /** A fresh install (ruling 71): an empty data directory. The host makes the Space and prints a one-time claim link; the owner becomes the owner by claiming it, as a person does. */
-export async function bootFreshSpace(kind?:"personal"): Promise<Space> {
+export async function bootFreshSpace(kind?:"personal", publishLocal=false): Promise<Space> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-real-app-fresh-"));
-  const d = await startDaemon(dir, ["--space", "spc_fresh", "--space-name", kind==="personal"?"Personal":"Fresh Co", ...(kind?["--space-kind",kind]:[])]);
+  const port=publishLocal?await new Promise<number>((resolve,reject)=>{const server=net.createServer();server.once("error",reject);server.listen(0,"127.0.0.1",()=>{const selected=(server.address()as net.AddressInfo).port;server.close(()=>resolve(selected));});}):0;
+  const address=publishLocal?`http://127.0.0.1:${port}`:null;
+  const d = await startDaemon(dir, ["--space", "spc_fresh", "--space-name", kind==="personal"?"Personal":"Fresh Co", ...(kind?["--space-kind",kind]:[]),...(address?["--address",address]:[])],port);
+  if(address&&d.url!==address)throw new Error("The fixture must publish its actual listening endpoint");
   return { url: d.url, token: ADMIN_TOKEN, space: "spc_fresh", dir, stop: stopper(d.child), claim: d.claim };
 }
 

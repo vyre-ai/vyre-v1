@@ -814,7 +814,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         configureSpaceAdmin: () => createSpaceAdmin({ access: () => access.snap, owner: () => access.owner() ?? cfg.owner ?? "usr_owner", space: spaceId, db: db!, system, headSeq: () => headSeq,
           address: () => {
             const value = db!.all("SELECT mode, address FROM network_config WHERE id = 1")[0] as {mode?:string;address?:string}|undefined;
-            return value?.address ? { mode: value.mode === 'relay' ? 'relay' : 'own_domain', host: value.address } : undefined;
+            if(!value?.address)return undefined;
+            try{const url=new URL(value.address.includes('://')?value.address:`https://${value.address}`);if(!['http:','https:'].includes(url.protocol)||url.username||url.password)return undefined;return{mode:value.mode==='relay'?'relay':'own_domain',host:url.host};}catch{return undefined;}
           },
           changeAddress: async (mode, host) => {
             const config = db!.all("SELECT relay_address FROM network_config WHERE id = 1")[0] as {relay_address?:string}|undefined;
