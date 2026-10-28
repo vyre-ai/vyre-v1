@@ -71,6 +71,13 @@ export function isPaused(ctx: EngineCtx): boolean {
 export function spendGet(ctx: EngineCtx, input: { scope: Scope; scopeId?: string }): {
   caps: Caps; todayMicros: number; monthMicros: number; turnsToday: number; paused: boolean; pausedBy?: string;
 } {
+  const ownPerson = input.scope === 'person' && (input.scopeId === undefined || input.scopeId === '' || input.scopeId === actorOf(ctx));
+  const manage = { perm: 'ai.spend', level: 'manage' } as const;
+  const managesSpace = ctx.authorize(manage, { type: 'space', id: ctx.space }).effect === 'allow';
+  const managesAgent = input.scope === 'agent' && !!input.scopeId && ctx.authorize(manage, { type: 'agent', id: input.scopeId }).effect === 'allow';
+  if (!ownPerson && !managesSpace && !managesAgent) {
+    raise(ctx, 'permission.no_grant', 'You can read your own usage and limits. Managing AI spend is required to read this scope.', { scope: input.scope });
+  }
   ensure(ctx.db);
   const id = scopeKey(ctx, input.scope, input.scopeId);
   const at = ctx.now();

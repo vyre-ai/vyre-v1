@@ -1,6 +1,6 @@
 // Home My work in Plan mode: the open tasks as the shared Plan timeline's tasks, and what a change in the Plan means for the tasks (move, state, assignee).
 // A task is a bar ending on its due day and lasting `effort` days (one day without it); a task without a due date is not on the timeline.
-import { toDay, toIso } from "../../../../../../ui/src/Plan/logic.ts";
+import { toDay, toIso } from "../../../../../../ui/src/Plan/dates.ts";
 import type { PlanStage, PlanStatus, PlanTask, PlanWho } from "../../../../../../ui/src/Plan/types.ts";
 import { DAY_MS, dayNumber } from "./model.ts";
 import type { Clock, Ref, Task } from "./model.ts";

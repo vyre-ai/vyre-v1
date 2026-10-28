@@ -16,6 +16,13 @@ import { exportEnv } from "../lib/registry-hash.mjs";
 export const BUDGET_MS = { desktop: 1000, phone: 1500 };
 export const CPU = { desktop: 1, phone: 4 };
 
+/** Preserve a failed budget verdict without stopping the remaining evidence probes. */
+export function enforceStartupBudget(rows) {
+  const bad = rows.filter((r) => r.kind === "cold" && (r.ms === null || !Number.isFinite(r.ms) || r.ms > r.budget));
+  if (bad.length) process.exitCode = 1;
+  return bad;
+}
+
 /** Every .js file under dir with its raw and gzip size in bytes, largest first. */
 export function chunkSizes(dist) {
   const out = [];
@@ -117,8 +124,8 @@ export async function main(argv) {
   } finally { await browser.close(); server.close(); }
   console.log("\n| size | cpu | cold ms | warm ms | budget |\n|---|---:|---:|---:|---:|");
   for (const size of ["desktop", "phone"]) console.log(`| ${size} | ${CPU[size]}x | ${rows.find((r) => r.size === size && r.kind === "cold")?.ms?.toFixed(0)} | ${rows.find((r) => r.size === size && r.kind === "warm")?.ms?.toFixed(0)} | ${BUDGET_MS[size]} |`);
-  const bad = rows.filter((r) => r.kind === "cold" && (r.ms === null || r.ms > r.budget));
-  if (bad.length) { console.error(`startup over budget or marks missing: ${JSON.stringify(bad)}`); if (args.enforce) process.exit(1); }
+  const bad = rows.filter((r) => r.kind === "cold" && (r.ms === null || !Number.isFinite(r.ms) || r.ms > r.budget));
+  if (bad.length) { console.error(`startup over budget or marks missing: ${JSON.stringify(bad)}`); if (args.enforce) enforceStartupBudget(rows); }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main(process.argv.slice(2));

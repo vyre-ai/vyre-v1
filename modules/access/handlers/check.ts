@@ -1,4 +1,5 @@
 // Access checker, policies, labels, outside actors. access.check is authorize with the plain-words trace on.
+import { isOwnerRole } from "../../../kernel/src/authorize/snapshot.ts";
 import { authorize } from "../../../kernel/src/authorize/index.ts";
 import type { Level, Req } from "../../../kernel/src/authorize/index.ts";
 import type { AccessCtx, ActorRec, Label, PKind, PolicyKind, PolicyRec, Ref, ResourceRef } from "../projections.ts";
@@ -152,6 +153,9 @@ export async function actorsList(ctx: AccessCtx, input: { cursor?: string; limit
   return { actors: p.rows, total: p.total, ...(p.next ? { next: p.next } : {}) };
 }
 
+function validateActorRoles(store: ReturnType<typeof storeOf>, roleIds: string[], trace: string): void {
+  for (const roleId of roleIds) { const role = store.roles.get(roleId); if (!role) raise(trace, "validation.not_found", "no such role"); if (isOwnerRole(roleId, role.name)) raise(trace, "validation.precondition_failed", "Space ownership belongs to a person and changes only through Transfer ownership"); }
+}
 export async function actorsCreate(ctx: AccessCtx, input: { name: string; provider: string; roleIds?: string[]; idempotencyKey: string }) {
   const store = storeOf(ctx);
   const key = `actors.create:${input.idempotencyKey}`;
@@ -159,6 +163,7 @@ export async function actorsCreate(ctx: AccessCtx, input: { name: string; provid
   if (hit) return hit as { actor: ReturnType<typeof actorView>; oneTimeToken: string; expiresAt: number };
   const name = input.name.trim();
   if (!name || !input.provider.trim()) raise(ctx.trace.traceId, "validation.bad_input", "name and provider are required");
+  validateActorRoles(store, input.roleIds ?? [], ctx.trace.traceId);
   const id = nid("act");
   const token = secret();
   const expiresAt = ctx.now() + TOKEN_MS;
@@ -198,9 +203,10 @@ export async function actorsUpdate(ctx: AccessCtx, input: { actorId: string; rol
   const store = storeOf(ctx);
   const actor = store.actors.get(input.actorId);
   if (!actor) raise(ctx.trace.traceId, "validation.not_found", "no such actor");
+  if (input.roleIds) validateActorRoles(store, input.roleIds, ctx.trace.traceId);
+  if (input.provider !== undefined && !input.provider.trim()) raise(ctx.trace.traceId, "validation.bad_input", "provider is required");
   if (input.provider !== undefined) actor.provider = input.provider.trim();
   if (input.roleIds) {
-    for (const roleId of input.roleIds) if (!store.roles.has(roleId)) raise(ctx.trace.traceId, "validation.not_found", "no such role");
     store.setRoles(actor.id, [...input.roleIds]);
   }
   changed(ctx, store, "actor");

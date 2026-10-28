@@ -124,7 +124,7 @@ test("a restricted record is refused to an outside actor on a disallowed provide
   const store = storeOf(h.ctx);
   const made = await actorsCreate(h.ctx, { name: "Claude Code", provider: "anthropic", idempotencyKey: "actor-label" });
   await actorsRedeem(h.ctx, { token: made.oneTimeToken });
-  await rolesAssign(h.ctx, { subject: { kind: "actor", id: made.actor.id }, roleId: "rol_owner" });
+  await rolesAssign(h.ctx, { subject: { kind: "actor", id: made.actor.id }, roleId: "rol_admin" });
   store.resources.set("rec_sec", {
     id: "rec_sec", type: "record", parentId: null, label: "restricted", ownerId: made.actor.id, holds: 0,
   });

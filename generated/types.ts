@@ -712,6 +712,8 @@ export type AccessReviewsGetOut = {
         source?: string;
         createdAt: number;
       };
+      reviewer?: string;
+      taskId?: string;
       lastUsedAt?: number;
       decision?: "keep" | "remove";
     }>;
@@ -765,7 +767,7 @@ export type AccessRolesApplyOut = {
 };
 export type AccessRolesAssignIn = {
   subject: {
-    kind: "person" | "agent" | "actor" | "service";
+    kind: "person" | "agent" | "actor" | "service" | "group";
     id: string;
   };
   roleId: string;
@@ -814,8 +816,22 @@ export type AccessRolesGetOut = {
       kind: "person" | "agent" | "actor" | "service";
       id: string;
     }>;
+  directHolders?: Array<{
+      kind: "person" | "agent" | "actor" | "service" | "group";
+      id: string;
+    }>;
+  lastChange?: {
+    before: Array<string>;
+    after: Array<string>;
+    by: {
+      kind: "person" | "agent" | "actor" | "service";
+      id: string;
+    };
+    at: number;
+  };
 };
 export type AccessRolesListIn = {
+  q?: string;
   cursor?: string;
   limit?: number;
 };
@@ -855,7 +871,7 @@ export type AccessRolesPreviewOut = {
 };
 export type AccessRolesUnassignIn = {
   subject: {
-    kind: "person" | "agent" | "actor" | "service";
+    kind: "person" | "agent" | "actor" | "service" | "group";
     id: string;
   };
   roleId: string;
@@ -1752,6 +1768,10 @@ export type AuditCheckpointsListOut = {
   total?: number;
 };
 export type AuditExportIn = {
+  target?: {
+    kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "grant" | "policy" | "review" | "device" | "session" | "invite";
+    id: string;
+  };
   actor?: {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
@@ -1798,6 +1818,10 @@ export type AuditGetOut = {
   };
 };
 export type AuditListIn = {
+  target?: {
+    kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "grant" | "policy" | "review" | "device" | "session" | "invite";
+    id: string;
+  };
   actor?: {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
@@ -3154,6 +3178,7 @@ export type BackupConfigGetOut = {
     vaultName?: string;
   };
   schedule: string;
+  enabled: boolean;
   encrypted: boolean;
   lastBackupAt?: number;
 };
@@ -3182,6 +3207,17 @@ export type BackupExportStartIn = {
 };
 export type BackupExportStartOut = {
   runId: string;
+};
+export type BackupExportStatusIn = {
+  runId: string;
+};
+export type BackupExportStatusOut = {
+  runId: string;
+  state: "ready";
+  fileId: string;
+  name: string;
+  sizeBytes: number;
+  expiresAt: number;
 };
 export type BackupHealthIn = Record<string, unknown>;
 export type BackupHealthOut = {
@@ -6806,6 +6842,8 @@ export type ConsoleSpeedIn = {
 export type ConsoleSpeedOut = {
   rows: Array<{
       budgetId: string;
+      unit: string;
+      sense: "min" | "max" | "exact";
       p50: number;
       p95: number;
       budgetP95: number;
@@ -9952,7 +9990,18 @@ export type FormsGetOut = {
       field: string;
       mode: "ask" | "show" | "hide";
       prefillKey?: string;
+      step?: number;
     }>;
+  settings: {
+    consentText: string;
+    captcha: boolean;
+    rateLimit: number;
+    thankYou?: {
+      text?: string;
+      redirect?: string;
+    };
+  };
+  css?: string;
   theme?: Record<string, unknown>;
   logic?: unknown;
 };
@@ -17172,6 +17221,13 @@ export type NetworkStatusOut = {
     state: "healthy" | "degraded" | "down";
   };
   publicIngress: boolean;
+  commands: Array<{
+      kind: string;
+      target: string;
+      state: "pending" | "applied" | "failed";
+      at: number;
+      detail?: string;
+    }>;
 };
 export type NotificationsAwayClearIn = Record<string, unknown>;
 export type NotificationsAwayClearOut = {
@@ -20231,6 +20287,28 @@ export type SessionsContinueOut = {
   threadId: string;
   linkedFrom: string;
 };
+export type SessionsGetIn = {
+  conversationId: string;
+};
+export type SessionsGetOut = {
+  session: {
+    conversationId: string;
+    provider: "codex" | "claude_code";
+    sourceKey: string;
+    sourceSessionId: string;
+    title: string;
+    startedAt: number;
+    importedAt: number;
+    projectId?: string;
+    continuedThreadId?: string;
+  };
+  messages: Array<{
+      sourceMessageId: string;
+      role: "user" | "assistant";
+      text: string;
+      at: number;
+    }>;
+};
 export type SessionsImportIn = {
   provider: "codex" | "claude_code";
   sourceKey: string;
@@ -20271,6 +20349,24 @@ export type SessionsImportOut = {
         spaceId: string;
       };
     }>;
+};
+export type SessionsListIn = {
+  cursor?: string;
+  limit?: number;
+};
+export type SessionsListOut = {
+  sessions: Array<{
+      conversationId: string;
+      provider: "codex" | "claude_code";
+      sourceKey: string;
+      sourceSessionId: string;
+      title: string;
+      startedAt: number;
+      importedAt: number;
+      projectId?: string;
+      continuedThreadId?: string;
+    }>;
+  next?: string;
 };
 export type SettingsCopyProfileIn = {
   fields: Array<"photo" | "name" | "handle" | "timezone" | "hours" | "contact">;
@@ -26762,6 +26858,7 @@ export interface CapMap {
   "backup.config_set": { in: BackupConfigSetIn; out: BackupConfigSetOut };
   "backup.delete": { in: BackupDeleteIn; out: BackupDeleteOut };
   "backup.export_start": { in: BackupExportStartIn; out: BackupExportStartOut };
+  "backup.export_status": { in: BackupExportStatusIn; out: BackupExportStatusOut };
   "backup.health": { in: BackupHealthIn; out: BackupHealthOut };
   "backup.list": { in: BackupListIn; out: BackupListOut };
   "backup.restore": { in: BackupRestoreIn; out: BackupRestoreOut };
@@ -27827,7 +27924,9 @@ export interface CapMap {
   "search.recent.record": { in: SearchRecentRecordIn; out: SearchRecentRecordOut };
   "search.related": { in: SearchRelatedIn; out: SearchRelatedOut };
   "sessions.continue": { in: SessionsContinueIn; out: SessionsContinueOut };
+  "sessions.get": { in: SessionsGetIn; out: SessionsGetOut };
   "sessions.import": { in: SessionsImportIn; out: SessionsImportOut };
+  "sessions.list": { in: SessionsListIn; out: SessionsListOut };
   "settings.copy_profile": { in: SettingsCopyProfileIn; out: SettingsCopyProfileOut };
   "settings.copy_source": { in: SettingsCopySourceIn; out: SettingsCopySourceOut };
   "settings.floor_set": { in: SettingsFloorSetIn; out: SettingsFloorSetOut };

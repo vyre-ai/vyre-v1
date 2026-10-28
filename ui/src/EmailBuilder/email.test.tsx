@@ -316,3 +316,11 @@ test("the canvas draws each new kind", () => {
   for (const id of ["em-spacer-sp", "em-social-so", "em-saved-sv"]) assert.ok(html.includes(`data-testid="${id}"`), id);
   assert.ok(html.includes("32 px") && html.includes("Linkedin") && html.includes(">X<") && html.includes("Saved block: Sign-off") && html.includes("Warm regards"));
 });
+
+test("HTML previews sandbox author content and visual links retain real destinations", () => {
+  const out = renderToStaticMarkup(<EmailBuilder id="sandbox" title="Fixture" subject="Fixture" mode="html" html="<script>parent.document.body.textContent='unsafe'</script><p>Visible</p>" preview="desktop" />);
+  assert.match(out, /sandbox=""/);
+  const html = compileEmail([{ id: "image", kind: "image", src: "https://example.com/logo.png", alt: "Logo" }, { id: "button", kind: "button", text: "Read", href: "https://example.com/read" }]);
+  assert.match(html, /src="https:\/\/example.com\/logo.png"/);
+  assert.match(html, /href="https:\/\/example.com\/read"/);
+});

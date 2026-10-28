@@ -1,7 +1,7 @@
 // Capability handlers for backup (spec 5 Backups and export, 2.26; ARCH 7.10). Config, run, list, delete, health and the owner export are in run.ts;
 // preview, restore and verify are in restore.ts. Every capability needs server.backups (the pipeline checks it); restore is held by the Gate (delete act).
 
-import { config_get, config_set, del, export_start, health, list, run } from "./run.ts";
+import { config_get, config_set, del, export_start, export_status, health, list, run } from "./run.ts";
 import { restore, restore_preview, verify } from "./restore.ts";
 
 export type { BackupCtx, BackupDrivers, BackupTarget, SpaceSnapshot, SpaceSource, Tombstone } from "./run.ts";
@@ -17,5 +17,6 @@ export const handlers = {
   "backup.verify": verify,
   "backup.delete": del,
   "backup.export_start": export_start,
+  "backup.export_status": export_status,
   "backup.health": health,
 };

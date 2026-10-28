@@ -15,6 +15,8 @@ import type { SidebarSlotApi } from "../sidebar/index.ts";
 import RecordsPlace from "./records.tsx";
 import { recordsData } from "./records-data.ts";
 import { nameLookup } from "./records-live.ts";
+import { PlaceHashProvider } from "../hash/context.tsx";
+import { resolveRecordType } from "./record-detail.tsx";
 import { ShellRuntimeProvider } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
@@ -88,4 +90,33 @@ test("opening a record or a file goes through the shell's door", () => {
   const rt = runtimeOver(createSampleFiles(), opened);
   rt.open({ screen: "files.viewer", args: { fileId: "fil_1" } });
   assert.deepEqual(opened, [{ screen: "files.viewer", args: { fileId: "fil_1" } }]);
+});
+
+
+test("an incoming file hash mounts its viewer instead of leaving the list open", () => {
+  const rt = runtimeOver(createSampleFiles());
+  const out = html(<ShellRuntimeProvider value={rt}><PlaceHashProvider hash="screen=files.viewer&fileId=fil_1" opened={() => undefined}><FilesPlace place="files" /></PlaceHashProvider></ShellRuntimeProvider>);
+  assert.match(out, /file-viewer-loading/);
+  assert.doesNotMatch(out, /data-testid="files-list"/);
+});
+
+test("an incoming record hash opens a detail route instead of drawing the table", () => {
+  const rt = runtimeOver(createViewsSample());
+  const out = html(<ShellRuntimeProvider value={rt}><PlaceHashProvider hash="subject=record:rec_1&type=contact" opened={() => undefined}><RecordsPlace place="records" /></PlaceHashProvider></ShellRuntimeProvider>);
+  assert.match(out, /Opening record/);
+  assert.doesNotMatch(out, /data-testid="records-table"/);
+});
+
+test("record type lookup validates hints and supports old links without leaking forbidden records", async () => {
+  const calls: string[] = [];
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    calls.push(cap);
+    if (cap === "schema.types.list") return { types: [{ key: "hidden" }, { key: "contact" }] };
+    if ((input as { type: string }).type === "hidden") throw { code: "access.denied" };
+    return { record: { id: "rec_1" } };
+  };
+  assert.equal(await resolveRecordType(call as ShellRuntime["call"], "rec_1"), "contact");
+  assert.deepEqual(calls, ["schema.types.list", "records.get", "records.get"]);
+  assert.equal(await resolveRecordType(call as ShellRuntime["call"], "rec_1", "contact"), "contact");
+  await assert.rejects(resolveRecordType(call as ShellRuntime["call"], "rec_1", "hidden"));
 });

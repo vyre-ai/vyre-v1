@@ -50,11 +50,12 @@ export function buildWorld(seed: number, opts: { agentElevated?: boolean } = {})
   snap.putPrincipal({ id: AGENT, kind: "agent", owner: "p1", status: r.chance(0.05) ? "suspended" : "active", name: AGENT });
   snap.putPrincipal({ id: SVC, kind: "svc", owner: "p2", status: "active", name: SVC });
   const roleNames = ["member", "guest", "none", "owner", "admin"];
+  // Keep legacy Owner assignments in the worlds, and include valid direct Admin roles for people/services.
   const holders = [...PERSONS, AGENT, SVC, "g1", "g2"];
   for (const h of holders) {
     const n = r.int(3);
     for (let i = 0; i < n; i++) {
-      const role = h === AGENT && !opts.agentElevated ? r.pick(["member", "guest", "none"]) : h === AGENT || h.startsWith("g") ? r.pick(roleNames) : r.pick(["member", "guest", "none", "owner"]);
+      const role = h === AGENT && !opts.agentElevated ? r.pick(["member", "guest", "none"]) : h === AGENT || h.startsWith("g") ? r.pick(roleNames) : r.pick(["member", "guest", "none", "owner", "admin"]);
       snap.addPrincipalRole({ holder: h, role });
     }
   }

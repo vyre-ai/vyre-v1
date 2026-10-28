@@ -27,3 +27,10 @@ test("access.sync removes a replayed grant.revoked", () => {
   applyEvent(store, { type: "grant.revoked", payload: { grantId: "gr_old" } }, 2);
   assert.equal(store.grants.has("gr_old"), false);
 });
+
+test('ownership transfer folds resource and roles together and refuses a stale source',()=>{
+ const store=new AccessStore();for(const id of ['usr_old','usr_new'])applyEvent(store,{type:'principal.created',payload:{id,kind:'person',status:'active'}},1);
+ applyEvent(store,{type:'resource.created',payload:{id:'spc_fixture',type:'space',owner_id:'usr_old',label:0}},1);store.assignments.set('usr_old',['rol_owner','rol_member']);
+ assert.equal(applyEvent(store,{type:'space.ownership_transferred',payload:{from:'usr_wrong',to:'usr_new'}},2),false);assert.equal(store.resources.get('spc_fixture')?.ownerId,'usr_old');
+ assert.equal(applyEvent(store,{type:'space.ownership_transferred',payload:{from:'usr_old',to:'usr_new'}},3),true);assert.equal(store.resources.get('spc_fixture')?.ownerId,'usr_new');assert.ok(store.rolesOf('usr_new').includes('rol_owner'));assert.ok(!store.rolesOf('usr_old').includes('rol_owner'));assert.ok(store.rolesOf('usr_old').includes('rol_admin'));
+});

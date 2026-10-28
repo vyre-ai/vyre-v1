@@ -1,0 +1,88 @@
+# Infrastructure completion increment
+
+Base: f277e080. This increment owns Network, Speed and Usage. Existing Console components and server-pruned navigation remain the composition.
+
+Network reads status, endpoints, public hostnames and servers through their normal capabilities. Domain, address mode, renewal and removal require a review step. Reconnect uses its existing capability and shows the host outcome. Compute enrollment has no consumer/connection-manager protocol in this repository; join-code creation is unavailable with an explicit explanation. A queued host command is described as requested; only observed status establishes the result. Gate-held actions retain their approval state. Speed uses server-reported budget units and direction, including lower-tail budgets, and opens retained worst traces only for callers with server.logs. Usage has independent period and person/agent/model grouping; it is not the Spend editor.
+
+## Evidence
+
+- Four new rendering and actual route-dispatch tests; seventeen focused Console tests pass with existing Infrastructure and AI route coverage.
+- Real production browser: fresh claim, three routes, domain review and server validation, expiring join code, Speed window and Usage period/group changes. Three tests pass, no page errors. Captures: /tmp/vyre-infra-acceptance-shots.
+- Export uses APFS-cloned dependencies with local @vyre/app and @vyre/ui workspace resolution. New Network marker is present in client JS, home includes external scripts.
+- Focused semantic checks report no diagnostics in the new pages; existing shared UI Menu and States errors remain outside this increment.
+- Host regression proves first successful domain apply updates observed network_config and a failed apply keeps the prior address. Fifteen command/probe tests pass.
+
+## Managed driver increment
+
+The daemon now uses the existing CaddyAdmin/CaddyRouter for own-domain ingress, targeting only its bound local gateway. A failed apply preserves the prior observed address. Relay switching requires an active endpoint for this Space. Renewal can only touch the current Space ingress and reports the actual certificate; it never overwrites another route’s authentication or upstream. The slow probe refreshes the current ingress certificate.
+
+A new additive network.status commands array shows pending requests and bounded host outcomes. The host retains 100 sanitized outcomes and returns the latest 10. Raw driver errors stay in authorized server logs. Domain/mode changes and removal no longer mutate observed state before driver completion. Observed successful changes append their declared events with the original requester. Unsupported compute reconnect/disconnect fail; failed disconnect retains the server row.
+
+Regression proof: 89 backend/module tests pass, including the final managed HTTP fixture proving domain apply, member denial, actual Caddy config writes, event, failure and restart persistence. The updated production browser passes three tests with actual failed reconnect readback and disabled enrollment guidance. Secrets scan reports 6,517 files with zero hits; boundaries report no new violations. Generated/frozen snapshots include network.status readback and console.speed unit/sense fields. Final combined evidence follows in the next checkpoint.
+
+## Remaining action audit
+
+Compute server enrollment, reconnect and disconnect still need a real server-manager protocol. The candidate exposes that limitation and does not generate an unusable join code in the Console. This is a named v1 blocker, not completed functionality. Actual public DNS/ACME production issuance was not attempted against operator infrastructure; the tests use deterministic DNS, Caddy protocol fixtures and a booted HTTP pipeline.
+
+## Space address security increment
+
+`spaces.switch_address` now requires server.network at manage level, matching the dedicated Network mutations. Its prior view-level requirement allowed an explicit view-only role to change the profile; the HTTP regression reproduced status 200 before the fix and requires 403 afterward. The host verifies DNS and applies the same managed network driver before the module persists the profile. Missing drivers fail explicitly. The profile reads the current host-observed address, including changes made from Network. Personal profiles keep their device-only address.
+
+The actual HTTP fixture covers a server.network view role reading status, denial of its address mutation, failed DNS and failed Caddy application preserving the address, successful owner application, and restart persistence. The Space module and HTTP regressions pass 42 tests. Focused semantic checks find no new diagnostics in the touched seam, module, or daemon block; existing transitive kernel and UI diagnostics remain. Ingress-check copy states that it reports the server's current observation; the existing capability is not an outside-network probe.
+
+## Restore preview selection safety
+
+Opening another backup clears the previous destructive confirmation immediately. Only the latest preview response can become confirmable; a failure or cancellation leaves no backup selected. The confirmation names the selected backup’s timestamp, cannot run after its list entry disappears, and cannot be cancelled while its restore request is submitting.
+
+Two forced-order model regressions and six existing Console rendering tests pass. Production browser creates two real local encrypted backups, delays one actual HTTP preview, selects the other, then releases the delayed response and verifies the selected confirmation remains unchanged. A subsequent denied preview removes the old confirmation. Three browser tests pass with zero page errors; the fixture never invokes restore. Evidence: /tmp/vyre-backup-preview-browser.log and /tmp/vyre-infra-backup-shots/console-backup-preview-failure.png.
+
+## Reviewed update pinning and dry-run safety
+
+The internal installer now receives the verified selected channel. The host passes that channel, exact version, reviewed artifact SHA-256 and the matching pinned feed base to `vyre-server`. Its POSIX parser validates those inputs before command work. The signed manifest must still verify with the compiled release key, match the channel/version, and match the reviewed artifact hash before tarball download. A healthy install updates the daily updater’s channel/feed; a failed install retains its previous selection. Existing signature validation remains mandatory.
+
+`update --dry-run` now returns before unpack, image pulls or backups. Its prior control flow could continue after the unpack helper returned. Sourced CLI fixture tests cover that boundary, changed digest refusal, invalid/empty flags, and channel persistence on healthy success versus rollback. An actual HTTP beta update fixture verifies the precise installer arguments and observed version/history through the real module and gateway. It uses fake release/installer services; no production update ran. Final regression: 42 tests, 41 passed and one Docker-heavy deployment test explicitly skipped. Focused new source semantics and lint pass; boundaries have no violations.
+
+## Server log paging and trace contents (after checkpoint)
+
+Server now uses the existing opaque log cursors for older/newer/latest navigation. Searching clears prior page and trace selection; auto refresh pauses on older pages. Private export removes pagination fields and covers the entire selected filter. Trace detail includes its actual log rows as well as spans/events and has an explicit authenticated refresh.
+
+The regression first failed against the prior production UI after uploading 120 actual metadata-key log entries through the authenticated capability. The updated own-source browser passes three tests: paging both directions, a private export containing records from both pages, and a trace containing rows outside the current page. No fixture free text bypasses log scrubbing. Focused rendering and new-source semantic checks pass; lint has zero findings. Evidence: /tmp/vyre-server-pagination-final-browser.log and /tmp/vyre-server-pagination-shots/console-server-paging-trace.png. This closes paging and trace-content gaps; it does not claim the full Server object/framework or visual review is complete.
+
+## Updater operation ownership (after checkpoint)
+
+Deterministic fixtures reproduced a competing apply rolling the active installation back from 1.3.0 to 1.2.0. The CLI contender also assigned its cleanup lock path before acquiring ownership, so EXIT cleanup removed the active updater’s empty lock directory. Manual rollback did not share that lock.
+
+Apply and rollback now share an in-memory per-Space operation guard with unconditional release. The CLI acquires the same operation directory for both commands and gives cleanup ownership only after successful mkdir. A real contender exits 75; the host maps that to a typed busy refusal, and apply never initiates rollback for another operation’s busy result. A failed request releases its guard for later retries. No persistent application lock can strand the Space after daemon restart; the existing CLI lock still protects an installer running outside that process.
+
+The actual HTTP beta fixture pauses installation and verifies competing apply and rollback are refused before a second installer or rollback command. POSIX fixtures prove lock ownership/cleanup and shared rollback locking. Final targeted set: 47 tests, 46 passed, one Docker-heavy deployment test explicitly skipped. Focused new source semantics and lint pass. No actual deployment, Docker or production rollback ran.
+
+## Spend read privacy (after checkpoint)
+
+`engine.spend.get` previously accepted a Member requesting another person’s or the whole Space’s totals; the actual HTTP regression reproduced status 200. Reads now allow the canonical effective person’s own scope, require existing AI-spend Manage authority for other-person/Space aggregates, and retain existing AI-spend Manage authority on a specifically granted agent. All authorization uses the original execution context, so actingFor remains an intersection, not impersonation.
+
+The HTTP fixture covers own-person success, cross-person/Space/agent denial for a Member, owner legal reads, a scoped agent manager’s legal agent aggregate without Space/person access, a powerful agent narrowed by a delegated Member, and a limited agent narrowed even while acting for an Owner. The own-person default resolves to the delegated effective person. Fifteen module/HTTP tests pass; no broad grant, new system port or write authority was introduced. Focused touched-source semantics are clean.
+
+## Usage and limits (after checkpoint)
+
+Usage now includes real personal limits by default, an explicit Space-limits selection for spend managers, resolved principal names and aligned cost values. It keeps the period/person-agent-model breakdown and required pricing note. The management action opens the existing Spend editor; ordinary readers neither query a global spend scope by default nor receive that action. Personal caps are described separately from additional Space/agent caps.
+
+Six focused rendering/query-scope cases pass. The own-source production browser seeds three disposable meter rows without inference, verifies the claimed person's name and current-period amount, verifies that an eight-day-old model appears only in the longer period, reads actual personal and Space caps, and opens the real Spend editor. Three browser tests pass with zero page errors. The fixture uses authenticated capability reads and writes; direct SQLite is confined to disposable meter data, not product behavior. Evidence: /tmp/vyre-usage-limits-browser.log and /tmp/vyre-usage-limits-shots/console-usage-limits.png. Source boundaries, lint and focused new-source semantics pass. Owner visual approval and named person/agent object drilldown remain separate acceptance.
+
+
+## Real daemon telemetry (after checkpoint)
+
+A live Owner HTTP reproduction found 171 native invoke spans but zero canonical API spans/logs. The daemon's native `logs.db` and the logs module's prefixed tables were disconnected. The internal loaded-module export `appendTelemetry` now receives metadata-only native batches through `host/src/seams/telemetry.ts`; it uses `scopedDb('logs')` and the existing LogWriter's validation/redaction/settings. No new capability, authority, invoke recursion or read bypass exists. Provider error text and undeclared attributes do not cross this boundary; only declared numeric metadata, registered capability names, fixed trace formats and finite reason/state enums survive before the existing secret/content scrub. Message templates use an explicit allowlist; unknown messages become log.redacted. Native batch reads bound attribute bytes before parsing.
+
+The native database stores a source UUID. At most 1,000 rows and 1,000 spans are observed per flush. Canonical inserts and that source's row/span watermarks commit in one transaction. Failed canonical writes leave the native rows intact; restart resumes from the last committed checkpoint. Duplicate committed batches are ignored. Normal background batching avoids a write on every request; authorized log handlers flush one bounded batch before reading. Shutdown makes one canonical attempt, detaches the observer and drains accepted records into the native database, so an unavailable observer cannot block shutdown or lose the recovery source. Existing native files are read through this same scrubbed path, not exposed as raw blobs.
+
+Actual HTTP proof covers real capability invoke spans, boot logs, same-trace retrieval, Member denial for query/spans/trace, other-Space row exclusion, content and known-secret scrubbing. Fault injection after a log insert but before its span proves atomic rollback/retry. A persistent canonical outage during shutdown replays once after restart; a second restart proves checkpoint idempotence. Native sink tests cover bounded batches, local-write uniqueness and accepted-row shutdown behavior. No new UI bundle was needed for this backend increment. The existing production Server browser test selects its intended fixture trace explicitly because real daemon errors now correctly coexist with uploaded fixture rows.
+
+
+Independent review caught SQLite row-ID reuse after native retention. Persisted per-stream sequence counters now allocate explicit native IDs in the same transaction as the batch and preserve the shared source UUID. Existing table maxima and the canonical watermark seed counters; deleting all or the highest rows cannot move either stream behind its checkpoint. HTTP prune/write/read/restart coverage and legacy-source metadata migration pass. Neither credential-shaped unknown messages nor credential-shaped reason strings pass the canonical metadata boundary.
+
+
+## Speed trace interaction and remaining ingestion boundary
+
+Speed now reuses the complete Server trace view, including logs, events, spans and an authenticated refresh. A production browser fixture writes a real Space profile update with an idempotency key, waits for its actual event index, and associates explicit disposable timing samples with that real trace. The UI shows its audit log, space.updated event and native invoke span; refresh makes an actual HTTP read; changing sample window clears the prior trace and changes the rollup. Six combined Speed/Server browser tests pass with no page errors. The source export contains external scripts and the actual Console bundle. Evidence: /tmp/vyre-speed-trace-final-browser.log, /tmp/vyre-speed-trace-shots/console-speed-populated-trace.png, /tmp/vyre-speed-trace-export. This is functional proof, not owner visual acceptance or a performance measurement.
+
+Production budget collection remains a distinct gap. startup/boot.ts produces app.start; PlaceHost and signed-out SessionGate views mark app.usable; Cmd-K marks cmdk.local and cmdk.merged. These remain local User Timing marks. logs.client_upload accepts log entries only, while console.speed rolls up spans named by the 18 perf/budgets.json budget IDs. No current client span-upload producer connects those marks to canonical budget spans. Native invoke telemetry now works through the new bridge; it does not fabricate startup or search performance samples. A bounded follow-up would add typed timing samples to the existing upload, then queue real measurements after render with authenticated reconnect and Space-switch isolation.

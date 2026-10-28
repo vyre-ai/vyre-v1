@@ -120,7 +120,7 @@ export async function reviewsGet(ctx: AccessCtx, input: { reviewId: string }) {
   return {
     review: reviewOut(r, items),
     // the grant as it was when the review opened, so a removed grant still shows what was removed
-    items: items.map((i) => ({ grant: JSON.parse(i.grant_json) as unknown, ...(i.last_used_at !== null ? { lastUsedAt: i.last_used_at } : {}), ...(i.decision ? { decision: i.decision } : {}) })),
+    items: items.map((i) => ({ grant: JSON.parse(i.grant_json) as unknown, reviewer: i.reviewer, ...(i.task_id ? { taskId: i.task_id } : {}), ...(i.last_used_at !== null ? { lastUsedAt: i.last_used_at } : {}), ...(i.decision ? { decision: i.decision } : {}) })),
   };
 }
 

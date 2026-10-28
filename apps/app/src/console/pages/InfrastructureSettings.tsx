@@ -1,0 +1,56 @@
+import { SpaceExport } from './SpaceExport.tsx';
+import { useEffect, useState } from 'react';
+import type { ReactElement } from 'react';
+import { View } from 'react-native';
+import type { CapMap } from '../../../../../generated/types.ts';
+import { Row } from '../../../../../ui/src/Row/index.tsx';
+import { Group, Section } from '../shell/ui.tsx';
+import { useConsoleData } from '../shell/data.tsx';
+import { Actions, Button, Field, Note, ReadState, Select, useAction, useRead } from './shared.tsx';
+export function Updates(): ReactElement {
+    const data = useConsoleData(), status = useRead<CapMap['updates.status']['out']>('updates.status'), history = useRead<CapMap['updates.history']['out']>('updates.history');
+    const [channel, setChannel] = useState('stable'), [checked, setChecked] = useState<CapMap['updates.check']['out'] | null>(null), [review, setReview] = useState<{
+        kind: 'apply' | 'rollback';
+        to: string;
+    } | null>(null);
+    const action = useAction(() => { status.refresh(); history.refresh(); });
+    useEffect(() => { if (status.data)
+        setChannel(status.data.channel); }, [status.data]);
+    if (!status.data || !history.data)
+        return <ReadState error={status.error ?? history.error} retry={() => { status.refresh(); history.refresh(); }}/>;
+    const apply = async (): Promise<void> => { if (!review)
+        return; const chosen = review; await action.run(`updates.${chosen.kind}`, { to: chosen.to }, async () => { const observed = await data.call('updates.status', {}) as CapMap['updates.status']['out']; const recent = await data.call('updates.history', {}) as CapMap['updates.history']['out']; const record = recent.updates[0]; return observed.current === chosen.to && record?.to === chosen.to && record.result !== 'failed' ? `Server now runs ${observed.current}. ${record.result === 'rolled_back' ? 'Rollback verified.' : 'Update health check passed.'}` : record?.result === 'failed' ? 'The update failed. Review history and current server health.' : `Request returned. Observed version is ${observed.current}; refresh history before retrying.`; }); setReview(null); };
+    return <View testID="console-updates-infra"><Section title="Server updates"><Group><Row id="updates-current" title="Running version" note={status.data.current}/><Row id="updates-last" title="Last result" note={status.data.lastResult ?? 'No update recorded'}/><Select label="Release channel" value={channel} onChange={setChannel} options={['stable', 'beta', 'nightly'].map(key => ({ key, title: key[0]!.toUpperCase() + key.slice(1) }))}/><Actions><Button label="Save channel" disabled={action.busy || channel === status.data.channel} onPress={() => void action.run('updates.channel_set', { channel }, () => { setChecked(null); return 'Release channel saved. Check for updates on this channel.'; })}/><Button label="Check for updates" testID="infra-updates-check" disabled={action.busy} onPress={() => void action.run<CapMap['updates.check']['out']>('updates.check', {}, out => { setChecked(out); return out.available ? `Version ${out.available} is available.` : 'No newer version is available.'; })}/>{checked?.available || status.data.available ? <Button label="Review update…" testID="infra-update-review" disabled={action.busy} onPress={() => setReview({ kind: 'apply', to: checked?.available ?? status.data!.available! })}/> : null}</Actions>{checked ? <><Note>{checked.notes ?? 'No release notes supplied.'}</Note><Note>Supported apps: {checked.supportedApps.join(', ') || 'No compatibility information supplied'}</Note></> : null}{action.note ? <Note>{action.note}</Note> : null}</Group></Section><Section title="Update history" count={history.data.updates.length}><Group>{history.data.updates.map((row, index) => <Row key={`${row.at}-${index}`} id={`update-${index}`} title={`${row.from} → ${row.to}`} note={`${new Date(row.at).toLocaleString()} · ${row.result} · ${row.seconds}s`} trailing={row.from !== status.data!.current ? <Button label={`Review rollback to ${row.from}`} disabled={action.busy} onPress={() => setReview({ kind: 'rollback', to: row.from })}/> : undefined}/>)}{!history.data.updates.length ? <Note>No updates recorded.</Note> : null}</Group></Section>{review ? <Section title={review.kind === 'apply' ? 'Review server update' : 'Review rollback'}><Group><Note>{review.kind === 'apply' ? `Update from ${status.data.current} to ${review.to}? Vyre takes a backup first, checks server health and rolls back if the new version fails.` : `Switch code to ${review.to}? Data written by the newer version stays. The server must still have this version available.`} Connected work may pause during restart.</Note><Actions><Button label="Cancel" onPress={() => setReview(null)}/><Button label={review.kind === 'apply' ? 'Confirm update' : 'Confirm rollback'} danger disabled={action.busy} onPress={() => void apply()}/></Actions></Group></Section> : null}</View>;
+}
+function LogoPicker({ onChoose }: {
+    onChoose(id: string): void;
+}): ReactElement {
+    const files = useRead<CapMap['files.list']['out']>('files.list', { section: 'space', kind: 'image', limit: 100 });
+    return <Section title="Choose a Space image"><Group>{files.data ? files.data.files.length ? files.data.files.map(file => <Row key={file.fileId} id={`logo-${file.fileId}`} title={file.name} onPress={() => onChoose(file.fileId)} trailing={<Button label="Choose" onPress={() => onChoose(file.fileId)}/>}/>) : <Note>No readable images in the Space root. Add an image in Files first.</Note> : <ReadState error={files.error} retry={files.refresh}/>}</Group></Section>;
+}
+function TransferPicker({ onChoose }: {
+    onChoose(id: string): void;
+}): ReactElement {
+    const people = useRead<CapMap['access.principals.list']['out']>('access.principals.list', { kind: 'person', status: 'active', limit: 100 });
+    const { me } = useConsoleData();
+    return <Section title="Choose the new owner"><Group>{people.data ? people.data.principals.filter(person => person.id !== me.id).map(person => <Row key={person.id} id={`owner-${person.id}`} title={person.name} onPress={() => onChoose(person.id)} trailing={<Button label="Review transfer" onPress={() => onChoose(person.id)}/>}/>) : <ReadState error={people.error} retry={people.refresh}/>}</Group></Section>;
+}
+export function SpaceProfile(): ReactElement {
+    const data = useConsoleData(), result = useRead<CapMap['spaces.get']['out']>('spaces.get');
+    const [name, setName] = useState(''), [legal, setLegal] = useState(''), [logo, setLogo] = useState<string | null>(null), [pickLogo, setPickLogo] = useState(false), [mode, setMode] = useState('relay'), [host, setHost] = useState(''), [confirm, setConfirm] = useState(''), [confirmName, setConfirmName] = useState(''), [to, setTo] = useState('');
+    const action = useAction(result.refresh);
+    useEffect(() => { const space = result.data?.space; if (space) {
+        setName(space.name);
+        setLegal(space.legalName ?? '');
+        setLogo(space.logoFileId ?? null);
+        setMode(space.address.mode === 'own_domain' ? 'own_domain' : 'relay');
+        setHost(space.address.host ?? '');
+    } }, [result.data]);
+    if (!result.data)
+        return <ReadState error={result.error} retry={result.refresh}/>;
+    const space = result.data.space, owner = space.owner === data.me.id;
+    return <View testID="console-space-infra"><Section title="Space profile"><Group><Field label="Space name" testID="infra-space-name" value={name} onChange={setName}/><Field label="Legal name" value={legal} onChange={setLegal}/><Row id="space-logo" title="Space image" note={logo ? 'An image is selected' : 'No image selected'} trailing={<Actions><Button label="Choose image…" onPress={() => setPickLogo(!pickLogo)}/>{logo ? <Button label="Remove image" onPress={() => setLogo(null)}/> : null}</Actions>}/><Actions><Button label="Save profile" testID="infra-space-save" disabled={action.busy || !name.trim()} onPress={() => void action.run('spaces.update', { name: name.trim(), legalName: legal.trim(), logoFileId: logo }, 'Space profile saved.')}/></Actions><Row id="space-id" title="Space ID" note={space.id}/><Row id="space-fingerprint" title="Pinned key fingerprint" note={space.fingerprint}/><Row id="space-host" title="Hosted on" note={space.hostedOn ?? 'This server'}/><Row id="space-created" title="Created" note={new Date(space.createdAt).toLocaleString()}/></Group></Section>{pickLogo ? <LogoPicker onChoose={id => { setLogo(id); setPickLogo(false); }}/> : null}<Section title="Space address"><Group><Row id="space-address" title="Current address" note={`${space.address.mode} · ${space.address.host ?? 'This device'}`}/><Select label="Address type" value={mode} onChange={setMode} options={[{ key: 'relay', title: 'Vyre relay' }, { key: 'own_domain', title: 'Own domain' }]}/>{mode === 'own_domain' ? <Field label="Domain" value={host} onChange={setHost}/> : null}<Button label="Review address change…" disabled={action.busy || (mode === 'own_domain' && !host.trim())} onPress={() => setConfirm('address')}/></Group></Section><Section title={owner ? 'Ownership and export' : 'Membership'}><Group>{owner ? <><Note>Full exports exclude secret values and other people’s private chats and memory.</Note><SpaceExport /><Button label="Transfer ownership…" onPress={() => setConfirm('choose-owner')}/><Button label="Deletion options…" danger onPress={() => setConfirm('delete')}/></> : <Button label="Leave this Space…" danger onPress={() => setConfirm('leave')}/>}</Group></Section>{confirm === 'choose-owner' ? <TransferPicker onChoose={id => { setTo(id); setConfirm('transfer'); }}/> : null}{confirm && confirm !== 'choose-owner' ? <Section title="Review change"><Group><Note>{confirm === 'delete' ? 'This server requires Space deletion from its command line. Back up or export first, then ask the person operating this server to remove this Space. Deletion cannot run from this Console.' : confirm === 'leave' ? 'Leave this Space? Your local copy is wiped and access ends.' : confirm === 'transfer' ? `Hand ownership to ${data.name(to)}? You will no longer be the owner.` : confirm === 'address' ? `Change the address to ${mode === 'relay' ? 'Vyre relay' : host}? Devices keep the pinned Space key.` : 'Start a full Space export? Only you can request it. No download is ready until the export finishes.'}</Note><Actions><Button label="Cancel" onPress={() => setConfirm('')}/><Button label="Confirm" testID="infra-space-confirm" danger disabled={action.busy || confirm === 'delete'} onPress={() => { const cap = confirm === 'delete' ? 'spaces.delete' : confirm === 'leave' ? 'spaces.leave' : confirm === 'transfer' ? 'spaces.transfer_ownership' : confirm === 'address' ? 'spaces.switch_address' : 'spaces.export'; const input = confirm === 'delete' ? { confirmName } : confirm === 'leave' ? { confirm: true } : confirm === 'transfer' ? { to } : confirm === 'address' ? { mode, ...(mode === 'own_domain' ? { host: host.trim() } : {}) } : {}; void action.run<{
+        runId?: string;
+    }>(cap, input, out => out.runId ? `Export requested. Run ${out.runId}.` : 'Change accepted. Refresh this Space to see the current state.').then(out => { if (out)
+        setConfirm(''); }); }}/></Actions></Group></Section> : null}{action.note ? <Note>{action.note}</Note> : null}</View>;
+}

@@ -147,6 +147,39 @@ export function checkAnswers(ctx: Ctx, form: Row, link: Row | null, raw: Record<
   return out;
 }
 
+/** Type checks run before any record write; relation IDs need explicit publication authority. */
+export async function typedAnswers(ctx: Ctx, form: Row, answers: Record<string, Answer>, link: Row | null = null): Promise<Record<string, Answer>> {
+  const reader=formsConfig().schemaFields;
+  if(!reader)return answers;
+  const schema=await reader(str(form.record_type)), known=new Map(schema.map((field)=>[field.key,field]));
+  const out={...answers}, modes=fieldsOf(ctx,str(form.id)), state=logicState(parseJson(form.logic),out), allowed=answerableFields(ctx,form,link);
+  for(const item of modes){
+    const key=str(item.field),field=known.get(key);
+    if(str(item.mode)!=='ask'||state.hidden.has(key)||!allowed.has(key))continue;
+    if(!field)fail(ctx,'validation.bad_input','This form question is no longer available.',{field:`answers.${key}`});
+    const value=out[key];
+    if(isEmptyAnswer(value)){if(field.required||state.required.has(key))fail(ctx,'validation.bad_input','This question needs an answer.',{field:`answers.${key}`});delete out[key];continue;}
+    const bad=(message:string):never=>fail(ctx,'validation.bad_input',message,{field:`answers.${key}`});
+    if((field.type==='files'||field.type==='file')&&(!value||typeof value!=='object'||Array.isArray(value)||!('fileId' in value)))bad('Choose a file uploaded through this form.');
+    if(field.type==='relation'||field.type==='person')bad('This question requires publisher-approved record choices. Ask the form owner for help.');
+    if(['number','integer','currency','percent','rating'].includes(field.type)){
+      const n=typeof value==='number'?value:typeof value==='string'&&value.trim()?Number(value):NaN;
+      if(!Number.isFinite(n)||field.type==='integer'&&!Number.isInteger(n))bad('Enter a valid number.');
+      if(field.type==='rating'&&(!Number.isInteger(n)||n<Number(field.options?.min??1)||n>Number(field.options?.max??5)))bad('That rating is outside the allowed range.');out[key]=n;
+    }else if(['boolean','bool','checkbox'].includes(field.type)){
+      if(value===true||value==='true'||value==='on')out[key]=true;else if(value===false||value==='false')out[key]=false;else bad('Choose yes or no.');
+    }else if(field.type==='choice'||field.type==='status'||field.type==='multichoice'){
+      const raw=field.options?.[field.type==='status'?'stages':'choices'];const choices=new Set(Array.isArray(raw)?raw.flatMap((item)=>typeof item==='string'?[item]:isRec(item)&&typeof item.key==='string'?[item.key]:[]):[]);
+      if(field.type==='multichoice'){if(!Array.isArray(value)||value.some((item)=>typeof item!=='string'||!choices.has(item)))bad('Choose only the listed options.');}
+      else if(typeof value!=='string'||!choices.has(value))bad('Choose one of the listed options.');
+    }else if(field.type==='date'){
+      if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value)||!Number.isFinite(Date.parse(value))||new Date(value).toISOString().slice(0,10)!==value)bad('Enter a valid date.');
+    }else if(field.type==='datetime'&&(typeof value!=='string'||!Number.isFinite(Date.parse(value))))bad('Enter a valid date and time.');
+    else if(field.type==='email'&&(typeof value!=='string'||!EMAIL.test(value)))bad('Enter a valid email address.');
+  }
+  return out;
+}
+
 // ---- upload policy ---------------------------------------------------------------------------------------------
 // forms.update stores `upload_policy` as { fields?: string[], folderId?: string, maxBytes?: number, types?: string[] }. `types` hold MIME types ("application/pdf"), MIME families ("image/*") or
 // extensions (".pdf"); `maxBytes` is the most one file may be. The policy covers every answer that is a file ({ fileId }), whatever the question; `fields` names the questions the public
@@ -180,6 +213,7 @@ export function reserveUpload(ctx: Ctx, slug: string): { formId: string; folderI
   const form = publishedBySlug(ctx, slug, ["public", "one_use", "survey"]);
   const folderId = uploadPolicyOf(form)?.folderId;
   if (folderId === undefined) fail(ctx, "validation.not_found", "That form is not open.");
+  if(formsConfig().canUpload?.(str(form.created_by),str(form.id),folderId)===false)fail(ctx,'permission.no_grant','The form owner no longer has access to its upload folder. Ask the form owner for help.');
   const since = ctx.now() - UPLOAD_TTL_MS;
   if (many(ctx, "SELECT * FROM forms_upload WHERE form_id = ?", str(form.id)).filter((u) => num(u.created_at) > since).length >= UPLOADS_PER_FORM_PER_DAY) {
     fail(ctx, "rate_limit.exceeded", "This form has taken all the files it accepts today. Try again tomorrow.", { retryAfterSeconds: 3600 });
@@ -213,6 +247,7 @@ export function checkUploads(ctx: Ctx, form: Row, answers: Record<string, Answer
     if (a === null || typeof a !== "object" || Array.isArray(a)) continue;
     const field = `answers.${key}`;
     const bad = (): never => fail(ctx, "validation.bad_input", "That file could not be found. Choose it again.", { field });
+    if(policy?.folderId&&formsConfig().canUpload?.(str(form.created_by),str(form.id),policy.folderId)===false)fail(ctx,'permission.no_grant','The form owner no longer has access to its upload folder. Ask the form owner for help.',{field});
     const row = one(ctx, "SELECT * FROM forms_upload WHERE id = ?", a.fileId);
     if (!row || row.form_id !== form.id || row.actor !== visitor || !isNull(row.used_at) || num(row.created_at) <= ctx.now() - UPLOAD_TTL_MS) return bad();
     if ((isNull(row.token_hash) ? null : str(row.token_hash)) !== tokenHash || used.includes(a.fileId) || !policy) return bad();
@@ -352,8 +387,16 @@ async function submit(ctx: Ctx, input: unknown): Promise<{ recordId: string; tha
   if (token !== undefined) link = await resolveLink(ctx, form, token);
   else if (form.kind === "one_use") fail(ctx, "auth.invalid_code", "This form opens only from the link that was sent to you.");
 
-  const checked = checkAnswers(ctx, form, link, rawAnswers);
+  const checked = await typedAnswers(ctx, form, checkAnswers(ctx, form, link, rawAnswers), link);
   const { answers, used } = checkUploads(ctx, form, checked, token !== undefined ? await sha256hex(token) : null, visitorOf(ctx, o));
+  const schemaReader=formsConfig().schemaFields;
+  if(schemaReader){
+    const schema=await schemaReader(str(form.record_type));
+    for(const field of schema)if(field.type==='files'){
+      const value=answers[field.key];
+      if(value&&typeof value==='object'&&!Array.isArray(value)&&'fileId' in value)answers[field.key]=[value.fileId];
+    }
+  }
   const attribution = cleanAttribution(ctx, o.attribution, consent);
 
   const digest = await digestOf(form, link, answers);
@@ -397,7 +440,7 @@ export interface PublicFormView {
   kind: FormKind;
   name: string;
   /** the questions a visitor sees, in order: Ask, plus Hide ones that a link or the page address fills (prefillKey) */
-  fields: { field: string; hidden: boolean; prefillKey?: string; step: number }[];
+  fields: { field: string; hidden: boolean; prefillKey?: string; step: number; title?: string; type?: string; required?: boolean; choices?: { key: string; title: string }[] }[];
   theme?: Record<string, unknown>;
   css?: string;
   consentText?: string;
@@ -461,6 +504,20 @@ async function submissions(ctx: Ctx, input: unknown): Promise<{ rows: { recordId
   };
   if (offset + limit < rows.length) out.next = String(offset + limit);
   return out;
+}
+
+/** Async production seam: only approved form questions receive actual schema metadata; never relation records. */
+export async function publicFormViewTyped(ctx: Ctx, slug: string, page: "form"|"booking"): Promise<PublicFormView> {
+  const view=publicFormView(ctx,slug,page),reader=formsConfig().schemaFields;
+  if(!reader)return view;
+  const form=publishedBySlug(ctx,slug,page==='booking'?['booking']:['public','one_use','survey']);
+  const schema=await reader(str(form.record_type)),known=new Map(schema.map((field)=>[field.key,field]));
+  if(view.upload?.folderId&&formsConfig().canUpload?.(str(form.created_by),str(form.id),view.upload.folderId)===false)delete view.upload;
+  view.fields=view.fields.flatMap((item)=>{const field=known.get(item.field);if(!field)return [];
+    const raw=field.options?.[field.type==='status'?'stages':'choices'];
+    const choices=Array.isArray(raw)?raw.slice(0,200).flatMap((choice)=>typeof choice==='string'?[{key:choice,title:choice}]:isRec(choice)&&typeof choice.key==='string'?[{key:choice.key,title:typeof choice.title==='string'?choice.title:choice.key}]:[]):[];
+    return [{...item,title:field.title,type:field.type,...(field.required?{required:true}:{}),...(choices.length?{choices}: {})}];});
+  return view;
 }
 
 async function surveyResults(ctx: Ctx, input: unknown): Promise<{ responses: number; questions: { field: string; summary: unknown }[] }> {

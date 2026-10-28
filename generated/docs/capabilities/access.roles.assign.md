@@ -26,7 +26,7 @@ Give a role to a person, group or agent (agents never get Owner or Admin)
 ```ts
 type In = {
   subject: {
-    kind: "person" | "agent" | "actor" | "service";
+    kind: "person" | "agent" | "actor" | "service" | "group";
     id: string;
   };
   roleId: string;

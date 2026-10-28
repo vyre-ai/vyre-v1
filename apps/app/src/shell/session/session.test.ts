@@ -554,7 +554,7 @@ test("desktop joining previews first and accepts with a real Space-key bundle", 
   const anonymous = async (cap: string, input: unknown): Promise<unknown> => {
     calls.push({ cap, input: input as Record<string, unknown> });
     if (cap === "members.invites.preview") return { spaceId: "spc_nw", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 1, fingerprint: "server-display-marker" };
-    return { status: "ok", session: { token: "vst_join", epoch: 2 } };
+    return { personId: "usr_dana", token: "vst_join", sessionId: "ses_join", epoch: 2 };
   };
   const invite = await previewDesktopJoin(route, anonymous);
   const stored = await acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", trustDevice: true, ai: { choice: "none" } }, {
@@ -564,7 +564,7 @@ test("desktop joining previews first and accepts with a real Space-key bundle", 
     persist: () => undefined,
   });
   assert.equal(invite.preview.fingerprint, "server-display-marker", "the link fingerprint is never a trust pin");
-  const accept = calls.find((c) => c.cap === "invites.accept_create_account")!;
+  const accept = calls.find((c) => c.cap === "members.accept")!;
   assert.equal(accept.input["code"], "invite-code");
   assert.equal((accept.input["keys"] as { spaceKeys: unknown[] }).spaceKeys.length, 1);
   assert.equal("personKey" in (accept.input["keys"] as object), false, "only wrapped key material leaves the client");
@@ -578,7 +578,7 @@ test("desktop joining never persists when the post-accept authenticated Space di
   const invite = await previewDesktopJoin(route, async () => ({ spaceId: "spc_preview", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 1, fingerprint: "server-display-marker" }));
   let writes = 0;
   await assert.rejects(acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", trustDevice: true, ai: { choice: "none" } }, {
-    anonymous: async () => ({ status: "ok", session: { token: "vst_join" } }),
+    anonymous: async () => ({ personId: "usr_dana", token: "vst_join", sessionId: "ses_join", epoch: 2 }),
     open: async () => ({ def: { spaceId: "spc_authenticated", name: "Elsewhere" }, me: { id: "usr_dana" }, close: () => undefined } as never),
     getSpace: async () => ({ id: "spc_authenticated", marker: "authenticated-marker" }),
     persist: () => { writes++; },
@@ -595,7 +595,7 @@ test("desktop join persists the verified session by default, never the identity 
     assert.ok(route && route.kind === "join");
     const anonymous = async (cap: string): Promise<unknown> => cap === "members.invites.preview"
       ? { spaceId: "spc_nw", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 1, fingerprint: "server-display-marker" }
-      : { status: "ok", session: { token: "vst_join", epoch: 11 } };
+      : { personId: "usr_dana", token: "vst_join", sessionId: "ses_join", epoch: 11 };
     const invite = await previewDesktopJoin(route, anonymous);
     const stored = await acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", trustDevice: true, ai: { choice: "none" } }, {
       anonymous,

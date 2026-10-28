@@ -1,3 +1,4 @@
+import {createOwnerArchives} from './owner-archives.ts';
 // vyred (ARCH 1.2): the one binary. `startDaemon` boots a host in one or both roles.
 //   space   events.db (kernel, single writer) -> access snapshot -> module loader (modules.json + registry) -> invoke pipeline -> gateway and live socket on one HTTP server,
 //           modules.db for every module's tables, the log sink, the supervisor and scheduler, host probes and the two command queues the Console writes.
@@ -5,6 +6,8 @@
 //           the Chrome bridge register as supervised services (`options.services`) when their lanes land.
 // Nothing here knows a module's internals: module code only ever sees the ctx the loader builds.
 import fs from "node:fs";
+import { formUploadAllowed } from "./forms-authority.ts";
+import { createOwnedExports } from "./owned-exports.ts";
 import type http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -63,6 +66,8 @@ import { createEngineHost } from "../seams/engine.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
 import { applyPendingRestore, clearRestoredTombstones, createBackupHost, readRestoredTombstones } from "../seams/backup.ts";
 import { createKitsHost } from "../seams/kits.ts";
+import { createTelemetryRecorder } from "../seams/telemetry.ts";
+import { createAuditRecorder } from "../seams/audit.ts";
 import { startRelayBox } from "../seams/relay.ts";
 import { createSyncSeam } from "../seams/sync.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
@@ -98,7 +103,8 @@ import { createSpaceStore, spaceStoreDrivers, spaceStorePath } from "./store.ts"
 import { coreOf, createSyncEngine } from "./syncengine.ts";
 import { collectProjections, createProjectionRunner } from "./projections.ts";
 import type { ProjectionRunner } from "./projections.ts";
-import { defaultNetworkPort, pollCommands } from "./commands.ts";
+import { managedNetworkPort } from "./network-driver.ts";
+import { pollCommands } from "./commands.ts";
 import type { NetworkPort } from "./commands.ts";
 import { alive, clearInfo, ensureAdminToken, ensureDirs, pathsFor, readInfo, writeInfo } from "./config.ts";
 import type { DaemonConfig, DaemonPaths, Role } from "./config.ts";
@@ -337,7 +343,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let accessStale = false, kicking = false, noAccessModule = false;
   /** While the snapshot is stale only the owner is answered, and each refused call tries the sync again, so the Space heals itself as soon as the module can take the events. */
   const staleFor = (principal: string): boolean => {
-    if (!accessStale || principal === (cfg.owner ?? access.owner())) return false;
+    if (!accessStale || principal === (access.owner() ?? cfg.owner)) return false;
     if (!kicking) { kicking = true; void syncAccess(true).catch(() => {}).finally(() => { kicking = false; }); }
     return true;
   };
@@ -438,6 +444,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       const reg = registry as unknown as RegistryLike;
       const loaded = await loadHost({ registry: reg, modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")), routes, importer: fileImporter(codeRoot), seamImporter: fileSeamImporter(codeRoot), exportsImporter: fileExportsImporter(codeRoot), db, ...(o.http ? { fetch: o.http } : {}) });
+      const telemetry = createTelemetryRecorder({ space, db, module: loaded.moduleExports.get("logs"), now, secrets: () => [token], capabilities: registry.capabilities.map(cap => cap.name) });
+      if (telemetry) sink.setObserver(telemetry.write, telemetry.position(sink.sourceId));
+      closers.push(() => { try { sink.flush(); } catch { /* The committed native source replays on the next boot. */ } finally { sink.setObserver(undefined); } });
       const registryCaps = registry.capabilities as unknown as CapabilityDef[];
       // consumers and periodic jobs the live modules export (ruling 32): each runs through the invoke pipeline as a host-only capability that may emit what its module's capabilities emit
       // the Vault the connector seams read from: the vault module's own port once it is live and configured, else a refusal
@@ -490,9 +499,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const idem = log.idempotency();
       const sinkLog = sink.invokeLogger(space);
       const spaceId = space;
-      // The audit trail proper (hash chain, signed checkpoints) is the audit module's (L7a); until it lands every allow, deny and hold row also goes to logs.db as `audit`.
+      // Preserve the operational log and write the audit module’s hash chain from declared pipeline metadata.
+      const appendAudit = createAuditRecorder({ space: spaceId, db: db!, module: loaded.moduleExports.get("audit"), principal: (id) => access.snap.principal(id) });
       const recordAudit = (r: AuditRow): void => {
         sink.log({ space: spaceId, level: 20, msg: "audit", trace_id: r.traceId, span_id: r.spanId, cap: r.cap, actor: r.principal, ...(r.actingFor ? { on_behalf: r.actingFor } : {}), result: r.class, attrs: { decisionId: r.decisionId, reason: r.reason } });
+        appendAudit(r);
       };
 
       // ctx.schedule: jobs live in modules.db, so a restart keeps them; each runs through the invoke pipeline as the principal that scheduled it (invokeRunner)
@@ -505,6 +516,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const sealKey = o.sealKey ?? { key: sealKeyFile(path.join(paths.root, "seal.key")), keyId: "k1" };
       const seal = createCtxSeal(sealKey);
       const blobs = createBlobStore({ dir: path.join(paths.root, "blobs", "ctx"), key: sealKey.key, now });
+
+      const registerExport=async(resource:{id:string;ownerId:string},execution:Parameters<ReturnType<typeof createOwnedExports>['forExecution']>[1]):Promise<void>=>{
+        const row={id:resource.id,type:'file',parent_id:null,label:0,owner_id:resource.ownerId,holds:0};
+        const result=await spaceLog.appendResult({id:`evt_res_${resource.id}`,type:'resource.created',sv:1,trace_id:execution.trace.traceId,actor:execution.principal.id,...(execution.actingFor?{on_behalf:execution.actingFor}:{}),vis:'private',entity:'file',entity_id:resource.id,payload:row});
+        if(!result.ok)throw new Error('Could not register the private export.');if(!result.duplicate){access.fold(result.event);accessPending.push(toAccessEvent(result.event));headSeq=Math.max(headSeq,result.event.seq);await syncAccess();}
+      };
+      const ownedExports=createOwnedExports({db:db!,blobs,space:spaceId,now,register:registerExport});
+      const ownerArchives=createOwnerArchives({db:db!,blobs,space:spaceId,now,owner:()=>access.owner()??null,register:(id,ctx)=>registerExport({id,ownerId:ctx.principal.id},ctx)});
+      await ownerArchives.cleanup();
+      await ownedExports.cleanup();
+      const exportCleanup=setInterval(()=>{void Promise.all([ownedExports.cleanup(),ownerArchives.cleanup()]).catch(()=>sink.log({space:spaceId,level:40,msg:'exports.cleanup_failed',place:'owned-exports'}));},60000);exportCleanup.unref();closers.push(()=>clearInterval(exportCleanup));
 
       // The Gate hook, only once the Gate module is live (a stub answers with examples, which must never decide a send). Its questions and parked calls run as the Space itself.
       const gate = loaded.serving.get("gate") === "live"
@@ -538,6 +560,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         resolveItem: (type, kind, value) => resolveVaultItem(db!, type, kind, value),
         handler: (cap, v) => whoamiWithDeferred(cap, (() => {
           const h = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);
+          if(h&&["logs.query","logs.trace","logs.spans","logs.export"].includes(cap))return ((ctx,input)=>{sink.flush();return cap==="logs.export"?h({...ctx,exports:ownedExports.forExecution(cap,ctx)} as typeof ctx,input):h(ctx,input);}) as Handler;
+          if(h&&['logs.export','health.support_bundle','audit.export'].includes(cap))return ((ctx,input)=>h({...ctx,exports:ownedExports.forExecution(cap,ctx)} as typeof ctx,input)) as Handler;
+          if(h&&['backup.export_start','backup.export_status'].includes(cap))return ((ctx,input)=>h({...ctx,ownerArchive:ownerArchives.forExecution(cap,ctx)} as typeof ctx,input)) as Handler;
+          if(h&&(cap==='files.get'||cap==='files.read'))return (async(ctx,input)=>ownedExports.has(String((input as {fileId?:unknown})?.fileId??''))?ownedExports.read(cap,ctx,input):ownerArchives.has(String((input as {fileId?:unknown})?.fileId??''))?ownerArchives.read(cap,ctx,input):h(ctx,input)) as Handler;
           // The one internal call a module may make with the host's own authority: devices -> sync.epoch.bump (a device was revoked, its replica must purge). The person revoking their own
           // device holds no sync grant, and a revoke that cannot purge would leave the copy on the device. Nothing else is widened: every other ctx.call keeps the caller's authority.
           const mod = h ? (capIndex?.get(cap)?.module ?? "") : "";
@@ -667,7 +693,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const hostDrivers: Record<string, SeamDriver> = {
         setPushPort: () => createPushPort(o.seams?.push),
         // portal invitations and sign-in links go out through mail.send from the service mailbox (P-L8_17)
-        configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: d.publicUrl, owner: () => cfg.owner ?? access.owner() ?? null, warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "portal", attrs }) }),
+        configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: d.publicUrl, owner: () => access.owner() ?? cfg.owner ?? null, warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "portal", attrs }) }),
         // the updates module: the compiled-in release key, the GitHub Releases feed and the vyre-server installer (P-L7b_17)
         configureUpdates: () => createUpdatesHost(),
         // A Kit is a resource in the access projection (type "kit") so that the capabilities on it can be authorized. The module cannot create resources, so the host does: one
@@ -678,7 +704,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             ensure: async (kitId) => {
               const r = await spaceLog.appendResult({
                 id: `evt_res_${kitId}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: kitId,
-                payload: { id: kitId, type: "kit", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 },
+                payload: { id: kitId, type: "kit", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
               });
               if (!r.ok) throw new Error(`could not register the Kit: ${r.message}`);
               if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
@@ -691,7 +717,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             ensure: async (f: { id: string; type: "folder"; parentId: string | null; ownerId?: string }) => {
               const r = await spaceLog.appendResult({
                 id: `evt_res_${f.id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: f.id,
-                payload: { id: f.id, type: f.type, parent_id: f.parentId ?? spaceId, label: 0, owner_id: f.ownerId ?? cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 },
+                payload: { id: f.id, type: f.type, parent_id: f.parentId ?? spaceId, label: 0, owner_id: f.ownerId ?? access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
               });
               if (!r.ok) throw new Error(`could not register the folder: ${r.message}`);
               if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
@@ -704,11 +730,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           },
         }),
         // forms and campaigns build their public links from the address people reach this Space at; unset, the links stay relative
-        setFormsHost: () => (cfg.address ? { publicBase: /^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}` } : {}),
+        setFormsHost: () => ({ ...(cfg.address ? { publicBase: /^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}` } : {}), schemaFields: async (type: string) => { const out = await system("schema.types.get", { type }) as { type: { fields: readonly unknown[] } }; return out.type.fields; }, canUpload: (publisherId: string, formId: string, folderId: string) => {
+          return formUploadAllowed(access.snap,{publisherId,formId,folderId,stale:staleFor(publisherId),liveLocalFolder:!!db!.all("SELECT id FROM files_folder WHERE id = ? AND deleted_at IS NULL",folderId)[0],now:now()});
+        } }),
         setCampaignsHost: () => (cfg.address ? { publicBase: /^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}` } : {}),
         // backups: the Space's own files, the owner from the access layer (P-SEC_07: without owner() every export refuses), exports into the blob store, S3 over the seam fetch with keys from the Vault
         setBackupHost: (d) => createBackupHost({
-          root: paths.root, space: spaceId, log: spaceLog, owner: () => cfg.owner ?? access.owner() ?? null, system, vault: d.vault, fetch: d.fetch,
+          root: paths.root, space: spaceId, log: spaceLog, owner: () => access.owner() ?? cfg.owner ?? null, system, vault: d.vault, fetch: d.fetch,
           blobs: { put: async (bytes, type) => (await blobs.forModule("backup").put(bytes, type)).id }, secrets: () => [token],
         }),
         // the Run executor: the plan and the step runner for a Run come from the Automation and steps-core through their host calls (P-L6_24)
@@ -756,13 +784,29 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // the import module reads an Airtable or Notion key from the Vault by handle, for one call
         setImportHost: (d) => ({ secret: (_ctx: unknown, handle: string) => d.vault.secret(handle.startsWith("#") ? handle : `#${handle}`, d.space) }),
         setEventsHost: () => createEventsHost({
-          reader: { source: { read: (q) => spaceLog.read(q), head: async () => (await spaceLog.currentHead()).seq }, access: () => access.snap, owner: () => cfg.owner ?? access.owner() ?? null, now },
+          reader: { source: { read: (q) => spaceLog.read(q), head: async () => (await spaceLog.currentHead()).seq }, access: () => access.snap, owner: () => access.owner() ?? cfg.owner ?? null, now },
           post: { allow: o.seams?.webhookAllow ?? (() => []), now, ...(o.seams?.postFetch ? { fetch: o.seams.postFetch } : {}) },
         }),
         // the git module: working trees under the data directory; a GitHub token arrives only through ctx.vault.fill (git_credential), which waits on the Vault module (w12a, P-L7_LIVE)
         setGitHost: () => ({ treesDir: path.join(paths.root, "trees"), takeCredential: () => undefined }),
         ...spaceStoreDrivers(spaceStore),
-        configureSpaceAdmin: () => createSpaceAdmin({ access: () => access.snap, owner: () => cfg.owner ?? access.owner() ?? "usr_owner", space: spaceId, db: db!, system, headSeq: () => headSeq }),
+        configureSpaceAdmin: () => createSpaceAdmin({ access: () => access.snap, owner: () => access.owner() ?? cfg.owner ?? "usr_owner", space: spaceId, db: db!, system, headSeq: () => headSeq,
+          address: () => {
+            const value = db!.all("SELECT mode, address FROM network_config WHERE id = 1")[0] as {mode?:string;address?:string}|undefined;
+            return value?.address ? { mode: value.mode === 'relay' ? 'relay' : 'own_domain', host: value.address } : undefined;
+          },
+          changeAddress: async (mode, host) => {
+            const config = db!.all("SELECT relay_address FROM network_config WHERE id = 1")[0] as {relay_address?:string}|undefined;
+            const address = mode === 'own_domain' ? host : config?.relay_address;
+            if (!address) throw fail('validation.precondition_failed', ZERO_TRACE, {message:'No address is configured for this mode.'});
+            if (mode === 'own_domain') {
+              const dns = await network.checkDns(address, config?.relay_address ?? null);
+              if (!dns.ok) throw fail('validation.precondition_failed', ZERO_TRACE, {message:'DNS is not verified for this Space. Configure the domain in Network first.'});
+            }
+            await network.applyAddress({mode, address});
+            db!.run("UPDATE network_config SET address = ?, mode = ?, domain = CASE WHEN ? = 'own_domain' THEN ? ELSE domain END, reported_at = ? WHERE id = 1", address, mode, mode, address, now());
+          },
+        }),
         configureSync: () => createSyncSeam({ store: spaceStore, ...(loaded.serving.get("conflicts") === "live" ? { conflicts: { open: (c) => hookRunner.call("conflicts.park", c) as Promise<string>, history: async (e) => { await hookRunner.call("conflicts.record_history", e); } } } : {}), access: () => access.snap, space: spaceId, now, registryHash, invoke: (c, i, seed) => invoke(c, i, seed), keyed: (c, v) => capIndex?.get(c, v)?.idempotency === "key", ...(cfg.address ? { endpoints: () => [{ kind: "direct" as const, url: `wss://${cfg.address}/sync/v1/live` }] } : {}) }),
         setVaultKeyPort: () => ({ personKey: async (personId: string) => keyring.get(personId) }),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
@@ -826,14 +870,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         const seeding = startSchema().catch((e: unknown) => { sink.log({ space: spaceId, level: 50, msg: "schema.seed_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }); });
         closers.push(() => seeding);
         for (const rt of registry.recordTypes) {
-          const created = { type: "resource.created", payload: { id: rt.key, type: "record_type", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 } };
+          const created = { type: "resource.created", payload: { id: rt.key, type: "record_type", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 } };
           access.fold(created);
           accessPending.push({ seq: -1, ...created });   // not a log event: the module applies it at every start
         }
         await syncAccess();
       }
 
-      const owner = (): string => cfg.owner ?? access.owner() ?? "usr_owner";
+      const owner = (): string => access.owner() ?? cfg.owner ?? "usr_owner";
 
       // A restore brought an older Space back. What was erased since is erased again, as the host, before any request is served (spec 2.26, ARCH 7.10). If it cannot be done the Space does not open.
       const kept = loaded.serving.get("governance") === "live" ? readRestoredTombstones(paths.root) : null;
@@ -860,7 +904,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         return { space: s.space, principal: { kind: "person", id: s.person }, device: s.device };
       };
       const session: GatewayDeps["session"] = o.session ?? ((headers) => identify(bearer(headers["authorization"])));
-      ownerOfSpace = () => cfg.owner ?? access.owner() ?? null;
+      ownerOfSpace = () => access.owner() ?? cfg.owner ?? null;
       callerOf = async (h) => {
         const who = await session(h);
         if (!who) return null;
@@ -874,7 +918,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const ensureDefaultPortal = (): Promise<void> => (defaultPortal ??= (async () => {
         const r = await spaceLog.appendResult({
           id: "evt_res_sit_default", type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: "sit_default",
-          payload: { id: "sit_default", type: "site", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 },
+          payload: { id: "sit_default", type: "site", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
         });
         if (!r.ok) throw new Error(`could not register the default portal: ${r.message}`);
         if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
@@ -915,7 +959,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // GET /f/<slug> and /book/<slug> (P-L8_19): the public form pages. A visitor is an act_anon actor; the forms module answers for a published form of the right kind, and an upload goes to the form's Files folder
       {
         const formsNs = loaded.moduleExports.get("forms");
-        const viewOf = formsNs?.["publicFormView"] as ((ctx: unknown, slug: string, page: "form" | "booking") => PublicFormView) | undefined;
+        const viewOf = (formsNs?.["publicFormViewTyped"] ?? formsNs?.["publicFormView"]) as ((ctx: unknown, slug: string, page: "form" | "booking") => PublicFormView | Promise<PublicFormView>) | undefined;
         const linkOf = formsNs?.["linkView"] as ((ctx: unknown, slug: string, token: string) => Promise<{ fields: { field: string; step?: number }[]; partial?: { answers: Record<string, unknown>; step?: number } }>) | undefined;
         const reserveUpload = formsNs?.["reserveUpload"] as ((ctx: unknown, slug: string) => { formId: string; folderId: string }) | undefined;
         const recordUpload = formsNs?.["recordUpload"] as ((ctx: unknown, f: { slug: string; fileId: string; name: string; mime: string; size: number; token?: string | undefined }) => Promise<string>) | undefined;
@@ -927,13 +971,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           formsPageRoute = createFormsPageRoute({
             // a visitor has no session, so the pipeline could not authorize them: the host runs the three public capabilities as itself and the module is told which visitor (forms.visitorOf)
             call: (cap, input, _caller, trace) => invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook", ...(trace ? { trace } : {}) }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)))),
-            read: async (slug, page, caller) => { try { return viewOf(formCtx(caller), slug, page); } catch { return null; } },
+            read: async (slug, page, caller) => { try { return await viewOf(formCtx(caller), slug, page); } catch { return null; } },
             ...(linkOf ? { link: async (slug, token, caller) => { try { return await linkOf(formCtx(caller), slug, token); } catch { return null; } } } : {}),
             // the file is stored as the host (system), never as the visitor or the forms module; the forms module keeps the binding of the upload to this form and this visitor and issues the id the page gets back
             ...(reserveUpload && recordUpload ? { upload: async (slug: string, file: { name: string; type: string; bytes: Uint8Array; folderId: string }, caller: { kind: string; id: string }, token?: string) => {
               const ctx = formCtx(caller);
               reserveUpload(ctx, slug);
-              const out = await system("files.create", { folderId: file.folderId, name: file.name, mime: file.type, content: { base64: Buffer.from(file.bytes).toString("base64") } }) as { file: { fileId: string } };
+              const uploadKey = sha256b64(Buffer.from(JSON.stringify([slug, file.folderId, caller.id, token ?? "", file.name, sha256b64(file.bytes)])));
+              const out = await system("files.create", { idempotencyKey: `forms-upload:${uploadKey}`, folderId: file.folderId, name: `${uploadKey.replaceAll(/[^a-zA-Z0-9]/g, "").slice(0, 12)}-${file.name}`, mime: file.type, content: { base64: Buffer.from(file.bytes).toString("base64") } }) as { file: { fileId: string } };
               return recordUpload(ctx, { slug, fileId: out.file.fileId, name: file.name, mime: file.type, size: file.bytes.length, token });
             } } : {}),
             now,
@@ -1013,15 +1058,34 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     );
   };
 
-  const network = o.network ?? defaultNetworkPort();
-  const runCommands = (): Promise<number> => (db ? pollCommands({ db, supervisor, network, now, log: sink.logger({ space: space ?? "-", place: "commands" }) }) : Promise.resolve(0));
+  const network = o.network ?? managedNetworkPort({
+    adminUrl: cfg.caddyAdmin, space: space ?? '-', upstream: () => `127.0.0.1:${boundPort}`,
+    ingressHost: () => (db?.all("SELECT address FROM network_config WHERE id = 1 AND mode = 'own_domain'")[0] as {address?:string}|undefined)?.address ?? null,
+    relayReady: (address) => !!db?.all("SELECT url FROM network_endpoint WHERE kind = 'relay' AND state = 'healthy' AND heartbeat_at > ?", now() - 60_000).some((raw) => {
+      const url = (raw as {url?:string}).url;
+      if (!url) return false;
+      try { return new URL(url).host === address; } catch { return false; }
+    }),
+  });
+  const runCommands = (): Promise<number> => (db ? pollCommands({ db, supervisor, network, now, log: sink.logger({ space: space ?? "-", place: "commands" }), observed: async (event) => {
+    if (!log) throw new Error('The event log is unavailable.');
+    const stored = await log.append({ id: event.id, type: event.type, sv: 1, trace_id: ZERO_TRACE, actor: event.actor, entity: 'entity', entity_id: event.target, vis: 'space', payload: event.payload });
+    headSeq = Math.max(headSeq, stored.seq);
+  } }) : Promise.resolve(0));
 
+  const refreshNetworkCertificate = async (): Promise<void> => {
+    if (!db || !network.certificate) return;
+    const row = db.all("SELECT address, mode FROM network_config WHERE id = 1")[0] as {address?:string;mode?:string}|undefined;
+    if (!row?.address || row.mode !== 'own_domain' || !/^[a-z0-9.-]+\.[a-z]+$/i.test(row.address)) return;
+    const result = await network.certificate(row.address);
+    db.run("INSERT INTO network_cert (host, expires_at, reason, reported_at) VALUES (?, ?, ?, ?) ON CONFLICT(host) DO UPDATE SET expires_at = COALESCE(excluded.expires_at, network_cert.expires_at), reason = excluded.reason, reported_at = excluded.reported_at", row.address, result.expiresAt, result.reason ?? null, now());
+  };
   const fast = o.intervals?.fast ?? 15_000, slow = o.intervals?.slow ?? 60_000;
   const group = (names: ProbeName[]): ProbeName[] => names.filter((n) => relevant.includes(n));
   // a signed-out person's key leaves memory within the interval, not whenever someone next reads it
   scheduler.add({ name: "keyring.sweep", schedule: { everyMs: o.intervals?.sweep ?? 30_000 }, run: () => { keyring.sweep(); } });
   scheduler.add({ name: "probes.fast", schedule: { everyMs: fast }, run: async () => { await runProbes(group(["events_db", "index_db", "scheduler", "disk_space"])); } });
-  scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"])); reportNetwork(); } });
+  scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"])); reportNetwork(); await refreshNetworkCertificate(); } });
   scheduler.add({ name: "probes.encryption", schedule: { everyMs: o.intervals?.encryption ?? 300_000 }, run: async () => { await runProbes(group(["disk_encrypted"])); } });
   if (hasSpace) {
     scheduler.add({ name: "commands.poll", schedule: { everyMs: o.intervals?.commands ?? 1000 }, run: async () => { await runCommands(); } });

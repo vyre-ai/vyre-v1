@@ -207,6 +207,7 @@ export function stubs(ctx: CallCtx) {
       config_set: call("backup.config_set"),
       delete: call("backup.delete"),
       export_start: call("backup.export_start"),
+      export_status: call("backup.export_status"),
       health: call("backup.health"),
       list: call("backup.list"),
       restore: call("backup.restore"),
@@ -1682,7 +1683,9 @@ export function stubs(ctx: CallCtx) {
     },
     sessions: {
       continue: call("sessions.continue"),
+      get: call("sessions.get"),
       import: call("sessions.import"),
+      list: call("sessions.list"),
     },
     settings: {
       copy_profile: call("settings.copy_profile"),

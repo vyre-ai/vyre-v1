@@ -5,8 +5,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
-import { Composer } from "../../../../../../ui/src/Composer/index.tsx";
 import type { ComposerLists } from "../../../../../../ui/src/Composer/index.tsx";
+import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/Deferred.tsx";
 import { Recipients } from "../../../../../../ui/src/Recipients/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";

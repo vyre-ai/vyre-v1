@@ -1,0 +1,56 @@
+import { useState } from "react";
+import type { ReactElement } from "react";
+import { Text, View } from "react-native";
+import type { CapMap } from "../../../../../generated/types.ts";
+import { Row } from "../../../../../ui/src/Row/index.tsx";
+import { Group, Section } from "../shell/ui.tsx";
+import { Actions, Button, Field, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
+
+type Connectors = CapMap["connectors.list"]["out"];
+type Connections = CapMap["connections.list"]["out"];
+
+export function IntegrationsPage({ mode }: { mode: "connectors" | "connections" }): ReactElement {
+  const connectors = useRead<Connectors>("connectors.list", {});
+  const connections = useRead<Connections>("connections.list", { whose: "all" });
+  const [selectedConnector, setSelectedConnector] = useState<Connectors["connectors"][number] | null>(null);
+  const [selectedConnection, setSelectedConnection] = useState<Connections["connections"][number] | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [key, setKey] = useState("");
+  const [title, setTitle] = useState("");
+  const [connectorMode, setConnectorMode] = useState<"api" | "mcp" | "dwd" | "oauth_app" | "webhook_only">("api");
+  const action = useAction(() => { connectors.refresh(); connections.refresh(); });
+  if (!connectors.data || !connections.data) return <ReadState error={connectors.error ?? connections.error} retry={() => { connectors.refresh(); connections.refresh(); }} />;
+  if (mode === "connectors") {
+    const rows = connectors.data.connectors.map((connector) => <Row key={connector.key} id={`console-connector-${connector.key}`} title={connector.title} note={`${connector.mode} · ${connector.state} · ${connector.connections} connection${connector.connections === 1 ? "" : "s"}`} onPress={() => setSelectedConnector(connector)} />);
+    return <View testID="console-connectors"><Section title="Connectors" count={rows.length}><Group>{rows.length ? rows : <Note>No connectors.</Note>}</Group></Section><Section title="New connector"><Group><Field label="Key" value={key} onChange={setKey} /><Field label="Title" value={title} onChange={setTitle} /><Field label="Mode" value={connectorMode} onChange={(value) => { if (["api", "mcp", "dwd", "oauth_app", "webhook_only"].includes(value)) setConnectorMode(value as typeof connectorMode); }} /><Button label="Create draft connector" disabled={!key.trim() || !title.trim() || action.busy} onPress={() => void action.run("connectors.init", { key: key.trim(), title: title.trim(), mode: connectorMode, idempotencyKey: attempt() }, "Connector draft created")} /></Group></Section>{selectedConnector ? <Section title={selectedConnector.title}><Group><Row id="connector-version" title="Version" note={selectedConnector.version} /><Row id="connector-scope" title="Scope" note={selectedConnector.scope} /><Row id="connector-domains" title="Allowed domains" note={selectedConnector.domains.join(", ") || "None"} /><Row id="connector-actions" title="Actions" note={selectedConnector.actions.join(", ") || "None"} /><Row id="connector-types" title="Synced record types" note={selectedConnector.syncedTypes.join(", ") || "None"} /></Group><Actions><Button label="Test connector" onPress={() => void action.run("connectors.test", { key: selectedConnector.key }, "Connector tests complete")} /><Button label="Export connector files" onPress={() => void action.run("connectors.export", { key: selectedConnector.key }, "Connector files exported")} /></Actions></Section> : null}{action.note ? <Note>{action.note}</Note> : null}</View>;
+  }
+  const rows = connections.data.connections.map((connection) => <Row key={connection.connectionId} id={`console-connection-${connection.connectionId}`} title={connection.title} note={`${connection.connector} · ${connection.state} · ${connection.owner.kind}`} onPress={() => { setSelectedConnection(connection); setConfirmDelete(false); }} trailing={<Button label={connection.state === "paused" ? "Resume" : "Pause"} onPress={() => void action.run(connection.state === "paused" ? "connections.resume" : "connections.pause", { connectionId: connection.connectionId }, connection.state === "paused" ? "Connection resumed" : "Connection paused")} />} />);
+  return <View testID="console-connections"><Section title="Connections" count={rows.length}><Group>{rows.length ? rows : <Note>No connected accounts.</Note>}</Group></Section>{selectedConnection ? <Section title={selectedConnection.title}><Group><Row id="connection-connector" title="Connector" note={selectedConnection.connector} /><Row id="connection-owner" title="Owner" note={`${selectedConnection.owner.kind} · ${selectedConnection.owner.id}`} /><Row id="connection-scopes" title="Scopes" note={selectedConnection.scopes.join(", ") || "None"} /><Row id="connection-sync" title="Last sync" note={selectedConnection.lastSyncAt ? new Date(selectedConnection.lastSyncAt).toLocaleString() : "Never"} /></Group><Actions><Button label="Test connection" onPress={() => void action.run("connections.test", { connectionId: selectedConnection.connectionId }, "Connection test complete")} />{selectedConnection.state === "needs_reconnect" ? <Button label="Reconnect" onPress={() => void action.run("connections.reconnect", { connectionId: selectedConnection.connectionId }, "Reconnect started")} /> : null}<Button label="Delete connection…" danger onPress={() => setConfirmDelete(true)} /></Actions>{confirmDelete ? <Actions><Button label="Cancel" onPress={() => setConfirmDelete(false)} /><Button label="Confirm deletion" danger onPress={() => void action.run("connections.delete", { connectionId: selectedConnection.connectionId }, "Connection deleted").then((out) => { if (out) setSelectedConnection(null); })} /></Actions> : null}</Section> : null}{action.note ? <Note>{action.note}</Note> : null}</View>;
+}
+
+type Webhooks = CapMap["webhooks.list"]["out"];
+export function WebhooksPage(): ReactElement {
+  const list = useRead<Webhooks>("webhooks.list", {});
+  const [selected, setSelected] = useState<Webhooks["webhooks"][number] | null>(null);
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const [eventTypes, setEventTypes] = useState("record.*");
+  const [secret, setSecret] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState(false);
+  const action = useAction(list.refresh);
+  if (!list.data) return <ReadState error={list.error} retry={list.refresh} />;
+  const rows = list.data.webhooks.map((webhook) => <Row key={webhook.id} id={`console-webhook-${webhook.id}`} title={webhook.name} note={`${webhook.active ? "Active" : "Disabled"} · ${webhook.eventTypes.join(", ")} · ${webhook.failureStreak} failures`} onPress={() => { setSelected(webhook); setSecret(null); setConfirm(false); }} />);
+  return <View testID="console-webhooks"><Section title="Webhooks" count={rows.length}><Group>{rows.length ? rows : <Note>No webhooks.</Note>}</Group></Section><Section title="New webhook"><Group><Field label="Name" value={name} onChange={setName} /><Field label="HTTPS URL" value={url} onChange={setUrl} /><Field label="Event types (comma separated)" value={eventTypes} onChange={setEventTypes} /><Button label="Create webhook" disabled={!name.trim() || !url.trim() || !eventTypes.trim() || action.busy} onPress={() => void action.run<CapMap["webhooks.create"]["out"]>("webhooks.create", { name: name.trim(), url: url.trim(), eventTypes: eventTypes.split(",").map((value) => value.trim()).filter(Boolean), idempotencyKey: attempt() }, "Webhook created").then((out) => { if (out) setSecret(out.secret); })} />{secret ? <><Note>Signing secret shown once.</Note><Text selectable testID="webhook-secret">{secret}</Text></> : null}</Group></Section>{selected ? <Section title={selected.name}><Group><Row id="webhook-url" title="Destination" note={selected.url} /><Row id="webhook-events" title="Events" note={selected.eventTypes.join(", ")} /><Row id="webhook-secret-hint" title="Secret hint" note={`Ends in ${selected.secretHint}`} /></Group><Actions><Button label={selected.active ? "Disable" : "Enable"} onPress={() => void action.run("webhooks.update", { webhookId: selected.id, active: !selected.active }, selected.active ? "Webhook disabled" : "Webhook enabled")} /><Button label="Test webhook" onPress={() => void action.run("webhooks.test", { webhookId: selected.id }, "Webhook test sent")} /><Button label="Rotate secret" onPress={() => void action.run<CapMap["webhooks.rotate_secret"]["out"]>("webhooks.rotate_secret", { webhookId: selected.id }, "Secret rotated").then((out) => { if (out) setSecret(out.secret); })} /><Button label="Delete webhook…" danger onPress={() => setConfirm(true)} /></Actions>{confirm ? <Actions><Button label="Cancel" onPress={() => setConfirm(false)} /><Button label="Confirm deletion" danger onPress={() => void action.run("webhooks.delete", { webhookId: selected.id }, "Webhook deleted").then((out) => { if (out) setSelected(null); })} /></Actions> : null}{secret ? <Text selectable testID="webhook-rotated-secret">{secret}</Text> : null}</Section> : null}{action.note ? <Note>{action.note}</Note> : null}</View>;
+}
+
+type Sessions = CapMap["mcp.sessions.list"]["out"];
+export function ApiKeysPage(): ReactElement {
+  const list = useRead<Sessions>("mcp.sessions.list", {});
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState<"claude_code" | "codex" | "other">("codex");
+  const [issued, setIssued] = useState<CapMap["mcp.token.issue"]["out"] | null>(null);
+  const action = useAction(list.refresh);
+  if (!list.data) return <ReadState error={list.error} retry={list.refresh} />;
+  const rows = list.data.sessions.map((session) => <Row key={session.sessionId} id={`console-mcp-session-${session.sessionId}`} title={session.name ?? session.principal} note={`${session.kind} · ${session.calls} calls · ${session.lastCallAt ? new Date(session.lastCallAt).toLocaleString() : "No calls"}`} trailing={<Button label="Close session" danger onPress={() => void action.run("mcp.session.close", { sessionId: session.sessionId }, "Session closed")} />} />);
+  return <View testID="console-api-keys"><Section title="Live outside sessions" count={rows.length}><Group>{rows.length ? rows : <Note>No live API sessions.</Note>}</Group></Section><Section title="Issue one-time key"><Group><Note>Keys are shown once and exchanged by the outside tool. Registered tools are managed under Outside actors.</Note><Field label="Connection name" value={name} onChange={setName} /><Field label="Kind (codex, claude_code or other)" value={kind} onChange={(value) => { if (value === "codex" || value === "claude_code" || value === "other") setKind(value); }} /><Button label="Issue one-time key" disabled={!name.trim() || action.busy} onPress={() => void action.run<CapMap["mcp.token.issue"]["out"]>("mcp.token.issue", { name: name.trim(), kind, idempotencyKey: attempt() }, "One-time key issued").then((out) => { if (out) setIssued(out); })} />{issued ? <><Note>Expires {new Date(issued.expiresAt).toLocaleString()}. Connect to {issued.mcpUrl}.</Note><Text selectable testID="mcp-one-time-key">{issued.oneTimeToken}</Text></> : null}</Group></Section>{action.note ? <Note>{action.note}</Note> : null}</View>;
+}

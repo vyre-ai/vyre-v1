@@ -21,11 +21,13 @@ export interface MobileShellProps {
   /** The number on the Chats tab: what waits on you. */
   needsYou?: number;
   initialTab?: TabId;
+  /** Places with their own Back header avoid a second navigation bar. */
+  ownsHeader?(entry: Entry): boolean;
   /** Called after every move (tests and the router bridge). */
   onNav?(state: NavState): void;
 }
 
-export function MobileShell({ renderScreen, needsYou = 0, initialTab = "chats", onNav }: MobileShellProps): ReactElement {
+export function MobileShell({ renderScreen, needsYou = 0, initialTab = "chats", onNav, ownsHeader }: MobileShellProps): ReactElement {
   const [nav, setNav] = useState<NavState>(() => initialNav(initialTab));
   const move = useCallback((f: (s: NavState) => NavState) => setNav((s) => { const n = f(s); if (n !== s) onNav?.(n); return n; }), [onNav]);
   const top = current(nav);
@@ -51,7 +53,7 @@ export function MobileShell({ renderScreen, needsYou = 0, initialTab = "chats", 
   }
   return (
     <View testID="mobile-shell" style={st.root}>
-      {canBack(nav) ? (
+      {canBack(nav) && !ownsHeader?.(top) ? (
         <Pressable accessibilityRole="button" accessibilityLabel={`Back to ${from?.title ?? from?.screen ?? ""}`} onPress={api.back} testID="mobile-back" style={st.backBar}>
           <Icon name="back" size={18} color="var(--accent)" />
           <Text numberOfLines={1} style={st.backText}>{from?.title ?? "Back"}</Text>

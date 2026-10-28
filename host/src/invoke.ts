@@ -12,6 +12,8 @@ import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
 import type { CallOpts, Ctx, Decision, EmitOpts, Logger } from "../../packages/contracts/src/ctx.ts";
 import type { CapabilityDef, CapName, EventName, TraceContext } from "../../packages/contracts/src/types.ts";
 import { BindingError, resolveResource } from "./routes/resource.ts";
+import { auditTargets } from "./routes/audit-targets.ts";
+import type { AuditTarget } from "./routes/audit-targets.ts";
 import { codeForReason, fail, HostError, toVyreError } from "./routes/errors.ts";
 import type { ResourceRegistrar } from "./gateway/resources.ts";
 import type { PrincipalRegistrar } from "./gateway/principals.ts";
@@ -64,6 +66,8 @@ export interface CtxSeed {
 export interface AuditRow {
   class: "allow" | "deny" | "hold"; cap: string; v: number; principal: string; actingFor?: string | undefined; decisionId: string; reason: string;
   resource: ResourceRef | null; traceId: string; spanId: string; at: number; risk: CapabilityDef["risk"];
+  /** Whitelisted object identifiers for Activity views; never request/response bodies. */
+  targets?: AuditTarget[];
 }
 /** One atomic commit: the events a handler emitted plus its audit row (ARCH 4.4 step 7). Returns the events as stored (seq set). */
 export interface CommitBatch { cap: string; v: number; principal: string; events: EventEnvelope[]; audit: AuditRow | null }
@@ -300,8 +304,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     }
 
     // 7 commit: events, inline projections and the audit row land together
+    const targets = shouldAudit(c) ? auditTargets(c.name, input, output) : undefined;
     const auditRow: AuditRow | null = shouldAudit(c)
-      ? { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: did(), reason: "ok", resource, traceId, spanId: trace.spanId, at: t, risk: c.risk }
+      ? { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: did(), reason: "ok", resource, traceId, spanId: trace.spanId, at: t, risk: c.risk, ...(targets ? { targets } : {}) }
       : null;
     let stored = events;
     if (events.length || auditRow) stored = await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events, audit: auditRow });

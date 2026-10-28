@@ -262,10 +262,11 @@ export async function issueSession(ctx: IdentityCtx, a: Account, dev: Device, me
 }
 /** The caller's own session: the one the call names, else the live session of the device the gateway resolved the token to. */
 export function currentSessionId(ctx: IdentityCtx, personId: string): string | undefined {
-  if (ctx.session?.id) return ctx.session.id;
-  if (!ctx.device) return undefined;
-  const r = ctx.db.all(`SELECT id FROM identity_sessions WHERE device_id = ? AND person_id = ? AND revoked_at IS NULL ORDER BY created_at DESC`, ctx.device, personId)[0] as { id: string } | undefined;
-  return r?.id;
+  const deviceId = ctx.device ?? ctx.session?.deviceId;
+  if (!deviceId) return undefined;
+  const rows = ctx.db.all(`SELECT * FROM identity_sessions WHERE person_id = ?`, personId) as { id: string; device_id: string; revoked_at: number | null; expires_at: number; created_at: number }[];
+  return rows.filter((r) => r.device_id === deviceId && r.revoked_at === null && r.expires_at > ctx.now() && (!ctx.session?.id || r.id === ctx.session.id))
+    .sort((a, b) => b.created_at - a.created_at)[0]?.id;
 }
 /** End one session here and at the gateway. */
 export function endSessionRow(ctx: IdentityCtx, personId: string, sessionId: string): void {

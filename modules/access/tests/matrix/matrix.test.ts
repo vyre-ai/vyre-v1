@@ -226,7 +226,8 @@ test("an agent is never given Owner or Admin: not when assigned, not through a r
   assert.equal(await code(rolesAssign(h.ctx, { subject: { kind: "agent", id: "agt_x" }, roleId: boss.id })), "validation.precondition_failed");
   for (const ok of ["rol_developer", "rol_member", "rol_guest"]) assert.equal(await code(rolesAssign(h.ctx, { subject: { kind: "agent", id: "agt_x" }, roleId: ok })), "no error", ok);
   assert.deepEqual(store.rolesOf("agt_x").sort(), ["rol_developer", "rol_guest", "rol_member"]);
-  assert.equal(await code(rolesAssign(h.ctx, { subject: { kind: "person", id: "g_member" }, roleId: "rol_owner" })), "no error", "a person can");
+  assert.equal(await code(rolesAssign(h.ctx, { subject: { kind: "person", id: "g_member" }, roleId: "rol_owner" })), "validation.precondition_failed", "ownership uses the transfer path even for people");
+  assert.equal(await code(rolesAssign(h.ctx, { subject: { kind: "person", id: "g_member" }, roleId: "rol_admin" })), "no error", "a person can hold Admin");
   const roleOf = (id: string) => store.roles.get(id)!;
   assert.deepEqual([roleOf("rol_owner").assignableToAgents, roleOf("rol_admin").assignableToAgents], [false, false]);
 });

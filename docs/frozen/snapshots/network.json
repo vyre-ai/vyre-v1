@@ -12,7 +12,7 @@
     "network.server_reconnect@1": "f7b9ddfd6e4fef7af1dfbac9dad76b5a8bfbb725f7d783538193b8dbde27b1b0",
     "network.server_remove@1": "1b570da2cfa26c3884c023475577b277277d7ed87457a9709116b88e1268ef55",
     "network.servers@1": "07a7f93200f8b612f0230487521f68446d5282d4382292324b7b272f65a6da20",
-    "network.status@1": "8b9ddaa13a34868856261c2a121834540d895030e3eeaf883c64b8307cdecbe5"
+    "network.status@1": "ea653ec0f704ab0c748bd2120e93446110ad8ecd8cbbdf9d7369b0c852e99a28"
   },
   "events": {
     "network.certificate_failed": "167bc518c77e825be5e0ac8034490952c537bf6b1d6418b6dff5913fefd51720",

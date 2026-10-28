@@ -145,6 +145,7 @@ export async function archive(ctx: AuditCtx, input: { before: number }) {
   const last = old[old.length - 1]!;
   setMeta(ctx, "anchor_seq", String(last.seq));
   setMeta(ctx, "anchor_hash", last.hash);
+  ctx.db.run(`DELETE FROM audit_target WHERE audit_seq <= ?`, last.seq);
   ctx.db.run(`DELETE FROM audit_row WHERE seq <= ?`, last.seq);
   for (const w of written) ctx.emit("audit.archived", w.file, w);
   return { archived: old.length };

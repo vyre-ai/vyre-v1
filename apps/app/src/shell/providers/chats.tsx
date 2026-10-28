@@ -11,6 +11,7 @@ import { useOptionalHub } from "../spaces/context.tsx";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 
 export { newestThread } from "../../places/chats/mounts/route.ts";
+export { Conversation as ChatsConversation } from "../../places/chats/conversation/Conversation.tsx";
 export { PANE_W, SIDEBAR_W };
 
 export function ChatsLoading(): ReactElement {

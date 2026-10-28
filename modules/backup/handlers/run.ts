@@ -22,7 +22,7 @@ import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts"
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 
 /** The part of the host Ctx the backup handlers use. The full Ctx satisfies it. */
-export type BackupCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "call" | "seal" | "schedule" | "run" | "authorize">;
+export type BackupCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "call" | "seal" | "schedule" | "run" | "authorize"> & {ownerArchive?:{saveZip?(runId:string,name:string,bytes:Uint8Array):Promise<{fileId:string}>;status?(runId:string):Promise<unknown>}};
 
 // ---- the drivers the host supplies
 
@@ -602,6 +602,7 @@ export async function config_get(ctx: BackupCtx, _input: Record<string, unknown>
   return {
     ...(cfg.target ? { target: cfg.target } : {}),
     schedule: cfg.schedule,
+    enabled: cfg.enabled,
     encrypted: await encryptOn(ctx),
     ...(cfg.lastOkAt !== null ? { lastBackupAt: cfg.lastOkAt } : {}),
   };
@@ -750,7 +751,7 @@ export async function export_start(ctx: BackupCtx, _input: Record<string, unknow
   // Fail closed: no authorize, a deny, a hold, or any other person (an admin included) is refused and nothing is packed.
   const refused = (): never => failWith(ctx.trace.traceId, "permission.no_grant", "Only the Space owner can take a full export.");
   if (typeof ctx.authorize !== "function") return refused();
-  if (ctx.authorize({ perm: "records.export", level: "manage" }, { type: "space", id: null }).effect !== "allow") return refused();
+  if (ctx.authorize({ perm: "records.export", level: "manage" }, { type: "space", id: ctx.space }).effect !== "allow") return refused();
   if (ctx.principal.kind !== "person" || ctx.principal.id !== (await d.source.owner?.())) return refused();
   const at = ctx.now();
   const secrets = (await d.source.secretValues()).filter((s) => s.length >= 6);
@@ -762,10 +763,16 @@ export async function export_start(ctx: BackupCtx, _input: Record<string, unknow
   }
   const readme = enc.encode(`Vyre export of ${ctx.space}\nTaken ${new Date(at).toISOString()} by ${ctx.principal.id}.\n${keep.length} files. ${skipped} left out (secrets, keys and private items are never exported).\n`);
   const bytes = zip([{ path: "README.txt", bytes: readme }, ...keep], at);
-  const saved = await d.exports.save(`vyre-export-${new Date(at).toISOString().slice(0, 10)}.zip`, bytes);
+  const name=`vyre-export-${new Date(at).toISOString().slice(0, 10)}.zip`;
+  const saved = ctx.ownerArchive?.saveZip ? await ctx.ownerArchive.saveZip(runId,name,bytes) : await d.exports.save(name,bytes);
   ctx.db.run(
     "INSERT OR REPLACE INTO backup_export (run_id, at, by_principal, on_behalf, state, file_id, size_bytes, entries, skipped) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     runId, at, ctx.principal.id, ctx.actingFor ?? null, "done", saved.fileId, bytes.length, keep.length, skipped,
   );
   return { runId };
+}
+
+export async function export_status(ctx:BackupCtx,input:{runId:string}){
+ if(!ctx.ownerArchive?.status)return failWith(ctx.trace.traceId,'internal.unavailable','Space export readback is unavailable.');
+ return ctx.ownerArchive.status(input.runId);
 }

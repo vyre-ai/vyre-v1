@@ -2,6 +2,7 @@
 // Reading logs is audited by the invoke pipeline (`audit: always` on every read capability), so a read handler emits nothing.
 // Rows are scoped to ctx.space and every statement names a logs_* table, which is all ctx.db accepts.
 
+import type { AdminLogEntry } from "../../../lib/admin-export.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { LogWriter, readSettings, runRetention, writeSettings, MAX_UPLOAD } from "./sink.ts";
 import type { LevelName, Settings } from "./sink.ts";
@@ -9,7 +10,7 @@ import { exportLines, failWith, queryLogs, spansOf, traceView } from "./search.t
 import type { LogFilter, Page } from "./search.ts";
 
 /** The part of the host Ctx these handlers use. The full Ctx satisfies it. */
-export type LogCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "device" | "run" | "now" | "db" | "emit">;
+export type LogCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "device" | "run" | "now" | "db" | "emit"> & { exports?: { logs(rows: readonly AdminLogEntry[]): Promise<string> } };
 
 type FilterIn = LogFilter;
 type PageIn = Page;
@@ -81,7 +82,8 @@ export async function spans(ctx: LogCtx, input: { traceId?: string; name?: strin
 
 export async function exportLogs(ctx: LogCtx, input: FilterIn) {
   const lines = exportLines(ctx.db, ctx.space, filterOf(input), EXPORT_MAX);
-  const fileId = mint("fil");
+  if(!ctx.exports)return failWith(ctx.trace.traceId,'internal.unavailable','Private export storage is unavailable.');
+  const fileId = await ctx.exports.logs(lines.map((line)=>JSON.parse(line) as AdminLogEntry));
   ctx.db.run(
     "INSERT INTO logs_export (id, space, principal, at, row_count, lines) VALUES (?, ?, ?, ?, ?, ?)",
     fileId, ctx.space, ctx.principal.id, ctx.now(), lines.length, lines.join("\n"),
