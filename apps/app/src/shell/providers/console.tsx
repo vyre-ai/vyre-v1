@@ -1,3 +1,5 @@
+import { Network } from '../../console/pages/InfrastructureNetwork.tsx';
+import { Speed, Usage } from '../../console/pages/InfrastructureMetrics.tsx';
 import {Updates,SpaceProfile} from '../../console/pages/InfrastructureSettings.tsx';
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
@@ -41,6 +43,8 @@ export function consolePagesFromNav(out: { groups: Array<{ pages: Array<{ key: s
 export function consolePageFor(id: string, args: Record<string, string | undefined>): ReactElement {
   const aiPage = aiDataPageFor(id);
   if (aiPage) return aiPage;
+  if (id === "network") return <Network />;
+  if (id === "speed") return <Speed />;
   if (id === "updates") return <Updates />;
   if (id === "space") return <SpaceProfile />;
   if (id === "export") return <Backups />;
@@ -74,7 +78,8 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
 }
 export function aiDataPageFor(id: string): ReactElement | null {
   if (id === "models") return <Models />;
-  if (id === "spend" || id === "usage") return <Spend />;
+  if (id === "spend") return <Spend />;
+  if (id === "usage") return <Usage />;
   if (id === "logging") return <Logging />;
   if (id === "review") return <ReviewSampling />;
   if (id === "incidents") return <Incidents />;
