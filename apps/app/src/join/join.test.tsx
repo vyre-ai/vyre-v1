@@ -117,8 +117,14 @@ test("a fresh connection starts at the one-column Welcome back screen before cre
   for (const text of ["Welcome back", "Connect a Space", "Space address", "Sign in", "Get started"]) assert.ok(out.includes(text), text);
   assert.match(out, /data-testid="space-address"/);
   assert.doesNotMatch(out, /Sign in to Northwind/, "credentials wait for a verified Space");
-  assert.equal(out.match(/data-testid="join-panel"/g)?.length, 1);
+  assert.doesNotMatch(out, /data-testid="join-panel"/, "the 0.6.8 welcome sits on the open canvas, outside the setup panel");
+  assert.match(out, /data-testid="welcome-hero"/);
+  assert.match(out, /The command center for AI-native teams/);
   assert.equal(out.match(/data-testid="step-/g)?.length, 1);
+  assert.match(tagOf(out, "get-started"), /aria-disabled="true"/);
+  assert.match(tagOf(out, "get-started"), /opacity:0.4/);
+  const ready = html({ stage: "connect", spaceAddress: "northwind.example" });
+  assert.doesNotMatch(tagOf(ready, "get-started"), /aria-disabled="true"/);
 });
 
 test("auth-only halftone gives Welcome its full field and keeps forms calm", () => {
@@ -165,7 +171,7 @@ test("each step enables Continue only when it can go on", () => {
   assert.equal(valid({ ...s3, ai: "none" }, rules), true, "Not now is allowed");
   assert.equal(valid({ ...s3, ai: "key", key: "sk-1" }, rules), false);
   assert.equal(valid({ ...s3, ai: "key", key: "sk-long-enough" }, rules), true);
-  assert.equal(valid({ ...s3, ai: "sub", note: "" }, rules), false);
+  assert.equal(valid({ ...s3, ai: "sub", note: "" }, rules), true, "subscription authentication follows verified account creation");
   assert.equal(valid({ ...s3, ai: "sub", note: "subok" }, rules), true);
 });
 
@@ -331,7 +337,8 @@ test("step 4: ConnectAI shows the ways in, the key field only for a key, and the
   assert.doesNotMatch(base, /data-testid="ai-key-field"/);
   assert.match(html({ stage: "steps", step: 3, ...FILLED, ai: "key" }), /data-testid="ai-key-field"/);
   const sub = html({ stage: "steps", step: 3, ...FILLED, ai: "sub", note: "subok" });
-  assert.match(sub, /Connected as irfad@northwind\.example/);
+  assert.match(sub, /Sign in after joining/);
+  assert.doesNotMatch(sub, /Connected as/);
   const none = html({ stage: "steps", step: 3, ...FILLED, ai: "none" });
   assert.match(none, /Your assistant is locked/);
   assert.doesNotMatch(none, /data-testid="ai-none"/);

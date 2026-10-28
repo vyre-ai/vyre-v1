@@ -7,11 +7,13 @@ import { NotFound } from "../hash/NotFound.tsx";
 import { useMissing } from "../hash/useMissing.ts";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
-import { Calendar } from "../../places/inbox/calendar/index.ts";
-import { ContactList, ListLoading } from "../../places/inbox/contactlist/index.ts";
-import { ContactTab } from "../../places/inbox/contacttab/index.ts";
-import { InboxDataProvider, InboxSidebar, InboxStateProvider, SidebarLoading, useInboxState } from "../../places/inbox/sidebar/index.ts";
-import type { InboxData, InboxNav } from "../../places/inbox/sidebar/index.ts";
+import { Calendar } from "../../places/inbox/calendar/Calendar.tsx";
+import { ContactList, ListLoading } from "../../places/inbox/contactlist/ContactList.tsx";
+import { ContactTab } from "../../places/inbox/contacttab/ContactTab.tsx";
+import { InboxDataProvider } from "../../places/inbox/sidebar/data.tsx";
+import type { InboxData, InboxNav } from "../../places/inbox/sidebar/data.tsx";
+import { InboxSidebar, SidebarLoading } from "../../places/inbox/sidebar/InboxSidebar.tsx";
+import { InboxStateProvider, useInboxState } from "../../places/inbox/sidebar/state.tsx";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 

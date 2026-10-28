@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
+import { closure, imports } from "../lib/graph.mjs";
 import { chunkSizes, entryScripts, median, report } from "./startup.mjs";
 
 function fakeDist(): string {
@@ -68,4 +70,26 @@ test("the signed-in shell is not parsed before the session gate finds a stored s
   const gate = fs.readFileSync(path.join(root, "apps/app/src/shell/session/SessionGate.tsx"), "utf8");
   for (const eager of ["../spaces/Shell.tsx", "../cmdk/CmdK.tsx", "./PlaceHost.tsx"]) assert.doesNotMatch(gate, new RegExp(`from ["']${eager.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`));
   assert.match(gate, /lazy\(\(\) => import\("\.\/ShellHost\.tsx"\)/, "the authenticated shell has one explicit lazy boundary");
+});
+
+test("the web virtual-list boundary excludes the native FlashList runtime", () => {
+  const root = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "..");
+  const shared = fs.readFileSync(path.join(root, "ui/src/VirtualList/index.tsx"), "utf8");
+  assert.doesNotMatch(shared, /@shopify\/flash-list/, "the shared web list must not pull FlashList into the production entry");
+  assert.match(shared, /from "\.\/NativeList"/, "Metro selects the platform implementation at the boundary");
+  const native = fs.readFileSync(path.join(root, "ui/src/VirtualList/NativeList.native.tsx"), "utf8");
+  assert.match(native, /@shopify\/flash-list/, "native keeps the existing FlashList implementation");
+});
+
+test("the production Inbox graph excludes screenshot and test samples", () => {
+  const root = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "..");
+  const tracked = new Set(execFileSync("git", ["ls-files"], { cwd: root, encoding: "utf8" }).trim().split("\n"));
+  // Type-only edges disappear from Metro's runtime graph. Strip them before
+  // walking production edges so this test models emitted JavaScript rather
+  // than the broader TypeScript type-checking graph.
+  const graph = imports(tracked, (file) => fs.readFileSync(path.join(root, file), "utf8").replace(/^\s*import\s+type\b[^;]*;?\s*$/gm, ""));
+  for (const entry of ["apps/app/src/shell/providers/inbox.tsx", "apps/app/src/shell/spaces/Shell.tsx"]) {
+    const leaked = closure(entry, graph).filter((file) => /\/sample\.tsx?$/.test(file) || file === "generated/screens.ts");
+    assert.deepEqual(leaked, [], `${entry} runtime closure must not include sample fixtures or the generated screen registry`);
+  }
 });

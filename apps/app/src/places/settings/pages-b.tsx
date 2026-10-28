@@ -67,7 +67,7 @@ export function SignInPage(): ReactElement {
   return (
     <>
       <Everywhere text="Same in every Space" />
-      {sec ? <AccountCard sec={sec} /> : null}
+      {sec ? <AccountCard sec={sec} /> : <Section title="Sign-in"><SettingsRow id="signin.password" label="Password" first control={<SmallButton label="Change..." testID="pw-change" onPress={() => data.nav.manageSecurity?.("password", data.space.id)} />} /><SettingsRow id="signin.authenticator" label="Authenticator app" sub="Set up or remove a second factor for this Space" control={<><SmallButton label="Set up" testID="totp-setup" onPress={() => data.nav.manageSecurity?.("totp-on", data.space.id)} /><SmallButton label="Remove" testID="totp-remove" onPress={() => data.nav.manageSecurity?.("totp-off", data.space.id)} /></>} /></Section>}
       {cards}
       <Section title="Devices and computers">
         {list}

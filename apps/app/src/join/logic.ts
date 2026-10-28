@@ -44,6 +44,7 @@ export interface FlowState {
   sheet: boolean;
   ai: AiChoice;
   key: string;
+  aiProvider: "openrouter" | "anthropic" | "openai";
   /** "subok": the subscription sign-in finished */
   note: "" | "subok" | "dl";
   si: SignInMode;
@@ -65,7 +66,7 @@ export function initialState(invite: JoinInvite, over: Partial<FlowState> = {}):
   return {
     stage: "accept", step: 0, first: invite.names?.first ?? "", last: invite.names?.last ?? "", photo: "", user: "", pw: "", pw2: "",
     device: invite.deviceName ?? "", trust: true, rec: false, code: "", saved: false, sheet: false, ai: invite.adminKey ? "admin" : "sub", key: "",
-    note: "", si: "pw", siUser: "", siPw: "", siCode: "", spaceAddress: "", spaceIntent: "signin", spaceResolving: false, spaceError: "", run: 0, dir: 1, error: "", ...over,
+    aiProvider: "openrouter", note: "", si: "pw", siUser: "", siPw: "", siCode: "", spaceAddress: "", spaceIntent: "signin", spaceResolving: false, spaceError: "", run: 0, dir: 1, error: "", ...over,
   };
 }
 
@@ -149,7 +150,7 @@ export function valid(s: FlowState, r: Rules): boolean {
   if (s.step === 0) return !!s.first.trim() && !!s.last.trim();
   if (s.step === 1) return usernameOk(s.user) && !r.isTaken(s.user) && strength(s.pw) >= 2 && s.pw2 === s.pw;
   if (s.step === 2) return !!s.device.trim() && (!s.rec || s.saved);
-  return s.ai === "none" || s.ai === "admin" || (s.ai === "key" && s.key.trim().length >= 8) || (s.ai === "sub" && s.note === "subok");
+  return s.ai === "none" || s.ai === "admin" || (s.ai === "key" && s.key.trim().length >= 8) || s.ai === "sub";
 }
 
 export function signInValid(s: FlowState): boolean {

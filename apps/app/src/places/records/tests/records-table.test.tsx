@@ -9,8 +9,8 @@ import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import { RecordsDataProvider, RecordsSidebar, RecordsSidebarSlot, RecordsStateProvider, SidebarLoading, compact, effectiveType, reduce, sortedViews, typeGroups, INITIAL_STATE } from "../sidebar/index.ts";
 import type { RecordsState } from "../sidebar/index.ts";
 import {
-  FLING_OVERSCAN, GUTTER, PLAIN, ROW_H, TableLoading, TableView, cellText, chosen, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, isEdited,
-  optionsOf, queryOffset, querySpec, rowWindow, setSort, toSaved, toggleHidden, toggleOption, totalWidth,
+  FLING_OVERSCAN, GUTTER, PLAIN, ROW_H, SCROLL_BLOCK, TableLoading, TableView, cellText, chosen, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, isEdited,
+  optionsOf, queryOffset, querySpec, rowWindow, scrollBlockTop, setSort, toSaved, toggleHidden, toggleOption, totalWidth,
 } from "../table/index.ts";
 import type { RecordRow, TableViewState } from "../table/index.ts";
 import { SAMPLE_NOW, client, createSampleRecords, harbor, northwind } from "../table/sample.ts";
@@ -108,6 +108,31 @@ test("the row window follows the scroll and the query asks for 200 rows on a 100
   assert.equal(queryOffset(250, 100_000), 200);
   assert.equal(queryOffset(99_990, 100_000), 99_800, "the last window ends at the last row");
   assert.equal(queryOffset(10, 50), 0);
+});
+
+test("scroll batching advances a 120 px fling by at most four rows while covering forward, reverse, jump and end positions", () => {
+  const viewport = 640;
+  const total = 100_000;
+  const maxTop = total * ROW_H - viewport;
+  const cover = (actualTop: number): number => {
+    const top = scrollBlockTop(actualTop);
+    const rendered = rowWindow(top, viewport, total, FLING_OVERSCAN);
+    const visible = rowWindow(actualTop, viewport, total, 0);
+    assert.ok(rendered.first <= visible.first && rendered.last >= visible.last, `${top} covers ${actualTop}`);
+    assert.ok(top <= actualTop && actualTop - top < ROW_H * SCROLL_BLOCK, `${top} stays within one block of ${actualTop}`);
+    return top;
+  };
+  const forward = Array.from({ length: 600 }, (_, frame) => frame * 120);
+  const reverse = forward.slice().reverse();
+  for (const positions of [forward, reverse]) {
+    let previous = cover(positions[0]!);
+    for (const position of positions.slice(1)) {
+      const next = cover(position);
+      assert.ok(Math.abs(next - previous) / ROW_H <= 4, "one continuous-fling boundary advances at most four rows");
+      previous = next;
+    }
+  }
+  for (const position of [0, ROW_H * 5_000 + 17, maxTop]) cover(position);
 });
 
 test("a saved view applies its filter, sort and hidden fields, and the header names it", () => {

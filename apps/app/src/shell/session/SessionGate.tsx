@@ -8,7 +8,11 @@ import { loadCryptoKeys } from "../../../../../client/src/crypto/load.ts";
 import { holdKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
 import { JoinFlow } from "../../join/JoinFlow.tsx";
 import type { JoinValues } from "../../join/JoinFlow.tsx";
+import { normalizeSpaceAddress } from "../../join/logic.ts";
 import type { JoinInvite } from "../../join/logic.ts";
+import { AppIcon, Button, Foot, Panel, Step, Title } from "../../join/kit.tsx";
+import { JoinFrame } from "../../join/kit.tsx";
+import { Welcome } from "../../join/Welcome.tsx";
 import { mark } from "../../startup/marks.ts";
 import type { ShellHub } from "../spaces/hub.ts";
 import { createCapCaller } from "./caps.ts";
@@ -20,6 +24,7 @@ import type { OpenSessionOptions, RealSession } from "./session.ts";
 import { clearStored, phaseForStoredAddress, readStored, signInAndVerify, spaceAddress, spaceEndpoint } from "./stored.ts";
 import type { SignInOptions, StoredSession } from "./stored.ts";
 
+const JoinProviderSetup = lazy(() => import("./JoinProviderSetup.tsx").then((m) => ({ default: m.JoinProviderSetup })));
 const SignedInShell = lazy(() => import("./ShellHost.tsx").then((m) => ({ default: m.ShellHost })));
 
 export interface SessionGateProps {
@@ -54,6 +59,7 @@ function SignInScreen({ baseUrl, open, onSignedIn, notice }: { baseUrl: string; 
   useEffect(() => { mark("app.usable"); }, []);
   const anonymous = useMemo(() => createCapCaller({ baseUrl, token: () => null }), [baseUrl]);
   const [options, setOptions] = useState<SignInOptions | null>(null);
+  const [recoveryHelp, setRecoveryHelp] = useState(false);
   useEffect(() => {
     let active = true;
     void (anonymous("identity.sign_in_options", {}) as Promise<SignInOptions>).then((found) => { if (active) setOptions(found); }).catch(() => undefined);
@@ -86,11 +92,36 @@ function SignInScreen({ baseUrl, open, onSignedIn, notice }: { baseUrl: string; 
     onSignedIn(result.stored);
     return "ok";
   }, [anonymous, baseUrl, onSignedIn, open, options]);
-  return <JoinFlow invite={invite} initial={{ stage: "signin", ...(notice ? { error: SIGNED_OUT_LINE } : {}) }} onSignIn={signIn} />;
+  if (recoveryHelp) return <JoinFrame halftoneIntensity="calm"><Panel center><Step id="recovery-help"><AppIcon kind="lock" /><Title title="Recover your account" sub="Use a device where you’re still signed in." /><Foot>Open Settings, Sign-in and devices, then change your password. That keeps your private keys and data.</Foot><Foot>If you have no signed-in device, contact the Space owner before resetting your account. This version cannot restore from a recovery code alone, and an account reset can lose private data.</Foot><Button label="Back to sign in" testID="recovery-back" onPress={() => setRecoveryHelp(false)} /></Step></Panel></JoinFrame>;
+  return <JoinFlow invite={invite} initial={{ stage: "signin", ...(notice ? { error: SIGNED_OUT_LINE } : {}) }} onSignIn={signIn} onRecoveryCode={() => setRecoveryHelp(true)} />;
 }
 
-function ConnectSpaceWelcome(): ReactElement {
-  return <States kind="empty" title="Connect a Space" icon="search" />;
+export function ConnectSpaceWelcome({ onConnect }: { onConnect: (address: string) => void }): ReactElement {
+  useEffect(() => { mark("app.usable"); }, []);
+  const [address, setAddress] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const request = useRef(0);
+  useEffect(() => () => { request.current++; }, []);
+  const connect = async (): Promise<void> => {
+    if (busy) return;
+    const normalized = normalizeSpaceAddress(address);
+    const endpoint = normalized ? spaceEndpoint(normalized) : null;
+    if (!endpoint) { setError("Enter a valid HTTPS Space address, or a local development address."); return; }
+    const current = ++request.current;
+    setBusy(true);
+    setError("");
+    try {
+      const anonymous = createCapCaller({ baseUrl: endpoint, token: () => null });
+      await anonymous("identity.sign_in_options", {});
+      if (request.current === current) onConnect(endpoint);
+    } catch {
+      if (request.current === current) setError("Couldn’t reach this Space. Check its address and connection, then try again.");
+    } finally {
+      if (request.current === current) setBusy(false);
+    }
+  };
+  return <JoinFrame halftoneIntensity="full"><Welcome address={address} busy={busy} error={error} onAddressChange={(value) => { request.current++; setBusy(false); setAddress(value); setError(""); }} onSignIn={() => void connect()} onGetStarted={() => setError("Ask the Space owner for an invite link to create your account.")} /></JoinFrame>;
 }
 
 async function authenticatedSpace(baseUrl: string, token: string): Promise<{ id: string; marker: string }> {
@@ -119,6 +150,7 @@ function DesktopPairScreen({ route, open, onSignedIn }: { route: Extract<Desktop
 function DesktopJoinScreen({ route, open, onSignedIn }: { route: Extract<DesktopRoute, { kind: "join" }>; open: NonNullable<SessionGateProps["open"]>; onSignedIn: (s: StoredSession) => void }): ReactElement {
   const anonymous = useMemo(() => createCapCaller({ baseUrl: route.address, token: () => null }), [route.address]);
   const [join, setJoin] = useState<Awaited<ReturnType<typeof previewDesktopJoin>> | null>(null);
+  const [setup, setSetup] = useState<{ stored: StoredSession; ai: JoinValues["ai"] } | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -132,9 +164,11 @@ function DesktopJoinScreen({ route, open, onSignedIn }: { route: Extract<Desktop
     if (!join) throw new Error("This invite is unavailable. Ask for a new one.");
     try {
       const stored = await acceptDesktopJoin(join, values, { anonymous, open: (token) => open({ baseUrl: route.address, token }), getSpace: (token) => authenticatedSpace(route.address, token) });
-      onSignedIn(stored);
+      if (values.ai.choice === "key" || values.ai.choice === "sub") setSetup({ stored, ai: values.ai });
+      else onSignedIn(stored);
     } catch { throw new Error("Could not finish joining this Space. Try again."); }
   }, [anonymous, join, onSignedIn, open, route.address]);
+  if (setup) return <Suspense fallback={<States kind="empty" title="Preparing AI setup" icon="search" />}><JoinProviderSetup stored={setup.stored} ai={setup.ai} onOpen={() => onSignedIn(setup.stored)} onClearSecret={() => setSetup((current) => { if (!current?.ai.key) return current; const { key: _secret, ...ai } = current.ai; return { ...current, ai }; })} /></Suspense>;
   if (failed) return <States kind="error" message="Couldn’t open this invite" cause="The invite is unavailable or expired." retryable onRetry={() => setAttempt((n) => n + 1)} />;
   if (!join) return <States kind="empty" title="Preparing your invite" icon="search" />;
   const invite: JoinInvite = { space: join.preview.spaceName, host: hostOf(route.address), by: join.preview.invitedBy, role: join.preview.role, fingerprint: join.preview.fingerprint, sso: [], github: false, adminKey: false };
@@ -150,13 +184,14 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const [loadedAddress, setLoadedAddress] = useState<string | null | undefined>(undefined);
   const previousAddress = useRef<string | null | undefined>(undefined);
   const [notice, setNotice] = useState(false);
+  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const [desktopRoute, setDesktopRoute] = useState<DesktopRoute | null>(null);
   const bridge = useMemo(() => desktopBridge(), []);
 
   useEffect(() => {
-    const changed = previousAddress.current !== undefined && previousAddress.current !== baseUrl;
+    const changed = previousAddress.current !== undefined && previousAddress.current !== null && previousAddress.current !== baseUrl;
     previousAddress.current = baseUrl;
-    if (changed) { setNotice(false); setDesktopRoute(null); }
+    if (changed) { setNotice(false); setDesktopRoute(null); setConnectedAddress(null); }
     const stored = readStored(undefined, baseUrl ?? undefined);
     setPhase(phaseForStoredAddress(stored));
     setLoadedAddress(baseUrl);
@@ -179,12 +214,13 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const signedIn = useCallback((stored: StoredSession) => setPhase({ kind: "shell", stored }), []);
   const signedInFromDesktop = useCallback((stored: StoredSession) => { setDesktopRoute((route) => consumeDesktopRoute(route)); setPhase({ kind: "shell", stored }); }, []);
 
-  if (loadedAddress !== baseUrl || !ready) return baseUrl ? <View style={styles.fill} /> : <ConnectSpaceWelcome />;
+  const connectSpace = (address: string): void => { setConnectedAddress(address); setDesktopRoute(null); setNotice(false); };
+  if (loadedAddress !== baseUrl || !ready) return baseUrl ? <View style={styles.fill} /> : <ConnectSpaceWelcome onConnect={connectSpace} />;
   if (phase.kind === "shell") return <Suspense fallback={<View style={styles.fill} />}><SignedInShell stored={phase.stored} open={open} onSignedOut={(why) => signedOut(why, phase.stored.baseUrl)} onHub={onHub} voice={props.voice} /></Suspense>;
   if (desktopRoute?.kind === "pair") return <DesktopPairScreen key={`${desktopRoute.address}:${desktopRoute.code}`} route={desktopRoute} open={open} onSignedIn={signedInFromDesktop} />;
   if (desktopRoute?.kind === "join") return <DesktopJoinScreen key={`${desktopRoute.address}:${desktopRoute.code}`} route={desktopRoute} open={open} onSignedIn={signedInFromDesktop} />;
-  const activeAddress = desktopRoute?.address ?? baseUrl;
-  if (!activeAddress) return <ConnectSpaceWelcome />;
+  const activeAddress = desktopRoute?.address ?? connectedAddress ?? baseUrl;
+  if (!activeAddress) return <ConnectSpaceWelcome onConnect={connectSpace} />;
   return <SignInScreen baseUrl={activeAddress} open={open} onSignedIn={signedIn} notice={notice} />;
 }
 

@@ -3,7 +3,7 @@
 // the package still exports.
 import type { PhoneCallLike, PhoneDeviceLike } from "../../../../../ui/src/Softphone/index.tsx";
 import { inboxData } from "../providers/inbox.tsx";
-import type { InboxData } from "../../places/inbox/sidebar/index.ts";
+import type { InboxData } from "../../places/inbox/sidebar/data.tsx";
 import type { RealSession } from "./session.ts";
 
 /** What the Voice SDK's Device offers, as far as the softphone uses it. */
