@@ -338,6 +338,7 @@ export function harness(o: { now?: number; principal?: string; actingFor?: strin
   const answers = new Map<string, CallAnswer>(Object.entries(o.answers ?? {}));
   let clock = o.now ?? NOW;
   const ctx: HealthCtx = {
+    exports: { support: async () => `fil_fixture${events.length}` },
     space: SPACE,
     principal: { kind: "person", id: o.principal ?? "usr_admin" },
     ...(o.actingFor ? { actingFor: o.actingFor } : {}),

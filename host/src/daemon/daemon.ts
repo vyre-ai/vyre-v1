@@ -5,6 +5,7 @@
 //           the Chrome bridge register as supervised services (`options.services`) when their lanes land.
 // Nothing here knows a module's internals: module code only ever sees the ctx the loader builds.
 import fs from "node:fs";
+import { createOwnedExports } from "./owned-exports.ts";
 import type http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -506,6 +507,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const seal = createCtxSeal(sealKey);
       const blobs = createBlobStore({ dir: path.join(paths.root, "blobs", "ctx"), key: sealKey.key, now });
 
+      const ownedExports=createOwnedExports({db:db!,blobs,space:spaceId,now,register:async(resource,execution)=>{
+        const row={id:resource.id,type:'file',parent_id:null,label:0,owner_id:resource.ownerId,holds:0};
+        const result=await spaceLog.appendResult({id:`evt_res_${resource.id}`,type:'resource.created',sv:1,trace_id:execution.trace.traceId,actor:execution.principal.id,...(execution.actingFor?{on_behalf:execution.actingFor}:{}),vis:'private',entity:'file',entity_id:resource.id,payload:row});
+        if(!result.ok)throw new Error('Could not register the private export.');if(!result.duplicate){access.fold(result.event);accessPending.push(toAccessEvent(result.event));headSeq=Math.max(headSeq,result.event.seq);await syncAccess();}
+      }});
+      await ownedExports.cleanup();
+      const exportCleanup=setInterval(()=>{void ownedExports.cleanup().catch(()=>sink.log({space:spaceId,level:40,msg:'exports.cleanup_failed',place:'owned-exports'}));},60000);exportCleanup.unref();closers.push(()=>clearInterval(exportCleanup));
+
       // The Gate hook, only once the Gate module is live (a stub answers with examples, which must never decide a send). Its questions and parked calls run as the Space itself.
       const gate = loaded.serving.get("gate") === "live"
         ? withGateNesting(createGateHook({
@@ -538,6 +547,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         resolveItem: (type, kind, value) => resolveVaultItem(db!, type, kind, value),
         handler: (cap, v) => whoamiWithDeferred(cap, (() => {
           const h = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);
+          if(h&&['logs.export','health.support_bundle','audit.export'].includes(cap))return ((ctx,input)=>h({...ctx,exports:ownedExports.forExecution(cap,ctx)} as typeof ctx,input)) as Handler;
+          if(h&&(cap==='files.get'||cap==='files.read'))return (async(ctx,input)=>ownedExports.has(String((input as {fileId?:unknown})?.fileId??''))?ownedExports.read(cap,ctx,input):h(ctx,input)) as Handler;
           // The one internal call a module may make with the host's own authority: devices -> sync.epoch.bump (a device was revoked, its replica must purge). The person revoking their own
           // device holds no sync grant, and a revoke that cannot purge would leave the copy on the device. Nothing else is widened: every other ctx.call keeps the caller's authority.
           const mod = h ? (capIndex?.get(cap)?.module ?? "") : "";

@@ -12,6 +12,7 @@ export interface ConsoleNav {
 }
 
 export interface ConsoleData {
+  connection?: { get(): "online" | "offline"; subscribe(listener: () => void): () => void };
   screens: ScreenHooks;
   call(cap: string, input: unknown): Promise<unknown>;
   me: { id: string; name: string; role: string };
