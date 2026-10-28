@@ -519,16 +519,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         if(!result.ok)throw new Error('Could not register the private export.');if(!result.duplicate){access.fold(result.event);accessPending.push(toAccessEvent(result.event));headSeq=Math.max(headSeq,result.event.seq);await syncAccess();}
       };
       const ownedExports=createOwnedExports({db:db!,blobs,space:spaceId,now,register:registerExport});
-      let exportMutationRevision=0;const exportSnapshots=new WeakMap<object,number>();const publicExportCaps=new Map<string,string>(registryCaps.map(cap=>[cap.name,cap.effects] as const));
-      const ownerArchives=createOwnerArchives({db:db!,blobs,space:spaceId,now,owner:()=>access.owner()??null,register:(id,ctx)=>registerExport({id,ownerId:ctx.principal.id},ctx),assertSnapshot:ctx=>{if(exportSnapshots.get(ctx)!==exportMutationRevision)throw fail('validation.precondition_failed',ctx.trace.traceId,{message:'Shared Space data changed during export persistence. Retry the snapshot.'});},collect:async(ctx,assertOwner)=>{
+      let exportMutationRevision=0,exportMutationsInFlight=0;const exportSnapshots=new WeakMap<object,number>();const publicExportCaps=new Map<string,string>(registryCaps.map(cap=>[cap.name,cap.effects] as const));
+      const ownerArchives=createOwnerArchives({db:db!,blobs,space:spaceId,now,owner:()=>access.owner()??null,register:(id,ctx)=>registerExport({id,ownerId:ctx.principal.id},ctx),assertSnapshot:ctx=>{if(exportMutationsInFlight!==0||exportSnapshots.get(ctx)!==exportMutationRevision)throw fail('validation.precondition_failed',ctx.trace.traceId,{message:'Shared Space data changed during export persistence. Retry the snapshot.'});},collect:async(ctx,assertOwner)=>{
         if(!ctx.call)throw new Error('Canonical Space export reads are unavailable.');
-        const mutationBefore=exportMutationRevision;try {const result=await collectSpaceExport({revision:()=>exportMutationRevision,space:spaceId,requester:ctx.principal.id,now,secrets:[token],head:async()=>(await spaceLog.currentHead()).seq,assertOwner:async()=>assertOwner(),read:(cap,input)=>ctx.call!(cap as never,input),recordScope:async(_type,row)=>{
+        if(exportMutationsInFlight!==0)throw fail('validation.precondition_failed',ctx.trace.traceId,{message:'A shared Space write is still in progress. Retry after it finishes.'});
+        const mutationBefore=exportMutationRevision;try {const result=await collectSpaceExport({revision:()=>exportMutationRevision,space:spaceId,requester:ctx.principal.id,now,secrets:[token],head:async()=>(await spaceLog.currentHead()).seq,assertOwner:async()=>{assertOwner();if(exportMutationsInFlight!==0)throw new SpaceExportError('A shared Space write is still in progress. Retry after it finishes.');},read:(cap,input)=>ctx.call!(cap as never,input),recordScope:async(_type,row)=>{
           const scope=row.scope??row.visibility;
           if(['private','personal','invite'].includes(scope)||row.private===true)return 'private';
           let resource=access.snap.resource(String(row.id));if(!resource)return 'unknown';const seen=new Set<string>();
           while(resource){if(resource.id===spaceId&&resource.type==='space')return 'shared';if(seen.has(resource.id))return 'unknown';seen.add(resource.id);if(!resource.parent_id)return resource.owner_id?'private':'unknown';resource=access.snap.resource(resource.parent_id);}
           return 'unknown';
-        }});if(exportMutationRevision!==mutationBefore)throw new SpaceExportError('Shared Space data changed during collection. Retry the snapshot.');exportSnapshots.set(ctx,mutationBefore);return result.entries;}catch(error){if(error instanceof SpaceExportError)throw fail('validation.precondition_failed',ctx.trace.traceId,{message:error.message});throw error;}
+        }});if(exportMutationsInFlight!==0||exportMutationRevision!==mutationBefore)throw new SpaceExportError('Shared Space data changed during collection. Retry the snapshot.');exportSnapshots.set(ctx,mutationBefore);return result.entries;}catch(error){if(error instanceof SpaceExportError)throw fail('validation.precondition_failed',ctx.trace.traceId,{message:error.message});throw error;}
       }});
       await ownerArchives.cleanup();
       await ownedExports.cleanup();
@@ -568,7 +569,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const original = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);
           // Count a public content/access mutation before its handler writes, including the interval before its log commit.
           const mutation = publicExportCaps.has(cap)&&publicExportCaps.get(cap)!=='read'&&/^(records|schema|files|chat|threads|channels|settings|spaces|access|projects|tasks|agents|esign|sources|connectors|kits|members|identity|devices)\./.test(cap);
-          const h:Handler|undefined=original&&mutation?((ctx,input)=>{exportMutationRevision++;return original(ctx,input);}):original;
+          const h:Handler|undefined=original&&mutation?((async(ctx,input)=>{exportMutationRevision++;exportMutationsInFlight++;try{return await original(ctx,input);}finally{exportMutationsInFlight--;exportMutationRevision++;}})):original;
           if(h&&['logs.export','health.support_bundle','audit.export'].includes(cap))return ((ctx,input)=>h({...ctx,exports:ownedExports.forExecution(cap,ctx)} as typeof ctx,input)) as Handler;
           if(h&&['backup.export_start','backup.export_status'].includes(cap))return ((ctx,input)=>h({...ctx,ownerArchive:ownerArchives.forExecution(cap,ctx)} as typeof ctx,input)) as Handler;
           if(h&&(cap==='files.get'||cap==='files.read'))return (async(ctx,input)=>ownedExports.has(String((input as {fileId?:unknown})?.fileId??''))?ownedExports.read(cap,ctx,input):ownerArchives.has(String((input as {fileId?:unknown})?.fileId??''))?ownerArchives.read(cap,ctx,input):h(ctx,input)) as Handler;
