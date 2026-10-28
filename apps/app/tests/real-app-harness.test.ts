@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
+import https from "node:https";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -44,11 +45,11 @@ const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".j
 export interface Edge { origin: string; close(): void }
 
 /** The app's export on one origin, with the gateway (/v1, /sync, /healthz) and the live socket (/live) passed through to the daemon. */
-export function edge(dist: string, daemonUrl: string): Promise<Edge> {
+export function edge(dist: string, daemonUrl: string, tls?: { key: string; cert: string }): Promise<Edge> {
   const target = new URL(daemonUrl);
   const base = path.resolve(dist);
-  const proxied = (p: string): boolean => p.startsWith("/v1/") || p.startsWith("/sync/") || p === "/healthz" || p.startsWith("/live");
-  const server = http.createServer((req, res) => {
+  const proxied = (p: string): boolean => p.startsWith("/v1/") || p.startsWith("/sync/") || p === "/healthz" || p.startsWith("/live") || p.startsWith("/local/vault/key/");
+  const handle: http.RequestListener = (req, res) => {
     const u = new URL(req.url ?? "/", "http://edge");
     if (proxied(u.pathname)) {
       const up = http.request({ host: target.hostname, port: target.port, path: req.url, method: req.method, headers: req.headers }, (r) => { res.writeHead(r.statusCode ?? 502, r.headers); r.pipe(res); });
@@ -62,7 +63,8 @@ export function edge(dist: string, daemonUrl: string): Promise<Edge> {
     if (!file) file = path.join(base, "index.html");
     res.writeHead(200, { "content-type": TYPES[path.extname(file)] ?? "application/octet-stream" });
     fs.createReadStream(file).pipe(res);
-  });
+  };
+  const server = tls ? https.createServer(tls, handle) : http.createServer(handle);
   server.on("upgrade", (req, socket, head) => {
     const up = net.connect(Number(target.port), target.hostname, () => {
       const lines = [`${req.method ?? "GET"} ${req.url ?? "/"} HTTP/1.1`];
@@ -74,7 +76,7 @@ export function edge(dist: string, daemonUrl: string): Promise<Edge> {
     up.on("error", () => socket.destroy());
     socket.on("error", () => up.destroy());
   });
-  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve({ origin: `http://127.0.0.1:${(server.address() as net.AddressInfo).port}`, close: () => server.close() })));
+  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve({ origin: `${tls ? "https" : "http"}://127.0.0.1:${(server.address() as net.AddressInfo).port}`, close: () => server.close() })));
 }
 
 const ADMIN_TOKEN = "e2e-owner-bootstrap-token";

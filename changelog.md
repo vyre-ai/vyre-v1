@@ -1,5 +1,7 @@
 # Changelog
 
+- Fixed invited-account AI setup: provider choice and Mine API-key storage follow verified join; subscription sign-in uses real completion, failures retry without accepting the invite twice, and raw keys never enter device storage. Added working password and authenticator controls and truthful account-recovery guidance.
+
 - Fixed fresh desktop connection: the first launch now accepts and verifies a Space address before sign-in, with retryable connection errors and the existing verified session persistence.
 
 ## Unreleased

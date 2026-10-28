@@ -8,7 +8,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+import { createHmac } from "node:crypto";
+import { createCapCaller } from "../../../client/src/gateway/index.ts";
+import { holdKeyOnOwnNode } from "../../../client/src/gateway/local-key.ts";
+import { openBundle, wipe } from "../../../client/src/crypto/keys.ts";
+import { addJoinedApiKey } from "../src/shell/session/join-provider.ts";
+import { routes } from "../../../generated/routes.ts";
 import { bootFreshSpace, claimOnEdge, edge, liveModules, todoFor } from "./real-app-harness.test.ts";
+
+function authenticatorCode(secret: string): string {
+  let bits = "";
+  for (const char of secret.toUpperCase().replace(/=+$/, "")) bits += "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567".indexOf(char).toString(2).padStart(5, "0");
+  const bytes: number[] = [];
+  for (let i = 0; i + 8 <= bits.length; i += 8) bytes.push(Number.parseInt(bits.slice(i, i + 8), 2));
+  const counter = Buffer.alloc(8); counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000)));
+  const digest = createHmac("sha1", Buffer.from(bytes)).update(counter).digest();
+  const offset = digest[digest.length - 1]! & 15;
+  return String((digest.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).padStart(6, "0");
+}
 
 function exportApp(): string {
   return process.env["VYRE_APP_DIST"] ?? "";
@@ -193,6 +212,114 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       }
       assert.deepEqual(bareCalls, [], "no request to the Space leaves without the session token");
       assert.deepEqual(failures, [], "every place must draw");
+    });
+
+    await t.test("7b joining retries provider setup without reacceptance and respects the own-node key boundary", async () => {
+      assert.ok(signedIn, "the owner must be signed in");
+      const token = await page.evaluate(() => {
+        const saved = JSON.parse(localStorage.getItem("vyre.session.v1") ?? "{}");
+        return saved.sessions?.[location.origin]?.token ?? saved.token;
+      });
+      const api = createCapCaller({ baseUrl: web.origin, token: () => token, routes: async () => routes });
+      // The Space owner may unlock Mine on this own node; a joined member may not.
+      const wrapped = (await api("identity.keys_get", {})) as { keys: Parameters<typeof openBundle>[1] };
+      const ownerKey = await openBundle("correct horse battery 9", { ...wrapped.keys, personKeyByRecovery: wrapped.keys.personKeyByRecovery ?? "" });
+      try {
+        assert.equal(await holdKeyOnOwnNode(space.url, token, ownerKey.personKey), true);
+        const providerId = await addJoinedApiKey(api, { choice: "key", providerKey: "openai", key: "synthetic-owner-api-key" }, "e2e.owner.provider");
+        const saved = await api("providers.list", {}) as { providers: Array<{ id: string; scope: string }> };
+        assert.ok(saved.providers.some((p) => p.id === providerId && p.scope === "mine"), "the own-node provider is stored in Mine");
+      } finally { wipe(ownerKey.personKey); wipe(ownerKey.privateKey); }
+      const roles = (await api("access.roles.list", {})) as { roles: Array<{ id: string; name: string }> };
+      const role = roles.roles.find((r) => /member/i.test(r.name)) ?? roles.roles[0];
+      assert.ok(role, "the Space has an invite role");
+      const invited = await api("members.invites.create", { role: role.id, idempotencyKey: "e2e.provider.invite" }) as { link: string };
+      const inviteUrl = new URL(invited.link);
+      const code = inviteUrl.pathname.split("/").filter(Boolean).at(-1)!;
+      const keyPath = path.join(space.dir, "e2e-https.key");
+      const certPath = path.join(space.dir, "e2e-https.crt");
+      execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-subj", "/CN=localhost", "-days", "1", "-keyout", keyPath, "-out", certPath], { stdio: "ignore" });
+      const secureWeb = await edge(dist, space.url, { key: fs.readFileSync(keyPath, "utf8"), cert: fs.readFileSync(certPath, "utf8") });
+      const joinedContext = await browser.newContext({ viewport: { width: 1280, height: 800 }, ignoreHTTPSErrors: true });
+      await joinedContext.addInitScript(({ address, code }) => {
+        let pending = { action: "join", params: { address, code, fp: "display-marker" } };
+        (globalThis as unknown as { __TAURI__: unknown }).__TAURI__ = {
+          core: { invoke: async (command: string) => command === "desktop_info" ? { app: "Vyre", version: "1.0.0-rc.1", platform: "macos", arch: "aarch64", sidecar: { phase: "ready", url: null, version: "1.0.0-rc.1", restarts: 0, error: null } } : command === "take_pending_link" ? (() => { const link = pending; pending = null as never; return link; })() : null },
+          event: { listen: async () => () => undefined },
+        };
+      }, { address: secureWeb.origin, code });
+      const joined = await joinedContext.newPage();
+      let accepted = 0;
+      let providerAttempts = 0;
+      joined.on("request", (r) => { if (r.url().includes("/v1/invites/accept_create_account")) accepted++; });
+      await joined.route("**/v1/providers/add", async (route) => {
+        providerAttempts++;
+        if (providerAttempts === 1) await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: { code: "internal.unavailable", message: "Transient fixture failure", traceId: "fixture-provider" } }) });
+        else await route.continue();
+      });
+      try {
+        await joined.goto(`${secureWeb.origin}/home`, { waitUntil: "load" });
+        await joined.getByTestId("web").waitFor({ timeout: 15_000 });
+        await joined.getByTestId("web").click();
+        await joined.getByTestId("first").fill("Casey");
+        await joined.getByTestId("last").fill("Builder");
+        await joined.getByTestId("next").click();
+        await joined.getByTestId("username").fill("casey.provider");
+        await joined.getByTestId("password").fill("correct horse provider 9");
+        await joined.getByTestId("confirm").fill("correct horse provider 9");
+        await joined.getByTestId("next").click();
+        await joined.getByTestId("device").fill("Release desktop");
+        await joined.getByTestId("next").click();
+        await joined.getByTestId("ai-key").click();
+        await joined.getByTestId("ai-provider-openai").click();
+        await joined.getByTestId("ai-key-field").fill("synthetic-release-api-key");
+        await joined.getByTestId("next").click();
+        await joined.getByTestId("joined-provider-continue").waitFor({ timeout: 30_000 });
+        await joined.getByTestId("joined-provider-continue").click();
+        await joined.getByTestId("joined-provider-error").waitFor({ timeout: 15_000 });
+        assert.equal(await joined.getByText("Your AI account is connected", { exact: true }).count(), 0);
+        await joined.getByTestId("joined-provider-continue").click();
+        await joined.getByTestId("joined-provider-error").filter({ hasText: "Mine vault is locked here" }).waitFor({ timeout: 15_000 });
+        assert.equal(await joined.getByText("Your API key is saved", { exact: true }).count(), 0, "a Team server never reports Mine saved without the member’s own-node key");
+        assert.equal(accepted, 1, "retry never consumes the invite twice");
+        assert.equal(providerAttempts, 2);
+        assert.equal(await joined.evaluate(() => JSON.stringify(localStorage).includes("synthetic-release-api-key")), false, "raw key is never persisted on the device");
+        fs.mkdirSync("shots-evidence/join-provider", { recursive: true });
+        await joined.screenshot({ path: "shots-evidence/join-provider/locked-mine.png" });
+        await joined.getByTestId("joined-provider-later").click();
+        await joined.getByTestId("shell").waitFor({ timeout: 15_000 });
+      } finally { await joinedContext.close(); secureWeb.close(); }
+    });
+
+    await t.test("7c password change and authenticator setup/removal use real identity capabilities", async () => {
+      await page.goto(`${web.origin}/settings`, { waitUntil: "load" });
+      await page.getByTestId("row-page-signin").click();
+      await page.getByTestId("pw-change").click();
+      await page.getByTestId("security-current-password").fill("wrong-current-password");
+      await page.getByTestId("security-new-password").fill("correct horse changed 9");
+      await page.getByTestId("security-confirm-password").fill("correct horse changed 9");
+      await page.getByTestId("security-save").click();
+      await page.getByTestId("security-error").waitFor({ timeout: 15_000 });
+      assert.equal(await page.getByTestId("security-saved").count(), 0, "a wrong password cannot report success");
+      await page.getByTestId("security-current-password").fill("correct horse battery 9");
+      await page.getByTestId("security-save").click();
+      await page.getByTestId("security-saved").waitFor({ timeout: 15_000 });
+      await page.getByTestId("security-close").click();
+      await page.getByTestId("totp-setup").click();
+      fs.mkdirSync("shots-evidence/settings-security", { recursive: true });
+      await page.screenshot({ path: "shots-evidence/settings-security/setup.png" });
+      await page.getByTestId("security-save").click();
+      await page.getByTestId("security-setup-uri").waitFor({ timeout: 15_000 });
+      const uri = new URL(await page.getByTestId("security-setup-uri").innerText());
+      await page.getByTestId("security-totp-code").fill(authenticatorCode(uri.searchParams.get("secret")!));
+      await page.getByTestId("security-save").click();
+      await page.getByTestId("security-saved").waitFor({ timeout: 15_000 });
+      await page.getByTestId("security-close").click();
+      await page.getByTestId("totp-remove").click();
+      await page.getByTestId("security-current-password").fill("correct horse changed 9");
+      await page.getByTestId("security-save").click();
+      await page.getByTestId("security-saved").waitFor({ timeout: 15_000 });
+      await page.getByTestId("security-close").click();
     });
 
     await t.test("8 a session the Space no longer knows lands on sign-in with a calm line, never a blank page", async (s) => {
