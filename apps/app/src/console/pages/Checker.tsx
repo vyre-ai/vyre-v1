@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
+import { Row } from "../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { useConsoleData } from "../shell/data.tsx";
 import { Group, Section } from "../shell/ui.tsx";
@@ -24,5 +25,5 @@ export function Checker(): ReactElement {
     catch { setError("Couldn’t check this access. Check the person, resource and permission."); }
     finally { setBusy(false); }
   };
-  return <View testID="console-checker"><Section title="Check access"><Group><Field label="Principal kind (person, agent, actor or service)" value={kind} onChange={setKind} /><Field label="Principal id" testID="checker-principal" value={person} onChange={setPerson} /><Field label="Resource type" value={resourceType} onChange={setResourceType} /><Field label="Resource id" testID="checker-resource" value={resourceId} onChange={setResourceId} /><Field label="Permission (optional)" value={permission} onChange={setPermission} /><Field label="Level (view, use, edit or manage)" value={level} onChange={setLevel} /><Button label="Check access" testID="checker-run" disabled={busy || !person.trim() || !resourceId.trim() || !["person", "agent", "actor", "service"].includes(kind) || !["view", "use", "edit", "manage"].includes(level)} onPress={() => void check()} /></Group></Section>{error ? <Note>{error}</Note> : null}{out ? <Section title="Decision"><Text testID="checker-decision">{out.decision.effect}</Text><Note>{out.decision.reason}</Note>{out.decision.steps.map((step, index) => <Text key={index}>{step.ok ? "✓" : "×"} {step.text}</Text>)}</Section> : null}</View>;
+  return <View testID="console-checker"><Section title="Check access"><Group><Field label="Principal kind (person, agent, actor or service)" value={kind} onChange={setKind} /><Field label="Principal id" testID="checker-principal" value={person} onChange={setPerson} /><Field label="Resource type" value={resourceType} onChange={setResourceType} /><Field label="Resource id" testID="checker-resource" value={resourceId} onChange={setResourceId} /><Field label="Permission (optional)" value={permission} onChange={setPermission} /><Field label="Level (view, use, edit or manage)" value={level} onChange={setLevel} /><Button label="Check access" testID="checker-run" disabled={busy || !person.trim() || !resourceId.trim() || !["person", "agent", "actor", "service"].includes(kind) || !["view", "use", "edit", "manage"].includes(level)} onPress={() => void check()} /></Group></Section>{error ? <Note>{error}</Note> : null}{out ? <Section title="Decision"><Text testID="checker-decision">{out.decision.effect}</Text><Note>{out.decision.reason}</Note>{out.decision.steps.map((step, index) => <Row key={index} title={step.text} leading={<Text accessibilityLabel={step.ok ? "Passed" : "Failed"}>{step.ok ? "✓" : "×"}</Text>} />)}</Section> : null}</View>;
 }
