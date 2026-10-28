@@ -14,6 +14,11 @@ type Agent = CapMap["agents.list"]["out"]["agents"][number];
 
 const title = (act: Act): string => `${act.title} · ${act.risk} risk`;
 export const canEditOwnerFloor = (roles: readonly string[]): boolean => roles.includes("rol_owner");
+export function mergeGateAgents(first: readonly Agent[], second: readonly Agent[]): Agent[] {
+  const rows = new Map(first.map((agent) => [agent.agentId, agent]));
+  for (const agent of second) rows.set(agent.agentId, agent);
+  return [...rows.values()];
+}
 export function gateRuleDraft(act: Rule["act"], scope: Scope, agentId: string, scoped: readonly Rule[], floor: readonly Rule[], space: readonly Rule[]): Rule | null {
   const source = scoped.find((rule) => rule.act === act)
     ?? (scope === "agent" ? floor.find((rule) => rule.act === act) : undefined)
@@ -29,6 +34,8 @@ export function GateRules(): ReactElement {
   const data = useConsoleData();
   const [scope, setScope] = useState<Scope>("space");
   const [agentId, setAgentId] = useState("");
+  const [moreAgents, setMoreAgents] = useState<Agent[]>([]);
+  const [agentPage, setAgentPage] = useState<{ loaded: boolean; next?: string; busy: boolean }>({ loaded: false, busy: false });
   const rules = useRead<CapMap["gate.rules.list"]["out"]>("gate.rules.list", { scope, ...(scope === "agent" && agentId ? { agentId } : {}) });
   const spaceRules = useRead<CapMap["gate.rules.list"]["out"]>("gate.rules.list", { scope: "space" });
   const floorRules = useRead<CapMap["gate.rules.list"]["out"]>("gate.rules.list", { scope: "floor" });
@@ -42,6 +49,17 @@ export function GateRules(): ReactElement {
   const action = useAction(() => { refresh(); setDraft(null); setPreview(null); });
   if (!rules.data || !spaceRules.data || !floorRules.data || !acts.data || !agents.data || !people.data) return <ReadState error={rules.error ?? spaceRules.error ?? floorRules.error ?? acts.error ?? agents.error ?? people.error} retry={() => { refresh(); acts.refresh(); agents.refresh(); people.refresh(); }} />;
   const owner = canEditOwnerFloor(people.data.principals.find((person) => person.id === data.me.id)?.roles ?? []);
+  const allAgents = mergeGateAgents(agents.data.agents, moreAgents);
+  const nextAgent = agentPage.loaded ? agentPage.next : agents.data.next;
+  const loadAgents = (): void => {
+    if (!nextAgent || agentPage.busy) return;
+    setAgentPage((page) => ({ ...page, busy: true }));
+    void data.call("agents.list", { section: "space", cursor: nextAgent, limit: 100 }).then((out) => {
+      const page = out as CapMap["agents.list"]["out"];
+      setMoreAgents((current) => mergeGateAgents(current, page.agents));
+      setAgentPage({ loaded: true, ...(page.next ? { next: page.next } : {}), busy: false });
+    }, () => setAgentPage((page) => ({ ...page, busy: false })));
+  };
   const selectedAct = acts.data.acts.find((act) => act.key === selected);
   const current = draft ?? rules.data.rules.find((rule) => rule.act === selected);
   const choose = (act: Act): void => {
@@ -62,7 +80,7 @@ export function GateRules(): ReactElement {
   return <>
     <Section title="Rule scope"><Group>
       <Choice label="Rules to edit" value={scope} options={[{ key: "space", title: "Space defaults" }, { key: "floor", title: "Owner floor" }, { key: "agent", title: "One agent" }]} onChange={(value) => { setScope(value as Scope); setSelected(null); setDraft(null); setPreview(null); }} />
-      {scope === "agent" ? <Choice label="Agent" value={agentId} options={agents.data.agents.map((agent: Agent) => ({ key: agent.agentId, title: agent.name }))} onChange={(value) => { setAgentId(value); setSelected(null); setDraft(null); setPreview(null); }} /> : null}
+      {scope === "agent" ? <><Choice label="Agent" value={agentId} options={allAgents.map((agent: Agent) => ({ key: agent.agentId, title: agent.name }))} onChange={(value) => { setAgentId(value); setSelected(null); setDraft(null); setPreview(null); }} />{nextAgent ? <Button label={agentPage.busy ? "Loading agents…" : "Load more agents"} disabled={agentPage.busy} onPress={loadAgents} /> : null}</> : null}
     </Group></Section>
     {scope === "agent" && !agentId ? <Note>Choose an agent to review its Gate overrides.</Note> : <Section title="Gate acts" count={acts.data.acts.length}><Group>
       {acts.data.acts.map((act) => {

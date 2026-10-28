@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { aiDataPageFor } from "../../shell/providers/console.tsx";
 import { incidentDefaultFilters, mergeIncidentPages } from "../pages/Incidents.tsx";
-import { canEditOwnerFloor, gateRuleDraft } from "../pages/GateRules.tsx";
+import { canEditOwnerFloor, gateRuleDraft, mergeGateAgents } from "../pages/GateRules.tsx";
 
 test("Models and providers mounts a real Console page", () => {
   const page = aiDataPageFor("models");
@@ -28,4 +28,6 @@ test("a new agent Gate override inherits a real parent rule and owner floors sta
   assert.deepEqual(gateRuleDraft("send", "agent", "agt_1", [], [], [parent]), { ...parent, scope: "agent", agentId: "agt_1" });
   assert.equal(canEditOwnerFloor(["rol_owner"]), true);
   assert.equal(canEditOwnerFloor(["rol_admin"]), false);
+  const agent = (agentId: string, name: string) => ({ agentId, name }) as never;
+  assert.deepEqual(mergeGateAgents([agent("agt_1", "One")], [agent("agt_1", "Updated"), agent("agt_2", "Two")]).map((row) => `${row.agentId}:${row.name}`), ["agt_1:Updated", "agt_2:Two"]);
 });
