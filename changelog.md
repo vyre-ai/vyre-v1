@@ -17,6 +17,7 @@
 - Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads. Removed an unused viewer barrel so every restored production file has executable coverage.
 
 ## Unreleased
+- Governance hold lists now resolve held people through the authoritative principal directory instead of exposing raw person IDs.
 - Welcome uses stable exported markup before showing the device's local greeting, preventing hydration failures after a time-zone change or midnight.
 - Browser release evidence requires the real Forms/Campaigns/Apps surface instead of accepting the retired Sites placeholder or its error state.
 - Console Sensitivity labels now use named resource and record-type pickers, verify schema-label readback, and let owners apply individual scan suggestions.

@@ -200,6 +200,7 @@ test("holds: place on a file, channel, thread, folder or person; one hold per ta
   assert.deepEqual(rows(await g.holdsList(h.ctx, { kind: "file" }), "holds").map((x) => [x.title, x.reason, x.by]), [["fil_doc00001.txt", "Subpoena", OWNER]]);
   assert.equal(rows(await g.holdsList(h.ctx, { kind: "channel" }), "holds")[0]?.title, "Intake");
   assert.equal(rows(await g.holdsList(h.ctx, { kind: "thread" }), "holds")[0]?.title, "thr_t0000001");
+  assert.equal(rows(await g.holdsList(h.ctx, { kind: "person" }), "holds")[0]?.title, "Someone");
   const page = out(await g.holdsList(h.ctx, { limit: 4 }));
   assert.deepEqual([rows(page, "holds").length, page.next], [4, "4"]);
   assert.equal(rows(await g.holdsList(h.ctx, { limit: 4, cursor: "4" }), "holds").length, 2);
