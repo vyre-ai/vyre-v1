@@ -6,7 +6,7 @@
 
 - Fixed fresh desktop connection: the first launch now accepts and verifies a Space address before sign-in, with retryable connection errors and the existing verified session persistence.
 - Filed imported Codex and Claude Code archives now appear inside their Personal Project's Chat tab, where owners can read the immutable history, continue it with their assistant, or reopen its continued chat.
-- Added an authenticated standalone Console frame with server-pruned navigation and real Overview, Audit, Backups, Devices, People, Roles, Grants and Access checker surfaces. Backup restore requires a preview and explicit confirmation; device revocation retains purge handling. These pages deliver the tested critical workflows; full page scope and the other Console pages remain incomplete, as listed in docs/release/console-rc1-scope.md.
+- Added an authenticated standalone Console frame with server-pruned navigation (including registry and loading-state coverage for nine app places plus the standalone Console) and real Overview, Audit, Backups, Devices, People, Roles, Grants and Access checker surfaces. Backup restore requires a preview and explicit confirmation; device revocation retains purge handling. These pages deliver the tested critical workflows; full page scope and the other Console pages remain incomplete, as listed in docs/release/console-rc1-scope.md.
 
 - Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads. Removed an unused viewer barrel so every restored production file has executable coverage.
 
