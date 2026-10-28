@@ -14,6 +14,8 @@
 
 - Keep browser failure diagnostics from masking the original Apps failure, and verify the canonical wording in exported AI policy documents.
 - Restore the auth entry chooser and canonical invite links, connect Add a Space on desktop and phone, keep Get started available before choosing an address, and add password-based Lock/Unlock using the existing session revocation and key-drop path. Preserve the approved clean 0.6.8 auth kit and signed-in v1 visual language.
+- Reused the complete authenticated Server trace view for Speed’s worst-trace drilldown, including logs, events, spans and refresh. Added production browser coverage joining explicit disposable timing samples to a real Space profile update, then verifying audit/event/span details, refresh HTTP and window filtering. Fixture timings are not production performance acceptance.
+
 - Made native telemetry source IDs monotonic across retention pruning and restart with persisted per-stream counters. Restricted mirrored messages to declared templates and string metadata to registered capabilities, trace formats and finite reason/state enums; unknown identifier-shaped credentials cannot pass as message/reason text. Added prune-all/highest-row and legacy-source regressions.
 
 - Connected real daemon logs and invoke spans to canonical authorized telemetry reads through the existing scrubbed writer. Native logs remain the durable recovery source; bounded batches and transactional source checkpoints prevent lost or duplicate replay after write failure/restart, and unavailable canonical storage cannot trap shutdown. Added actual HTTP access, metadata/privacy, rollback and restart regressions.
