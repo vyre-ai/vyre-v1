@@ -203,13 +203,15 @@ fn read_discovered_source(source: &SessionSource, root: &Path) -> Result<serde_j
     let mut remaining = MAX_SESSION_BYTES;
     let mut documents = vec![SessionDocument { namespace: "main".into(), text: read_session_text(&file, &mut remaining)? }];
     let mut selected = source.clone();
-    if source.provider == "claude" {
-        if let Some(cwd) = claude_cwd(&documents[0].text) {
-            if let Some((repo_root, remote)) = local_repo_metadata(&cwd) {
-                selected.cwd = Some(repo_root);
-                selected.git_origin_url = remote.or(selected.git_origin_url);
-            }
+    let selected_cwd = if source.provider == "claude" { claude_cwd(&documents[0].text).or_else(|| selected.cwd.clone()) } else { selected.cwd.clone() };
+    if let Some(cwd) = selected_cwd {
+        let safe_fallback = selected.git_origin_url.take();
+        if let Some((repo_root, remote)) = local_repo_metadata(&cwd) {
+            selected.cwd = Some(repo_root);
+            selected.git_origin_url = remote.or(safe_fallback);
         }
+    }
+    if source.provider == "claude" {
         let children = claude_subagent_files(root, &file);
         if children.len() > MAX_SUBAGENTS { return Err(format!("This session has more than {MAX_SUBAGENTS} subagent transcripts.")); }
         for child in children {
@@ -661,6 +663,13 @@ mod tests {
         assert_eq!(read["source"]["gitOriginUrl"], codex_source.git_origin_url.clone().unwrap());
         let missing = codex_sources.iter().find(|source| source.session_id == "missing").unwrap();
         assert_eq!(missing.git_origin_url, None, "a deleted checkout cannot create a repository Project from stale metadata");
+        let mut exhausted = RepoProbeCache { values: HashMap::new(), remaining: 0, deadline: Instant::now() + Duration::from_secs(1) };
+        let deferred = codex_sources_with_repos(Some(codex.to_str().unwrap()), &mut exhausted).unwrap().into_iter().find(|source| source.session_id == "fixture").unwrap();
+        assert_eq!(deferred.cwd.as_deref(), repo.join("packages").join("app").to_str());
+        assert_eq!(deferred.git_origin_url, None, "bounded discovery defers repository identity after its budget");
+        let selected = read_discovered_source(&deferred, &codex.canonicalize().unwrap()).unwrap();
+        assert_eq!(selected["source"]["cwd"], repo.to_str().unwrap(), "an explicit selected preview receives one fresh bounded repository probe");
+        assert_eq!(selected["source"]["gitOriginUrl"], "https://example.com/acme/vyre.git");
         fs::remove_dir_all(fixture).unwrap();
     }
 
