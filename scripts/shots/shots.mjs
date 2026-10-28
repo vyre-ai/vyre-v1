@@ -51,7 +51,7 @@ const targets = shardTargets(selectedTargets, shardIndex, shardTotal);
 if (!targets.length && want.startsWith("P-")) {
   writeEmptyIndex();
   console.log(`no targets for ${want}: wrote an empty screenshot index`);
-  process.exit(0);
+  process.exit(process.exitCode ?? 0);
 }
 if (!targets.length) { console.error(`no target ${want}`); process.exit(1); }
 

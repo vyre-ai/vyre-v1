@@ -23,4 +23,6 @@ test("the shots entry enforces startup and preserves failure for its startup-onl
   assert.match(source, /await main\([^;]*["']--enforce["']/);
   const startupOnly = source.slice(source.indexOf('if (want === "P-UI_14")'), source.indexOf("// A packet id"));
   assert.doesNotMatch(startupOnly, /process\.exit\(0\)/);
+  const noTargets = source.slice(source.indexOf('if (!targets.length && want.startsWith("P-"))'), source.indexOf('if (!targets.length) {'));
+  assert.doesNotMatch(noTargets, /process\.exit\(0\)/, "a packet without screenshot targets must retain the earlier startup failure");
 });
