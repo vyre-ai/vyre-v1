@@ -23,8 +23,8 @@ test("phone: a screen maps back to the place and hash that draw it", () => {
 
 test("phone Apps preserve detail/create hashes and return to the same editor", () => {
   const hash = "screen=apps.form-settings&selected=frm_fixture";
-  const entry = entryFor("sites", hash)!;
-  assert.deepEqual(placeOf(entry), { place: "sites", hash });
-  assert.deepEqual(placeOf(entryFor("sites", "screen=apps.campaigns&create=true")!), { place: "sites", hash: "screen=apps.campaigns&create=true" });
+  const entry = entryFor("apps", hash)!;
+  assert.deepEqual(placeOf(entry), { place: "apps", hash });
+  assert.deepEqual(placeOf(entryFor("apps", "screen=apps.campaigns&create=true")!), { place: "apps", hash: "screen=apps.campaigns&create=true" });
   assert.equal(placeOf({ tab: "you", screen: "apps:%ZZ" }), null);
 });
