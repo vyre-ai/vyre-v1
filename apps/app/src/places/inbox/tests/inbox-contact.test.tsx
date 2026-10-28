@@ -5,6 +5,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
+import { Composer } from "../../../../../../ui/src/Composer/index.tsx";
+import { installComposerForTests } from "../../../../../../ui/src/Composer/Deferred.tsx";
 import { ContactTab, TabLoading, followMenuEntries, fromMenuEntries } from "../contacttab/index.ts";
 import { quickEntries, templateEntries } from "../contacttab/menus.ts";
 import {
@@ -20,6 +22,8 @@ import type { SampleSpace } from "../contactlist/sample.ts";
 import { InboxDataProvider } from "../sidebar/index.ts";
 import { isItem } from "../../../../../../ui/src/Menu/props.ts";
 import type { MenuItem } from "../../../../../../ui/src/Menu/props.ts";
+
+installComposerForTests(Composer);
 
 const wrap = (s: ContactTabSample, child: ReactElement): string => renderToStaticMarkup(<InboxDataProvider value={s.data}>{child}</InboxDataProvider>).replaceAll("<!-- -->", "");
 const tab = (id: string, space: SampleSpace = northwind, o: { online?: boolean } = {}): { out: string; s: ContactTabSample } => {

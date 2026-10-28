@@ -16,9 +16,11 @@ import type { MenuEntry } from "../Menu/index.tsx";
 import { Row } from "../Row/index.tsx";
 import { composerSymbols, symbolMark } from "./props.ts";
 import type { ComposerAttachment, ComposerChip, ComposerShellProps, ComposerSymbol } from "./props.ts";
+import { Glyph, ICON_UP, plainText } from "./shared.tsx";
 
 export type { ComposerAttachment, ComposerChip, ComposerShellProps, ComposerSymbol } from "./props.ts";
 export { COMPOSER_SYMBOLS, composerSymbols, symbolMark } from "./props.ts";
+export { Glyph, ICON_UP, plainText } from "./shared.tsx";
 
 /* ---------- matcher (from core/suggest/match.js) ---------- */
 
@@ -359,11 +361,6 @@ export function applyPick(state: ComposerState, trigger: Trigger, item: PopupIte
   return { next: { ...cleared, chips: [...cleared.chips, chip] }, effect: { kind: "none" } };
 }
 
-/** Text pasted as plain text: line breaks kept, tabs and control characters dropped. */
-export function plainText(raw: string): string {
-  return raw.replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "").replace(/\t/g, " ");
-}
-
 /** What Enter does. Enter sends (Shift+Enter writes a line); in email mode Cmd/Ctrl+Enter sends. While an agent works a plain send queues and Cmd/Ctrl+Enter interrupts. */
 export function enterAction(key: { shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean; isComposing?: boolean }, enterSends: boolean, working: boolean): "send" | "interrupt" | "newline" {
   if (key.isComposing === true) return "newline";
@@ -386,7 +383,6 @@ export function composerMenu(actions: { attach: () => void; paste: () => void; c
 /* ---------- icons ---------- */
 
 const svg = (d: string, extra = ""): string => `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"${extra}>${d}</svg>`;
-export const ICON_UP = svg('<path d="M8 13V3M3.5 7.5L8 3l4.5 4.5"/>');
 export const ICON_STOP = '<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="2"/></svg>';
 export const ICON_PLUS = svg('<path d="M8 3.500v9M3.500 8h9"/>');
 export const ICON_CLIP = svg('<path d="M13 7.5L7.800 12.700a3 3 0 01-4.200-4.200l5.500-5.500a2 2 0 012.800 2.800L6.400 11.300a1 1 0 01-1.400-1.400l4.800-4.800"/>');
@@ -451,12 +447,6 @@ const FIELD_STYLE = { outlineStyle: "none", outlineWidth: 0, backgroundColor: "t
 const BOX_SHADOW = { boxShadow: "var(--sh-2)" } as unknown as ViewStyle;
 const RING_SHADOW = { boxShadow: "0 0 0 1px var(--line-2), var(--sh-2)" } as unknown as ViewStyle;
 const POP_SHADOW = { boxShadow: "var(--sh-pop)" } as unknown as ViewStyle;
-
-/** An icon: inline svg on web, a plain character on native until the native icon set lands. */
-export function Glyph({ icon, native, size = 16, color }: { icon: string; native: string; size?: number; color?: string }): ReactElement {
-  if (Platform.OS === "web") return <MenuIcon icon={icon} size={size} {...(color === undefined ? {} : { color })} />;
-  return <Text style={{ color: color ?? "var(--ink-3)", fontSize: size, lineHeight: size + 2 }}>{native}</Text>;
-}
 
 function IconButton({ icon, label, onPress, testID }: { icon: ReactNode; label: string; onPress: () => void; testID: string }): ReactElement {
   return (

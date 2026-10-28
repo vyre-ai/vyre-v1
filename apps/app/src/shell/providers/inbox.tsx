@@ -5,34 +5,32 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useOpenedId, usePlaceHash } from "../hash/context.tsx";
 import { NotFound } from "../hash/NotFound.tsx";
 import { useMissing } from "../hash/useMissing.ts";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
+import type { PhoneDeviceLike } from "../../../../../ui/src/Softphone/index.tsx";
 import { Calendar } from "../../places/inbox/calendar/Calendar.tsx";
 import { ContactList, ListLoading } from "../../places/inbox/contactlist/ContactList.tsx";
 import { ContactTab } from "../../places/inbox/contacttab/ContactTab.tsx";
 import { InboxDataProvider } from "../../places/inbox/sidebar/data.tsx";
-import type { InboxData, InboxNav } from "../../places/inbox/sidebar/data.tsx";
+import type { InboxData } from "../../places/inbox/sidebar/data.tsx";
 import { InboxSidebar, SidebarLoading } from "../../places/inbox/sidebar/InboxSidebar.tsx";
 import { InboxStateProvider, useInboxState } from "../../places/inbox/sidebar/state.tsx";
+import { InboxPhoneDock } from "../../places/inbox/softphone/phone.tsx";
+import { CallTitlePill } from "../../places/inbox/softphone/pill.tsx";
+import { inboxData } from "./inbox-data.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
-export const SIDEBAR_W = 264;
+export { inboxData } from "./inbox-data.ts";
 
-export function inboxData(rt: ShellRuntime, openConversation: (id: string) => void): InboxData {
-  const nav: InboxNav = {
-    openConversation,
-    openThread: (threadId) => rt.open({ screen: "chats.conversation", args: { threadId } }),
-    openCall: (callId) => rt.open({ subject: { type: "call", id: callId } }),
-    openCalendar: () => undefined,
-    openDialer: () => rt.open({ screen: "telephony.softphone" }),
-    openMatch: (conversationId) => rt.open({ screen: "inbox.unmatched", args: { conversationId } }),
-    compose: () => rt.open({ screen: "mail.message-detail" }),
-    connect: (kind) => rt.open({ screen: "mail.connections", args: { kind } }),
-    openInboxSettings: (inboxId) => rt.open({ screen: "settings.page", args: { page: "inboxes", inboxId } }),
-  };
-  return { screens: rt.screens, call: rt.call, connection: rt.connection, clock: rt.clock, nav };
+/** The optional global phone shares Inbox's already-lazy production chunk. */
+export function InboxPhoneShell({ device, data, children }: { device: PhoneDeviceLike; data: InboxData; children: ReactNode }): ReactElement {
+  return <InboxDataProvider value={data}><InboxPhoneDock device={device}>{children}</InboxPhoneDock></InboxDataProvider>;
 }
+
+export { CallTitlePill as InboxCallTitlePill };
+
+export const SIDEBAR_W = 264;
 
 export function InboxLoading(): ReactElement {
   return (

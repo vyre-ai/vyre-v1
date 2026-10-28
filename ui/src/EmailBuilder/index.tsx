@@ -9,7 +9,7 @@ import type { ReactElement } from "react";
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { StyleProp, TextStyle } from "react-native";
 import { AskButton } from "../AskButton/index.tsx";
-import { Composer } from "../Composer/index.tsx";
+import { DeferredComposer as Composer } from "../Composer/Deferred.tsx";
 import type { AskButtonProps } from "../AskButton/index.tsx";
 import { MenuIcon, useMenu } from "../Menu/index.tsx";
 import { Row } from "../Row/index.tsx";
