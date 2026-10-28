@@ -12,6 +12,8 @@
 
 ## Unreleased
 
+- Administrative exports: recheck current authority and expiry after awaited blob reads; reauthorize across save waits and remove newly written blobs/metadata when revocation, registration or storage prevents completion.
+
 - Access ownership: reject public Owner role assignment/removal for people and groups, ignore legacy group Owner inheritance, and keep ownership transfer as the single durable path updating both the Space owner and sole Owner assignment. Add real Admin HTTP denial and restart regressions.
 
 - Console Roles: add the generated permission matrix, locked built-ins and staged exact-preview changes, plus object holders, clearance, grants and permission history. Persist the last successful permission diff and block deleting roles held by empty groups.
