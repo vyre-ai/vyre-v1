@@ -53,6 +53,8 @@
 - Console Sensitivity labels now use named resource and record-type pickers, verify schema-label readback, and let owners apply individual scan suggestions.
 - Console Schema now offers the server-declared field types as a named picker instead of asking administrators to type internal field-type keys.
 
+- Wired Console person/agent/actor navigation arguments to their existing detail surfaces, including updates between targets, so Usage drilldowns can open the selected identity.
+
 - Added real Console People reactivation, typed server removal/handoff plan and reviewed impacts, plus loss-previewed administrator reset issuance. Codes stay component-only, clear on hide/exit/timeout, and never enter URLs, device storage or audit metadata. Production browser17/17 proves member project creation, suspension/revocation/reactivation, reset/redeem, project lead handoff/removal and reload; authenticated names appear in risk review. Full person object/common-interaction work remains tracked separately.
 
 - Carry verified account display names into the access directory on invite acceptance and first Owner claim. The declared event field is additive; the consumer fills only matching-kind ID/bootstrap placeholders and preserves named identities, status, roles and canonical ownership. Actual HTTP name/restart and authority regressions pass.

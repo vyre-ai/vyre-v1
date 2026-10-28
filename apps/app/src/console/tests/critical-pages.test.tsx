@@ -8,7 +8,7 @@ import { Backups } from "../pages/Backups.tsx";
 import { Devices } from "../pages/Devices.tsx";
 import { People, Roles, Grants } from "../pages/Access.tsx";
 import { Checker } from "../pages/Checker.tsx";
-import { consolePagesFromNav } from "../../shell/providers/console.tsx";
+import { consolePageFor, consolePagesFromNav } from "../../shell/providers/console.tsx";
 import { visiblePages } from "../shell/nav.ts";
 
 function data(rows: Record<string, unknown>): ConsoleData {
@@ -39,3 +39,5 @@ test("Devices and access pages mount real object-specific controls instead of ge
   assert.match(draw(<Grants />, { "access.grants.list": { grants: [] } }), /grant-add|Give access/);
   assert.match(draw(<Checker />, {}), /checker-run|Check access/);
 });
+
+ test("Console resource drilldown dispatch reaches existing person/agent/actor initial objects",()=>{const person=consolePageFor("people",{personId:"usr_ada"});const agent=consolePageFor("agents",{agentId:"agt_scout"});const actor=consolePageFor("actors",{actorId:"act_tool"});assert.equal((person.props as {initialPersonId:string}).initialPersonId,"usr_ada");assert.equal((agent.props as {initialAgentId:string}).initialAgentId,"agt_scout");assert.equal((actor.props as {initialActorId:string}).initialActorId,"act_tool");const html=draw(person,{"access.principals.list":{principals:[]},"access.roles.list":{roles:[]},"access.principals.get":{principal:{id:"usr_ada",kind:"person",name:"Ada",status:"active",roles:[]}},"spaces.get":{space:{owner:"usr_other"}}});assert.match(html,/person-lifecycle/);assert.match(html,/person-remove-review/);});
