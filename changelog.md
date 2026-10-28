@@ -211,3 +211,5 @@
 - Verify Retention save/reset readback and require the new auth, Personal, Task and infrastructure browser workflows in release evidence.
 
 - Normalize observed Space addresses to a host and port before building invite links, rejecting credentials and unsupported schemes. Exercise real auth invites using the fixture server’s actual configured endpoint instead of an unverified public domain.
+
+- Keep auth HTTP regression tests within architecture layers using kernel hashing and an independent authenticator client. Configure golden and browser invite fixtures at server startup, retaining the real DNS requirement for runtime domain changes.

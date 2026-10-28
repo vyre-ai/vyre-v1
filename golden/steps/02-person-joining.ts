@@ -18,7 +18,8 @@ export const GAPS: Gap[] = [];
 /** A Space needs an address before it can invite (the join link carries it); a person with server.network sets one. */
 export async function setAddress(s: FlowSpace, trail: Trail): Promise<void> {
   await trail.step("the Space has an address for join links", async () => {
-    expectStatus(await s.call("spaces.switch_address", s.d.token, { mode: "own_domain", host: "team.seed.example.test" }), 200, "spaces.switch_address");
+    const profile=expectStatus(await s.call("spaces.get",s.d.token,{}),200,"spaces.get").space;
+    assert.ok(profile.address?.host,"the fixture server must advertise a configured join-link host");
   });
 }
 

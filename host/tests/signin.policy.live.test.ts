@@ -3,7 +3,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {totpAt} from "../../modules/identity/projections.ts";
+import {createHmac} from "node:crypto";
+// Independent RFC6238 client calculation; host tests do not import the module under test.
+async function totpAt(secret:string,step:number):Promise<string>{
+ let bits="";for(const char of secret.toUpperCase().replace(/=+$/,""))bits+="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567".indexOf(char).toString(2).padStart(5,"0");
+ const bytes:number[]=[];for(let i=0;i+8<=bits.length;i+=8)bytes.push(Number.parseInt(bits.slice(i,i+8),2));
+ const counter=Buffer.alloc(8);counter.writeBigUInt64BE(BigInt(step));const digest=createHmac("sha1",Buffer.from(bytes)).update(counter).digest();const offset=digest[digest.length-1]!&15;
+ return String((digest.readUInt32BE(offset)&0x7fffffff)%1000000).padStart(6,"0");
+}
 import {fakePlatform} from "../src/platform/index.ts";
 import {loadConfig} from "../src/daemon/config.ts";
 import {startDaemon} from "../src/daemon/daemon.ts";

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {sha} from "../../modules/identity/projections.ts";
+import {sha256b64 as sha} from "../../kernel/src/seal/wire.ts";
 import {fakePlatform} from "../src/platform/index.ts";
 import {loadConfig} from "../src/daemon/config.ts";
 import {startDaemon} from "../src/daemon/daemon.ts";
