@@ -33,3 +33,19 @@ test('schema.sql has the entity table and its field-meta table', () => {
   assert.match(sql, /CREATE TABLE IF NOT EXISTS "alpha_thing"/);
   assert.match(sql, /"alpha_thing__fm"/);
 });
+
+test('the permission catalogue loads independently of the filesystem registry for browser clients', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { pathToFileURL } = await import('node:url');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vyre-permission-catalogue-'));
+  const reg = buildRegistry(loaded());
+  try {
+    const file = path.join(dir, 'permissions.ts');
+    fs.writeFileSync(file, emitAll(reg).get('permissions.ts')!);
+    const result = await import(pathToFileURL(file).href);
+    assert.deepEqual(result.permissions, reg.permissions);
+    assert.equal(result.roleDefaults['alpha.edit'].member, true);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});

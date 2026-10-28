@@ -63,6 +63,7 @@ import { createEngineHost } from "../seams/engine.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
 import { applyPendingRestore, clearRestoredTombstones, createBackupHost, readRestoredTombstones } from "../seams/backup.ts";
 import { createKitsHost } from "../seams/kits.ts";
+import { createAuditRecorder } from "../seams/audit.ts";
 import { startRelayBox } from "../seams/relay.ts";
 import { createSyncSeam } from "../seams/sync.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
@@ -490,9 +491,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const idem = log.idempotency();
       const sinkLog = sink.invokeLogger(space);
       const spaceId = space;
-      // The audit trail proper (hash chain, signed checkpoints) is the audit module's (L7a); until it lands every allow, deny and hold row also goes to logs.db as `audit`.
+      // Preserve the operational log and write the audit module’s hash chain from declared pipeline metadata.
+      const appendAudit = createAuditRecorder({ space: spaceId, db: db!, module: loaded.moduleExports.get("audit"), principal: (id) => access.snap.principal(id) });
       const recordAudit = (r: AuditRow): void => {
         sink.log({ space: spaceId, level: 20, msg: "audit", trace_id: r.traceId, span_id: r.spanId, cap: r.cap, actor: r.principal, ...(r.actingFor ? { on_behalf: r.actingFor } : {}), result: r.class, attrs: { decisionId: r.decisionId, reason: r.reason } });
+        appendAudit(r);
       };
 
       // ctx.schedule: jobs live in modules.db, so a restart keeps them; each runs through the invoke pipeline as the principal that scheduled it (invokeRunner)

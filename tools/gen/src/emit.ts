@@ -211,13 +211,13 @@ export const tools = (JSON.parse(readFileSync(new URL('./mcp-tools.json', import
   }
 
   // ---- catalogues
-  put('permissions.ts', `${HEADER}import { registry } from './registry.ts';
+  put('permissions.ts', `${HEADER}import type { Registry } from '../packages/contracts/src/registry.ts';
 
 export type PermissionKeyName = ${reg.permissions.map((p) => q(p.key)).join(' | ') || 'never'};
 
-export const permissions = registry.permissions;
+export const permissions: Registry["permissions"] = ${json(reg.permissions)};
 export const roleDefaults: Record<string, Record<string, boolean>> = Object.fromEntries(
-  registry.permissions.map((p) => [p.key, p.defaults as Record<string, boolean>]),
+  permissions.map((p) => [p.key, p.defaults as Record<string, boolean>]),
 );
 `);
   put('events.ts', `${HEADER}import { registry } from './registry.ts';
