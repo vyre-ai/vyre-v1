@@ -67,6 +67,7 @@ import { createEngineHost } from "../seams/engine.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
 import { applyPendingRestore, clearRestoredTombstones, createBackupHost, readRestoredTombstones } from "../seams/backup.ts";
 import { createKitsHost } from "../seams/kits.ts";
+import { createTelemetryRecorder } from "../seams/telemetry.ts";
 import { createAuditRecorder } from "../seams/audit.ts";
 import { startRelayBox } from "../seams/relay.ts";
 import { createSyncSeam } from "../seams/sync.ts";
@@ -449,6 +450,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       const reg = registry as unknown as RegistryLike;
       const loaded = await loadHost({ registry: reg, modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")), routes, importer: fileImporter(codeRoot), seamImporter: fileSeamImporter(codeRoot), exportsImporter: fileExportsImporter(codeRoot), db, ...(o.http ? { fetch: o.http } : {}) });
+      const telemetry = createTelemetryRecorder({ space, db, module: loaded.moduleExports.get("logs"), now, secrets: () => [token] });
+      if (telemetry) sink.setObserver(telemetry.write, telemetry.position(sink.sourceId));
+      closers.push(() => { try { sink.flush(); } catch { /* The committed native source replays on the next boot. */ } finally { sink.setObserver(undefined); } });
       const registryCaps = registry.capabilities as unknown as CapabilityDef[];
       // consumers and periodic jobs the live modules export (ruling 32): each runs through the invoke pipeline as a host-only capability that may emit what its module's capabilities emit
       // the Vault the connector seams read from: the vault module's own port once it is live and configured, else a refusal
@@ -593,6 +597,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             if (!previews || ctx.principal.kind !== "person" || ctx.actingFor || !sid || !ctx.device) throw fail("permission.no_grant", ctx.trace.traceId, { message: "Sign in on a device to open a shared record preview." });
             return previews.issue({ person: ctx.principal.id, sessionId: sid, device: ctx.device }, person, ctx.trace.traceId);
           } } } as typeof ctx, input)) as Handler;
+          if(h&&["logs.query","logs.trace","logs.spans","logs.export"].includes(cap))return ((ctx,input)=>{sink.flush();return cap==="logs.export"?h({...ctx,exports:ownedExports.forExecution(cap,ctx)} as typeof ctx,input):h(ctx,input);}) as Handler;
           if(h&&['logs.export','health.support_bundle','audit.export'].includes(cap))return ((ctx,input)=>h({...ctx,exports:ownedExports.forExecution(cap,ctx)} as typeof ctx,input)) as Handler;
           if(h&&['backup.export_start','backup.export_status'].includes(cap))return ((ctx,input)=>h({...ctx,ownerArchive:ownerArchives.forExecution(cap,ctx)} as typeof ctx,input)) as Handler;
           if(h&&(cap==='files.get'||cap==='files.read'))return (async(ctx,input)=>ownedExports.has(String((input as {fileId?:unknown})?.fileId??''))?ownedExports.read(cap,ctx,input):ownerArchives.has(String((input as {fileId?:unknown})?.fileId??''))?ownerArchives.read(cap,ctx,input):h(ctx,input)) as Handler;

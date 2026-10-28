@@ -14,6 +14,8 @@
 
 - Keep browser failure diagnostics from masking the original Apps failure, and verify the canonical wording in exported AI policy documents.
 - Restore the auth entry chooser and canonical invite links, connect Add a Space on desktop and phone, keep Get started available before choosing an address, and add password-based Lock/Unlock using the existing session revocation and key-drop path. Preserve the approved clean 0.6.8 auth kit and signed-in v1 visual language.
+- Connected real daemon logs and invoke spans to canonical authorized telemetry reads through the existing scrubbed writer. Native logs remain the durable recovery source; bounded batches and transactional source checkpoints prevent lost or duplicate replay after write failure/restart, and unavailable canonical storage cannot trap shutdown. Added actual HTTP access, metadata/privacy, rollback and restart regressions.
+
 - Completed Usage’s current-person limits summary, explicitly selected Space limits, principal names, aligned costs and real Spend-editor navigation through existing protected capabilities. Added ordinary-reader query-scope checks and production browser proof with populated, period-filtered metering fixtures and actual budget readback; no inference ran.
 
 - Enforced scope authorization on AI spend reads: people retain their own totals and limits; other-person and Space aggregates require existing spend-management authority; explicitly managed agents retain their scoped reads. Delegation still intersects agent and person authority. Added actual HTTP cross-person/Space denial, legal owner/agent-manager reads and both delegated-authority directions.
