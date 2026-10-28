@@ -7,10 +7,11 @@ import { States } from "../../../../../ui/src/States/index.tsx";
 import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
 import { useConsoleData } from "../shell/data.tsx";
 
-export function useRead<T>(cap: string, input: Record<string, unknown> = {}, options: { direct?: boolean } = {}) {
+export function useRead<T>(cap: string, input: Record<string, unknown> = {}, options: { direct?: boolean; enabled?: boolean } = {}) {
   const { call, screens } = useConsoleData();
   const key = JSON.stringify(input);
-  const query = useMemo(() => options.direct ? undefined : (screens as { capQuery?: (cap: string, input: Record<string, unknown>) => LiveQuery<T> }).capQuery?.(cap, JSON.parse(key)), [screens, cap, key, options.direct]);
+  const enabled = options.enabled !== false;
+  const query = useMemo(() => !enabled || options.direct ? undefined : (screens as { capQuery?: (cap: string, input: Record<string, unknown>) => LiveQuery<T> }).capQuery?.(cap, JSON.parse(key)), [screens, cap, key, options.direct, enabled]);
   const never = useMemo<LiveQuery<T>>(() => { const loading: QueryState<T> = { status: "loading" }; return { subscribe: () => () => undefined, getSnapshot: () => loading }; }, []);
   const snapshot = useSyncExternalStore((query ?? never).subscribe, (query ?? never).getSnapshot, (query ?? never).getSnapshot);
   const [revision, setRevision] = useState(0);
@@ -18,11 +19,12 @@ export function useRead<T>(cap: string, input: Record<string, unknown> = {}, opt
   const [state, setState] = useState<{ key?:string; data?: T; error?: string }>({});
   const refresh = useCallback(() => { (screens as { invalidate?: () => void }).invalidate?.(); setRevision((n) => n + 1); }, [screens]);
   useEffect(() => {
-    if (query) return;
+    if (query || !enabled) return;
     let alive = true;
     void call(cap, JSON.parse(key)).then((data) => { if (alive) setState({key:stateKey, data: data as T }); }, () => { if (alive) setState({key:stateKey, error: "Couldn’t load this page. Check access and try again." }); });
     return () => { alive = false; };
   }, [call, cap, key, revision, query, stateKey]);
+  if (!enabled) return {data: undefined, error: undefined, refresh};
   return query ? { data: snapshot.status === "ready" ? snapshot.data : undefined, error: snapshot.status === "loading" && snapshot.error ? "Couldn’t load this page. Check access and try again." : undefined, refresh } : { ...(state.key===stateKey?state:{}), refresh };
 }
 export function useAction(refresh: () => void) {

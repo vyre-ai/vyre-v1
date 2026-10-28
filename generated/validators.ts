@@ -15037,6 +15037,8 @@ if (g856 === "object") {
 if (g856 === 'object') { const o856 = x856 as Record<string, unknown>;
 if (!("grant" in o856)) e.push(p + "/items" + '/' + i855 + "/grant" + ': required');
 if ("grant" in o856) d_s_090e0c0321(o856["grant"], p + "/items" + '/' + i855 + "/grant", e);
+if ("reviewer" in o856) lf(o856["reviewer"], p + "/items" + '/' + i855 + "/reviewer", e, L20);
+if ("taskId" in o856) lf(o856["taskId"], p + "/items" + '/' + i855 + "/taskId", e, L28);
 if ("lastUsedAt" in o856) lf(o856["lastUsedAt"], p + "/items" + '/' + i855 + "/lastUsedAt", e, L17);
 if ("decision" in o856) lf(o856["decision"], p + "/items" + '/' + i855 + "/decision", e, L338);
 }

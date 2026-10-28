@@ -712,6 +712,8 @@ export type AccessReviewsGetOut = {
         source?: string;
         createdAt: number;
       };
+      reviewer?: string;
+      taskId?: string;
       lastUsedAt?: number;
       decision?: "keep" | "remove";
     }>;
