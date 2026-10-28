@@ -1,5 +1,4 @@
 // Per-execution connector ports. Vault values arrive only through authorized canonical fill.
-import crypto from 'node:crypto';
 import dns from 'node:dns/promises';
 import http from 'node:http';import https from 'node:https';import net from 'node:net';
 import {blockedAddress} from './vault.ts';import {fail} from '../routes/errors.ts';
@@ -25,7 +24,7 @@ export function createConnectorsHost(o:{publicBase():string;own(caller:Connector
   },
   publicBase:()=>{const value=new URL(o.publicBase());if(!['http:','https:'].includes(value.protocol)||value.username||value.password)throw new Error('The configured Space address is invalid.');return value.origin;},
   async fill(caller:ConnectorCaller,binding:SecretBinding):Promise<string>{
-   if(pending.size>=128)throw fail('provider.rate_limited',caller.trace.traceId);const ref=`connector:${crypto.randomUUID()}`;const entry={caller,binding,used:false} as {caller:ConnectorCaller;binding:SecretBinding;used:boolean;value?:string};pending.set(ref,entry);let timer:ReturnType<typeof setTimeout>|undefined;
+   if(pending.size>=128)throw fail('provider.rate_limited',caller.trace.traceId);const ref=`connector:${globalThis.crypto.randomUUID()}`;const entry={caller,binding,used:false} as {caller:ConnectorCaller;binding:SecretBinding;used:boolean;value?:string};pending.set(ref,entry);let timer:ReturnType<typeof setTimeout>|undefined;
    try{await Promise.race([caller.call('vault.fill',{handle:binding.handle,target:{kind:'http_header',ref}}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Connector fill timed out.')),30000);timer.unref();})]);if(!entry.used||entry.value===undefined)throw new Error('The Vault did not fill this connector.');return entry.value;}finally{if(timer)clearTimeout(timer);pending.delete(ref);delete entry.value;}
   },
   async http(caller:ConnectorCaller,domains:readonly string[],raw:string,init?:{method?:string;headers?:Record<string,string>;body?:string}){

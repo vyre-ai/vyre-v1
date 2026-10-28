@@ -37,6 +37,8 @@
 - Allow only exact packaged desktop origins to reach capability/sync/local-key APIs across origins, with validated preflight headers and unchanged bearer authentication.
 # Changelog
 
+- Used the supported Web Crypto runtime for connector one-use references, keeping the host seam within its crypto boundary.
+
 - Bound live connector credentials to the selected authorized Connection and declared secret slots through canonical Vault fill with one-use, caller/delegation/execution-bound references. Added published-domain HTTPS/DNS pinning, safe redirect handling, send-time authority rechecks and output/error scrubbing proof. Denied secret templates in query strings and stopped other people consuming personal OAuth states. Configured callback origins are absolute; generic OAuth callback/token storage remains incomplete.
 
 - Wired connector initialization/export to real Files folders through the original caller’s Files capabilities. Generated sources stay under the caller’s Personal root with validated paths and bounded contents. Missing Files permission refuses initialization before connector/draft persistence; synthetic folder IDs were removed. Added actual HTTP byte-read/privacy and missing-permission regressions.
