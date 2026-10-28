@@ -147,6 +147,7 @@ test("network_command set_domain: the DNS check lands in network_dns and only a 
     assert.deepEqual(r.calls, ["dns space.bad.example x.relay.vyre.run", "dns space.good.example x.relay.vyre.run", "apply own_domain space.good.example"]);
     assert.equal(one(r.db, "SELECT ok FROM network_dns WHERE domain = 'space.bad.example'")["ok"], 0);
     assert.equal(one(r.db, "SELECT ok FROM network_dns WHERE domain = 'space.good.example'")["ok"], 1);
+    assert.deepEqual({...one(r.db, "SELECT address, mode, domain FROM network_config WHERE id = 1")}, { address: 'space.good.example', mode: 'own_domain', domain: 'space.good.example' });
     assert.deepEqual(JSON.parse(String(one(r.db, "SELECT records_json FROM network_dns WHERE domain = 'space.bad.example'")["records_json"])), [{ type: "CNAME", name: "space.bad.example", value: "x.relay.vyre.run" }]);
     assert.equal(r.db.all("SELECT 1 FROM network_command WHERE done_at IS NULL").length, 0);
   } finally { r.close(); }
@@ -256,3 +257,16 @@ test("GET query values are typed by the capability schema", () => {
   assert.deepEqual(coerceQuery({ a: "1" }, undefined), { a: "1" });
 });
 
+
+
+test("failed domain apply preserves observed address and records its failure", async () => {
+  const r = rig();
+  try {
+    r.db.run("INSERT INTO network_config (id, address, mode, domain, relay_address, public_ingress, ingress_detail, reported_at) VALUES (1, 'x.vyre.run', 'relay', NULL, 'x.relay.vyre.run', 1, NULL, 1)");
+    r.network.applyAddress = () => Promise.reject(new Error('fixture route refused'));
+    r.db.run("INSERT INTO network_command (kind, target, by_principal, at, done_at) VALUES ('set_domain', 'space.good.example', 'usr_a', 1, NULL)");
+    await pollCommands(r.deps);
+    assert.equal(one(r.db, "SELECT address FROM network_config WHERE id = 1")["address"], 'x.vyre.run');
+    assert.equal(one(r.db, "SELECT ok FROM network_dns WHERE domain = 'space.good.example'")["ok"], 1);
+  } finally { r.close(); }
+});

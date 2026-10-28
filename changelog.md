@@ -1,5 +1,7 @@
 # Changelog
 
+- Added typed Console Network, Speed and Usage pages with reviewed network changes, observed status, performance budget units and trace drilldown, and independent usage grouping. Fixed the first successful queued domain apply leaving the reported address stale. Added production browser coverage and command failure regression.
+
 - Mark the synthetic export-redaction credential fixture for the existing secret scanner without changing production credential checks.
 
 - Verify imported Claude Code and Codex checkout identity across Git's Windows path spelling and Windows canonical extended-length paths, while retaining exact provider-to-provider metadata agreement.
