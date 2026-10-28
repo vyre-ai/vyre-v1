@@ -11,7 +11,7 @@ export function speedValue(unit: string, value: number): string {
   return `${value}${unit === 'percent' ? '%' : unit === 'ms' ? ' ms' : unit === 'count' ? ' items' : unit === 'cls' ? ' CLS' : ''}`;
 }
 function WorstTrace({ id }: { id: string }): ReactElement {
-  const result = useRead<CapMap['logs.trace']['out']>('logs.trace', { traceId: id });
+  const result = useRead<CapMap['logs.trace']['out']>('logs.trace', { traceId: id }, { direct: true });
   return <Section title="Worst trace"><Group><Note>{id}</Note>{result.data ? <>{result.data.spans.map((span) => <Row key={span.spanId} id={`speed-span-${span.spanId}`} title={span.name} note={`${(span.durUs / 1000).toFixed(1)} ms`} />)}{!result.data.spans.length ? <Note>No retained spans for this trace.</Note> : null}</> : <ReadState error={result.error} retry={result.refresh} />}</Group></Section>;
 }
 export function Speed(): ReactElement {

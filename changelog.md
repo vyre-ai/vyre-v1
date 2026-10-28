@@ -4,6 +4,8 @@
 
 - Keep browser failure diagnostics from masking the original Apps failure, and verify the canonical wording in exported AI policy documents.
 - Restore the auth entry chooser and canonical invite links, connect Add a Space on desktop and phone, keep Get started available before choosing an address, and add password-based Lock/Unlock using the existing session revocation and key-drop path. Preserve the approved clean 0.6.8 auth kit and signed-in v1 visual language.
+- Kept the audited Speed trace drilldown on a direct authenticated read, matching Server trace handling and avoiding repeat reads from global query invalidation.
+
 - Pinned server updates to the reviewed channel, version, artifact hash and signed feed before installation. Reject changed artifacts before download, validate updater flags before action, persist the daily channel/feed only after healthy success, and stop dry-run before unpack/image/backup steps. Added actual HTTP installer-argument proof and POSIX signature/pinning/dry-run/rollback regressions.
 
 - Bound backup restore confirmation to the latest selected backup: clear prior confirmation during loading and on failure, ignore delayed or cancelled previews, show the selected backup date, and prevent confirming a removed backup. Added forced-order regressions and production browser proof using two actual local backups without executing restore.
