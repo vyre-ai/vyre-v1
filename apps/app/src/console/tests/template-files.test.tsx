@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {renderToStaticMarkup} from "react-dom/server";
-import {TemplateFiles,templateName} from "../pages/TemplateFiles.tsx";
+import {TemplateFiles,TemplateText,templateName} from "../pages/TemplateFiles.tsx";
 import {ConsoleDataProvider} from "../shell/data.tsx";
 import {createSampleConsole} from "../shell/sample.ts";
 test("Template file editor uses the actual Files root and versioned file listing",()=>{const base=createSampleConsole().data;const rows:Record<string,unknown>={"files.tree":{roots:[{key:"agent_template",title:"Agent template",kind:"folder",folderId:"fld_template",count:1}]},"files.list":{files:[{fileId:"fil_notes",name:"NOTES.md",kind:"markdown",version:4}],folders:[]}};const html=renderToStaticMarkup(<ConsoleDataProvider value={{...base,screens:{...base.screens,capQuery:(cap:string,input:Record<string,unknown>)=>{if(cap==="files.list")assert.equal(input.folder,"fld_template");const state={status:"ready",data:rows[cap]};return{subscribe:()=>()=>undefined,getSnapshot:()=>state};}} as never}}><TemplateFiles onChanged={()=>undefined}/></ConsoleDataProvider>);for(const text of ["NOTES.md","Version 4","Edit text","New text file","New template folder"])assert.ok(html.includes(text),text);assert.doesNotMatch(html,/Folder id|File id|operations JSON/);});
 test("Template file names reject path injection and reserved agent configuration",()=>{assert.equal(templateName("  NOTES.md "),"NOTES.md");for(const name of ["../outside.md","folder/file.md","folder\\file.md","agent.toml","AGENT.TOML",".","..",""])assert.throws(()=>templateName(name));});
+
+test("a truncated template read cannot overwrite the complete file",()=>{const base=createSampleConsole().data;const state={status:"ready",data:{text:"partial text",truncated:true}};const html=renderToStaticMarkup(<ConsoleDataProvider value={{...base,screens:{...base.screens,capQuery:()=>({subscribe:()=>()=>undefined,getSnapshot:()=>state})}as never}}><TemplateText folder="fld_template" file={{fileId:"fil_large",name:"LARGE.md",kind:"markdown",version:1}as never} onClose={()=>undefined} onSaved={()=>undefined}/></ConsoleDataProvider>);assert.match(html,/too large to edit here/);assert.doesNotMatch(html,/Save template file|Template file content/);});

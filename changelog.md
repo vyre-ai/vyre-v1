@@ -1,3 +1,4 @@
+- Refuse partial template-file overwrites, link full folder management to Files, wait for Computer host health before provisioning, and register the grant controller test with the TSX runner used by CI.
 - Apply restricted Records read rate limits before row scans, charge indexed fallbacks once, and preserve only the trusted host’s pre-authorized collection reads. Add all verified integration lifecycle browsers to release evidence.
 - Wire the complete Connector/Connection controllers and typed Webhook object lifecycle into Console navigation. Verify webhook payload conditions, one-time signing-secret rotation, disable/enable, failed test/replay outcomes, reviewed deletion and real Graphite/phone layouts against a production export.
 - Preserve the trusted host’s internal record-read authority for validated shared project links, while retaining scoped projection checks for anonymous actors, tenant services and direct callers.
