@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
 import { applyMoves, dragChanges, itemOf, slipText, toDay } from "../../../../../../ui/src/Plan/index.tsx";
-import { ChatTab, FilesTab, OverviewTab, ProjectPage, ProjectPageDataProvider, TAB_SPECS, cascadeWords, dateWords, dueWords, editsBetween, fromIso, isoDay, planStages, planTasks, whoOf } from "../projectpage/index.ts";
+import { ChatTab, FilesTab, ImportedHistoryView, OverviewTab, ProjectPage, ProjectPageDataProvider, TAB_SPECS, cascadeWords, dateWords, dueWords, editsBetween, fromIso, isoDay, listProjectImports, planStages, planTasks, whoOf } from "../projectpage/index.ts";
 import type { Overview, PlanOut } from "../projectpage/index.ts";
 import { SAMPLE_NOW, createSampleProject } from "../projectpage/sample.ts";
 import type { SampleProject } from "../projectpage/sample.ts";
@@ -118,6 +118,35 @@ test("chat is the project channel: one chat, every thread with its arrow-out mar
   s.data.nav.openThread("thr_letter");
   s.data.nav.openChannel("chn_rivera");
   assert.deepEqual(s.opened, ["thread:thr_letter", "channel:chn_rivera"]);
+});
+
+test("imported coding history is discoverable inside its Project and never leaks another Project", async () => {
+  const calls: unknown[] = [];
+  const pages = [
+    { sessions: [
+      { conversationId: "isc_here", provider: "codex" as const, sourceKey: "codex:1", sourceSessionId: "1", title: "Fix the release", startedAt: SAMPLE_NOW - 2_000, importedAt: SAMPLE_NOW - 1_000, projectId: "pj_0" },
+      { conversationId: "isc_other", provider: "claude_code" as const, sourceKey: "claude:2", sourceSessionId: "2", title: "Other repo", startedAt: SAMPLE_NOW - 3_000, importedAt: SAMPLE_NOW - 900, projectId: "pj_other" },
+    ], next: "2" },
+    { sessions: [{ conversationId: "isc_live", provider: "claude_code" as const, sourceKey: "claude:3", sourceSessionId: "3", title: "Ship the app", startedAt: SAMPLE_NOW - 4_000, importedAt: SAMPLE_NOW - 800, projectId: "pj_0", continuedThreadId: "thr_live" }] },
+  ];
+  const rows = await listProjectImports(async (cap, input) => { calls.push({ cap, input }); return pages.shift()!; }, "pj_0");
+  assert.deepEqual(rows.map((x) => x.conversationId), ["isc_here", "isc_live"]);
+  assert.deepEqual(calls, [{ cap: "sessions.list", input: { limit: 100 } }, { cap: "sessions.list", input: { limit: 100, cursor: "2" } }]);
+
+  const s = createSampleProject();
+  const html = within(s, <ImportedHistoryView archives={rows} now={SAMPLE_NOW} busy={false} error="" onRead={() => undefined} onRetry={() => undefined} onContinue={() => undefined} onOpenThread={s.data.nav.openThread} />);
+  assert.match(html, /Imported coding history/);
+  assert.match(html, /Fix the release/);
+  assert.match(html, /Codex/);
+  assert.match(html, /Ship the app/);
+  assert.match(html, /Claude Code/);
+  assert.match(html, /Open continued chat/);
+  assert.doesNotMatch(html, /Other repo/);
+
+  const transcript = within(s, <ImportedHistoryView archives={rows} transcript={{ session: rows[0]!, messages: [{ sourceMessageId: "m1", role: "user", text: "Please fix the release gate", at: SAMPLE_NOW - 2_000 }] }} now={SAMPLE_NOW} busy={false} error="" onRead={() => undefined} onRetry={() => undefined} onContinue={() => undefined} onOpenThread={s.data.nav.openThread} />);
+  assert.match(transcript, /Please fix the release gate/);
+  assert.match(transcript, /Continue with your assistant/);
+  assert.match(transcript, /Close archive/);
 });
 
 test("files: the folder opens in Files, and pinned files open in the viewer", async () => {

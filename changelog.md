@@ -1,5 +1,7 @@
 # Changelog
 
+- Filed imported Codex and Claude Code archives now appear inside their Personal Project's Chat tab, where owners can read the immutable history, continue it with their assistant, or reopen its continued chat.
+
 - Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads. Removed an unused viewer barrel so every restored production file has executable coverage.
 
 ## Unreleased
