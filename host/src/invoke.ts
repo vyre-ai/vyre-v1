@@ -223,12 +223,13 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         return { status: "ok", output: await result.finish(), traceId };
       }
 
-      if(deps.recordAccess?.collection&&["records.query","records.search","records.counts"].includes(c.name)){
+      let collectionRateChecked=false;
+      if(!(seed.preAuth&&isHostService(seed.principal))&&deps.recordAccess?.collection&&["records.query","records.search","records.counts"].includes(c.name)){
         const resource=resolveResource(c,input,seed.space,deps.resolveItem);
         const req:AuthReq={principal:seed.principal.id,actingFor:seed.actingFor,provider:seed.provider,action:{perm:c.permission,level:"view"},resource,now:now(),cap:c.name,input};
+        if(c.rate&&deps.rate){const key=c.rate.scope==="space"?`space:${seed.space}:${c.name}`:`${seed.principal.id}:${c.name}`;if(!deps.rate.take(key,c.rate,now()))throw fail("rate_limit.exceeded",traceId,{details:{cap:c.name,perSeconds:c.rate.perSeconds}});collectionRateChecked=true;}
         const scoped=await deps.recordAccess.collection(c.name,input,seed,req,traceId);
         if(scoped){
-          if(c.rate&&deps.rate&&!deps.rate.take(c.rate.scope==="space"?`space:${seed.space}:${c.name}`:`${seed.principal.id}:${c.name}`,c.rate,now()))throw fail("rate_limit.exceeded",traceId,{details:{cap:c.name,perSeconds:c.rate.perSeconds}});
           await deps.commit({cap:c.name,v:c.v,principal:seed.principal.id,events:[],audit:{class:"allow",cap:c.name,v:c.v,principal:seed.principal.id,actingFor:seed.actingFor,decisionId:`dec_${hex(16)}`,reason:"ok",resource,traceId,spanId:trace.spanId,at:now(),risk:c.risk}});
           return{status:"ok",output:await scoped.finish(),traceId};
         }
@@ -241,7 +242,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         if (typeof k !== "string" || k.length === 0) throw fail("validation.bad_input", traceId, { details: { errors: ["/idempotencyKey: required"], cap: c.name } });
         key = seed.approval ? `${k}:approved` : k;
       }
-      const run = (): Promise<InvokeResult> => stepsFour(c, input, seed, trace, depth);
+      const run = (): Promise<InvokeResult> => stepsFour(c, input, seed, trace, depth, collectionRateChecked);
       const result = key !== undefined && deps.idem ? await deps.idem.once(seed.principal.id, c.name, key, input, run) : await run();
       span(result.status === "held" ? "held" : "ok");
       return { ...result, traceId };
@@ -256,9 +257,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
   };
 
   // 4 rate limit, 5 authorize and Gate, 6 handler, 7 commit, 8 publish
-  async function stepsFour(c: CapabilityDef, input: unknown, seed: CtxSeed, trace: TraceContext, depth: number): Promise<InvokeResult> {
+  async function stepsFour(c: CapabilityDef, input: unknown, seed: CtxSeed, trace: TraceContext, depth: number, rateChecked=false): Promise<InvokeResult> {
     const traceId = trace.traceId, t = now();
-    if (c.rate && deps.rate) {
+    if (c.rate && deps.rate && !rateChecked) {
       const k = c.rate.scope === "space" ? `space:${seed.space}:${c.name}` : `${seed.principal.id}:${c.name}`;
       if (!deps.rate.take(k, c.rate, t)) throw fail("rate_limit.exceeded", traceId, { details: { cap: c.name, perSeconds: c.rate.perSeconds } });
     }

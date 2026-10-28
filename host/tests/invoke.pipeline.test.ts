@@ -283,3 +283,7 @@ test("only the trusted host's pre-authorized internal record read retains system
  for(const principal of [{kind:"actor",id:"act_anonymous"},{kind:"service",id:"svc_"+"a".repeat(32)}] as const)await expectErr(r.invoke("records.get",{id:"rec_1"},seed({preAuth:true,principal})),"permission.no_grant");assert.equal(projected,2);
  await expectErr(r.invoke("records.get",{id:"rec_1"},seed({principal:{kind:"service",id:"svc_host"}})),"auth.unauthenticated");
 });
+
+test('restricted collection reads take their rate limit before scanning and charge indexed fallbacks once',async()=>{
+ for(const restricted of [true,false]){let scans=0;const c=cap({name:'records.query',effects:'read',permission:'records.read',level:'view',rate:{n:1,perSeconds:10,scope:'person'}});const r=rig([c],{'records.query':()=>({rows:[]})},{recordAccess:{facts:async(_c,_i,req)=>req,project:async(_c,_i,_s,out)=>()=>out,collection:async()=>{scans++;return restricted?{finish:()=>({rows:[]})}:null;}}});assert.equal((await r.invoke('records.query',{id:'rec_1'},seed())).status,'ok');await expectErr(r.invoke('records.query',{id:'rec_1'},seed()),'rate_limit.exceeded');assert.equal(scans,1);}
+});
