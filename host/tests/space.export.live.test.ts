@@ -132,3 +132,25 @@ test('HTTP export refuses a mutation already active before its baseline in both 
   finish();assert.equal((await pending).status,200);const complete=await request('backup.export_start',{idempotencyKey:'inflight-completed'});assert.equal(complete.status,200,JSON.stringify(complete));const ready=await request('backup.export_status',{runId:complete.data.runId});assert.equal(ready.status,200);const bytes=await request('files.read',{fileId:ready.data.fileId,as:'base64'});const entries=unzip(Buffer.from(bytes.data.base64,'base64'));assert.equal(JSON.parse(entries.get('settings.json')!.toString()).find((row:any)=>row.key==='backup.encrypt').value,false);
  }finally{write();finish();await pending?.catch(()=>undefined);await d.stop();fs.rmSync(dir,{recursive:true,force:true});}
 });
+
+test('HTTP export refuses an already-running host network command and permits empty polls',async()=>{
+ const core=bootCore(),dir=fs.mkdtempSync(path.join(os.tmpdir(),'vyre-export-network-'));core.store.db.exec('PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE');fs.copyFileSync(core.file,path.join(dir,'events.db'));core.close();
+ let reached=()=>{},release=()=>{},readReached=()=>{},readRelease=()=>{},pauseRead=false;
+ const entered=new Promise<void>(resolve=>{reached=resolve;}),gate=new Promise<void>(resolve=>{release=resolve;}),readEntered=new Promise<void>(resolve=>{readReached=resolve;}),readGate=new Promise<void>(resolve=>{readRelease=resolve;});
+ const d=await startDaemon({config:loadConfig(['--data-dir',dir,'--port','0'],{},'1.2.3'),platform:fakePlatform({os:'linux',hostname:'export-network',free:80e9}),fetch:()=>Promise.resolve({ok:true,status:200,headers:{get:()=>null},text:()=>Promise.resolve('{}')}),session:()=>({space:CORE_SPACE,principal:{kind:'person',id:'usr_olivia'},device:'export-network'}),network:{checkDns:async()=>{reached();await gate;return{ok:true,records:[]};},applyAddress:async()=>{},renew:async()=>({expiresAt:null}),reconnect:async()=>null,disconnect:async()=>{}},extra:{handlers:{'spaces.get':async()=>{if(pauseRead){readReached();await readGate;}return{space:{id:CORE_SPACE,name:'Network export fixture',kind:'team',owner:'usr_olivia',fingerprint:'fixture',address:{mode:'relay'},defaults:{},createdAt:1}};}}},intervals:{fast:3600000,slow:3600000,encryption:3600000,commands:3600000,hooks:3600000}});
+ const request=async(cap:string,input:unknown={}):Promise<any>=>{const response=await fetch(`${d.url}/v1/${cap.replaceAll('.','/')}`,{method:'POST',headers:{authorization:'Bearer fixture-owner','content-type':'application/json'},body:JSON.stringify(input)});return{status:response.status,...await response.json() as any};};
+ let command:Promise<number>|undefined,exporting:Promise<any>|undefined;
+ try{
+  assert.equal((await request('network.domain_set',{domain:'network-fixture.example.com'})).status,200);
+  command=d.pollCommands();await entered;
+  const refused=await request('backup.export_start',{idempotencyKey:'network-active-before-baseline'});assert.equal(refused.status,422,JSON.stringify(refused));assert.match(refused.error.message,/write.*progress|mutation/i);assert.equal(d.db!.all('SELECT * FROM host_owner_archive').length,0);
+  release();await command;
+  pauseRead=true;exporting=request('backup.export_start',{idempotencyKey:'network-idle-poll'});await readEntered;
+  assert.equal(await d.pollCommands(),0);readRelease();const complete=await exporting;assert.equal(complete.status,200,JSON.stringify(complete));assert.equal((await request('backup.export_status',{runId:complete.data.runId})).data.state,'ready');
+  assert.equal((await request('network.domain_set',{domain:'network-failure.example.com'})).status,200);
+  const run=d.db!.run;
+  d.db!.run=(sql,...args)=>{if(sql.startsWith('UPDATE network_command SET done_at'))throw new Error('fixture command completion write failed');return run.call(d.db!,sql,...args);};
+  try{await assert.rejects(d.pollCommands(),/fixture command completion/);}finally{d.db!.run=run;}
+  const recovered=await request('backup.export_start',{idempotencyKey:'network-failed-poll-released'});assert.equal(recovered.status,200,JSON.stringify(recovered));
+ }finally{release();readRelease();await command?.catch(()=>undefined);await exporting?.catch(()=>undefined);await d.stop();fs.rmSync(dir,{recursive:true,force:true});}
+});

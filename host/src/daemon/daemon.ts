@@ -299,6 +299,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let hooks: HookRunner | null = null;
   let projections: ProjectionRunner | null = null;
   let log: LogClient | null = null;
+  let guardExportNetworkCommands: (run: () => Promise<number>) => Promise<number> = run => run();
   const probeState = new Map<ProbeName, ProbeResult>();
   const recent: EventEnvelope[] = [];
   let chainBroken = false;
@@ -524,6 +525,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       const ownedExports=createOwnedExports({db:db!,blobs,space:spaceId,now,register:registerExport});
       let exportMutationRevision=0,exportMutationsInFlight=0;const exportSnapshots=new WeakMap<object,number>();const publicExportCaps=new Map<string,string>(registryCaps.map(cap=>[cap.name,cap.effects] as const));
+      // Host commands can change the observed Space profile outside invoke's
+      // handler wrapper. Keep the same snapshot boundary until all I/O completes.
+      guardExportNetworkCommands = async run => {
+        exportMutationRevision++; exportMutationsInFlight++;
+        try { return await run(); }
+        finally { exportMutationsInFlight--; exportMutationRevision++; }
+      };
       const ownerArchives=createOwnerArchives({db:db!,blobs,space:spaceId,now,owner:()=>access.owner()??null,register:(id,ctx)=>registerExport({id,ownerId:ctx.principal.id},ctx),assertSnapshot:ctx=>{if(exportMutationsInFlight!==0||exportSnapshots.get(ctx)!==exportMutationRevision)throw fail('validation.precondition_failed',ctx.trace.traceId,{message:'Shared Space data changed during export persistence. Retry the snapshot.'});},collect:async(ctx,assertOwner)=>{
         if(!ctx.call)throw new Error('Canonical Space export reads are unavailable.');
         if(exportMutationsInFlight!==0)throw fail('validation.precondition_failed',ctx.trace.traceId,{message:'A shared Space write is still in progress. Retry after it finishes.'});
@@ -572,7 +580,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         handler: (cap, v) => whoamiWithDeferred(cap, (() => {
           const original = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);
           // Count a public content/access mutation before its handler writes, including the interval before its log commit.
-          const mutation = publicExportCaps.has(cap)&&publicExportCaps.get(cap)!=='read'&&/^(records|schema|files|chat|threads|channels|settings|spaces|access|projects|tasks|agents|esign|sources|connectors|kits|members|identity|devices)\./.test(cap);
+          const mutation = publicExportCaps.has(cap)&&publicExportCaps.get(cap)!=='read'&&/^(records|schema|files|chat|threads|channels|settings|spaces|access|projects|tasks|agents|esign|sources|connectors|kits|members|identity|devices|network)\./.test(cap);
           const h:Handler|undefined=original&&mutation?((async(ctx,input)=>{exportMutationRevision++;exportMutationsInFlight++;try{return await original(ctx,input);}finally{exportMutationsInFlight--;exportMutationRevision++;}})):original;
           if(h&&['logs.export','health.support_bundle','audit.export'].includes(cap))return ((ctx,input)=>h({...ctx,exports:ownedExports.forExecution(cap,ctx)} as typeof ctx,input)) as Handler;
           if(h&&['backup.export_start','backup.export_status'].includes(cap))return ((ctx,input)=>h({...ctx,ownerArchive:ownerArchives.forExecution(cap,ctx)} as typeof ctx,input)) as Handler;
@@ -1080,11 +1088,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       try { return new URL(url).host === address; } catch { return false; }
     }),
   });
-  const runCommands = (): Promise<number> => (db ? pollCommands({ db, supervisor, network, now, log: sink.logger({ space: space ?? "-", place: "commands" }), observed: async (event) => {
+  const runCommands = (): Promise<number> => {
+    if (!db) return Promise.resolve(0);
+    const run = () => pollCommands({ db: db!, supervisor, network, now, log: sink.logger({ space: space ?? "-", place: "commands" }), observed: async (event) => {
     if (!log) throw new Error('The event log is unavailable.');
     const stored = await log.append({ id: event.id, type: event.type, sv: 1, trace_id: ZERO_TRACE, actor: event.actor, entity: 'entity', entity_id: event.target, vis: 'space', payload: event.payload });
     headSeq = Math.max(headSeq, stored.seq);
-  } }) : Promise.resolve(0));
+  } });
+    // Quiet polls do not change the shared export snapshot.
+    return db.all("SELECT id FROM network_command WHERE done_at IS NULL LIMIT 1").length ? guardExportNetworkCommands(run) : run();
+  };
 
   const refreshNetworkCertificate = async (): Promise<void> => {
     if (!db || !network.certificate) return;
