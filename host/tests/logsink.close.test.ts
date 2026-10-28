@@ -33,3 +33,10 @@ test('observer batches are bounded and a failed committed batch retries without 
  assert.throws(()=>sink.flush(),/fixture observer failure/);assert.equal(sink.db.prepare('SELECT COUNT(*) AS n FROM logs').get()?.n,1000);
  sink.drain();assert.equal(largest,1000);assert.equal(seen.length,2005);assert.equal(new Set(seen).size,2005);assert.equal(sink.db.prepare('SELECT COUNT(*) AS n FROM logs').get()?.n,2005);sink.close();
 });
+
+
+test('legacy source metadata seeds monotonic positions from persisted rows and canonical checkpoints',()=>{
+ const db=new DatabaseSync(':memory:');db.exec("CREATE TABLE log_source (id TEXT PRIMARY KEY); INSERT INTO log_source (id) VALUES ('legacy-source');");
+ const sink=new LogSink({db,batchMs:60000});sink.setObserver(()=>undefined,{rowId:5000,spanId:6000});sink.log({space:'spc_test',level:20,msg:'service.state'});sink.span({trace_id:'1'.repeat(32),span_id:'1'.repeat(16),parent:null,name:'invoke',at:1,dur_us:2,attrs:null});sink.flush();
+ assert.equal(sink.sourceId,'legacy-source');assert.equal(db.prepare('SELECT id FROM logs').get()?.id,5001);assert.equal(db.prepare('SELECT rowid AS id FROM spans').get()?.id,6001);sink.close();
+});
