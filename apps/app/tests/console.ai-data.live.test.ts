@@ -122,6 +122,22 @@ test("production Console AI/Data: policies, spend, Gate, review, incidents, hold
     assert.equal((await api("schema.describe", {}) as { types: { key: string; label: string }[] }).types.find((type) => type.key === "browser_ai_data")?.label, "restricted");
     await capture("sensitivity-label");
 
+    const retention = await api("governance.retention.get", {}) as { kinds: { key: string; title: string; value: string; default: string }[] };
+    const recordRetention = retention.kinds.find((row) => row.key === "records"); assert.ok(recordRetention);
+    await open("governance.retention", 'text="Retention policies"', "retention");
+    await page.getByText(recordRetention.title, { exact: true }).first().click();
+    await page.getByLabel("Retention duration", { exact: true }).fill("90d");
+    await page.getByRole("button", { name: "Review change", exact: true }).click();
+    await page.getByRole("button", { name: "Apply rule", exact: true }).click();
+    await page.getByText("Retention rule updated", { exact: true }).waitFor();
+    assert.equal((await api("governance.retention.get", {}) as typeof retention).kinds.find((row) => row.key === "records")?.value, "90d");
+    await capture("retention-policy");
+    await page.getByRole("button", { name: "Reset to default…", exact: true }).click();
+    await page.getByRole("button", { name: "Confirm reset", exact: true }).click();
+    await page.getByText("Retention reset", { exact: true }).waitFor();
+    assert.equal((await api("governance.retention.get", {}) as typeof retention).kinds.find((row) => row.key === "records")?.value, recordRetention.default);
+    t.diagnostic("PASS Retention mutation, reset and readback");
+
     assert.deepEqual(errors, []); assert.deepEqual(refused, []);
   } catch (error) {
     const failureDir = captureDir ?? "/tmp/vyre-console-ai-lifecycle"; fs.mkdirSync(failureDir, { recursive: true });

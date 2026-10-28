@@ -16,6 +16,7 @@ export interface FormWorkspaceProps {
 export function FormWorkspace({ title, actions, back, rail, children, fields, modes, previewOptions, consent, css, onCss, ask, error, offline, loading, retry }: FormWorkspaceProps): ReactElement {
   const phone = useWindowDimensions().width < 700;
   const [tab, setTab] = useState("build");
+  const previewHtml = formPreviewHtml(title, fields, modes, consent, css, previewOptions);
   return <View style={w.root} testID="apps-form-detail">
     <View style={w.toolbar}><Button title="Back to Apps" onPress={back} /><Text numberOfLines={1} accessibilityRole="header" style={w.title}>{title}</Text>
       <View style={w.tabs}><Button title="Build" primary={tab === "build"} onPress={() => setTab("build")} /><Button title="Code" primary={tab === "code"} onPress={() => setTab("code")} /><Button title="Preview" primary={tab === "preview"} onPress={() => setTab("preview")} />{ask ? <Button title="Ask" onPress={ask} /> : null}</View>{actions}
@@ -25,7 +26,7 @@ export function FormWorkspace({ title, actions, back, rail, children, fields, mo
     {loading ? <Text>Loading…</Text> : <View style={w.body}>
       {tab === "code" ? <ScrollView style={[w.rail, phone && w.phoneRail]} contentContainerStyle={{ padding: 16, gap: 12 }}><Text style={s.text}>Custom CSS styles the saved form. Save changes before publishing.</Text><Field label="Custom CSS" value={css} onChange={onCss} multiline /></ScrollView> : null}
       {tab === "build" ? <ScrollView style={[w.rail, phone && w.phoneRail]} contentContainerStyle={w.railContent}>{rail}{children}</ScrollView> : null}
-      {!phone || tab === "preview" ? <View style={{ flex: 1, minWidth: 0, minHeight: 0 }} testID="apps-form-canvas">{createElement("iframe", { title: "Form preview", sandbox: "", referrerPolicy: "no-referrer", srcDoc: formPreviewHtml(title, fields, modes, consent, css, previewOptions), style: { border: 0, width: "100%", height: "100%", flex: 1 } })}</View> : null}
+      {!phone || tab === "preview" ? <View style={{ flex: 1, minWidth: 0, minHeight: 0 }} testID="apps-form-canvas">{createElement("iframe", { key: previewHtml, title: "Form preview", sandbox: "", referrerPolicy: "no-referrer", srcDoc: previewHtml, style: { border: 0, width: "100%", height: "100%", flex: 1 } })}</View> : null}
     </View>}
   </View>;
 }

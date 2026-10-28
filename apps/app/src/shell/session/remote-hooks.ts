@@ -4,23 +4,13 @@
 // This stands in for the SQLite replica's per-capability readers until they land: a place never knows the difference, because the type is the same.
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../client/src/index.ts";
 import type { ScreenIndexEntry } from "../../../../../generated/screens.ts";
+import { resolveInput as resolvePointers } from "../../../../../client/src/fake/live-query.ts";
+export { resolvePointers };
 
 /**
  * A screen query's input pointers against the screen state. `/state/k` is `state.k`; any other namespace a screen declares (`/route/k`, `/draft/k`, `/filter/k`, `/query/k`, `/scope/k`,
  * `/selected/k`, `/hit/k`) is `state[ns][k]`, which is how a place hands over its route and its drafts. A missing key is left out, not sent as undefined.
  */
-export function resolvePointers(pointers: Record<string, string>, state: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [k, p] of Object.entries(pointers)) {
-    const m = /^\/([a-z]+)\/(.+)$/.exec(p);
-    if (!m) continue;
-    const ns = m[1] ?? "", key = m[2] ?? "";
-    const holder = ns === "state" ? state : state[ns];
-    const v = holder !== null && typeof holder === "object" ? (holder as Record<string, unknown>)[key] : undefined;
-    if (v !== undefined) out[k] = v;
-  }
-  return out;
-}
 
 export interface RemoteHooksOptions {
   screens: ReadonlyMap<string, ScreenIndexEntry>;

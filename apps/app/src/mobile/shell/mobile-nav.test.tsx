@@ -86,3 +86,5 @@ test("a sheet is a labelled dialog with Done, and draws nothing when closed", ()
   const out = renderToStaticMarkup(<Sheet open title="Record" onClose={() => undefined}><span>Body</span></Sheet>);
   assert.ok(has(out, 'role="dialog"') && has(out, 'aria-label="Record"') && has(out, "Done") && has(out, "Body"));
 });
+
+test("a copied task starts on that task with Back to You", () => { const out=renderToStaticMarkup(<MobileShell initialEntry={{tab:"you",screen:"task:tsk_fixture"}} renderScreen={entry=><>{entry.screen}</>} />);assert.ok(out.includes("task:tsk_fixture"));assert.ok(out.includes("Back")); });

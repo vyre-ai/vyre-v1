@@ -34,6 +34,7 @@ export function Field({ label, value, onChange, multiline = false, disabled = fa
 export function Select({ label, value, options, onChange, disabled, compact }: { compact?: boolean; label: string; value: string; options: readonly { key: string; title: string }[]; onChange(value: string): void; disabled?: boolean }): ReactElement {
   const { element, show } = useMenu();
   return <View style={s.field}>{compact ? null : <Text style={s.label}>{label}</Text>}<Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }} disabled={disabled} style={[s.button, compact && { minHeight: 26, paddingVertical: 3, paddingHorizontal: 6, borderWidth: 0 }]} onPress={(event) => {
+    event.stopPropagation();
     const e = event as unknown as { currentTarget?: { getBoundingClientRect?(): { left: number; bottom: number } }; nativeEvent?: { pageX?: number; pageY?: number } };
     const rect = e.currentTarget?.getBoundingClientRect?.();
     show(options.map((o) => ({ label: o.title, onSelect: () => onChange(o.key) })), rect?.left ?? e.nativeEvent?.pageX ?? 20, rect?.bottom ?? e.nativeEvent?.pageY ?? 100, "other");

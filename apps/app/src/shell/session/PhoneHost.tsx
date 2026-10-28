@@ -37,6 +37,7 @@ function You({ session, nav, onSignOut, onAddSpace, onLock }: { session: RealSes
 
 export interface PhoneHostProps {
   session: RealSession | null;
+  location?: { place: PlaceId; hash: string };
   /** What waits on you: the badge on the Chats tab. */
   needsYou: number;
   /** The shell's one door for opening a place and hash (rt.open): the host hands it the function that moves the phone's history. */
@@ -47,7 +48,7 @@ export interface PhoneHostProps {
   onLock?:()=>void;
 }
 
-export function PhoneHost({ session, needsYou, registerGo, onSignOut, onAddSpace, onLock }: PhoneHostProps): ReactElement {
+export function PhoneHost({ session, location, needsYou, registerGo, onSignOut, onAddSpace, onLock }: PhoneHostProps): ReactElement {
   const navRef = useRef<MobileNav | null>(null);
 
   const go = useCallback((place: PlaceId, hash: string): void => {
@@ -70,5 +71,6 @@ export function PhoneHost({ session, needsYou, registerGo, onSignOut, onAddSpace
     };
     return <PlaceHost place={where.place} runtime={session?.runtime ?? null} hash={where.hash} opened={opened} />;
   };
-  return <MobileShell renderScreen={render} needsYou={needsYou} initialTab="chats" ownsHeader={(entry) => entry.screen.startsWith("apps:") && placeOf(entry)?.hash !== ""} />;
+  const initialEntry = location?.hash ? entryFor(location.place, location.hash) : null;
+  return <MobileShell {...(initialEntry ? { initialEntry } : {})} renderScreen={render} needsYou={needsYou} initialTab="chats" ownsHeader={(entry) => entry.screen.startsWith("apps:") && placeOf(entry)?.hash !== ""} />;
 }

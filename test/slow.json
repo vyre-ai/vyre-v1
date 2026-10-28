@@ -1,4 +1,5 @@
 [
+  {"file": "apps/app/tests/tasks.page.live.test.ts", "capSec": 120, "owner": "L9", "reason": "actual production browser verifies canonical task edit, lifecycle, readback, reload and copied phone links", "heavy": true},
   {"file": "apps/app/tests/auth.entry.live.test.ts", "capSec": 120, "owner": "L9", "reason": "fresh daemon and actual Chromium verify signup, device lock/reload/password unlock and invited account entry against a production export", "heavy": true},
   {"file": "apps/app/tests/auth.personal.live.test.ts", "capSec": 120, "owner": "L9", "reason": "fresh daemon and actual Chromium verify signup, device lock/reload/password unlock and invited account entry against a production export", "heavy": true},
   {"file": "images/vyred/smoke.heavy.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots two compose roles; about 16-22 s on loaded runners, over the 20 s fast cap"},

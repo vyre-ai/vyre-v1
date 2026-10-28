@@ -18,6 +18,7 @@ export function entryFor(place: PlaceId, hash: string): Entry | null {
   if (place === "automations" || place === "console") return null;
   if (place === "apps") return { tab: "you", screen: `apps:${encodeURIComponent(hash)}`, title: "Apps" };
   const t = parseHash(hash);
+  if (t.screen === "tasks.page" && t.args.taskId) return { tab: "you", screen: `task:${t.args.taskId}` };
   if (t.subject) return { tab: tabOf(place), screen: `${t.subject.type}:${t.subject.id}` };
   if ((TAB_PLACES as readonly string[]).includes(place)) return { tab: place as TabId, screen: place };
   if (place === "settings") return { tab: "you", screen: "you:settings", title: "Settings" };

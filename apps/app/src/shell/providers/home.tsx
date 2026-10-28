@@ -3,7 +3,10 @@
 // A Personal Space draws only the personal variant: checklist, Today, Starred and the Ask box. Needs you and My work need a team to ask and assign, so they are not on the page.
 import { useMemo } from "react";
 import type { ReactElement } from "react";
-import Home, { HomeLoading } from "../../places/home/index.tsx";
+import Home, { HomeDataProvider, HomeLoading } from "../../places/home/index.tsx";
+import { TaskLeaf } from "../../places/home/task/TaskLeaf.tsx";
+import { openedTask } from "../../places/home/task/route.ts";
+import { usePlaceHash } from "../hash/context.tsx";
 import type { HomeData, HomeNav } from "../../places/home/sections-a/index.ts";
 import { homeBSlots } from "../../places/home/sections-b/index.ts";
 import type { GoTarget, HomeBExtras } from "../../places/home/sections-b/index.ts";
@@ -58,6 +61,7 @@ export function homeExtras(rt: ShellRuntime): HomeBExtras {
 /** The Home place the shell mounts. Before the Space's runtime exists it draws the loading frame, the size of the page. */
 export default function HomePlace(): ReactElement {
   const rt = useOptionalShellRuntime();
+  const { target } = usePlaceHash();
   const parts = useMemo(() => {
     if (!rt) return null;
     const data = homeData(rt);
@@ -65,5 +69,7 @@ export default function HomePlace(): ReactElement {
     return { data, top: slots.top as ReactElement, bottom: slots.bottom as ReactElement, personal: rt.space.kind === "personal" };
   }, [rt]);
   if (!parts) return <HomeLoading />;
+  const taskId = openedTask(target);
+  if (taskId && rt) return <HomeDataProvider value={parts.data}><TaskLeaf taskId={taskId} onBack={() => rt.open({ screen: "tasks.my-work" })} onOpen={(type, id) => rt.open(type === "task" ? { screen: "tasks.page", args: { taskId: id } } : { subject: { type, id } })} /></HomeDataProvider>;
   return <Home data={parts.data} top={parts.top} bottom={parts.bottom} personal={parts.personal} />;
 }

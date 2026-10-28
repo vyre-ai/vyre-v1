@@ -35,11 +35,13 @@ test("production Apps: create a form and campaign, reload their real editors, in
     await page.getByLabel("Form name", { exact: true }).fill("Browser fixture intake");
     await page.getByRole("button", { name: "Record type", exact: true }).click();
     await page.getByRole("menuitem", { name: /^Contacts?$/, exact: true }).first().click();
+    assert.equal(await page.getByTestId("apps-save-form").isEnabled(),true,"draft name/type state must persist before creation");
     await page.getByTestId("apps-save-form").click();
     await page.getByTestId("apps-form-detail").waitFor({ timeout: 20_000 });
+    const formUrl=page.url();await page.goBack();await page.getByTestId("apps-create-form").waitFor();await page.goForward();await page.getByTestId("apps-form-detail").waitFor();assert.equal(page.url(),formUrl,"browser history restores the saved form");
     await page.getByRole("button", { name: "Mode for Name", exact: true }).click();
     await page.getByRole("menuitem", { name: "Ask", exact: true }).click();
-    for (const label of ['Email','Company','Deliverability']) { await page.getByRole('button',{name:`Mode for ${label}`,exact:true}).click();await page.getByRole('menuitem',{name:'Ask',exact:true}).click(); }
+    for (const label of ['Email','Company','Deliverability']) { await page.getByRole('button',{name:`Mode for ${label}`,exact:true}).click();await page.getByRole('menuitem',{name:'Ask',exact:true}).click();await page.getByTestId('menu').waitFor({state:'detached'}); }
     await page.getByLabel('Accent color',{exact:true}).fill('#123456');
     await page.getByRole('button',{name:'Add condition',exact:true}).click();
     await page.getByLabel('Match value 1',{exact:true}).fill('show');
