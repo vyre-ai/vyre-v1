@@ -18,6 +18,15 @@ import { AgentComputers, AgentsRegister, AgentTemplate, OutsideActors } from "..
 import { DomainsPage, InboxesPage, NumbersPage, TextingPage } from "../../console/pages/Comms.tsx";
 import { LabelsPage, SchemaPage } from "../../console/pages/Data.tsx";
 import { ApiKeysPage, IntegrationsPage, WebhooksPage } from "../../console/pages/Integrations.tsx";
+import { Models } from "../../console/pages/Models.tsx";
+import { Spend } from "../../console/pages/Spend.tsx";
+import { Logging, ReviewSampling } from "../../console/pages/AiSettings.tsx";
+import { Incidents } from "../../console/pages/Incidents.tsx";
+import { AiPolicy } from "../../console/pages/AiPolicy.tsx";
+import { GateRules } from "../../console/pages/GateRules.tsx";
+import { Retention } from "../../console/pages/Retention.tsx";
+import { Holds } from "../../console/pages/Holds.tsx";
+import { ErasePerson } from "../../console/pages/ErasePerson.tsx";
 import { Assistant } from "../../console/Assistant.tsx";
 import { usePlaceHash } from "../hash/context.tsx";
 import { nameLookup } from "./records-live.ts";
@@ -28,6 +37,8 @@ export function consolePagesFromNav(out: { groups: Array<{ pages: Array<{ key: s
 }
 
 export function consolePageFor(id: string, args: Record<string, string | undefined>): ReactElement {
+  const aiPage = aiDataPageFor(id);
+  if (aiPage) return aiPage;
   if (id === "updates") return <Updates />;
   if (id === "space") return <SpaceProfile />;
   if (id === "export") return <Backups />;
@@ -57,6 +68,19 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "keys") return <ApiKeysPage />;
   return <States kind="error" message={`${pageById(id)?.title ?? id} is not implemented in this candidate yet.`} />;
 }
+export function aiDataPageFor(id: string): ReactElement | null {
+  if (id === "models") return <Models />;
+  if (id === "spend" || id === "usage") return <Spend />;
+  if (id === "logging") return <Logging />;
+  if (id === "review") return <ReviewSampling />;
+  if (id === "incidents") return <Incidents />;
+  if (id === "aipolicy") return <AiPolicy />;
+  if (id === "gate") return <GateRules />;
+  if (id === "retention") return <Retention />;
+  if (id === "holds") return <Holds />;
+  if (id === "erase") return <ErasePerson />;
+  return null;
+}
 export default function ConsolePlace(): ReactElement {
   const rt = useOptionalShellRuntime();
   const { target } = usePlaceHash();
@@ -82,7 +106,7 @@ export default function ConsolePlace(): ReactElement {
     screens: rt.screens, call: rt.call, connection: rt.connection, me: { id: rt.me.id, name: rt.me.name, role: "" }, space: { id: rt.space.id, name: rt.space.name, address: "" },
     can: (permission) => permission === "console.access" || PAGES.some((page) => page.needs === permission && allowed.has(page.screen)), allowedScreens: allowed,
     name: nameLookup(rt), clock: rt.clock,
-    nav: { openApp: () => rt.open({ screen: "home.today-starred-ask" }), openPage: (id, args) => { const page = pageById(id); if (page) rt.open({ screen: page.screen, args: { ...args, page: id } }); } },
+    nav: { openApp: (target) => rt.open(target ?? { screen: "home.today-starred-ask" }), openPage: (id, args) => { const page = pageById(id); if (page) rt.open({ screen: page.screen, args: { ...args, page: id } }); } },
   } : null, [rt, allowed]);
   if (rt?.space.kind === "personal") return <States kind="empty" title="Needs a Team Space" icon="search" />;
   if (failed) return <States kind="error" message="Couldn’t open the Console" cause="You may not have console access, or the server is unavailable." retryable onRetry={() => setAttempt((n) => n + 1)} />;
