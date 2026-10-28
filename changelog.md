@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Release verification: fail the pinned startup gate when cold startup exceeds its unchanged budget, while allowing the remaining performance evidence to finish.
 - Web startup: import production Inbox, shell-phone, and sidebar components from their leaf modules so screenshot sample fixtures and the generated screen registry no longer enter the initial common bundle through UI barrels.
 - Web startup: keep the native FlashList runtime behind Metro's native platform boundary, preserving the existing windowed web list while removing native-only code from the production web entry.
 - Files performance: bound each web virtual-list boundary swap to a small row batch, avoiding the 33 ms commit spikes caused by mounting dozens of rich Files rows at once, and invalidate cached windows when measured-row reflow moves the viewport beyond them.
