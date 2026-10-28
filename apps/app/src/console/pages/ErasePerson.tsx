@@ -9,7 +9,13 @@ import { Tick } from "./ai-controls.tsx";
 
 type Finding = CapMap["governance.erase.find"]["out"];
 type EraseKind = Finding["groups"][number]["kind"];
+type EraseHistory = CapMap["governance.erase.list"]["out"]["erasures"][number];
 export const eraseFindingExpired = (expiresAt: number, now = Date.now()): boolean => now >= expiresAt;
+export function mergeEraseHistory(first: readonly EraseHistory[], second: readonly EraseHistory[]): EraseHistory[] {
+  const rows = new Map(first.map((item) => [item.findingId, item]));
+  for (const item of second) rows.set(item.findingId, item);
+  return [...rows.values()];
+}
 
 export function ErasePerson(): ReactElement {
   const data = useConsoleData();
@@ -25,10 +31,14 @@ export function ErasePerson(): ReactElement {
   const [reviewed, setReviewed] = useState<CapMap["governance.erase.apply"]["in"] | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [moreHistory, setMoreHistory] = useState<EraseHistory[]>([]);
+  const [historyPage, setHistoryPage] = useState<{ loaded: boolean; next?: string; busy: boolean }>({ loaded: false, busy: false });
   const refresh = (): void => { history.refresh(); me.refresh(); };
   const action = useAction(refresh);
   if (!history.data || !me.data) return <ReadState error={history.error ?? me.error} retry={refresh} />;
   const owner = me.data.principal.roles.includes("rol_owner");
+  const erasures = mergeEraseHistory(history.data.erasures, moreHistory);
+  const historyNext = historyPage.loaded ? historyPage.next : history.data.next;
   const subject = { ...(name.trim() ? { name: name.trim() } : {}), ...(email.trim() ? { email: email.trim() } : {}), ...(phone.trim() ? { phone: phone.trim() } : {}) };
   const onEdit = (): void => { setFinding(null); setReviewed(null); setRunId(null); setError(""); };
   const find = (): void => {
@@ -60,7 +70,7 @@ export function ErasePerson(): ReactElement {
       {reviewed ? <><Note>This permanently erases {reviewed.include.join(", ")}. Tombstones will prevent restore from bringing the data back.</Note><Actions><Button label="Back" onPress={() => setReviewed(null)} /><Button label="Start erasure" danger disabled={action.busy} onPress={() => void action.run<CapMap["governance.erase.apply"]["out"]>("governance.erase.apply", reviewed, (out) => { setRunId(out.runId); return `Erasure run ${out.runId} started`; }).then((out) => { if (out) setReviewed(null); })} /></Actions></> : <Button label="Review erasure" danger disabled={action.busy} onPress={review} />}
     </Group></Section> : null}
     {runId ? <EraseRun runId={runId} /> : null}
-    <Section title="Past erasures" count={history.data.erasures.length}><Group>{history.data.erasures.length ? history.data.erasures.map((row) => <Row key={row.findingId} title={row.kinds.join(", ")} note={`${new Date(row.at).toLocaleString()} · ${data.name(row.by)} · ${row.tombstones} tombstones`} />) : <Note>No erasures yet.</Note>}</Group></Section>
+    <Section title="Past erasures" count={erasures.length}><Group>{erasures.length ? erasures.map((row) => <Row key={row.findingId} title={row.kinds.join(", ")} note={`${new Date(row.at).toLocaleString()} · ${data.name(row.by)} · ${row.tombstones} tombstones`} />) : <Note>No erasures yet.</Note>}{historyNext ? <Button label={historyPage.busy ? "Loading erasures…" : "Load more erasures"} disabled={historyPage.busy} onPress={() => { if (historyPage.busy) return; setHistoryPage((current) => ({ ...current, busy: true })); void data.call("governance.erase.list", { cursor: historyNext, limit: 100 }).then((out) => { const page = out as CapMap["governance.erase.list"]["out"]; setMoreHistory((current) => mergeEraseHistory(current, page.erasures)); setHistoryPage({ loaded: true, ...(page.next ? { next: page.next } : {}), busy: false }); }, () => setHistoryPage((current) => ({ ...current, busy: false }))); }} /> : null}</Group></Section>
     {action.note ? <Note>{action.note}</Note> : null}
   </>;
 }

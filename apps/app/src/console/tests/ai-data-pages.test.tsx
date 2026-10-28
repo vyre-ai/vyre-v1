@@ -5,7 +5,7 @@ import { incidentDefaultFilters, mergeIncidentPages } from "../pages/Incidents.t
 import { canEditOwnerFloor, gateRuleDraft, mergeGateAgents } from "../pages/GateRules.tsx";
 import { mergeReviewPages } from "../pages/AiSettings.tsx";
 import { holdTargetOf, mergeHolds } from "../pages/Holds.tsx";
-import { eraseFindingExpired } from "../pages/ErasePerson.tsx";
+import { eraseFindingExpired, mergeEraseHistory } from "../pages/ErasePerson.tsx";
 import { mergeSpendAgents } from "../pages/Spend.tsx";
 
 test("Models and providers mounts a real Console page", () => {
@@ -59,4 +59,9 @@ test("erase findings expire at their declared timestamp", () => {
 test("spend scope pagination keeps named agents unique", () => {
   const agent = (agentId: string, name: string) => ({ agentId, name }) as never;
   assert.deepEqual(mergeSpendAgents([agent("agt_1", "One")], [agent("agt_1", "Updated"), agent("agt_2", "Two")]).map((row) => `${row.agentId}:${row.name}`), ["agt_1:Updated", "agt_2:Two"]);
+});
+
+test("erase history pagination keeps the newest finding once", () => {
+  const row = (findingId: string, tombstones: number) => ({ findingId, by: "usr_1", at: 1, kinds: ["records" as const], tombstones });
+  assert.deepEqual(mergeEraseHistory([row("find_1", 1)], [row("find_1", 2), row("find_2", 3)]).map((item) => `${item.findingId}:${item.tombstones}`), ["find_1:2", "find_2:3"]);
 });
