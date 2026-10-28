@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
+import type { CapMap } from "../../../../../generated/types.ts";
 import { ConsoleDataProvider } from "../shell/data.tsx";
 import type { ConsoleData } from "../shell/data.tsx";
 import { createSampleConsole } from "../shell/sample.ts";
@@ -51,13 +52,15 @@ test("Schema and sensitivity pages expose record-type objects and live label con
   assert.match(schema, /Matter|Version 3|Add field|Create record type|Preview schema change|Field type|Text/);
   assert.doesNotMatch(schema, /Operations \(JSON array\)|Field type \(text\)/);
   const labels = { labels: [{ label: "public", rank: 0, providers: "any", syncToLaptop: true }, { label: "restricted", rank: 3, providers: "none", syncToLaptop: false }] };
-  assert.match(draw(<pages.LabelsPage />, { "access.labels.list": labels }), /Public|Restricted|Set label|Scan record type/);
+  const labelsPage = draw(<pages.LabelsPage />, { "access.labels.list": labels, "schema.describe": { types: [type] }, "access.lists": { rows: [] } });
+  assert.match(labelsPage, /Public|Restricted|Set label|Scan record type|Resource type|Record type|Matter/);
+  assert.doesNotMatch(labelsPage, /Resource id|Record type[^<]*<\/div><input/);
 });
 
 test("Schema apply input preserves the exact preview and creates a fresh attempt key", async () => {
   const { exactSchemaApplyInput } = await import("../pages/Data.tsx");
   const ops = [{ op: "type.drop", type: "matter" }] as const;
-  const preview = { previewToken: "preview-1", additive: 0, destructive: 1, problems: [], items: [{ itemKey: "type:matter", summary: "Drop Matter", destructive: true, affectedRows: 4 }] };
+  const preview = { previewToken: "preview-1", additive: 0, destructive: 1, problems: [], items: [{ itemKey: "type:matter", op: "type.drop", type: "matter", summary: "Drop Matter", destructive: true, affectedRows: 4, copiedToTrash: false }] } satisfies CapMap["schema.diff"]["out"];
   const input = exactSchemaApplyInput(preview, ops);
   assert.deepEqual(input.ops, ops);
   assert.deepEqual(input.confirm, ["type:matter"]);

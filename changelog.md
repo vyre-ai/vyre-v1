@@ -19,6 +19,7 @@
 ## Unreleased
 - Welcome uses stable exported markup before showing the device's local greeting, preventing hydration failures after a time-zone change or midnight.
 - Browser release evidence requires the real Forms/Campaigns/Apps surface instead of accepting the retired Sites placeholder or its error state.
+- Console Sensitivity labels now use named resource and record-type pickers, verify schema-label readback, and let owners apply individual scan suggestions.
 - Console Schema now offers the server-declared field types as a named picker instead of asking administrators to type internal field-type keys.
 
 - Outside actors: reject canonical Owner through create/update before mutating actor state, strip legacy non-person Owner authority, and preserve provider changes on validation failure. Update obsolete Owner fixtures while retaining agent/provider authorization coverage; use shared rows for actor roles and computer-agent choices.

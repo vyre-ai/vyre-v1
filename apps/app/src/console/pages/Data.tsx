@@ -4,6 +4,7 @@ import { View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Group, Section } from "../shell/ui.tsx";
+import { useConsoleData } from "../shell/data.tsx";
 import { Actions, Button, Field, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
 
 type Schema = CapMap["schema.describe"]["out"];
@@ -56,15 +57,41 @@ export function SchemaPage(): ReactElement {
 }
 
 type Label = CapMap["access.labels.list"]["out"]["labels"][number]["label"];
+type ResourceType = CapMap["access.labels.set"]["in"]["resource"]["type"];
+const RESOURCE_TYPES: readonly { key: ResourceType; title: string }[] = [
+  { key: "space", title: "Space" }, { key: "record_type", title: "Record type" }, { key: "record", title: "Record" }, { key: "project", title: "Project" },
+  { key: "folder", title: "Folder" }, { key: "file", title: "File" }, { key: "channel", title: "Channel" }, { key: "thread", title: "Thread" },
+  { key: "inbox", title: "Inbox" }, { key: "mailbox", title: "Mailbox" }, { key: "vault_folder", title: "Vault folder" }, { key: "vault_item", title: "Vault item" },
+  { key: "agent", title: "Agent" }, { key: "connector", title: "Connector" }, { key: "connection", title: "Connection" }, { key: "site", title: "Site" },
+  { key: "form", title: "Form" }, { key: "campaign", title: "Campaign" }, { key: "kit", title: "Kit" }, { key: "computer", title: "Computer" },
+  { key: "task", title: "Task" }, { key: "run", title: "Run" }, { key: "number", title: "Phone number" }, { key: "domain", title: "Domain" }, { key: "calendar", title: "Calendar" },
+];
 export function LabelsPage(): ReactElement {
+  const data = useConsoleData();
   const list = useRead<CapMap["access.labels.list"]["out"]>("access.labels.list", {});
-  const [resourceType, setResourceType] = useState("record_type");
+  const schema = useRead<Schema>("schema.describe", {});
+  const [resourceType, setResourceType] = useState<ResourceType>("record_type");
+  const resources = useRead<CapMap["access.lists"]["out"]>("access.lists", { type: resourceType, limit: 100 });
   const [resourceId, setResourceId] = useState("");
   const [label, setLabel] = useState<Label>("internal");
   const [scanType, setScanType] = useState("");
   const [suggestions, setSuggestions] = useState<CapMap["schema.sensitivity.scan"]["out"]["suggestions"]>([]);
-  const action = useAction(list.refresh);
-  if (!list.data) return <ReadState error={list.error} retry={list.refresh} />;
+  const refresh = (): void => { list.refresh(); schema.refresh(); resources.refresh(); };
+  const action = useAction(refresh);
+  if (!list.data || !schema.data || !resources.data) return <ReadState error={list.error ?? schema.error ?? resources.error} retry={refresh} />;
   const labels = list.data.labels.map((item) => <Row key={item.label} id={`console-label-${item.label}`} title={`${item.label[0]!.toUpperCase()}${item.label.slice(1)}`} note={`Rank ${item.rank} · AI providers ${item.providers} · ${item.syncToLaptop ? "Laptop sync allowed" : "No laptop sync"}`} selected={label === item.label} onPress={() => setLabel(item.label)} />);
-  return <View testID="console-labels"><Section title="Sensitivity labels"><Group>{labels}</Group></Section><Section title="Label a resource"><Group><Field label="Resource type" value={resourceType} onChange={setResourceType} /><Field label="Resource id" value={resourceId} onChange={setResourceId} /><Button label="Set label" testID="label-set" disabled={!resourceId.trim() || action.busy} onPress={() => void action.run("access.labels.set", { resource: { type: resourceType, id: resourceId.trim() }, label }, "Label updated")} /></Group></Section><Section title="Sensitive-data scan"><Group><Field label="Record type" value={scanType} onChange={setScanType} /><Button label="Scan record type" testID="label-scan" disabled={!scanType.trim() || action.busy} onPress={() => void action.run<CapMap["schema.sensitivity.scan"]["out"]>("schema.sensitivity.scan", { type: scanType.trim() }, "Scan complete").then((out) => { if (out) setSuggestions(out.suggestions); })} />{suggestions.map((item) => <Row key={item.field} id={`label-suggestion-${item.field}`} title={item.field} note={`${item.matches} ${item.kind} matches · Suggest ${item.suggestedLabel}${item.seal ? " and seal" : ""}`} />)}</Group></Section>{action.note ? <Note>{action.note}</Note> : null}</View>;
+  const resourceOptions = resourceType === "space" ? [{ key: data.space.id, title: data.space.name }] : resourceType === "record_type" ? schema.data.types.map((type) => ({ key: type.key, title: type.title })) : resources.data.rows.map((row) => ({ key: row.id, title: row.title }));
+  const setResourceLabel = (): void => {
+    if (!resourceId) return;
+    if (resourceType === "record_type") {
+      void action.run("schema.set_label", { type: resourceId, label }, async () => {
+        const after = await data.call("schema.describe", {}) as Schema;
+        if (after.types.find((type) => type.key === resourceId)?.label !== label) throw new Error("The record type did not show the new label.");
+        return "Label updated";
+      });
+      return;
+    }
+    void action.run("access.labels.set", { resource: { type: resourceType, id: resourceId }, label }, "Label request accepted");
+  };
+  return <View testID="console-labels"><Section title="Sensitivity labels"><Group>{labels}</Group></Section><Section title="Label a resource"><Group><Select label="Resource type" value={resourceType} options={RESOURCE_TYPES} onChange={(value) => { setResourceType(value as ResourceType); setResourceId(""); }} /><Select label="Resource" value={resourceId} options={resourceOptions} onChange={setResourceId} disabled={resourceOptions.length === 0} />{resourceOptions.length === 0 ? <Note>No named resources of this type are available.</Note> : null}<Button label="Set label" testID="label-set" disabled={!resourceId || action.busy} onPress={setResourceLabel} /></Group></Section><Section title="Sensitive-data scan"><Group><Select label="Record type" value={scanType} options={schema.data.types.map((type) => ({ key: type.key, title: type.title }))} onChange={(value) => { setScanType(value); setSuggestions([]); }} /><Button label="Scan record type" testID="label-scan" disabled={!scanType || action.busy} onPress={() => void action.run<CapMap["schema.sensitivity.scan"]["out"]>("schema.sensitivity.scan", { type: scanType }, "Scan complete").then((out) => { if (out) setSuggestions(out.suggestions); })} />{suggestions.map((item) => <Row key={item.field} id={`label-suggestion-${item.field}`} title={item.field} note={`${item.matches} ${item.kind} matches · Suggest ${item.suggestedLabel}${item.seal ? " and seal" : ""}`} trailing={<Button label={`Apply ${item.suggestedLabel}`} disabled={action.busy} onPress={() => void action.run("schema.set_label", { type: scanType, field: item.field, label: item.suggestedLabel }, async () => { const after = await data.call("schema.describe", {}) as Schema; if (after.types.find((type) => type.key === scanType)?.fields.find((field) => field.key === item.field)?.label !== item.suggestedLabel) throw new Error("The field did not show the suggested label."); return "Field label updated"; })} />} />)}</Group></Section>{action.note ? <Note>{action.note}</Note> : null}</View>;
 }
