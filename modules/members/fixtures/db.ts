@@ -418,6 +418,8 @@ export function harness(now = NOW) {
         return world.owned.get(id)?.[kind]?.count ?? 0;
       },
     },
+    signInMethods:{github:true,sso:["google","microsoft","okta"],newMemberMfaEnrollment:true},
+    spaceOwner:()=>"usr_owner",
     factors: { of: (id: string) => world.factors.get(id) ?? [] },
   };
   const ctx: MembersCtx = base;

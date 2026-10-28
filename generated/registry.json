@@ -2814,6 +2814,33 @@
       ],
       "type": "object"
     },
+    "s_24f4f7e0a4": {
+      "properties": {
+        "allowGithub": {
+          "type": "boolean"
+        },
+        "allowPassword": {
+          "type": "boolean"
+        },
+        "requireSso": {
+          "type": "boolean"
+        },
+        "secondFactor": {
+          "enum": [
+            "off",
+            "required"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "secondFactor",
+        "requireSso",
+        "allowPassword",
+        "allowGithub"
+      ],
+      "type": "object"
+    },
     "s_25d70fcceb": {
       "properties": {
         "enabled": {
@@ -17731,31 +17758,7 @@
     "s_fa5a4a68fb": {
       "properties": {
         "policy": {
-          "properties": {
-            "allowGithub": {
-              "type": "boolean"
-            },
-            "allowPassword": {
-              "type": "boolean"
-            },
-            "requireSso": {
-              "type": "boolean"
-            },
-            "secondFactor": {
-              "enum": [
-                "off",
-                "required"
-              ],
-              "type": "string"
-            }
-          },
-          "required": [
-            "secondFactor",
-            "requireSso",
-            "allowPassword",
-            "allowGithub"
-          ],
-          "type": "object"
+          "$ref": "#/$defs/s_24f4f7e0a4"
         }
       },
       "required": [
@@ -107504,6 +107507,16 @@
           "input": {},
           "name": "example",
           "output": {
+            "capabilities": {
+              "currentHasSecondFactor": true,
+              "github": true,
+              "newMemberMfaEnrollment": true,
+              "ownerHasSecondFactor": true,
+              "password": true,
+              "sso": [
+                "example"
+              ]
+            },
             "policy": {
               "allowGithub": true,
               "allowPassword": true,
@@ -107522,7 +107535,49 @@
       "module": "members",
       "name": "members.sign_in_policy.get",
       "output": {
-        "$ref": "#/$defs/s_fa5a4a68fb"
+        "properties": {
+          "capabilities": {
+            "properties": {
+              "currentHasSecondFactor": {
+                "type": "boolean"
+              },
+              "github": {
+                "type": "boolean"
+              },
+              "newMemberMfaEnrollment": {
+                "type": "boolean"
+              },
+              "ownerHasSecondFactor": {
+                "type": "boolean"
+              },
+              "password": {
+                "type": "boolean"
+              },
+              "sso": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "password",
+              "github",
+              "sso",
+              "newMemberMfaEnrollment",
+              "ownerHasSecondFactor",
+              "currentHasSecondFactor"
+            ],
+            "type": "object"
+          },
+          "policy": {
+            "$ref": "#/$defs/s_24f4f7e0a4"
+          }
+        },
+        "required": [
+          "policy"
+        ],
+        "type": "object"
       },
       "permission": "policy.manage",
       "resource": {

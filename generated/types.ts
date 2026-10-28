@@ -15644,6 +15644,14 @@ export type MembersSignInPolicyGetOut = {
     allowPassword: boolean;
     allowGithub: boolean;
   };
+  capabilities?: {
+    password: boolean;
+    github: boolean;
+    sso: Array<string>;
+    newMemberMfaEnrollment: boolean;
+    ownerHasSecondFactor: boolean;
+    currentHasSecondFactor: boolean;
+  };
 };
 export type MembersSignInPolicySetIn = {
   policy: {

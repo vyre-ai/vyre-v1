@@ -1,3 +1,4 @@
+import {DEFAULT_SIGN_IN_POLICY,parseSignInPolicy} from "../../../lib/sign-in-policy.ts";
 // The extras identity, members and spaces expect on their ctx besides what the invoke pipeline builds (ruling 31/32): the host reads them from the access projection and the module tables, or hands the work to the
 // module that owns it. Each is a plain object on the ctx of that module's capabilities; a module without the extra answers the way its handler says (empty directory, no invites wired).
 //   identity.membership whether the access projection has the person active; issueSession refuses a suspended, removed or unknown person, and answers unavailable while the snapshot is stale
@@ -57,6 +58,16 @@ export function createGithub(o: GithubOAuth): { resolve(code: string): Promise<{
 }
 
 export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { device?: string; principal?: { kind: string; id: string } }) => Record<string, unknown> | null {
+  const spaceOwner=():string|null=>{const roots=[...d.access().allResources()].filter(row=>row.type==='space');return roots.length===1?roots[0]!.owner_id:null;};
+  const signInMethods={github:!!d.github,sso:[] as readonly string[],newMemberMfaEnrollment:false};
+  const currentSignInPolicy=()=>{
+    let row:{value:string}|undefined;
+    try {row=d.db.all('SELECT value FROM members_policy WHERE key = ?','sign_in')[0] as {value:string}|undefined;} catch(error){if(!String(error).includes('no such table: members_policy'))throw error;}
+    if(row)return parseSignInPolicy(JSON.parse(row.value));
+    const legacy=d.db.all('SELECT second_factor_required FROM identity_space LIMIT 1')[0] as {second_factor_required:number}|undefined;
+    return {...DEFAULT_SIGN_IN_POLICY,secondFactor:legacy?.second_factor_required===1?'required' as const:'off' as const};
+  };
+
   const directory = {
     of(personId: string) {
       const info = d.access().info(personId);
@@ -110,6 +121,7 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
   };
   const extras: Record<string, Record<string, unknown>> = {
     identity: {
+      signInPolicy:{current:currentSignInPolicy,methods:signInMethods},
       directory,
       // a person the access projection does not know as active gets no session, whatever proves who they are; the one exception is the call that creates the person (the account comes first, the principal event commits with the call)
       membership: {
@@ -129,6 +141,7 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
       losses: { of: (personId: string) => ({ vault_mine: count(d.db, `SELECT count(*) AS n FROM vault_meta WHERE owner = ? AND scope = 'mine' AND deleted_at IS NULL`, personId), private_chats: 0, personal_memory: 0 }) },
     },
     members: {
+      signInMethods,spaceOwner,
       factors: { of: (personId: string) => (count(d.db, `SELECT count(*) AS n FROM identity_accounts WHERE person_id = ? AND totp_secret IS NOT NULL`, personId) > 0 ? ["totp"] : []) },
       owned: ownedFor(undefined),
     },
