@@ -38,15 +38,15 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "support") return <Support />;
   if (id === "backups") return <Backups />;
   if (id === "sessions") return <Devices />;
-  if (id === "people") return <People />;
+  if (id === "people") return <People {...(args.personId?{initialPersonId:args.personId}:{})} />;
   if (id === "policies") return <Policies {...(args.policyId?{initialId:args.policyId}:{})} />;
   if (id === "reviews") return <Reviews {...(args.reviewId?{initialId:args.reviewId}:{})} />;
   if (id === "roles") return <Roles {...(args.roleId ? { initialId: args.roleId } : {})} />;
   if (id === "groups") return <Groups {...(args.groupId ? { initialId: args.groupId } : {})} />;
   if (id === "grants") return <Grants {...(args.resourceType && args.resourceId ? { initialResource: { type: args.resourceType, id: args.resourceId } } : {})} />;
   if (id === "checker") return <Checker />;
-  if (id === "agents") return <AgentsRegister />;
-  if (id === "actors") return <OutsideActors />;
+  if (id === "agents") return <AgentsRegister key={args.agentId??"agents-list"} {...(args.agentId?{initialAgentId:args.agentId}:{})} />;
+  if (id === "actors") return <OutsideActors key={args.actorId??"actors-list"} {...(args.actorId?{initialActorId:args.actorId}:{})} />;
   if (id === "computers") return <AgentComputers />;
   if (id === "template") return <AgentTemplate />;
   if (id === "schema") return <SchemaPage />;

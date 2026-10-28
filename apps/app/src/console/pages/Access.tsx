@@ -1,5 +1,5 @@
 import {PersonLifecycle} from "./PersonLifecycle.tsx";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
@@ -10,13 +10,14 @@ import { useConsoleData } from "../shell/data.tsx";
 
 type Roles = CapMap["access.roles.list"]["out"];
 type People = CapMap["access.principals.list"]["out"];
-export function People(): ReactElement {
+export function People({initialPersonId}:{initialPersonId?:string}={}): ReactElement {
   const people = useRead<People>("access.principals.list", { kind: "person" });
   const roles = useRead<Roles>("access.roles.list");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("");
   const [link, setLink] = useState("");
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(initialPersonId??null);
+  useEffect(()=>setSelected(initialPersonId??null),[initialPersonId]);
   const action = useAction(people.refresh);
   if (!people.data || !roles.data) return <ReadState error={people.error ?? roles.error} retry={() => { people.refresh(); roles.refresh(); }} />;
   const rows: ReactElement[] = [];
