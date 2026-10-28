@@ -22,6 +22,15 @@ export async function keysPut(ctx: IdentityCtx, input: { keys: KeyBundle; reason
   const have = bundleOf(a);
   if (input.reason === "first_device" && have) raise(ctx.trace.traceId, "validation.precondition_failed", "keys are already stored; use new_device or a password change");
   if (input.reason !== "first_device" && !have) raise(ctx.trace.traceId, "validation.precondition_failed", "no keys are stored yet; use first_device");
+  if(!validBundle(input.keys))raise(ctx.trace.traceId,"validation.bad_input","keys must be base64 ciphertext");
+  const epochs=input.keys.spaceKeys.map(key=>key.epoch);
+  if(new Set(epochs).size!==epochs.length)raise(ctx.trace.traceId,"validation.bad_input","Each Space key epoch must occur once.");
+  if(have){
+    if(["password_change","recovery","reset"].includes(input.reason))raise(ctx.trace.traceId,"validation.precondition_failed","Use the verified password change, recovery or administrator reset flow.");
+    if(input.keys.personKeyByPassword!==have.personKeyByPassword||input.keys.personKeyByRecovery!==have.personKeyByRecovery||input.keys.publicKey!==have.publicKey||input.keys.privateKeyWrapped!==have.privateKeyWrapped)raise(ctx.trace.traceId,"permission.no_grant","A device session cannot replace existing account identity keys.");
+    if(have.spaceKeys.some(old=>!input.keys.spaceKeys.some(next=>next.epoch===old.epoch&&next.wrapped===old.wrapped)))raise(ctx.trace.traceId,"validation.version_conflict","Existing Space key epochs must remain unchanged.");
+    if(input.reason!=="space_key_epoch"&&(input.keys.spaceKeys.length!==have.spaceKeys.length))raise(ctx.trace.traceId,"validation.precondition_failed","Add a new Space key epoch through its dedicated key update reason.");
+  }
   // a Space key epoch only moves forward
   if (have && input.reason === "space_key_epoch") {
     const top = (k: KeyBundle) => k.spaceKeys.reduce((m, s) => Math.max(m, s.epoch), 0);

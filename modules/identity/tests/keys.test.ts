@@ -224,3 +224,13 @@ test("password change keeps the authenticated host device session when its conte
   assert.equal(currentSessionId({ ...first.ctx, device: out.deviceId }, "usr_other"), undefined);
   assert.equal(currentSessionId({ ...first.ctx, device: out.deviceId, session: { id: "ses_wrong", deviceId: out.deviceId } }, P.personId), undefined);
 });
+
+test('generic keys_put cannot replace existing identity or recovery keys with only a stolen session',async()=>{
+ const h=await world(),{ctx}=await signedIn(h);await handlers['identity.keys_put'](ctx,{keys:KEYS,reason:'first_device'});
+ for(const reason of ['new_device','password_change','recovery','reset','space_key_epoch'] as const){await assert.rejects(handlers['identity.keys_put'](ctx,{keys:{...KEYS,publicKey:'YXR0YWNrZXItcHVibGlj',privateKeyWrapped:'YXR0YWNrZXItcHJpdmF0ZQ=='},reason}));assert.deepEqual((await handlers['identity.keys_get'](ctx,{})).keys,KEYS);}
+ await handlers['identity.keys_put'](ctx,{keys:KEYS,reason:'new_device'});
+ const later={...KEYS,spaceKeys:[...KEYS.spaceKeys,{epoch:2,wrapped:'bGF0ZXItZXBvY2g='}]};await handlers['identity.keys_put'](ctx,{keys:later,reason:'space_key_epoch'});
+ await assert.rejects(handlers['identity.keys_put'](ctx,{keys:{...later,spaceKeys:[{epoch:1,wrapped:'cmVwbGFjZWQtZXBvY2g='},{epoch:2,wrapped:'bGF0ZXItZXBvY2g='}]},reason:'space_key_epoch'}));
+ await assert.rejects(handlers['identity.keys_put'](ctx,{keys:{...later,spaceKeys:[...later.spaceKeys,{epoch:1,wrapped:'ZHVwbGljYXRlLWVwb2No'}]},reason:'space_key_epoch'}));
+ assert.deepEqual((await handlers['identity.keys_get'](ctx,{})).keys,later);
+});
