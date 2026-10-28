@@ -79,7 +79,21 @@ test("production Apps: create a form and campaign, reload their real editors, in
     const appRefusals = refused.filter((line) => /\/v1\/(forms|campaigns|templates|mail\/domain|email_builder)\//.test(line));
     assert.equal(appRefusals.length, 0, appRefusals.join("\n")); assert.deepEqual(errors, []);
     const out = process.env["VYRE_APPS_SHOTS"];
-    if (out) { fs.mkdirSync(out, { recursive: true }); await page.screenshot({ path: path.join(out, "domain-review-desktop.png") }); await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(300); await page.screenshot({ path: path.join(out, "domain-review-phone.png") }); }
+    if (out) { fs.mkdirSync(out, { recursive: true }); await page.screenshot({ path: path.join(out, "domain-review-desktop.png") }); }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByTestId("tab-you").click();
+    await page.getByTestId("row-you-apps").click();
+    await page.getByTestId("apps-new").click();
+    await page.getByRole("menuitem", { name: "New form", exact: true }).click();
+    await page.getByTestId("apps-create-form").waitFor();
+    await page.getByLabel("Form name", { exact: true }).fill("Phone browser intake");
+    await page.getByRole("button", { name: "Record type", exact: true }).click();
+    await page.getByRole("menuitem", { name: /^Contacts?$/, exact: true }).first().click();
+    await page.getByTestId("apps-save-form").click();
+    await page.getByTestId("apps-form-detail").waitFor();
+    await page.getByLabel("Form name", { exact: true }).waitFor();
+    assert.equal(await page.getByLabel("Form name", { exact: true }).inputValue(), "Phone browser intake");
+    if (out) await page.screenshot({ path: path.join(out, "form-editor-phone.png") });
   } catch (e) { console.error(`Apps browser failure: ${await page.locator("body").innerText().catch(() => "no body")}\n${refused.join("\n")}`); throw e; }
   finally { await context.close(); await browser.close(); web.close(); await space.stop(); fs.rmSync(space.dir, { recursive: true, force: true }); }
 });
