@@ -43,7 +43,7 @@ export default function ConsolePlace(): ReactElement {
     screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name, role: "" }, space: { id: rt.space.id, name: rt.space.name, address: "" },
     can: (permission) => permission === "console.access" || PAGES.some((page) => page.needs === permission && allowed.has(page.screen)), allowedScreens: allowed,
     name: nameLookup(rt), clock: rt.clock,
-    nav: { openApp: () => rt.open({ screen: "home.today-starred-ask" }), openPage: (id, args) => { const page = pageById(id); if (page) rt.open({ screen: page.screen, args: { ...args, page: id } }); } },
+    nav: { openApp: (target) => rt.open(target ?? { screen: "home.today-starred-ask" }), openPage: (id, args) => { const page = pageById(id); if (page) rt.open({ screen: page.screen, args: { ...args, page: id } }); } },
   } : null, [rt, allowed]);
   if (rt?.space.kind === "personal") return <States kind="empty" title="Needs a Team Space" icon="search" />;
   if (failed) return <States kind="error" message="Couldn’t open the Console" cause="You may not have console access, or the server is unavailable." retryable onRetry={() => setAttempt((n) => n + 1)} />;

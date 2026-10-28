@@ -8,7 +8,7 @@ export interface ConsoleNav {
   /** Opens a Console page by id (nav.ts). */
   openPage(id: string, state?: Record<string, unknown>): void;
   /** Opens the app on this Space; the Console is not linked from the app, the app is linked from here. */
-  openApp(): void;
+  openApp(target?: { screen: string; args?: Record<string, string> }): void;
 }
 
 export interface ConsoleData {
