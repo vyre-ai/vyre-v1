@@ -201,3 +201,8 @@ export function reduce(s: FlowState, a: Action, r: Rules): FlowState {
     case "failed": return { ...s, stage: "steps", step: 3, error: a.message, run: 0, dir: -1 };
   }
 }
+
+/** Refresh display metadata only for the destination the current flow already names. */
+export function refreshJoinInvite(current: JoinInvite, incoming: JoinInvite): JoinInvite {
+  return current.host.trim().toLowerCase() === incoming.host.trim().toLowerCase() ? incoming : current;
+}

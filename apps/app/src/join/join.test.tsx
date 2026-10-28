@@ -8,7 +8,7 @@ import { HalftoneField, syncHalftoneCanvasSize } from "./HalftoneField.tsx";
 import { JoinFlow, makeRecoveryCode } from "./JoinFlow.tsx";
 import { aiOptions } from "./ConnectAI.tsx";
 import { DARK, LIGHT, paletteOf } from "./palette.ts";
-import { RUN_STEPS, createSpaceResolutionGate, initialState, meter, normalizeSpaceAddress, reduce, resolveSpaceInvite, signInValid, strength, suggestions, usernameOk, valid, welcomeGreeting } from "./logic.ts";
+import { RUN_STEPS, createSpaceResolutionGate, initialState, meter, normalizeSpaceAddress, reduce, refreshJoinInvite, resolveSpaceInvite, signInValid, strength, suggestions, usernameOk, valid, welcomeGreeting } from "./logic.ts";
 import type { Action, FlowState, JoinInvite } from "./logic.ts";
 import { Shell } from "../shell/spaces/Shell.tsx";
 import { createSampleShell, samplePlace } from "../shell/spaces/sample.tsx";
@@ -254,7 +254,7 @@ test("step 1: welcome, name and photo, what the person starts with", () => {
 
 test("step 2: the username at the Space address, the strength meter and the messages", () => {
   const ok = html({ stage: "steps", step: 1, ...FILLED });
-  for (const text of ["Your sign-in", "Username", "@", ".northwind", "Password", "Confirm", "Vyre never sees your password"]) assert.ok(ok.includes(text), text);
+  for (const text of ["Your sign-in", "Username", "Your username", "Password", "Confirm", "Your password protects your private keys"]) assert.ok(ok.includes(text), text);
   assert.match(ok, /data-testid="username-ok"/);
   assert.match(ok, /aria-label="Password strength 3 of 3"/);
   const taken = html({ stage: "steps", step: 1, ...FILLED, user: "irfad" });
@@ -274,7 +274,8 @@ test("the clean account form keeps the approved promise, useful guidance, and lo
   assert.match(create, />Show</);
   assert.match(signIn, /data-testid="si-password-visibility"/);
   assert.match(signIn, />Show</);
-  assert.match(create, /Keep your recovery code somewhere safe\. You need it to recover your private items after a password reset\./);
+  assert.match(create, /Keep your recovery code safe, and use a signed-in device to change your password\./);
+  assert.doesNotMatch(create, /Vyre never sees your password/);
   assert.match(html({ stage: "steps", step: 1, ...FILLED, pw2: "nope" }), /Make both passwords match to continue\./);
 });
 
@@ -428,4 +429,12 @@ test("auth forms use the reference mark and top Back before the reading column",
   assert.ok(out.indexOf('data-testid="back"') < out.indexOf('data-testid="step-sign-in"'), "Back belongs above the fields");
   assert.ok(out.indexOf('data-testid="join-bar"') > out.indexOf('data-testid="si-password"'), "the primary action follows the fields");
   assert.doesNotMatch(out, /data-testid="icon-space"/, "the small reference brand replaces the decorative tile");
+});
+
+test("late invite metadata cannot replace a resolved destination or reuse another host’s credential flow", () => {
+  const discovered = { ...INVITE, space: "Verified Northwind" };
+  assert.equal(refreshJoinInvite(INVITE, discovered), discovered, "same-host name discovery can refresh the header");
+  const elsewhere = { ...INVITE, host: "other-space.example", space: "Other Space" };
+  assert.equal(refreshJoinInvite(discovered, elsewhere), discovered, "stale metadata for another host is ignored");
+  assert.notEqual(JoinFlow({ invite: INVITE }).key, JoinFlow({ invite: elsewhere }).key, "a host change remounts rather than retaining credentials");
 });

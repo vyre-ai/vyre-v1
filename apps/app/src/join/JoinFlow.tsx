@@ -5,7 +5,7 @@ import { AcceptInvite } from "./AcceptInvite.tsx";
 import { SignIn } from "./SignIn.tsx";
 import { Welcome } from "./Welcome.tsx";
 import { JoinFrame } from "./kit.tsx";
-import { RUN_STEPS, createSpaceResolutionGate, fullName, initialState, normalizeSpaceAddress, reduce, resolveSpaceInvite, signInValid } from "./logic.ts";
+import { RUN_STEPS, createSpaceResolutionGate, fullName, initialState, normalizeSpaceAddress, reduce, refreshJoinInvite, resolveSpaceInvite, signInValid } from "./logic.ts";
 import type { Action, ConnectIntent, FlowState, JoinInvite } from "./logic.ts";
 import type { JoinMode } from "./palette.ts";
 
@@ -71,11 +71,22 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 const messageOf = (e: unknown): string => (e instanceof Error && e.message ? e.message : "Could not finish. Check the connection and try again.");
 
 export function JoinFlow(props: JoinFlowProps) {
+  // A different host starts a new credential flow; same-host name discovery preserves it.
+  return <JoinFlowForHost key={props.invite.host.trim().toLowerCase()} {...props} />;
+}
+
+function JoinFlowForHost(props: JoinFlowProps) {
   const [invite, setInvite] = useState(props.invite);
+  const [signingIn, setSigningIn] = useState(false);
+  const signInInFlight = useRef(false);
   const spaceRequests = useRef(createSpaceResolutionGate());
   const resolvingSpace = useRef(false);
   const rules = useMemo(() => ({ isTaken: props.isTaken ?? ((): boolean => false) }), [props.isTaken]);
   const [state, dispatch] = useReducer((s: FlowState, a: Action) => reduce(s, a, rules), undefined, () => initialState(invite, props.initial));
+
+  // Discovery can finish while the person types or submits. Refresh only Space metadata;
+  // the reducer and in-flight sign-in state keep the entered credentials and current stage.
+  useEffect(() => { setInvite((current) => refreshJoinInvite(current, props.invite)); }, [props.invite]);
 
   useEffect(() => () => spaceRequests.current.dispose(), []);
 
@@ -120,15 +131,17 @@ export function JoinFlow(props: JoinFlowProps) {
   }, [state.sheet]);
 
   const signIn = async (): Promise<void> => {
-    if (!signInValid(state)) return;
+    if (signInInFlight.current || !signInValid(state)) return;
     if (!props.onSignIn) return dispatch({ t: "next" });
+    signInInFlight.current = true;
+    setSigningIn(true);
     try {
       const r = await props.onSignIn({ username: state.siUser, password: state.siPw, ...(state.si === "totp" ? { code: state.siCode } : {}) });
       if (r === "second_factor_required" && state.si === "pw") dispatch({ t: "next" });
       else dispatch({ t: "set", patch: { stage: "done", error: "" } });
     } catch (e) {
       dispatch({ t: "set", patch: { error: messageOf(e) } });
-    }
+    } finally { signInInFlight.current = false; setSigningIn(false); }
   };
 
   const resolveSpace = async (intent: ConnectIntent): Promise<void> => {
@@ -162,7 +175,7 @@ export function JoinFlow(props: JoinFlowProps) {
   const page = state.stage === "connect"
     ? <Welcome address={state.spaceAddress} busy={state.spaceResolving} error={state.spaceError} onAddressChange={changeSpaceAddress} onSignIn={() => void resolveSpace("signin")} onGetStarted={() => void resolveSpace("onboarding")} />
     : state.stage === "signin"
-    ? <SignIn invite={invite} state={state} dispatch={dispatch} onSubmit={() => void signIn()} onSso={props.onSso} onGithub={props.onGithub} onRecoveryCode={props.onRecoveryCode} />
+    ? <SignIn invite={invite} state={state} dispatch={dispatch} busy={signingIn} onSubmit={() => void signIn()} onSso={props.onSso} onGithub={props.onGithub} onRecoveryCode={props.onRecoveryCode} />
     : (
       <AcceptInvite
         invite={invite} state={state} dispatch={dispatch} rules={rules} expired={props.expired}

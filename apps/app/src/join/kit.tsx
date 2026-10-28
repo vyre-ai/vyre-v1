@@ -1,5 +1,5 @@
-// Join building blocks, in the pattern of a system setup assistant (spec 3.13): one centred column, an app icon, system type, grouped inset lists,
-// a Back / progress / Continue bar and the system accent. Flat: no gradients, no blurs, no decorative splits. Every block paints from the join palette.
+// Auth building blocks follow the reference FlowStep: content-height reading surface, small brand, top Back,
+// progress before the fields and the primary below them. Flat: no gradients, blurs or decorative splits.
 import { Children, cloneElement, createContext, createElement, isValidElement, useContext, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Dimensions } from "react-native";
@@ -221,32 +221,33 @@ function Hairline() {
 
 interface RowProps { divider?: boolean; children?: ReactNode; testID?: string }
 
-function FormRow({ label, children, divider, testID, labelWidth = 112, small }: RowProps & { label?: string; labelWidth?: number; small?: boolean }) {
+function FormRow({ label, children, divider, testID, labelWidth = 112, small, stacked }: RowProps & { label?: string; labelWidth?: number; small?: boolean; stacked?: boolean }) {
   const { p } = useJoin();
   return (
-    <View testID={testID} style={{ flexDirection: "row", alignItems: "center", gap: 12, height: 44, paddingHorizontal: 16 }}>
+    <View testID={testID} style={stacked ? { gap: 8, paddingHorizontal: 16, paddingVertical: 12 } : { flexDirection: "row", alignItems: "center", gap: 12, height: 44, paddingHorizontal: 16 }}>
       {divider ? <Hairline /> : null}
-      {label ? <Text style={[base(p), { width: small ? 76 : labelWidth }]} numberOfLines={1}>{label}</Text> : null}
-      {children}
+      {label ? <Text style={[base(p), { width: stacked ? undefined : small ? 76 : labelWidth }]} numberOfLines={1}>{label}</Text> : null}
+      {stacked ? <View style={{ flexDirection: "row", alignItems: "center", minHeight: 44, gap: 8 }}>{children}</View> : children}
     </View>
   );
 }
 
 export function FieldRow({
-  label, value, onChange, placeholder, secure, revealable, visibilityTestID, testID, autoComplete, mono, keyboard, maxLength, divider, onSubmit, spaced,
+  label, value, onChange, placeholder, secure, revealable, visibilityTestID, testID, autoComplete, mono, keyboard, maxLength, divider, onSubmit, spaced, stacked, trailing,
 }: RowProps & {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string; secure?: boolean; revealable?: boolean; visibilityTestID?: string; autoComplete?: string; mono?: boolean; keyboard?: "numeric"; maxLength?: number; onSubmit?: () => void; spaced?: boolean;
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; secure?: boolean; revealable?: boolean; visibilityTestID?: string; autoComplete?: string; mono?: boolean; keyboard?: "numeric"; maxLength?: number; onSubmit?: () => void; spaced?: boolean; stacked?: boolean; trailing?: ReactNode;
 }) {
   const { p } = useJoin();
   const [visible, setVisible] = useState(false);
   return (
-    <FormRow label={label} divider={divider}>
+    <FormRow label={label} divider={divider} stacked={stacked}>
       <TextInput
         testID={testID} accessibilityLabel={label} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={p.tx2}
         secureTextEntry={secure && !visible} autoCapitalize="none" autoCorrect={false} spellCheck={false} maxLength={maxLength} inputMode={keyboard}
         {...(autoComplete ? ({ autoComplete } as object) : {})} onSubmitEditing={onSubmit}
-        style={[base(p), noOutline, { flex: 1, minWidth: 0, height: "100%" as unknown as number, textAlign: "right", color: p.tx, padding: 0 }, mono ? { fontFamily: MONO } : null, spaced ? { letterSpacing: 3 } : null]}
+        style={[base(p), noOutline, { flex: 1, minWidth: 0, height: stacked ? 44 : "100%" as unknown as number, textAlign: stacked ? "left" : "right", color: p.tx, padding: 0 }, mono ? { fontFamily: MONO } : null, spaced ? { letterSpacing: 3 } : null]}
       />
+      {trailing ?? null}
       {secure && revealable ? (
         <Pressable
           accessibilityRole="button" accessibilityLabel={visible ? "Hide password" : "Show password"} onPress={() => setVisible((current) => !current)} testID={visibilityTestID}
