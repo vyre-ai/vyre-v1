@@ -818,8 +818,18 @@ export type AccessRolesGetOut = {
       kind: "person" | "agent" | "actor" | "service" | "group";
       id: string;
     }>;
+  lastChange?: {
+    before: Array<string>;
+    after: Array<string>;
+    by: {
+      kind: "person" | "agent" | "actor" | "service";
+      id: string;
+    };
+    at: number;
+  };
 };
 export type AccessRolesListIn = {
+  q?: string;
   cursor?: string;
   limit?: number;
 };

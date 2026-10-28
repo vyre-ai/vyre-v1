@@ -24336,6 +24336,19 @@
                 "kind": "person"
               }
             ],
+            "lastChange": {
+              "after": [
+                "example"
+              ],
+              "at": 1,
+              "before": [
+                "example"
+              ],
+              "by": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              }
+            },
             "role": {
               "assignableToAgents": true,
               "builtIn": true,
@@ -24380,6 +24393,35 @@
           "holders": {
             "$ref": "#/$defs/s_39a2155802"
           },
+          "lastChange": {
+            "properties": {
+              "after": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "at": {
+                "type": "integer"
+              },
+              "before": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "by": {
+                "$ref": "#/$defs/s_6c1eb10d98"
+              }
+            },
+            "required": [
+              "before",
+              "after",
+              "by",
+              "at"
+            ],
+            "type": "object"
+          },
           "role": {
             "$ref": "#/$defs/s_787644a2cd"
           }
@@ -24418,7 +24460,8 @@
         {
           "input": {
             "cursor": "example",
-            "limit": 1
+            "limit": 1,
+            "q": "example"
           },
           "name": "example",
           "output": {
@@ -24450,6 +24493,9 @@
             "maximum": 500,
             "minimum": 1,
             "type": "integer"
+          },
+          "q": {
+            "type": "string"
           }
         },
         "type": "object"

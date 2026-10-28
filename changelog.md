@@ -12,6 +12,8 @@
 
 ## Unreleased
 
+- Console Roles: add the generated permission matrix, locked built-ins and staged exact-preview changes, plus object holders, clearance, grants and permission history. Persist the last successful permission diff and block deleting roles held by empty groups.
+
 - Console Groups: add the shared searchable object list and object tabs, paginated member/manager selection, real group roles, grants and indexed Activity, with confirmed deletion and deep-link browser coverage. Reject invalid manager updates before changing the group.
 
 - Access: allow validated group role assignments, expose direct holders, and enforce human-only role restrictions when groups gain agent members and when evaluating legacy assignments.

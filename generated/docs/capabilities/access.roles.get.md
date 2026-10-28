@@ -50,6 +50,15 @@ type Out = {
       kind: "person" | "agent" | "actor" | "service" | "group";
       id: string;
     }>;
+  lastChange?: {
+    before: Array<string>;
+    after: Array<string>;
+    by: {
+      kind: "person" | "agent" | "actor" | "service";
+      id: string;
+    };
+    at: number;
+  };
 };
 ```
 
@@ -81,6 +90,19 @@ type Out = {
         "kind": "person"
       }
     ],
+    "lastChange": {
+      "after": [
+        "example"
+      ],
+      "at": 1,
+      "before": [
+        "example"
+      ],
+      "by": {
+        "id": "usr_a1b2c3",
+        "kind": "person"
+      }
+    },
     "role": {
       "assignableToAgents": true,
       "builtIn": true,

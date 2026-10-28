@@ -60,9 +60,9 @@ function diff(store: ReturnType<typeof storeOf>, role: RoleRec, next: string[]) 
   return { gains, losses, previewHash: hashOf(store, role.id, role.permissions, next) };
 }
 
-export async function rolesList(ctx: AccessCtx, input: { cursor?: string; limit?: number }) {
+export async function rolesList(ctx: AccessCtx, input: { q?: string; cursor?: string; limit?: number }) {
   const store = storeOf(ctx);
-  const all = [...store.roles.values()].sort((a, b) => (a.id < b.id ? -1 : 1)).map((r) => roleView(store, r));
+  const all = [...store.roles.values()].filter((role) => !input.q?.trim() || role.name.toLowerCase().includes(input.q.trim().toLowerCase())).sort((a, b) => (a.id < b.id ? -1 : 1)).map((r) => roleView(store, r));
   const p = page(all, input.cursor, input.limit);
   return { roles: p.rows, total: p.total, ...(p.next ? { next: p.next } : {}) };
 }
@@ -70,7 +70,7 @@ export async function rolesList(ctx: AccessCtx, input: { cursor?: string; limit?
 export async function rolesGet(ctx: AccessCtx, input: { roleId: string }) {
   const store = storeOf(ctx);
   const role = mustRole(store, input.roleId, ctx.trace.traceId);
-  return { role: roleView(store, role), holders: store.holdersOf(role.id), directHolders: store.directHoldersOf(role.id) };
+  return { role: roleView(store, role), holders: store.holdersOf(role.id), directHolders: store.directHoldersOf(role.id), ...(store.roleChanges.has(role.id) ? {lastChange: store.roleChanges.get(role.id)!} : {}) };
 }
 
 export async function rolesCreate(ctx: AccessCtx, input: { name: string; cloneFrom?: string; clearance?: Label; assignableToAgents?: boolean; idempotencyKey: string }) {
@@ -130,8 +130,11 @@ export async function rolesApply(ctx: AccessCtx, input: { roleId: string; permis
   const next = normPerms(store, input.permissions, ctx.trace.traceId);
   const hash = hashOf(store, role.id, role.permissions, next);
   if (hash !== input.previewHash) raise(ctx.trace.traceId, "validation.precondition_failed", "the diff is stale; preview again");
+  if (!["person", "agent", "actor", "service"].includes(ctx.principal.kind)) raise(ctx.trace.traceId, "validation.precondition_failed", "permission changes require an authenticated principal");
   // One assignment. A stale hash returns before this, so a failed Apply changes nothing.
+  const before = [...role.permissions];
   role.permissions = next;
+  store.roleChanges.set(role.id, { before, after: [...next], by: {kind:ctx.principal.kind as PKind,id:ctx.principal.id}, at:ctx.now() });
   changed(ctx, store, "role");
   return { role: roleView(store, role) };
 }
@@ -140,8 +143,9 @@ export async function rolesDelete(ctx: AccessCtx, input: { roleId: string }) {
   const store = storeOf(ctx);
   const role = mustRole(store, input.roleId, ctx.trace.traceId);
   if (role.builtIn) raise(ctx.trace.traceId, "validation.field_locked", "built-in roles are locked");
-  if (store.holdersOf(role.id).length) raise(ctx.trace.traceId, "validation.precondition_failed", "a role cannot be deleted while held");
+  if (store.holdersOf(role.id).length || store.directHoldersOf(role.id).length) raise(ctx.trace.traceId, "validation.precondition_failed", "a role cannot be deleted while held");
   store.roles.delete(role.id);
+  store.roleChanges.delete(role.id);
   for (const [holder, roles] of store.assignments) store.assignments.set(holder, roles.filter((r) => r !== role.id));
   changed(ctx, store, "role");
   return { deleted: true };
