@@ -4,7 +4,7 @@ import { aiDataPageFor } from "../../shell/providers/console.tsx";
 import { incidentDefaultFilters, mergeIncidentPages } from "../pages/Incidents.tsx";
 import { canEditOwnerFloor, gateRuleDraft, mergeGateAgents } from "../pages/GateRules.tsx";
 import { mergeReviewPages } from "../pages/AiSettings.tsx";
-import { holdTargetOf, mergeHolds, namedPeopleForHold } from "../pages/Holds.tsx";
+import { holdTargetOf, mergeHolds, namedPeopleForHold, visibleHolds } from "../pages/Holds.tsx";
 import { eraseFindingExpired, mergeEraseHistory } from "../pages/ErasePerson.tsx";
 import { mergeSpendAgents } from "../pages/Spend.tsx";
 
@@ -49,6 +49,7 @@ test("hold search maps named app objects to governance targets and paginates uni
   assert.deepEqual(holdTargetOf({ kind: "file", id: "fil_1", title: "Brief" }), { kind: "file", id: "fil_1", title: "Brief" });
   const row = (id: string, reason: string) => ({ target: { kind: "file" as const, id }, title: id, reason, by: "usr_1", at: 1 });
   assert.deepEqual(mergeHolds([row("fil_1", "old")], [row("fil_1", "new"), row("fil_2", "two")]).map((item) => item.reason), ["new", "two"]);
+  assert.deepEqual(visibleHolds([row("fil_1", "one"), row("fil_2", "two")], new Set(["file:fil_1"])).map((item) => item.target.id), ["fil_2"]);
   assert.deepEqual(namedPeopleForHold([{ id: "usr_owner", name: "Owner" }, { id: "usr_other", name: "Dana" }], "own"), [{ kind: "person", id: "usr_owner", title: "Owner" }]);
 });
 

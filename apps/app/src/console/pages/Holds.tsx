@@ -23,6 +23,9 @@ export function mergeHolds(first: readonly Hold[], second: readonly Hold[]): Hol
   for (const hold of second) rows.set(`${hold.target.kind}:${hold.target.id}`, hold);
   return [...rows.values()];
 }
+export function visibleHolds(holds: readonly Hold[], released: ReadonlySet<string>): Hold[] {
+  return holds.filter((hold) => !released.has(`${hold.target.kind}:${hold.target.id}`));
+}
 export function namedPeopleForHold(people: readonly { id: string; name: string }[], query: string): NamedTarget[] {
   const needle = query.trim().toLocaleLowerCase();
   if (!needle) return [];
@@ -42,9 +45,10 @@ export function Holds(): ReactElement {
   const [reason, setReason] = useState("");
   const [placePreview, setPlacePreview] = useState<{ target: Target; title: string; reason: string } | null>(null);
   const [releasePreview, setReleasePreview] = useState<Hold | null>(null);
+  const [released, setReleased] = useState<ReadonlySet<string>>(new Set());
   const action = useAction(list.refresh);
   if (!list.data) return <ReadState error={list.error} retry={list.refresh} />;
-  const holds = mergeHolds(more, list.data.holds);
+  const holds = visibleHolds(mergeHolds(more, list.data.holds), released);
   const next = page.loaded ? page.next : list.data.next;
   const rows: ObjectListRow<Hold>[] = holds.map((hold) => ({ id: `${hold.target.kind}:${hold.target.id}`, title: hold.title, note: `${hold.target.kind} · ${hold.reason} · ${new Date(hold.at).toLocaleString()} · ${data.name(hold.by)}`, search: hold.reason, filters: [hold.target.kind], value: hold, actions: [{ label: "Release hold…", destructive: true, onSelect: () => setReleasePreview(hold) }] }));
   const search = (): void => {
@@ -64,7 +68,10 @@ export function Holds(): ReactElement {
   };
   const verifyPlaced = async (expected: { target: Target; reason: string }): Promise<string> => {
     const out = await data.call("governance.holds.list", { kind: expected.target.kind, limit: 100 }) as HoldsOut;
-    if (!out.holds.some((hold) => hold.target.id === expected.target.id && hold.reason === expected.reason)) throw new Error("The hold was not visible after it was placed.");
+    const placed = out.holds.find((hold) => hold.target.id === expected.target.id && hold.reason === expected.reason);
+    if (!placed) throw new Error("The hold was not visible after it was placed.");
+    setMore((current) => mergeHolds(current, [placed]));
+    setReleased((current) => { const next = new Set(current); next.delete(`${placed.target.kind}:${placed.target.id}`); return next; });
     return "Hold placed";
   };
   return <>
@@ -77,7 +84,7 @@ export function Holds(): ReactElement {
       <Field label="Reason" value={reason} onChange={(value) => { setReason(value); setPlacePreview(null); }} multiline />
       {placePreview ? <><Note>{placePreview.title} will stop expiring and cannot be erased until this hold is released.</Note><Actions><Button label="Back" onPress={() => setPlacePreview(null)} /><Button label="Place hold" danger disabled={action.busy} onPress={() => void action.run("governance.holds.place", { target: placePreview.target, reason: placePreview.reason }, () => verifyPlaced(placePreview)).then((out) => { if (out) { setPlacePreview(null); setTarget(null); setReason(""); } })} /></Actions></> : <Button label="Review hold" disabled={!target || !reason.trim()} onPress={() => { if (target && reason.trim()) setPlacePreview({ target: { kind: target.kind, id: target.id }, title: target.title, reason: reason.trim() }); }} />}
     </Section>
-    {releasePreview ? <Section title="Release hold"><Note>{releasePreview.title} can expire or be erased under the active policies after release.</Note><Actions><Button label="Cancel" onPress={() => setReleasePreview(null)} /><Button label="Release hold" danger disabled={action.busy} onPress={() => void action.run("governance.holds.release", { target: releasePreview.target }, "Hold released").then((out) => { if (out) setReleasePreview(null); })} /></Actions></Section> : null}
+    {releasePreview ? <Section title="Release hold"><Note>{releasePreview.title} can expire or be erased under the active policies after release.</Note><Actions><Button label="Cancel" onPress={() => setReleasePreview(null)} /><Button label="Release hold" danger disabled={action.busy} onPress={() => void action.run("governance.holds.release", { target: releasePreview.target }, "Hold released").then((out) => { if (out) { const key = `${releasePreview.target.kind}:${releasePreview.target.id}`; setReleased((current) => new Set([...current, key])); setMore((current) => current.filter((hold) => `${hold.target.kind}:${hold.target.id}` !== key)); setReleasePreview(null); } })} /></Actions></Section> : null}
     {action.note ? <Note>{action.note}</Note> : null}
   </>;
 }
