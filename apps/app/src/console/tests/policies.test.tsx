@@ -1,0 +1,13 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {renderToStaticMarkup} from "react-dom/server";
+import {Policies,mfaPrerequisite} from "../pages/Policies.tsx";
+import {ConsoleDataProvider} from "../shell/data.tsx";
+import {createSampleConsole} from "../shell/sample.ts";
+const policy={secondFactor:"off" as const,requireSso:false,allowPassword:true,allowGithub:true};
+const capabilities={password:true,github:false,sso:[],newMemberMfaEnrollment:false,ownerHasSecondFactor:false,currentHasSecondFactor:false};
+function draw(initialId?:string):string{const base=createSampleConsole().data;const rows:Record<string,unknown>={"members.sign_in_policy.get":{policy,capabilities},"access.policies.list":{policies:[{key:"sharing.public_links",scope:"space",value:"admins",kind:"sharing"}]}};return renderToStaticMarkup(<ConsoleDataProvider value={{...base,screens:{...base.screens,capQuery:(cap:string)=>{const state={status:"ready",data:rows[cap]};return{subscribe:()=>()=>undefined,getSnapshot:()=>state};}} as never}}><Policies {...(initialId?{initialId}:{})}/></ConsoleDataProvider>);}
+test("Policies provides searchable shared objects and typed owning-page entry points",()=>{const html=draw();for(const text of ["policies-list","Search","Sign-in requirements","Public links","Gate rules","Retention"])assert.ok(html.includes(text),text);assert.doesNotMatch(html,/operations JSON|not implemented|opens here/);});
+test("Sign-in policy shows actual unavailable methods and authenticator enrollment instead of a false connected state",()=>{const html=draw("sign_in");for(const text of ["policy-object","Overview","Access","Activity","Unavailable: this server","owner must set up","Set up your authenticator"])assert.ok(html.includes(text),text);assert.doesNotMatch(html,/Connected|clientSecret/);});
+test("required MFA remains blocked until owner, self and new-member prerequisites are satisfied",()=>{assert.match(mfaPrerequisite({policy,capabilities}),/owner must/);assert.match(mfaPrerequisite({policy,capabilities:{...capabilities,ownerHasSecondFactor:true}}),/your own/);assert.match(mfaPrerequisite({policy,capabilities:{...capabilities,ownerHasSecondFactor:true,currentHasSecondFactor:true}}),/cannot enroll new members/);assert.equal(mfaPrerequisite({policy,capabilities:{...capabilities,ownerHasSecondFactor:true,currentHasSecondFactor:true,newMemberMfaEnrollment:true}}),"");});
+test("Public-link policy describes its real new-link boundary and existing-grant remediation",()=>{const html=draw("sharing.public_links");assert.match(html,/Administrators/);assert.match(html,/does not revoke links that already exist/);assert.match(html,/Review existing grants/);});

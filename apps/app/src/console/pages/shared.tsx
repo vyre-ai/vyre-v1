@@ -23,7 +23,7 @@ export function useRead<T>(cap: string, input: Record<string, unknown> = {}, opt
     let alive = true;
     void call(cap, JSON.parse(key)).then((data) => { if (alive) setState({key:stateKey, data: data as T }); }, () => { if (alive) setState({key:stateKey, error: "Couldn’t load this page. Check access and try again." }); });
     return () => { alive = false; };
-  }, [call, cap, key, revision, query, stateKey]);
+  }, [call, cap, key, revision, query, stateKey, enabled]);
   if (!enabled) return {data: undefined, error: undefined, refresh};
   return query ? { data: snapshot.status === "ready" ? snapshot.data : undefined, error: snapshot.status === "loading" && snapshot.error ? "Couldn’t load this page. Check access and try again." : undefined, refresh } : { ...(state.key===stateKey?state:{}), refresh };
 }
