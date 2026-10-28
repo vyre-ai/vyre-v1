@@ -138,6 +138,9 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
   try {
     res = await http(url.toString(), { method, headers, ...(body !== undefined ? { body } : {}) });
   } catch (e) {
+    const changed=(e as {error?:{code?:string}})?.error?.code;
+    if(changed==='permission.no_grant')return refuse(ctx,'permission.no_grant','Access changed before this connector request.');
+    if(changed==='validation.precondition_failed')return refuse(ctx,'validation.precondition_failed','The connection changed before this request. Try again.');
     const msg = scrub.text(e instanceof Error ? e.message : String(e));
     logRow(null, msg);
     return refuse(ctx, "provider.network", `The app could not be reached: ${msg}`);
