@@ -33197,6 +33197,7 @@
           "input": {},
           "name": "example",
           "output": {
+            "enabled": true,
             "encrypted": true,
             "lastBackupAt": 1760000000000,
             "schedule": "example",
@@ -33220,6 +33221,9 @@
       "name": "backup.config_get",
       "output": {
         "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
           "encrypted": {
             "type": "boolean"
           },
@@ -33240,6 +33244,7 @@
         },
         "required": [
           "schedule",
+          "enabled",
           "encrypted"
         ],
         "type": "object"
@@ -33482,6 +33487,111 @@
       "summary": "Start the owner full export as a zip (never secret values, never other people private chats or personal memory)",
       "surfaces": {
         "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "runId": "run_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "expiresAt": 1760000000000,
+            "fileId": "fil_a1b2c3",
+            "name": "example",
+            "runId": "run_a1b2c3",
+            "sizeBytes": 1,
+            "state": "ready"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "runId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "backup",
+      "name": "backup.export_status",
+      "output": {
+        "properties": {
+          "expiresAt": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "runId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer"
+          },
+          "state": {
+            "const": "ready",
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId",
+          "state",
+          "fileId",
+          "name",
+          "sizeBytes",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "permission": "server.backups",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Read current-owner private export readiness and file metadata",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
       },
       "v": 1
     },

@@ -17,6 +17,13 @@ export function foldEvent(snap: AccessSnapshot, e: FoldableEvent): void {
     case "principal.created": snap.putPrincipal(body<PrincipalRow>(e)); return;
     case "principal.role_set": snap.addPrincipalRole(body<PrincipalRoleRow>(e)); return;
     case "group.member_added": snap.addMember(body<{ group: string; member: string }>(e)); return;
+    case "space.ownership_transferred": {
+      const {from,to}=body<{from:string;to:string}>(e);const resources=[...snap.allResources()].filter(row=>row.type==='space'&&row.owner_id===from);
+      if(resources.length!==1||(snap.principal(to)?.status!=='active'||snap.principal(to)?.kind!=='person'))return;
+      const pref=snap.info(from)?.keys.has('role:rol_owner')?'rol_':'';
+      snap.removePrincipalRole({holder:from,role:'owner'});snap.removePrincipalRole({holder:from,role:'rol_owner'});
+      snap.addPrincipalRole({holder:from,role:`${pref}admin`});snap.addPrincipalRole({holder:to,role:`${pref}owner`});snap.putResource({...resources[0]!,owner_id:to});return;
+    }
     case "resource.created": snap.putResource(body<ResourceRow>(e)); return;
     case "grant.created": snap.putGrant(body<GrantRow>(e)); return;
     case "grant.revoked": {
@@ -37,7 +44,7 @@ export function buildAccess(events: readonly FoldableEvent[]): AccessSnapshot {
 /** The events the access module folds into its store (modules/access/consumers.ts ACCESS_EVENTS). */
 const MODULE_EVENTS = new Set([
   "role.defined", "principal.created", "principal.role_set", "group.member_added", "resource.created", "grant.created", "grant.revoked",
-  "principal.suspended", "principal.reactivated", "member.removed",
+  "principal.suspended", "principal.reactivated", "member.removed", "space.ownership_transferred",
 ]);
 export const isAccessEvent = (type: string): boolean => MODULE_EVENTS.has(type);
 /** Events after which the module's tables may differ from the snapshot the daemon holds: the ones it folds, plus what its own capabilities emit when a role, share, revoke or policy changes. */
@@ -61,6 +68,7 @@ export function createAccess(): { readonly snap: AccessSnapshot; fold(e: Foldabl
     get snap() { return current; },
     fold(e) {
       foldEvent(seeded, e);
+      if(e.type==='space.ownership_transferred'){const p=body<{from:string;to:string}>(e);if(p.from===owner&&typeof p.to==='string'&&[...seeded.allResources()].some(row=>row.type==='space'&&row.owner_id===p.to))owner=p.to;}
       if (e.type === "resource.created") { const r = body<ResourceRow>(e); if (r.type === "space" && r.owner_id) owner = r.owner_id; }
     },
     owner: () => owner,

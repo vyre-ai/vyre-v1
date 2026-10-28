@@ -1,3 +1,4 @@
+import {Updates,SpaceProfile} from '../../console/pages/InfrastructureSettings.tsx';
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { States } from "../../../../../ui/src/States/index.tsx";
@@ -27,6 +28,9 @@ export function consolePagesFromNav(out: { groups: Array<{ pages: Array<{ key: s
 }
 
 export function consolePageFor(id: string, args: Record<string, string | undefined>): ReactElement {
+  if (id === "updates") return <Updates />;
+  if (id === "space") return <SpaceProfile />;
+  if (id === "export") return <Backups />;
   if (id === "server") return <Server />;
   if (id === "diagnostics") return <Diagnostics />;
   if (id === "support") return <Support />;

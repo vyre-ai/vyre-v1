@@ -18,7 +18,7 @@ export default defineManifest({
     ev('backup.config_changed', 'Backup target or schedule changed', { p: { target: t.str(), schedule: t.str() }, subject: ['entity', '/target'] }),
   ],
   capabilities: [
-    read('backup.config_get', 'Read the backup target, schedule and encryption status', { out: { target: t.opt(target), schedule: t.str(), encrypted: t.bool(), lastBackupAt: t.opt(t.ts()) }, perm: 'server.backups', tool: 'engineer' }),
+    read('backup.config_get', 'Read the backup target, schedule and encryption status', { out: { target: t.opt(target), schedule: t.str(), enabled: t.bool(), encrypted: t.bool(), lastBackupAt: t.opt(t.ts()) }, perm: 'server.backups', tool: 'engineer' }),
     write('backup.config_set', 'Set the backup target and schedule (one switch)', { in: { target, schedule: t.str({ examples: ['0 3 * * *'] }), enabled: t.bool() }, out: { ok: t.bool() }, perm: 'server.backups', level: 'manage', risk: 'high', audit: 'always', emits: ['backup.config_changed'], tool: 'engineer' }),
     read('backup.list', 'List backups with size, sequence number and verification state', { in: pageIn, out: { backups: t.arr(row), ...pageOut }, perm: 'server.backups', tool: 'engineer' }),
     outward('backup.run', 'Run a backup now', { in: {}, out: { backupId }, perm: 'server.backups', level: 'manage', run: { kind: 'backup', stoppable: true }, emits: ['backup.completed', 'backup.failed'], gate: { act: 'none', reason: 'destination is chosen by an admin in the backup config; nothing is shared with a person' }, tool: 'engineer', team: true }),
@@ -27,6 +27,7 @@ export default defineManifest({
     write('backup.verify', 'Restore a backup into a scratch directory and check the hash chain', { in: { backupId }, out: { ok: t.bool(), checkedEvents: t.int() }, perm: 'server.backups', emits: ['backup.verified'], tool: 'engineer' }),
     write('backup.delete', 'Delete a backup file from the target', { in: { backupId }, out: { deleted: t.bool() }, perm: 'server.backups', level: 'manage', risk: 'high', audit: 'always', gate: { act: 'delete' }, tool: 'engineer' }),
     create('backup.export_start', 'Start the owner full export as a zip (never secret values, never other people private chats or personal memory)', { in: {}, out: { runId: id.run }, perm: 'server.backups', level: 'manage', risk: 'high', audit: 'always', run: { kind: 'export', stoppable: true } }),
+    read('backup.export_status', 'Read current-owner private export readiness and file metadata', { in: { runId: id.run }, out: { runId: id.run, state: t.lit('ready'), fileId: id.file, name: t.str(), sizeBytes: t.int(), expiresAt: t.ts() }, perm: 'server.backups', level: 'manage', tool: 'engineer' }),
     read('backup.health', 'Backup health probe: age of the last good backup', { out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()), ageHours: t.opt(t.int()) } }),
   ],
   health: [health('backups.recent', 'Recent backup', 'backup.health', 'Open Console, Infrastructure, Backups and run a backup now.', { intervalSec: 900, states: { degradedWhen: 'ageHours > 30', downWhen: 'ageHours > 72' } })],

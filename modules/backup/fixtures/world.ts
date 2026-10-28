@@ -187,6 +187,7 @@ export function world(o: { encrypt?: boolean; now?: number; principal?: string }
     openTarget: async () => target,
   };
   const ctx = {
+    ownerArchive:{status:async(runId:string)=>({runId,state:"ready",fileId:"fil_fixture",name:"vyre-export-fixture.zip",sizeBytes:4,expiresAt:clock+86400000})},
     space: SPACE,
     principal: { kind: "person", id: o.principal ?? "usr_owner" },
     trace: { traceId: TRACE, spanId: "abcdef0123456789" },
