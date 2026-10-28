@@ -5,6 +5,7 @@
 //           the Chrome bridge register as supervised services (`options.services`) when their lanes land.
 // Nothing here knows a module's internals: module code only ever sees the ctx the loader builds.
 import fs from "node:fs";
+import { formUploadAllowed } from "./forms-authority.ts";
 import type http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -704,7 +705,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           },
         }),
         // forms and campaigns build their public links from the address people reach this Space at; unset, the links stay relative
-        setFormsHost: () => (cfg.address ? { publicBase: /^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}` } : {}),
+        setFormsHost: () => ({ ...(cfg.address ? { publicBase: /^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}` } : {}), schemaFields: async (type: string) => { const out = await system("schema.types.get", { type }) as { type: { fields: readonly unknown[] } }; return out.type.fields; }, canUpload: (publisherId: string, formId: string, folderId: string) => {
+          return formUploadAllowed(access.snap,{publisherId,formId,folderId,stale:staleFor(publisherId),liveLocalFolder:!!db!.all("SELECT id FROM files_folder WHERE id = ? AND deleted_at IS NULL",folderId)[0],now:now()});
+        } }),
         setCampaignsHost: () => (cfg.address ? { publicBase: /^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}` } : {}),
         // backups: the Space's own files, the owner from the access layer (P-SEC_07: without owner() every export refuses), exports into the blob store, S3 over the seam fetch with keys from the Vault
         setBackupHost: (d) => createBackupHost({
@@ -915,7 +918,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // GET /f/<slug> and /book/<slug> (P-L8_19): the public form pages. A visitor is an act_anon actor; the forms module answers for a published form of the right kind, and an upload goes to the form's Files folder
       {
         const formsNs = loaded.moduleExports.get("forms");
-        const viewOf = formsNs?.["publicFormView"] as ((ctx: unknown, slug: string, page: "form" | "booking") => PublicFormView) | undefined;
+        const viewOf = (formsNs?.["publicFormViewTyped"] ?? formsNs?.["publicFormView"]) as ((ctx: unknown, slug: string, page: "form" | "booking") => PublicFormView | Promise<PublicFormView>) | undefined;
         const linkOf = formsNs?.["linkView"] as ((ctx: unknown, slug: string, token: string) => Promise<{ fields: { field: string; step?: number }[]; partial?: { answers: Record<string, unknown>; step?: number } }>) | undefined;
         const reserveUpload = formsNs?.["reserveUpload"] as ((ctx: unknown, slug: string) => { formId: string; folderId: string }) | undefined;
         const recordUpload = formsNs?.["recordUpload"] as ((ctx: unknown, f: { slug: string; fileId: string; name: string; mime: string; size: number; token?: string | undefined }) => Promise<string>) | undefined;
@@ -927,13 +930,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           formsPageRoute = createFormsPageRoute({
             // a visitor has no session, so the pipeline could not authorize them: the host runs the three public capabilities as itself and the module is told which visitor (forms.visitorOf)
             call: (cap, input, _caller, trace) => invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook", ...(trace ? { trace } : {}) }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)))),
-            read: async (slug, page, caller) => { try { return viewOf(formCtx(caller), slug, page); } catch { return null; } },
+            read: async (slug, page, caller) => { try { return await viewOf(formCtx(caller), slug, page); } catch { return null; } },
             ...(linkOf ? { link: async (slug, token, caller) => { try { return await linkOf(formCtx(caller), slug, token); } catch { return null; } } } : {}),
             // the file is stored as the host (system), never as the visitor or the forms module; the forms module keeps the binding of the upload to this form and this visitor and issues the id the page gets back
             ...(reserveUpload && recordUpload ? { upload: async (slug: string, file: { name: string; type: string; bytes: Uint8Array; folderId: string }, caller: { kind: string; id: string }, token?: string) => {
               const ctx = formCtx(caller);
               reserveUpload(ctx, slug);
-              const out = await system("files.create", { folderId: file.folderId, name: file.name, mime: file.type, content: { base64: Buffer.from(file.bytes).toString("base64") } }) as { file: { fileId: string } };
+              const uploadKey = sha256b64(Buffer.from(JSON.stringify([slug, file.folderId, caller.id, token ?? "", file.name, sha256b64(file.bytes)])));
+              const out = await system("files.create", { idempotencyKey: `forms-upload:${uploadKey}`, folderId: file.folderId, name: `${uploadKey.replaceAll(/[^a-zA-Z0-9]/g, "").slice(0, 12)}-${file.name}`, mime: file.type, content: { base64: Buffer.from(file.bytes).toString("base64") } }) as { file: { fileId: string } };
               return recordUpload(ctx, { slug, fileId: out.file.fileId, name: file.name, mime: file.type, size: file.bytes.length, token });
             } } : {}),
             now,

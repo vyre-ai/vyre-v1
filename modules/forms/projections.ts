@@ -19,7 +19,13 @@ export interface CaptchaVerifier {
   verify(token: string, ctx: Ctx): Promise<boolean>;
 }
 
+export interface FormSchemaField { key: string; title: string; type: string; required?: boolean; options?: Record<string, unknown> }
+
 export interface FormsConfig {
+  /** Host reads actual schema; public views expose metadata only for this form's selected fields. */
+  schemaFields?(recordType: string): Promise<readonly FormSchemaField[]>;
+  /** Current grant/status and live-folder check, scoped to this stored form owner. */
+  canUpload?(publisherId: string, formId: string, folderId: string): boolean;
   captcha?: CaptchaVerifier;
   /** Public origin of the Space edge, for example https://harbor.vyre.run. Links are relative when absent. */
   publicBase?: string;
