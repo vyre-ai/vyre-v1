@@ -27,6 +27,7 @@ function You({ session, nav, onSignOut }: { session: RealSession; nav: MobileNav
   return (
     <View style={{ flex: 1 }}>
       <YouScreen nav={nav} data={{ name: session.me.name, space: session.def.name, workOpen: work.status === "ready" ? work.data.tasks.length : 0, starred: stars.status === "ready" ? stars.data.stars.length : 0 }} />
+      {session.runtime.space.kind === "team" ? <Row id="you-apps" title="Apps" note="Forms, campaigns and templates" onPress={() => nav.open(entryFor("apps", "")!)} /> : null}
       <Row id="you-sign-out" title="Sign out" note={`Of ${session.def.name} on this device`} onPress={onSignOut} />
     </View>
   );
@@ -65,5 +66,5 @@ export function PhoneHost({ session, needsYou, registerGo, onSignOut }: PhoneHos
     };
     return <PlaceHost place={where.place} runtime={session?.runtime ?? null} hash={where.hash} opened={opened} />;
   };
-  return <MobileShell renderScreen={render} needsYou={needsYou} initialTab="chats" />;
+  return <MobileShell renderScreen={render} needsYou={needsYou} initialTab="chats" ownsHeader={(entry) => entry.screen.startsWith("apps:") && placeOf(entry)?.hash !== ""} />;
 }

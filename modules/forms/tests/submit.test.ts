@@ -359,7 +359,7 @@ test("definitions: create, fields, update, design, publish, list, unpublish", as
   assert.equal(row?.match_rule, JSON.stringify(["email", "phone"]));
   await run(w.ctx, "forms.design_set", { formId: id, theme: { font: "Inter" }, css: ".x { color: red }", logic: { show: [] } });
   const got = await run<{ fields: { field: string; mode: string; prefillKey?: string }[]; theme?: unknown; logic?: unknown }>(w.ctx, "forms.get", { formId: id });
-  assert.deepEqual(got.fields, [{ field: "email", mode: "ask", prefillKey: "e" }, { field: "name", mode: "ask" }]);
+  assert.deepEqual(got.fields, [{ field: "email", mode: "ask", prefillKey: "e", step: 0 }, { field: "name", mode: "ask", step: 1 }]);
   assert.deepEqual(got.theme, { font: "Inter" });
   assert.deepEqual(got.logic, { show: [] });
   const listed = await run<{ forms: { formId: string }[]; total: number }>(w.ctx, "forms.list", {});

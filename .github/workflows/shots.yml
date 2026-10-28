@@ -86,8 +86,9 @@ jobs:
           CHROME_BIN="$(node -e 'import("playwright-core").then((p) => console.log((p.chromium ?? p.default.chromium).executablePath()))')"
           test -x "$CHROME_BIN"
           export CHROME_BIN VYRE_APP_DIST="$PWD/apps/app/dist" VYRE_REQUIRE_CHROME=1
-          node scripts/test-run.ts --slow --no-cache --files "$T" 2>&1 | tee real-app-e2e.out
+          node scripts/test-run.ts --slow --no-cache --files "$T" apps/app/tests/apps.editors.live.test.ts 2>&1 | tee real-app-e2e.out
           grep -q "^ok .*real-app.e2e.test.ts" real-app-e2e.out
+          grep -q "^ok .*apps.editors.live.test.ts" real-app-e2e.out
       - name: Real app capture against the production export (scripts/shots/real-app.mjs, P-APP_03)
         run: node scripts/shots/real-app.mjs --dist apps/app/dist --out shots-evidence/real-app
       - name: The export carries the daemon's registry hash (EXPO_PUBLIC_VYRE_REGISTRY_HASH)

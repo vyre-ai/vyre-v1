@@ -8008,6 +8008,35 @@
       ],
       "type": "object"
     },
+    "s_65290eac05": {
+      "items": {
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "ask",
+              "show",
+              "hide"
+            ],
+            "type": "string"
+          },
+          "prefillKey": {
+            "type": "string"
+          },
+          "step": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "field",
+          "mode"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
     "s_6530e00598": {
       "properties": {
         "at": {
@@ -72564,33 +72593,7 @@
       "input": {
         "properties": {
           "fields": {
-            "items": {
-              "properties": {
-                "field": {
-                  "type": "string"
-                },
-                "mode": {
-                  "enum": [
-                    "ask",
-                    "show",
-                    "hide"
-                  ],
-                  "type": "string"
-                },
-                "prefillKey": {
-                  "type": "string"
-                },
-                "step": {
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "field",
-                "mode"
-              ],
-              "type": "object"
-            },
-            "type": "array"
+            "$ref": "#/$defs/s_65290eac05"
           },
           "formId": {
             "examples": [
@@ -72653,11 +72656,13 @@
           },
           "name": "example",
           "output": {
+            "css": "example",
             "fields": [
               {
                 "field": "example",
                 "mode": "ask",
-                "prefillKey": "example"
+                "prefillKey": "example",
+                "step": 1
               }
             ],
             "form": {
@@ -72670,6 +72675,15 @@
               "submissions": 1
             },
             "logic": {},
+            "settings": {
+              "captcha": true,
+              "consentText": "example",
+              "rateLimit": 1,
+              "thankYou": {
+                "redirect": "example",
+                "text": "example"
+              }
+            },
             "theme": {}
           }
         }
@@ -72695,37 +72709,47 @@
       "name": "forms.get",
       "output": {
         "properties": {
+          "css": {
+            "type": "string"
+          },
           "fields": {
-            "items": {
-              "properties": {
-                "field": {
-                  "type": "string"
-                },
-                "mode": {
-                  "enum": [
-                    "ask",
-                    "show",
-                    "hide"
-                  ],
-                  "type": "string"
-                },
-                "prefillKey": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "field",
-                "mode"
-              ],
-              "type": "object"
-            },
-            "type": "array"
+            "$ref": "#/$defs/s_65290eac05"
           },
           "form": {
             "$ref": "#/$defs/s_193ebba03a"
           },
           "logic": {
             "description": "Any JSON value"
+          },
+          "settings": {
+            "properties": {
+              "captcha": {
+                "type": "boolean"
+              },
+              "consentText": {
+                "type": "string"
+              },
+              "rateLimit": {
+                "type": "integer"
+              },
+              "thankYou": {
+                "properties": {
+                  "redirect": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "consentText",
+              "captcha",
+              "rateLimit"
+            ],
+            "type": "object"
           },
           "theme": {
             "additionalProperties": true,
@@ -72734,7 +72758,8 @@
         },
         "required": [
           "form",
-          "fields"
+          "fields",
+          "settings"
         ],
         "type": "object"
       },

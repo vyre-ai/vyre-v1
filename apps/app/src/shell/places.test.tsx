@@ -106,9 +106,11 @@ test("before the Space's runtime exists a place draws its loading frame, never a
 
 test("a place whose list is empty says so with the shared empty state", async () => {
   const { rt, sample } = runtimeFor("northwind", true);
-  (sample.replica as unknown as Loose).resolve("sites.list", () => ({ sites: [] }));
+  (sample.replica as unknown as Loose).resolve("forms.list", () => ({ forms: [] }));
+  (sample.replica as unknown as Loose).resolve("campaigns.list", () => ({ campaigns: [] }));
+  (sample.replica as unknown as Loose).resolve("templates.list", () => ({ templates: [] }));
   const out = await mount("sites", rt);
-  assert.ok(out.includes("No sites or apps yet."));
+  assert.ok(out.includes("No forms yet. Make one with New."));
   assert.ok(!out.includes("Northwind website"));
   assert.deepEqual(listItems({ files: [] }), []);
 });
@@ -166,11 +168,13 @@ test("a first-list read that fails ends the loading frame: not in this version i
     const q = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "loading" as const, error }) };
     return { ...rt, screens: { query: () => q } as unknown as ShellRuntime["screens"] };
   };
-  const calm = await mount("sites", failing({ code: "internal.unavailable", message: "Not in this version yet", traceId: "t1" }));
+  const First = (await import("./providers/first-list.tsx")).default;
+  const first = (runtime: ShellRuntime): string => renderToStaticMarkup(<ShellRuntimeProvider value={runtime}><First place="sites" /></ShellRuntimeProvider>);
+  const calm = first( failing({ code: "internal.unavailable", message: "Not in this version yet", traceId: "t1" }));
   assert.ok(calm.includes("This is not in this version yet."));
   assert.ok(!calm.includes('data-testid="state-error"') && !calm.includes("Not in this version yet</"), "no raw error text");
-  const broken = await mount("sites", failing({ code: "internal.unexpected", message: "boom", traceId: "t2" }));
+  const broken = first( failing({ code: "internal.unexpected", message: "boom", traceId: "t2" }));
   assert.ok(broken.includes('data-testid="state-error"'));
   assert.ok(broken.includes("Couldn&#x27;t load Apps") || broken.includes("Couldn't load Apps"));
-  assert.ok(!(await mount("sites", rt)).includes("place-sites-failed"), "a healthy read is not the failed frame");
+  assert.ok(!(first(rt)).includes("place-sites-failed"), "a healthy read is not the failed frame");
 });
