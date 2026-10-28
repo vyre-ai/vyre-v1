@@ -48,8 +48,8 @@ test("Schema and sensitivity pages expose record-type objects and live label con
   if (!pages) return;
   const type = { key: "matter", title: "Matter", plural: "Matters", icon: "record", label: "confidential", system: false, titleField: "title", fields: [{ key: "title", type: "text", title: "Title", required: true }], version: 3 };
   const schema = draw(<pages.SchemaPage />, { "schema.describe": { types: [type] }, "schema.changes.list": { changes: [] }, "schema.trash.list": { items: [] }, "schema.field_types": { fieldTypes: [{ key: "text", title: "Text", filterOps: [], sortable: true, groupable: true, sealed: false }] } });
-  assert.match(schema, /Matter|Version 3|Add field|Create record type|Preview schema change/);
-  assert.doesNotMatch(schema, /Operations \(JSON array\)/);
+  assert.match(schema, /Matter|Version 3|Add field|Create record type|Preview schema change|Field type|Text/);
+  assert.doesNotMatch(schema, /Operations \(JSON array\)|Field type \(text\)/);
   const labels = { labels: [{ label: "public", rank: 0, providers: "any", syncToLaptop: true }, { label: "restricted", rank: 3, providers: "none", syncToLaptop: false }] };
   assert.match(draw(<pages.LabelsPage />, { "access.labels.list": labels }), /Public|Restricted|Set label|Scan record type/);
 });
