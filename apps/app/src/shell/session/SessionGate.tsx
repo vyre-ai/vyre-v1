@@ -8,7 +8,10 @@ import { loadCryptoKeys } from "../../../../../client/src/crypto/load.ts";
 import { holdKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
 import { JoinFlow } from "../../join/JoinFlow.tsx";
 import type { JoinValues } from "../../join/JoinFlow.tsx";
+import { normalizeSpaceAddress } from "../../join/logic.ts";
 import type { JoinInvite } from "../../join/logic.ts";
+import { JoinFrame } from "../../join/kit.tsx";
+import { Welcome } from "../../join/Welcome.tsx";
 import { mark } from "../../startup/marks.ts";
 import type { ShellHub } from "../spaces/hub.ts";
 import { createCapCaller } from "./caps.ts";
@@ -89,8 +92,32 @@ function SignInScreen({ baseUrl, open, onSignedIn, notice }: { baseUrl: string; 
   return <JoinFlow invite={invite} initial={{ stage: "signin", ...(notice ? { error: SIGNED_OUT_LINE } : {}) }} onSignIn={signIn} />;
 }
 
-function ConnectSpaceWelcome(): ReactElement {
-  return <States kind="empty" title="Connect a Space" icon="search" />;
+export function ConnectSpaceWelcome({ onConnect }: { onConnect: (address: string) => void }): ReactElement {
+  useEffect(() => { mark("app.usable"); }, []);
+  const [address, setAddress] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const request = useRef(0);
+  useEffect(() => () => { request.current++; }, []);
+  const connect = async (): Promise<void> => {
+    if (busy) return;
+    const normalized = normalizeSpaceAddress(address);
+    const endpoint = normalized ? spaceEndpoint(normalized) : null;
+    if (!endpoint) { setError("Enter a valid HTTPS Space address, or a local development address."); return; }
+    const current = ++request.current;
+    setBusy(true);
+    setError("");
+    try {
+      const anonymous = createCapCaller({ baseUrl: endpoint, token: () => null });
+      await anonymous("identity.sign_in_options", {});
+      if (request.current === current) onConnect(endpoint);
+    } catch {
+      if (request.current === current) setError("Couldn’t reach this Space. Check its address and connection, then try again.");
+    } finally {
+      if (request.current === current) setBusy(false);
+    }
+  };
+  return <JoinFrame halftoneIntensity="full"><Welcome address={address} busy={busy} error={error} onAddressChange={(value) => { request.current++; setBusy(false); setAddress(value); setError(""); }} onSignIn={() => void connect()} onGetStarted={() => setError("Ask the Space owner for an invite link to create your account.")} /></JoinFrame>;
 }
 
 async function authenticatedSpace(baseUrl: string, token: string): Promise<{ id: string; marker: string }> {
@@ -150,13 +177,14 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const [loadedAddress, setLoadedAddress] = useState<string | null | undefined>(undefined);
   const previousAddress = useRef<string | null | undefined>(undefined);
   const [notice, setNotice] = useState(false);
+  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const [desktopRoute, setDesktopRoute] = useState<DesktopRoute | null>(null);
   const bridge = useMemo(() => desktopBridge(), []);
 
   useEffect(() => {
     const changed = previousAddress.current !== undefined && previousAddress.current !== baseUrl;
     previousAddress.current = baseUrl;
-    if (changed) { setNotice(false); setDesktopRoute(null); }
+    if (changed) { setNotice(false); setDesktopRoute(null); setConnectedAddress(null); }
     const stored = readStored(undefined, baseUrl ?? undefined);
     setPhase(phaseForStoredAddress(stored));
     setLoadedAddress(baseUrl);
@@ -179,12 +207,13 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const signedIn = useCallback((stored: StoredSession) => setPhase({ kind: "shell", stored }), []);
   const signedInFromDesktop = useCallback((stored: StoredSession) => { setDesktopRoute((route) => consumeDesktopRoute(route)); setPhase({ kind: "shell", stored }); }, []);
 
-  if (loadedAddress !== baseUrl || !ready) return baseUrl ? <View style={styles.fill} /> : <ConnectSpaceWelcome />;
+  const connectSpace = (address: string): void => { setConnectedAddress(address); setDesktopRoute(null); setNotice(false); };
+  if (loadedAddress !== baseUrl || !ready) return baseUrl ? <View style={styles.fill} /> : <ConnectSpaceWelcome onConnect={connectSpace} />;
   if (phase.kind === "shell") return <Suspense fallback={<View style={styles.fill} />}><SignedInShell stored={phase.stored} open={open} onSignedOut={(why) => signedOut(why, phase.stored.baseUrl)} onHub={onHub} voice={props.voice} /></Suspense>;
   if (desktopRoute?.kind === "pair") return <DesktopPairScreen key={`${desktopRoute.address}:${desktopRoute.code}`} route={desktopRoute} open={open} onSignedIn={signedInFromDesktop} />;
   if (desktopRoute?.kind === "join") return <DesktopJoinScreen key={`${desktopRoute.address}:${desktopRoute.code}`} route={desktopRoute} open={open} onSignedIn={signedInFromDesktop} />;
-  const activeAddress = desktopRoute?.address ?? baseUrl;
-  if (!activeAddress) return <ConnectSpaceWelcome />;
+  const activeAddress = desktopRoute?.address ?? connectedAddress ?? baseUrl;
+  if (!activeAddress) return <ConnectSpaceWelcome onConnect={connectSpace} />;
   return <SignInScreen baseUrl={activeAddress} open={open} onSignedIn={signedIn} notice={notice} />;
 }
 

@@ -70,6 +70,28 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
   const todo: string[] = [];
   let signedIn = false;
   try {
+    await t.test("0 a fresh desktop can connect by address without a deep link", async () => {
+      await page.goto(`${web.origin}/home?space=tauri%3A%2F%2Flocalhost`, { waitUntil: "load" });
+      await page.getByTestId("space-address").waitFor({ timeout: 15_000 });
+      assert.equal(await page.getByTestId("si-user").count(), 0, "no credentials before choosing a Space");
+      fs.mkdirSync("shots-evidence/connect-space", { recursive: true });
+      await page.screenshot({ path: "shots-evidence/connect-space/desktop.png" });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.screenshot({ path: "shots-evidence/connect-space/phone.png" });
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.getByTestId("space-address").fill("http://untrusted.example");
+      assert.equal(await page.getByTestId("resolve-space").getAttribute("aria-disabled"), "true", "remote HTTP is refused");
+      await page.getByTestId("space-address").fill("http://127.0.0.1:1");
+      await page.getByTestId("resolve-space").click();
+      await page.getByTestId("space-error").waitFor({ timeout: 15_000 });
+      assert.match(await page.getByTestId("space-error").innerText(), /Check its address/);
+      await page.getByTestId("space-address").fill(web.origin);
+      await page.getByTestId("resolve-space").click();
+      await page.getByTestId("si-user").waitFor({ timeout: 15_000 });
+      assert.equal(await page.getByTestId("shell").count(), 0, "discovery does not authenticate or open the shell");
+      assert.equal(await page.evaluate(() => localStorage.getItem("vyre.session.v1")), null, "no session is persisted from anonymous discovery");
+    });
+
     await t.test("1 the app opens on sign-in when nobody is signed in", async () => {
       await page.goto(`${web.origin}/home`, { waitUntil: "load" });
       await page.getByTestId("si-user").waitFor({ timeout: 15_000 });
