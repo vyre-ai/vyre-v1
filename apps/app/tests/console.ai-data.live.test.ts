@@ -17,6 +17,8 @@ test("production Console AI/Data: policies, spend, Gate, review, incidents, hold
   const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
+  const captureDir = process.env["VYRE_TEST_CAPTURE_DIR"];
+  const capture = async (name: string): Promise<void> => { if (captureDir) { fs.mkdirSync(captureDir, { recursive: true }); await page.screenshot({ path: `${captureDir}/${name}.png`, fullPage: true }); } };
   const errors: string[] = [], refused: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("response", (response) => { if (response.url().includes("/v1/") && response.status() >= 400) void response.text().then((body) => refused.push(`${response.status()} ${new URL(response.url()).pathname}: ${body.slice(0, 180)}`)); });
@@ -39,6 +41,7 @@ test("production Console AI/Data: policies, spend, Gate, review, incidents, hold
     await page.getByRole("button", { name: "Accounts agents may use", exact: true }).click(); await page.getByRole("menuitem", { name: "Company accounts only", exact: true }).click();
     await page.getByTestId("models-policy-review").click(); await page.getByTestId("models-policy-apply").click(); await page.getByText("AI policy saved", { exact: true }).waitFor();
     assert.equal((await api("engine.policy.get", {}) as { allowedAccounts: string }).allowedAccounts, "company");
+    await capture("models-policy");
     t.diagnostic("PASS Models policy mutation and readback");
 
     await open("console.ai-spend", '[data-testid="console-ai-spend"]');
@@ -75,6 +78,7 @@ test("production Console AI/Data: policies, spend, Gate, review, incidents, hold
     await page.getByTestId("object-more").click(); await page.getByRole("menuitem", { name: "Resolve incident", exact: true }).click(); await page.getByTestId("object-confirm-go").click(); await page.getByText("Incident resolved", { exact: true }).waitFor();
     const resolved = await api("engine.incident.get", { incidentId: incident.incidentId }) as { incident: { state: string; ownerId?: string; notes: { text: string }[] } };
     assert.equal(resolved.incident.state, "resolved"); assert.equal(resolved.incident.ownerId, owner.id); assert.ok(resolved.incident.notes.some((note) => note.text === "Verified note"));
+    await capture("incidents-resolved");
     t.diagnostic("PASS Incident open, named assignment, note, resolve and readback");
 
     await open("governance.holds", 'text="Place a hold"', "holds");
@@ -83,6 +87,7 @@ test("production Console AI/Data: policies, spend, Gate, review, incidents, hold
     await holdSection.getByRole("button", { name: "Target", exact: true }).click(); await page.getByRole("menuitem", { name: `${owner.name} · person`, exact: true }).click();
     await page.getByLabel("Reason", { exact: true }).fill("Production browser release proof"); await page.getByRole("button", { name: "Review hold", exact: true }).click(); await page.getByRole("button", { name: "Place hold", exact: true }).click(); await page.getByText("Hold placed", { exact: true }).waitFor();
     const held = (await api("governance.holds.list", { kind: "person", limit: 100 }) as { holds: { target: { id: string }; reason: string }[] }).holds.find((hold) => hold.reason === "Production browser release proof"); assert.ok(held);
+    await capture("person-hold-placed");
     await page.getByText(owner.name, { exact: true }).first().click(); await page.getByRole("button", { name: "Release hold", exact: true }).click(); await page.getByText("Hold released", { exact: true }).waitFor();
     assert.ok(!(await api("governance.holds.list", { kind: "person", limit: 100 }) as { holds: { target: { id: string } }[] }).holds.some((hold) => hold.target.id === held.target.id));
 
@@ -98,6 +103,7 @@ test("production Console AI/Data: policies, spend, Gate, review, incidents, hold
     await page.getByTestId("file-viewer").waitFor({ timeout: 20_000 });
     const file = await api("files.viewer_data", { fileId: exported.fileId }) as { file: { name: string; mime: string }; text?: string };
     assert.match(file.file.name, /^AI use policy .*\.md$/); assert.equal(file.file.mime, "text/markdown"); assert.match(file.text ?? "", /^# AI use policy/m); assert.match(file.text ?? "", /Accounts: Company accounts only/);
+    await capture("ai-policy-export");
 
     await open("console.schema", '[data-testid="console-schema"]', "schema");
     await page.getByRole("button", { name: "Create record type", exact: true }).click(); await page.getByLabel("Type key", { exact: true }).fill("browser_ai_data"); await page.getByLabel("Singular title", { exact: true }).fill("Browser AI datum"); await page.getByLabel("Plural title", { exact: true }).fill("Browser AI data");
@@ -107,16 +113,18 @@ test("production Console AI/Data: policies, spend, Gate, review, incidents, hold
     await page.getByLabel("Field key", { exact: true }).fill("risk_score"); await page.getByLabel("Field title", { exact: true }).fill("Risk score"); await page.getByRole("button", { name: "Field type", exact: true }).click(); await page.getByRole("menuitem", { name: "Number", exact: true }).click();
     await page.getByTestId("schema-preview").click(); await page.getByRole("button", { name: "Apply exact preview", exact: true }).click(); await page.getByText("Schema updated", { exact: true }).waitFor();
     const typed = (await api("schema.describe", {}) as { types: { key: string; fields: { key: string; type: string }[] }[] }).types.find((type) => type.key === "browser_ai_data"); assert.equal(typed?.fields.find((field) => field.key === "risk_score")?.type, "number");
+    await capture("schema-typed-field");
 
     await open("console.labels", '[data-testid="console-labels"]', "labels");
     await page.getByText("Restricted", { exact: true }).click(); await page.getByRole("button", { name: "Resource", exact: true }).click(); await page.getByRole("menuitem", { name: "Browser AI datum", exact: true }).click(); await page.getByTestId("label-set").click(); await page.getByText("Label updated", { exact: true }).waitFor();
     assert.equal((await api("schema.describe", {}) as { types: { key: string; label: string }[] }).types.find((type) => type.key === "browser_ai_data")?.label, "restricted");
+    await capture("sensitivity-label");
 
     assert.deepEqual(errors, []); assert.deepEqual(refused, []);
   } catch (error) {
-    const captureDir = process.env["VYRE_TEST_CAPTURE_DIR"] ?? "/tmp/vyre-console-ai-lifecycle"; fs.mkdirSync(captureDir, { recursive: true });
-    await page.screenshot({ path: `${captureDir}/failure.png`, fullPage: true }).catch(() => undefined);
-    fs.writeFileSync(`${captureDir}/failure.txt`, `${await page.locator("body").innerText().catch(() => "No DOM text")}${refused.length ? `\n\nRefused:\n${refused.join("\n")}` : ""}`);
+    const failureDir = captureDir ?? "/tmp/vyre-console-ai-lifecycle"; fs.mkdirSync(failureDir, { recursive: true });
+    await page.screenshot({ path: `${failureDir}/failure.png`, fullPage: true }).catch(() => undefined);
+    fs.writeFileSync(`${failureDir}/failure.txt`, `${await page.locator("body").innerText().catch(() => "No DOM text")}${refused.length ? `\n\nRefused:\n${refused.join("\n")}` : ""}`);
     throw error;
   } finally { await context.close(); await browser.close(); web.close(); await space.stop(); fs.rmSync(space.dir, { recursive: true, force: true }); }
 });
