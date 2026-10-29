@@ -75,21 +75,23 @@ export function stealPct(a, b) {
   return a && b && b.total > a.total ? +((100 * (b.steal - a.steal)) / (b.total - a.total)).toFixed(2) : null;
 }
 
-/** A size's runs count only when the hypervisor gave the CPU: at most this much steal over them. */
+/** Steal above this is a busy host: it may only explain a result over budget, never excuse one under it. */
 export const MAX_STEAL_PCT = 3;
 /** Measurements of one size before it is called unmeasurable. */
 export const STEAL_ATTEMPTS = 3;
 
 /**
- * Measures until the host is quiet: an attempt whose CPU steal is over MAX_STEAL_PCT is rejected (onReject logs it) and measured again, up to STEAL_ATTEMPTS in all. Returns every
- * attempt and the accepted one, or accepted null (unmeasurable: the caller fails it, it never passes). A host with no steal reading (not Linux) is taken as it is.
+ * Steal can only add time, never remove it, so it only ever throws out a slow result. An attempt is accepted when its cold median is within budget (whatever the steal, which
+ * is recorded), when the host was quiet (steal at most MAX_STEAL_PCT: an over-budget median is then a real fail), or when there is no steal reading (not Linux). An attempt over
+ * budget on a busy host is rejected (onReject logs it) and measured again, up to STEAL_ATTEMPTS in all; after that accepted is null (unmeasurable: red, never a pass).
  */
-export async function measureQuiet(measure, onReject = () => {}, max = STEAL_ATTEMPTS, limit = MAX_STEAL_PCT) {
+export async function measureQuiet(measure, budget, onReject = () => {}, max = STEAL_ATTEMPTS, limit = MAX_STEAL_PCT) {
   const attempts = [];
   for (let i = 0; i < max; i++) {
     const r = await measure();
     attempts.push(r);
-    if (r.steal === null || r.steal <= limit) return { accepted: r, attempts };
+    const ms = median(r.cold);
+    if ((ms !== null && ms <= budget) || r.steal === null || r.steal <= limit) return { accepted: r, attempts };
     onReject(r);
   }
   return { accepted: null, attempts };
@@ -162,7 +164,7 @@ export async function main(argv) {
       }
       return { cold, warm, sizes, phases, steal: stealPct(steal0, cpuSteal()) };
       };
-      const got = await measureQuiet(measure, (r) => console.log(`startup ${size}: host busy, cpu steal ${r.steal}% over the runs (limit ${MAX_STEAL_PCT}%), measuring again; rejected cold runs ${JSON.stringify(r.cold)}`));
+      const got = await measureQuiet(measure, BUDGET_MS[size], (r) => console.log(`startup ${size}: over budget on a busy host (cpu steal ${r.steal}%, limit ${MAX_STEAL_PCT}%), measuring again; rejected cold runs ${JSON.stringify(r.cold)}`));
       const { cold, warm, sizes, phases, steal: steal_pct } = got.accepted ?? got.attempts[got.attempts.length - 1];
       const rejected = got.attempts.filter((r) => r !== got.accepted).map((r) => ({ cpu_steal_pct: r.steal, cold_median_ms: median(r.cold), runs: r.cold }));
       for (const [kind, v] of [["cold", cold], ["warm", warm]]) {
