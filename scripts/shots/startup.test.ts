@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { closure, imports } from "../lib/graph.mjs";
-import { chunkSizes, entryScripts, median, report } from "./startup.mjs";
+import { MAX_STEAL_PCT, STEAL_ATTEMPTS, chunkSizes, enforceStartupBudget, entryScripts, measureQuiet, median, report, stealPct } from "./startup.mjs";
 
 function fakeDist(): string {
   const d = fs.mkdtempSync(path.join(os.tmpdir(), "dist-"));
@@ -150,4 +150,26 @@ test("places that draw a Composer preload one shared on-demand editor before bec
   assert.match(places, /Composer\/load\.ts/);
   assert.match(places, /withComposer/);
   for (const id of ["home", "chat", "mail", "sites"]) assert.match(places, new RegExp(`id: ["']${id}["'][^\\n]+withComposer`), `${id} waits for its real composer before PlaceHost marks it usable`);
+});
+
+test("a size measured on a busy host is measured again, and one never measured on a quiet host fails as unmeasurable", async () => {
+  const run = (steals: number[]) => { let i = 0; const rejected: number[] = []; return { rejected, go: () => measureQuiet(async () => ({ steal: steals[i++]!, cold: [1400] }), (r: { steal: number }) => rejected.push(r.steal)) }; };
+  const busyThenQuiet = run([10, 1]);
+  const a = await busyThenQuiet.go();
+  assert.equal(a.accepted?.steal, 1, "steal 10% then 1%: the second measurement is the one that counts");
+  assert.equal(a.attempts.length, 2);
+  assert.deepEqual(busyThenQuiet.rejected, [10], "the rejected attempt is logged with its steal");
+  const alwaysBusy = run([10, 10, 10, 1]);
+  const b = await alwaysBusy.go();
+  assert.equal(b.accepted, null, "three busy measurements: unmeasurable");
+  assert.equal(b.attempts.length, STEAL_ATTEMPTS);
+  assert.deepEqual(alwaysBusy.rejected, [10, 10, 10]);
+  assert.equal((await run([MAX_STEAL_PCT]).go()).accepted?.steal, MAX_STEAL_PCT, "at the limit counts");
+  // an unmeasurable size has no figure, and a cold row with no figure fails the budget (red), it never passes
+  const prev = process.exitCode;
+  assert.equal(enforceStartupBudget([{ size: "phone", kind: "cold", ms: null, budget: 1500, unmeasurable: true }]).length, 1);
+  assert.equal(process.exitCode, 1);
+  process.exitCode = prev;
+  assert.equal(stealPct({ steal: 10, total: 100 }, { steal: 20, total: 200 }), 10);
+  assert.equal(stealPct(null, null), null);
 });

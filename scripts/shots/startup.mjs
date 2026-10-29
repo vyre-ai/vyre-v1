@@ -70,6 +70,31 @@ export function cpuSteal() {
   } catch { return null; }
 }
 
+/** Steal between two cpuSteal() readings, in percent of the host's CPU time; null without /proc/stat. */
+export function stealPct(a, b) {
+  return a && b && b.total > a.total ? +((100 * (b.steal - a.steal)) / (b.total - a.total)).toFixed(2) : null;
+}
+
+/** A size's runs count only when the hypervisor gave the CPU: at most this much steal over them. */
+export const MAX_STEAL_PCT = 3;
+/** Measurements of one size before it is called unmeasurable. */
+export const STEAL_ATTEMPTS = 3;
+
+/**
+ * Measures until the host is quiet: an attempt whose CPU steal is over MAX_STEAL_PCT is rejected (onReject logs it) and measured again, up to STEAL_ATTEMPTS in all. Returns every
+ * attempt and the accepted one, or accepted null (unmeasurable: the caller fails it, it never passes). A host with no steal reading (not Linux) is taken as it is.
+ */
+export async function measureQuiet(measure, onReject = () => {}, max = STEAL_ATTEMPTS, limit = MAX_STEAL_PCT) {
+  const attempts = [];
+  for (let i = 0; i < max; i++) {
+    const r = await measure();
+    attempts.push(r);
+    if (r.steal === null || r.steal <= limit) return { accepted: r, attempts };
+    onReject(r);
+  }
+  return { accepted: null, attempts };
+}
+
 export const median = (a) => { const s = a.filter((x) => x !== null).sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
 const kb = (n) => (n / 1024).toFixed(1).padStart(8);
 
@@ -105,6 +130,7 @@ export async function main(argv) {
   const runs = Number(args.runs || 7), rows = [];
   try {
     for (const [size, vp] of [["desktop", { width: 1280, height: 800 }], ["phone", { width: 390, height: 844 }]]) {
+      const measure = async () => {
       const cold = [], warm = [], sizes = [], phases = [];
       const steal0 = cpuSteal();
       for (let i = 0; i < runs; i++) {
@@ -134,12 +160,16 @@ export async function main(argv) {
         }
         await ctx.close();
       }
-      const steal1 = cpuSteal();
-      const steal_pct = steal0 && steal1 && steal1.total > steal0.total ? +((100 * (steal1.steal - steal0.steal)) / (steal1.total - steal0.total)).toFixed(2) : null;
+      return { cold, warm, sizes, phases, steal: stealPct(steal0, cpuSteal()) };
+      };
+      const got = await measureQuiet(measure, (r) => console.log(`startup ${size}: host busy, cpu steal ${r.steal}% over the runs (limit ${MAX_STEAL_PCT}%), measuring again; rejected cold runs ${JSON.stringify(r.cold)}`));
+      const { cold, warm, sizes, phases, steal: steal_pct } = got.accepted ?? got.attempts[got.attempts.length - 1];
+      const rejected = got.attempts.filter((r) => r !== got.accepted).map((r) => ({ cpu_steal_pct: r.steal, cold_median_ms: median(r.cold), runs: r.cold }));
       for (const [kind, v] of [["cold", cold], ["warm", warm]]) {
-        const ms = median(v);
-        rows.push({ size, kind, ms, budget: BUDGET_MS[size], cpu: CPU[size] });
-        console.log(`METRIC ${JSON.stringify({ name: "startup_prod", size, kind, cpu_rate: CPU[size], ms, samples: v.length, runs: v, budget_ms: BUDGET_MS[size], transferred_bytes: median(sizes), cpu_steal_pct: steal_pct, ...(kind === "cold" ? { phases_median_ms: Object.fromEntries(["scripts_in", "dcl", "load", "fcp", "usable"].map((k) => [k, median(phases.map((p) => p[k]))])) } : {}) })}`);
+        // a size never measured on a quiet host has no figure: it fails as unmeasurable, never passes
+        const ms = got.accepted ? median(v) : null;
+        rows.push({ size, kind, ms, budget: BUDGET_MS[size], cpu: CPU[size], ...(got.accepted ? {} : { unmeasurable: true }) });
+        console.log(`METRIC ${JSON.stringify({ name: "startup_prod", size, kind, cpu_rate: CPU[size], ms, samples: v.length, runs: v, budget_ms: BUDGET_MS[size], transferred_bytes: median(sizes), cpu_steal_pct: steal_pct, ...(got.accepted ? {} : { unmeasurable: true }), ...(rejected.length ? { rejected_attempts: rejected } : {}), ...(kind === "cold" ? { phases_median_ms: Object.fromEntries(["scripts_in", "dcl", "load", "fcp", "usable"].map((k) => [k, median(phases.map((p) => p[k]))])) } : {}) })}`);
       }
     }
   } finally { await browser.close(); server.close(); }

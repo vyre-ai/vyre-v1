@@ -1,5 +1,6 @@
 # Changelog
 
+- Startup probe steal guard: a size's runs count only when host CPU steal over them is at most 3%; a busy host is measured again up to twice, and a size never measured quietly fails as unmeasurable. Every rejected attempt is in the METRIC line with its steal. Same budgets, same seven-sample median.
 - Web startup: the browser hydrates the app root directly (apps/app/index.web.tsx, src/startup/AppRoot.tsx) instead of through expo-router's navigation container, linking and route tree, which the app never used at run time (the address follows the shell through window.history). The static export still renders every page through expo-router, the exported markup hydrates unchanged, and native keeps the expo-router entry. The first-load bundle drops from 1.4 MB to 0.75 MB.
 - Startup probe: each cold METRIC also carries median phases from app.start (scripts in, DOMContentLoaded, load, first contentful paint, usable).
 - Startup probe: seven cold and warm runs per size (median, same budgets), the raw runs, sample count and host CPU steal in each METRIC line, and transferred bytes read from resource timing after the load instead of fetching every body over CDP during the measured load.
