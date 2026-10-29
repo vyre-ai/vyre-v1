@@ -1,5 +1,7 @@
 # Changelog
 
+- Verify that the internal identity recovery-noise seed never enters a shared Space archive, including decompressed ZIP contents.
+
 - Verify sealed recovery over real daemon HTTP with client-encrypted legacy-format bundles: wrong code/cipher-hash, key substitution, replay, expiry and a post-hash password race fail safely; successful recovery preserves keys, changes password and revokes old sessions. Add actual SQLite rollback/CAS tests, membership/policy/bundle races and bounded challenge cleanup/quota regressions. Align fake initial Space-key epoch with canonical client epoch0.
 
 - Prevent a device session from replacing established account identity or recovery keys through generic key uploads. Preserve existing Space-key epoch wraps, reject duplicates and reserve password/recovery/reset replacement for their proof-verified flows.

@@ -23,6 +23,9 @@ test('HTTP shared Space archive contains canonical current records, retained fil
     let d = await startDaemon(options);
     const call = async (cap: string, input: any = {}, person = 'usr_olivia'): Promise<any> => { const response = await fetch(`${d.url}/v1/${cap.replaceAll('.', '/')}`, { method: 'POST', headers: { authorization: `Bearer ${person}`, 'content-type': 'application/json' }, body: JSON.stringify(input) }), body = await response.json() as any; assert.equal(response.status, 200, `${cap}: ${JSON.stringify(body)}`); return body.data; };
     try {
+        // secret-scan: fake; private recovery-noise seed used only to verify archive exclusion.
+        const recoveryNoise='e'.repeat(64);
+        d.db!.run('INSERT INTO identity_recovery_noise (space, seed) VALUES (?, ?)',CORE_SPACE,recoveryNoise);
         await call('access.roles.assign', { subject: { kind: 'person', id: 'usr_tess' }, roleId: 'rol_admin' });
         const current = (await call('records.create', { type: 'contact', fields: { name: 'Original export contact' }, idempotencyKey: 'export-contact' })).record;
         const updated = (await call('records.update', { type: 'contact', recordId: current.id, patch: { name: 'Current export contact' }, baseVersion: current.version })).record;
@@ -97,6 +100,7 @@ test('HTTP shared Space archive contains canonical current records, retained fil
         assert.ok(manifest.exclusions.some((row: any) => row.id === secretFile.fileId && row.reason === 'credential_content'));
         assert.equal(JSON.parse(entries.get('settings.json')!.toString()).find((row: any) => row.key === 'backup.encrypt').value, false);
         const all = Buffer.concat([...entries.values()]).toString();
+        assert.equal(all.includes(recoveryNoise),false,'private identity recovery-noise seed never enters a shared Space archive');
         for (const marker of [token, 'PRIVATE AGENT MARKER', 'PRIVATE ENVELOPE MARKER', 'OTHER PERSON PERSONAL FILE MARKER', 'OTHER PERSON PRIVATE CHAT MARKER', 'PRIVATE CHILD BODY MARKER', 'PRIVATE HELPER BODY MARKER', 'PERSONAL MEMORY EXPORT MARKER', 'VAULT ONLY VALUE FOR EXPORT FIXTURE', 'VAULT EXCLUDED ITEM', 'Deleted contact must stay absent'])
             assert.equal(all.includes(marker), false, 'private/credential/deleted fixture absent');
         assert.ok(all.includes('Public Space message included'));
