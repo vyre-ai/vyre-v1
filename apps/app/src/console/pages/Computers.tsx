@@ -37,7 +37,7 @@ export function Computers({ onChanged, part }: { onChanged?: () => void; part: '
   const waiting = servers.data.servers.filter((s) => s.enrollment === 'pending');
   const admitted = servers.data.servers.filter((s) => s.enrollment !== 'pending');
   const runningOn = (serverId: string): string[] => (hosted.data?.computers ?? []).filter((c) => c.host === serverId).map((c) => c.caption ?? c.computerId);
-  const joinCommand = code ? `vyred --role compute --space ${(globalThis as unknown as { location?: { origin: string } }).location?.origin ?? data.space.name} --join ${code.value}` : '';
+  const joinCommand = code ? `vyred --role compute --server ${(globalThis as unknown as { location?: { origin: string } }).location?.origin ?? data.space.name} --join ${code.value}` : '';
   if (part === 'waiting' && !waiting.length) return null;
   return <>
     {part === 'waiting' ? <Section title="Waiting for approval" count={waiting.length} testID="computers-waiting"><Group>{waiting.map((server) => <Row key={server.serverId} id={`computer-waiting-${server.serverId}`} title={server.name} note={factsLine(server)} tall trailing={<Actions><Button label="Approve" testID={`computer-approve-${server.serverId}`} disabled={action.busy} onPress={() => void action.run('network.server_approve', { serverId: server.serverId }, `${server.name} was admitted.`)} /><Button label="Decline" testID={`computer-decline-${server.serverId}`} disabled={action.busy} onPress={() => void action.run('network.server_decline', { serverId: server.serverId }, `${server.name} was turned away.`)} /></Actions>} />)}</Group><Note>Approve only a computer you recognise: its name and fingerprint should match what it printed when it asked to join.</Note></Section> : null}

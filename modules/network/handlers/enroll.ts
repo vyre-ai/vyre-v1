@@ -125,3 +125,18 @@ export async function nodeByCredential(ctx: NetworkCtx, credential: string): Pro
   const row = ctx.db.all("SELECT server_id, owner FROM network_server WHERE credential_hash = ? AND enrollment = 'approved'", await sha256(credential))[0] as Record<string, unknown> | undefined;
   return row ? { serverId: String(row["server_id"]), ...(row["owner"] ? { owner: String(row["owner"]) } : {}) } : null;
 }
+
+/** A computer's regular report: it proves it still holds its credential, the Space notes it is alive and what it runs on, and answers with what it should do (nothing yet: jobs arrive with the compute channel). Host only. */
+export async function nodePoll(ctx: NetworkCtx, input: { credential: string; report?: { docker?: boolean; version?: string } }): Promise<{ serverId: string; owner?: string } | null> {
+  const who = await nodeByCredential(ctx, String(input.credential ?? ""));
+  if (!who) return null;
+  const r = input.report ?? {};
+  ctx.db.run("UPDATE network_server SET state = ?, heartbeat_at = ? WHERE server_id = ?", "healthy", ctx.now(), who.serverId);
+  if (typeof r.docker === "boolean") {
+    const row = ctx.db.all("SELECT facts_json FROM network_server WHERE server_id = ?", who.serverId)[0] as Record<string, unknown> | undefined;
+    let facts: Record<string, unknown> = {};
+    try { facts = JSON.parse(String(row?.["facts_json"] ?? "{}")) as Record<string, unknown>; } catch { facts = {}; }
+    if (facts["docker"] !== r.docker) ctx.db.run("UPDATE network_server SET facts_json = ? WHERE server_id = ?", JSON.stringify({ ...facts, docker: r.docker }), who.serverId);
+  }
+  return who;
+}

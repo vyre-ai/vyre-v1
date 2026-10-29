@@ -94,7 +94,7 @@ test("production Console Network: a computer joins with a code, waits, is approv
       await goNetwork(page);
       await page.getByTestId("computer-add").click(); await page.getByTestId("computer-join-command").waitFor();
       const command = await page.getByTestId("computer-join-command").innerText();
-      assert.match(command, /^vyred --role compute --space \S+ --join VYRE-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+      assert.match(command, /^vyred --role compute --server \S+ --join VYRE-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
       const code = command.split("--join ")[1]!.trim();
       const node = await fresh();
       const asked = await anon("network.enroll", { code, publicKey: node.publicKey, name: "Office Linux box", facts: { os: "linux", arch: "x64", docker: true, version: "1.0.0" } });

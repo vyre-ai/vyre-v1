@@ -28,6 +28,7 @@ Conventions used below:
 | `vyred --role space` | Team Space server (Linux or Mac); also the person's computer for a Personal Space | Hosts a Space: event log, projections, modules, scheduler, sync server, public ingress (Caddy), docker services |
 | `vyred --role device` | Each person's Mac/Windows/Linux computer | Runs private-chat turns with the person's CLI logins and keys, the separate vault filler process, local terminal and Chrome bridge, endpoint connection manager, a `node:sqlite` device replica used by the headless runner, the CLI and the Chrome bridge (the desktop shell's own UI uses the web replica, 5.10) |
 | `vyred --role space,device` | Person's computer with a Personal Space | Both, one process tree |
+| `vyred --role compute --server <address> --join <code>` | A computer that joins somebody's Space for compute (a person's own Mac or PC, or a spare Linux box) | Dials out only. Holds no event log, replica or Vault; keeps its own key and one credential; reports in on a short cycle; runs only the jobs the Space assigns, for a personal computer only its owner's agents; Docker optional. Joined by a one-time code and one person's approval (Gate act `enroll_node`) |
 
 Phones and the plain browser run no daemon. They use the sync client in the app and talk to the Space host. A private chat started on a phone runs on the Space (spec b8). For a Personal Space the host is one of the person's own desktop devices, reached through the relay while it is online (5.13, lead ruling Q2).
 
