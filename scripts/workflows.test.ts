@@ -184,7 +184,7 @@ test("no npm install, docker pull or curl outside prewarm", () => {
     const pinned = (l: string) => (/docker pull/.test(l) && /@\$2|@sha256:[0-9a-f]{64}/.test(l)) || (/\bcurl /.test(l) && /sha256sum -c/.test(code) && /[0-9a-f]{64}/.test(code));
     const lockedDesktopDeps = (l: string) => w.file === "desktop.yml" && j.name === "desktop" && /npm ci --no-audit --no-fund/.test(l);
     // The Mac sandbox proof exists to run the real Claude Code and Codex CLIs under the Seatbelt profile: it installs the lockfile tree and those two CLIs into a runner temp folder, in this job only.
-    const macSandboxProof = (l: string) => w.file === "desktop.yml" && j.name === "sandbox-macos" && (/npm ci --no-audit --no-fund/.test(l) || /npm install --prefix "\$cli" --no-audit --no-fund @anthropic-ai\/claude-code @openai\/codex\s*$/.test(l));
+    const macSandboxProof = (l: string) => w.file === "desktop.yml" && j.name === "sandbox-macos" && (/npm ci --no-audit --no-fund/.test(l) || /npm install --prefix "\$cli" --no-audit --no-fund @anthropic-ai\/claude-code@2\.1\.312 @openai\/codex@0\.166\.0\s*$/.test(l));
     assert.ok(lines.every((l) => pinned(l) || lockedDesktopDeps(l) || macSandboxProof(l)), `${w.file}: job ${j.name} installs or downloads`);
   }
   assert.match(wf("nightly").text, /prewarm:/);

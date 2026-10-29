@@ -197,11 +197,11 @@ jobs:
           set -euo pipefail
           cli="$RUNNER_TEMP/clis"
           mkdir -p "$cli"
-          npm install --prefix "$cli" --no-audit --no-fund @anthropic-ai/claude-code @openai/codex
+          npm install --prefix "$cli" --no-audit --no-fund @anthropic-ai/claude-code@2.1.312 @openai/codex@0.166.0
           echo "VYRE_MAC_CLI_DIR=$cli" >> "$GITHUB_ENV"
           # outside the sandbox first: they run at all on this runner
-          npx -y @anthropic-ai/claude-code --version
-          npx -y @openai/codex --version
+          npx -y @anthropic-ai/claude-code@2.1.312 --version
+          npx -y @openai/codex@0.166.0 --version
       - name: Under the exact Vyre profile
         env:
           VYRE_HEAVY_MAC: "1"
