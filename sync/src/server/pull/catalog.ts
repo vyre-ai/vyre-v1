@@ -3,6 +3,7 @@
 // A record type the generated catalog does not list (a type the Space defined itself) gets DEFAULT_ENTITY: everyone mirrors it, a phone takes a window.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import type { TypeDef } from "../../../../kernel/src/store/types.ts";
 import type { DeviceClass } from "../../protocol.ts";
 
 export type ProfileMode = "all" | "window" | "none";
@@ -75,6 +76,10 @@ export function parseCatalog(text: string): Map<string, ServerEntity> {
 }
 
 export interface Catalog {
+  /** Canonical schema classification revision, when supplied by the local typed store. */
+  classificationStamp?(): string;
+  /** The record types the Space's own schema classifies (typed store), beside the generated ones. */
+  classified?(): readonly string[];
   /** The entity config, or the default for a Space-defined record type. */
   get(key: string): ServerEntity;
   known(): readonly ServerEntity[];
@@ -97,4 +102,32 @@ export function loadCatalog(file?: string): Catalog {
   if (file !== undefined) return makeCatalog(parseCatalog(readFileSync(file, "utf8")));
   cached ??= makeCatalog(parseCatalog(readFileSync(GENERATED, "utf8")));
   return cached;
+}
+
+/** The rank a typed field's sensitivity stands for. A value that is not one of the four labels is a bad classification and counts as Restricted: an unreadable label never lowers the ceiling. */
+const sensitivityRank = (value: unknown): number => (typeof value === "string" && Object.hasOwn(LABEL_RANKS, value) ? LABEL_RANKS[value as keyof typeof LABEL_RANKS] : LABEL_RANKS.restricted);
+
+/**
+ * The catalog with the Space's own schema laid over it. The generated catalog says nothing about a record type the Space defined, so its field labels were empty and every field of such a type
+ * went to every device. The canonical classification is the typed field's `sensitivity` (what Schema writes with the type, never its display `label`). A field keeps the higher of the generated
+ * label and the typed one, so the overlay can raise a ceiling and never lower one. Which labels travel to a laptop is decided by DEVICE_CEILING (Restricted never, whatever the person's clearance).
+ */
+export function classifiedCatalog(base: Catalog, types: () => readonly TypeDef[]): Catalog {
+  const current = (): Map<string, TypeDef> => new Map(types().map((def) => [def.name, def]));
+  return {
+    ...base,
+    get(key) {
+      const original = base.get(key);
+      const def = current().get(key);
+      if (!def) return original;
+      const fieldLabels: Record<string, number> = { ...original.fieldLabels };
+      for (const field of def.fields) {
+        if (field["sensitivity"] === undefined) continue;
+        fieldLabels[field.name] = Math.max(fieldLabels[field.name] ?? 0, sensitivityRank(field["sensitivity"]));
+      }
+      return { ...original, fieldLabels };
+    },
+    classified: () => [...current().keys()],
+    classificationStamp: () => JSON.stringify([...current().values()].map((def) => [def.name, def.fields.map((field) => [field.name, field["sensitivity"] ?? null])]).sort((a, b) => String(a[0]).localeCompare(String(b[0])))),
+  };
 }

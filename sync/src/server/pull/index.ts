@@ -1,5 +1,5 @@
 // Server half of pull and snapshot (ARCH 5.3, 5.8). The module sync binds these to its capabilities.
-export { DEFAULT_ENTITY, DEVICE_CEILING, LABEL_RANKS, loadCatalog, makeCatalog, parseCatalog } from "./catalog.ts";
+export { DEFAULT_ENTITY, DEVICE_CEILING, LABEL_RANKS, classifiedCatalog, loadCatalog, makeCatalog, parseCatalog } from "./catalog.ts";
 export type { Catalog, ProfileMode, ServerEntity } from "./catalog.ts";
 export { pullError } from "./errors.ts";
 export { SEALED_FIELD, foldEvent, mapEvent } from "./fold.ts";

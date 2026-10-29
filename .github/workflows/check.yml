@@ -295,10 +295,8 @@ jobs:
         run: bash scripts/ci-iolock.sh shared
       - name: Docker on this runner (printed so a failure below can be read against it)
         run: docker version --format 'docker server {{.Server.Version}}'
-      - name: Remove computers that earlier runs left behind
-        run: |
-          docker ps -aq --filter name=vyre-comp | xargs -r docker rm -f
-          docker volume ls -q --filter name=vyre-comp | xargs -r docker volume rm -f
+      - name: Remove computers that earlier runs left behind (older than 2 hours only, other jobs on this host may be mid-test)
+        run: bash scripts/ci-comp-cleanup.sh
       - name: The Computer lifecycle on real Docker, none skipped (host/tests/computers.live.test.ts)
         env:
           VYRE_HEAVY_DOCKER: "1"

@@ -287,6 +287,7 @@ test("builder_open: opens a chat with the builder agent about the Kit; no agent 
 const goodType = (type: string): Obj => ({
   key: `rt.${type}`, content: "structure", type: "record_type", title: type, recordType: type,
   apply: { cap: "schema.apply", input: { ops: [{ op: "type.create", type, def: { title: type, plural: `${type}s`, icon: "note", titleField: "title", fields: [{ key: "title", type: "text", title: "Title", required: true }] } }], idempotencyKey: `kit.${type}`, reason: "Kit install" } },
+  undo: { cap: "schema.apply", input: { ops: [{ op: "type.drop", type }], confirm: [type], idempotencyKey: `kit.${type}.undo`, reason: "Kit rollback" } },
 });
 
 test("sheet check: a sound Kit has no problems; a broken step is named with its item, step, capability, input and why", async () => {
@@ -314,12 +315,37 @@ test("sheet check: a sound Kit has no problems; a broken step is named with its 
   assert.equal(by("rt.lead", "apply"), undefined, "the first of two is fine");
 });
 
-test("sheet check: a record type the Space already has is a problem before install, not a failure during it", async () => {
+const noteBoardDef = { title: "note_board", plural: "note_boards", icon: "note", titleField: "title", fields: [{ key: "title", type: "text", title: "Title", required: true }] };
+
+test("sheet check: a record type the Space already has is accepted when identical and a problem when it differs", async () => {
   const h = harness();
-  h.callee("schema.types.get", (i: { type: string }) => (i.type === "note_board" ? { type: { type: "note_board" } } : (() => { throw new Error("not found"); })()));
-  const kitId = await h.shipped(kitManifest({ key: "boards", items: [goodType("note_board"), goodType("commission")] }));
+  h.callee("schema.types.get", (i: { type: string }) => {
+    if (i.type === "note_board") return { type: { key: "note_board", ...noteBoardDef, label: "internal", system: false } };
+    if (i.type === "clash") return { type: { key: "clash", title: "Other", fields: [] } };
+    throw new Error("not found");
+  });
+  const kitId = await h.shipped(kitManifest({ key: "boards", items: [goodType("note_board"), goodType("clash"), goodType("commission")] }));
   const { problems } = (await h.call("kits.install_sheet", { kitId })).sheet as { problems: Obj[] };
-  assert.deepEqual(problems.map((p) => [p.item, p.step, p.message]), [["rt.note_board", "apply", "Record type note_board already exists in this Space."]]);
+  assert.deepEqual(problems.map((p) => [p.item, p.step]), [["rt.clash", "apply"]]);
+  assert.match(String(problems[0]!.message), /clash already exists in this Space and differs from the Kit's: title is "Other"/);
+});
+
+test("install: a record type the Space already has identically is accepted without creating it again; one that differs fails clearly", async () => {
+  const h = harness();
+  h.callee("schema.types.get", (i: { type: string }) => {
+    if (i.type === "note_board") return { type: { key: "note_board", ...noteBoardDef, label: "internal", system: false } };
+    if (i.type === "clash") return { type: { key: "clash", title: "Other", fields: [] } };
+    throw new Error("not found");
+  });
+  const ok = await h.shipped(kitManifest({ key: "boards", items: [goodType("note_board"), goodType("commission")] }));
+  await h.call("kits.install", { kitId: ok, accepted: true });
+  const created = h.callsTo("schema.apply").flatMap((c) => (c.input.ops as { type: string }[]).map((o) => o.type));
+  assert.deepEqual(created, ["commission"], "note_board was not created a second time");
+  const undoOf = (item: string): unknown => h.rows("kits_applied").find((r) => r.item_key === item)?.undo;
+  assert.equal(undoOf("rt.note_board"), null, "the Kit did not create note_board, so nothing it stores can drop it");
+  assert.notEqual(undoOf("rt.commission"), null, "the type the Kit created keeps its undo");
+  const bad = await h.shipped(kitManifest({ key: "clashing", items: [goodType("clash")] }));
+  await assert.rejects(() => h.call("kits.install", { kitId: bad, accepted: true }), (e: unknown) => /clash already exists in this Space and differs/.test(JSON.stringify(e)));
 });
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
 // rerun on the final commit
