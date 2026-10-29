@@ -38,4 +38,9 @@ export const handlers: Handlers<HandlerCtx> = {
   "agents.update": async (ctx) => { throw new VyreErr(notImplemented("agents.update", ctx.trace)); },
   "agents.versions": async (ctx) => { throw new VyreErr(notImplemented("agents.versions", ctx.trace)); },
   "agents.visibility.set": async (ctx) => { throw new VyreErr(notImplemented("agents.visibility.set", ctx.trace)); },
+  "skills.add": async (ctx) => { throw new VyreErr(notImplemented("skills.add", ctx.trace)); },
+  "skills.list": async (ctx) => { throw new VyreErr(notImplemented("skills.list", ctx.trace)); },
+  "skills.load": async (ctx) => { throw new VyreErr(notImplemented("skills.load", ctx.trace)); },
+  "skills.remove": async (ctx) => { throw new VyreErr(notImplemented("skills.remove", ctx.trace)); },
+  "skills.set_enabled": async (ctx) => { throw new VyreErr(notImplemented("skills.set_enabled", ctx.trace)); },
 };

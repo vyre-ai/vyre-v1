@@ -38,4 +38,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "agents.update": Handler<"agents.update", X>;
   "agents.versions": Handler<"agents.versions", X>;
   "agents.visibility.set": Handler<"agents.visibility.set", X>;
+  "skills.add": Handler<"skills.add", X>;
+  "skills.list": Handler<"skills.list", X>;
+  "skills.load": Handler<"skills.load", X>;
+  "skills.remove": Handler<"skills.remove", X>;
+  "skills.set_enabled": Handler<"skills.set_enabled", X>;
 }

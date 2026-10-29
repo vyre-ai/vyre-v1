@@ -15,3 +15,6 @@ Area: agents. Risk: medium. Applies to: agent.
 ## Capabilities that need it
 
 - agents.template.apply
+- skills.add
+- skills.remove
+- skills.set_enabled

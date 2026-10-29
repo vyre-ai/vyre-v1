@@ -1755,6 +1755,13 @@ export function createClient(transport: Transport) {
       tables: call("sites.tables", 1),
       update: call("sites.update", 1),
     },
+    skills: {
+      add: call("skills.add", 1),
+      list: call("skills.list", 1),
+      load: call("skills.load", 1),
+      remove: call("skills.remove", 1),
+      set_enabled: call("skills.set_enabled", 1),
+    },
     source_rules: {
       list: call("source_rules.list", 1),
       set: call("source_rules.set", 1),

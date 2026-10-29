@@ -21187,6 +21187,88 @@ export type SitesUpdateOut = {
     state: "queued" | "building" | "ready" | "failed" | "stopped";
   };
 };
+export type SkillsAddIn = {
+  text: string;
+  name?: string;
+  agentId?: string;
+  source?: string;
+  files?: Record<string, string>;
+  idempotencyKey: string;
+};
+export type SkillsAddOut = {
+  skill: {
+    name: string;
+    description: string;
+    tier: "builtin" | "space" | "agent";
+    source: string;
+    agentId?: string;
+    system: boolean;
+    enabled: boolean;
+    bytes: number;
+    updatedAt?: number;
+  };
+};
+export type SkillsListIn = {
+  agentId?: string;
+  includeOff?: boolean;
+};
+export type SkillsListOut = {
+  skills: Array<{
+      name: string;
+      description: string;
+      tier: "builtin" | "space" | "agent";
+      source: string;
+      agentId?: string;
+      system: boolean;
+      enabled: boolean;
+      bytes: number;
+      updatedAt?: number;
+    }>;
+};
+export type SkillsLoadIn = {
+  name: string;
+  agentId?: string;
+};
+export type SkillsLoadOut = {
+  skill: {
+    name: string;
+    description: string;
+    tier: "builtin" | "space" | "agent";
+    source: string;
+    body: string;
+    files: Array<{
+        path: string;
+        text: string;
+      }>;
+  };
+};
+export type SkillsRemoveIn = {
+  name: string;
+  agentId?: string;
+  idempotencyKey: string;
+};
+export type SkillsRemoveOut = {
+  removed: boolean;
+};
+export type SkillsSetEnabledIn = {
+  name: string;
+  agentId?: string;
+  enabled: boolean;
+  idempotencyKey: string;
+};
+export type SkillsSetEnabledOut = {
+  skill: {
+    name: string;
+    description: string;
+    tier: "builtin" | "space" | "agent";
+    source: string;
+    agentId?: string;
+    system: boolean;
+    enabled: boolean;
+    bytes: number;
+    updatedAt?: number;
+  };
+};
 export type SourceRulesListIn = Record<string, unknown>;
 export type SourceRulesListOut = {
   rules: Array<{
@@ -28220,6 +28302,11 @@ export interface CapMap {
   "sites.table_promote": { in: SitesTablePromoteIn; out: SitesTablePromoteOut };
   "sites.tables": { in: SitesTablesIn; out: SitesTablesOut };
   "sites.update": { in: SitesUpdateIn; out: SitesUpdateOut };
+  "skills.add": { in: SkillsAddIn; out: SkillsAddOut };
+  "skills.list": { in: SkillsListIn; out: SkillsListOut };
+  "skills.load": { in: SkillsLoadIn; out: SkillsLoadOut };
+  "skills.remove": { in: SkillsRemoveIn; out: SkillsRemoveOut };
+  "skills.set_enabled": { in: SkillsSetEnabledIn; out: SkillsSetEnabledOut };
   "source_rules.list": { in: SourceRulesListIn; out: SourceRulesListOut };
   "source_rules.set": { in: SourceRulesSetIn; out: SourceRulesSetOut };
   "sources.create": { in: SourcesCreateIn; out: SourcesCreateOut };
@@ -31080,6 +31167,24 @@ export type SiteTablePromotedPayload = {
   siteId: string;
   type: string;
 };
+export type SkillAddedPayload = {
+  name: string;
+  tier: "space" | "agent";
+  agentId?: string;
+  source: string;
+  by: string;
+};
+export type SkillChangedPayload = {
+  name: string;
+  agentId?: string;
+  enabled: boolean;
+  by: string;
+};
+export type SkillRemovedPayload = {
+  name: string;
+  agentId?: string;
+  by: string;
+};
 export type SmsErasedPayload = {
   smsId: string;
 };
@@ -32348,6 +32453,9 @@ export interface EventMap {
   "site.rolled_back": SiteRolledBackPayload;
   "site.table_created": SiteTableCreatedPayload;
   "site.table_promoted": SiteTablePromotedPayload;
+  "skill.added": SkillAddedPayload;
+  "skill.changed": SkillChangedPayload;
+  "skill.removed": SkillRemovedPayload;
   "sms.erased": SmsErasedPayload;
   "sms.received": SmsReceivedPayload;
   "source.created": SourceCreatedPayload;

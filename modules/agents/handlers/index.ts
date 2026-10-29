@@ -5,7 +5,14 @@ import {
 } from "./crud.ts";
 import { builtinSkillsList, guideGet, routineDelegate, routineDelete, routineRunNow, routineSave, routinesList, suggestionAccept, suggestionDismiss, suggestionPropose, suggestionsList, templateApply, templateGet, templatePreview } from "./routines.ts";
 
+import { skillsAdd, skillsList, skillsLoad, skillsRemove, skillsSetEnabled } from "./skills.ts";
+
 export const handlers = {
+  "skills.list": skillsList,
+  "skills.load": skillsLoad,
+  "skills.add": skillsAdd,
+  "skills.remove": skillsRemove,
+  "skills.set_enabled": skillsSetEnabled,
   "agents.list": list,
   "agents.get": get,
   "agents.status": status,

@@ -11,8 +11,8 @@ import type { Harness } from "../fixtures/harness.ts";
 const mine = registry.capabilities.filter((c) => c.module === "agents");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
-test("the handler table covers exactly the 33 capabilities of the agents manifest", () => {
-  assert.equal(mine.length, 33);
+test("the handler table covers exactly the 38 capabilities of the agents manifest", () => {
+  assert.equal(mine.length, 38);
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });
@@ -126,6 +126,20 @@ const scenarios: Scenario[] = [
   { cap: "agents.template.apply", setup: withAgent, hn: () => { const x = harness(); x.world.setting("agents.template_mode", "off"); return x; }, run: (hn) => h["agents.template.apply"]!(hn.ctx, { scope: "all" }), expect: "validation.bad_input" },
   { cap: "agents.guide.get", run: (hn) => h["agents.guide.get"]!(hn.ctx, {}) },
   { cap: "agents.builtin_skills.list", run: (hn) => h["agents.builtin_skills.list"]!(hn.ctx, {}) },
+  { cap: "skills.list", run: (hn) => h["skills.list"]!(hn.ctx, {}) },
+  { cap: "skills.load", run: (hn) => h["skills.load"]!(hn.ctx, { name: "working-in-vyre" }) },
+  { cap: "skills.load", run: (hn) => h["skills.load"]!(hn.ctx, { name: "no-such-skill" }), expect: "validation.not_found" },
+  { cap: "skills.add", run: (hn) => h["skills.add"]!(hn.ctx, { text: "---\nname: one\ndescription: One.\n---\nBody.\n", idempotencyKey: k() }) },
+  { cap: "skills.add", run: (hn) => h["skills.add"]!(hn.ctx, { text: "no front matter and no name", idempotencyKey: k() }), expect: "validation.bad_input" },
+  {
+    cap: "skills.set_enabled", setup: (hn) => h["skills.add"]!(hn.ctx, { text: "---\nname: one\ndescription: One.\n---\nBody.\n", idempotencyKey: k() }).then(() => hn.clear()),
+    run: (hn) => h["skills.set_enabled"]!(hn.ctx, { name: "one", enabled: false, idempotencyKey: k() }),
+  },
+  { cap: "skills.set_enabled", run: (hn) => h["skills.set_enabled"]!(hn.ctx, { name: "none", enabled: false, idempotencyKey: k() }), expect: "validation.not_found" },
+  {
+    cap: "skills.remove", setup: (hn) => h["skills.add"]!(hn.ctx, { text: "---\nname: one\ndescription: One.\n---\nBody.\n", idempotencyKey: k() }).then(() => hn.clear()),
+    run: (hn) => h["skills.remove"]!(hn.ctx, { name: "one", idempotencyKey: k() }),
+  },
 ];
 
 test("every path through every capability: answers match the schema, errors are declared, events are declared and match their schemas", async () => {

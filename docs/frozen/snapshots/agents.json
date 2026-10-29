@@ -33,7 +33,12 @@
     "agents.template.preview@1": "fc63d488447d1936c90175baef1f959c1079c07e980edf53b1805a5603692981",
     "agents.update@1": "c0a2f326014f29c519086a7063c34d183fc2319a53ee75ec5e2320db5e5b38ba",
     "agents.versions@1": "6b2d8b53a78222c48bd8f943f9c7b06af96eca0c9b18c2e75d6b533341c655ff",
-    "agents.visibility.set@1": "fd45be3a7169e0dc971745d3372f99a5ebe575204d7127915dce89a9c1dfad12"
+    "agents.visibility.set@1": "fd45be3a7169e0dc971745d3372f99a5ebe575204d7127915dce89a9c1dfad12",
+    "skills.add@1": "0240f263453945071e71cb4553e6bea52d59c1fdbc9579cc4611d3c2a0474dd1",
+    "skills.list@1": "799387814df7c5eb73aea5a339d31e50294d7ab7f75670e713771edf4affbb75",
+    "skills.load@1": "76c9078bfaf0591cbeacd14eda27e23144f03e43bbbf6a37b25c85e3212bb96c",
+    "skills.remove@1": "9c5b4bbf15389958eb698ea4389611ad03e566e6dfaa58bc1f2e2b0c4e8b52ff",
+    "skills.set_enabled@1": "1bada912f022a67b54921712916c6ad4b75d697ed2d990f72bc040ae5e8da542"
   },
   "events": {
     "agent.config_changed": "7c928543a20c07e6adcdedb7fade1a78d79b2885f422825ddb697d1e13a3616c",
@@ -49,6 +54,9 @@
     "agent.routine_run_started": "cc7ea3035c5685164f8dcb7bb400f589d11b33429b72fcc5443b3942e45ac48b",
     "agent.suggestion_proposed": "6d07d4d32ccdcbbf59f8fc02b4ef69bd11f7be40bcd4253dc66a6e2be5ac6939",
     "agent.suggestion_resolved": "a8cd0e8b7aeb227a8c7c699ef4c9c04fd9de5dd71e79fe94342d18c529fdcd11",
-    "agent.template_applied": "8764c1d7d2cb03c4408e57b6fa0950ce8beb2c314ed862fdd80b442e6b66d6e3"
+    "agent.template_applied": "8764c1d7d2cb03c4408e57b6fa0950ce8beb2c314ed862fdd80b442e6b66d6e3",
+    "skill.added": "5782b80c0ff8281f86e28771c2e3df55fdb51a75868bf65fdc42962e55e45da5",
+    "skill.changed": "db15442b5e3451a8ec84079ad9c9b50eb4c999e3c8c61432b27802d391c343a9",
+    "skill.removed": "ceefca0ec7ace51881f8605fe800b7e5693bf025580604557e2a248d9c033d12"
   }
 }

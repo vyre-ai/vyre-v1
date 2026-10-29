@@ -1946,6 +1946,69 @@
       ],
       "type": "object"
     },
+    "s_1b7445ea88": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "bytes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "description": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "name": {
+          "examples": [
+            "deploy-checks"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "vyre, upload, agent, plugin:<name> or kit:<key>",
+          "examples": [
+            "upload"
+          ],
+          "type": "string"
+        },
+        "system": {
+          "type": "boolean"
+        },
+        "tier": {
+          "enum": [
+            "builtin",
+            "space",
+            "agent"
+          ],
+          "type": "string"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "tier",
+        "source",
+        "system",
+        "enabled",
+        "bytes"
+      ],
+      "type": "object"
+    },
     "s_1c08fc9f52": {
       "properties": {
         "site": {
@@ -10200,6 +10263,17 @@
         "source",
         "tables",
         "expiresAt"
+      ],
+      "type": "object"
+    },
+    "s_87d11c99bf": {
+      "properties": {
+        "skill": {
+          "$ref": "#/$defs/s_1b7445ea88"
+        }
+      },
+      "required": [
+        "skill"
       ],
       "type": "object"
     },
@@ -141969,6 +142043,506 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "skill.added"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.too_large"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "files": {},
+            "idempotencyKey": "idem_1",
+            "name": "example",
+            "source": "example",
+            "text": "example"
+          },
+          "name": "example",
+          "output": {
+            "skill": {
+              "agentId": "agt_a1b2c3",
+              "bytes": 1,
+              "description": "example",
+              "enabled": true,
+              "name": "deploy-checks",
+              "source": "upload",
+              "system": true,
+              "tier": "builtin",
+              "updatedAt": 1760000000000
+            }
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "files": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "description": "Used when the front matter has no name",
+            "type": "string"
+          },
+          "source": {
+            "description": "upload (default), plugin:<name> or kit:<key>",
+            "type": "string"
+          },
+          "text": {
+            "description": "The SKILL.md text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "agents",
+      "name": "skills.add",
+      "output": {
+        "$ref": "#/$defs/s_87d11c99bf"
+      },
+      "permission": "agents.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "skills_add",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "includeOff": true
+          },
+          "name": "example",
+          "output": {
+            "skills": [
+              {
+                "agentId": "agt_a1b2c3",
+                "bytes": 1,
+                "description": "example",
+                "enabled": true,
+                "name": "deploy-checks",
+                "source": "upload",
+                "system": true,
+                "tier": "builtin",
+                "updatedAt": 1760000000000
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "includeOff": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "skills.list",
+      "output": {
+        "properties": {
+          "skills": {
+            "items": {
+              "$ref": "#/$defs/s_1b7445ea88"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "skills"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "skills_list",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "name": "deploy-checks"
+          },
+          "name": "example",
+          "output": {
+            "skill": {
+              "body": "example",
+              "description": "example",
+              "files": [
+                {
+                  "path": "example",
+                  "text": "example"
+                }
+              ],
+              "name": "example",
+              "source": "example",
+              "tier": "builtin"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "deploy-checks"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "skills.load",
+      "output": {
+        "properties": {
+          "skill": {
+            "properties": {
+              "body": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "files": {
+                "items": {
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "text"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "name": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "tier": {
+                "enum": [
+                  "builtin",
+                  "space",
+                  "agent"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "description",
+              "tier",
+              "source",
+              "body",
+              "files"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "skill"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Load the full text of one skill by name (SKILL.md body and its supporting files); agent skills win over Space ones, Space ones over built-in",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "load_skill",
+          "toolset": "meta"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "skill.removed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "idempotencyKey": "idem_1",
+            "name": "example"
+          },
+          "name": "example",
+          "output": {
+            "removed": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "agents",
+      "name": "skills.remove",
+      "output": {
+        "properties": {
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "permission": "agents.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Remove a skill from the Space library, or from one agent",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "skills_remove",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "skill.changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "enabled": true,
+            "idempotencyKey": "idem_1",
+            "name": "example"
+          },
+          "name": "example",
+          "output": {
+            "skill": {
+              "agentId": "agt_a1b2c3",
+              "bytes": 1,
+              "description": "example",
+              "enabled": true,
+              "name": "deploy-checks",
+              "source": "upload",
+              "system": true,
+              "tier": "builtin",
+              "updatedAt": 1760000000000
+            }
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "enabled",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "agents",
+      "name": "skills.set_enabled",
+      "output": {
+        "$ref": "#/$defs/s_87d11c99bf"
+      },
+      "permission": "agents.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Turn a Space or agent skill off or on without removing it",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "skills_set_enabled",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -190496,6 +191070,124 @@
         "type": "site"
       },
       "summary": "A site table became a Space record type",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "agents",
+      "name": "skill.added",
+      "payload": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "by": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "tier": {
+            "enum": [
+              "space",
+              "agent"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "tier",
+          "source",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/name",
+        "type": "entity"
+      },
+      "summary": "A skill was added to the Space library or to one agent",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "agents",
+      "name": "skill.changed",
+      "payload": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "by": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "enabled",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/name",
+        "type": "entity"
+      },
+      "summary": "A skill was turned off or on",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "agents",
+      "name": "skill.removed",
+      "payload": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "by": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/name",
+        "type": "entity"
+      },
+      "summary": "A skill was removed from the Space library or from one agent",
       "sv": 1,
       "vis": "space"
     },

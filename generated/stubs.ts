@@ -1755,6 +1755,13 @@ export function stubs(ctx: CallCtx) {
       tables: call("sites.tables"),
       update: call("sites.update"),
     },
+    skills: {
+      add: call("skills.add"),
+      list: call("skills.list"),
+      load: call("skills.load"),
+      remove: call("skills.remove"),
+      set_enabled: call("skills.set_enabled"),
+    },
     source_rules: {
       list: call("source_rules.list"),
       set: call("source_rules.set"),

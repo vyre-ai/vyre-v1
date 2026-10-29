@@ -3980,6 +3980,12 @@
     },
     {
       "deferred": false,
+      "name": "load_skill",
+      "summary": "Load the full text of one skill by name (SKILL.md body and its supporting files); agent skills win over Space ones, Space ones over built-in",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "logs_export",
       "summary": "Export a log search as a file",
       "toolset": "engineer"
@@ -6131,6 +6137,30 @@
       "name": "sites_update",
       "summary": "Rename a site or change its settings",
       "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "skills_add",
+      "summary": "Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_list",
+      "summary": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_remove",
+      "summary": "Remove a skill from the Space library, or from one agent",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_set_enabled",
+      "summary": "Turn a Space or agent skill off or on without removing it",
+      "toolset": "agents"
     },
     {
       "deferred": false,

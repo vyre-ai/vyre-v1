@@ -37,4 +37,9 @@ export const handlers: Handlers<HandlerCtx> = {
   "agents.update": async () => ({"agent":{"accountKey":"#Team_Anthropic_Key","accountPolicy":"asker","agentId":"agt_a1b2c3","captureMode":"propose","createdAt":1760000000000,"face":"intake","fallbackModel":"example","folderId":"fld_a1b2c3","hasComputer":true,"lastActiveAt":1760000000000,"limits":{"dayCostMicros":1,"minutesPerRun":1,"monthCostMicros":1,"runCostMicros":1,"tokensPerDay":1,"turnsPerDay":1},"model":"example","name":"example","ownerId":"usr_a1b2c3","pausedBy":"example","pausedReason":"example","role":"example","status":"awake","templateVersion":1,"toolsAllowed":["example"],"toolsDenied":["example"],"vaultKeys":["example"]}} as unknown) as never,
   "agents.versions": async () => ({"versions":[{"at":1760000000000,"by":"example","n":1,"name":"example","reason":"example","versionId":"ver_a1b2c3"}]} as unknown) as never,
   "agents.visibility.set": async () => ({"all":true} as unknown) as never,
+  "skills.add": async () => ({"skill":{"agentId":"agt_a1b2c3","bytes":1,"description":"example","enabled":true,"name":"deploy-checks","source":"upload","system":true,"tier":"builtin","updatedAt":1760000000000}} as unknown) as never,
+  "skills.list": async () => ({"skills":[{"agentId":"agt_a1b2c3","bytes":1,"description":"example","enabled":true,"name":"deploy-checks","source":"upload","system":true,"tier":"builtin","updatedAt":1760000000000}]} as unknown) as never,
+  "skills.load": async () => ({"skill":{"body":"example","description":"example","files":[{"path":"example","text":"example"}],"name":"example","source":"example","tier":"builtin"}} as unknown) as never,
+  "skills.remove": async () => ({"removed":true} as unknown) as never,
+  "skills.set_enabled": async () => ({"skill":{"agentId":"agt_a1b2c3","bytes":1,"description":"example","enabled":true,"name":"deploy-checks","source":"upload","system":true,"tier":"builtin","updatedAt":1760000000000}} as unknown) as never,
 };
