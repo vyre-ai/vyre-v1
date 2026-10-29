@@ -16,7 +16,7 @@ const migrationDir = new URL("../migrations/", import.meta.url);
 const migration = readdirSync(migrationDir).filter((name) => name.endsWith(".sql")).sort()
   .map((name) => readFileSync(new URL(name, migrationDir), "utf8")).join("\n");
 export const TRACE = "0123456789abcdef0123456789abcdef";
-const IDEM_KEYED = new Set(["automations.create", "automations.make_personal_copy", "automations.run", "automations.fire", "automations.groups.create"]);
+const IDEM_KEYED = new Set(["automations.create", "automations.make_personal_copy", "automations.run", "automations.fire", "automations.groups.create", "automations.templates.use"]);
 
 export interface Ev { name: string; subject: string; payload: Record<string, unknown>; id: string }
 export interface CallLog { cap: string; input: any }   // eslint-disable-line @typescript-eslint/no-explicit-any

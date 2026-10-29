@@ -44,6 +44,14 @@ const summary = t.obj({
   id: id.automation, name: t.str(), kind: kindEnum, groupId: t.opt(groupId), ownerId: t.str(), status, version: t.int({ minimum: 1 }), triggers: t.arr(t.str()),
   updatedAt: t.ts(), lastRun: t.opt(t.obj({ runId: id.run, status: t.str(), at: t.ts() })), failedRuns: t.int({ minimum: 0 }),
 });
+const packageNeeds = t.obj({
+  connections: t.arr(t.obj({ slot: t.str(), label: t.str(), stepIds: t.arr(t.str()) })),
+  vault: t.arr(t.str()),
+  keys: t.arr(t.str()),
+});
+const packageRow = t.obj({
+  id: t.str(), name: t.str(), sourceAutomationId: id.automation, createdAt: t.ts(), requires: packageNeeds,
+});
 const row = t.obj({
   id: id.automation, name: t.str(), description: t.opt(t.str()), kind: kindEnum, groupId: t.opt(groupId), ownerId: t.str(), status, pausedReason: t.opt(t.str()),
   version: t.int({ minimum: 1 }), definition, followers: t.arr(t.str()), alerts, createdAt: t.ts(), updatedAt: t.ts(),
@@ -141,21 +149,54 @@ export default defineManifest({
     }),
     read('automations.packages.list', 'List portable Automation packages this person has exported', {
       in: {},
-      out: { packages: t.arr(t.obj({ id: t.str(), name: t.str(), sourceAutomationId: id.automation, createdAt: t.ts() })) },
+      out: { packages: t.arr(packageRow) },
       tool: 'automations',
     }),
-    write('automations.packages.export', 'Save a portable copy of an Automation definition', {
+    write('automations.packages.export', 'Save a portable copy of an Automation definition; connections become slots and no secret, Vault value or run data is carried', {
       in: { ...target, name: t.opt(t.str({ minLength: 1 })) },
-      out: { package: t.obj({ id: t.str(), name: t.str(), sourceAutomationId: id.automation, createdAt: t.ts() }) },
+      out: { package: packageRow },
       on: ['automation', '/automationId'], tool: 'automations',
       errors: ['permission.not_found', 'validation.bad_input'],
     }),
-    write('automations.packages.import', 'Create a draft Automation from a package this person exported', {
-      in: { packageId: t.str({ minLength: 1 }), name: t.opt(t.str({ minLength: 1 })) },
-      out: { automation: row },
+    write('automations.packages.import', 'Create a Personal draft from a package this person exported, put their own connections in its slots and list what is left to connect', {
+      in: { packageId: t.str({ minLength: 1 }), name: t.opt(t.str({ minLength: 1 })), connections: t.opt(t.rec(id.connection)) },
+      out: { automation: row, needs: packageNeeds },
       emits: ['automation.created'],
       tool: 'automations',
       errors: ['validation.not_found', 'validation.bad_input'],
+    }),
+    read('automations.templates.list', 'The starter templates: what each one does, what starts it and what to set up', {
+      in: {},
+      out: { templates: t.arr(t.obj({ key: t.str(), title: t.str(), summary: t.str(), starts: t.str(), setUp: t.arr(t.str()), steps: t.arr(t.obj({ id: t.str(), key: t.str(), title: t.str() })) })) },
+      tool: 'automations',
+    }),
+    create('automations.templates.use', 'Make a Personal draft from a starter template', {
+      in: { templateKey: t.str({ minLength: 1 }), name: t.opt(t.str({ minLength: 1 })), folderId: t.opt(id.folder) },
+      out: { automation: row },
+      make: ['automation', '/folderId'], perm: 'automations.personal', emits: ['automation.created'], tool: 'automations',
+      errors: ['validation.not_found'],
+    }),
+    read('automations.analytics', 'Outcomes from runs: totals, success rate, a daily series, the busiest automations and where failures stop', {
+      in: { automationId: t.opt(id.automation), days: t.opt(t.int({ minimum: 1, maximum: 90 })) },
+      out: {
+        windowDays: t.int(),
+        totals: t.obj({ runs: t.int(), succeeded: t.int(), failed: t.int(), stopped: t.int(), active: t.int(), costMicros: t.int(), successRate: t.nullable(t.num()), medianMs: t.nullable(t.int()) }),
+        daily: t.arr(t.obj({ day: t.str(), succeeded: t.int(), failed: t.int(), other: t.int() })),
+        automations: t.arr(t.obj({ automationId: id.automation, name: t.str(), runs: t.int(), succeeded: t.int(), failed: t.int(), lastRunAt: t.ts() })),
+        failures: t.arr(t.obj({ automationId: t.nullable(id.automation), step: t.str(), code: t.str(), count: t.int() })),
+      },
+      tool: 'automations',
+    }),
+    read('automations.dependencies', 'What every visible automation names: other automations, connections, mailboxes, forms and more, with who uses each and what is missing or off', {
+      in: {},
+      out: {
+        automations: t.int(),
+        items: t.arr(t.obj({
+          kind: t.str(), ref: t.str(), problem: t.nullable(t.enm('missing', 'off')),
+          usedBy: t.arr(t.obj({ automationId: id.automation, name: t.str(), status: t.str(), stepIds: t.arr(t.str()) })),
+        })),
+      },
+      tool: 'automations',
     }),
     read('automations.get', 'Read an Automation with its definition, alerts and followers', { in: target, out: { automation: row }, on: ['automation', '/automationId'], tool: 'automations', label: 'check', cli: 'vyre automations get' }),
     read('automations.migration_preview', 'Group active runs by the step they are on before moving them to a definition version', {
@@ -179,7 +220,7 @@ export default defineManifest({
     }),
     write('automations.migrate_runs', 'Move selected active runs onto a definition version without replaying finished steps', {
       in: { ...target, toVersion: t.int({ minimum: 1 }), runIds: t.arr(id.run, { minItems: 1 }) },
-      out: { moved: t.arr(t.obj({ runId: id.run, fromVersion: t.int(), toVersion: t.int(), atStepId: t.str() })) },
+      out: { moved: t.arr(t.obj({ runId: id.run, fromVersion: t.int(), toVersion: t.int(), atStepId: t.str() })), held: t.arr(id.run) },
       on: ['automation', '/automationId'], emits: ['automation.runs_migrated'], tool: 'automations',
       errors: ['validation.precondition_failed', 'validation.not_found'],
     }),

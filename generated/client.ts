@@ -163,6 +163,7 @@ export function createClient(transport: Transport) {
         get: call("automations.alerts.get", 1),
         set: call("automations.alerts.set", 1),
       },
+      analytics: call("automations.analytics", 1),
       connector_offer: {
         accept: call("automations.connector_offer.accept", 1),
         decline: call("automations.connector_offer.decline", 1),
@@ -172,6 +173,7 @@ export function createClient(transport: Transport) {
       connector_shares: call("automations.connector_shares", 1),
       create: call("automations.create", 1),
       delete: call("automations.delete", 1),
+      dependencies: call("automations.dependencies", 1),
       draft_connector: call("automations.draft_connector", 1),
       fire: call("automations.fire", 1),
       followers: {
@@ -209,6 +211,10 @@ export function createClient(transport: Transport) {
         list: call("automations.steps.list", 1),
       },
       stop: call("automations.stop", 1),
+      templates: {
+        list: call("automations.templates.list", 1),
+        use: call("automations.templates.use", 1),
+      },
       test: call("automations.test", 1),
       triggers: {
         list: call("automations.triggers.list", 1),

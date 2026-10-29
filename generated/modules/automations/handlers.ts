@@ -8,6 +8,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.account_picks": Handler<"automations.account_picks", X>;
   "automations.alerts.get": Handler<"automations.alerts.get", X>;
   "automations.alerts.set": Handler<"automations.alerts.set", X>;
+  "automations.analytics": Handler<"automations.analytics", X>;
   "automations.connector_offer.accept": Handler<"automations.connector_offer.accept", X>;
   "automations.connector_offer.decline": Handler<"automations.connector_offer.decline", X>;
   "automations.connector_offers": Handler<"automations.connector_offers", X>;
@@ -15,6 +16,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.connector_shares": Handler<"automations.connector_shares", X>;
   "automations.create": Handler<"automations.create", X>;
   "automations.delete": Handler<"automations.delete", X>;
+  "automations.dependencies": Handler<"automations.dependencies", X>;
   "automations.draft_connector": Handler<"automations.draft_connector", X>;
   "automations.fire": Handler<"automations.fire", X>;
   "automations.followers.add": Handler<"automations.followers.add", X>;
@@ -44,6 +46,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.set_enabled": Handler<"automations.set_enabled", X>;
   "automations.steps.list": Handler<"automations.steps.list", X>;
   "automations.stop": Handler<"automations.stop", X>;
+  "automations.templates.list": Handler<"automations.templates.list", X>;
+  "automations.templates.use": Handler<"automations.templates.use", X>;
   "automations.test": Handler<"automations.test", X>;
   "automations.triggers.list": Handler<"automations.triggers.list", X>;
   "automations.try_read": Handler<"automations.try_read", X>;

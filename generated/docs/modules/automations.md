@@ -4,11 +4,12 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (48)
+## Capabilities (52)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
 - [automations.alerts.set](../capabilities/automations.alerts.set.md): Set error alerts: who, when (every failure or after N in a row), where (Needs you, DM, channel), and the escalation chain
+- [automations.analytics](../capabilities/automations.analytics.md): Outcomes from runs: totals, success rate, a daily series, the busiest automations and where failures stop
 - [automations.connector_offer.accept](../capabilities/automations.connector_offer.accept.md): Accept a connector setup offer. Accepting is final for that Vault item.
 - [automations.connector_offer.decline](../capabilities/automations.connector_offer.decline.md): Decline a connector setup offer. Declining is final for that Vault item.
 - [automations.connector_offers](../capabilities/automations.connector_offers.md): Open connector setup offers. Each one names an app. A Vault value is not included.
@@ -16,6 +17,7 @@ Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, recor
 - [automations.connector_shares](../capabilities/automations.connector_shares.md): List connector actions another Space can start from. A key is not included.
 - [automations.create](../capabilities/automations.create.md): Create an Automation; it starts Personal
 - [automations.delete](../capabilities/automations.delete.md): Move an Automation to Trash
+- [automations.dependencies](../capabilities/automations.dependencies.md): What every visible automation names: other automations, connections, mailboxes, forms and more, with who uses each and what is missing or off
 - [automations.draft_connector](../capabilities/automations.draft_connector.md): Draft actions from an OpenAPI document already in memory, or from the official OpenAPI directory for a named app. A docs URL the person supplies is stored and is not fetched. Nothing is promoted.
 - [automations.fire](../capabilities/automations.fire.md): Start a run from a matched trigger event, checking self-trigger origin and the chain depth limit of 8 (called by the trigger consumer)
 - [automations.followers.add](../capabilities/automations.followers.add.md): Follow an Automation to get its updates
@@ -32,8 +34,8 @@ Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, recor
 - [automations.move](../capabilities/automations.move.md): Move an Automation into a Group, or out with null
 - [automations.open_document](../capabilities/automations.open_document.md): Open one public https document. A private, loopback, link-local, or metadata address is refused. The page text is not returned.
 - [automations.open_mcp](../capabilities/automations.open_mcp.md): Read a public MCP server address and draft one action per tool name. The document text is not returned.
-- [automations.packages.export](../capabilities/automations.packages.export.md): Save a portable copy of an Automation definition
-- [automations.packages.import](../capabilities/automations.packages.import.md): Create a draft Automation from a package this person exported
+- [automations.packages.export](../capabilities/automations.packages.export.md): Save a portable copy of an Automation definition; connections become slots and no secret, Vault value or run data is carried
+- [automations.packages.import](../capabilities/automations.packages.import.md): Create a Personal draft from a package this person exported, put their own connections in its slots and list what is left to connect
 - [automations.packages.list](../capabilities/automations.packages.list.md): List portable Automation packages this person has exported
 - [automations.preview_promote](../capabilities/automations.preview_promote.md): Show what Promote to Space grants as an access diff, and which subscription keys must be replaced by shared API keys
 - [automations.promote](../capabilities/automations.promote.md): Promote a Personal Automation to the Space: keeps history and versions, runs on access granted to the automation itself
@@ -45,6 +47,8 @@ Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, recor
 - [automations.set_enabled](../capabilities/automations.set_enabled.md): Turn an Automation on or off
 - [automations.steps.list](../capabilities/automations.steps.list.md): The step palette: every step kind with category, input and output schema, effects and Gate act
 - [automations.stop](../capabilities/automations.stop.md): Stop one run of an Automation, or all its running runs and pause it
+- [automations.templates.list](../capabilities/automations.templates.list.md): The starter templates: what each one does, what starts it and what to set up
+- [automations.templates.use](../capabilities/automations.templates.use.md): Make a Personal draft from a starter template
 - [automations.test](../capabilities/automations.test.md): Test an Automation with sample data: reads run for real, writes and sends are stubbed (a Run)
 - [automations.triggers.list](../capabilities/automations.triggers.list.md): The trigger palette: every trigger with its payload schema, sample and whether a Personal Space can use it
 - [automations.try_read](../capabilities/automations.try_read.md): Try one read on a documented host. The Vault fills the key when the host sends it. The reply is only the level.

@@ -16,6 +16,8 @@ export interface MigrationRun {
   /** The durable step the Run will execute next, or the step it is waiting on. */
   currentStepId: string | null;
   succeededStepIds: readonly string[];
+  /** True while the current step is executing. A step in flight is never moved or repeated. */
+  stepInFlight?: boolean;
 }
 
 export interface Cohort {
@@ -60,7 +62,7 @@ export function previewCohorts(runs: readonly MigrationRun[], source: readonly M
   const sourceById = new Map(source.map((n) => [n.id, n]));
   const groups = new Map<string, MigrationRun[]>();
   for (const run of runs) {
-    const key = `${run.definitionVersion}\u0000${run.currentStepId ?? ""}`;
+    const key = `${run.definitionVersion}\u0000${run.currentStepId ?? ""}\u0000${run.stepInFlight ? "1" : "0"}`;
     const list = groups.get(key);
     if (list) list.push(run);
     else groups.set(key, [run]);
@@ -79,6 +81,15 @@ export function previewCohorts(runs: readonly MigrationRun[], source: readonly M
       continue;
     }
     const current = sample.currentStepId;
+    if (sample.stepInFlight) {
+      cohorts.push({
+        definitionVersion: sample.definitionVersion, currentStepId: current, runIds,
+        disposition: "ambiguous", proposedStepId: null,
+        reason: "A step is running right now. Runs move only between steps, so try again once it finishes.",
+        repeatedEffects: [], skippedEffects: [],
+      });
+      continue;
+    }
     const targetNode = current ? targetById.get(current) : undefined;
     const sourceNode = current ? sourceById.get(current) : undefined;
     const succeeded = new Set(sample.succeededStepIds);

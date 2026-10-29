@@ -5489,38 +5489,6 @@
       ],
       "type": "object"
     },
-    "s_42e14d480d": {
-      "properties": {
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "sourceAutomationId": {
-          "examples": [
-            "aut_a1b2c3"
-          ],
-          "pattern": "^aut_[a-z0-9]+$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "sourceAutomationId",
-        "createdAt"
-      ],
-      "type": "object"
-    },
     "s_4378c74ec9": {
       "properties": {
         "tools": {
@@ -6351,6 +6319,42 @@
         "reviewChanges",
         "pendingChanges",
         "conflicts"
+      ],
+      "type": "object"
+    },
+    "s_4c0b859878": {
+      "properties": {
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "requires": {
+          "$ref": "#/$defs/s_967ea1a53f"
+        },
+        "sourceAutomationId": {
+          "examples": [
+            "aut_a1b2c3"
+          ],
+          "pattern": "^aut_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "sourceAutomationId",
+        "createdAt",
+        "requires"
       ],
       "type": "object"
     },
@@ -11589,6 +11593,53 @@
       },
       "required": [
         "url"
+      ],
+      "type": "object"
+    },
+    "s_967ea1a53f": {
+      "properties": {
+        "connections": {
+          "items": {
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "slot": {
+                "type": "string"
+              },
+              "stepIds": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "slot",
+              "label",
+              "stepIds"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "keys": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "vault": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "connections",
+        "vault",
+        "keys"
       ],
       "type": "object"
     },
@@ -30113,6 +30164,273 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "automationId": "aut_a1b2c3",
+            "days": 1
+          },
+          "name": "example",
+          "output": {
+            "automations": [
+              {
+                "automationId": "aut_a1b2c3",
+                "failed": 1,
+                "lastRunAt": 1760000000000,
+                "name": "example",
+                "runs": 1,
+                "succeeded": 1
+              }
+            ],
+            "daily": [
+              {
+                "day": "example",
+                "failed": 1,
+                "other": 1,
+                "succeeded": 1
+              }
+            ],
+            "failures": [
+              {
+                "automationId": "aut_a1b2c3",
+                "code": "example",
+                "count": 1,
+                "step": "example"
+              }
+            ],
+            "totals": {
+              "active": 1,
+              "costMicros": 1,
+              "failed": 1,
+              "medianMs": 1,
+              "runs": 1,
+              "stopped": 1,
+              "succeeded": 1,
+              "successRate": 1
+            },
+            "windowDays": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "days": {
+            "maximum": 90,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.analytics",
+      "output": {
+        "properties": {
+          "automations": {
+            "items": {
+              "properties": {
+                "automationId": {
+                  "examples": [
+                    "aut_a1b2c3"
+                  ],
+                  "pattern": "^aut_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "failed": {
+                  "type": "integer"
+                },
+                "lastRunAt": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "runs": {
+                  "type": "integer"
+                },
+                "succeeded": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "automationId",
+                "name",
+                "runs",
+                "succeeded",
+                "failed",
+                "lastRunAt"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "daily": {
+            "items": {
+              "properties": {
+                "day": {
+                  "type": "string"
+                },
+                "failed": {
+                  "type": "integer"
+                },
+                "other": {
+                  "type": "integer"
+                },
+                "succeeded": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "day",
+                "succeeded",
+                "failed",
+                "other"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "failures": {
+            "items": {
+              "properties": {
+                "automationId": {
+                  "anyOf": [
+                    {
+                      "examples": [
+                        "aut_a1b2c3"
+                      ],
+                      "pattern": "^aut_[a-z0-9]+$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "code": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                },
+                "step": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "automationId",
+                "step",
+                "code",
+                "count"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "totals": {
+            "properties": {
+              "active": {
+                "type": "integer"
+              },
+              "costMicros": {
+                "type": "integer"
+              },
+              "failed": {
+                "type": "integer"
+              },
+              "medianMs": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "runs": {
+                "type": "integer"
+              },
+              "stopped": {
+                "type": "integer"
+              },
+              "succeeded": {
+                "type": "integer"
+              },
+              "successRate": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "runs",
+              "succeeded",
+              "failed",
+              "stopped",
+              "active",
+              "costMicros",
+              "successRate",
+              "medianMs"
+            ],
+            "type": "object"
+          },
+          "windowDays": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "windowDays",
+          "totals",
+          "daily",
+          "automations",
+          "failures"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Outcomes from runs: totals, success rate, a daily series, the busiest automations and where failures stop",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [],
       "errors": [
@@ -30821,6 +31139,143 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Move an Automation to Trash",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "automations": 1,
+            "items": [
+              {
+                "kind": "example",
+                "problem": "missing",
+                "ref": "example",
+                "usedBy": [
+                  {
+                    "automationId": "aut_a1b2c3",
+                    "name": "example",
+                    "status": "example",
+                    "stepIds": [
+                      "example"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.dependencies",
+      "output": {
+        "properties": {
+          "automations": {
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "properties": {
+                "kind": {
+                  "type": "string"
+                },
+                "problem": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "missing",
+                        "off"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "usedBy": {
+                  "items": {
+                    "properties": {
+                      "automationId": {
+                        "examples": [
+                          "aut_a1b2c3"
+                        ],
+                        "pattern": "^aut_[a-z0-9]+$",
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "stepIds": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "automationId",
+                      "name",
+                      "status",
+                      "stepIds"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "kind",
+                "ref",
+                "problem",
+                "usedBy"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "automations",
+          "items"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "What every visible automation names: other automations, connections, mailboxes, forms and more, with who uses each and what is missing or off",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -32639,6 +33094,9 @@
           },
           "name": "example",
           "output": {
+            "held": [
+              "run_a1b2c3"
+            ],
             "moved": [
               {
                 "atStepId": "example",
@@ -32688,6 +33146,16 @@
       "name": "automations.migrate_runs",
       "output": {
         "properties": {
+          "held": {
+            "items": {
+              "examples": [
+                "run_a1b2c3"
+              ],
+              "pattern": "^run_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
           "moved": {
             "items": {
               "properties": {
@@ -32720,7 +33188,8 @@
           }
         },
         "required": [
-          "moved"
+          "moved",
+          "held"
         ],
         "type": "object"
       },
@@ -33234,6 +33703,23 @@
               "createdAt": 1760000000000,
               "id": "example",
               "name": "example",
+              "requires": {
+                "connections": [
+                  {
+                    "label": "example",
+                    "slot": "example",
+                    "stepIds": [
+                      "example"
+                    ]
+                  }
+                ],
+                "keys": [
+                  "example"
+                ],
+                "vault": [
+                  "example"
+                ]
+              },
               "sourceAutomationId": "aut_a1b2c3"
             }
           }
@@ -33265,7 +33751,7 @@
       "output": {
         "properties": {
           "package": {
-            "$ref": "#/$defs/s_42e14d480d"
+            "$ref": "#/$defs/s_4c0b859878"
           }
         },
         "required": [
@@ -33280,7 +33766,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Save a portable copy of an Automation definition",
+      "summary": "Save a portable copy of an Automation definition; connections become slots and no secret, Vault value or run data is carried",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -33304,6 +33790,7 @@
       "examples": [
         {
           "input": {
+            "connections": {},
             "name": "example",
             "packageId": "example"
           },
@@ -33413,6 +33900,23 @@
               "status": "on",
               "updatedAt": 1760000000000,
               "version": 1
+            },
+            "needs": {
+              "connections": [
+                {
+                  "label": "example",
+                  "slot": "example",
+                  "stepIds": [
+                    "example"
+                  ]
+                }
+              ],
+              "keys": [
+                "example"
+              ],
+              "vault": [
+                "example"
+              ]
             }
           }
         }
@@ -33420,6 +33924,16 @@
       "idempotency": "natural",
       "input": {
         "properties": {
+          "connections": {
+            "additionalProperties": {
+              "examples": [
+                "con_a1b2c3"
+              ],
+              "pattern": "^con_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "object"
+          },
           "name": {
             "minLength": 1,
             "type": "string"
@@ -33438,7 +33952,19 @@
       "module": "automations",
       "name": "automations.packages.import",
       "output": {
-        "$ref": "#/$defs/s_c0345bdf62"
+        "properties": {
+          "automation": {
+            "$ref": "#/$defs/s_098317b0f5"
+          },
+          "needs": {
+            "$ref": "#/$defs/s_967ea1a53f"
+          }
+        },
+        "required": [
+          "automation",
+          "needs"
+        ],
+        "type": "object"
       },
       "permission": null,
       "resource": {
@@ -33446,7 +33972,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Create a draft Automation from a package this person exported",
+      "summary": "Create a Personal draft from a package this person exported, put their own connections in its slots and list what is left to connect",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -33474,6 +34000,23 @@
                 "createdAt": 1760000000000,
                 "id": "example",
                 "name": "example",
+                "requires": {
+                  "connections": [
+                    {
+                      "label": "example",
+                      "slot": "example",
+                      "stepIds": [
+                        "example"
+                      ]
+                    }
+                  ],
+                  "keys": [
+                    "example"
+                  ],
+                  "vault": [
+                    "example"
+                  ]
+                },
                 "sourceAutomationId": "aut_a1b2c3"
               }
             ]
@@ -33492,7 +34035,7 @@
         "properties": {
           "packages": {
             "items": {
-              "$ref": "#/$defs/s_42e14d480d"
+              "$ref": "#/$defs/s_4c0b859878"
             },
             "type": "array"
           }
@@ -34860,6 +35403,314 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Stop one run of an Automation, or all its running runs and pause it",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "templates": [
+              {
+                "key": "example",
+                "setUp": [
+                  "example"
+                ],
+                "starts": "example",
+                "steps": [
+                  {
+                    "id": "example",
+                    "key": "example",
+                    "title": "example"
+                  }
+                ],
+                "summary": "example",
+                "title": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.templates.list",
+      "output": {
+        "properties": {
+          "templates": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "setUp": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "starts": {
+                  "type": "string"
+                },
+                "steps": {
+                  "items": {
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "key": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "key",
+                      "title"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "title",
+                "summary",
+                "starts",
+                "setUp",
+                "steps"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "templates"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The starter templates: what each one does, what starts it and what to set up",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "automation.created"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "folderId": "fld_a1b2c3",
+            "idempotencyKey": "idem_1",
+            "name": "example",
+            "templateKey": "example"
+          },
+          "name": "example",
+          "output": {
+            "automation": {
+              "alerts": {
+                "escalation": [
+                  {
+                    "afterHours": 1,
+                    "to": {
+                      "id": "usr_a1b2c3",
+                      "kind": "person"
+                    }
+                  }
+                ],
+                "when": {
+                  "mode": "every",
+                  "n": 2
+                },
+                "where": {
+                  "channelId": "chn_a1b2c3",
+                  "dm": true,
+                  "needsYou": true
+                },
+                "who": [
+                  {
+                    "id": "usr_a1b2c3",
+                    "kind": "person"
+                  }
+                ]
+              },
+              "createdAt": 1760000000000,
+              "definition": {
+                "allowSelfTrigger": true,
+                "nodes": [
+                  {
+                    "ai": {
+                      "agentId": "agt_a1b2c3",
+                      "approver": {
+                        "id": "usr_a1b2c3",
+                        "kind": "person"
+                      },
+                      "assigned": {
+                        "id": "usr_a1b2c3",
+                        "kind": "person"
+                      },
+                      "backupKeyId": "example",
+                      "escalateTo": {
+                        "id": "usr_a1b2c3",
+                        "kind": "person"
+                      },
+                      "keyId": "example",
+                      "nudgeMinutes": 1,
+                      "reviewer": {
+                        "id": "usr_a1b2c3",
+                        "kind": "person"
+                      },
+                      "timeoutMinutes": 1
+                    },
+                    "branches": [
+                      {
+                        "label": "example",
+                        "to": "example",
+                        "when": "example"
+                      }
+                    ],
+                    "id": "step_1",
+                    "input": {},
+                    "key": "records.update",
+                    "next": [
+                      "example"
+                    ],
+                    "onError": {
+                      "codes": [
+                        "example"
+                      ],
+                      "max": 1,
+                      "mode": "fail",
+                      "output": {},
+                      "route": "example"
+                    },
+                    "title": "example"
+                  }
+                ],
+                "start": [
+                  "example"
+                ],
+                "triggers": [
+                  {
+                    "config": {},
+                    "filter": {},
+                    "key": "record_change"
+                  }
+                ]
+              },
+              "description": "example",
+              "followers": [
+                "example"
+              ],
+              "groupId": "agr_a1b2c3",
+              "id": "aut_a1b2c3",
+              "kind": "personal",
+              "name": "example",
+              "ownerId": "example",
+              "pausedReason": "example",
+              "status": "on",
+              "updatedAt": 1760000000000,
+              "version": 1
+            }
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "templateKey": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "templateKey",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "automations",
+      "name": "automations.templates.use",
+      "output": {
+        "$ref": "#/$defs/s_c0345bdf62"
+      },
+      "permission": "automations.personal",
+      "resource": {
+        "create": true,
+        "parent": "/folderId",
+        "type": "automation"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Make a Personal draft from a starter template",
       "surfaces": {
         "http": "auto",
         "mcp": {
