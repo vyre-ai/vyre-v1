@@ -38,7 +38,7 @@ export async function screenGet(ctx: ChatCtx, input: { threadId: string; message
   const person = askerOf(ctx);
   const row = (input.messageId !== undefined
     ? ctx.db.all("SELECT message, json FROM chat_screen WHERE thread = ? AND person = ? AND message = ?", input.threadId, person, input.messageId)
-    : ctx.db.all("SELECT message, json FROM chat_screen WHERE thread = ? AND person = ? ORDER BY at DESC, message DESC LIMIT 1", input.threadId, person)) as Array<Record<string, unknown>>;
+    : ctx.db.all("SELECT message, json FROM chat_screen WHERE thread = ? AND person = ? ORDER BY at DESC, rowid DESC LIMIT 1", input.threadId, person)) as Array<Record<string, unknown>>;
   const r = row[0];
   if (!r) return { screen: null };
   try { return { screen: JSON.parse(String(r["json"])) as ScreenContext, messageId: String(r["message"]) }; } catch { return { screen: null }; }
