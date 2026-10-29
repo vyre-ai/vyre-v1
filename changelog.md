@@ -1,5 +1,6 @@
 # Changelog
 
+- Try a connector read only on the document host, and keep the key value off the test plan.
 - Read an MCP server address through the public document fetcher and turn each tool name into a drafted action.
 - Bind a public document fetch to the addresses that passed the check when the caller supplies the connect function.
 - Open a document address only over https, and refuse a private, loopback, link-local, or metadata host, including after lookup and on every redirect. The body is text, capped, and not treated as instructions.
