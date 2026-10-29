@@ -260,3 +260,25 @@ test("the Windows setup program reaches the release as VyreSetup.exe with a SHA-
   assert.match(ps1, /"\$ReleaseBase\/VyreSetup\.exe"/);
   assert.match(ps1, /"\$ReleaseBase\/SHA256SUMS"/);
 });
+
+test("the app's own updates: the build writes digests, only the digests go through sign, sign makes the signatures and the feed, publish checks the bundles against them", () => {
+  const desktop = wf("desktop"), rel = wf("release");
+  assert.match(desktop.text, /updater-digest upd-bundle\/Vyre\.app\.tar\.gz > upd-sum\/Vyre\.app\.tar\.gz\.b2/);
+  assert.match(desktop.text, /updater-digest win-exe\/VyreSetup\.exe > win-sum\/VyreSetup\.exe\.b2/);
+  assert.match(desktop.text, /name: desktop-macOS-update-sum, path: upd-sum/);
+  assert.match(desktop.text, /name: desktop-macOS-update, path: upd-bundle/);
+  const assembled = rel.jobs.find((j) => j.name === "desktop-release-files")!;
+  assert.match(assembled.text, /name: desktop-macOS-update-sum, path: desktop-sum-upd/);
+  assert.match(assembled.text, /cp desktop-sum-upd\/Vyre\.app\.tar\.gz\.b2 dist\//);
+  assert.match(assembled.text, /cp desktop-sum-win\/VyreSetup\.exe\.b2 dist\//);
+  assert.doesNotMatch(assembled.text, /desktop-macOS-update,/, "the 100 MB bundle never moves through assembling or sign");
+  for (const n of ["sign", "sign-dryrun"]) {
+    const job = rel.jobs.find((j) => j.name === n)!;
+    assert.match(job.text, /cli\.ts updater dist "\$VERSION" "\$CHANNEL" "\$TAG" /, `${n} signs the update digests with the same key`);
+    assert.doesNotMatch(job.text, /desktop-macOS-update,/);
+  }
+  const publish = rel.jobs.find((j) => j.name === "publish")!;
+  assert.match(publish.text, /name: desktop-macOS-update, path: desktop-upd/);
+  assert.match(publish.text, /cli\.ts updater-check dist dist/);
+  assert.ok(publish.text.indexOf("updater-check") < publish.text.indexOf("cli.ts publish"), "the check comes before the upload");
+});

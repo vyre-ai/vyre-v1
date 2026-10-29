@@ -4,12 +4,13 @@
 // stops at depth 8 (the setting can only lower it).
 // DECISION: the depth of an event is the number of Automation hops behind it (0 for a person's or a connector's). `fire` drops depth >= the limit, so the ninth hop never starts.
 // DECISION: `automations.stop` without a run id stops every active Run of the Automation and pauses it; with `pause: false` it only stops the Runs.
+import { isTrustedService } from "../../../lib/trust.ts";
 import { registry } from "../../../generated/registry.ts";
-import { validateDefinition } from "./defs.ts";
+import { validateDefinition, webhookSecretMatches } from "./defs.ts";
 import {
-  allAutomations, clean, emitAuto, findRunLink, getAutomation, me, principalFor, raise, readPolicy, saveRunLink, touch, vaultAllowlist, versionDefinition,
+  allAutomations, clean, emitAuto, findAutomation, findRunLink, getAutomation, isOwner, listChildLinks, me, principalFor, raise, readPolicy, saveRunLink, serviceFor, touch, vaultAllowlist, versionDefinition,
 } from "../projections.ts";
-import type { AutoCtx, Automation, Definition, Policy, RunLink, TriggerRef } from "../projections.ts";
+import type { AutoCtx, Automation, Definition, Policy, RunLink, RunScope, TriggerRef } from "../projections.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -20,6 +21,9 @@ export type DropReason = "self_trigger" | "depth_limit" | "paused" | "filter_err
 export interface StartOpts {
   trigger: string; payload: unknown; test: boolean; depth: number; origin?: string | undefined; eventId?: string | undefined; version?: number | undefined;
   parentRun?: string | undefined; key: string; principal?: { kind: "person" | "service"; id: string } | undefined;
+  scope?: RunScope | undefined;
+  /** Park the new Run before anyone is told it started, so a loop slot does not run ahead of the concurrency cap. */
+  hold?: boolean | undefined;
 }
 
 /** Create the Run through runs.start, pin the version and principal, say so. Repeating the same key returns the same Run and emits nothing. */
@@ -34,9 +38,11 @@ export async function startRun(ctx: AutoCtx, a: Automation, o: StartOpts): Promi
   if (findRunLink(ctx.db, started.runId)) return started.runId;
   const link: RunLink = clean({
     runId: started.runId, automationId: a.id, version, trigger: o.trigger, test: o.test, payload: o.payload, depth: o.depth, origin: o.origin, eventId: o.eventId,
-    principal: o.principal ?? principalFor(a), parentRun: o.parentRun, startedAt: ctx.now(),
+    principal: o.principal ?? principalFor(a), parentRun: o.parentRun, startedAt: ctx.now(), scope: o.scope,
   }) as RunLink;
   saveRunLink(ctx.db, link);
+  // A held iteration is waiting before run_started, so the drive consumer finds it parked and leaves it there.
+  if (o.hold) await ctx.call("runs.mark_waiting", { runId: started.runId, reason: "background", on: "a loop slot" });
   emitAuto(ctx, "automation.run_started", a.id, clean({ runId: started.runId, trigger: o.trigger, version, test: o.test, depth: o.depth, origin: o.origin }));
   return started.runId;
 }
@@ -55,6 +61,14 @@ export function loadRunPlan(ctx: Pick<AutoCtx, "db">, runId: string): { link: Ru
 function usable(ctx: AutoCtx, a: Automation): void {
   if (a.status === "paused") raise(ctx, "validation.precondition_failed", a.pausedReason ?? "This automation is paused.", { reason: "paused" });
 }
+
+/** A personal automation starts only as its owner. Its own service may start it, and so may a host service (the schedule clock). A Space automation does not use this rule. */
+function onlyAsOwner(ctx: AutoCtx, a: Automation): void {
+  if (a.kind !== "personal") return;
+  if (isOwner(ctx, a) || isTrustedService(ctx.principal)) return;
+  if (ctx.principal.kind === "service" && ctx.principal.id === serviceFor(a.id)) return;
+  raise(ctx, "permission.not_found", "A personal automation runs only as its owner.");
+}
 function mustBeValid(ctx: AutoCtx, a: Automation): void {
   const issues = validateDefinition(a.definition, readPolicy(ctx.db));
   const bad = issues.find((i) => i.severity === "error");
@@ -63,6 +77,7 @@ function mustBeValid(ctx: AutoCtx, a: Automation): void {
 
 export async function test(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = getAutomation(ctx, input.automationId);
+  onlyAsOwner(ctx, a);
   const key: string = input.trigger ?? a.definition.triggers[0]?.key ?? "manual";
   const def = TRIGGERS.get(key);
   if (!def) raise(ctx, "validation.bad_input", `There is no trigger called ${key}.`);
@@ -75,6 +90,7 @@ export async function test(ctx: AutoCtx, input: In): Promise<unknown> {
 
 export async function run(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = getAutomation(ctx, input.automationId);
+  onlyAsOwner(ctx, a);
   usable(ctx, a);
   mustBeValid(ctx, a);
   const key: string = input.trigger ?? "manual";
@@ -101,7 +117,9 @@ export async function retry(ctx: AutoCtx, input: In): Promise<unknown> {
   return { runId: r.runId };
 }
 
+/** A live rerun repeats outward steps. It is not a sandbox replay, so a missing confirmation does not start a run. */
 export async function replay(ctx: AutoCtx, input: In): Promise<unknown> {
+  if (input.confirm !== true) raise(ctx, "validation.precondition_failed", "A live rerun needs confirmation.", { reason: "needs_confirm" });
   const a = getAutomation(ctx, input.automationId);
   const old = findRunLink(ctx.db, input.runId);
   if (!old || old.automationId !== a.id) raise(ctx, "validation.precondition_failed", "That run does not belong to this automation.", { reason: "not_a_run_of_this" });
@@ -114,19 +132,70 @@ export async function replay(ctx: AutoCtx, input: In): Promise<unknown> {
   return { runId };
 }
 
+const ACTIVE_RUN = ["queued", "running", "waiting"] as const;
+
+function childRunIds(db: AutoCtx["db"], root: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>([root]);
+  const walk = (id: string): void => {
+    for (const child of listChildLinks(db, id)) {
+      if (seen.has(child.runId)) continue;
+      seen.add(child.runId);
+      out.push(child.runId);
+      walk(child.runId);
+    }
+  };
+  walk(root);
+  return out;
+}
+
+/** Parents before children, so a child finishing cannot wake a parent this stop is about to end. */
+function runsToStop(db: AutoCtx["db"], roots: readonly string[], active: ReadonlySet<string>): string[] {
+  const rootSet = new Set(roots);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const visit = (id: string): void => {
+    if (seen.has(id)) return;
+    seen.add(id);
+    if (rootSet.has(id) || active.has(id)) out.push(id);
+    for (const child of listChildLinks(db, id)) visit(child.runId);
+  };
+  const linked = new Set<string>();
+  for (const id of roots) for (const childId of childRunIds(db, id)) linked.add(childId);
+  const tops = roots.filter((id) => !linked.has(id));
+  for (const id of tops.length ? tops : roots) visit(id);
+  for (const id of roots) visit(id);
+  return out;
+}
+
+function runAlreadyFinished(e: unknown): boolean {
+  const err = (e as { error?: { code?: string; details?: { reason?: unknown } } } | null)?.error;
+  return err?.code === "validation.precondition_failed" && err.details?.reason === "run_finished";
+}
+
 export async function stop(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = getAutomation(ctx, input.automationId);
   if (!ctx.call) raise(ctx, "internal.unavailable", "Runs are not available right now.");
-  let ids: string[];
+  const listed = (await ctx.call("runs.list", {
+    scope: "subject", subject: { type: "automation", id: a.id }, statuses: [...ACTIVE_RUN], limit: 500,
+  })) as { runs?: { id: string }[] } | null;
+  const active = new Set((listed?.runs ?? []).map((x) => x.id));
+  let roots: string[];
   if (input.runId) {
     if (findRunLink(ctx.db, input.runId)?.automationId !== a.id) raise(ctx, "validation.precondition_failed", "That run does not belong to this automation.", { reason: "not_a_run_of_this" });
-    ids = [input.runId];
-  } else {
-    const r = (await ctx.call("runs.list", { scope: "subject", subject: { type: "automation", id: a.id }, statuses: ["queued", "running", "waiting"], limit: 500 })) as { runs?: { id: string }[] } | null;
-    ids = (r?.runs ?? []).map((x) => x.id);
-  }
+    roots = [input.runId];
+  } else roots = [...active];
+  // Unfinished children stop with the parent. A child that already finished is not asked again.
+  const ids = runsToStop(ctx.db, roots, active);
   let stopped = 0;
-  for (const id of ids) { await ctx.call("runs.stop", { runId: id, reason: "Stopped from the automation" }); stopped += 1; }
+  for (const id of ids) {
+    try {
+      await ctx.call("runs.stop", { runId: id, reason: "Stopped from the automation" });
+      stopped += 1;
+    } catch (e) {
+      if (!runAlreadyFinished(e)) throw e;
+    }
+  }
   const pause = input.pause === true || (input.runId === undefined && input.pause !== false);
   if (pause && a.status !== "paused") {
     a.status = "paused";
@@ -164,8 +233,31 @@ export async function fireOne(ctx: AutoCtx, a: Automation, f: Firing): Promise<{
   return { runId };
 }
 
+/**
+ * The inbound webhook (POST /hooks/automation/<id>/<secret>): the host route has read the body and rate-limited the source, and asks here.
+ * Answers null for every refusal (unknown, deleted, turned off, no webhook trigger, a Personal Space, a wrong or rotated secret) so a caller learns nothing about which it was.
+ * The body is the trigger data. The same Idempotency-Key starts one Run.
+ */
+export async function acceptHook(ctx: AutoCtx, input: { automationId?: unknown; secret?: unknown; payload?: unknown; idempotencyKey?: unknown }): Promise<{ accepted: true; runId?: string } | null> {
+  const id = typeof input.automationId === "string" ? input.automationId : "";
+  const secret = typeof input.secret === "string" ? input.secret : "";
+  if (!/^aut_[a-z0-9]+$/.test(id) || secret === "") return null;
+  const found = findAutomation(ctx.db, id);
+  if (!found) return null;
+  const match = webhookSecretMatches(ctx, id, secret);
+  if (!match) return null;
+  if (found.status !== "on" || !found.definition.triggers.some((t) => t.key === "webhook") || readPolicy(ctx.db).personalSpace) return null;
+  const given = typeof input.idempotencyKey === "string" && input.idempotencyKey !== "" && input.idempotencyKey.length <= 200 ? input.idempotencyKey : "";
+  const fired = await fireOne(ctx, found, {
+    trigger: "webhook", payload: input.payload ?? null, depth: 0, eventId: given ? `hook:${given}` : undefined,
+    key: `hook:${id}:${given || `${ctx.now()}-${rand()}${rand()}`}`,
+  });
+  return "runId" in fired ? { accepted: true, runId: fired.runId } : { accepted: true };
+}
+
 export async function fire(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = getAutomation(ctx, input.automationId);
+  onlyAsOwner(ctx, a);
   if (!TRIGGERS.has(input.trigger)) raise(ctx, "validation.bad_input", `There is no trigger called ${input.trigger}.`);
   if (!a.definition.triggers.some((x) => x.key === input.trigger)) raise(ctx, "validation.precondition_failed", "This automation does not use that trigger.", { reason: "no_such_trigger", trigger: input.trigger });
   const r = await fireOne(ctx, a, {

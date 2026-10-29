@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (19)
+## Capabilities (20)
 
 - [runs.count](../capabilities/runs.count.md): Count Runs by status for badges (failed runs in Needs you, running now)
 - [runs.erase](../capabilities/runs.erase.md): Erase one Run for good with its steps, waits and alerts (governance erase)
@@ -12,6 +12,7 @@ Requires: nothing.
 - [runs.get](../capabilities/runs.get.md): Read one Run: status, owner, key and model used, cost, thread, trace
 - [runs.list](../capabilities/runs.list.md): List Runs by owner, subject, kind and status; scope all is for Manage holders and the Console
 - [runs.mark_waiting](../capabilities/runs.mark_waiting.md): Mark a Run as waiting for approval, background work or a key
+- [runs.pin_version](../capabilities/runs.pin_version.md): Move an active Run onto a definition version without replaying its steps
 - [runs.preview_undo](../capabilities/runs.preview_undo.md): Show what Undo this run would reverse and what it cannot (sent messages and deployments)
 - [runs.purge](../capabilities/runs.purge.md): Remove Runs and step logs older than a time, a batch at a time (retention)
 - [runs.record_key](../capabilities/runs.record_key.md): Record the key and model a step used, or a fallback to the backup key
