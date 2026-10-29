@@ -52,6 +52,9 @@ export interface EngineHostDeps {
   dataDir?: string;
   cli?: unknown;
   openSession?: unknown;
+  /** See EngineHostSeam.mcpFetch and pluginLaunch (modules/engine/runtime.ts). */
+  mcpFetch?: unknown;
+  pluginLaunch?: unknown;
 }
 
 const SYSTEM = { kind: "service", id: "svc_host" } as const;
@@ -71,5 +74,5 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
   // An agent has no standing of its own in a Space: it speaks for the person whose turn it is, so what it may post is what that person may (the kernel answers agent_needs_actor otherwise).
   const postAs: EngineHostSeam["postAs"] = (agentId, { actingFor, ...post }) => run("chat.post", { ...post, idempotencyKey: `brg-${post.clientId}` }, { kind: "agent", id: agentId }, actingFor);
   const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space }) : undefined;
-  return { holder: `host:${d.space}`, call, postAs, ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space };
+  return { holder: `host:${d.space}`, call, postAs, ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.mcpFetch !== undefined ? { mcpFetch: d.mcpFetch } : {}), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };
 }

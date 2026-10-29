@@ -28676,6 +28676,35 @@
     },
     {
       "blocks": [],
+      "cap": "engine.mcp.tools",
+      "deferred": false,
+      "description": "The MCP servers a chat with this agent connects to and the tools each offers (starts the server in the sandbox if it is not running)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "server": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "mcp_tools",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mcp.tools.list",
       "deferred": false,
       "description": "Tools listed for this caller: about 60 by default; the rest are deferred and found with tool_search",

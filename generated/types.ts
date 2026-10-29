@@ -7955,6 +7955,48 @@ export type EngineLeaseReleaseIn = {
 export type EngineLeaseReleaseOut = {
   ok: boolean;
 };
+export type EngineMcpCallIn = {
+  agentId: string;
+  server: string;
+  tool: string;
+  input?: unknown;
+  idempotencyKey: string;
+};
+export type EngineMcpCallOut = {
+  isError: boolean;
+  text: string;
+  structured?: unknown;
+};
+export type EngineMcpReadIn = {
+  agentId: string;
+  server: string;
+  tool: string;
+  input?: unknown;
+};
+export type EngineMcpReadOut = {
+  isError: boolean;
+  text: string;
+  structured?: unknown;
+};
+export type EngineMcpToolsIn = {
+  agentId: string;
+  server?: string;
+};
+export type EngineMcpToolsOut = {
+  servers: Array<{
+      key: string;
+      name: string;
+      from: "plugin" | "connection";
+      ok: boolean;
+      error?: string;
+      tools: Array<{
+          name: string;
+          description: string;
+          inputSchema: unknown;
+          readOnly: boolean;
+        }>;
+    }>;
+};
 export type EngineModelsListIn = {
   accountRef?: string;
   threadId?: string;
@@ -17876,6 +17918,12 @@ export type PluginsConnectionsListOut = {
       enabled: boolean;
       createdAt: number;
     }>;
+};
+export type PluginsFilesIn = {
+  pluginId: string;
+};
+export type PluginsFilesOut = {
+  files: Record<string, string>;
 };
 export type PluginsGetIn = {
   pluginId: string;
@@ -27917,6 +27965,9 @@ export interface CapMap {
   "engine.lease.acquire": { in: EngineLeaseAcquireIn; out: EngineLeaseAcquireOut };
   "engine.lease.heartbeat": { in: EngineLeaseHeartbeatIn; out: EngineLeaseHeartbeatOut };
   "engine.lease.release": { in: EngineLeaseReleaseIn; out: EngineLeaseReleaseOut };
+  "engine.mcp.call": { in: EngineMcpCallIn; out: EngineMcpCallOut };
+  "engine.mcp.read": { in: EngineMcpReadIn; out: EngineMcpReadOut };
+  "engine.mcp.tools": { in: EngineMcpToolsIn; out: EngineMcpToolsOut };
   "engine.models.list": { in: EngineModelsListIn; out: EngineModelsListOut };
   "engine.placement.decide": { in: EnginePlacementDecideIn; out: EnginePlacementDecideOut };
   "engine.policy.get": { in: EnginePolicyGetIn; out: EnginePolicyGetOut };
@@ -28532,6 +28583,7 @@ export interface CapMap {
   "plugins.connection.add": { in: PluginsConnectionAddIn; out: PluginsConnectionAddOut };
   "plugins.connection.remove": { in: PluginsConnectionRemoveIn; out: PluginsConnectionRemoveOut };
   "plugins.connections.list": { in: PluginsConnectionsListIn; out: PluginsConnectionsListOut };
+  "plugins.files": { in: PluginsFilesIn; out: PluginsFilesOut };
   "plugins.get": { in: PluginsGetIn; out: PluginsGetOut };
   "plugins.hooks.list": { in: PluginsHooksListIn; out: PluginsHooksListOut };
   "plugins.install": { in: PluginsInstallIn; out: PluginsInstallOut };

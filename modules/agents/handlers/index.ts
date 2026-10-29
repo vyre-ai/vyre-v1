@@ -7,7 +7,7 @@ import { builtinSkillsList, guideGet, routineDelegate, routineDelete, routineRun
 
 import {
   agentTemplateUse, agentTemplates, allowList, allowSet, browse, commandRender, commandsList, configSet, connectionAdd, connectionRemove, connectionsList, hooksList, install, marketplaceAdd, marketplaceRefresh, marketplaceRemove,
-  marketplacesList, mcpServers, pluginGet, pluginsList, setEnabled, uninstall,
+  marketplacesList, mcpServers, pluginFiles, pluginGet, pluginsList, setEnabled, uninstall,
 } from "./plugins.ts";
 import { skillsAdd, skillsList, skillsLoad, skillsRemove, skillsSetEnabled } from "./skills.ts";
 
@@ -23,6 +23,7 @@ export const handlers = {
   "plugins.mcp.servers": mcpServers,
   "plugins.hooks.list": hooksList,
   "plugins.connections.list": connectionsList,
+  "plugins.files": pluginFiles,
   "plugins.marketplace.add": marketplaceAdd,
   "plugins.marketplace.refresh": marketplaceRefresh,
   "plugins.marketplace.remove": marketplaceRemove,

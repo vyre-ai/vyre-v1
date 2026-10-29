@@ -4250,6 +4250,12 @@
     },
     {
       "deferred": false,
+      "name": "mcp_tools",
+      "summary": "The MCP servers a chat with this agent connects to and the tools each offers (starts the server in the sandbox if it is not running)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "mcp_tools_list",
       "summary": "Tools listed for this caller: about 60 by default; the rest are deferred and found with tool_search",
       "toolset": "meta"

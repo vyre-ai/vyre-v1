@@ -623,6 +623,11 @@ export function createClient(transport: Transport) {
         heartbeat: call("engine.lease.heartbeat", 1),
         release: call("engine.lease.release", 1),
       },
+      mcp: {
+        call: call("engine.mcp.call", 1),
+        read: call("engine.mcp.read", 1),
+        tools: call("engine.mcp.tools", 1),
+      },
       models: {
         list: call("engine.models.list", 1),
       },
@@ -1492,6 +1497,7 @@ export function createClient(transport: Transport) {
       connections: {
         list: call("plugins.connections.list", 1),
       },
+      files: call("plugins.files", 1),
       get: call("plugins.get", 1),
       hooks: {
         list: call("plugins.hooks.list", 1),

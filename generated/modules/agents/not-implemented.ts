@@ -49,6 +49,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "plugins.connection.add": async (ctx) => { throw new VyreErr(notImplemented("plugins.connection.add", ctx.trace)); },
   "plugins.connection.remove": async (ctx) => { throw new VyreErr(notImplemented("plugins.connection.remove", ctx.trace)); },
   "plugins.connections.list": async (ctx) => { throw new VyreErr(notImplemented("plugins.connections.list", ctx.trace)); },
+  "plugins.files": async (ctx) => { throw new VyreErr(notImplemented("plugins.files", ctx.trace)); },
   "plugins.get": async (ctx) => { throw new VyreErr(notImplemented("plugins.get", ctx.trace)); },
   "plugins.hooks.list": async (ctx) => { throw new VyreErr(notImplemented("plugins.hooks.list", ctx.trace)); },
   "plugins.install": async (ctx) => { throw new VyreErr(notImplemented("plugins.install", ctx.trace)); },

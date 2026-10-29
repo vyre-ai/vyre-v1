@@ -8247,6 +8247,60 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/engine/mcp/call",
+    "cap": "engine.mcp.call",
+    "v": 1,
+    "module": "engine",
+    "effects": "outward",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "send"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/engine/mcp/read",
+    "cap": "engine.mcp.read",
+    "v": 1,
+    "module": "engine",
+    "effects": "read",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/engine/mcp/tools",
+    "cap": "engine.mcp.tools",
+    "v": 1,
+    "module": "engine",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/engine/models/list",
     "cap": "engine.models.list",
     "v": 1,
@@ -19500,6 +19554,24 @@ export const routes: Route[] = [
     "method": "POST",
     "path": "/v1/plugins/connections/list",
     "cap": "plugins.connections.list",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/files",
+    "cap": "plugins.files",
     "v": 1,
     "module": "agents",
     "effects": "read",

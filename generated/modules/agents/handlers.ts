@@ -49,6 +49,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "plugins.connection.add": Handler<"plugins.connection.add", X>;
   "plugins.connection.remove": Handler<"plugins.connection.remove", X>;
   "plugins.connections.list": Handler<"plugins.connections.list", X>;
+  "plugins.files": Handler<"plugins.files", X>;
   "plugins.get": Handler<"plugins.get", X>;
   "plugins.hooks.list": Handler<"plugins.hooks.list", X>;
   "plugins.install": Handler<"plugins.install", X>;

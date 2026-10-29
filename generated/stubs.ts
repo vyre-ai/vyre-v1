@@ -623,6 +623,11 @@ export function stubs(ctx: CallCtx) {
         heartbeat: call("engine.lease.heartbeat"),
         release: call("engine.lease.release"),
       },
+      mcp: {
+        call: call("engine.mcp.call"),
+        read: call("engine.mcp.read"),
+        tools: call("engine.mcp.tools"),
+      },
       models: {
         list: call("engine.models.list"),
       },
@@ -1492,6 +1497,7 @@ export function stubs(ctx: CallCtx) {
       connections: {
         list: call("plugins.connections.list"),
       },
+      files: call("plugins.files"),
       get: call("plugins.get"),
       hooks: {
         list: call("plugins.hooks.list"),

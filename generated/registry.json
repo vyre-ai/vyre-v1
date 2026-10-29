@@ -1064,6 +1064,24 @@
       ],
       "type": "object"
     },
+    "s_0b7e723577": {
+      "properties": {
+        "isError": {
+          "type": "boolean"
+        },
+        "structured": {
+          "description": "Any JSON value"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "isError",
+        "text"
+      ],
+      "type": "object"
+    },
     "s_0c004c8d01": {
       "properties": {
         "group": {
@@ -62839,6 +62857,321 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.network",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "idempotencyKey": "idem_1",
+            "input": {},
+            "server": "greeter/echo",
+            "tool": "example"
+          },
+          "name": "example",
+          "output": {
+            "isError": true,
+            "structured": {},
+            "text": "example"
+          }
+        }
+      ],
+      "gate": {
+        "act": "send",
+        "when": "actor.kind != 'person'"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "input": {
+            "description": "Any JSON value"
+          },
+          "server": {
+            "examples": [
+              "greeter/echo"
+            ],
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "server",
+          "tool",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "engine",
+      "name": "engine.mcp.call",
+      "output": {
+        "$ref": "#/$defs/s_0b7e723577"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Call an outside MCP tool that may change things; an agent's call goes through the Gate",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "input": {},
+            "server": "greeter/echo",
+            "tool": "example"
+          },
+          "name": "example",
+          "output": {
+            "isError": true,
+            "structured": {},
+            "text": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "input": {
+            "description": "Any JSON value"
+          },
+          "server": {
+            "examples": [
+              "greeter/echo"
+            ],
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "server",
+          "tool"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "engine",
+      "name": "engine.mcp.read",
+      "output": {
+        "$ref": "#/$defs/s_0b7e723577"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Call an outside MCP tool that only reads (the server says so); runs in the sandbox or at the remote server",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "server": "example"
+          },
+          "name": "example",
+          "output": {
+            "servers": [
+              {
+                "error": "example",
+                "from": "plugin",
+                "key": "greeter/echo",
+                "name": "example",
+                "ok": true,
+                "tools": [
+                  {
+                    "description": "example",
+                    "inputSchema": {},
+                    "name": "example",
+                    "readOnly": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "server": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "engine",
+      "name": "engine.mcp.tools",
+      "output": {
+        "properties": {
+          "servers": {
+            "items": {
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "from": {
+                  "enum": [
+                    "plugin",
+                    "connection"
+                  ],
+                  "type": "string"
+                },
+                "key": {
+                  "examples": [
+                    "greeter/echo"
+                  ],
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "ok": {
+                  "type": "boolean"
+                },
+                "tools": {
+                  "items": {
+                    "properties": {
+                      "description": {
+                        "type": "string"
+                      },
+                      "inputSchema": {
+                        "description": "Any JSON value"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "readOnly": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "description",
+                      "inputSchema",
+                      "readOnly"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "key",
+                "name",
+                "from",
+                "ok",
+                "tools"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "servers"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The MCP servers a chat with this agent connects to and the tools each offers (starts the server in the sandbox if it is not running)",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "mcp_tools",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -122840,6 +123173,72 @@
           "name": "plugins_connections",
           "toolset": "agents"
         }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "pluginId": "plg_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "files": {}
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "pluginId": {
+            "examples": [
+              "plg_a1b2c3"
+            ],
+            "pattern": "^plg_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pluginId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "plugins.files",
+      "output": {
+        "properties": {
+          "files": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The text files of an installed plugin, for the sandbox to be given (its MCP servers and hooks run from them)",
+      "surfaces": {
+        "http": "auto"
       },
       "v": 1
     },

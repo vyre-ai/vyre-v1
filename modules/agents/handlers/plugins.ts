@@ -402,11 +402,10 @@ export async function hooksList(ctx: AgentsCtx, input: { agentId?: string }) {
   return { hooks: applicable(ctx, input.agentId).flatMap((p) => p.contents.hooks.map((h) => ({ pluginId: p.id, plugin: p.name, event: h.event, matcher: h.matcher, command: fill(h.command, p).text, args: h.args.map((a) => fill(a, p).text), ...(h.timeoutSec ? { timeoutSec: h.timeoutSec } : {}) }))) };
 }
 
-/** The files of a plugin, for the sandbox to be given. Read by the engine through the plugin's own id; only a plugin that applies to the agent is handed over. */
-export function pluginFilesFor(ctx: AgentsCtx, pluginId: string): Record<string, string> | null {
+/** The files of a plugin, for the sandbox to be given. Plugin text, no secret: an option that is a secret is only ever a Vault handle. */
+export async function pluginFiles(ctx: AgentsCtx, input: { pluginId: string }) {
   ensure(ctx.db);
-  const r = (ctx.db.all("SELECT files_json FROM agents_plugins WHERE id = ?", pluginId) as Row[])[0];
-  return r ? parse<Record<string, string>>(r["files_json"], {}) : null;
+  return { files: plugBy(ctx, input.pluginId).files };
 }
 
 // ---- connections made by hand -------------------------------------------------------------------------------------------------------------------------

@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat, engine, mcp, memory, runs, terminal.
 
-## Capabilities (60)
+## Capabilities (61)
 
 - [agents.builtin_skills.list](../capabilities/agents.builtin_skills.list.md): Skills every agent carries, led by "Working in Vyre": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces
 - [agents.config.get](../capabilities/agents.config.get.md): Parsed agent.toml and AGENT.md metadata as the next run will see them, with the last good version and any error
@@ -50,6 +50,7 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [plugins.connection.add](../capabilities/plugins.connection.add.md): Connect an MCP server by URL (remote) or by command (runs in the sandbox), for the Space or one agent; works for every model
 - [plugins.connection.remove](../capabilities/plugins.connection.remove.md): Disconnect an MCP server made by hand
 - [plugins.connections.list](../capabilities/plugins.connections.list.md): MCP connections made by hand (a URL or a command)
+- [plugins.files](../capabilities/plugins.files.md): The text files of an installed plugin, for the sandbox to be given (its MCP servers and hooks run from them)
 - [plugins.get](../capabilities/plugins.get.md): One installed plugin with the skills, commands, sub-agents, hooks and MCP servers it brought
 - [plugins.hooks.list](../capabilities/plugins.hooks.list.md): The hooks of the plugins that apply to this agent. They run only in the sandbox.
 - [plugins.install](../capabilities/plugins.install.md): Install a plugin from a marketplace into the whole Space (admin) or into one agent: its skills, commands, sub-agents, hooks and MCP servers become available

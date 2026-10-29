@@ -63,6 +63,9 @@ export const pluginCapabilities: CapabilityDef[] = [
     in: { agentId: t.opt(id.agent) }, out: { servers: t.arr(mcpSpec) }, perm: null, level: 'view', tool: 'agents', mcpName: 'plugins_mcp_servers',
   }),
   read('plugins.hooks.list', 'The hooks of the plugins that apply to this agent. They run only in the sandbox.', { in: { agentId: t.opt(id.agent) }, out: { hooks: t.arr(hookRow) }, perm: null, level: 'view' }),
+  read('plugins.files', 'The text files of an installed plugin, for the sandbox to be given (its MCP servers and hooks run from them)', {
+    in: { pluginId: plgId }, out: { files: t.rec(t.str()) }, perm: null, level: 'view', errors: ['validation.not_found'],
+  }),
   read('plugins.connections.list', 'MCP connections made by hand (a URL or a command)', { in: { agentId: t.opt(id.agent) }, out: { connections: t.arr(connectionRow) }, perm: null, level: 'view', tool: 'agents', mcpName: 'plugins_connections' }),
 
   write('plugins.marketplace.add', 'Add a marketplace by git URL (https) or a folder on this server; reads its marketplace.json and puts it on the allowlist', {

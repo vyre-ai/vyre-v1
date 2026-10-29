@@ -36,8 +36,8 @@ const withMarket = async (hn: Harness) => {
 const mine = registry.capabilities.filter((c) => c.module === "agents");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
-test("the handler table covers exactly the 60 capabilities of the agents manifest", () => {
-  assert.equal(mine.length, 60);
+test("the handler table covers exactly the 61 capabilities of the agents manifest", () => {
+  assert.equal(mine.length, 61);
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });
@@ -162,6 +162,8 @@ const scenarios: Scenario[] = [
   { cap: "plugins.agent_templates.list", setup: withPlugin, run: (hn) => h["plugins.agent_templates.list"]!(hn.ctx, {}) },
   { cap: "plugins.allow.list", setup: withMarket, run: (hn) => h["plugins.allow.list"]!(hn.ctx, {}) },
   { cap: "plugins.mcp.servers", setup: withPlugin, run: (hn) => h["plugins.mcp.servers"]!(hn.ctx, {}) },
+  { cap: "plugins.files", setup: withPlugin, run: (hn, s) => h["plugins.files"]!(hn.ctx, { pluginId: s.p.pluginId }) },
+  { cap: "plugins.files", run: (hn) => h["plugins.files"]!(hn.ctx, { pluginId: "plg_none" }), expect: "validation.not_found" },
   { cap: "plugins.hooks.list", setup: withPlugin, run: (hn) => h["plugins.hooks.list"]!(hn.ctx, {}) },
   { cap: "plugins.connections.list", run: (hn) => h["plugins.connections.list"]!(hn.ctx, {}) },
   { cap: "plugins.marketplace.add", run: (hn) => { setPluginsHost(createPluginsHost()); return h["plugins.marketplace.add"]!(hn.ctx, { source: MARKET, idempotencyKey: k() }); } },
