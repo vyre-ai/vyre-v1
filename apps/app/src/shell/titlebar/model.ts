@@ -8,7 +8,7 @@ export type SyncTone = "ok" | "busy" | "offline";
 export interface SyncLabel {
   text: string;
   tone: SyncTone;
-  /** Offline and waiting changes open Waiting and Conflicts (4.14); a clean sync has nothing to open. */
+  /** Offline and waiting changes open Waiting and Conflicts (4.14); a plain connection has nothing to open; "Connected" says the app reaches the Space, not that replication is running. */
   opens: boolean;
 }
 
@@ -17,7 +17,7 @@ const changes = (n: number): string => `${n} change${n === 1 ? "" : "s"}`;
 export function syncLabel(online: boolean, waiting: number): SyncLabel {
   if (!online) return { text: waiting > 0 ? `Offline, ${changes(waiting)} waiting` : "Offline", tone: "offline", opens: waiting > 0 };
   if (waiting > 0) return { text: `Sending ${changes(waiting)}`, tone: "busy", opens: true };
-  return { text: "Synced", tone: "ok", opens: false };
+  return { text: "Connected", tone: "ok", opens: false };
 }
 
 export const SYSTEM_SKIN = "system";
