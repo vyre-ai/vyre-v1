@@ -17,6 +17,7 @@ The `release` Environment is configured for vyre-ai/vyre-v1: it requires reviewe
 
 ## Before a release
 
+- `node scripts/changelog/assemble.ts` on the bump branch folds changelog.d fragments into changelog.md.
 - `node scripts/release/cli.ts bump <version>` on a PR; the tag must equal the version (a prerelease is `1.0.0-rc.1`).
 - Patch releases (a tag not on main): the commit is on `origin/hotfix/<tag>`, the tag is the next patch of the newest published stable release. `node scripts/release/cli.ts lineage <sha> <tag>` refuses anything else; the workflow runs it first.
 - Check the real-install walk of a fresh Space (spec b14).
