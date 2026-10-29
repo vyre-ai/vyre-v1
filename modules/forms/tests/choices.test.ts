@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { harness } from "../fixtures/world.ts";
 import { run } from "../fixtures/seed.ts";
-import { configureForms, mustForm } from "../projections.ts";
+import { configureForms, many, mustForm } from "../projections.ts";
+import { formPrincipal } from "../handlers/submit.ts";
 import type { ChoiceInfo } from "../projections.ts";
 import { checkUploads, publicFormViewTyped, typedAnswers, writeAnswers } from "../handlers/submit.ts";
 
@@ -128,4 +129,22 @@ test("a relation pick passes the upload check untouched, and an upload id is nev
   const form = mustForm(h.ctx, formId);
   const picked = await typedAnswers(h.ctx, form, { company: key });
   assert.deepEqual(checkUploads(h.ctx, form, picked, null, "act_anon_0000000000000000").answers, picked);
+});
+
+test("a full public submit creates the record with the relation in it, relates both ends, and a survey stores the label, not the id", async () => {
+  const h = harness(); const s = source();
+  configureForms({ schemaFields: async () => schema.filter((f) => f.key !== "owner"), choiceSource: s.src });
+  const made = await run(h.ctx, "forms.create", { name: "Survey", recordType: "contact", kind: "survey" });
+  const formId = made.form.formId as string;
+  await run(h.ctx, "forms.fields_set", { formId, fields: [{ field: "company", mode: "ask" }] });
+  await run(h.ctx, "forms.choices_set", { formId, field: "company", choices: [{ refId: "rec_acme" }] });
+  await run(h.ctx, "forms.publish", { formId });
+  const key = (await run(h.ctx, "forms.get", { formId })).choices.company[0].key as string;
+  const pub = h.as({ kind: "service", id: formPrincipal(formId) });
+  const sent = await run(pub, "forms.submit", { slug: made.form.slug, answers: { company: key } });
+  const create = h.calls.find((c) => c.cap === "records.create")!;
+  assert.match(JSON.stringify((create.input as { fields: unknown }).fields), /vyre:\/\/[^/]*\/company\/rec_acme/, "the relation is in the create, so a required relation is satisfied");
+  assert.ok(h.calls.some((c) => c.cap === "records.relate" && (c.input as { recordId: string }).recordId === sent.recordId));
+  const stored = String(many(h.ctx, "SELECT * FROM forms_submission")[0]!.answers);
+  assert.ok(stored.includes("Acme") && !stored.includes("rec_acme"), stored);
 });

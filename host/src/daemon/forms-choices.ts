@@ -1,6 +1,13 @@
 // The host side of publisher-approved public choices (modules/forms/handlers/choices.ts): every lookup runs as the publisher, so what a form may offer is bounded by what that person can see now.
 // A record is offered only at or below "internal" (label 0 or 1) and only by its type's title field (itself at or below internal); a person only by display name. Nothing else is read out.
-import type { ChoiceInfo, ChoiceSource, FormSchemaField } from "../../../modules/forms/projections.ts";
+
+/** The shapes the Forms module asks for (modules/forms/projections.ts), stated here because the host does not import a module; the module reads them structurally. */
+export type ChoiceInfo = { ok: true; label: string } | { ok: false; reason: string };
+export interface FormSchemaField { key: string; title: string; type: string; required?: boolean; options?: Record<string, unknown> }
+export interface ChoiceSource {
+  describe(publisherId: string, field: FormSchemaField, refId: string): Promise<ChoiceInfo>;
+  candidates(publisherId: string, field: FormSchemaField, q: string | undefined): Promise<{ refId: string; label: string }[]>;
+}
 
 export const PUBLIC_LABEL_CEILING = 1;
 const MAX_LABEL = 120;

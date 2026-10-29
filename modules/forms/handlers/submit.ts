@@ -304,6 +304,15 @@ async function digestOf(form: Row, link: Row | null, answers: Record<string, Ans
 /** A relation answer on its way to the write: the record to link, applied with records.relate after the record exists (it keeps both ends of a relation right, whatever the field's shape). */
 const RELATE = "__relate" as const;
 const relationPick = (v: unknown): string | null => (isRec(v) && typeof v[RELATE] === "string" ? (v[RELATE] as string) : null);
+/** A survey keeps what the visitor answered: a relation pick is stored as the label they saw, not the record id behind it, so results read naturally and carry no id. */
+function surveyAnswers(ctx: Ctx, formId: string, answers: Record<string, Answer>): Record<string, Answer> {
+  const out: Record<string, Answer> = {};
+  for (const [k, v] of Object.entries(answers)) {
+    const id = relationPick(v);
+    out[k] = id === null ? v : choicesOf(ctx, formId, k).find((c) => c.refId === id)?.label ?? "";
+  }
+  return out;
+}
 
 export interface WriteResult {
   recordId: string;
@@ -447,7 +456,7 @@ async function submit(ctx: Ctx, input: unknown): Promise<{ recordId: string; tha
   ctx.db.run(
     "INSERT INTO forms_submission (id, form_id, record_id, at, matched, principal, link_id, consent, digest, answers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     nid(ctx, "sub"), formId, written.recordId, now, written.matched ? 1 : 0, formPrincipal(formId), link ? str(link.id) : null, consent ? 1 : 0, digest,
-    form.kind === "survey" ? JSON.stringify(answers) : null,
+    form.kind === "survey" ? JSON.stringify(surveyAnswers(ctx, formId, answers)) : null,
   );
   if (attribution) recordAttribution(ctx, written.recordId, attribution, written.created);
   if (link) ctx.db.run("UPDATE forms_link SET partial = ?, partial_step = ?, partial_expires_at = ? WHERE id = ?", null, null, null, str(link.id));
