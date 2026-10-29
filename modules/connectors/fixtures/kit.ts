@@ -20,6 +20,7 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
     resolveSecret: async (handle) => vault[handle],
     storeSecret: async (name, value) => { const handle = `#${name.replace(/[^A-Za-z0-9_]/g, "_")}`; vault[handle] = value; stored.push({ name, value }); return handle; },
     writeFolder: async (key, files) => { folders.push({ key, files }); return `fld_${key.replace(/[^a-z0-9]/g, "")}${folders.length}`; },
+    writeSource: async (key, files, register) => { const id = `fld_src_${key.replace(/[^a-z0-9]/g, "")}${folders.length + 1}`; register(id); folders.push({ key, files }); return id; },
     boundSyncedTypes: async (key) => bound[key] ?? [],
     publicBase: "https://acme.vyre.run",
   });

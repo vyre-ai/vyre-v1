@@ -7,7 +7,7 @@ import { openRecordStore } from "../../kernel/src/store/records.ts";
 import type { ProjectionHost, Tx } from "../../kernel/src/store/projection.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
 import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
-import { writeConnectorFolder } from "./handlers/files.ts";
+import { writeConnectorFolder, writeSourceFolder } from "./handlers/files.ts";
 import { createConnectorsHandlers } from "./handlers/index.ts";
 import type { ConnectorsHandlers } from "./handlers/index.ts";
 import { ensureTables, seedBuiltins } from "./projections.ts";
@@ -87,7 +87,7 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
       http: (url,init) => port&&definition&&stored?.state==='live'?port.http(execution,definition.domains,url,init):ctx.http(url,init),
       ...(ctx.log ? { log: ctx.log } : {}), ...((ctx.actingFor??ctx.principal?.id)?{actor:ctx.actingFor??ctx.principal!.id}:{}),
     };
-    const bound = createConnectorsHandlers({ ...handle.deps, writeFolder: (key, files) => writeConnectorFolder(cc, key, files), ...(port?{
+    const bound = createConnectorsHandlers({ ...handle.deps, writeFolder: (key, files) => writeConnectorFolder(cc, key, files), writeSource: (key, files, register) => writeSourceFolder(cc, key, files, register), ...(port?{
       publicBase:port.publicBase(),
       resolveSecret:async(secretHandle:string,binding?:{connector:string;connectionId:string;slot:string})=>{
         if(!binding) return refuse(cc,'permission.no_grant','Select an authorized connection before using a Vault item.');

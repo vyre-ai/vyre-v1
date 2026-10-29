@@ -12,6 +12,8 @@ import type { ActionDef, ConnectionDb, ConnectorDef, ConnectorState, ConnectorsC
 export interface ConnectorRow {
   key: string; title: string; mode: Mode; scope: Scope; builtin: boolean; version: string; state: ConnectorState; domains: string[]; secrets: { name: string; description: string }[];
   connections: number; syncedTypes: string[]; actions: string[]; sources: string[];
+  /** The canonical editable source folder in Shared knowledge, when this connector has one. */
+  sourceFolderId?: string;
   objects?: Record<string, ObjectActions>;
 }
 export interface TestResult { passed: number; failed: number; cases: { name: string; ok: boolean; message?: string }[] }
@@ -298,9 +300,11 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       key: r.key, title: r.title, mode: r.mode, scope: r.scope, builtin: r.builtin === 1, version: r.version, state: r.state, domains: def.domains, secrets: def.secrets,
       connections: tx.get<{ n: number }>("SELECT count(*) AS n FROM cn_connections WHERE connector = ?", r.key)?.n ?? 0,
       syncedTypes: def.syncedTypes ?? [], actions: def.actions.map((a) => a.name), sources: def.sources ?? [],
+      ...(sourceOf(r.key) ? { sourceFolderId: sourceOf(r.key)! } : {}),
       ...(objectsOf(def) ? { objects: objectsOf(def)! } : {}),
     };
   };
+  const sourceOf = (key: string): string | undefined => tx.get<{ folder_id: string }>("SELECT folder_id FROM cn_source_folders WHERE key = ?", key)?.folder_id;
   const draftOf = async (ctx: ConnectorsCtx, key: string, draftId?: string): Promise<{ row: DraftDb; def: ConnectorDef }> => {
     const row = draftId !== undefined
       ? tx.get<DraftDb>("SELECT * FROM cn_drafts WHERE draft_id = ? AND key = ?", draftId, key)
@@ -313,6 +317,12 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       tx.run("UPDATE cn_drafts SET def = ?, updated_at = ? WHERE draft_id = ?", JSON.stringify(def), nowOf(deps), row.draft_id);
     }
     return { row, def };
+  };
+  /** Create the canonical source and register its mapping before the first file is written; a failure leaves no mapping behind. */
+  const writeSource = async (ctx: ConnectorsCtx, key: string, def: ConnectorDef): Promise<string> => {
+    try {
+      return await deps.writeSource!(key, folderFiles(def), (folderId) => { tx.run("INSERT INTO cn_source_folders (key, folder_id, created_by, created_at) VALUES (?, ?, ?, ?)", key, folderId, ctx.actor ?? "system", nowOf(deps)); });
+    } catch (e) { tx.run("DELETE FROM cn_source_folders WHERE key = ?", key); throw e; }
   };
   const folderFiles = (def: ConnectorDef): { path: string; content: string }[] => {
     const { actions, tests, ...main } = def;
@@ -346,8 +356,8 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         auth: { type: input.mode === "webhook_only" ? "none" : "api_key", ...(input.mode === "webhook_only" ? {} : { secret: `${input.title.replace(/[^A-Za-z0-9]+/g, "_")}_Key` }) },
         domains: [], secrets: input.mode === "webhook_only" ? [] : [{ name: `${input.title.replace(/[^A-Za-z0-9]+/g, "_")}_Key`, description: `API key for ${input.title}` }], actions: [], tests: [],
       };
-      if (!deps.writeFolder) refuse(ctx, "internal.unavailable", "Files is not available to write the connector folder.");
-      const folderId = await deps.writeFolder!(input.key, folderFiles(def));
+      if (!deps.writeSource) refuse(ctx, "internal.unavailable", "Files is not available to write the connector source.");
+      const folderId = await writeSource(ctx, input.key, def);
       tx.run("INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES (?, ?, ?, ?, 0, '0.0.0', 'draft', ?, ?, ?)", input.key, input.title, def.mode, def.scope, JSON.stringify(def), now, now);
       const draftId = mintShort("cdr", now);
       tx.run("INSERT INTO cn_drafts (draft_id, key, def, note, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", draftId, input.key, JSON.stringify(def), input.docsUrl ?? null, ctx.actor ?? null, now, now);
@@ -360,6 +370,8 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       const now = nowOf(deps);
       const draftId = mintShort("cdr", now);
       const base = (await draftOf(ctx, c.key).catch(() => undefined))?.def ?? (JSON.parse(c.def) as ConnectorDef);
+      // A connector made before sources were canonical has no mapped folder. An explicit Build writes one from its stored definition; a private export is never searched for or moved.
+      if (!c.builtin && !sourceOf(c.key) && deps.writeSource) await writeSource(ctx, c.key, base);
       tx.run("INSERT INTO cn_drafts (draft_id, key, def, note, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", draftId, c.key, JSON.stringify(base), [input.docsUrl, input.notes].filter(Boolean).join("\n") || null, ctx.actor ?? null, now, now);
       const started = (await ctx.call("runs.start", { kind: "connector_build", owner: ctx.actor ?? "system", idempotencyKey: `connector_build:${c.key}:${draftId}`, name: `Build the ${c.title} connector` })) as { runId: string };
       ctx.emit("connector.built", `connector/${c.key}`, { key: c.key, draftId });
@@ -442,6 +454,7 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       }
       tx.run("DELETE FROM cn_drafts WHERE key = ?", c.key);
       tx.run("DELETE FROM cn_versions WHERE key = ?", c.key);
+      tx.run("DELETE FROM cn_source_folders WHERE key = ?", c.key);   // the folder stays in Files as an ordinary folder; only the connector's claim on it ends
       tx.run("DELETE FROM cn_connectors WHERE key = ?", c.key);
       ctx.emit("connector.removed", `connector/${c.key}`, { key: c.key });
       return { removed: true };
