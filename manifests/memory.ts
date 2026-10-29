@@ -57,7 +57,7 @@ const edge = t.obj({
 });
 const graphScope = t.enm('agent', 'space');
 const graphIn = {
-  scope: graphScope, agentId: t.opt(id.agent), asOf: t.opt(t.ts({ description: 'What was known on this date' })), kinds: t.opt(t.arr(t.str({ description: 'Node types to show' }))), layers: t.opt(t.arr(layer)),
+  scope: graphScope, agentId: t.opt(id.agent), asOf: t.opt(t.ts()), kinds: t.opt(t.arr(t.str({ description: 'Node types to show' }))), layers: t.opt(t.arr(layer)),
   focus: t.opt(t.str({ description: 'A node id: draw only it and the nodes near it' })), hops: t.opt(t.int({ minimum: 1, maximum: 6, description: 'How far from the focus, two by default' })),
 };
 const graphOut = { nodes: t.arr(node), edges: t.arr(edge), clusters: t.arr(t.obj({ name: t.str(), hub: t.str(), size: t.int() })) };
@@ -160,7 +160,7 @@ export default defineManifest({
       emits: ['memory.captured', 'memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'], idem: 'natural', risk: 'low', errors: ['permission.provider_label'],
     }),
     write('memory.maintain', 'Upkeep, nightly or on demand: merge duplicates into Trash, flag contradictions and old facts as questions, close expired facts, and with a memory key let a model do the rest; rewrite MAP.md for each agent', {
-      in: { agentId: t.opt(id.agent), rulesOnly: t.opt(t.bool({ description: 'Skip the model even when a key is available' })) },
+      in: { agentId: t.opt(id.agent), rulesOnly: t.opt(t.bool()) },
       out: {
         merged: t.int(), closed: t.int(), maps: t.int(), runId: t.opt(t.str()), flagged: t.opt(t.int()), stale: t.opt(t.int()), created: t.opt(t.int()), corrected: t.opt(t.int()), deleted: t.opt(t.int()), tidied: t.opt(t.int()),
         modelUsed: t.opt(t.bool()), costMicros: t.opt(t.int({ minimum: 0, description: 'Estimated cost of the run in micro-dollars' })), tokensIn: t.opt(t.int()), tokensOut: t.opt(t.int()),
