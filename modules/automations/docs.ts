@@ -1,9 +1,13 @@
-// One allowlisted official document. A URL the person typed is never a fetch target.
-// Official specs are several megabytes, so the timeout is 20 seconds and the body cap is 12 MB.
+// Official documents come from a fixed directory host, or from one pinned map in tests.
+// A URL the person typed is never a fetch target.
+// Specs are several megabytes, so the timeout is 20 seconds and the body cap is 12 MB.
 
 export const KNOWN_DOCS: Readonly<Record<string, string>> = {
   stripe: "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json",
 };
+
+export const DIRECTORY_URL = "https://api.apis.guru/v2/list.json";
+export const DIRECTORY_HOST = "api.apis.guru";
 
 export const DOC_CAP = 12_000_000;
 
@@ -136,9 +140,74 @@ function hasDraft(doc: unknown): boolean {
   return isRecord(doc.webhooks) && Object.keys(doc.webhooks).length > 0;
 }
 
+const SUFFIXES = [".com", ".io", ".us", ".net", ".org", ".app", ".ai", ".dev"];
+const INDEX_TTL_MS = 10 * 60 * 1000;
+
+let directoryCache: { at: number; index: Record<string, string> } | null = null;
+
+export function clearDirectoryCache(): void {
+  directoryCache = null;
+}
+
+function onDirectory(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    return url.protocol === "https:" && url.hostname === DIRECTORY_HOST;
+  } catch {
+    return false;
+  }
+}
+
+/** Pick one provider key. A name inside another provider does not match. */
+export function specUrlFor(app: string, index: Readonly<Record<string, string>>): string | null {
+  const name = app.trim().toLowerCase();
+  if (!/^[a-z0-9]{2,40}$/.test(name)) return null;
+  const keys = [name, ...SUFFIXES.map((suffix) => name + suffix)];
+  for (const key of keys) {
+    const url = index[key];
+    if (url && onDirectory(url)) return url;
+  }
+  return null;
+}
+
+export function indexFrom(doc: unknown): Record<string, string> {
+  const index: Record<string, string> = {};
+  if (!isRecord(doc)) return index;
+  for (const [key, hit] of Object.entries(doc)) {
+    if (!isRecord(hit)) continue;
+    const preferred = textOf(hit.preferred);
+    const versions = isRecord(hit.versions) ? hit.versions : {};
+    const version = isRecord(versions[preferred]) ? versions[preferred] : null;
+    const url = version ? textOf(version.swaggerUrl) : "";
+    if (!url || !onDirectory(url)) continue;
+    index[key.toLowerCase()] = url;
+  }
+  return index;
+}
+
+async function directoryIndex(fetchImpl: typeof fetch): Promise<Loaded & { index?: Record<string, string> }> {
+  if (directoryCache && Date.now() - directoryCache.at < INDEX_TTL_MS) {
+    return { ok: true, document: {}, docsUrl: DIRECTORY_URL, index: directoryCache.index };
+  }
+  const loaded = await loadKnownDocument("directory", fetchImpl, { directory: DIRECTORY_URL });
+  if (!loaded.ok) return loaded;
+  if (!onDirectory(loaded.docsUrl)) return { ok: false, reason: REDIRECT };
+  const index = indexFrom(loaded.document);
+  directoryCache = { at: Date.now(), index };
+  return { ok: true, document: loaded.document, docsUrl: loaded.docsUrl, index };
+}
+
+async function loadFromDirectory(app: string, fetchImpl: typeof fetch): Promise<Loaded> {
+  const found = await directoryIndex(fetchImpl);
+  if (!found.ok) return found;
+  const docsUrl = specUrlFor(app, found.index ?? {});
+  if (!docsUrl) return { ok: false, reason: UNKNOWN };
+  return loadKnownDocument(app, fetchImpl, { [app.trim().toLowerCase()]: docsUrl });
+}
+
 /** Fetch and narrow. The returned document is what generate() should see. */
 export async function draftKnown(app: string, intent: string, fetchImpl: typeof fetch, sources?: Readonly<Record<string, string>>): Promise<Loaded> {
-  const loaded = await loadKnownDocument(app, fetchImpl, sources);
+  const loaded = sources ? await loadKnownDocument(app, fetchImpl, sources) : await loadFromDirectory(app, fetchImpl);
   if (!loaded.ok) return loaded;
   const document = narrowDocument(loaded.document, intent);
   if (!hasDraft(document)) return { ok: false, reason: NO_MATCH };

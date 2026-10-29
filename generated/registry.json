@@ -30055,7 +30055,7 @@
       "input": {
         "properties": {
           "app": {
-            "description": "Selects one allowlisted official document. A web address is not opened.",
+            "description": "Selects one official document from the directory. A web address is not opened.",
             "type": "string"
           },
           "docsUrl": {
@@ -30592,7 +30592,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "Draft actions from an OpenAPI document already in memory, or from one allowlisted app. A docs URL is stored on the draft and is not fetched. Nothing is promoted.",
+      "summary": "Draft actions from an OpenAPI document already in memory, or from the official OpenAPI directory for a named app. A docs URL the person supplies is stored and is not fetched. Nothing is promoted.",
       "surfaces": {
         "http": "auto",
         "mcp": {

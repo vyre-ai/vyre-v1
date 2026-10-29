@@ -1,6 +1,6 @@
 # automations.draft_connector
 
-Draft actions from an OpenAPI document already in memory, or from one allowlisted app. A docs URL is stored on the draft and is not fetched. Nothing is promoted.
+Draft actions from an OpenAPI document already in memory, or from the official OpenAPI directory for a named app. A docs URL the person supplies is stored and is not fetched. Nothing is promoted.
 
 | | |
 |---|---|

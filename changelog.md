@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Automations: naming an app asks the host for that provider in the official OpenAPI directory. The directory host is fixed. A web address the person types is not opened. A pasted document still wins.
 - Automations: naming Stripe asks the host for the allowlisted official document. A web address the person types is not opened. Matching paths become steps, and a webhook in that document becomes the catalog webhook trigger once. An outward call is still not sent. Other apps still need a document already in hand.
 - Automations: Ask can try a catalog read with the saved connection through steps.test. A connector read is a dry-run preview and is not sent. An outward call is not given a capability. A document already on the tab becomes one step proposal per action. Secret fields stay out of the call and the line.
 - Automations: each Automation has an Ask tab. It uses the catalog and accounts already loaded. An existing Vault connection is linked onto the step. A missing one is pasted into Vault, then saved with vault.item.put and connections.create. The lines and the Chats tab never receive the pasted values. An OpenAPI document already on the tab is read through automations.draft_connector. A web address is not opened.

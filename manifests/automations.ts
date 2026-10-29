@@ -225,11 +225,11 @@ export default defineManifest({
     read('automations.validate', 'Check a definition against the step and trigger catalogue: missing inputs, unreachable steps, loops, personal triggers that need a Team Space', {
       in: { definition, kind: t.opt(kindEnum) }, out: { ok: t.bool(), issues: t.arr(t.obj({ nodeId: t.opt(t.str()), severity: t.enm('error', 'warning'), message: t.str() })) }, tool: 'automations',
     }),
-    read('automations.draft_connector', 'Draft actions from an OpenAPI document already in memory, or from one allowlisted app. A docs URL is stored on the draft and is not fetched. Nothing is promoted.', {
+    read('automations.draft_connector', 'Draft actions from an OpenAPI document already in memory, or from the official OpenAPI directory for a named app. A docs URL the person supplies is stored and is not fetched. Nothing is promoted.', {
       in: {
         document: t.opt(openApiDocument),
         docsUrl: t.opt(t.str({ description: 'Stored on the draft only. Not fetched and not a server.' })),
-        app: t.opt(t.str({ description: 'Selects one allowlisted official document. A web address is not opened.' })),
+        app: t.opt(t.str({ description: 'Selects one official document from the directory. A web address is not opened.' })),
         intent: t.opt(t.str({ description: 'Keeps matching paths from that document. It is not a URL.' })),
       },
       out: {

@@ -43,6 +43,14 @@ const APP_WORDS: readonly { app: string; words: readonly string[] }[] = [
   { app: "github", words: ["github"] },
   { app: "mail", words: ["mailbox"] },
   { app: "stripe", words: ["stripe"] },
+  { app: "slack", words: ["slack"] },
+  { app: "notion", words: ["notion"] },
+  { app: "asana", words: ["asana"] },
+  { app: "zoom", words: ["zoom"] },
+  { app: "box", words: ["box"] },
+  { app: "sendgrid", words: ["sendgrid"] },
+  { app: "clickup", words: ["clickup"] },
+  { app: "docusign", words: ["docusign"] },
 ];
 
 const SECRET_HINT = "Paste this into Vault. Ask Vyre does not see the value.";

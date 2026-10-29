@@ -50,6 +50,8 @@ test("an unknown app asks for a document already in hand", () => {
   if (turn.kind !== "need_doc") return;
   assert.equal(turn.app, "stripe");
   assert.match(turn.say, /OpenAPI document you already have/);
+  const slack = planAsk({ text: "list channels in slack", accounts: [], steps });
+  assert.equal(slack.app, "slack");
   assert.match(turn.say, /not opened/);
   assert.equal(turn.say.includes("https://"), false);
 });

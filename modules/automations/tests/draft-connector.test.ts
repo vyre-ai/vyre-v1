@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { generate, rejectForeignHost } from "../generate.ts";
 import type { OpenApiDocument } from "../generate.ts";
+import { clearDirectoryCache, DIRECTORY_URL } from "../docs.ts";
 import { harness, codeOf } from "../fixtures/db.ts";
 import { alice } from "../fixtures/seed.ts";
 
@@ -106,29 +107,46 @@ test("a pasted document is not fetched when an app and a url are also sent", asy
   }
 });
 
-test("an unknown app is refused and nothing is fetched", async () => {
+test("an unknown app is refused after the directory and no other address is opened", async () => {
   const h = harness();
   const original = globalThis.fetch;
-  let calls = 0;
-  globalThis.fetch = (async () => { calls += 1; throw new Error("fetched"); }) as typeof fetch;
+  const seen: string[] = [];
+  clearDirectoryCache();
+  globalThis.fetch = (async (url: unknown) => {
+    const target = String(url);
+    seen.push(target);
+    assert.equal(target, DIRECTORY_URL);
+    return new Response(JSON.stringify({
+      "slack.com": { preferred: "1", versions: { "1": { swaggerUrl: "https://api.apis.guru/v2/specs/slack.com/1/openapi.json" } } },
+    }), { status: 200 });
+  }) as typeof fetch;
   try {
     await assert.rejects(
       () => h.call("automations.draft_connector", { app: "nope" }, alice),
       (e: unknown) => codeOf(e) === "validation.bad_input" && String((e as { error?: { message?: string } }).error?.message).includes("not opened"),
     );
-    assert.equal(calls, 0);
+    assert.deepEqual(seen, [DIRECTORY_URL]);
   } finally {
     globalThis.fetch = original;
+    clearDirectoryCache();
   }
 });
 
-test("an allowlisted app drafts the matching read and stores the official address", async () => {
+test("a named app drafts the matching read from the directory and stores that address", async () => {
   const h = harness();
   const original = globalThis.fetch;
-  const official = "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json";
+  const official = "https://api.apis.guru/v2/specs/stripe.com/2022-11-15/openapi.json";
+  clearDirectoryCache();
   globalThis.fetch = (async (url: unknown, init?: RequestInit) => {
-    assert.equal(String(url), official);
     assert.equal(init?.redirect, "manual");
+    const target = String(url);
+    if (target === DIRECTORY_URL) {
+      return new Response(JSON.stringify({
+        "stripe.com": { preferred: "2022-11-15", versions: { "2022-11-15": { swaggerUrl: official } } },
+        "evil.com": { preferred: "1", versions: { "1": { swaggerUrl: "https://evil.example/spec.json" } } },
+      }), { status: 200 });
+    }
+    assert.equal(target, official);
     return new Response(JSON.stringify({
       openapi: "3.0.3",
       info: { title: "Stripe" },
@@ -151,8 +169,10 @@ test("an allowlisted app drafts the matching read and stores the official addres
     assert.equal(out.actions.some((action) => action.path === "/v1/customers" && action.effect === "read"), true);
     assert.equal(out.actions.some((action) => action.path === "/v1/charges"), false);
     assert.equal(out.actions.some((action) => action.path.includes("evil.test")), false);
+    assert.equal(JSON.stringify(out).includes("evil.example"), false);
     assert.equal((h.db.all("SELECT id FROM automations_defs") as { id: string }[]).length, 0);
   } finally {
     globalThis.fetch = original;
+    clearDirectoryCache();
   }
 });
