@@ -224,12 +224,16 @@ test("history lists updates newest first", async () => {
   assert.equal(out.updates[0]!.at, NOW + 60_000);
 });
 
-test("health: a server without vyre-server (run from source) reads healthy with a hint", async () => {
+test("health: a missing vyre-server reads healthy with a hint; any other failure to check is degraded with the reason", async () => {
   const w = await ready();
-  w.installer.current = async () => { throw new Error("vyre-server could not say which version is running"); };
+  w.installer.current = async () => { throw Object.assign(new Error("vyre-server is not installed on this server"), { code: "ENOENT" }); };
   const r = await call("updates.health", w.ctx, {}) as { state: string; detail: string };
   assert.equal(r.state, "healthy");
   assert.match(r.detail, /vyre-server, which is not installed/);
+  w.installer.current = async () => { throw new Error("vyre-server could not say which version is running"); };
+  const bad = await call("updates.health", w.ctx, {}) as { state: string; detail: string };
+  assert.equal(bad.state, "degraded", "any other failure is a real one, never healthy");
+  assert.match(bad.detail, /Could not check updates: vyre-server could not say/);
 });
 
 test("health: failed last update, a waiting security update and a stale check are degraded", async () => {

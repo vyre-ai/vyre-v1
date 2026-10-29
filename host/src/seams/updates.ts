@@ -65,7 +65,7 @@ const defaultFetch: FeedFetch = async (url) => {
 const defaultRun: RunCommand = (argv) => new Promise((resolve) => {
   const [cmd, ...args] = argv;
   execFile(cmd ?? "vyre-server", args, { timeout: 30 * 60_000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
-    resolve({ code: err === null ? 0 : typeof (err as { code?: unknown }).code === "number" ? (err as { code: number }).code : 1, stdout: String(stdout), stderr: String(stderr) });
+    resolve({ code: err === null ? 0 : typeof (err as { code?: unknown }).code === "number" ? (err as { code: number }).code : (err as { code?: unknown }).code === "ENOENT" ? 127 : 1, stdout: String(stdout), stderr: String(stderr) });
   });
 });
 
@@ -98,6 +98,7 @@ export function createUpdatesHost(d: UpdatesHostDeps = {}): UpdatesDrivers {
     installer: {
       async current() {
         const r = await server("version");
+        if (r.code === 127) throw Object.assign(new Error("vyre-server is not installed on this server"), { code: "ENOENT" });
         if (r.code !== 0 || r.stdout.trim() === "") throw new Error("vyre-server could not say which version is running");
         return r.stdout.trim();
       },

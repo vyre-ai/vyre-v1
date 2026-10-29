@@ -41,6 +41,10 @@ test("production Console: a fresh Space is Server healthy, a real failure is Ser
       assert.equal(await view.getByTestId("console-health").getAttribute("aria-label"), label, `${name} ${size} ${skin}`);
       await view.getByText("Recent admin activity", { exact: true }).waitFor();
       assert.equal((await view.getByText(/expires soon|is down|is degraded/).count()) > 0, needsYou, `${name} ${size} ${skin}: items under Needs you`);
+      const text = await view.locator("body").innerText();
+      assert.match(text, /Olivia Owner opened the audit log/, `${name} ${size} ${skin}`);
+      if (name === "overview-fresh" && skin === "paper" && size === "desktop") assert.match(text, /The owner claimed this Space/, "the claim is still among the last five acts on the first look");
+      assert.doesNotMatch(text, /act_anon_|audit viewed/, `${name} ${size} ${skin}: no raw ids or event names`);
       await view.waitForTimeout(250);
       await view.screenshot({ path: path.join(shots, `${name}-${size}-${skin === "paper" ? "light" : "graphite"}.png`), animations: "disabled" }); await view.close();
     }

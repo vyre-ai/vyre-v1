@@ -358,8 +358,10 @@ export async function health(ctx: UpdateCtx, _input: Record<string, unknown>) {
   const d = need(ctx);
   const started = ctx.now();
   let current: string;
-  try { current = await d.installer.current(); } catch {
-    return { state: "healthy" as const, detail: "Updates are run by vyre-server, which is not installed here." };
+  try { current = await d.installer.current(); } catch (e) {
+    // Only a missing vyre-server is "not installed here" (a server run from source). Any other failure is a real one: say what it was.
+    if ((e as { code?: unknown } | null)?.code === "ENOENT") return { state: "healthy" as const, detail: "Updates are run by vyre-server, which is not installed here." };
+    return { state: "degraded" as const, detail: `Could not check updates: ${e instanceof Error ? e.message : "vyre-server did not answer"}.`, latencyMs: Math.max(0, ctx.now() - started) };
   }
   const latencyMs = Math.max(0, ctx.now() - started);
   const state = readState(ctx);
