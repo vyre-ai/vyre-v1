@@ -1,5 +1,10 @@
 # Changelog
 
+- Try one connector read on the documented host. The host fills the Vault key onto that request and returns only whether it was tested.
+- Read a public MCP address and draft one action per tool name. The document text is not returned.
+- Refuse a document that redirects to a private, loopback, link-local, or metadata address. The host installs the fetch. The caller does not.
+- A connector action is tested only when a stored row says so. Claiming tested on the step is still a draft, and that draft cannot be turned on.
+- An agent reveal, an agent fill, and the turn that stores that reveal do not contain the Vault key.
 - Offer to set up Automations once when a Vault item is saved, and keep that decision on the item.
 - Keep a drafted connector action on a draft, and refuse to turn that Automation on.
 - Open a public document through Automations and refuse a private, loopback, link-local, or metadata address. The page text is not returned.

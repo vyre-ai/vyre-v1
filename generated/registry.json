@@ -32760,6 +32760,112 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "app": "example",
+            "url": "example"
+          },
+          "name": "example",
+          "output": {
+            "actions": [
+              {
+                "key": "example",
+                "level": "draft",
+                "title": "example"
+              }
+            ],
+            "ok": true,
+            "reason": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "app": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "app",
+          "url"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.open_mcp",
+      "output": {
+        "properties": {
+          "actions": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "level": {
+                  "enum": [
+                    "draft",
+                    "tested"
+                  ],
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "title",
+                "level"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Read a public MCP server address and draft one action per tool name. The document text is not returned.",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [],
       "errors": [
@@ -34584,6 +34690,106 @@
       "since": "1.0.0",
       "summary": "The trigger palette: every trigger with its payload schema, sample and whether a Personal Space can use it",
       "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "actionKey": "example",
+            "domains": [
+              "example"
+            ],
+            "markedSafe": true,
+            "method": "example",
+            "path": "example",
+            "vaultItemId": "example"
+          },
+          "name": "example",
+          "output": {
+            "level": "tested",
+            "reason": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "actionKey": {
+            "type": "string"
+          },
+          "domains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "markedSafe": {
+            "type": "boolean"
+          },
+          "method": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "vaultItemId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "path",
+          "domains",
+          "vaultItemId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.try_read",
+      "output": {
+        "properties": {
+          "level": {
+            "enum": [
+              "tested",
+              "draft"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "level"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Try one read on a documented host. The Vault fills the key when the host sends it. The reply is only the level.",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
         "http": "auto",
         "mcp": {
           "toolset": "automations"

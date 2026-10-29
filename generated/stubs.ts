@@ -188,6 +188,7 @@ export function stubs(ctx: CallCtx) {
       migration_preview: call("automations.migration_preview"),
       move: call("automations.move"),
       open_document: call("automations.open_document"),
+      open_mcp: call("automations.open_mcp"),
       packages: {
         export: call("automations.packages.export"),
         import: call("automations.packages.import"),
@@ -209,6 +210,7 @@ export function stubs(ctx: CallCtx) {
       triggers: {
         list: call("automations.triggers.list"),
       },
+      try_read: call("automations.try_read"),
       undelete: call("automations.undelete"),
       update: call("automations.update"),
       validate: call("automations.validate"),

@@ -188,6 +188,7 @@ export function createClient(transport: Transport) {
       migration_preview: call("automations.migration_preview", 1),
       move: call("automations.move", 1),
       open_document: call("automations.open_document", 1),
+      open_mcp: call("automations.open_mcp", 1),
       packages: {
         export: call("automations.packages.export", 1),
         import: call("automations.packages.import", 1),
@@ -209,6 +210,7 @@ export function createClient(transport: Transport) {
       triggers: {
         list: call("automations.triggers.list", 1),
       },
+      try_read: call("automations.try_read", 1),
       undelete: call("automations.undelete", 1),
       update: call("automations.update", 1),
       validate: call("automations.validate", 1),

@@ -1,4 +1,5 @@
 // A drafted connector action can sit on a draft. Turning that Automation on is refused.
+// An input that claims connectorLevel "tested" is not a stored test, so it is refused the same way.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -55,7 +56,7 @@ async function post(d: Daemon, route: string, body: unknown): Promise<{ status: 
   return { status: response.status, data: (json["data"] as Record<string, unknown> | undefined) ?? {}, json, text };
 }
 
-test("a drafted connector action cannot be turned on, and a tested one can", async () => {
+test("a drafted connector action cannot be turned on, and a claimed tested level is refused the same way", async () => {
   const dir = seededDir();
   const daemon = await boot(dir);
   try {
@@ -92,8 +93,13 @@ test("a drafted connector action cannot be turned on, and a tested one can", asy
     });
     assert.equal(turned.status, 200, turned.text);
     const enabled = await post(daemon, "/v1/automations/set_enabled", { automationId: testedId, enabled: true });
-    assert.equal(enabled.status, 200, enabled.text);
-    assert.equal((enabled.data["automation"] as { status?: string } | undefined)?.status, "on");
+    assert.equal(enabled.status, 422, enabled.text);
+    const testedError = enabled.json["error"] as { code?: string; message?: string; details?: { reason?: string } } | undefined;
+    assert.equal(testedError?.code, "validation.precondition_failed", enabled.text);
+    assert.equal(testedError?.message, DRAFT_REASON, enabled.text);
+    assert.equal(testedError?.details?.reason, "draft", enabled.text);
+    const stillTested = await post(daemon, "/v1/automations/get", { automationId: testedId });
+    assert.notEqual((stillTested.data["automation"] as { status?: string } | undefined)?.status, "on");
   } finally {
     await daemon.stop();
     fs.rmSync(dir, { recursive: true, force: true });

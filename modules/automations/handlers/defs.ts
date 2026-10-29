@@ -13,9 +13,10 @@ import {
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
 import { publishAllowed } from "../connector-breadth.ts";
+import { storedLevel } from "../connector-level.ts";
 import { admit, contractOf } from "../val.ts";
 import { containsSecret } from "../trust.ts";
-import type { Alerts, AutoCtx, Automation, Definition, Grant, Node, Policy } from "../projections.ts";
+import type { Alerts, AutoCtx, Automation, Db, Definition, Grant, Node, Policy } from "../projections.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -36,9 +37,15 @@ function edges(n: Node): string[] {
   return [...(n.next ?? []), ...(n.branches ?? []).map((b) => b.to), ...(n.onError?.mode === "route" && n.onError.route ? [n.onError.route] : [])];
 }
 
-function connectorLevel(n: Node): "draft" | "tested" | undefined {
+// A stored row is the only tested level. An input claim of tested or draft is still a draft.
+function connectorLevel(n: Node, db?: Db): "draft" | "tested" | undefined {
+  if (db) {
+    const stored = storedLevel(db, n.key);
+    if (stored === "tested" || stored === "draft") return stored;
+  }
   const level = n.input["connectorLevel"];
-  return level === "draft" || level === "tested" ? level : undefined;
+  if (level === "draft" || level === "tested") return "draft";
+  return undefined;
 }
 
 /** The structural problems that make a definition unreadable: duplicate ids, references to nodes that do not exist, steps and triggers that are not in the catalogue. */
@@ -167,10 +174,10 @@ export function admissionIssues(def: Definition): Issue[] {
   return out;
 }
 
-function draftedActionIssues(def: Definition): Issue[] {
+function draftedActionIssues(def: Definition, db: Db): Issue[] {
   const out: Issue[] = [];
   for (const n of def.nodes) {
-    const level = connectorLevel(n);
+    const level = connectorLevel(n, db);
     if (level === undefined) continue;
     const verdict = publishAllowed(level);
     if (!verdict.ok) out.push(issue("error", verdict.reason, n.id));
@@ -178,8 +185,8 @@ function draftedActionIssues(def: Definition): Issue[] {
   return out;
 }
 
-function blocksGoingLive(def: Definition, policy: Policy): Issue[] {
-  return [...validateDefinition(def, policy), ...previewLiveIssues(def), ...admissionIssues(def), ...draftedActionIssues(def)];
+function blocksGoingLive(def: Definition, policy: Policy, db: Db): Issue[] {
+  return [...validateDefinition(def, policy), ...previewLiveIssues(def), ...admissionIssues(def), ...draftedActionIssues(def, db)];
 }
 
 // ---- reads ----
@@ -287,7 +294,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
     checkStructure(ctx, input.definition);
     refuseSecret(ctx, input.definition);
     const policy = readPolicy(ctx.db);
-    const blocking = a.status === "on" ? blocksGoingLive(input.definition, policy) : validateDefinition(input.definition, policy);
+    const blocking = a.status === "on" ? blocksGoingLive(input.definition, policy, ctx.db) : validateDefinition(input.definition, policy);
     if (a.status === "on" && hasErrors(blocking)) {
       raise(ctx, "validation.precondition_failed", "Turn the automation off before saving a definition with errors.", { reason: "invalid_definition" });
     }
@@ -310,10 +317,10 @@ export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   if (input.enabled) {
     if (a.status === "on") return { automation: out(a) };
-    const issues = blocksGoingLive(a.definition, readPolicy(ctx.db));
+    const issues = blocksGoingLive(a.definition, readPolicy(ctx.db), ctx.db);
     if (hasErrors(issues)) {
       const preview = previewLiveIssues(a.definition);
-      const drafted = draftedActionIssues(a.definition);
+      const drafted = draftedActionIssues(a.definition, ctx.db);
       const reason = preview.length > 0 ? "preview" : drafted.length > 0 ? "draft" : "invalid_definition";
       raise(ctx, "validation.precondition_failed", issues.find((i) => i.severity === "error")!.message, { reason, issues });
     }
@@ -360,7 +367,7 @@ export async function restoreVersion(ctx: AutoCtx, input: In): Promise<unknown> 
   const v = versionById(ctx.db, a.id, input.versionId);
   if (!v) raise(ctx, "validation.not_found", "That version does not exist.", { reason: "no_version" });
   refuseSecret(ctx, v.definition);
-  const restored = a.status === "on" ? blocksGoingLive(v.definition, readPolicy(ctx.db)) : validateDefinition(v.definition, readPolicy(ctx.db));
+  const restored = a.status === "on" ? blocksGoingLive(v.definition, readPolicy(ctx.db), ctx.db) : validateDefinition(v.definition, readPolicy(ctx.db));
   if (a.status === "on" && hasErrors(restored)) {
     raise(ctx, "validation.precondition_failed", "Turn the automation off before restoring a version with errors.", { reason: "invalid_definition" });
   }

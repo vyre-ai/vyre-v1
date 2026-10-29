@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (44)
+## Capabilities (46)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
@@ -29,6 +29,7 @@ Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, recor
 - [automations.migration_preview](../capabilities/automations.migration_preview.md): Group active runs by the step they are on before moving them to a definition version
 - [automations.move](../capabilities/automations.move.md): Move an Automation into a Group, or out with null
 - [automations.open_document](../capabilities/automations.open_document.md): Open one public https document. A private, loopback, link-local, or metadata address is refused. The page text is not returned.
+- [automations.open_mcp](../capabilities/automations.open_mcp.md): Read a public MCP server address and draft one action per tool name. The document text is not returned.
 - [automations.packages.export](../capabilities/automations.packages.export.md): Save a portable copy of an Automation definition
 - [automations.packages.import](../capabilities/automations.packages.import.md): Create a draft Automation from a package this person exported
 - [automations.packages.list](../capabilities/automations.packages.list.md): List portable Automation packages this person has exported
@@ -44,6 +45,7 @@ Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, recor
 - [automations.stop](../capabilities/automations.stop.md): Stop one run of an Automation, or all its running runs and pause it
 - [automations.test](../capabilities/automations.test.md): Test an Automation with sample data: reads run for real, writes and sends are stubbed (a Run)
 - [automations.triggers.list](../capabilities/automations.triggers.list.md): The trigger palette: every trigger with its payload schema, sample and whether a Personal Space can use it
+- [automations.try_read](../capabilities/automations.try_read.md): Try one read on a documented host. The Vault fills the key when the host sends it. The reply is only the level.
 - [automations.undelete](../capabilities/automations.undelete.md): Restore an Automation from Trash
 - [automations.update](../capabilities/automations.update.md): Change the name, description or definition; a definition change saves a new version
 - [automations.validate](../capabilities/automations.validate.md): Check a definition against the step and trigger catalogue: missing inputs, unreachable steps, loops, personal triggers that need a Team Space

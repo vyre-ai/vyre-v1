@@ -7,6 +7,8 @@ import { accountPicks } from "./accounts.ts";
 import { draftConnector } from "./draft-connector.ts";
 import { acceptConnectorOffer, connectorOffers, declineConnectorOffer } from "./connector-offer.ts";
 import { openDocument } from "./open-document.ts";
+import { openMcp } from "./open-mcp.ts";
+import { tryConnectorRead } from "./try-read.ts";
 import { migrateRuns, migrationPreview } from "./migrate.ts";
 import { exportPackage, importPackage, packagesList } from "./packages.ts";
 import { scheduleChoose } from "./schedule.ts";
@@ -23,6 +25,8 @@ export const handlers = {
   "automations.connector_offers": connectorOffers,
   "automations.connector_offer.decline": declineConnectorOffer,
   "automations.connector_offer.accept": acceptConnectorOffer,
+  "automations.open_mcp": openMcp,
+  "automations.try_read": tryConnectorRead,
   "automations.fire": fire,
   "automations.followers.add": followersAdd,
   "automations.followers.remove": followersRemove,

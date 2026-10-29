@@ -2638,6 +2638,19 @@ export type AutomationsOpenDocumentOut = {
   finalUrl?: string;
   reason?: string;
 };
+export type AutomationsOpenMcpIn = {
+  app: string;
+  url: string;
+};
+export type AutomationsOpenMcpOut = {
+  ok: boolean;
+  reason?: string;
+  actions?: Array<{
+      key: string;
+      title: string;
+      level: "draft" | "tested";
+    }>;
+};
 export type AutomationsPackagesExportIn = {
   automationId: string;
   name?: string;
@@ -3159,6 +3172,18 @@ export type AutomationsTriggersListOut = {
       personalOk: boolean;
       allowSelfTrigger: boolean;
     }>;
+};
+export type AutomationsTryReadIn = {
+  method: string;
+  path: string;
+  domains: Array<string>;
+  markedSafe?: boolean;
+  vaultItemId: string;
+  actionKey?: string;
+};
+export type AutomationsTryReadOut = {
+  level: "tested" | "draft";
+  reason?: string;
 };
 export type AutomationsUndeleteIn = {
   automationId: string;
@@ -27288,6 +27313,7 @@ export interface CapMap {
   "automations.migration_preview": { in: AutomationsMigrationPreviewIn; out: AutomationsMigrationPreviewOut };
   "automations.move": { in: AutomationsMoveIn; out: AutomationsMoveOut };
   "automations.open_document": { in: AutomationsOpenDocumentIn; out: AutomationsOpenDocumentOut };
+  "automations.open_mcp": { in: AutomationsOpenMcpIn; out: AutomationsOpenMcpOut };
   "automations.packages.export": { in: AutomationsPackagesExportIn; out: AutomationsPackagesExportOut };
   "automations.packages.import": { in: AutomationsPackagesImportIn; out: AutomationsPackagesImportOut };
   "automations.packages.list": { in: AutomationsPackagesListIn; out: AutomationsPackagesListOut };
@@ -27303,6 +27329,7 @@ export interface CapMap {
   "automations.stop": { in: AutomationsStopIn; out: AutomationsStopOut };
   "automations.test": { in: AutomationsTestIn; out: AutomationsTestOut };
   "automations.triggers.list": { in: AutomationsTriggersListIn; out: AutomationsTriggersListOut };
+  "automations.try_read": { in: AutomationsTryReadIn; out: AutomationsTryReadOut };
   "automations.undelete": { in: AutomationsUndeleteIn; out: AutomationsUndeleteOut };
   "automations.update": { in: AutomationsUpdateIn; out: AutomationsUpdateOut };
   "automations.validate": { in: AutomationsValidateIn; out: AutomationsValidateOut };

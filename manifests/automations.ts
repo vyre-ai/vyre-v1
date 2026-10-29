@@ -333,6 +333,29 @@ export default defineManifest({
       tool: 'automations',
       agent: { planMode: 'blocked' },
     }),
+    read('automations.open_mcp', 'Read a public MCP server address and draft one action per tool name. The document text is not returned.', {
+      in: { app: t.str(), url: t.str() },
+      out: {
+        ok: t.bool(),
+        reason: t.opt(t.str()),
+        actions: t.opt(t.arr(t.obj({ key: t.str(), title: t.str(), level: t.enm('draft', 'tested') }))),
+      },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    read('automations.try_read', 'Try one read on a documented host. The Vault fills the key when the host sends it. The reply is only the level.', {
+      in: {
+        method: t.str(),
+        path: t.str(),
+        domains: t.arr(t.str()),
+        markedSafe: t.opt(t.bool()),
+        vaultItemId: t.str(),
+        actionKey: t.opt(t.str()),
+      },
+      out: { level: t.enm('tested', 'draft'), reason: t.opt(t.str()) },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
   ],
   triggers: [
     trigger('record_change', 'A record changes', { events: ['record.created', 'record.updated', 'record.deleted'], filter: recordFilter },

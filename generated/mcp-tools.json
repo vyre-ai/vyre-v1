@@ -5110,6 +5110,32 @@
     },
     {
       "blocks": [],
+      "cap": "automations.open_mcp",
+      "deferred": false,
+      "description": "Read a public MCP server address and draft one action per tool name. The document text is not returned.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "app": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "app",
+          "url"
+        ],
+        "type": "object"
+      },
+      "name": "automations_open_mcp",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.packages.export",
       "deferred": false,
       "description": "Save a portable copy of an Automation definition",
@@ -5631,6 +5657,49 @@
       },
       "name": "automations_triggers_list",
       "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.try_read",
+      "deferred": false,
+      "description": "Try one read on a documented host. The Vault fills the key when the host sends it. The reply is only the level.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "actionKey": {
+            "type": "string"
+          },
+          "domains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "markedSafe": {
+            "type": "boolean"
+          },
+          "method": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "vaultItemId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "path",
+          "domains",
+          "vaultItemId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_try_read",
+      "planMode": "blocked",
       "toolset": "automations",
       "v": 1
     },

@@ -1,11 +1,14 @@
 // Automations module (lane L6). The host loads these handlers once the manifest status is live (ARCH 12.4).
 // `consumeEvent` is the trigger consumer the host runs for every event; `loadRunPlan` is what the executor reads for a Run of an Automation.
+import { setDocumentNetwork } from "./document-network.ts";
 import { handlers } from "./handlers/index.ts";
+import { setConnectorReadSender } from "./handlers/try-read.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import { chooseScheduleRecovery, runDueSchedules, SCHEDULE_EVERY_MS } from "./schedule/live.ts";
 import type { ChoiceLimits, ScheduleChoiceKey } from "./schedule/schedule.ts";
 
 export { handlers };
+export const hostSeams = { setDocumentNetwork, setConnectorReadSender };
 export { accessDiff, canView, structuralIssues, validateDefinition, webhookSecretMatches } from "./handlers/defs.ts";
 import { loadRunPlan, startRun } from "./handlers/triggers.ts";
 export { consumeEvent, dropReason, fireOne, loadRunPlan, matches, startRun, triggerPayload } from "./handlers/triggers.ts";
