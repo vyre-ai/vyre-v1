@@ -170,6 +170,7 @@ test("a reply that is addressed to the asker (a reviewer's verdict) carries an @
   const s = setup({ script: reply("Approved."), addressAsker: (_t, agent) => agent === LEAD });
   await s.say("check this");
   assert.deepEqual(s.chat.at(-1)?.mentions, [{ kind: "person", id: "usr_dana" }]);
+  assert.equal(s.engine.messages(T).filter((m) => m.author.kind === "agent").at(-1)?.mentions.some((m) => m.kind === "person"), true, "the engine routes the reply with the mention, so the lead does not answer it");
   const plain = setup({ script: reply("Done.") });
   await plain.say("do this");
   assert.deepEqual(plain.chat.at(-1)?.mentions, []);

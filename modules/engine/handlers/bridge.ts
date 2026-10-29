@@ -149,7 +149,14 @@ export function createBridge(o: BridgeOptions): Bridge {
       for await (const ev of s.send(input)) {
         if (ev.type === "text") seg.text += ev.text;
         else if (ev.type === "block") seg.blocks.push({ type: ev.kind, v: 1, data: ev.payload ?? {} });
-        else if (ev.type === "done") seg.mentions = ev.mentions?.length ?? 0;
+        else if (ev.type === "done") {
+          // The engine routes the reply with the mentions the driver ends on: a reply addressed to the asker (a reviewer's verdict) names them, so it reaches them and no agent answers it.
+          const aimed = o.addressAsker?.(input.threadId, input.agent.id) ? [{ kind: "person" as const, id: input.asker }] : [];
+          const mentions = [...(ev.mentions ?? []), ...aimed.filter((m) => !(ev.mentions ?? []).some((x) => x.id === m.id))];
+          seg.mentions = mentions.length;
+          yield mentions.length > 0 ? { ...ev, mentions } : ev;
+          continue;
+        }
         yield ev;
       }
     })();
