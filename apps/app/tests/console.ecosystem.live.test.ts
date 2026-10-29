@@ -27,13 +27,19 @@ test("production Console: Skills and Plugins add, install, configure and connect
     if (!captureDir) return;
     fs.mkdirSync(captureDir, { recursive: true });
     await page.screenshot({ path: `${captureDir}/${name}-light.png`, fullPage: true });
-    await page.evaluate(() => document.documentElement.setAttribute("data-mode", "dark"));
+    // dark is the graphite skin with a dark colour scheme, the way the app asks for it
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.evaluate(() => { document.documentElement.setAttribute("data-skin", "graphite"); document.documentElement.setAttribute("data-mode", "dark"); });
+    await page.waitForTimeout(400);
     await page.screenshot({ path: `${captureDir}/${name}-dark.png`, fullPage: true });
-    await page.evaluate(() => document.documentElement.removeAttribute("data-mode"));
+    await page.evaluate(() => { document.documentElement.removeAttribute("data-mode"); document.documentElement.removeAttribute("data-skin"); });
+    await page.emulateMedia({ colorScheme: "light" });
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(900);
     await page.screenshot({ path: `${captureDir}/${name}-phone.png`, fullPage: true });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${name}: the page fits phone width without sideways scrolling`);
     await page.setViewportSize({ width: 1280, height: 900 });
+    await page.waitForTimeout(400);
   };
   const errors: string[] = [], refused: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));

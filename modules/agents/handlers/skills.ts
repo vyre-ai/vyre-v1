@@ -185,8 +185,8 @@ export async function skillsRemove(ctx: AgentsCtx, input: { name: string; agentI
 export async function skillsSetEnabled(ctx: AgentsCtx, input: { name: string; agentId?: string; enabled: boolean }) {
   ensure(ctx.db);
   const agentId = input.agentId ?? "";
-  const r = ctx.db.run("UPDATE agents_skills SET enabled = ?, updated_at = ? WHERE agent_id = ? AND name = ?", input.enabled ? 1 : 0, ctx.now(), agentId, input.name.trim());
-  if (r.changes === 0) raise(ctx, "validation.not_found", `There is no skill called ${input.name.trim()} in the library.`);
+  if ((ctx.db.all("SELECT id FROM agents_skills WHERE agent_id = ? AND name = ?", agentId, input.name.trim()) as Row[]).length === 0) raise(ctx, "validation.not_found", `There is no skill called ${input.name.trim()} in the library.`);
+  ctx.db.run("UPDATE agents_skills SET enabled = ?, updated_at = ? WHERE agent_id = ? AND name = ?", input.enabled ? 1 : 0, ctx.now(), agentId, input.name.trim());
   ctx.emit("skill.changed", input.name.trim(), { name: input.name.trim(), ...(agentId !== "" ? { agentId } : {}), enabled: input.enabled, by: by(ctx) });
   return { skill: outOf(library(ctx, agentId).find((s) => s.name === input.name.trim())!) };
 }

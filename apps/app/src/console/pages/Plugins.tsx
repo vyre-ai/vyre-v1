@@ -39,6 +39,8 @@ export function PluginsPage(): ReactElement {
   if (!markets.data || !installed.data) return <ReadState error={markets.error ?? installed.error} retry={refresh} />;
   const agentOptions = [{ key: "space", title: "The whole Space" }, ...(agents.data?.agents ?? []).map((a) => ({ key: a.agentId, title: `Only ${a.name}` }))];
   const selected = installed.data.plugins.find((p) => p.pluginId === openPlugin) ?? null;
+  const optionFields: ReactElement[] = [];
+  for (const u of selected?.userConfig ?? []) optionFields.push(<Field key={u.key} label={`${u.title}${u.sensitive ? " (a Vault handle such as #Name.field)" : ""}`} testID={`opt-${u.key}`} value={config[u.key] ?? selected?.config[u.key] ?? ""} onChange={(v) => setConfig({ ...config, [u.key]: v })} />);
   const market = markets.data.marketplaces.find((m) => m.marketplaceId === marketId) ?? null;
   const install = (m: string, plugin: string): void => void action.run("plugins.install", { marketplaceId: m, plugin, scope: target === "space" ? "space" : "agent", ...(target === "space" ? {} : { agentId: target }), idempotencyKey: attempt() }, (out: { plugin: Plugin }) => `${out.plugin.name} installed`).then((out) => { if (out) setOpenPlugin((out as { plugin: Plugin }).plugin.pluginId); });
   return <View testID="console-plugins">
@@ -78,8 +80,8 @@ export function PluginsPage(): ReactElement {
       {selected.parts.mcpServers.length ? <Row id="pp-servers" title="Tool servers" note={`${selected.parts.mcpServers.join(", ")} · run in the sandbox`} /> : null}
       {selected.parts.hooks ? <Row id="pp-hooks" title="Hooks" note={`${n(selected.parts.hooks, "hook")} · run in the sandbox`} /> : null}
       {selected.parts.agents.map((a) => <Row key={a} id={`pp-agent-${a}`} title={`Sub-agent ${a}`} trailing={<Button label="Make an agent" disabled={action.busy} onPress={() => void action.run("plugins.agent_template.use", { pluginId: selected.pluginId, name: a, idempotencyKey: attempt() }, "Agent created")} />} />)}
-      {selected.warnings.map((w, i) => <Note key={i}>{w}</Note>)}
-      {selected.userConfig.map((u) => <Field key={u.key} label={`${u.title}${u.sensitive ? " (a Vault handle such as #Name.field)" : ""}`} testID={`opt-${u.key}`} value={config[u.key] ?? selected.config[u.key] ?? ""} onChange={(v) => setConfig({ ...config, [u.key]: v })} />)}
+      {selected.warnings.length > 0 ? <Note>{selected.warnings.join(" ")}</Note> : null}
+      {optionFields}
       <Actions>
         {selected.userConfig.length ? <Button label="Save options" testID="plugin-config" disabled={action.busy || Object.keys(config).length === 0} onPress={() => void action.run("plugins.config.set", { pluginId: selected.pluginId, config, idempotencyKey: attempt() }, "Options saved").then(() => setConfig({}))} /> : null}
         <Button label="Remove plugin" danger testID="plugin-remove" disabled={action.busy} onPress={() => void action.run("plugins.uninstall", { pluginId: selected.pluginId, idempotencyKey: attempt() }, "Plugin removed").then(() => setOpenPlugin(null))} />
