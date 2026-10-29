@@ -60,7 +60,9 @@ jobs:
           if-no-files-found: error
   release-evidence:
     # This starts beside the visual shards so release-critical PWA and real-app proof cannot wait behind the full prototype suite.
-    runs-on: [self-hosted, linux, v1]
+    # A GitHub-hosted VM of its own: on the self-hosted v1 hosts it shared eight cores with up to seven other jobs (load 12 to 18), real browsers and daemons ran four to five times slower than on an idle machine,
+    # and the same files that pass in 14 to 60 s alone hit their 120 s caps at random. Nothing here needs the v1 hosts.
+    runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
@@ -86,7 +88,7 @@ jobs:
           CHROME_BIN="$(node -e 'import("playwright-core").then((p) => console.log((p.chromium ?? p.default.chromium).executablePath()))')"
           test -x "$CHROME_BIN"
           export CHROME_BIN VYRE_APP_DIST="$PWD/apps/app/dist" VYRE_REQUIRE_CHROME=1
-          node scripts/test-run.ts --slow --no-cache --files "$T" apps/app/tests/apps.editors.live.test.ts apps/app/tests/console.ai-data.live.test.ts apps/app/tests/auth.entry.live.test.ts apps/app/tests/auth.personal.live.test.ts apps/app/tests/tasks.page.live.test.ts apps/app/tests/console.network-metrics.live.test.ts apps/app/tests/console.backup-preview.live.test.ts apps/app/tests/console.server-pagination.live.test.ts apps/app/tests/console.usage-limits.live.test.ts apps/app/tests/console.integrations.live.test.ts apps/app/tests/console.comms.live.test.ts apps/app/tests/console.records-preview.live.test.ts apps/app/tests/console.webhooks.live.test.ts apps/app/tests/console.connectors.live.test.ts apps/app/tests/console.speed-trace.live.test.ts apps/app/tests/records.views.live.test.ts apps/app/tests/spaces.switch.live.test.ts apps/app/tests/sync.endpoint.live.test.ts apps/app/tests/recovery.account.live.test.ts apps/app/tests/apps.email-ask.live.test.ts apps/app/tests/oauth.callback.live.test.ts apps/app/tests/apps.form-code.live.test.ts apps/app/tests/apps.form-choices.live.test.ts apps/app/tests/console.access.live.test.ts apps/app/tests/console.access-pages.live.test.ts 2>&1 | tee real-app-e2e.out
+          node scripts/test-run.ts --slow --no-cache --jobs 2 --files "$T" apps/app/tests/apps.editors.live.test.ts apps/app/tests/console.ai-data.live.test.ts apps/app/tests/auth.entry.live.test.ts apps/app/tests/auth.personal.live.test.ts apps/app/tests/tasks.page.live.test.ts apps/app/tests/console.network-metrics.live.test.ts apps/app/tests/console.backup-preview.live.test.ts apps/app/tests/console.server-pagination.live.test.ts apps/app/tests/console.usage-limits.live.test.ts apps/app/tests/console.integrations.live.test.ts apps/app/tests/console.comms.live.test.ts apps/app/tests/console.records-preview.live.test.ts apps/app/tests/console.webhooks.live.test.ts apps/app/tests/console.connectors.live.test.ts apps/app/tests/console.speed-trace.live.test.ts apps/app/tests/records.views.live.test.ts apps/app/tests/spaces.switch.live.test.ts apps/app/tests/sync.endpoint.live.test.ts apps/app/tests/recovery.account.live.test.ts apps/app/tests/apps.email-ask.live.test.ts apps/app/tests/oauth.callback.live.test.ts apps/app/tests/apps.form-code.live.test.ts apps/app/tests/apps.form-choices.live.test.ts apps/app/tests/console.access.live.test.ts apps/app/tests/console.access-pages.live.test.ts 2>&1 | tee real-app-e2e.out
           grep -q "^ok .*real-app.e2e.test.ts" real-app-e2e.out
           grep -q "^ok .*apps.editors.live.test.ts" real-app-e2e.out
           grep -q "^ok .*console.ai-data.live.test.ts" real-app-e2e.out

@@ -16,7 +16,8 @@ export function TemplateEditor({ route, back }: { route: AppsRoute; back(): void
   const sources = kind === "record_type" ? (sourceTypes.data?.types ?? []).filter((type) => !type.system && !type.syncedFrom && (!type.scope || type.scope === "space")).map((type) => ({ key: type.key, title: type.title })) : (sourceAutomations.data?.automations ?? []).map((automation) => ({ key: automation.id, title: automation.name }));
   const [confirm, setConfirm] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null), [notice, setNotice] = useState("");
   const [key, setKey] = useState(actionKey);
-  useEffect(() => setConfirm(false), [preview.data]);
+  // the confirmation closes when another template is opened, never when the same template is read again (every live refresh hands back a new object, which closed the card under the person's pointer)
+  useEffect(() => setConfirm(false), [route.id]);
   const run = async (): Promise<void> => { setBusy(true); setError(null); try {
     if (route.id) {
       const out = await mutate(d, "templates.install", { templateId: route.id }, key);
