@@ -1,5 +1,6 @@
 # Changelog
 
+- Draft actions from a pasted OpenAPI document, then mark one of them tested with a Vault read. The document text and the key stay out of the reply.
 - Try one connector read on the documented host. The host fills the Vault key onto that request and returns only whether it was tested.
 - Read a public MCP address and draft one action per tool name. The document text is not returned.
 - Refuse a document that redirects to a private, loopback, link-local, or metadata address. The host installs the fetch. The caller does not.
