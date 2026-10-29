@@ -3,7 +3,6 @@
 // The app then calls identity.github_sign_in {code}; the code is exchanged there, with the secret, and the Space's sign-in policy decides.
 // The return address is the Space's own origin or a loopback address, so a crafted link cannot hand a code to a stranger's site.
 import http from "node:http";
-import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { GithubOAuth } from "../seams/people.ts";
 
 const COOKIE = "vyre_gh_state";
@@ -13,7 +12,8 @@ const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 export interface GithubSignInRouteDeps { oauth: () => GithubOAuth | null; now?: () => number }
 
-const same = (a: string, b: string): boolean => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
+const same = (a: string, b: string): boolean => { let d = a.length ^ b.length; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ (b.charCodeAt(i) || 0); return d === 0; };
+const token = (): string => Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(24))).toString("base64url");
 const page = (res: http.ServerResponse, status: number, text: string, headers: Record<string, string> = {}): void => { res.writeHead(status, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer", ...headers }); res.end(text); };
 
 export function createGithubSignInRoute(deps: GithubSignInRouteDeps): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } {
@@ -40,7 +40,7 @@ export function createGithubSignInRoute(deps: GithubSignInRouteDeps): { handle(r
         const ret = allowedReturn(own, url.searchParams.get("return") ?? "");
         if (!ret) { page(res, 400, "That return address is not one this Space sends people back to."); return true; }
         if (states.size > 500) { page(res, 429, "Too many tries; wait a minute."); return true; }
-        const state = randomBytes(24).toString("base64url");
+        const state = token();
         states.set(state, { ret, exp: now() + STATE_MS });
         const q = new URLSearchParams({ client_id: oauth.clientId, redirect_uri: redirect, state, allow_signup: "false" });
         const secure = own.startsWith("https:") ? "; Secure" : "";
