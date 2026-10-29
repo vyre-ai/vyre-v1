@@ -3,6 +3,8 @@
 //
 // Who it acts as: the person this daemon belongs to (the owner of the Space it hosts, the same person the local admin token acts as). Every capability goes through the Space's own invoke pipeline as
 // that person, so the extension can do exactly what the person can do in the app and no more; a Mine item opens only when the person's vault key is held here, and a locked vault reads as `locked`.
+// A Team Space on a server is reached the other way round: the app hands this daemon the person's own signed-in session for that Space (linkRemote, in memory only), and each call goes to the Space over HTTPS with that
+// session, so it is the person's own grants that answer, never the owner's. A vault fill there asks the Space for the value to be returned to this computer, which puts it in the field and passes nothing on.
 // What the extension may call is the list below and nothing else (the extension refuses anything outside it before sending; this checks again). A daemon that hosts no Space has nothing to answer with, and says so.
 import { fail } from "../routes/errors.ts";
 import type { Invoke } from "../invoke.ts";
@@ -17,9 +19,13 @@ export const EXTENSION_CAPABILITIES: readonly string[] = [
 export const KEYED: readonly string[] = ["vault.item.put", "vault.share"];
 
 export interface LinkedSpace { id: string; name: string; webUrl: string }
+/** A Team Space this computer is signed in to: its address and the person's session token for it. Held in memory; the app hands it over again at every start. */
+export interface RemoteSpace { id: string; name: string; address: string; token: string }
 
 export interface ChromeLinkDeps {
   version: string;
+  /** HTTP to a Space server; the global fetch when omitted. */
+  fetch?: typeof fetch;
   /** The Space this daemon hosts; null on a device-only daemon. */
   space(): LinkedSpace | null;
   /** The person whose computer this is: who the extension acts as. */
@@ -47,6 +53,8 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 export function createChromeLink(d: ChromeLinkDeps) {
   let invoke: Invoke | null = null;
   let active: string | null = null;
+  const remotes = new Map<string, RemoteSpace>();
+  const http: typeof fetch = d.fetch ?? ((...a) => fetch(...a));
 
   const here = (): LinkedSpace | null => {
     const s = d.space();
@@ -55,7 +63,39 @@ export function createChromeLink(d: ChromeLinkDeps) {
   };
 
   /** One capability as the person, in the Space this daemon hosts. */
+  /** The `browser` place of the Vault's filler: the value goes to the extension, which puts it in the one field it handed a ref for. Nobody listening means nothing was filled, and the call says so. */
+  function placeInBrowser(f: { value: string; ref: string }, execution?: { traceId: string }): void {
+    if (d.push({ type: "fill", ref: f.ref, value: f.value }) === 0) throw fail("provider.unavailable", execution?.traceId ?? "0".repeat(32), { message: "Vyre for Chrome is not connected on this computer." });
+  }
+
+  /** One capability as the person on a Team Space server, with the session they are signed in with there. */
+  async function viaRemote(r: RemoteSpace, capability: string, input: Record<string, unknown>): Promise<unknown> {
+    const keyed = KEYED.includes(capability) && typeof input["idempotencyKey"] !== "string" ? { ...input, idempotencyKey: `chrome_${crypto.randomUUID()}` } : input;
+    // a fill into the person's own browser: the Space returns the value to this computer, which hands it to the extension and drops it from the reply
+    const target = isObject(keyed["target"]) ? keyed["target"] : null;
+    const intoBrowser = capability === "vault.fill" && target?.["kind"] === "browser" && typeof target["ref"] === "string";
+    const body = intoBrowser ? { ...keyed, returnValue: true } : keyed;
+    let res: Response;
+    try {
+      res = await http(`${r.address}/v1/${capability.replaceAll(".", "/")}`, { method: "POST", headers: { authorization: `Bearer ${r.token}`, "content-type": "application/json" }, body: JSON.stringify(body) });
+    } catch { throw coded("offline", `${r.name} did not answer. Check your connection.`); }
+    const json = (await res.json().catch(() => null)) as { data?: unknown; error?: { code?: unknown; message?: unknown } } | null;
+    if (res.status === 401) throw coded("signed_out", `Sign in to ${r.name} again in the Vyre app.`);
+    if (!res.ok || !json || !("data" in json)) throw Object.assign(new Error(typeof json?.error?.message === "string" ? json.error.message : "The Space refused that."), { error: json?.error ?? {} });
+    if (!intoBrowser) return json.data;
+    const out = isObject(json.data) ? { ...json.data } : {};
+    const value = out["value"];
+    delete out["value"];
+    if (typeof value !== "string") throw coded("not_available", "The Space did not give a value to fill.");
+    placeInBrowser({ value, ref: String((target as Record<string, unknown>)["ref"]) });
+    out["filled"] = true;
+    return out;
+  }
+
   async function asPerson(capability: string, input: Record<string, unknown>, space?: string): Promise<unknown> {
+    const wanted = space ?? active ?? undefined;
+    const remote = wanted ? remotes.get(wanted) : undefined;
+    if (remote) return viaRemote(remote, capability, input);
     const s = here();
     if (!s) throw coded("not_available", "This computer does not host a Space. Open your Space in the web app instead.");
     if (space && space !== s.id) throw coded("not_available", "That Space is not on this computer. Open it in the web app instead.");
@@ -108,10 +148,12 @@ export function createChromeLink(d: ChromeLinkDeps) {
     return changed ? { state: "changed", ...changed } : { state: "new" };
   }
 
-  const spacesMessage = (): { type: "spaces"; spaces: LinkedSpace[]; active: string | null } => {
+  /** Every Space this computer can answer for: the one it hosts and the Team Spaces the person is signed in to. */
+  const allSpaces = (): LinkedSpace[] => {
     const s = here();
-    return { type: "spaces", spaces: s ? [s] : [], active: s ? active : null };
+    return [...(s ? [s] : []), ...[...remotes.values()].map((r) => ({ id: r.id, name: r.name, webUrl: r.address }))];
   };
+  const spacesMessage = (): { type: "spaces"; spaces: LinkedSpace[]; active: string | null } => ({ type: "spaces", spaces: allSpaces(), active });
 
   const link = {
     /** The invoke pipeline exists only after the Space has booted; the daemon hands it over then. */
@@ -129,12 +171,12 @@ export function createChromeLink(d: ChromeLinkDeps) {
         case "hello": {
           const s = here();
           const person = d.person();
-          return { version: d.version, spaces: s ? [s] : [], active: s ? active : null, locked: s && person ? !d.unlocked(person) : false };
+          const onLocal = s !== null && active === s.id;
+          return { version: d.version, spaces: allSpaces(), active, locked: onLocal && person ? !d.unlocked(person) : false };
         }
         case "space.select": {
-          const s = here();
           const id = text(input["id"]);
-          if (!s || s.id !== id) throw coded("not_available", "That Space is not on this computer.");
+          if (!allSpaces().some((x) => x.id === id)) throw coded("not_available", "That Space is not on this computer.");
           active = id;
           d.push(spacesMessage());
           return { active };
@@ -150,10 +192,7 @@ export function createChromeLink(d: ChromeLinkDeps) {
       }
     }) satisfies NonNullable<ChromeBridgeDeps["op"]>,
 
-    /** The `browser` place of the Vault's filler: the value goes to the extension, which puts it in the one field it handed a ref for. Nobody listening means nothing was filled, and the call says so. */
-    fillSink(f: { value: string; ref: string }, execution?: { traceId: string }): void {
-      if (d.push({ type: "fill", ref: f.ref, value: f.value }) === 0) throw fail("provider.unavailable", execution?.traceId ?? "0".repeat(32), { message: "Vyre for Chrome is not connected on this computer." });
-    },
+    fillSink: placeInBrowser,
 
     /** The Spaces whose agents may drive this Chrome: the person's choice, kept across restarts and announced to the extension. */
     optedIn: (): string[] => d.optedIn.read(),
@@ -171,6 +210,20 @@ export function createChromeLink(d: ChromeLinkDeps) {
       if (!d.optedIn.read().includes(s.id)) throw coded("not_allowed", "The person has not let this Space's agents use their Chrome.");
       await asPerson("agents.get", { agentId: call.agent.id });
       return d.callTool({ ...call, space: s.id });
+    },
+
+    /** The app hands over (or refreshes) the person's session for a Team Space; the extension is told the list changed. */
+    linkRemote(r: RemoteSpace): void {
+      remotes.set(r.id, r);
+      here();
+      if (active === null) active = r.id;
+      d.push(spacesMessage());
+    },
+    /** The person signed out of the Space (or the session ended). */
+    unlinkRemote(id: string): void {
+      remotes.delete(id);
+      if (active === id) active = here()?.id ?? remotes.keys().next().value ?? null;
+      d.push(spacesMessage());
     },
 
     spacesMessage,

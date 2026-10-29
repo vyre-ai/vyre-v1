@@ -1,6 +1,7 @@
 // Local doors to Vyre for Chrome on the person's own computer, for the Vyre app and the device's agent runner (loopback and the daemon's admin token, like /local/vault/key):
 //   GET  /local/chrome/optin           { data: { spaces } }  the Spaces whose agents may drive this Chrome
 //   PUT  /local/chrome/optin           { spaces }            the person's choice; the extension is told at once and again whenever it connects
+//   POST /local/chrome/spaces         { id, name, address, token }   the app hands over the person's own session for a Team Space they are signed in to (kept in memory only); DELETE ?id= takes it away
 //   POST /local/chrome/tool            { tool, input?, agent: { id, name }, timeoutMs? }   one chrome_* tool for an agent, run in the person's own tab. Refused unless the Space is opted in and the person can see the agent.
 // Nothing here reads a page's content on its own: a tool call is the same request an agent computer's Chrome would take, and the answer is what the extension returned.
 import type http from "node:http";
@@ -10,7 +11,7 @@ import { sameToken } from "../bridge/chrome.ts";
 import type { ChromeLink } from "../daemon/chrome-link.ts";
 
 const TRACE = "0".repeat(32);
-const PATH = /^\/local\/chrome\/(optin|tool)$/;
+const PATH = /^\/local\/chrome\/(optin|tool|spaces)$/;
 type Code = "permission.no_grant" | "auth.unauthenticated" | "validation.bad_input" | "provider.unavailable" | "timeout.deadline";
 
 function send(res: http.ServerResponse, status: number, body: unknown): void {
@@ -41,11 +42,27 @@ function codeOf(e: unknown): { code: Code; message: string } {
 }
 
 export function createLocalChromeRoute(deps: { token: string; link(): ChromeLink }): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } {
-  async function serve(req: http.IncomingMessage, res: http.ServerResponse, which: "optin" | "tool"): Promise<void> {
+  async function serve(req: http.IncomingMessage, res: http.ServerResponse, which: "optin" | "tool" | "spaces"): Promise<void> {
     if (!isLocal(req)) return refuse(res, "permission.no_grant", "This only works on your own computer.");
     const sent = req.headers["authorization"];
     if (!sameToken(typeof sent === "string" && sent.startsWith("Bearer ") ? sent.slice(7) : "", deps.token)) return refuse(res, "auth.unauthenticated", "Authentication is required.");
     const link = deps.link();
+    if (which === "spaces") {
+      if (req.method === "DELETE") {
+        const id = new URL(req.url ?? "", "http://x").searchParams.get("id") ?? "";
+        link.unlinkRemote(id);
+        return send(res, 200, { data: { removed: id } });
+      }
+      if (req.method !== "POST") return refuse(res, "validation.bad_input", "POST or DELETE.");
+      let body: unknown;
+      try { body = await bodyOf(req); } catch { return refuse(res, "validation.bad_input", "Send { id, name, address, token }."); }
+      const b = isObject(body) ? body : {};
+      let address = "";
+      try { const u = new URL(String(b["address"])); if (u.username || u.password || u.search || u.hash || u.pathname !== "/" || !(u.protocol === "https:" || (u.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(u.hostname)))) throw new Error("x"); address = u.origin; } catch { return refuse(res, "validation.bad_input", "The address is a Space's https address."); }
+      if (typeof b["id"] !== "string" || !/^spc_[A-Za-z0-9_]{1,120}$/.test(b["id"]) || typeof b["name"] !== "string" || b["name"].length < 1 || b["name"].length > 120 || typeof b["token"] !== "string" || b["token"].length < 8 || b["token"].length > 4096) return refuse(res, "validation.bad_input", "Send { id, name, address, token }.");
+      link.linkRemote({ id: b["id"], name: b["name"], address, token: b["token"] });
+      return send(res, 200, { data: { linked: b["id"] } });
+    }
     if (which === "optin") {
       if (req.method === "GET") return send(res, 200, { data: { spaces: link.optedIn() } });
       if (req.method !== "PUT") return refuse(res, "validation.bad_input", "GET or PUT.");
@@ -75,7 +92,7 @@ export function createLocalChromeRoute(deps: { token: string; link(): ChromeLink
     handle(req, res) {
       const m = PATH.exec((req.url ?? "").split("?")[0] ?? "");
       if (!m) return false;
-      void serve(req, res, m[1] as "optin" | "tool").catch(() => { if (!res.headersSent) refuse(res, "validation.bad_input", "That request could not be read."); });
+      void serve(req, res, m[1] as "optin" | "tool" | "spaces").catch(() => { if (!res.headersSent) refuse(res, "validation.bad_input", "That request could not be read."); });
       return true;
     },
   };

@@ -37,6 +37,8 @@ export interface SecretPort {
 }
 export interface VaultHost {
   sinks: Readonly<Record<string, FillSink>>;
+  /** Whose browser the host's own `browser` place is: only that person's fills go to it. Every other person's browser is on their own computer, and the value is returned to it (see fill). Omitted: the place serves whoever asks. */
+  browserOwner?(personId: string): boolean;
   /** The Space's module database, so the port below can read the vault tables outside a call. */
   db?: VaultDb;
   /** The address people reach this server at, for the pull link of an export (read at call time). */
@@ -176,8 +178,12 @@ export async function fill(ctx: VaultCtx, input: { handle: string; target: { kin
   const f = pick(ctx, r, await openFields(ctx, r), h.field);
   const level = levelOn(ctx, "vault_item", str(r, "id"));
   const owner = str(r, "owner") === ctx.principal.id;
-  if (input.returnValue === true && (ctx.principal.kind === "agent" || !(owner || atLeast(level, "view")))) return denied(ctx, "Only a person at View level can have the value back. Agents use values by handle.");
-  const sink = host?.sinks[kind];
+  // The host's `browser` place is one person's browser (the owner's, on a Mac that hosts the Space and has Vyre for Chrome open). Anyone else's browser is on their own computer: a person at Use level
+  // may have the value come back to be put into that field, never an agent. The device places it and passes nothing on.
+  const hostBrowser = kind !== "browser" || host?.browserOwner === undefined || host.browserOwner(ctx.principal.id);
+  const sink = hostBrowser ? host?.sinks[kind] : undefined;
+  const forTheirBrowser = input.returnValue === true && kind === "browser" && ctx.principal.kind === "person" && sink === undefined;
+  if (input.returnValue === true && !forTheirBrowser && (ctx.principal.kind === "agent" || !(owner || atLeast(level, "view")))) return denied(ctx, "Only a person at View level can have the value back. Agents use values by handle.");
   if (!sink && input.returnValue !== true) throw fail("internal.unavailable", ctx.trace.traceId, { message: `This server has no place to fill ${kind} yet.` });
   reachable(ctx, str(r, "id"), "use"); // recheck after asynchronous Mine-key decryption
   if (sink) await sink({ value: f.value, ref, handle: str(r, "handle"), field: f.key, itemId: str(r, "id") }, { space:ctx.space, principal:ctx.principal, ...(ctx.actingFor?{actingFor:ctx.actingFor}:{}), traceId:ctx.trace.traceId, ...(ctx.trace.parent?{parentSpanId:ctx.trace.parent}:{}), depth:ctx.depth??0 });

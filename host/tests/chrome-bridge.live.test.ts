@@ -29,7 +29,7 @@ function seededDir(): string {
 async function boot(): Promise<Daemon> {
   const dir = seededDir();
   return startDaemon({
-    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    config: loadConfig(["--role", "space,device", "--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({
       os: "linux", hostname: "chrome-bridge", free: 80e9,
       commands: {

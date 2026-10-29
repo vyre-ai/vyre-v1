@@ -19,6 +19,7 @@ import {completeRecovery} from "../../join/recover.ts";
 import { SpaceEntry } from "../../join/SpaceEntry.tsx";
 import { clearLock, consumeBrowserInvite, inviteAppLink, VYRE_DOWNLOADS, entryTarget, readLock } from "./entry.ts";
 import type { EntryTarget, LockedIdentity } from "./entry.ts";
+import { linkChromeSpace } from "./chrome-link.ts";
 import { ensurePersonalSpace } from "../../../../../client/src/connection/desktop-link.ts";
 import type { Invoke } from "../../../../../client/src/connection/desktop-link.ts";
 import { mark } from "../../startup/marks.ts";
@@ -257,6 +258,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     if(target.def.kind==='personal'&&bridge){const native=(globalThis as {__TAURI__?:{core?:{invoke?:Invoke}}}).__TAURI__?.core?.invoke;if(native){setPhase({kind:'opening-personal'});try{const local=await ensurePersonalSpace(native);if(local.spaceId!==target.def.spaceId||local.claimUrl)throw new Error('Personal Space identity changed');chosen=await resumePersonal(local,target,open);}catch{setConnectedAddress(target.baseUrl);setNotice(true);setPhase({kind:'signin'});return;}}}
     if(!activateAddress(chosen,true))return;setConnectedAddress(chosen.baseUrl);setPhase({kind:'shell',stored:chosen});
   };
+  useEffect(() => phase.kind === "shell" ? linkChromeSpace((globalThis as {__TAURI__?:{core?:{invoke?:Invoke}}}).__TAURI__?.core?.invoke, phase.stored) : undefined, [phase.kind === "shell" ? phase.stored.token : null]);
   const signedOut = useCallback((why?: "manual", selected?: string) => { clearStored(undefined, selected); setNotice(why !== "manual"); setPhase({ kind: "signin" }); }, []);
   const signedIn = useCallback((stored: StoredSession) => {activateAddress(stored,!!returnSession);clearLock();setLocked(null);setEntry(false);setReturnSession(null);setPhase({ kind: "shell", stored });}, [returnSession]);
   const signedInFromDesktop = useCallback((stored: StoredSession) => {activateAddress(stored,true);consumeBrowserInvite();clearLock();setLocked(null);setEntry(false);setReturnSession(null);setDesktopRoute((route) => consumeDesktopRoute(route)); setPhase({ kind: "shell", stored }); }, []);
