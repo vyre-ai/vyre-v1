@@ -130,8 +130,8 @@ export const SCENARIOS: Record<string, Scenario> = {
       const v2 = (await h.call("automations.update", { automationId: id, definition: grown }, alice)).automation.version as number;
       decisions.push({ version: v2 });
       decisions.push(await feed(h, { id: "evt_v2", type: "record.updated", payload: upd("rec_2", "contact", { status: "lost" }, { status: "new" }, 1), depth: 0 }));
-      await h.call("automations.replay", { automationId: id, runId: "run_t1", version: "same" }, alice);
-      await h.call("automations.replay", { automationId: id, runId: "run_t1", version: "current" }, alice);
+      await h.call("automations.replay", { automationId: id, runId: "run_t1", version: "same", confirm: true }, alice);
+      await h.call("automations.replay", { automationId: id, runId: "run_t1", version: "current", confirm: true }, alice);
       return scrub(finish(h, decisions)) as Ledger;
     },
   },

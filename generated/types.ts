@@ -2860,6 +2860,7 @@ export type AutomationsReplayIn = {
   automationId: string;
   runId: string;
   version: "same" | "current";
+  confirm: true;
 };
 export type AutomationsReplayOut = {
   runId: string;

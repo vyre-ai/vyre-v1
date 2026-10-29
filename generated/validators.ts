@@ -18724,9 +18724,11 @@ if (g1102 === 'object') { const o1102 = x1102 as Record<string, unknown>;
 if (!("automationId" in o1102)) e.push(p + "/automationId" + ': required');
 if (!("runId" in o1102)) e.push(p + "/runId" + ': required');
 if (!("version" in o1102)) e.push(p + "/version" + ': required');
+if (!("confirm" in o1102)) e.push(p + "/confirm" + ': required');
 if ("automationId" in o1102) lf(o1102["automationId"], p + "/automationId", e, L44);
 if ("runId" in o1102) lf(o1102["runId"], p + "/runId", e, L23);
 if ("version" in o1102) lf(o1102["version"], p + "/version", e, L356);
+if ("confirm" in o1102) lf(o1102["confirm"], p + "/confirm", e, L192);
 }
 }
 }

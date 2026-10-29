@@ -5174,7 +5174,7 @@
       "blocks": [],
       "cap": "automations.replay",
       "deferred": false,
-      "description": "Run a past run again on the same definition version or the current one",
+      "description": "Live rerun of a past run on the same definition version or the current one, not a sandbox replay",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -5184,6 +5184,10 @@
             ],
             "pattern": "^aut_[a-z0-9]+$",
             "type": "string"
+          },
+          "confirm": {
+            "const": true,
+            "type": "boolean"
           },
           "runId": {
             "examples": [
@@ -5203,7 +5207,8 @@
         "required": [
           "automationId",
           "runId",
-          "version"
+          "version",
+          "confirm"
         ],
         "type": "object"
       },

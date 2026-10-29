@@ -33096,6 +33096,7 @@
       "v": 1
     },
     {
+      "audit": "always",
       "effects": "write",
       "emits": [
         "automation.run_started"
@@ -33105,12 +33106,14 @@
         "permission.above_clearance",
         "permission.no_grant",
         "validation.bad_input",
-        "validation.not_found"
+        "validation.not_found",
+        "validation.precondition_failed"
       ],
       "examples": [
         {
           "input": {
             "automationId": "aut_a1b2c3",
+            "confirm": true,
             "runId": "run_a1b2c3",
             "version": "same"
           },
@@ -33130,6 +33133,10 @@
             "pattern": "^aut_[a-z0-9]+$",
             "type": "string"
           },
+          "confirm": {
+            "const": true,
+            "type": "boolean"
+          },
           "runId": {
             "examples": [
               "run_a1b2c3"
@@ -33148,7 +33155,8 @@
         "required": [
           "automationId",
           "runId",
-          "version"
+          "version",
+          "confirm"
         ],
         "type": "object"
       },
@@ -33181,7 +33189,7 @@
         "stoppable": true
       },
       "since": "1.0.0",
-      "summary": "Run a past run again on the same definition version or the current one",
+      "summary": "Live rerun of a past run on the same definition version or the current one, not a sandbox replay",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -204048,8 +204056,10 @@
         },
         "replay": {
           "cap": "automations.replay",
+          "confirm": "Running this live can repeat outward steps. Sandbox replay does not.",
           "input": {
             "automationId": "/route/automationId",
+            "confirm": "/state/confirm",
             "runId": "/state/runId",
             "version": "/state/version"
           }
