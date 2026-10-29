@@ -217,6 +217,17 @@ export type TerminalBlockData = {
   state: "running" | "idle" | "exited";
   exitCode: number | null;
 };
+export type TurnChangesBlockData = {
+  threadId: string;
+  turnId: string;
+  agentId: string;
+  summary: string;
+  changes: Array<{
+      label: string;
+      undoable: boolean;
+    }>;
+  undone?: boolean;
+};
 export type VaultUsedBlockData = {
   itemId: string;
   name: string;
@@ -248,6 +259,7 @@ export interface BlockDataMap {
   "tab_opened": TabOpenedBlockData;
   "table": TableBlockData;
   "terminal": TerminalBlockData;
+  "turn_changes": TurnChangesBlockData;
   "vault_used": VaultUsedBlockData;
 }
 
@@ -699,6 +711,26 @@ export const blockRegistry = [
         "terminalId": "/terminalId"
       }
     }
+  },
+  {
+    "type": "turn_changes",
+    "v": 1,
+    "module": "chat",
+    "component": "ui:BlockTurnChanges",
+    "fallback": "{{summary}}",
+    "waitsForAnswer": false,
+    "actions": [
+      {
+        "key": "undo",
+        "label": "Undo",
+        "cap": "engine.turn.undo",
+        "input": {
+          "threadId": "/threadId",
+          "turnId": "/turnId"
+        }
+      }
+    ],
+    "opens": null
   },
   {
     "type": "vault_used",

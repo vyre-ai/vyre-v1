@@ -684,6 +684,7 @@ export function stubs(ctx: CallCtx) {
       switch: call("engine.switch"),
       turn: {
         append: call("engine.turn.append"),
+        changes: call("engine.turn.changes"),
         enqueue: call("engine.turn.enqueue"),
         fallback: call("engine.turn.fallback"),
         finish: call("engine.turn.finish"),
@@ -691,6 +692,7 @@ export function stubs(ctx: CallCtx) {
         record_usage: call("engine.turn.record_usage"),
         retry: call("engine.turn.retry"),
         start: call("engine.turn.start"),
+        undo: call("engine.turn.undo"),
         wait: call("engine.turn.wait"),
       },
       turns: {

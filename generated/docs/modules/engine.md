@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (54)
+## Capabilities (56)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status
@@ -48,6 +48,7 @@ Requires: nothing.
 - [engine.subscription_share.set](../capabilities/engine.subscription_share.set.md): Let the Space run work on my subscription (server runs for my chats, routines and personal automations); off kills my sandbox
 - [engine.switch](../capabilities/engine.switch.md): Switch engine mid-chat: the new engine starts from the rolling summary, the last turns and a pointer to the transcript
 - [engine.turn.append](../capabilities/engine.turn.append.md): Persist a coalesced chunk of a running turn (text, tool call, tool result, block)
+- [engine.turn.changes](../capabilities/engine.turn.changes.md): What one agent turn changed on behalf of the asker: records and files it created or edited (each can go back) and acts that cannot be undone, such as a send
 - [engine.turn.enqueue](../capabilities/engine.turn.enqueue.md): Queue a turn for a responder (message, interrupt, wake or handoff)
 - [engine.turn.fallback](../capabilities/engine.turn.fallback.md): Record a fallback during a turn error: another model or the backup key
 - [engine.turn.finish](../capabilities/engine.turn.finish.md): End a turn as completed, failed or cancelled; always releases the lease
@@ -55,13 +56,14 @@ Requires: nothing.
 - [engine.turn.record_usage](../capabilities/engine.turn.record_usage.md): Meter usage during a turn; over an agent.toml or Space limit it stops the turn and raises agent.limit_hit
 - [engine.turn.retry](../capabilities/engine.turn.retry.md): Retry a failed turn, optionally on another model or backup key (the next step on a turn error)
 - [engine.turn.start](../capabilities/engine.turn.start.md): Start a queued turn on the placement chosen (host or device); records account, engine and model
+- [engine.turn.undo](../capabilities/engine.turn.undo.md): Undo a turn: restore the previous version of each record and file the turn changed, move what it created to Trash and bring back what it deleted; acts that cannot be undone are left and reported
 - [engine.turn.wait](../capabilities/engine.turn.wait.md): Park a turn until a task, an answered block, a run or a time
 - [engine.turns.list](../capabilities/engine.turns.list.md): Turns of a thread, newest first
 - [engine.usage.query](../capabilities/engine.usage.query.md): Usage by day, person, agent or model; people see their own, managers their agents, admins all
 - [engine.use_policy.export](../capabilities/engine.use_policy.export.md): Export the AI use policy (models, providers, label rules, limits, accounts) as a file
 - [engine.warm](../capabilities/engine.warm.md): Hint that a thread was opened or the composer got focus: warm the engine session (drivers pool, prefix cache)
 
-## Events (26)
+## Events (27)
 
 - [agent.blocked](../events/agent.blocked.md): An agent is blocked (login, key, site down) and asks for what would unblock it
 - [agent.limit_hit](../events/agent.limit_hit.md): An agent hit a limit from agent.toml or a Space cap; the turn stopped
@@ -88,4 +90,5 @@ Requires: nothing.
 - [turn.fallback_used](../events/turn.fallback_used.md): A turn error fell back to another model or the backup key
 - [turn.queued](../events/turn.queued.md): A turn was queued for an agent in a thread
 - [turn.started](../events/turn.started.md): A turn started on a host or device
+- [turn.undone](../events/turn.undone.md): A person undid what an agent turn changed
 - [turn.waiting](../events/turn.waiting.md): A turn parked and waits on a task, an answer, a run or a time

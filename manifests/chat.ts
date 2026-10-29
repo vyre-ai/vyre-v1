@@ -424,6 +424,11 @@ export default defineManifest({
       threadId: id.thread, parentThreadId: id.thread, title: t.str(), status: t.enm('running', 'done', 'failed', 'stopped'), agentId: id.agent, model: t.opt(t.str()),
       path: t.arr(t.obj({ title: t.str(), threadId: id.thread })),
     }, 'Helper {{title}}: {{status}}', { opens: { tab: 'thread', input: { threadId: '/threadId' } }, actions: [{ key: 'stop', label: 'Stop', cap: 'engine.stop', input: { threadId: '/threadId' } }] }),
+    // What a turn changed, with one Undo: the agent's records and files go back to what they were; what cannot be taken back (a send, a deploy) is labelled so.
+    block('turn_changes', {
+      threadId: id.thread, turnId: id.turn, agentId: id.agent, summary: t.str(),
+      changes: t.arr(t.obj({ label: t.str(), undoable: t.bool() })), undone: t.opt(t.bool()),
+    }, '{{summary}}', { actions: [{ key: 'undo', label: 'Undo', cap: 'engine.turn.undo', input: { threadId: '/threadId', turnId: '/turnId' } }] }),
     block('model_switch', {
       threadId: id.thread, agentId: id.agent, scope: t.enm('sub_task', 'thread'),
       from: t.obj({ provider: t.str(), model: t.str(), effort: t.opt(t.str()) }), to: t.obj({ provider: t.str(), model: t.str(), effort: t.opt(t.str()) }), reason: t.opt(t.str()),

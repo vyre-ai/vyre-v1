@@ -13,6 +13,7 @@ import { withRecall } from "./recall.ts";
 import { createContextBuilder, diskSkills, takeHandoff, withTurnContext } from "./context.ts";
 import { withTranscript } from "./transcript.ts";
 import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
+import { announceChanges } from "./handlers/undo.ts";
 import { defaultSandbox } from "./sandbox-default.ts";
 import type { DefaultSandbox } from "./sandbox-default.ts";
 import type { SandboxPlan } from "./sandbox.ts";
@@ -142,6 +143,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     // The reviewer seat: after a lead turn completes, the chat's reviewer is asked to check it.
     engine.subscribe((ev) => {
       if (ev.type !== "turn.completed") return;
+      void announceChanges({ call: h.call, ...(h.postAs ? { postAs: h.postAs } : {}) }, engine, ev, () => mintEngineId("msg", now())).catch((err) => h.log?.("the changes of a turn could not be announced", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
       void reviewAfter({ call: h.call, ...(h.postAs ? { postAs: h.postAs } : {}) }, ctx.db, engine, ev, () => mintEngineId("msg", now())).catch((err) => h.log?.("the reviewer could not be asked", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
     });
     bridge?.attach(engine);

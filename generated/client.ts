@@ -684,6 +684,7 @@ export function createClient(transport: Transport) {
       switch: call("engine.switch", 1),
       turn: {
         append: call("engine.turn.append", 1),
+        changes: call("engine.turn.changes", 1),
         enqueue: call("engine.turn.enqueue", 1),
         fallback: call("engine.turn.fallback", 1),
         finish: call("engine.turn.finish", 1),
@@ -691,6 +692,7 @@ export function createClient(transport: Transport) {
         record_usage: call("engine.turn.record_usage", 1),
         retry: call("engine.turn.retry", 1),
         start: call("engine.turn.start", 1),
+        undo: call("engine.turn.undo", 1),
         wait: call("engine.turn.wait", 1),
       },
       turns: {
