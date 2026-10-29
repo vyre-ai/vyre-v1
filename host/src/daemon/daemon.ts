@@ -823,6 +823,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }),
         setComputerHost: () => createComputersHost({
           dataDir: paths.root,
+          // Unset, the engine socket is the machine default. A release daemon sets this to a path that is not there when the proof needs a down host.
+          ...(process.env["VYRE_COMPUTER_SOCKET"] ? { socketPath: process.env["VYRE_COMPUTER_SOCKET"] } : {}),
           // the home mirror runs as the agent: the same pipeline as any call, so access, review rules and the scrubber apply
           callAs: createAgentHomeCaller({ db: db!, spaceId, invoke }),
           // large files go to the Files module in process: the slot's one-time token from files.upload_url is the only authority, and no session or bearer is involved

@@ -87,8 +87,9 @@ const stopper = (child: ChildProcess): (() => Promise<void>) => () => new Promis
 
 /** Starts the daemon as a person does and reads the address it prints (and, on a fresh install, the claim link it prints right after). */
 async function startDaemon(dir: string, extra: string[], port=0): Promise<{ child: ChildProcess; url: string; claim: string | null }> {
+  // The computer socket is a path in this data directory and is never created. A runner with Docker would otherwise answer the default socket and Console would say the host is ready.
   const child: ChildProcess = spawn(process.execPath, ["host/src/daemon/main.ts", "--role", "space", "--data-dir", dir, "--port", String(port), ...extra], {
-    cwd: REPO, env: { ...process.env, VYRE_ADMIN_TOKEN: ADMIN_TOKEN }, stdio: ["ignore", "pipe", "inherit"],
+    cwd: REPO, env: { ...process.env, VYRE_ADMIN_TOKEN: ADMIN_TOKEN, VYRE_COMPUTER_SOCKET: path.join(dir, "no-docker.sock") }, stdio: ["ignore", "pipe", "inherit"],
   });
   const printed = await new Promise<{ url: string; claim: string | null }>((resolve, reject) => {
     let out = "";
