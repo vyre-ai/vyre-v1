@@ -1,5 +1,6 @@
 # Changelog
 
+- Add the Space switcher, sync endpoint and saved-code recovery browser tests to the release-evidence command with required-success assertions: under VYRE_REQUIRE_CHROME=1 a missing production artifact fails each test instead of skipping, and the step refuses any skip report.
 - Tell saved-code recovery failures apart in the existing auth error line: rate limit, Space outage, unreachable Space, expired request and a wrong username or code each get a bounded honest message, and a wrong username and a wrong code still read the same so the form never reveals which accounts exist. A live test drives the unreachable and real rate-limit lines at phone width.
 - Prove saved-code account recovery in production Chromium against a fresh claimed daemon: wrong code fails without a server commit, the saved code and a new password recover the Owner with identical public, private, recovery and Space-key wraps, a private Mine Vault item still decrypts, the old password and old session are refused, the proof is single use, and no code, proof or password reaches storage, URLs, console or the Space data directory.
 - Restore the layer boundaries gate: the daemon hashes the registry through the kernel helper instead of importing node:crypto, and three test-only interop proofs are listed as known exceptions with their reasons.

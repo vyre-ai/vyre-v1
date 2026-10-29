@@ -11,7 +11,7 @@ const VAULT_SECRET = 'recovery-fixture-private-secret-7c1f';
 
 test('saved-code recovery: same keys, private Vault data kept, old password and session refused, no code or proof stored', async (t) => {
   const dist = process.env['VYRE_APP_DIST'];
-  if (!dist) { t.skip('VYRE_APP_DIST required for the production recovery proof'); return; }
+  if (!dist) { if (process.env['VYRE_REQUIRE_CHROME'] === '1') assert.fail('VYRE_APP_DIST required for the production recovery proof'); t.skip('VYRE_APP_DIST required for the production recovery proof'); return; }
   const { chromium } = await import('playwright-core');
   const exe = process.env['CHROME_BIN'] || chromium.executablePath();
   assert.ok(fs.existsSync(exe), 'a Chrome binary is required');
