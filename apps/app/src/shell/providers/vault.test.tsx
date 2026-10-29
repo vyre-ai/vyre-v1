@@ -8,6 +8,7 @@ import { sampleRuntime } from "./misc-test-runtime.tsx";
 import VaultPlace, { vaultData, vaultRoute } from "./vault.tsx";
 import { loadVaultPolicy, policyDirty, saveVaultPolicy, toggledRole } from "../../places/vault/layout/policy-actions.ts";
 import type { VaultPolicy } from "../../places/vault/layout/policy-actions.ts";
+import { roleLabel } from "../../places/vault/layout/PolicyView.tsx";
 import { EXPIRY_CHOICES } from "../../places/vault/layout/model.ts";
 
 test("the Vault place draws the Space's items through the shell runtime", () => {
@@ -119,4 +120,10 @@ test("the export sheet shows how long its link lasts and asks for it", () => {
   assert.match(out, /Creates a one-hour, logged download/);
   assert.match(out, /vault-export-expiry/);
   assert.match(out, /Link lasts/);
+});
+
+test("the policy page shows role names as people read them, and its page mounts", () => {
+  assert.deepEqual(["owner", "admin", "front_desk", "billing-team", ""].map(roleLabel), ["Owner", "Admin", "Front desk", "Billing team", ""]);
+  const src = renderToStaticMarkup(<ShellRuntimeProvider value={sampleRuntime({ screens: createSampleVault().data.screens, call: createSampleVault().data.call })}><PlaceHashProvider hash="screen=vault.layout&policy=true" opened={() => undefined}><VaultPlace place="vault" /></PlaceHashProvider></ShellRuntimeProvider>);
+  assert.match(src, /data-testid="vault-policy"/);
 });

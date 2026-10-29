@@ -354,7 +354,7 @@ export async function policy_get(ctx: ReportsCtx, _input: Record<string, unknown
 
 export async function policy_set(ctx: ReportsCtx, input: { policy: string }) {
   if (!isPolicy(input.policy)) return failWith(ctx.trace.traceId, "validation.bad_input", "Choose On, Ask or Off.", { errors: ["policy: not a policy"] });
-  await ctx.call("settings.set" as never, { key: POLICY_KEY, value: input.policy });
+  await ctx.call("settings.set_space" as never, { key: POLICY_KEY, value: input.policy });
   return { ok: true };
 }
 

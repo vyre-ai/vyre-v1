@@ -98,3 +98,21 @@ test("reports live: a service that cannot be reached loses nothing: the report i
     assert.deepEqual(list.data.reports.map((r: { status: string }) => r.status), ["new"]);
   } finally { await d.stop(); }
 });
+
+test("reports live: an admin turns sending off with reports.policy_set, and then a submitted report stays in the Space and nothing is posted", async () => {
+  const dir = seeded();
+  const seen: string[] = [];
+  const d = await boot(dir, async (url) => { seen.push(url); throw new Error("must not be reached"); });
+  try {
+    const set = await call(d, "reports.policy_set", { policy: "off", idempotencyKey: "reports-policy-off" });
+    assert.equal(set.status, 200, JSON.stringify(set.data));
+    assert.equal((await call(d, "reports.policy_get", {})).data.policy, "off");
+    const out = await call(d, "reports.submit", { bundle: bundle("Kept here"), idempotencyKey: "reports-live-3" });
+    assert.equal(out.status, 200, JSON.stringify(out.data));
+    assert.equal(out.data.sentToVyre, false);
+    assert.ok(out.data.taskId, "the admins still get the Review task");
+    const sent = await call(d, "reports.send_to_vyre", { reportId: out.data.reportId, idempotencyKey: "reports-send-off" });
+    assert.equal(sent.data.stored, false, "an explicit send is refused too while sending is off");
+    assert.deepEqual(seen, [], "no request reached the service");
+  } finally { await d.stop(); }
+});

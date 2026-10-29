@@ -92,3 +92,13 @@ test("the service asking to slow down reaches the module as rate_limit", async (
   const host = createReportsHost({ space: "spc_alpha1", now: () => NOW, fetch: async () => ({ status: 429, headers: { get: () => null }, text: async () => "{}" }), logs: logs(), sealKey: SEAL, address: "https://alpha.test", versions: { server: "1", device: "d" } });
   await assert.rejects(host.service.post({ reportId: "rpt_aaaaaaaa1", space: "spc_alpha1", reporter: "usr_omar", title: "t", bundle: { context: { place: "files" }, traceIds: [], events: [], versions: { app: "1", server: "1", device: "d" } } }), (e: { code?: string }) => e.code === "rate_limit");
 });
+
+test("a log row that held message text never reaches the bundle: only action names, times, trace ids and the fixed log message are read", async () => {
+  const l = logs();
+  l.add({ at: NOW - 1000, trace: T1, actor: "usr_omar", cap: "chat.post", level: 40, result: "validation.bad_input", msg: "invoke failed" });
+  (l as unknown as { all(sql: string): unknown }).all("SELECT 1");
+  const host = createReportsHost({ space: "spc_alpha1", now: () => NOW, fetch: async () => { throw new Error("x"); }, logs: { ...l, all: (sql, ...a) => l.all(sql, ...a).map((r) => ({ ...r, attrs: JSON.stringify({ body: "the secret chat text", token: "tok_abc" }), body: "the secret chat text" })) }, sealKey: SEAL, address: null, versions: { server: "1", device: "d" } });
+  const out = JSON.stringify(await host.sources.recent(ctxOf("usr_omar")));
+  assert.ok(!out.includes("the secret chat text") && !out.includes("tok_abc"), out);
+  assert.ok(out.includes("chat.post") && out.includes("validation.bad_input"));
+});

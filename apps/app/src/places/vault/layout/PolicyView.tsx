@@ -11,7 +11,7 @@ import { useVaultData } from "./data.tsx";
 import { EXPIRY_CHOICES, expiryLabel } from "./model.ts";
 import { loadVaultPolicy, policyDirty, saveVaultPolicy, toggledRole } from "./policy-actions.ts";
 import type { PolicyLoad, VaultPolicy } from "./policy-actions.ts";
-import { Btn, Glyph } from "./parts.tsx";
+import { Btn, Glyph, Toggle } from "./parts.tsx";
 
 type Load = { state: "loading" } | { state: "error"; message: string } | PolicyLoad;
 
@@ -20,6 +20,9 @@ function anchorOf(e: unknown): { x: number; y: number } {
   const r = t?.getBoundingClientRect?.();
   return r ? { x: r.left, y: r.bottom + 4 } : { x: 0, y: 0 };
 }
+
+/** "owner" is shown as "Owner", "front_desk" as "Front desk"; the stored name stays as it is. */
+export const roleLabel = (name: string): string => { const t = name.replace(/[_-]+/g, " ").trim(); return t === "" ? name : t.charAt(0).toUpperCase() + t.slice(1); };
 
 export function PolicyView({ onClose }: { onClose(): void }): ReactElement {
   const data = useVaultData();
@@ -66,7 +69,7 @@ export function PolicyView({ onClose }: { onClose(): void }): ReactElement {
       <Text style={s.group}>Who may export a folder as .env</Text>
       {load.roles.map((name) => (
         <Row
-          key={name} id={`vault-policy-role-${name}`} title={name} note={draft.exportRoles.includes(name) ? "May export" : "May not export"} tall onPress={() => toggleRole(name)}
+          key={name} id={`vault-policy-role-${name}`} title={roleLabel(name)} note={draft.exportRoles.includes(name) ? "May export" : "May not export"} tall onPress={() => toggleRole(name)}
           trailing={draft.exportRoles.includes(name) ? <Glyph name="check" color="var(--accent)" /> : null}
         />
       ))}
@@ -78,10 +81,9 @@ export function PolicyView({ onClose }: { onClose(): void }): ReactElement {
       <Text style={s.group}>Revealing a value</Text>
       <Row
         id="vault-policy-reason" title="Ask for a reason" note={draft.revealNeedsReason ? "Anyone who reveals a value says why first" : "A reveal is logged without asking why"} tall
-        onPress={() => setDraft({ ...draft, revealNeedsReason: !draft.revealNeedsReason })}
-        trailing={draft.revealNeedsReason ? <Glyph name="check" color="var(--accent)" /> : null}
+        trailing={<Toggle on={draft.revealNeedsReason} label="Ask for a reason before a reveal" onChange={(v) => setDraft({ ...draft, revealNeedsReason: v })} testID="vault-policy-reason-switch" />}
       />
-      <Row id="vault-policy-restricted" title="Restricted items are never exported" note="This rule cannot be turned off" tall leading={<Glyph name="lock" />} />
+      <Row id="vault-policy-restricted" title="Restricted items are never exported" note="This rule cannot be turned off" tall trailing={<Glyph name="lock" />} />
       <View style={s.foot}>
         <Btn label={busy ? "Saving…" : "Save policy"} primary disabled={busy || !dirty} onPress={save} testID="vault-policy-save" />
         <Btn label="Discard changes" disabled={busy || !dirty} onPress={() => { setDraft(saved); setLine(null); }} testID="vault-policy-discard" />
