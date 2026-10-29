@@ -11,7 +11,7 @@ Store the service account JSON (Vault item Google_DWD), map members by email and
 | Grant level | edit |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | delete when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
@@ -48,6 +48,7 @@ type Out = {
 - internal.unexpected
 - permission.above_clearance
 - permission.no_grant
+- permission.on_hold
 - permission.role_lacks_permission
 - provider.auth_failed
 - validation.bad_input

@@ -1,0 +1,1 @@
+- An agent or automation can no longer set up, exclude a member from, or change the company-wide Google or Microsoft connection without a person approving it in the Gate (turning it off was already held). A person is not held.

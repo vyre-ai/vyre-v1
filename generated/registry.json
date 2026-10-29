@@ -82857,6 +82857,7 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
+        "permission.on_hold",
         "permission.role_lacks_permission",
         "validation.bad_input"
       ],
@@ -82874,6 +82875,10 @@
           }
         }
       ],
+      "gate": {
+        "act": "delete",
+        "when": "actor.kind != 'person'"
+      },
       "idempotency": "natural",
       "input": {
         "$ref": "#/$defs/s_52f4e45014"
@@ -82909,6 +82914,7 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
+        "permission.on_hold",
         "permission.role_lacks_permission",
         "provider.auth_failed",
         "validation.bad_input",
@@ -82933,6 +82939,10 @@
           }
         }
       ],
+      "gate": {
+        "act": "delete",
+        "when": "actor.kind != 'person'"
+      },
       "idempotency": "key",
       "input": {
         "properties": {
@@ -114803,6 +114813,7 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
+        "permission.on_hold",
         "permission.role_lacks_permission",
         "validation.bad_input"
       ],
@@ -114820,6 +114831,10 @@
           }
         }
       ],
+      "gate": {
+        "act": "delete",
+        "when": "actor.kind != 'person'"
+      },
       "idempotency": "natural",
       "input": {
         "$ref": "#/$defs/s_52f4e45014"
@@ -114855,6 +114870,7 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
+        "permission.on_hold",
         "permission.role_lacks_permission",
         "provider.auth_failed",
         "validation.bad_input",
@@ -114876,6 +114892,10 @@
           }
         }
       ],
+      "gate": {
+        "act": "delete",
+        "when": "actor.kind != 'person'"
+      },
       "idempotency": "key",
       "input": {
         "properties": {

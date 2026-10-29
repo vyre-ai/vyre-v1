@@ -12124,7 +12124,7 @@ export const routes: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "delete"
   },
   {
     "method": "POST",
@@ -12142,7 +12142,7 @@ export const routes: Route[] = [
     "risk": "high",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "delete"
   },
   {
     "method": "POST",
@@ -18028,7 +18028,7 @@ export const routes: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "delete"
   },
   {
     "method": "POST",
@@ -18046,7 +18046,7 @@ export const routes: Route[] = [
     "risk": "high",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "delete"
   },
   {
     "method": "POST",
