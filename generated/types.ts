@@ -5283,6 +5283,7 @@ export type ChatPostIn = {
     actions?: Array<string>;
     focus?: string;
   };
+  quiet?: boolean;
   idempotencyKey: string;
 };
 export type ChatPostOut = {

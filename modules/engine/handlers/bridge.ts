@@ -25,6 +25,8 @@ export interface AgentPost {
   actingFor?: string;
   threadId: string; body: string; blocks: PostBlock[]; mentions: RouteMention[]; clientId: string;
   via?: { routineOwner: string };
+  /** one quiet line (a hand-off), not a reply */
+  quiet?: boolean;
 }
 /** Run chat.post as the agent (the host seam builds the call with the agent as principal; a person's ctx cannot speak for an agent). */
 export type PostAs = (agentId: string, post: AgentPost) => Promise<unknown>;
@@ -62,6 +64,19 @@ const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
 /** An engine error can echo a key or a token. It goes to the log only: it passes the shared credential redactor (agent/src/transcript/sanitize.ts, the same rules as every transcript) and is cut to 300 characters. The key is `why`: the sink drops a key named message. */
 export const scrub = (text: string): string => redact(text.slice(0, 600)).text.slice(0, 300);
+
+/** The agents a reply names with an @ (`@Billing`): the others in this chat, by the display name the turn context carries. A model writes the name; this is how it reaches them. */
+export function atNames(text: string, input: Pick<TurnInput, "agent" | "listeners" | "context">): RouteMention[] {
+  const names = input.context?.names ?? {};
+  const out: RouteMention[] = [];
+  for (const l of input.listeners) {
+    const name = names[l.id];
+    if (!name || l.id === input.agent.id) continue;
+    const esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`(^|[^\\w])@${esc}(?![\\w])`, "i").test(text)) out.push({ kind: "agent", id: l.id });
+  }
+  return out;
+}
 
 export function createBridge(o: BridgeOptions): Bridge {
   let engine: TurnEngine | null = null;
@@ -136,10 +151,23 @@ export function createBridge(o: BridgeOptions): Bridge {
         enqueuePost(e.threadId, e.authorId, {
           threadId: e.threadId, body: msg.body, blocks: r?.blocks ?? [], mentions: [...msg.mentions, ...askerMention(e.threadId, e.authorId).filter((m) => !msg.mentions.some((x) => x.id === m.id))], clientId: msg.id, ...(r?.routineOwner ? { via: { routineOwner: r.routineOwner } } : {}),
         });
+        // The agent pulled another agent in: say so in one quiet line, as the reviewer's is. The engine already routed the reply to them; the line names no one, so it wakes no one a second time.
+        for (const to of msg.mentions.filter((m) => m.kind === "agent" && m.id !== e.authorId)) enqueueHandoff(e.threadId, e.authorId, to.id);
         return;
       }
       default: return;
     }
+  };
+
+  const enqueueHandoff = (threadId: string, from: string, to: string): void => {
+    const prev = chains.get(threadId) ?? Promise.resolve();
+    chains.set(threadId, prev.then(async () => {
+      const asker = askerOf.get(threadId);
+      try {
+        const named = asker && o.callAs ? ((await o.callAs("agents.get", { agentId: to }, asker).catch(() => null)) as { agent?: { name?: string } } | null) : null;
+        await o.postAs(from, { threadId, body: `Asking ${named?.agent?.name ?? "a teammate"} to look at this.`, blocks: [], mentions: [], clientId: brgId(), quiet: true, ...(asker ? { actingFor: asker } : {}) });
+      } catch (e) { warn("the bridge could not post a hand-off line", { threadId, from, to, error: e instanceof Error ? e.message : String(e) }); }
+    }));
   };
 
   function wrap(s: EngineSession): EngineSession {
@@ -152,7 +180,8 @@ export function createBridge(o: BridgeOptions): Bridge {
         else if (ev.type === "done") {
           // The engine routes the reply with the mentions the driver ends on: a reply addressed to the asker (a reviewer's verdict) names them, so it reaches them and no agent answers it.
           const aimed = o.addressAsker?.(input.threadId, input.agent.id) ? [{ kind: "person" as const, id: input.asker }] : [];
-          const mentions = [...(ev.mentions ?? []), ...aimed.filter((m) => !(ev.mentions ?? []).some((x) => x.id === m.id))];
+          const given = [...(ev.mentions ?? []), ...atNames(seg.text, input)];
+          const mentions = [...given.filter((m, i) => given.findIndex((x) => x.id === m.id) === i), ...aimed.filter((m) => !given.some((x) => x.id === m.id))];
           seg.mentions = mentions.length;
           yield mentions.length > 0 ? { ...ev, mentions } : ev;
           continue;

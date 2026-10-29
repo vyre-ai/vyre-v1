@@ -43981,6 +43981,7 @@
                 "kind": "person"
               }
             ],
+            "quiet": true,
             "replyTo": "msg_a1b2c3",
             "screen": {
               "actions": [
@@ -44118,6 +44119,9 @@
           },
           "mentions": {
             "$ref": "#/$defs/s_fe17a01e9e"
+          },
+          "quiet": {
+            "type": "boolean"
           },
           "replyTo": {
             "examples": [

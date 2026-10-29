@@ -41,7 +41,7 @@ export async function reviewerSet(ctx: EngineCtx, input: { threadId: string; rev
 
 export interface ReviewHost {
   call(cap: string, input: unknown, as?: string): Promise<unknown>;
-  postAs?: (agentId: string, post: { actingFor?: string; threadId: string; body: string; blocks: Array<{ type: string; v: number; data: unknown }>; mentions: unknown[]; clientId: string }) => Promise<unknown>;
+  postAs?: (agentId: string, post: { actingFor?: string; threadId: string; body: string; blocks: Array<{ type: string; v: number; data: unknown }>; mentions: unknown[]; clientId: string; quiet?: boolean }) => Promise<unknown>;
   log?: (msg: string, attrs?: Record<string, unknown>) => void;
 }
 
@@ -63,7 +63,7 @@ export async function reviewAfter(h: ReviewHost, db: Db, engine: TurnEngine, e: 
   const nameOf = (id: string): string => names.principals?.find((p) => p.id === id)?.name ?? (id.startsWith("agt_") ? "the reviewer" : "a teammate");
   if (reviewer.kind === "agent") {
     if (!h.postAs) return "skipped";
-    await h.postAs(e.agentId, { actingFor: asker, threadId: e.threadId, body: `Asking ${nameOf(reviewer.id)} to check this.`, blocks: [], mentions: [{ kind: "agent", id: reviewer.id }], clientId: newId() });
+    await h.postAs(e.agentId, { actingFor: asker, threadId: e.threadId, body: `Asking ${nameOf(reviewer.id)} to check this.`, blocks: [], mentions: [{ kind: "agent", id: reviewer.id }], clientId: newId(), quiet: true });
     return "asked";
   }
   await h.call("tasks.create", {

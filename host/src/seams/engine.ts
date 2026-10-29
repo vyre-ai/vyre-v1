@@ -10,7 +10,7 @@ import type { VaultPort } from "./ports.ts";
 export type EngineInvoke = (cap: string, input: unknown, as?: string) => Promise<unknown>;
 
 /** What an agent posts into a chat, as the bridge builds it (modules/engine/handlers/bridge.ts AgentPost). */
-export interface EngineAgentPost { actingFor?: string; threadId: string; body: string; blocks: Array<{ type: string; v: number; data: unknown }>; mentions: unknown[]; clientId: string; via?: { routineOwner: string } }
+export interface EngineAgentPost { actingFor?: string; threadId: string; body: string; blocks: Array<{ type: string; v: number; data: unknown }>; mentions: unknown[]; clientId: string; quiet?: boolean; via?: { routineOwner: string } }
 
 /** Plain ports for the session opener (agent/src/drivers/open): a Vault lookup that returns a secret for a handle, a loopback MCP token, and the scrub-miss report. */
 export type EngineSessionPorts = EngineSessionHost;
