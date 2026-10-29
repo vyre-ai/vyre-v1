@@ -152,8 +152,8 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
   const starCount = stars.status === "ready" ? stars.data.stars.length : undefined;
   const folderId = state.where.kind === "folder" ? state.where.id : null;
   const rootSelected = state.where.kind === "folder" && state.where.id === null;
-  const go = (where: Where) => (): void => { dispatch({ type: "go", where }); slot?.openBody(); };
-  const goFolder = (id: string | null): void => { dispatch({ type: "go", where: { kind: "folder", id } }); slot?.openBody(); };
+  const go = (where: Where) => (): void => { dispatch({ type: "go", where }); data.nav.leaveMemory?.(); slot?.openBody(); };
+  const goFolder = (id: string | null): void => { dispatch({ type: "go", where: { kind: "folder", id } }); data.nav.leaveMemory?.(); slot?.openBody(); };
   const flip = (k: string): void => setShut((o) => ({ ...o, [k]: o[k] !== true }));
   const isShut = (k: string): boolean => shut[k] === true;
 
@@ -177,7 +177,7 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
     { id: "starred", title: "Starred", glyph: "star" as IconName, count: starCount, where: { kind: "starred" } as Where },
     { id: "shared", title: "Shared with me", glyph: "users" as IconName, count: count("shared"), where: { kind: "shared" } as Where },
   ], q);
-  const know = matchRows([{ id: "memory", title: "Memory" }, { id: "graph", title: "Graph" }], q);
+  const know = matchRows([{ id: "memory", title: "Memory" }, { id: "proposed", title: "Proposed" }, { id: "graph", title: "Graph" }], q);
   const allFiles = q === "" || matchRows([{ title: "All files" }], q).length > 0;
 
   const dropAll = {
@@ -192,8 +192,10 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
         {each(fixed, (r) => <NavRow key={r.id} id={r.id} title={r.title} glyph={r.glyph} selected={sameWhere(state.where, r.where)} count={r.count} onPress={go(r.where)} />)}
         {know.length > 0 ? <SectionHead id="know" label="Knowledge" open={!isShut("know")} onToggle={() => flip("know")} /> : null}
         {know.length > 0 && !isShut("know") ? each(know, (r) => (r.id === "memory"
-          ? <NavRow key={r.id} id="memory" title="Memory" glyph="memory" selected={sameWhere(state.where, { kind: "knowledge" })} onPress={() => { dispatch({ type: "go", where: { kind: "knowledge" } }); data.nav.openMemory(); slot?.openBody(); }} />
-          : <NavRow key={r.id} id="graph" title="Graph" glyph="graph" selected={false} onPress={() => { data.nav.openGraph(); slot?.openBody(); }} />)) : null}
+          ? <NavRow key={r.id} id="memory" title="Memory" glyph="memory" selected={sameWhere(state.where, { kind: "knowledge" }) && !data.memoryView} onPress={() => { dispatch({ type: "go", where: { kind: "knowledge" } }); data.nav.leaveMemory?.(); slot?.openBody(); }} />
+          : r.id === "proposed"
+            ? <NavRow key={r.id} id="proposed" title="Proposed" glyph="memory" selected={data.memoryView === "proposed"} onPress={() => { data.nav.openMemory(); slot?.openBody(); }} />
+            : <NavRow key={r.id} id="graph" title="Graph" glyph="graph" selected={data.memoryView === "graph"} onPress={() => { data.nav.openGraph(); slot?.openBody(); }} />)) : null}
         <SectionHead id="space" label="Space" open={q.length > 0 || !isShut("space")} onToggle={() => flip("space")} onAdd={() => data.nav.newFolder("space", null)} />
         {q.length > 0 || !isShut("space") ? (
           <View testID="files-space">

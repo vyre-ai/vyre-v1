@@ -48296,6 +48296,7 @@ if ("title" in o3057) lf(o3057["title"], p + "/lines" + '/' + i3056 + "/title", 
 if ("fact" in o3057) lf(o3057["fact"], p + "/lines" + '/' + i3056 + "/fact", e, L2);
 if ("trueSince" in o3057) lf(o3057["trueSince"], p + "/lines" + '/' + i3056 + "/trueSince", e, L17);
 if ("path" in o3057) lf(o3057["path"], p + "/lines" + '/' + i3056 + "/path", e, L2);
+if ("sourceLink" in o3057) lf(o3057["sourceLink"], p + "/lines" + '/' + i3056 + "/sourceLink", e, L2);
 }
 }
 }

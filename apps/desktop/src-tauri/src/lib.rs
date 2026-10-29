@@ -7,6 +7,7 @@
 //   5. native features for the page: tray icon, OS notifications whose click opens the thread, file and folder dialog, Needs you badge (native.rs).
 // No keychain: the replica key is wrapped in IndexedDB by the page, so an ad-hoc signed Mac app works (ARCH 5.10).
 
+mod chrome;
 mod commands;
 mod links;
 mod native;
@@ -131,7 +132,10 @@ pub fn run() {
             native::discover_session_sources,
             native::read_session_source,
             native::pick_paths,
-            native::set_badge
+            native::set_badge,
+            chrome::install_chrome_extension,
+            chrome::open_chrome_extensions,
+            chrome::reveal_chrome_extension
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
