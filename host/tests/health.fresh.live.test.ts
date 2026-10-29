@@ -8,9 +8,12 @@ import path from "node:path";
 import { startDaemon } from "../src/daemon/daemon.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { fakePlatform } from "../src/platform/index.ts";
+import { diskEncrypted as diskProbe } from "../src/platform/probes.ts";
 
 const MIN = 60_000, HOUR = 3_600_000;
-const encrypted = () => Promise.resolve({ state: "healthy" as const, detail: "The data directory sits on an encrypted volume." });
+let fileVaultOff = false;
+const mac = fakePlatform({ os: "darwin", commands: { "fdesetup status": { stdout: "FileVault is Off.\n" } } });
+const encrypted = () => (fileVaultOff ? diskProbe(mac, "/data") : Promise.resolve({ state: "healthy" as const, detail: "The data directory sits on an encrypted volume." }));
 
 test("a new Space with no Docker, no integrations, no backups and no computers reads Server healthy for six minutes", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-health-fresh-"));
@@ -42,6 +45,16 @@ test("a new Space with no Docker, no integrations, no backups and no computers r
       assert.deepEqual(r.bad, [], `minute ${minute}: nothing is failing on a new Space`);
       assert.equal(r.overall, "healthy", `minute ${minute}`);
     }
+    // FileVault off is a posture warning: amber with a plain fix line, never Down, and the Console dot follows.
+    fileVaultOff = true;
+    const posture = await read();
+    assert.equal(posture.overall, "degraded");
+    const disk = posture.bad.find((c) => c.key === "host.disk_encrypted");
+    assert.equal(disk?.state, "degraded");
+    assert.match(disk?.detail ?? "", /Turn on FileVault in System Settings/);
+    assert.deepEqual(posture.bad.map((c) => c.key), ["host.disk_encrypted"]);
+    assert.equal(posture.console, "degraded");
+    fileVaultOff = false;
     // A real failure still shows: once an agent computer exists, a runtime that is not there is Down, on the Docker check and on the computers check.
     d.db!.run("INSERT INTO computers_computers (computer_id, agent_id, state, tabs, tab_limit, idle_sleep_minutes, host, created_at) VALUES ('cmp_h1', 'agt_h1', 'asleep', 0, 5, 30, 'server', ?)", now());
     const failing = await read();
