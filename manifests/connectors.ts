@@ -29,6 +29,7 @@ const connectorRow = t.obj({
   state: t.enm('live', 'draft', 'failing_tests'), domains: t.arr(t.str()), secrets: t.arr(t.obj({ name: t.str(), description: t.str() })),
   connections: t.int({ minimum: 0 }), syncedTypes: t.arr(t.str()), actions: t.arr(t.str()), sources: t.arr(t.str()),
   objects: t.opt(t.rec(objectActions)),
+  sourceFolderId: t.opt(id.folder),
 });
 
 const connectionRow = t.obj({
@@ -96,6 +97,7 @@ export default defineManifest({
     ev('sync.type_paused', 'Sync of a type was paused', { p: { syncTypeId }, subject: ['entity', '/syncTypeId'] }),
     ev('sync.type_resumed', 'Sync of a type was resumed', { p: { syncTypeId }, subject: ['entity', '/syncTypeId'] }),
     ev('sync.type_native', 'A synced type was detached and kept as a native type with its ids, history and attribution', { p: { syncTypeId, type: id.recordType }, subject: ['record_type', '/type'] }),
+    ev('connection.pending', 'A connection was started and waits for its sign-in; it exists (so its owner can use it) but is not announced as made yet', { p: { connectionId: id.connection, connector: id.connector, ownerKind: t.enm('person', 'space') }, subject: ['connection', '/connectionId'] }),
     ev('connection.created', 'A connection was made', { p: { connectionId: id.connection, connector: id.connector, ownerKind: t.enm('person', 'space') }, subject: ['connection', '/connectionId'] }),
     ev('connection.paused', 'The owner paused a connection', { p: { connectionId: id.connection }, subject: ['connection', '/connectionId'] }),
     ev('connection.resumed', 'A paused connection resumed', { p: { connectionId: id.connection }, subject: ['connection', '/connectionId'] }),
@@ -152,14 +154,14 @@ export default defineManifest({
     read('connections.get', 'Read one connection', { in: { connectionId: id.connection }, out: { connection: connectionRow }, on: ['connection', '/connectionId'], tool: 'engineer' }),
     create('connections.create', 'Plug an account into a connector; secrets are named Vault items, never values', {
       in: { connector: id.connector, title: t.str(), ownerKind: t.enm('person', 'space'), secrets: t.opt(t.rec(id.handle)), scopes: t.opt(t.arr(t.str())) },
-      out: { connection: connectionRow, authUrl: t.opt(t.str()) }, make: ['connection', '/connector'], perm: 'connectors.manage', emits: ['connection.created'], audit: 'always', tool: 'engineer',
+      out: { connection: connectionRow, authUrl: t.opt(t.str()) }, make: ['connection', '/connector'], perm: 'connectors.manage', emits: ['connection.created', 'connection.pending'], audit: 'always', tool: 'engineer',
     }),
     write('connections.update', 'Rename a connection or change its scopes', { in: { connectionId: id.connection, title: t.opt(t.str()), scopes: t.opt(t.arr(t.str())) }, out: { connection: connectionRow }, on: ['connection', '/connectionId'], level: 'manage', tool: 'engineer' }),
     write('connections.pause', 'The owner pauses a connection; syncing and actions stop', { in: { connectionId: id.connection }, out: { ok: t.bool() }, on: ['connection', '/connectionId'], level: 'manage', emits: ['connection.paused'], tool: 'engineer' }),
     write('connections.resume', 'The owner resumes a connection', { in: { connectionId: id.connection }, out: { ok: t.bool() }, on: ['connection', '/connectionId'], level: 'manage', emits: ['connection.resumed'], tool: 'engineer' }),
     write('connections.reconnect', 'Start signing in again; returns the provider sign-in address when one is needed', { in: { connectionId: id.connection }, out: { authUrl: t.opt(t.str()) }, on: ['connection', '/connectionId'], level: 'manage', tool: 'engineer' }),
-    write('connections.complete_auth', 'Finish an OAuth sign-in from the callback (state and code)', {
-      in: { state: t.str(), code: t.str() }, out: { connectionId: id.connection }, level: 'use', emits: ['connection.reconnected', 'connection.created'], errors: ['auth.invalid_code', 'provider.auth_failed'], offline: 'online',
+    write('connections.complete_auth', 'Finish an OAuth sign-in from the callback: the state and the code, or the error the app sent back when the person declined. Only the person who started the sign-in can finish it', {
+      in: { state: t.str(), code: t.opt(t.str()), error: t.opt(t.str()) }, out: { connectionId: id.connection }, level: 'use', emits: ['connection.reconnected', 'connection.created'], errors: ['auth.invalid_code', 'auth.unauthenticated', 'permission.no_grant', 'provider.auth_failed', 'provider.network', 'provider.bad_response', 'validation.precondition_failed'], offline: 'online',
     }),
     read('connections.test', 'Probe a connection with the connector health call', { in: { connectionId: id.connection }, out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) }, on: ['connection', '/connectionId'], emits: ['connection.needs_reconnect'], tool: 'engineer' }),
     write('connections.delete', 'Remove a connection; synced types bound to it pause', { in: { connectionId: id.connection }, out: { deleted: t.bool() }, on: ['connection', '/connectionId'], level: 'manage', audit: 'always', emits: ['connection.deleted'], tool: 'engineer' }),

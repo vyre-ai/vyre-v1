@@ -255,6 +255,13 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     const slept = await call(d, "computers.sleep", { computerId });
     assert.equal(slept.status, 200, JSON.stringify(slept.data));
     assert.equal(slept.data.computer.state, "asleep");
+
+    // remove: the call succeeds and the container is gone
+    const removed = await call(d, "computers.remove", { computerId });
+    assert.equal(removed.status, 200, JSON.stringify(removed.data));
+    const left = await docker(["ps", "-aq", "--filter", `name=^${box}$`], 30_000);
+    assert.equal(left.out.trim(), "", `the container is removed: ${left.out}`);
+    computerId = "";
   } finally {
     if (computerId) await call(d, "computers.remove", { computerId }).catch(() => undefined);
     await d.stop();

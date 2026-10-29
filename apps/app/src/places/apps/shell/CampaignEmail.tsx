@@ -8,6 +8,7 @@ import { serverBlock, visibleBlock } from "./email-design.ts";
 import { useAppsData } from "./data.tsx";
 import { actionKey, errorMessage, mutate } from "./mutations.ts";
 import { Field, s, useOnline, useRead } from "./editor-ui.tsx";
+import type { AskAgent } from "../../../../../../ui/src/AskButton/types.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 type Step = CapMap["campaigns.get"]["out"]["steps"][number];
 export function CampaignEmail({ step, onChange }: { step: Step; onChange(config: Record<string, unknown>): void }): ReactElement {
@@ -20,18 +21,43 @@ export function CampaignEmail({ step, onChange }: { step: Step; onChange(config:
   const library = useRead<CapMap["email_builder.saved_blocks.list"]["out"]>("email_builder.saved_blocks.list", {}, "campaigns");
   const versions = useRead<CapMap["email_builder.versions"]["out"]>(emailId ? "email_builder.versions" : null, { emailId }, "campaigns");
   const [proposals, setProposals] = useState<Array<{ path: string; before: unknown; after: unknown }>>([]);
+  // Ask Vyre: the person's own agents, the one picked, and the Ask in flight (cancelled on the server too, so the agent stops working)
+  const agentList = useRead<CapMap["agents.list"]["out"]>("agents.list", {}, "campaigns");
+  const agents: AskAgent[] = (agentList.data?.agents ?? []).map((a, index) => ({ id: a.agentId, name: a.name, ...(a.role ? { role: a.role } : {}), ...(index === 0 ? { assistant: true } : {}) }));
+  const [agentId, setAgentId] = useState<string | null>(null);
+  const chosen = agents.find((a) => a.id === agentId) ?? agents[0] ?? null;
+  const [asking, setAsking] = useState<{ agent: string; emailId: string } | null>(null), [askError, setAskError] = useState("");
+  const round = useRef(0), cancelled = useRef(false);
   const ask = async (instruction: string): Promise<void> => {
-    try { await queue.current; const id = await save(); const out = await d.call("email_builder.ask_diff", { emailId: id, instruction }) as { changes: typeof proposals }; setProposals(out.changes); }
-    catch (e) { setError(errorMessage(e)); }
+    cancelled.current = false; setAskError("");
+    try {
+      await queue.current; const id = await save();
+      setAsking({ agent: chosen?.name ?? "the agent", emailId: id });
+      const out = await d.call("email_builder.ask_diff", { emailId: id, instruction, ...(chosen ? { agentId: chosen.id } : {}) }) as { changes: typeof proposals };
+      if (cancelled.current) return;
+      round.current++; setProposals(out.changes);
+      if (out.changes.length === 0) setAskError("The agent had nothing to change.");
+    }
+    catch (e) { if (!cancelled.current) setAskError(errorMessage(e)); }
+    finally { setAsking(null); }
+  };
+  const cancelAsk = (): void => {
+    if (!asking) return;
+    cancelled.current = true; setAsking(null); setAskError("Cancelled. Nothing was changed.");
+    void d.call("email_builder.ask_cancel", { emailId: asking.emailId }).catch(() => undefined);
   };
   const suggestSubjects = async (): Promise<void> => {
     try {
       await queue.current; const id = await save();
-      const results = await Promise.all(Array.from({ length: 5 }, (_, index) => d.call("email_builder.ask_diff", { emailId: id, instruction: `Suggest subject alternative ${index + 1} of 5. Use a distinct angle. Change only the subject; preserve the body.` }) as Promise<{ changes: typeof proposals }>));
-      setProposals(results.flatMap((out) => out.changes.filter((change) => change.path === "/subject")));
-    } catch (e) { setError(errorMessage(e)); }
+      cancelled.current = false; setAskError(""); setAsking({ agent: chosen?.name ?? "the agent", emailId: id });
+      const results = await Promise.all(Array.from({ length: 5 }, (_, index) => d.call("email_builder.ask_diff", { emailId: id, instruction: `Suggest subject alternative ${index + 1} of 5. Use a distinct angle. Change only the subject; preserve the body.`, ...(chosen ? { agentId: chosen.id } : {}) }) as Promise<{ changes: typeof proposals }>));
+      if (cancelled.current) return;
+      round.current++; setProposals(results.flatMap((out) => out.changes.filter((change) => change.path === "/subject")));
+    } catch (e) { if (!cancelled.current) setAskError(errorMessage(e)); }
+    finally { setAsking(null); }
   };
-  const accept = (index: number): boolean => {
+  const accept = (diffId: string): boolean => {
+    const index = Number(diffId.split(":")[1]);
     const proposal = proposals[index]; if (!proposal) return false;
     const parts = proposal.path.split("/").slice(1);
     let next = snapshot;
@@ -89,7 +115,9 @@ export function CampaignEmail({ step, onChange }: { step: Step; onChange(config:
         setDirty(true); setStatus("Restored saved version"); versions.refresh();
       }}
       onMode={(m) => { editRevision.current++; setMode(m); setDirty(true); }} onChange={(next) => { editRevision.current++; setSnapshot(next); setDirty(true); }} onTestSend={sendTest} onAsk={(instruction) => void ask(instruction)} onSuggest={() => void suggestSubjects()}
-      diffs={proposals.map((p, index) => ({ id: String(index), summary: `${p.path.replace(/^\//, "").replaceAll("/", " ")}: ${String(p.after ?? "Remove").slice(0, 180)}` }))} onAcceptDiff={(id) => accept(Number(id))}
+      ask={{ place: "email", context: { kind: "email", id: emailId ?? step.key, title: "Campaign email", access: "edit" }, agents, ...(chosen ? { suggested: chosen.id } : {}), onPick: (agent) => setAgentId(agent.id), onAsk: (agent) => setAgentId(agent.id) }}
+      {...(chosen ? { askAgent: chosen.name } : {})} {...(asking ? { asking: { agent: asking.agent, onCancel: cancelAsk } } : {})} askError={askError}
+      diffs={proposals.map((p, index) => ({ id: `${round.current}:${index}`, summary: `${p.path.replace(/^\//, "").replaceAll("/", " ")}: ${String(p.after ?? "Remove").slice(0, 180)}` }))} onAcceptDiff={(id) => accept(id)}
       onSaveBlock={async (name, block) => { await mutate(d, "email_builder.saved_blocks.save", { name, block: serverBlock(block) }, actionKey()); library.refresh(); }} />
     </View>{error ? <Text accessibilityRole="alert" style={s.text}>{error}</Text> : null}
   </View>;

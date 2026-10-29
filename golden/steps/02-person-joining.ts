@@ -93,7 +93,7 @@ export default async function steps(): Promise<Observed[]> {
 export interface Joiner { id: string; token: string; username: string; password: string }
 
 /** Joins one person the way flow 2 does (invite as the owner, accept with no token), for the flows that need a real account. Step names carry the label so one trail can hold several. */
-export async function joinPerson(s: FlowSpace, trail: Trail, label: string, roleId: string): Promise<Joiner | undefined> {
+export async function joinPerson(s: FlowSpace, trail: Trail, label: string, roleId: string, keys: typeof KEYS = KEYS): Promise<Joiner | undefined> {
   const username = label.toLowerCase(), password = "correct horse battery";
   if (!trail.lines.some((l) => l.includes("the Space has an address"))) await setAddress(s, trail);
   const code = await trail.step(`${label} is invited`, async () => {
@@ -103,7 +103,7 @@ export async function joinPerson(s: FlowSpace, trail: Trail, label: string, role
     return c;
   });
   return trail.step(`${label} accepts`, async () => {
-    const out = expectStatus(await s.call("members.accept", null, { code: code!, username, displayName: label, password, deviceName: `${label} laptop`, deviceClass: "web", keys: KEYS }), 200, "members.accept");
+    const out = expectStatus(await s.call("members.accept", null, { code: code!, username, displayName: label, password, deviceName: `${label} laptop`, deviceClass: "web", keys }), 200, "members.accept");
     return { id: out.personId as string, token: out.token as string, username, password };
   }, [`${label} is invited`]);
 }

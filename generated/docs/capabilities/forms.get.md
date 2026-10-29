@@ -58,8 +58,11 @@ type Out = {
     };
   };
   css?: string;
+  html?: string;
+  js?: string;
   theme?: Record<string, unknown>;
   logic?: unknown;
+  choices?: Record<string, unknown>;
 };
 ```
 
@@ -80,6 +83,7 @@ type Out = {
     "formId": "frm_a1b2c3"
   },
   "output": {
+    "choices": {},
     "css": "example",
     "fields": [
       {
@@ -98,6 +102,8 @@ type Out = {
       "state": "draft",
       "submissions": 1
     },
+    "html": "example",
+    "js": "example",
     "logic": {},
     "settings": {
       "captcha": true,

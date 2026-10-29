@@ -1,5 +1,5 @@
 // The title bar (spec 3.0): "Vyre · <Space> · <Place>" in the middle, a tiny confirmation replaces it for a moment (with Undo when the action can be taken back),
-// the sync chip on the right ("Synced", "Sending 2 changes", "Offline, 3 changes waiting"; click opens Waiting and Conflicts), Search (Cmd-K) and the skin dropdown.
+// the connection chip on the right ("Connected", "Sending 2 changes", "Offline, 3 changes waiting"; click opens Waiting and Conflicts), Search (Cmd-K) and the skin dropdown.
 import { useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";

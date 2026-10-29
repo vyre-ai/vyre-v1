@@ -12,3 +12,11 @@ Remaining required behavior is explicit: no generic `/oauth/callback` route exis
 
 
 The send-time check also reloads each selected Connection: removal, pause, pending/reconnect state, changed owner or replaced slot handle stops the send. Original connection View authorization is checked again, and the fixed permission/precondition error reaches the caller instead of being relabeled as a provider outage. An actual HTTP fixture pauses the connection while DNS is awaited and proves no provider request occurs; the standard precondition response is 422. Targeted follow-up: 21/21.
+
+## Editable connector source (rc.2)
+
+A connector's source is the folder Shared knowledge > connectors > key (mapping in `cn_source_folders`, `sourceFolderId` on `connectors.get`, Review changes on). `connector.toml` is generated as TOML; an older JSON main file is still read. `actions/*.json`, `tests/*.json` hold one action or recorded test each. Other files (transforms.js, README.md, recorded files) are left alone in Files; `connectors.export` regenerates only the definition files.
+
+Reading goes through the original caller's Files capabilities (folder get, list, read) with bounds: 200 files, 2 MB in total, 256 KB per file, depth 3 (root, actions, tests). A denied, missing, over-large, invalid or changing source is refused with the file and the reason, never trimmed. Test, diff and publish use what the source says now (a mapped connector needs no Build for its next version). Publish asks the caller's authority again and reads the source again after the tests; a change in between publishes nothing and the last good version stays live.
+
+Pending proposals: an agent's edit in a Review changes folder is a staged changeset and is not in Files until it is approved, so test, diff and publish never see it. Approving, editing, reverting or discarding a changeset on a source needs `connectors.manage` Edit on the connector as well as normal Files access (the Files mutation guard, host/src/daemon/connector-source-guard.ts). A Member's agent cannot stage a change into a source at all.

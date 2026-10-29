@@ -572,6 +572,7 @@ export function createClient(transport: Transport) {
       status: call("dropbox_sign.status", 1),
     },
     email_builder: {
+      ask_cancel: call("email_builder.ask_cancel", 1),
       ask_diff: call("email_builder.ask_diff", 1),
       create: call("email_builder.create", 1),
       get: call("email_builder.get", 1),
@@ -780,7 +781,11 @@ export function createClient(transport: Transport) {
       toggle: call("follows.toggle", 1),
     },
     forms: {
+      ask_cancel: call("forms.ask_cancel", 1),
+      ask_diff: call("forms.ask_diff", 1),
       attribution_get: call("forms.attribution_get", 1),
+      choices_candidates: call("forms.choices_candidates", 1),
+      choices_set: call("forms.choices_set", 1),
       create: call("forms.create", 1),
       delete: call("forms.delete", 1),
       design_set: call("forms.design_set", 1),

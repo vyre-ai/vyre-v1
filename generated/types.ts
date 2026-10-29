@@ -6344,7 +6344,8 @@ export type ConflictsUndoOut = {
 };
 export type ConnectionsCompleteAuthIn = {
   state: string;
-  code: string;
+  code?: string;
+  error?: string;
 };
 export type ConnectionsCompleteAuthOut = {
   connectionId: string;
@@ -6526,6 +6527,7 @@ export type ConnectorsGetOut = {
         update?: string;
         delete?: string;
       }>;
+    sourceFolderId?: string;
   };
 };
 export type ConnectorsHealthIn = Record<string, unknown>;
@@ -6576,6 +6578,7 @@ export type ConnectorsListOut = {
           update?: string;
           delete?: string;
         }>;
+      sourceFolderId?: string;
     }>;
   next?: string;
   total?: number;
@@ -7469,6 +7472,12 @@ export type DropboxSignStatusIn = {
 };
 export type DropboxSignStatusOut = {
   status: string;
+};
+export type EmailBuilderAskCancelIn = {
+  emailId: string;
+};
+export type EmailBuilderAskCancelOut = {
+  cancelled: number;
 };
 export type EmailBuilderAskDiffIn = {
   emailId: string;
@@ -9898,6 +9907,24 @@ export type FollowsToggleIn = {
 export type FollowsToggleOut = {
   following: boolean;
 };
+export type FormsAskCancelIn = {
+  formId: string;
+};
+export type FormsAskCancelOut = {
+  cancelled: number;
+};
+export type FormsAskDiffIn = {
+  formId: string;
+  instruction: string;
+  agentId?: string;
+};
+export type FormsAskDiffOut = {
+  changes: Array<{
+      path: string;
+      before: string;
+      after: string;
+    }>;
+};
 export type FormsAttributionGetIn = {
   recordId: string;
 };
@@ -9924,6 +9951,32 @@ export type FormsAttributionGetOut = {
     location?: string;
     consent: boolean;
   };
+};
+export type FormsChoicesCandidatesIn = {
+  formId: string;
+  field: string;
+  q?: string;
+};
+export type FormsChoicesCandidatesOut = {
+  candidates: Array<{
+      refId: string;
+      label: string;
+    }>;
+};
+export type FormsChoicesSetIn = {
+  formId: string;
+  field: string;
+  choices: Array<{
+      refId: string;
+    }>;
+};
+export type FormsChoicesSetOut = {
+  choices: Array<{
+      key: string;
+      refId: string;
+      kind: "record" | "person";
+      label: string;
+    }>;
 };
 export type FormsCreateIn = {
   name: string;
@@ -9952,6 +10005,8 @@ export type FormsDesignSetIn = {
   formId: string;
   theme?: Record<string, unknown>;
   css?: string;
+  html?: string;
+  js?: string;
   logic?: unknown;
   thankYou?: {
     text?: string;
@@ -10002,8 +10057,11 @@ export type FormsGetOut = {
     };
   };
   css?: string;
+  html?: string;
+  js?: string;
   theme?: Record<string, unknown>;
   logic?: unknown;
+  choices?: Record<string, unknown>;
 };
 export type FormsLinkCreateIn = {
   formId: string;
@@ -27163,6 +27221,7 @@ export interface CapMap {
   "dropbox_sign.fetch_signed": { in: DropboxSignFetchSignedIn; out: DropboxSignFetchSignedOut };
   "dropbox_sign.health": { in: DropboxSignHealthIn; out: DropboxSignHealthOut };
   "dropbox_sign.status": { in: DropboxSignStatusIn; out: DropboxSignStatusOut };
+  "email_builder.ask_cancel": { in: EmailBuilderAskCancelIn; out: EmailBuilderAskCancelOut };
   "email_builder.ask_diff": { in: EmailBuilderAskDiffIn; out: EmailBuilderAskDiffOut };
   "email_builder.create": { in: EmailBuilderCreateIn; out: EmailBuilderCreateOut };
   "email_builder.get": { in: EmailBuilderGetIn; out: EmailBuilderGetOut };
@@ -27301,7 +27360,11 @@ export interface CapMap {
   "folders.unplace": { in: FoldersUnplaceIn; out: FoldersUnplaceOut };
   "follows.list": { in: FollowsListIn; out: FollowsListOut };
   "follows.toggle": { in: FollowsToggleIn; out: FollowsToggleOut };
+  "forms.ask_cancel": { in: FormsAskCancelIn; out: FormsAskCancelOut };
+  "forms.ask_diff": { in: FormsAskDiffIn; out: FormsAskDiffOut };
   "forms.attribution_get": { in: FormsAttributionGetIn; out: FormsAttributionGetOut };
+  "forms.choices_candidates": { in: FormsChoicesCandidatesIn; out: FormsChoicesCandidatesOut };
+  "forms.choices_set": { in: FormsChoicesSetIn; out: FormsChoicesSetOut };
   "forms.create": { in: FormsCreateIn; out: FormsCreateOut };
   "forms.delete": { in: FormsDeleteIn; out: FormsDeleteOut };
   "forms.design_set": { in: FormsDesignSetIn; out: FormsDesignSetOut };
@@ -28939,6 +29002,11 @@ export type ConnectionNeedsReconnectPayload = {
 export type ConnectionPausedPayload = {
   connectionId: string;
 };
+export type ConnectionPendingPayload = {
+  connectionId: string;
+  connector: string;
+  ownerKind: "person" | "space";
+};
 export type ConnectionReconnectedPayload = {
   connectionId: string;
 };
@@ -29292,6 +29360,11 @@ export type FollowRemovedPayload = {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
+};
+export type FormChoicesChangedPayload = {
+  formId: string;
+  field: string;
+  count: number;
 };
 export type FormCreatedPayload = {
   formId: string;
@@ -31754,6 +31827,7 @@ export interface EventMap {
   "connection.deleted": ConnectionDeletedPayload;
   "connection.needs_reconnect": ConnectionNeedsReconnectPayload;
   "connection.paused": ConnectionPausedPayload;
+  "connection.pending": ConnectionPendingPayload;
   "connection.reconnected": ConnectionReconnectedPayload;
   "connection.resumed": ConnectionResumedPayload;
   "connector.built": ConnectorBuiltPayload;
@@ -31827,6 +31901,7 @@ export interface EventMap {
   "folder.shared": FolderSharedPayload;
   "follow.added": FollowAddedPayload;
   "follow.removed": FollowRemovedPayload;
+  "form.choices_changed": FormChoicesChangedPayload;
   "form.created": FormCreatedPayload;
   "form.link_created": FormLinkCreatedPayload;
   "form.published": FormPublishedPayload;

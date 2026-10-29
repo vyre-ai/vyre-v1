@@ -15,6 +15,10 @@ Area: apps. Risk: medium. Applies to: form.
 ## Capabilities that need it
 
 - bookings.page_create
+- forms.ask_cancel
+- forms.ask_diff
+- forms.choices_candidates
+- forms.choices_set
 - forms.create
 - forms.delete
 - forms.design_set

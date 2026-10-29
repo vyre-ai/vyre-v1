@@ -10,6 +10,7 @@ HTTP 422. Retryable: no.
 - files.read
 - files.upload_url
 - files.write
+- forms.choices_set
 - import.commit
 - sheets.append_rows
 - sources.ingest

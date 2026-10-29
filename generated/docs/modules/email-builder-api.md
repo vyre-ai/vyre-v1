@@ -4,8 +4,9 @@ Lane L8. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (16)
+## Capabilities (17)
 
+- [email_builder.ask_cancel](../capabilities/email_builder.ask_cancel.md): Stop my Ask Vyre request on a design that is still waiting for the agent
 - [email_builder.ask_diff](../capabilities/email_builder.ask_diff.md): Ask Vyre edit: returns a per-change diff the author accepts change by change
 - [email_builder.create](../capabilities/email_builder.create.md): Create an email design
 - [email_builder.get](../capabilities/email_builder.get.md): Read an email design

@@ -5,6 +5,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "email_builder.ask_cancel": async (ctx) => { throw new VyreErr(notImplemented("email_builder.ask_cancel", ctx.trace)); },
   "email_builder.ask_diff": async (ctx) => { throw new VyreErr(notImplemented("email_builder.ask_diff", ctx.trace)); },
   "email_builder.create": async (ctx) => { throw new VyreErr(notImplemented("email_builder.create", ctx.trace)); },
   "email_builder.get": async (ctx) => { throw new VyreErr(notImplemented("email_builder.get", ctx.trace)); },

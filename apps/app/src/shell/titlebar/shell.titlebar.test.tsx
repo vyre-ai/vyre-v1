@@ -14,8 +14,8 @@ const props = (over: Partial<TitleBarProps> = {}): TitleBarProps => ({
 });
 const html = (p: TitleBarProps): string => renderToStaticMarkup(<TitleBar {...p} />).replaceAll("<!-- -->", "");
 
-test("the sync chip says Synced, Sending or Offline with the count, and only a pending state opens Waiting and Conflicts", () => {
-  assert.deepEqual(syncLabel(true, 0), { text: "Synced", tone: "ok", opens: false });
+test("the sync chip says Connected, Sending or Offline with the count, and only a pending state opens Waiting and Conflicts", () => {
+  assert.deepEqual(syncLabel(true, 0), { text: "Connected", tone: "ok", opens: false });
   assert.deepEqual(syncLabel(true, 2), { text: "Sending 2 changes", tone: "busy", opens: true });
   assert.deepEqual(syncLabel(true, 1), { text: "Sending 1 change", tone: "busy", opens: true });
   assert.deepEqual(syncLabel(false, 3), { text: "Offline, 3 changes waiting", tone: "offline", opens: true });
@@ -26,7 +26,7 @@ test("the sync chip says Synced, Sending or Offline with the count, and only a p
 test("the bar shows the title, the sync chip, Search with its key and the skin's name", () => {
   const out = html(props());
   assert.ok(out.includes("Vyre · Northwind · Chats"));
-  assert.ok(out.includes("Synced") && out.includes("Search") && out.includes("⌘K") && out.includes("Paper"));
+  assert.ok(out.includes("Connected") && out.includes("Search") && out.includes("⌘K") && out.includes("Paper"));
   assert.ok(html(props({ online: false, waiting: 3 })).includes("Offline, 3 changes waiting"));
   assert.ok(html(props({ skin: SYSTEM_SKIN })).includes("System"));
 });

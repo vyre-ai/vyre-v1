@@ -13,6 +13,7 @@ import { registerShellPlaces } from "../src/shell/places.ts";
 registerShellPlaces();
 
 /** /claim/<token>: the first screen on a fresh install (ruling 71). Loaded only when that address is opened. */
+const OAuthRoute = lazy(() => import("../src/oauth/OAuthRoute.tsx").then((m) => ({ default: m.OAuthRoute })));
 const ClaimRoute = lazy(() => import("../src/claim/ClaimRoute.tsx").then((m) => ({ default: m.ClaimRoute })));
 
 export default function Layout() {
@@ -24,6 +25,8 @@ export default function Layout() {
   const pathname = usePathname();
   const token = mounted ? claimToken(pathname) : null;
   const router = useRouter();
+  // /oauth/callback: where an app sends a person back after approving a connection; it finishes the sign-in as the signed-in person
+  if (mounted && pathname === "/oauth/callback") return <Suspense fallback={null}><OAuthRoute /></Suspense>;
   if (token) {
     return (
       <Suspense fallback={null}>

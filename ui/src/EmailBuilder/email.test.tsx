@@ -129,6 +129,19 @@ test("Ask pane lists the three suggested diffs, each with its own Accept; an acc
   assert.ok(renderToStaticMarkup(<EmailBuilder {...base} askOpen diffs={[]} />).includes("Nothing suggested yet"));
 });
 
+test("every open change can be accepted or rejected, and a running Ask names its agent and offers Cancel", () => {
+  const open = renderToStaticMarkup(<EmailBuilder {...base} askOpen diffs={DIFFS} />);
+  assert.equal(open.match(/data-testid="em-reject-/g)?.length, DIFFS.length, "each open change has Reject beside Accept");
+  assert.equal(open.includes('data-testid="em-asking"'), false);
+  const waiting = renderToStaticMarkup(<EmailBuilder {...base} askOpen diffs={[]} asking={{ agent: "Writer", onCancel: () => undefined }} />);
+  assert.match(waiting, /Asking Writer/);
+  assert.match(waiting, /data-testid="em-ask-cancel"/);
+  const failed = renderToStaticMarkup(<EmailBuilder {...base} askOpen diffs={[]} askError="The provider rejected the key or sign-in for this agent. Open Settings and reconnect it." />);
+  assert.match(failed, /data-testid="em-ask-error"/);
+  assert.match(failed, /reconnect it/);
+  assert.equal(renderToStaticMarkup(<EmailBuilder {...base} askOpen diffs={[]} asking={{ agent: "Writer", onCancel: () => undefined }} askError="old failure" />).includes("old failure"), false, "an old failure is hidden while a new Ask runs");
+});
+
 test("the header has Test send, Focus, Undo and Redo, the saved version and the shared Ask control when given", () => {
   const html = renderToStaticMarkup(<EmailBuilder {...base} version={4}
     ask={{ place: "email", context: { kind: "email", id: "em1", title: "Q4 follow-up", access: "edit" }, agents: [{ id: "a", name: "Assistant", assistant: true }, { id: "w", name: "Writer" }], onAsk: () => undefined }} />);

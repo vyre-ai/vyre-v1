@@ -7648,6 +7648,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/email_builder/ask_cancel",
+    "cap": "email_builder.ask_cancel",
+    "v": 1,
+    "module": "email-builder-api",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/email_builder/ask_diff",
     "cap": "email_builder.ask_diff",
     "v": 1,
@@ -10174,6 +10192,44 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/forms/ask_cancel",
+    "cap": "forms.ask_cancel",
+    "v": 1,
+    "module": "forms",
+    "effects": "write",
+    "permission": "forms.publish",
+    "level": "edit",
+    "resource": {
+      "type": "form",
+      "id": "/formId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/forms/ask_diff",
+    "cap": "forms.ask_diff",
+    "v": 1,
+    "module": "forms",
+    "effects": "read",
+    "permission": "forms.publish",
+    "level": "view",
+    "resource": {
+      "type": "form",
+      "id": "/formId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/forms/attribution_get",
     "cap": "forms.attribution_get",
     "v": 1,
@@ -10187,6 +10243,44 @@ export const routes: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/forms/choices_candidates",
+    "cap": "forms.choices_candidates",
+    "v": 1,
+    "module": "forms",
+    "effects": "read",
+    "permission": "forms.publish",
+    "level": "view",
+    "resource": {
+      "type": "form",
+      "id": "/formId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/forms/choices_set",
+    "cap": "forms.choices_set",
+    "v": 1,
+    "module": "forms",
+    "effects": "write",
+    "permission": "forms.publish",
+    "level": "edit",
+    "resource": {
+      "type": "form",
+      "id": "/formId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
     "offline": null,
     "teamOnly": false,
     "gate": null

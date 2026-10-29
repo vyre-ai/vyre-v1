@@ -158,3 +158,69 @@ test('public relation guard never enumerates private records or accepts arbitrar
   const saved=await call<{record:{fields:Record<string,unknown>}}>(d,owner,'/v1/records/get',{type:'contact',recordId:bound.data!.record.id});assert.deepEqual(saved.data!.record.fields.company,[{urn}]);
  }finally{await d.stop();}
 });
+
+test("a form's own HTML and JavaScript are served as written, with its questions in place; a form with script is sandboxed and answers any origin", async () => {
+  const { d, owner } = await boot();
+  try {
+    const plain = await makeForm(d, owner, "Source plain", true);
+    const own = await makeForm(d, owner, "Source own", true);
+    const HTML = '<h1 class="hero">Hello <em>there</em></h1>\n<p>Tell us about you. <a href="https://example.com/privacy" target="_blank">Privacy</a></p>\n<vyre-field name="email"></vyre-field>\n<div class="box"><vyre-field name="kind"></vyre-field></div>';
+    const JS = 'document.getElementById("vf-form").setAttribute("data-authored", "yes");';
+    const saved = await call(d, owner, "/v1/forms/design_set", { formId: own.formId, html: HTML, js: JS, css: ".hero{color:#123456}" });
+    assert.equal(saved.status, 200, JSON.stringify(saved));
+
+    const page = await fetch(`${d.url}/f/${own.slug}`);
+    const html = await page.text();
+    assert.equal(page.status, 200);
+    // the author's markup is there, the markers are not, and each placed question is the real bound input in its place
+    assert.match(html, /<h1 class="hero">Hello <em>there<\/em><\/h1>/);
+    assert.match(html, /<a href="https:\/\/example.com\/privacy" target="_blank" rel="noopener noreferrer">Privacy<\/a>/);
+    assert.doesNotMatch(html, /<vyre-field/);
+    const at = (needle: string): number => html.indexOf(needle);
+    assert.ok(at('data-field="email"') > at("Tell us about you") && at('data-field="kind"') > at('data-field="email"') && at('<div class="box">') < at('data-field="kind"'), "inputs sit where the author placed them");
+    // questions the author did not place (company_name, resume) still appear, after the author's markup
+    assert.match(html, /data-field="company_name"/); assert.match(html, /data-field="resume"/);
+    assert.ok(at('data-field="company_name"') > at('data-field="kind"'));
+    // the script, and the one nonce both scripts carry
+    const csp = page.headers.get("content-security-policy") ?? "";
+    const nonce = /script-src 'nonce-([^']+)'/.exec(csp)?.[1];
+    assert.ok(nonce);
+    assert.ok(html.includes(`<script nonce="${nonce}">${JS}</script>`), "the author's script is served with the page's nonce");
+    assert.match(csp, /^sandbox allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox; default-src 'none'/, "script runs in an opaque origin");
+    assert.match(csp, /connect-src 'self'/); assert.match(csp, /form-action 'none'/);
+
+    assert.match(html, /main a\{color:var\(--vf-accent\)\}/, "links use the form's accent, so they stay readable on a dark theme");
+
+    // a form with no script is not sandboxed, and carries no author script
+    const plainPage = await fetch(`${d.url}/f/${plain.slug}`);
+    assert.doesNotMatch(plainPage.headers.get("content-security-policy") ?? "", /sandbox/);
+    assert.doesNotMatch(await plainPage.text(), /data-authored/);
+
+    // HTML alone is not script: no sandbox either
+    const htmlOnly = await makeForm(d, owner, "Source html only", true);
+    await call(d, owner, "/v1/forms/design_set", { formId: htmlOnly.formId, html: '<p>Just words</p><vyre-field name="email"></vyre-field>' });
+    const htmlOnlyPage = await fetch(`${d.url}/f/${htmlOnly.slug}`);
+    assert.doesNotMatch(htmlOnlyPage.headers.get("content-security-policy") ?? "", /sandbox/);
+    assert.match(await htmlOnlyPage.text(), /<p>Just words<\/p>/);
+
+    // the public addresses answer any origin (a sandboxed page's origin is "null"), without credentials
+    const preflight = await fetch(`${d.url}/f/submit`, { method: "OPTIONS", headers: { origin: "null", "access-control-request-method": "POST", "access-control-request-headers": "content-type" } });
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers.get("access-control-allow-origin"), "*");
+    assert.match(preflight.headers.get("access-control-allow-methods") ?? "", /POST/);
+    assert.match(preflight.headers.get("access-control-allow-headers") ?? "", /content-type/);
+    assert.equal(preflight.headers.get("access-control-allow-credentials"), null, "never with credentials");
+    const sent = await fetch(`${d.url}/f/submit`, { method: "POST", headers: { "content-type": "application/json", origin: "null" }, body: JSON.stringify({ slug: own.slug, idempotencyKey: "src-submit-1", answers: { email: "visitor@x.example", kind: "person" } }) });
+    assert.equal(sent.status, 200, await sent.text());
+    assert.equal(sent.headers.get("access-control-allow-origin"), "*");
+    assert.equal((await fetch(`${d.url}/f/upload/${own.slug}`, { method: "OPTIONS", headers: { origin: "null" } })).status, 204);
+    // the owner's own gateway does not open up
+    assert.equal((await fetch(`${d.url}/v1/forms/list`, { method: "OPTIONS", headers: { origin: "https://evil.example" } })).headers.get("access-control-allow-origin"), null);
+
+    // a refused source never reaches a page: the save fails and the page is unchanged
+    const refused = await call(d, owner, "/v1/forms/design_set", { formId: own.formId, html: '<p onclick="x()">a</p>' });
+    assert.equal(refused.status, 422);
+    assert.equal(refused.error?.code, "validation.bad_input");
+    assert.match(await (await fetch(`${d.url}/f/${own.slug}`)).text(), /<h1 class="hero">/);
+  } finally { await d.stop(); }
+});

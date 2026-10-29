@@ -6,12 +6,16 @@
 import { objectsOf } from "./get.ts";
 import type { ObjectActions } from "./get.ts";
 import { canonical } from "../../../lib/canonical.ts";
+import { generateMain } from "./source.ts";
+import { oauthOf, refreshSlot } from "./oauth.ts";
 import { ensureTables, mintShort, nowOf, pointerGet, refuse, scrubber, secretsIn, seedBuiltins, takeToken, checkEgress, fillString, fillValue, clone, PAGE } from "../projections.ts";
 import type { ActionDef, ConnectionDb, ConnectorDef, ConnectorState, ConnectorsCtx, ConnectorsDeps, Mode, Scope, TestCase } from "../projections.ts";
 
 export interface ConnectorRow {
   key: string; title: string; mode: Mode; scope: Scope; builtin: boolean; version: string; state: ConnectorState; domains: string[]; secrets: { name: string; description: string }[];
   connections: number; syncedTypes: string[]; actions: string[]; sources: string[];
+  /** The canonical editable source folder in Shared knowledge, when this connector has one. */
+  sourceFolderId?: string;
   objects?: Record<string, ObjectActions>;
 }
 export interface TestResult { passed: number; failed: number; cases: { name: string; ok: boolean; message?: string }[] }
@@ -38,6 +42,8 @@ export interface ExecOpts {
   /** Secret values by declared name (the harness and tests); otherwise they are resolved from the connection. */
   secrets?: Record<string, string>;
   http?: Http; persist?: boolean; actor?: string;
+  /** Set on the one retry after a refresh, so a token the app still rejects ends in a reconnect instead of a loop. */
+  refreshed?: boolean;
 }
 export interface ExecResult { output: unknown; dryRun: boolean; status?: number; ms?: number }
 
@@ -71,6 +77,8 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
     if (conn.owner_kind === "person" && conn.owner_id !== actor) refuse(ctx, "permission.no_grant", "This connection belongs to someone else.");
   }
   if (secretsIn(a.url).size || secretsIn(a.query).size) refuse(ctx, "validation.bad_input", "A secret cannot be part of the address.");
+  // an access token that ends within a minute is refreshed before the call that would use it (calls for one connection share one refresh)
+  if (conn && def.auth.type === "oauth2" && o.persist !== false && oauthOf(deps).dueSoon(conn, def)) await oauthOf(deps).refresh(ctx, def, conn);
 
   // secrets, by name, at call time
   const needed = new Set<string>([...secretsIn(a.headers), ...secretsIn(a.body)]);
@@ -149,6 +157,8 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
   const ms = nowOf(deps) - started;
   if (res.status === 401 || res.status === 403) {
     logRow(res.status, "rejected the sign-in");
+    // an OAuth token the app rejects is refreshed once and the call repeated; only a refresh that fails (or a repeat that is rejected again) asks the person to reconnect
+    if (conn && persist && !o.refreshed && def.auth.type === "oauth2" && refreshSlot(def) && await oauthOf(deps).refresh(ctx, def, conn)) return executeAction(deps, ctx, def, actionName, { ...o, refreshed: true });
     if (conn && persist) markReconnect(deps, ctx, conn);
     return refuse(ctx, "provider.auth_failed", "The app rejected the key or sign-in.", { status: res.status });
   }
@@ -298,13 +308,21 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       key: r.key, title: r.title, mode: r.mode, scope: r.scope, builtin: r.builtin === 1, version: r.version, state: r.state, domains: def.domains, secrets: def.secrets,
       connections: tx.get<{ n: number }>("SELECT count(*) AS n FROM cn_connections WHERE connector = ?", r.key)?.n ?? 0,
       syncedTypes: def.syncedTypes ?? [], actions: def.actions.map((a) => a.name), sources: def.sources ?? [],
+      ...(sourceOf(r.key) ? { sourceFolderId: sourceOf(r.key)! } : {}),
       ...(objectsOf(def) ? { objects: objectsOf(def)! } : {}),
     };
   };
+  const sourceOf = (key: string): string | undefined => tx.get<{ folder_id: string }>("SELECT folder_id FROM cn_source_folders WHERE key = ?", key)?.folder_id;
   const draftOf = async (ctx: ConnectorsCtx, key: string, draftId?: string): Promise<{ row: DraftDb; def: ConnectorDef }> => {
-    const row = draftId !== undefined
+    let row = draftId !== undefined
       ? tx.get<DraftDb>("SELECT * FROM cn_drafts WHERE draft_id = ? AND key = ?", draftId, key)
       : tx.get<DraftDb>("SELECT * FROM cn_drafts WHERE key = ? ORDER BY created_at DESC, rowid DESC LIMIT 1", key);
+    // A connector with an editable source never needs a Build just to be tested or published again: its draft is whatever the source says now.
+    if (!row && draftId === undefined && sourceOf(key) && deps.loadFolderDef) {
+      const at = nowOf(deps), id = mintShort("cdr", at), live = tx.get<{ def: string }>("SELECT def FROM cn_connectors WHERE key = ?", key);
+      tx.run("INSERT INTO cn_drafts (draft_id, key, def, note, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", id, key, live?.def ?? "{}", null, ctx.actor ?? null, at, at);
+      row = tx.get<DraftDb>("SELECT * FROM cn_drafts WHERE draft_id = ?", id);
+    }
     if (!row) return refuse(ctx, "validation.not_found", draftId ? `There is no draft ${draftId} of ${key}.` : `${key} has no draft: build one first.`);
     let def = JSON.parse(row.def) as ConnectorDef;
     const fromFolder = deps.loadFolderDef ? await deps.loadFolderDef(key) : undefined;
@@ -314,10 +332,16 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
     }
     return { row, def };
   };
+  /** Create the canonical source and register its mapping before the first file is written; a failure leaves no mapping behind. */
+  const writeSource = async (ctx: ConnectorsCtx, key: string, def: ConnectorDef): Promise<string> => {
+    try {
+      return await deps.writeSource!(key, folderFiles(def), (folderId) => { tx.run("INSERT INTO cn_source_folders (key, folder_id, created_by, created_at) VALUES (?, ?, ?, ?)", key, folderId, ctx.actor ?? "system", nowOf(deps)); });
+    } catch (e) { tx.run("DELETE FROM cn_source_folders WHERE key = ?", key); throw e; }
+  };
   const folderFiles = (def: ConnectorDef): { path: string; content: string }[] => {
-    const { actions, tests, ...main } = def;
+    const { actions, tests } = def;
     return [
-      { path: "connector.toml", content: JSON.stringify(main, null, 2) },
+      { path: "connector.toml", content: generateMain(def) },
       ...actions.map((a) => ({ path: `actions/${a.name}.json`, content: JSON.stringify(a, null, 2) })),
       ...(tests ?? []).map((t) => ({ path: `tests/${t.name}.json`, content: JSON.stringify(t, null, 2) })),
       { path: "README.md", content: `# ${def.title}\n\nConnector ${def.key} (${def.mode}). Domains: ${def.domains.join(", ") || "none yet"}.\n` },
@@ -346,8 +370,8 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         auth: { type: input.mode === "webhook_only" ? "none" : "api_key", ...(input.mode === "webhook_only" ? {} : { secret: `${input.title.replace(/[^A-Za-z0-9]+/g, "_")}_Key` }) },
         domains: [], secrets: input.mode === "webhook_only" ? [] : [{ name: `${input.title.replace(/[^A-Za-z0-9]+/g, "_")}_Key`, description: `API key for ${input.title}` }], actions: [], tests: [],
       };
-      if (!deps.writeFolder) refuse(ctx, "internal.unavailable", "Files is not available to write the connector folder.");
-      const folderId = await deps.writeFolder!(input.key, folderFiles(def));
+      if (!deps.writeSource) refuse(ctx, "internal.unavailable", "Files is not available to write the connector source.");
+      const folderId = await writeSource(ctx, input.key, def);
       tx.run("INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES (?, ?, ?, ?, 0, '0.0.0', 'draft', ?, ?, ?)", input.key, input.title, def.mode, def.scope, JSON.stringify(def), now, now);
       const draftId = mintShort("cdr", now);
       tx.run("INSERT INTO cn_drafts (draft_id, key, def, note, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", draftId, input.key, JSON.stringify(def), input.docsUrl ?? null, ctx.actor ?? null, now, now);
@@ -360,6 +384,8 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       const now = nowOf(deps);
       const draftId = mintShort("cdr", now);
       const base = (await draftOf(ctx, c.key).catch(() => undefined))?.def ?? (JSON.parse(c.def) as ConnectorDef);
+      // A connector made before sources were canonical has no mapped folder. An explicit Build writes one from its stored definition; a private export is never searched for or moved.
+      if (!c.builtin && !sourceOf(c.key) && deps.writeSource) await writeSource(ctx, c.key, base);
       tx.run("INSERT INTO cn_drafts (draft_id, key, def, note, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", draftId, c.key, JSON.stringify(base), [input.docsUrl, input.notes].filter(Boolean).join("\n") || null, ctx.actor ?? null, now, now);
       const started = (await ctx.call("runs.start", { kind: "connector_build", owner: ctx.actor ?? "system", idempotencyKey: `connector_build:${c.key}:${draftId}`, name: `Build the ${c.title} connector` })) as { runId: string };
       ctx.emit("connector.built", `connector/${c.key}`, { key: c.key, draftId });
@@ -368,7 +394,7 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
 
     "connectors.test": async (ctx, input) => {
       const c = need(ctx, input.key);
-      const useDraft = input.draftId !== undefined || (c.state === "draft" && tx.get("SELECT 1 AS x FROM cn_drafts WHERE key = ?", c.key) !== undefined);
+      const useDraft = input.draftId !== undefined || sourceOf(c.key) !== undefined || (c.state === "draft" && tx.get("SELECT 1 AS x FROM cn_drafts WHERE key = ?", c.key) !== undefined);
       const def = useDraft ? (await draftOf(ctx, c.key, input.draftId)).def : (JSON.parse(c.def) as ConnectorDef);
       return { result: await runCases(deps, ctx, def) };
     },
@@ -394,6 +420,13 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       if (c.builtin === 1) refuse(ctx, "validation.precondition_failed", `${c.key} is built in: it changes with a release, not a publish.`);
       const { row, def } = await draftOf(ctx, c.key, input.draftId);
       const result = await runCases(deps, ctx, def);
+      if (result.failed === 0 && sourceOf(c.key)) {
+        // The tests ran over awaited calls. Before anything is published, the caller's authority is asked again and the source is read again: what is published is exactly what was tested, and
+        // if either changed the last good version stays live.
+        await deps.assertCanPublish?.(c.key);
+        const again = deps.loadFolderDef ? await deps.loadFolderDef(c.key) : undefined;
+        if (again && canonical({ ...again, key: c.key }) !== canonical({ ...def, key: c.key })) refuse(ctx, "validation.precondition_failed", "The source changed while it was being tested. Nothing was published; test it again.");
+      }
       if (result.failed > 0) {
         ctx.emit("connector.publish_failed", `connector/${c.key}`, { key: c.key, failed: result.failed });
         return { published: false, result };
@@ -436,12 +469,15 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       const bound = deps.boundSyncedTypes ? await deps.boundSyncedTypes(c.key) : [];
       if (bound.length) refuse(ctx, "validation.precondition_failed", `${bound.join(", ")} still sync through ${c.key}: detach them first.`, { syncedTypes: bound });
       for (const conn of tx.all<{ connection_id: string }>("SELECT connection_id FROM cn_connections WHERE connector = ?", c.key)) {
+        await oauthOf(deps).revoke(ctx, JSON.parse(c.def) as ConnectorDef, tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", conn.connection_id)!);
+        tx.run("DELETE FROM cn_oauth_flow WHERE state IN (SELECT state FROM cn_oauth WHERE connection_id = ?)", conn.connection_id);
         tx.run("DELETE FROM cn_oauth WHERE connection_id = ?", conn.connection_id);
         tx.run("DELETE FROM cn_connections WHERE connection_id = ?", conn.connection_id);
         ctx.emit("connection.deleted", `connection/${conn.connection_id}`, { connectionId: conn.connection_id, connector: c.key });
       }
       tx.run("DELETE FROM cn_drafts WHERE key = ?", c.key);
       tx.run("DELETE FROM cn_versions WHERE key = ?", c.key);
+      tx.run("DELETE FROM cn_source_folders WHERE key = ?", c.key);   // the folder stays in Files as an ordinary folder; only the connector's claim on it ends
       tx.run("DELETE FROM cn_connectors WHERE key = ?", c.key);
       ctx.emit("connector.removed", `connector/${c.key}`, { key: c.key });
       return { removed: true };

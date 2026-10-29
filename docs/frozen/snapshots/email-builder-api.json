@@ -1,6 +1,7 @@
 {
   "module": "email-builder-api",
   "capabilities": {
+    "email_builder.ask_cancel@1": "7d340646ea79fc1c6069b0e8f18982b7cb28a73c7f39e8e0fdad655e87095be4",
     "email_builder.ask_diff@1": "7704797a8075916abe0ec22f669f85295ea0f8c10c7f93514c5d6fc4c8fee0a6",
     "email_builder.create@1": "e0a0fd8599d2bcc4245041c4655c92316f2df048b4c9ce3e88d574163f005638",
     "email_builder.get@1": "baed0130e5ca45bff530675049739b11a4da3c749665d64adec0e9a71c8d84a8",
