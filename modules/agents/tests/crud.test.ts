@@ -244,3 +244,14 @@ test("a failed ownership move changes nothing: the owner stays, moves already ma
   const calls = hn.world.calls.filter((c) => c.cap === "access.transfer_ownership").map((c) => c.input as { from: string; to: string });
   assert.deepEqual(calls.map((c) => `${c.from}>${c.to}`), [`${a.ownerId}>usr_leo`, `${a.ownerId}>usr_leo`, `usr_leo>${a.ownerId}`], "the first move was put back");
 });
+
+test("a rollback that itself fails is logged at error level with the agent and resource, and the original failure is still raised", async () => {
+  const hn = harness();
+  const a = (await h["agents.create"]!(hn.ctx, { name: "Halfway", idempotencyKey: "so-3" })).agent;
+  let n = 0;
+  hn.world.handlers["access.transfer_ownership"] = () => { n++; if (n >= 2) throw Object.assign(new Error("access is not live"), { error: { code: "internal.unavailable", message: "access is not live" } }); return true; };
+  await assert.rejects(h["agents.set_owner"]!(hn.ctx, { agentId: a.agentId, ownerId: "usr_leo" }), (e: unknown) => /nothing changed/.test(String((e as Error).message)));
+  assert.equal(hn.errored.length, 1, "the half-moved state is visible");
+  assert.equal(hn.errored[0]!.attrs!["agentId"], a.agentId);
+  assert.equal((hn.errored[0]!.attrs!["resource"] as { type: string }).type, "agent");
+});

@@ -297,7 +297,10 @@ export async function setOwner(ctx: AgentsCtx, input: { agentId: string; ownerId
   try {
     for (const resource of resources) { await ctx.call("access.transfer_ownership", { resource, from, to: input.ownerId }); moved.push(resource); }
   } catch (e) {
-    for (const resource of moved) { try { await ctx.call("access.transfer_ownership", { resource, from: input.ownerId, to: from }); } catch { /* the original failure is the one to report */ } }
+    for (const resource of moved) {
+      try { await ctx.call("access.transfer_ownership", { resource, from: input.ownerId, to: from }); }
+      catch (back) { ctx.log.error("agents: could not put an ownership move back, the agent is half handed over", { agentId: a.id, resource, from: input.ownerId, to: from, error: back instanceof Error ? back.message.slice(0, 200) : "error" }); }   // the original failure is still the one raised
+    }
     raise(ctx, "internal.unexpected", "The agent could not be handed over, so nothing changed. Try again.", { cause: e instanceof Error ? e.message.slice(0, 120) : "error" });
   }
   ctx.db.run("UPDATE agents_agent SET ownerId = ?, updatedAt = ? WHERE id = ?", input.ownerId, now, a.id);

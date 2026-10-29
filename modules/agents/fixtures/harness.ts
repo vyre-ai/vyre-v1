@@ -204,7 +204,7 @@ export function harness(o: HarnessOptions = {}) {
   const raw = o.raw ?? openRaw();
   const clock = o.clock ?? { t: NOW };
   const emitted: Emitted[] = [];
-  const warned: string[] = [];
+  const warned: string[] = [], errored: { msg: string; attrs?: Record<string, unknown> }[] = [];
   const world = o.files ?? fakeFiles(clock);
   let allow = o.allow ?? (() => true);
   const db = scopedDb("agents", raw, TRACE);
@@ -223,10 +223,10 @@ export function harness(o: HarnessOptions = {}) {
       return f(input, opts);
     },
     authorize: (action, resource) => ({ effect: allow(action, resource) ? "allow" : "deny" }),
-    log: { warn(msg) { warned.push(msg); } },
+    log: { warn(msg) { warned.push(msg); }, error(msg, attrs) { errored.push({ msg, ...(attrs ? { attrs } : {}) }); } },
   };
   const h = {
-    ctx, raw, db, emitted, clock, world, warned,
+    ctx, raw, db, emitted, clock, world, warned, errored,
     advance(ms: number) { clock.t += ms; },
     allowOnly(f: NonNullable<HarnessOptions["allow"]>) { allow = f; },
     rows(sql: string, ...args: unknown[]): Record<string, unknown>[] { return db.all(sql, ...args) as Record<string, unknown>[]; },
