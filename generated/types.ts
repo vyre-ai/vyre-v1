@@ -7812,13 +7812,15 @@ export type EngineAccountsListIn = Record<string, unknown>;
 export type EngineAccountsListOut = {
   accounts: Array<{
       ref: string;
-      driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "claude_code" | "codex" | "grok";
+      driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "custom" | "claude_code" | "codex" | "grok";
       kind: "api_key" | "subscription";
       title: string;
       mine: boolean;
       ownerId?: string;
       status: "ok" | "expired" | "failed" | "untested";
       lastProbeAt?: number;
+      base?: string;
+      keyless?: boolean;
     }>;
 };
 export type EngineDefaultsGetIn = Record<string, unknown>;
@@ -8030,7 +8032,7 @@ export type EngineModelsListOut = {
       provider: string;
       model: string;
       title: string;
-      driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "claude_code" | "codex" | "grok";
+      driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "custom" | "claude_code" | "codex" | "grok";
       contextTokens?: number;
       allowed: boolean;
       reason?: "label_provider" | "policy_model" | "not_connected";
@@ -8070,7 +8072,7 @@ export type EnginePolicySetOut = {
 export type EnginePoolStatusIn = Record<string, unknown>;
 export type EnginePoolStatusOut = {
   sessions: Array<{
-      driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "claude_code" | "codex" | "grok";
+      driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "custom" | "claude_code" | "codex" | "grok";
       warm: number;
       max: number;
       hits: number;
@@ -8099,7 +8101,7 @@ export type EngineProvidersListIn = {
 };
 export type EngineProvidersListOut = {
   providers: Array<{
-      driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "claude_code" | "codex" | "grok";
+      driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "custom" | "claude_code" | "codex" | "grok";
       kind: "api" | "cli";
       title: string;
       connected: boolean;
@@ -8294,7 +8296,7 @@ export type EngineSubscriptionShareSetOut = {
 export type EngineSwitchIn = {
   threadId: string;
   agentId?: string;
-  driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "claude_code" | "codex" | "grok";
+  driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "custom" | "claude_code" | "codex" | "grok";
   model: string;
   provider?: string;
   effort?: "low" | "medium" | "high" | "max";
@@ -18359,6 +18361,8 @@ export type ProvidersAddOut = {
     engine: string;
     spaceMayUse: boolean;
     state: "ok" | "needs_sign_in" | "failing";
+    address?: string;
+    keyless?: boolean;
   };
 };
 export type ProvidersCatalogIn = Record<string, unknown>;
@@ -18370,7 +18374,67 @@ export type ProvidersCatalogOut = {
       connections: Array<"subscription" | "api_key" | "local_model">;
       modelsSource: string;
       engine: string;
+      custom?: boolean;
+      base?: string;
     }>;
+};
+export type ProvidersCustomAddIn = {
+  name: string;
+  baseUrl: string;
+  apiKey?: string;
+  models?: Array<string>;
+  scope: "mine" | "shared";
+  folderId?: string;
+  idempotencyKey: string;
+};
+export type ProvidersCustomAddOut = {
+  endpoint: {
+    key: string;
+    name: string;
+    base: string;
+    keyless: boolean;
+    models: Array<string>;
+    connected: number;
+  };
+  provider: {
+    id: string;
+    providerKey: string;
+    name: string;
+    logo?: string;
+    connection: "subscription" | "api_key" | "local_model";
+    via: string;
+    scope: "mine" | "shared";
+    itemId: string;
+    handle?: string;
+    agentsUsing: Array<string>;
+    usage: {
+      tokens: number;
+      costCents: number;
+      periodStart: number;
+    };
+    engine: string;
+    spaceMayUse: boolean;
+    state: "ok" | "needs_sign_in" | "failing";
+    address?: string;
+    keyless?: boolean;
+  };
+};
+export type ProvidersCustomListIn = Record<string, unknown>;
+export type ProvidersCustomListOut = {
+  endpoints: Array<{
+      key: string;
+      name: string;
+      base: string;
+      keyless: boolean;
+      models: Array<string>;
+      connected: number;
+    }>;
+};
+export type ProvidersCustomRemoveIn = {
+  key: string;
+};
+export type ProvidersCustomRemoveOut = {
+  ok: boolean;
 };
 export type ProvidersListIn = Record<string, unknown>;
 export type ProvidersListOut = {
@@ -18393,6 +18457,8 @@ export type ProvidersListOut = {
       engine: string;
       spaceMayUse: boolean;
       state: "ok" | "needs_sign_in" | "failing";
+      address?: string;
+      keyless?: boolean;
     }>;
 };
 export type ProvidersRemoveIn = {
@@ -18425,6 +18491,8 @@ export type ProvidersSetSpaceUseOut = {
     engine: string;
     spaceMayUse: boolean;
     state: "ok" | "needs_sign_in" | "failing";
+    address?: string;
+    keyless?: boolean;
   };
 };
 export type ProvidersSubscriptionCompleteIn = {
@@ -18450,6 +18518,8 @@ export type ProvidersSubscriptionCompleteOut = {
     engine: string;
     spaceMayUse: boolean;
     state: "ok" | "needs_sign_in" | "failing";
+    address?: string;
+    keyless?: boolean;
   };
 };
 export type ProvidersSubscriptionStartIn = {
@@ -28134,6 +28204,9 @@ export interface CapMap {
   "projects.unshare_out": { in: ProjectsUnshareOutIn; out: ProjectsUnshareOutOut };
   "providers.add": { in: ProvidersAddIn; out: ProvidersAddOut };
   "providers.catalog": { in: ProvidersCatalogIn; out: ProvidersCatalogOut };
+  "providers.custom_add": { in: ProvidersCustomAddIn; out: ProvidersCustomAddOut };
+  "providers.custom_list": { in: ProvidersCustomListIn; out: ProvidersCustomListOut };
+  "providers.custom_remove": { in: ProvidersCustomRemoveIn; out: ProvidersCustomRemoveOut };
   "providers.list": { in: ProvidersListIn; out: ProvidersListOut };
   "providers.remove": { in: ProvidersRemoveIn; out: ProvidersRemoveOut };
   "providers.set_space_use": { in: ProvidersSetSpaceUseIn; out: ProvidersSetSpaceUseOut };

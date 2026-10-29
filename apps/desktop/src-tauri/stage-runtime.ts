@@ -8,6 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { withReleaseVersion } from "../../../lib/chrome-version.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, "..", "..", "..");
@@ -60,6 +61,20 @@ function copyTree(src: string, dst: string, rel: string): void {
   }
 }
 
+/**
+ * The Vyre for Chrome extension, as the desktop app hands it to a person who clicks "Install Vyre for Chrome": a folder Chrome can load unpacked, with the app's version in its manifest.
+ * It sits beside the daemon's program in the bundle (runtime/chrome-extension) and is copied to the person's app folder at install time (src/chrome.rs).
+ */
+export function stageChromeExtension(runtime: string, release: string): string {
+  const dest = path.join(runtime, "chrome-extension");
+  fs.rmSync(dest, { recursive: true, force: true });
+  fs.mkdirSync(dest, { recursive: true });
+  copyTree(path.join(REPO, "apps", "chrome"), dest, "");
+  fs.rmSync(path.join(dest, "package.json"), { force: true });
+  fs.writeFileSync(path.join(dest, "manifest.json"), withReleaseVersion(fs.readFileSync(path.join(REPO, "apps", "chrome", "manifest.json"), "utf8"), release));
+  return dest;
+}
+
 function main(): void {
   const args = process.argv.slice(2);
   const outIdx = args.indexOf("--out");
@@ -93,6 +108,8 @@ function main(): void {
     fs.copyFileSync(path.join(REPO, d, "package.json"), path.join(runtime, d, "package.json"));
   }
   execFileSync("npm", ["ci", "--omit=dev", "--no-audit", "--no-fund", "--ignore-scripts"], { cwd: runtime, stdio: "inherit", shell: os.platform() === "win32" });
+  const shell = JSON.parse(fs.readFileSync(path.join(HERE, "tauri.conf.json"), "utf8")) as { version: string };
+  stageChromeExtension(runtime, shell.version);
   const bin = path.join(out, "binaries");
   fs.mkdirSync(bin, { recursive: true });
   const target = path.join(bin, binaryName(hostTriple()));

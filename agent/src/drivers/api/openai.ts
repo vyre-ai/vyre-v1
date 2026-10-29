@@ -1,9 +1,9 @@
 // Chat Completions streaming: one adapter for OpenAI, OpenRouter and xAI (and, with a base address, OpenAI-compatible endpoints such as OpenCode Go or a local model).
 import { orderSystem, sortTools } from "./prefix.ts";
-import type { CallRequest, Decoded, ModelInfo, ProviderAdapter, ProviderId, SseEvent, StreamDecoder, ToolCall, Usage, WireRequest } from "./types.ts";
+import type { CallRequest, Decoded, ModelInfo, ProviderAdapter, ApiId, SseEvent, StreamDecoder, ToolCall, Usage, WireRequest } from "./types.ts";
 
 export interface CompatOptions {
-  id: ProviderId;
+  id: ApiId;
   base: string;
   /** OpenAI wants max_completion_tokens (o-series and gpt-5 refuse max_tokens); the others take max_tokens. */
   tokenField: "max_completion_tokens" | "max_tokens";
@@ -14,6 +14,8 @@ export interface CompatOptions {
   /** Keep only these model ids in the model list. */
   modelFilter?: RegExp;
   defaultMaxOutput: number;
+  /** Where the model list is read when it is not `<base>/models`. */
+  modelsUrl?: string;
 }
 
 function wireMessages(req: CallRequest, markPrefix: boolean): unknown[] {
@@ -134,7 +136,7 @@ export function openaiCompatible(o: CompatOptions): ProviderAdapter {
       };
     },
     decoder,
-    modelsRequest: () => ({ path: "/models", headers: {} }),
+    modelsRequest: () => ({ path: "/models", headers: {}, ...(o.modelsUrl ? { url: o.modelsUrl } : {}) }),
     parseModels(json): ModelInfo[] {
       const rows = (json as { data?: Array<{ id?: unknown; name?: unknown }> } | null)?.data ?? [];
       return rows
@@ -147,3 +149,17 @@ export function openaiCompatible(o: CompatOptions): ProviderAdapter {
 export const openai = openaiCompatible({ id: "openai", base: "https://api.openai.com/v1", tokenField: "max_completion_tokens", cacheKey: true, router: false, modelFilter: /^(gpt|o\d|chatgpt|codex)/i, defaultMaxOutput: 16_384 });
 export const openrouter = openaiCompatible({ id: "openrouter", base: "https://openrouter.ai/api/v1", tokenField: "max_tokens", cacheKey: false, router: true, defaultMaxOutput: 16_384 });
 export const xai = openaiCompatible({ id: "xai", base: "https://api.x.ai/v1", tokenField: "max_tokens", cacheKey: false, router: false, defaultMaxOutput: 16_384 });
+
+// OpenCode Go (opencode.ai docs, 30 Oct 2026): chat completions at /inference/go/openai/v1/chat/completions, the model list at /inference/go/v1/models. Auth is a bearer key from the OpenCode Console (the docs
+// show the key being pasted into /connect and do not name the header; Bearer is the OpenAI-compatible default). Needs a real account to prove. Models behind other wire formats (Responses, Anthropic Messages) are not served by this adapter.
+export const opencodeGo = openaiCompatible({ id: "opencode_go", base: "https://opencode.ai/inference/go/openai/v1", tokenField: "max_tokens", cacheKey: false, router: false, defaultMaxOutput: 16_384, modelsUrl: "https://opencode.ai/inference/go/v1/models" });
+/** A server on this computer or network that speaks Chat Completions (Ollama at :11434, LM Studio at :1234, llama.cpp server at :8080). No key. The account names its own address. */
+export const local = openaiCompatible({ id: "local", base: "http://localhost:11434/v1", tokenField: "max_tokens", cacheKey: false, router: false, defaultMaxOutput: 8_192 });
+/** An endpoint a Space registered (providers.custom_add). The account names the address; the key, when there is one, comes from the Vault by handle. */
+export const custom = openaiCompatible({ id: "custom", base: "https://invalid.example/v1", tokenField: "max_tokens", cacheKey: false, router: false, defaultMaxOutput: 8_192 });
+
+/** The base a local server's address means: `http://localhost:11434` and `http://localhost:11434/v1` both reach `/v1`. */
+export function withV1(address: string): string {
+  const u = address.replace(/\/+$/, "");
+  return /\/v1$/.test(u) ? u : `${u}/v1`;
+}
