@@ -10,7 +10,8 @@ import type { Invoke } from "../../host/src/invoke.ts";
 import { createEngineApiTools } from "./api-tools.ts";
 import { buildOpener, roleBlocks } from "./session.ts";
 import { withRecall } from "./recall.ts";
-import { createContextBuilder, diskSkills, withTurnContext } from "./context.ts";
+import { createContextBuilder, diskSkills, takeHandoff, withTurnContext } from "./context.ts";
+import { withTranscript } from "./transcript.ts";
 import { defaultSandbox } from "./sandbox-default.ts";
 import type { DefaultSandbox } from "./sandbox-default.ts";
 import type { SandboxPlan } from "./sandbox.ts";
@@ -120,11 +121,11 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     // The turn context is built as the asker before each turn (modules/engine/context.ts); what the agent waits on is read off the engine once it exists.
     let live: TurnEngine | null = null;
     const turnContext = createContextBuilder({
-      call: h.call, skills: h.skills ?? diskSkills(), now,
+      call: h.call, skills: h.skills ?? diskSkills(), now, handoff: takeHandoff,
       waiting: (threadId, agentId) => (live?.waiting(threadId) ?? []).filter((w) => w.agentId === agentId).map((w) => `an answer to task ${w.taskId} (a held call needs approval)`),
     });
     const engine = createTurnEngine({
-      holder: h.holder, openSession: withTurnContext(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), turnContext), now,
+      holder: h.holder, openSession: withTurnContext(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), turnContext), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
       resolveAccount: (q) => accountFor(h, q),
       onNoAccount: async (info) => {
