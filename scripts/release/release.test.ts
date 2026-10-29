@@ -354,3 +354,32 @@ test("Vyre for Chrome is staged into the agent-computer build context without it
   assert.throws(() => imageHasChrome("img", files, run), /no version/);
   assert.throws(() => stageChrome(fs.mkdtempSync(path.join(os.tmpdir(), "empty-"))), /manifest\.json is missing/);
 });
+
+test("a release reuses only a green whole-suite main.yml run for exactly its commit", async () => {
+  const { whyNotReusable, findReusable } = await import("./reuse.ts");
+  const sha = "a".repeat(40);
+  const run = { id: 7, head_sha: sha, event: "schedule", status: "completed", conclusion: "success", html_url: "https://x/runs/7", created_at: "2026-10-30T00:00:00Z" };
+  const jobs = [{ id: 1, name: "select", status: "completed", conclusion: "success" }, { id: 2, name: "fast-1", status: "completed", conclusion: "success" }, { id: 3, name: "golden-main", status: "completed", conclusion: "success" }, { id: 4, name: "contracts", status: "completed", conclusion: "success" }, { id: 5, name: "merge-ok", status: "completed", conclusion: "success" }];
+  const log = "select: whole suite (schedule)\nselect: 74 jobs; everything";
+  assert.equal(whyNotReusable(sha, run, jobs, log), null);
+  assert.equal(whyNotReusable(sha, { ...run, event: "workflow_dispatch" }, jobs, log), null);
+  assert.match(whyNotReusable("b".repeat(40), run, jobs, log)!, /not b/);
+  assert.match(whyNotReusable(sha, { ...run, event: "push" }, jobs, log)!, /push run/, "a push run tests only what it changed");
+  assert.match(whyNotReusable(sha, { ...run, conclusion: "failure" }, jobs, log)!, /green/);
+  assert.match(whyNotReusable(sha, run, jobs, "select: affected since the previous main commit x")!, /whole suite/);
+  assert.match(whyNotReusable(sha, run, jobs.filter((j) => j.name !== "golden-main"), log)!, /golden-main/);
+  assert.match(whyNotReusable(sha, run, [...jobs, { id: 6, name: "slow-2", status: "completed", conclusion: "cancelled" }], log)!, /slow-2/);
+  assert.match(whyNotReusable(sha, run, jobs.filter((j) => j.name !== "fast-1"), log)!, /no test shard/);
+  // the lookup: the newest candidate that qualifies, the others refused with a reason
+  const pages: Record<string, unknown> = {
+    "runs": { workflow_runs: [{ ...run, id: 8, event: "push", created_at: "2026-10-30T01:00:00Z" }, run] },
+    "jobs8": { jobs }, "jobs7": { jobs },
+  };
+  const get = async (url: string) => {
+    const body = url.includes("/workflows/main.yml/runs") ? pages["runs"] : url.includes("/runs/8/jobs") ? pages["jobs8"] : url.includes("/runs/7/jobs") ? pages["jobs7"] : url.endsWith("/logs") ? log : null;
+    return { status: body === null ? 404 : 200, text: async () => (typeof body === "string" ? body : JSON.stringify(body)) };
+  };
+  const found = await findReusable({ repo: "o/r", token: "t", sha, get });
+  assert.equal(found.run?.id, 7);
+  assert.deepEqual(found.refused, ["run 8 is a push run, which tests only what that push changed"]);
+});

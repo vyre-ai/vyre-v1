@@ -235,3 +235,16 @@ test("seeded bad input: a blocked license, a secret, a high advisory and an unli
   assert.equal(applyKnown([v], [{ rule: "B1", file: "modules/a/x.ts", reason: "moves with P-X, until then accepted", until: "2020-01-01" }]).failing.length, 1, "an expired known entry does not count");
   assert.equal(applyKnown([], [{ rule: "B1", file: "gone.ts", reason: "was needed once, now fixed", until: "2099-01-01" }]).stale.length, 1, "a stale known entry fails");
 });
+
+test("a release skips only what a reused green whole-suite run covers, and says which run it reused", () => {
+  const rel = wf("release");
+  const job = (n: string) => rel.jobs.find((j) => j.name === n)!;
+  assert.match(job("reuse").text, /cli\.ts reuse "\$\{\{ github\.sha \}\}"/);
+  for (const n of ["select", "client", "kits", "images"]) assert.match(job(n).text, /if: needs\.reuse\.outputs\.run == ''/, `${n} runs unless a whole-suite run is reused`);
+  for (const n of ["heavy", "security", "package", "desktop", "desktop-release-files"]) assert.doesNotMatch(job(n).text, /needs\.reuse/, `${n} always runs`);
+  const live = job("live");
+  for (const n of ["guard", "reuse", "package", "suite", "client", "kits", "images", "heavy", "security"]) assert.ok(live.needs.includes(n), `live needs ${n}`);
+  for (const n of ["guard", "reuse", "package", "heavy", "security"]) assert.match(live.text, new RegExp(`needs\\.${n}\\.result == 'success'`), `live requires ${n} to pass`);
+  assert.match(live.text, /needs\.reuse\.outputs\.run != '' \|\| \(needs\.suite\.result == 'success' && needs\.client\.result == 'success' && needs\.kits\.result == 'success' && needs\.images\.result == 'success'\)/, "without a reused run the suite must pass here");
+  assert.match(job("publish").text, /RELEASE_TESTS: \$\{\{ needs\.reuse\.outputs\.tests \}\}/, "the release notes say where the tests ran");
+});

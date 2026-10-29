@@ -1,5 +1,5 @@
 name: release
-# Tag to live under 25 minutes (ARCH-DECISIONS 13). Live needs the suite, client, kits, images and security; never native or desktop.
+# Tag to live under 25 minutes (ARCH-DECISIONS 13). Live needs the suite, client, kits, images (or a reused green whole-suite main.yml run for the commit), heavy and security; never native or desktop.
 # After live: sign (in the `release` Environment, after its reviewer approves), publish to the GitHub Release of the tag, and a post-publish smoke. docs/release/runbook.md says how and why.
 # The macOS DMG is downloaded once, by publish, and checked there against the SHA-256 sidecar the signed payload carries; sign and the jobs before it never move it.
 # A tag whose name contains "dryrun" is a practice run: it builds and packs everything, validates the bake file (no image is pushed), signs with a key made for the run and thrown away
@@ -32,6 +32,23 @@ jobs:
           { echo "version=${out% *}"; echo "channel=${out#* }"; echo "dryrun=false"; } >> "$GITHUB_OUTPUT"
           # a commit that is not on main must be the next patch of the newest published stable release, on origin/hotfix/<tag>
           if git merge-base --is-ancestor "$SHA" origin/main; then echo "lineage: $SHA is on main"; else node scripts/release/cli.ts lineage "$SHA" "$TAG"; fi
+  reuse:
+    # A commit whose whole suite already passed in a green main.yml schedule or dispatch run (scripts/release/reuse.ts says what counts) does not run it again here. The run reused is
+    # written to this job's summary and to the release notes. Anything else, including a failed lookup, and the release runs the whole suite itself. heavy and security always run.
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 5
+    permissions: { contents: read, actions: read }
+    outputs:
+      run: ${{ steps.find.outputs.run }}
+      tests: ${{ steps.find.outputs.tests }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release/cli.ts reuse "${{ github.sha }}"
   package:
     needs: guard
     # the multi-arch image build needs docker buildx and qemu: one host serves the `buildx` label (vyre-ci-7)
@@ -84,6 +101,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: release-files, path: dist, if-no-files-found: error, retention-days: 7 }
   select:
+    needs: reuse
+    if: needs.reuse.outputs.run == ''
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     outputs:
@@ -112,10 +131,16 @@ jobs:
           slow: ${{ matrix.slow }}
           runner: ${{ matrix.runner }}
   client:
+    needs: reuse
+    if: needs.reuse.outputs.run == ''
     uses: ./.github/workflows/client.yml
   kits:
+    needs: reuse
+    if: needs.reuse.outputs.run == ''
     uses: ./.github/workflows/kits.yml
   images:
+    needs: reuse
+    if: needs.reuse.outputs.run == ''
     uses: ./.github/workflows/images.yml
   heavy:
     uses: ./.github/workflows/heavy.yml
@@ -150,7 +175,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: release-files-desktop, path: dist, if-no-files-found: error, retention-days: 7 }
   live:
-    needs: [guard, package, suite, client, kits, images, heavy, security]
+    needs: [guard, reuse, package, suite, client, kits, images, heavy, security]
+    # Every gate passed, with the suite, client, kits and images either passed here or covered by the reused whole-suite run (skipped only then).
+    if: >-
+      always() && needs.guard.result == 'success' && needs.reuse.result == 'success' && needs.package.result == 'success'
+      && needs.heavy.result == 'success' && needs.security.result == 'success'
+      && (needs.reuse.outputs.run != '' || (needs.suite.result == 'success' && needs.client.result == 'success' && needs.kits.result == 'success' && needs.images.result == 'success'))
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
@@ -224,7 +254,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: release-signed, path: dist, if-no-files-found: error, retention-days: 1 }
   publish:
-    needs: [guard, sign, sign-dryrun]
+    needs: [guard, reuse, sign, sign-dryrun]
     if: always() && (needs.sign.result == 'success' || needs.sign-dryrun.result == 'success')
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 30
@@ -233,6 +263,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       TAG: ${{ github.ref_name }}
       CHANNEL: ${{ needs.guard.outputs.channel }}
+      RELEASE_TESTS: ${{ needs.reuse.outputs.tests }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
