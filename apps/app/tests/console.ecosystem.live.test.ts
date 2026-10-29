@@ -90,6 +90,32 @@ test("production Console: Skills and Plugins add, install, configure and connect
     await page.getByText("Plugin removed", { exact: true }).waitFor();
     assert.equal(((await api("plugins.list", {}) as { plugins: unknown[] }).plugins).length, 0);
     t.diagnostic("PASS Plugins add marketplace, install, set option, connect server and remove, read back");
+
+    // ---- Teammates on a project
+    const project = await api("projects.create", { type: "project", title: "Probate GTM", idempotencyKey: "eco-project" }) as { projectId: string };
+    await page.goto(`${web.origin}/records#subject=project:${project.projectId}`, { waitUntil: "load" });
+    await page.getByTestId("project-page").waitFor({ timeout: 20_000 });
+    await page.getByText("Teammates", { exact: true }).first().click();
+    await page.getByTestId("project-teammates").waitFor({ timeout: 10_000 });
+    await page.getByTestId("teammate-name").fill("Coordinator");
+    await page.getByTestId("teammate-brief").fill("Keeps the plan moving and answers first in this project's chats.");
+    await page.getByTestId("teammate-role").click();
+    await page.getByRole("menuitem", { name: /^Lead/ }).click();
+    await page.getByTestId("teammate-add").click();
+    await page.getByText("Coordinator joined the project", { exact: true }).waitFor();
+    await page.getByTestId("teammate-name").fill("Security reviewer");
+    await page.getByTestId("teammate-brief").fill("Checks every draft for privilege and confidentiality.");
+    await page.getByTestId("teammate-role").click();
+    await page.getByRole("menuitem", { name: /^Reviewer/ }).click();
+    await page.getByTestId("teammate-add").click();
+    await page.getByText("Security reviewer joined the project", { exact: true }).waitFor();
+    const mates = await api("projects.teammates.list", { projectId: project.projectId }) as { teammates: Array<{ name: string; role: string; madeForProject: boolean }>; leadAgentId?: string };
+    assert.deepEqual(mates.teammates.map((m) => [m.name, m.role, m.madeForProject]), [["Coordinator", "lead", true], ["Security reviewer", "reviewer", true]]);
+    assert.ok(mates.leadAgentId, "the lead is the default participant");
+    const onAgentsPage = ((await api("agents.list", {}) as { agents: Array<{ name: string }> }).agents).map((a) => a.name);
+    assert.ok(!onAgentsPage.includes("Coordinator") && !onAgentsPage.includes("Security reviewer"), "teammates are not on the Agents page");
+    await shoot("teammates");
+    t.diagnostic("PASS Teammates: a lead and a reviewer made for the project, off the Agents page, read back");
     assert.deepEqual(errors, [], `page errors: ${errors.join(" | ")}`);
     assert.deepEqual(refused.filter((r) => !/^404 /.test(r)), [], `refused calls: ${refused.join(" | ")}`);
   } catch (e) {

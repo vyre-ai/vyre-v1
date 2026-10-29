@@ -35,15 +35,15 @@ test("stdio: initialize, list tools, call a tool, read the result as text", asyn
 
 test("stdio: a server that exits fails the calls waiting on it and says why", async () => {
   const c = await McpClient.connect(stdioTransport(launch([process.execPath, "-e", `
-    const rl = require("readline").createInterface({ input: process.stdin });
-    rl.on("line", (l) => { const m = JSON.parse(l); if (m.method === "initialize") console.log(JSON.stringify({ jsonrpc: "2.0", id: m.id, result: { serverInfo: { name: "x" } } })); else if (m.method === "tools/call") { console.error("boom: out of cheese"); process.exit(3); } });`])));
+    let buf = "";
+    process.stdin.on("data", (d) => { buf += d; let i; while ((i = buf.indexOf("\\n")) >= 0) { const m = JSON.parse(buf.slice(0, i)); buf = buf.slice(i + 1); if (m.method === "initialize") console.log(JSON.stringify({ jsonrpc: "2.0", id: m.id, result: { serverInfo: { name: "x" } } })); else if (m.method === "tools/call") { console.error("boom: out of cheese"); process.exit(3); } } });`])));
   await assert.rejects(c.callTool("x", {}), (e: unknown) => e instanceof McpError && e.code === "mcp.closed" && /out of cheese/.test(e.message));
 });
 
 test("a call that never answers times out", async () => {
   const c = await McpClient.connect(stdioTransport(launch([process.execPath, "-e", `
-    const rl = require("readline").createInterface({ input: process.stdin });
-    rl.on("line", (l) => { const m = JSON.parse(l); if (m.method === "initialize") console.log(JSON.stringify({ jsonrpc: "2.0", id: m.id, result: {} })); });`])), );
+    let buf = "";
+    process.stdin.on("data", (d) => { buf += d; let i; while ((i = buf.indexOf("\\n")) >= 0) { const m = JSON.parse(buf.slice(0, i)); buf = buf.slice(i + 1); if (m.method === "initialize") console.log(JSON.stringify({ jsonrpc: "2.0", id: m.id, result: {} })); } });`])));
   await assert.rejects(c.request("tools/list", {}, 200), (e: unknown) => e instanceof McpError && e.code === "mcp.timeout");
   await c.close();
 });
