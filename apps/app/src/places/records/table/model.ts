@@ -76,6 +76,19 @@ export function rowWindow(scrollTop: number, viewport: number, total: number, ov
   return { first, last };
 }
 
+/** The rows kept behind a moving scroll, past the edge it is leaving. */
+export const FLING_BEHIND = 2;
+
+/**
+ * The rows to draw while scrolling in a direction: FLING_OVERSCAN ahead, and behind only FLING_BEHIND (plus a block when the scroll moves up, since the scroll top is rounded down to a
+ * block). Every drawn row is in the browser's layers, paint and hit testing each frame; a fling carried twelve rows it had already left, a quarter of the table's rows.
+ */
+export function flingWindow(scrollTop: number, viewport: number, total: number, dir: 1 | -1): { first: number; last: number } {
+  const above = dir > 0 ? FLING_BEHIND : FLING_OVERSCAN;
+  const below = dir > 0 ? FLING_OVERSCAN : SCROLL_BLOCK + FLING_BEHIND;
+  return { first: Math.max(0, Math.floor(scrollTop / ROW_H) - above), last: Math.min(total, Math.ceil((scrollTop + viewport) / ROW_H) + below) };
+}
+
 /** Round scroll state down to a small row boundary without ever moving it ahead of the real viewport. */
 export function scrollBlockTop(scrollTop: number): number {
   const block = ROW_H * SCROLL_BLOCK;
