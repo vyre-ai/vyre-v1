@@ -1,5 +1,6 @@
 # Changelog
 
+- The loop catalogue, validation, and the runtime all stop at 1000 iterations. A loop inside a loop is refused. Moving runs onto a new version still answers that it is not available yet.
 - Point the app release daemon at a computer socket that is not there. This runner's Docker engine answers the default socket, so Console was saying the host was ready. A down host still cannot provision a computer.
 - Keep an open template install review when the gallery refetches the same preview. The review was closing itself, so Confirm install left the page before it could be pressed.
 - Prove Parallel, Loop, and a killed host through the live daemon. The old in-process driver is gone. Publishing a later version leaves a waiting run on the version it started, and previewing a move answers that it is not available yet.
