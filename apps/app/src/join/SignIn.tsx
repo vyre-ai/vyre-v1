@@ -53,10 +53,10 @@ export function SignIn({ invite, state, dispatch, busy, onSubmit, onSso, onGithu
           </Group>
           {state.error ? <ErrorLine testID="join-error">{state.error}</ErrorLine> : null}
           {onRecoveryCode ? <Foot><Text accessibilityRole="link" testID="signin-help" onPress={onRecoveryCode} style={{ color: p.blue }}>Need help signing in?</Text></Foot> : null}
-          {invite.sso.length || invite.github ? (
+          {invite.sso.length || (invite.github && onGithub) ? (
             <>
               {invite.sso.length ? <><Caption>Single sign-on</Caption><Group top={0} testID="sign-in-sso">{invite.sso.map((n) => <Row kind="action" key={n} testID={`sso-${n.toLowerCase()}`} label={n} note="OpenID Connect" onPress={() => onSso?.(n)} />)}</Group></> : null}
-              {invite.github ? <><Caption>GitHub</Caption><Group top={0} testID="sign-in-github"><Row kind="action" testID="github" label="GitHub" note="Linked account" onPress={onGithub} /></Group></> : null}
+              {invite.github && onGithub ? <><Caption>GitHub</Caption><Group top={0} testID="sign-in-github"><Row kind="action" testID="github" label="GitHub" note="Linked account" onPress={onGithub} /></Group></> : null}
             </>
           ) : null}
         </Step>

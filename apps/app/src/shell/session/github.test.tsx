@@ -21,3 +21,8 @@ test('the GitHub button leads to the Space start route and back to this page; th
  assert.deepEqual(takeGithubReturn({...loc,hash:'#github_error=denied'},()=>undefined),{error:true});
  assert.equal(takeGithubReturn({...loc,hash:'#other=1'},()=>{throw new Error('untouched');}),null);assert.equal(takeGithubReturn(undefined,()=>undefined),null);
 });
+test('GitHub is offered only when the screen has a handler for it, so no control is inert',()=>{
+ const invite=signInInvite('http://northwind.example',answer);
+ const html=renderToStaticMarkup(<JoinFrame><SignIn invite={invite} state={initialState(invite,{stage:'signin'})} dispatch={()=>undefined} onSubmit={()=>undefined}/></JoinFrame>);
+ assert.ok(!html.includes('data-testid="github"'));
+});
