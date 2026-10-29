@@ -275,6 +275,30 @@ test("the host finds a running daemon on loopback and ignores a stopped or remot
   }
 });
 
+test("the host prefers the daemon that hosts a Space over the device daemon of the same app, and looks in the folders the desktop app uses", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-host-"));
+  try {
+    const make = (name: string, info: object, token: string): string => {
+      const dir = path.join(root, name);
+      fs.mkdirSync(dir);
+      fs.writeFileSync(path.join(dir, "vyred.json"), JSON.stringify({ pid: 1, ...info }));
+      fs.writeFileSync(path.join(dir, "admin.token"), token);
+      return dir;
+    };
+    const device = make("vyred", { url: "http://127.0.0.1:1001", roles: ["device"] }, "device-token");
+    const personal = make("personal", { url: "http://127.0.0.1:1002", roles: ["space", "device"], space: "spc_p" }, "personal-token");
+    const server = make("server", { url: "http://127.0.0.1:1003", roles: ["space", "device"], space: "spc_s" }, "server-token");
+    assert.equal(findDaemon([device, personal], () => true)?.token, "personal-token", "the Space daemon wins though it is listed second");
+    assert.equal(findDaemon([device, server, personal], () => true)?.token, "server-token", "and the first of two");
+    assert.equal(findDaemon([device], () => true)?.token, "device-token", "with no Space on this computer the device daemon is still the one that answers");
+    const dirs = dataDirs({ XDG_DATA_HOME: "/xdg" });
+    const at = (n: string): number => dirs.indexOf(`/xdg/ai.vyre.desktop/${n}`);
+    assert.ok(at("server") >= 0 && at("server") < at("personal") && at("personal") < at("vyred"), "server, then personal, then the device daemon");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("the host relays a request to the daemon and its reply and pushes back to Chrome", async () => {
   const seen: { path: string; auth: string; body: unknown }[] = [];
   const pushes: http.ServerResponse[] = [];

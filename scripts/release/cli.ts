@@ -5,6 +5,10 @@
 //   VYRE_SIGNING_KEY=<pkcs8 pem> node scripts/release/cli.ts pubkey [outfile]    prints the public half (hex) and its key id; with outfile writes {"publicKey","keyId"} for compiling into the servers
 //   node scripts/release/cli.ts assets <dir>    writes <channel>.json, <channel>.json.sig (and <channel>-<kind>... for the others) from <dir>/feed.json: the files attached to the GitHub Release
 //   VYRE_SIGNING_KEY=<pkcs8 pem> node scripts/release/cli.ts sign <dir> <channel> <pinned-public-key-hex>
+//   node scripts/release/cli.ts updater-digest <file>    the "<BLAKE2b-512 hex>  <name>" line for a desktop update artifact (written beside it by the desktop build)
+//   VYRE_SIGNING_KEY=<pkcs8 pem> node scripts/release/cli.ts updater <dir> <version> <channel> <tag> <pinned-public-key-hex>
+//     a minisign signature per *.b2 digest in <dir> and desktop-<channel>.json, the feed the desktop app reads (scripts/release/updater.ts)
+//   node scripts/release/cli.ts updater-check <dir> <artifacts>    each update artifact in <artifacts> is the file the digest in <dir> was made from
 //     dir holds releases.json ({ app?, server?, kits?, extension? } of { version, tarball, sha256 }); writes <dir>/feed.json with one signed entry per channel present.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -18,6 +22,7 @@ import type { ImageKey } from "./pack.ts";
 import { imageHasChrome, stageChrome } from "./computer.ts";
 import { GithubReleases, publishRelease, updateRolling } from "./publish.ts";
 import { smokeRelease } from "./smoke.ts";
+import { checkDesktopArtifacts, digestLine, signDesktop } from "./updater.ts";
 import { lineage, newestStable } from "./lineage.ts";
 import { SIGNING_KEY_ENV, keyId, publicKeyHexOf } from "./sign.ts";
 import { bump, channelOfVersion, releaseCounter, tagVersion, versionProblems } from "./version.ts";
@@ -81,7 +86,7 @@ export function main(argv: string[]): number {
         if (images.VYRE_IMAGE) { packServer({ root, outDir: a, version: b, images }); made.push("vyre.tgz"); }
         const dist = process.env["APP_DIST"];
         if (dist) { packFolder({ dir: dist, outFile: path.join(a, APP_TARBALL), topName: "app-web" }); made.push(APP_TARBALL); }
-        packExtension({ dir: path.join(root, "apps/chrome"), outFile: path.join(a, EXTENSION_ZIP) }); made.push(EXTENSION_ZIP);
+        packExtension({ dir: path.join(root, "apps/chrome"), outFile: path.join(a, EXTENSION_ZIP), release: b }); made.push(EXTENSION_ZIP);
         packFolder({ dir: path.join(root, "kits"), outFile: path.join(a, KITS_TARBALL), topName: "kits" }); made.push(KITS_TARBALL);
         fs.writeFileSync(path.join(a, "releases.json"), JSON.stringify(releasesFrom({ version: b, dir: a })));
         console.log(`release: packed ${made.join(", ")}`);
@@ -99,6 +104,28 @@ export function main(argv: string[]): number {
         console.log(feedBase(a as UpdateChannel));
         return 0;
       }
+      case "updater-digest": {
+        // updater-digest <file>: the "<BLAKE2b-512 hex>  <name>" line the desktop build writes beside an update artifact (the file itself never goes through sign)
+        if (a === undefined) { console.error("usage: updater-digest <file>"); return 2; }
+        process.stdout.write(digestLine(a));
+        return 0;
+      }
+      case "updater": {
+        // VYRE_SIGNING_KEY=<pem> updater <dir> <version> <channel> <tag> <pinned-public-key-hex>: a minisign signature per digest in <dir> and desktop-<channel>.json (Tauri's feed), made with the release key
+        const pem = process.env[SIGNING_KEY_ENV] ?? "";
+        const pinned = argv[5];
+        if (a === undefined || b === undefined || c === undefined || argv[4] === undefined || pinned === undefined || pem === "") { console.error(`usage: ${SIGNING_KEY_ENV}=<pkcs8 pem> updater <dir> <version> <channel> <tag> <pinned-public-key-hex>`); return 2; }
+        if (!(UPDATE_CHANNELS as readonly string[]).includes(c)) { console.error(`release: channel must be one of ${UPDATE_CHANNELS.join(", ")}`); return 2; }
+        const written = signDesktop({ dir: a, version: b, channel: c, tag: argv[4], repo: process.env["GITHUB_REPOSITORY"] ?? "vyre-ai/vyre-v1", privateKeyPem: pem, pinnedPublicKey: pinned, now: () => new Date() });
+        console.log(`release: signed the desktop updates: ${written.join(", ")}`);
+        return 0;
+      }
+      case "updater-check": {
+        // updater-check <dir> <artifacts>: every update artifact in <artifacts> is the file the digest in <dir> was made from
+        if (a === undefined || b === undefined) { console.error("usage: updater-check <dir> <artifacts>"); return 2; }
+        console.log(`release: the desktop update files match their digests: ${checkDesktopArtifacts(a, b).join(", ")}`);
+        return 0;
+      }
       case "assets": {
         if (a === undefined) { console.error("usage: assets <dir>   (writes the release assets from <dir>/feed.json)"); return 2; }
         const entries = JSON.parse(fs.readFileSync(path.join(a, "feed.json"), "utf8")) as FeedEntry[];
@@ -106,7 +133,7 @@ export function main(argv: string[]): number {
         console.log(`release: wrote ${names.join(", ")}`);
         return 0;
       }
-      default: console.error("usage: counter | bump | tag | lineage | pack | stage-chrome | image-has-chrome | pubkey | sign | assets | feed-base | publish | rolling | unpublish | smoke"); return 2;
+      default: console.error("usage: counter | bump | tag | lineage | pack | stage-chrome | image-has-chrome | pubkey | sign | updater-digest | updater | updater-check | assets | feed-base | publish | rolling | unpublish | smoke"); return 2;
     }
   } catch (e) { console.error(`release: ${e instanceof Error ? e.message : "failed"}`); return 1; }
 }

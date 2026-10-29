@@ -38,6 +38,8 @@ type Out = {
       connections: Array<"subscription" | "api_key" | "local_model">;
       modelsSource: string;
       engine: string;
+      custom?: boolean;
+      base?: string;
     }>;
 };
 ```
@@ -58,9 +60,11 @@ type Out = {
   "output": {
     "providers": [
       {
+        "base": "example",
         "connections": [
           "subscription"
         ],
+        "custom": true,
         "engine": "example",
         "key": "example",
         "logo": "example",
