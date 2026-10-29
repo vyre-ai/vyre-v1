@@ -12,7 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { createTmuxHost, handlers, openFrames } from "../impl.ts";
 import type { Exec, ExecResult } from "../impl.ts";
-import { bindHost, bindTeam, bindValues } from "../projections.ts";
+import { bindHost, bindTeam, bindValues, scrubberFor, spellingsFor } from "../projections.ts";
 import { fakeValues, harness, reset } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -208,6 +208,9 @@ test("tmux: a Vault value filled into a command is removed from the result, the 
 
     // Live: a typed value, in pieces so that a frame boundary can cut it in two.
     const got: string[] = [];
+    // what the host's own stream delivers, before the relay scrubs it: kept for the failure message (the relay's holdback is the thing under test)
+    const hostFrames: string[] = [];
+    const stopRaw = host.stream!(terminalId, (frame) => hostFrames.push(frame));
     const live = await openFrames(hn.db, att.ticket, hn.clock.t, (t) => got.push(t));
     assert.ok(live, "the ticket opens a live connection");
     await sleep(300);
@@ -216,9 +219,9 @@ test("tmux: a Vault value filled into a command is removed from the result, the 
     await h["terminal.input"]!(person, { terminalId, data: `${SECRET.slice(11)}\r` });
     await until("the scrubbed value in the stream", () => got.join("").includes("[#Dana_Api.key]"));
     const seen = got.join("");
-    assert.equal(seen.includes(SECRET), false, `the stream never shows the value; frames the tab was sent: ${JSON.stringify(got.map((g) => g.replaceAll(SECRET, "<SECRET>")))}`);
+    assert.equal(seen.includes(SECRET), false, `the stream never shows the value; frames the tab was sent: ${JSON.stringify(got.map((g) => g.replaceAll(SECRET, "<SECRET>")))}; frames the host delivered: ${JSON.stringify(hostFrames.map((g) => g.replaceAll(SECRET, "<SECRET>")))}; secret length ${SECRET.length}, spellings ${spellingsFor(terminalId).map((x) => x.length).join(",")}, scrubber ${scrubberFor(terminalId) ? "bound" : "none"}`);
     assert.equal(seen.includes(SECRET.slice(0, 11) + SECRET.slice(11, 16)), false, "nor most of it");
-    live!.close();
+    live!.close(); stopRaw();
     const screenAfter = (await runTmux(["capture-pane", "-p", "-J", "-t", session, "-S", "-500"])).stdout;
     assert.ok(screenAfter.includes(SECRET), "and the shell did receive the value, in pieces");
   } finally { reset(); }
