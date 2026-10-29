@@ -6,6 +6,7 @@
 import { objectsOf } from "./get.ts";
 import type { ObjectActions } from "./get.ts";
 import { canonical } from "../../../lib/canonical.ts";
+import { generateMain } from "./source.ts";
 import { ensureTables, mintShort, nowOf, pointerGet, refuse, scrubber, secretsIn, seedBuiltins, takeToken, checkEgress, fillString, fillValue, clone, PAGE } from "../projections.ts";
 import type { ActionDef, ConnectionDb, ConnectorDef, ConnectorState, ConnectorsCtx, ConnectorsDeps, Mode, Scope, TestCase } from "../projections.ts";
 
@@ -306,9 +307,15 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
   };
   const sourceOf = (key: string): string | undefined => tx.get<{ folder_id: string }>("SELECT folder_id FROM cn_source_folders WHERE key = ?", key)?.folder_id;
   const draftOf = async (ctx: ConnectorsCtx, key: string, draftId?: string): Promise<{ row: DraftDb; def: ConnectorDef }> => {
-    const row = draftId !== undefined
+    let row = draftId !== undefined
       ? tx.get<DraftDb>("SELECT * FROM cn_drafts WHERE draft_id = ? AND key = ?", draftId, key)
       : tx.get<DraftDb>("SELECT * FROM cn_drafts WHERE key = ? ORDER BY created_at DESC, rowid DESC LIMIT 1", key);
+    // A connector with an editable source never needs a Build just to be tested or published again: its draft is whatever the source says now.
+    if (!row && draftId === undefined && sourceOf(key) && deps.loadFolderDef) {
+      const at = nowOf(deps), id = mintShort("cdr", at), live = tx.get<{ def: string }>("SELECT def FROM cn_connectors WHERE key = ?", key);
+      tx.run("INSERT INTO cn_drafts (draft_id, key, def, note, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", id, key, live?.def ?? "{}", null, ctx.actor ?? null, at, at);
+      row = tx.get<DraftDb>("SELECT * FROM cn_drafts WHERE draft_id = ?", id);
+    }
     if (!row) return refuse(ctx, "validation.not_found", draftId ? `There is no draft ${draftId} of ${key}.` : `${key} has no draft: build one first.`);
     let def = JSON.parse(row.def) as ConnectorDef;
     const fromFolder = deps.loadFolderDef ? await deps.loadFolderDef(key) : undefined;
@@ -325,9 +332,9 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
     } catch (e) { tx.run("DELETE FROM cn_source_folders WHERE key = ?", key); throw e; }
   };
   const folderFiles = (def: ConnectorDef): { path: string; content: string }[] => {
-    const { actions, tests, ...main } = def;
+    const { actions, tests } = def;
     return [
-      { path: "connector.toml", content: JSON.stringify(main, null, 2) },
+      { path: "connector.toml", content: generateMain(def) },
       ...actions.map((a) => ({ path: `actions/${a.name}.json`, content: JSON.stringify(a, null, 2) })),
       ...(tests ?? []).map((t) => ({ path: `tests/${t.name}.json`, content: JSON.stringify(t, null, 2) })),
       { path: "README.md", content: `# ${def.title}\n\nConnector ${def.key} (${def.mode}). Domains: ${def.domains.join(", ") || "none yet"}.\n` },
@@ -380,7 +387,7 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
 
     "connectors.test": async (ctx, input) => {
       const c = need(ctx, input.key);
-      const useDraft = input.draftId !== undefined || (c.state === "draft" && tx.get("SELECT 1 AS x FROM cn_drafts WHERE key = ?", c.key) !== undefined);
+      const useDraft = input.draftId !== undefined || sourceOf(c.key) !== undefined || (c.state === "draft" && tx.get("SELECT 1 AS x FROM cn_drafts WHERE key = ?", c.key) !== undefined);
       const def = useDraft ? (await draftOf(ctx, c.key, input.draftId)).def : (JSON.parse(c.def) as ConnectorDef);
       return { result: await runCases(deps, ctx, def) };
     },
@@ -406,6 +413,13 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       if (c.builtin === 1) refuse(ctx, "validation.precondition_failed", `${c.key} is built in: it changes with a release, not a publish.`);
       const { row, def } = await draftOf(ctx, c.key, input.draftId);
       const result = await runCases(deps, ctx, def);
+      if (result.failed === 0 && sourceOf(c.key)) {
+        // The tests ran over awaited calls. Before anything is published, the caller's authority is asked again and the source is read again: what is published is exactly what was tested, and
+        // if either changed the last good version stays live.
+        await deps.assertCanPublish?.(c.key);
+        const again = deps.loadFolderDef ? await deps.loadFolderDef(c.key) : undefined;
+        if (again && canonical({ ...again, key: c.key }) !== canonical({ ...def, key: c.key })) refuse(ctx, "validation.precondition_failed", "The source changed while it was being tested. Nothing was published; test it again.");
+      }
       if (result.failed > 0) {
         ctx.emit("connector.publish_failed", `connector/${c.key}`, { key: c.key, failed: result.failed });
         return { published: false, result };

@@ -426,3 +426,36 @@ test("source mapping: init maps the key to its canonical folder before any file,
   await k.hs["connectors.remove"](k.ctx, { key: "mapped" });
   assert.equal(k.tx.all("SELECT * FROM cn_source_folders WHERE key = ?", "mapped").length, 0, "removing the connector ends its claim on the folder");
 });
+
+test("publish from a mapped source rechecks after the tests: a source or an authority that changed in between publishes nothing and keeps the last good version", async () => {
+  const k = kit();
+  await k.hs["connectors.init"](k.ctx, { key: "raced", title: "Raced", mode: "webhook_only" });
+  const def = (title: string) => ({ key: "raced", title, mode: "webhook_only" as const, scope: "space" as const, version: "0.0.0", auth: { type: "none" as const }, domains: [], secrets: [], actions: [], tests: [] });
+  let current = def("First");
+  k.deps.loadFolderDef = async () => current;
+  assert.equal((await k.hs["connectors.publish"](k.ctx, { key: "raced" })).published, true);
+  assert.equal((await k.hs["connectors.get"](k.ctx, { key: "raced" })).connector.title, "First");
+  // the source changes between the load that was tested and the recheck
+  let loads = 0;
+  k.deps.loadFolderDef = async () => (++loads === 1 ? def("Second") : def("Changed under the test"));
+  await assert.rejects(k.hs["connectors.publish"](k.ctx, { key: "raced" }), /changed while it was being tested/);
+  assert.equal((await k.hs["connectors.get"](k.ctx, { key: "raced" })).connector.title, "First", "the last good version stays live");
+  // the caller lost edit access while the tests ran
+  k.deps.loadFolderDef = async () => def("Third");
+  k.deps.assertCanPublish = async () => { throw Object.assign(new Error("access changed"), { error: { code: "permission.no_grant" } }); };
+  await assert.rejects(k.hs["connectors.publish"](k.ctx, { key: "raced" }), /access changed/);
+  assert.equal((await k.hs["connectors.get"](k.ctx, { key: "raced" })).connector.title, "First");
+  assert.equal(k.tx.all("SELECT * FROM cn_versions WHERE key = 'raced'").length, 1, "only the first publish made a version");
+});
+
+test("a mapped connector is tested and published straight from its source: no Build is needed for the next version", async () => {
+  const k = kit();
+  await k.hs["connectors.init"](k.ctx, { key: "direct", title: "Direct", mode: "webhook_only" });
+  const def = (title: string) => ({ key: "direct", title, mode: "webhook_only" as const, scope: "space" as const, version: "0.0.0", auth: { type: "none" as const }, domains: [], secrets: [], actions: [], tests: [] });
+  k.deps.loadFolderDef = async () => def("V1");
+  assert.equal((await k.hs["connectors.publish"](k.ctx, { key: "direct" })).version, "1.0.0");
+  k.deps.loadFolderDef = async () => def("V2");
+  assert.equal((await k.hs["connectors.test"](k.ctx, { key: "direct" })).result.failed, 0, "the live connector is tested from its source");
+  assert.equal((await k.hs["connectors.publish"](k.ctx, { key: "direct" })).version, "1.0.1");
+  assert.equal((await k.hs["connectors.get"](k.ctx, { key: "direct" })).connector.title, "V2");
+});

@@ -65,6 +65,8 @@ export interface ConnectorsDeps {
   writeFolder?: (key: string, files: { path: string; content: string }[]) => Promise<string>;
   /** Create the canonical editable source (Shared knowledge > connectors > key, Review changes on) and write the files. `register` records the mapping once the folder exists and BEFORE any file is written. */
   writeSource?: (key: string, files: { path: string; content: string }[], register: (folderId: string) => void) => Promise<string>;
+  /** Asks again, as the original caller, whether they may still edit this connector (a publish checks after its awaited tests). Throws when they may not. */
+  assertCanPublish?: (key: string) => void | Promise<void>;
   /** Connectors with synced types bound to them (they block removal). */
   boundSyncedTypes?: (key: string) => Promise<string[]>;
   publicBase?: string;

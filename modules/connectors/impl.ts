@@ -8,6 +8,7 @@ import type { ProjectionHost, Tx } from "../../kernel/src/store/projection.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
 import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
 import { writeConnectorFolder, writeSourceFolder } from "./handlers/files.ts";
+import { readSource } from "./handlers/source.ts";
 import { createConnectorsHandlers } from "./handlers/index.ts";
 import type { ConnectorsHandlers } from "./handlers/index.ts";
 import { ensureTables, seedBuiltins } from "./projections.ts";
@@ -87,7 +88,10 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
       http: (url,init) => port&&definition&&stored?.state==='live'?port.http(execution,definition.domains,url,init):ctx.http(url,init),
       ...(ctx.log ? { log: ctx.log } : {}), ...((ctx.actingFor??ctx.principal?.id)?{actor:ctx.actingFor??ctx.principal!.id}:{}),
     };
-    const bound = createConnectorsHandlers({ ...handle.deps, writeFolder: (key, files) => writeConnectorFolder(cc, key, files), writeSource: (key, files, register) => writeSourceFolder(cc, key, files, register), ...(port?{
+    const bound = createConnectorsHandlers({ ...handle.deps, writeFolder: (key, files) => writeConnectorFolder(cc, key, files), writeSource: (key, files, register) => writeSourceFolder(cc, key, files, register),
+      // the editable source is read through the original caller's Files access, so what they may not open is never compiled
+      loadFolderDef: async (key: string) => { const folder = handle.tx.get<{ folder_id: string }>('SELECT folder_id FROM cn_source_folders WHERE key = ?', key)?.folder_id; return folder ? (await readSource(cc, key, folder)).def : undefined; },
+      assertCanPublish: (key: string) => { if (ctx.authorize({ perm: 'connectors.manage', level: 'edit' }, { type: 'connector', id: key }).effect !== 'allow') refuse(cc, 'permission.no_grant', 'Your access to this connector changed while it was being tested. Nothing was published.'); }, ...(port?{
       publicBase:port.publicBase(),
       resolveSecret:async(secretHandle:string,binding?:{connector:string;connectionId:string;slot:string})=>{
         if(!binding) return refuse(cc,'permission.no_grant','Select an authorized connection before using a Vault item.');
