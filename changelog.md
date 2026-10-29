@@ -1,5 +1,6 @@
 # Changelog
 
+- Phone cold start: the service worker registers once the app marks itself usable (or 5 s after load), not at the load event, which fires while React is still hydrating; its install fetched every place and cached the scripts alongside startup.
 - Phone cold start: expo-router's start-up react-native-screens flag write on the web resolves to the flags module alone instead of the whole screens index.
 - Records 100k scroll: a vertical scroll re-renders only the rows. The table body owns the scroll top, and the grid with its header, foot and toolbar re-renders only when the column window or the 100-row query window moves; the frozen and scrolling row pieces also get their missing right-click menu handler.
 - Phone cold start: Metro now actually loads the app config (metro.config.js loaded as an empty ES module in this type: module package, so inlineRequires never applied; it is metro.config.cjs now), a whole-module react-native import on the web resolves to a lazy module that requires each react-native-web export on first use instead of all 63 at once, and the sign-in halftone draws its first dots in the next frame instead of inside the commit.
