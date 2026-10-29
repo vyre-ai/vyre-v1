@@ -2,7 +2,7 @@
 // a time and draws only the rows and the columns that meet the screen, with the title column and the row numbers held at the left. The count in the foot is the cached count(*).
 // Filter, Sort, Group, Fields and Colour are quiet buttons in the header; each opens a menu with checkmarks and counts. Click a header to sort; Enter or Space opens the record.
 import { createElement, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactElement, ReactNode } from "react";
+import type { MutableRefObject, ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
 import { cachedFace, currentSkin, faceKey, marbleGradient, marbleInner, requestFace, wrapSvg } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -24,7 +24,7 @@ import {
 import { allIds, eachId, recordsWord } from "./bulk.ts";
 import { filterMenuEntries } from "./filtermenu.ts";
 import { NO_PICK, isPickedRow, pickCount, toggleHeader, togglePick } from "./model.ts";
-import type { Column, FieldDef, RowPick, RecordRow, TableViewState, TypeDef } from "./model.ts";
+import type { Column, FieldDef, GroupItem, RowPick, RecordRow, TableViewState, TypeDef } from "./model.ts";
 
 type TypesOut = CapMap["schema.types.list"]["out"];
 type ViewsOut = CapMap["views.list"]["out"];
@@ -336,6 +336,83 @@ const RowBody = memo(function RowBody(p: PieceProps & { left: number; width: num
   );
 }, samePiece);
 
+interface BodyProps {
+  /** The grid's scroll handler moves the top through this, so a vertical scroll renders the rows and nothing else. */
+  setTop: MutableRefObject<((top: number) => void) | null>;
+  top: number;
+  viewH: number;
+  total: number;
+  items: GroupItem[] | null;
+  loaded: { offset: number; rows: RecordRow[] } | null;
+  width: number;
+  cols: readonly Column[];
+  colWin: { from: number; to: number; pad: number };
+  selected: string | null;
+  sel: RowPick;
+  hot: string | null;
+  colourField: FieldDef | undefined;
+  names: (id: string) => string;
+  onTap: (id: string, meta?: boolean) => void;
+  onOpen: (id: string) => void;
+  onHot: (id: string | null) => void;
+  onMenu: (row: RecordRow, x: number, y: number) => void;
+  onSelect: (id: string) => void;
+  onFold: (fold: (f: readonly string[]) => readonly string[]) => void;
+}
+
+/** The rows the scroll meets: on the web each row is its frozen piece (number and title, in the one sticky layer) and its scrolling body; elsewhere one TableRow. */
+function Body(p: BodyProps): ReactElement {
+  const { items, loaded, total, width, cols, colWin, selected, sel, hot, colourField, names, onTap, onOpen, onHot, onMenu } = p;
+  const [top, setTop] = useState(p.top);
+  const { setTop: register } = p;
+  useEffect(() => { register.current = setTop; return () => { register.current = null; }; }, [register]);
+  const win = rowWindow(top, p.viewH, total, FLING_OVERSCAN);
+  const rowAt = (i: number): RecordRow | null => (loaded ? loaded.rows[i - loaded.offset] ?? null : null);
+  const rows: ReactElement[] = [];
+  const frozen: ReactElement[] = [];
+  const web = Platform.OS === "web";
+  const primary = cols[0];
+  const fw = GUTTER + (primary?.width ?? 0);
+  for (let i = win.first; i < win.last; i++) {
+    const y = i * ROW_H;
+    if (items) {
+      const it = items[i];
+      if (!it) continue;
+      if (it.g) {
+        rows.push(
+          <Pressable key={`g:${it.key}`} accessibilityRole="button" accessibilityState={{ expanded: !it.closed }} testID={`group-${it.key || "none"}`}
+            onPress={() => p.onFold((f) => (f.includes(it.key) ? f.filter((k) => k !== it.key) : [...f, it.key]))} style={[styles.tr, styles.group, { top: y, width }]}>
+            <View style={[styles.groupIn, STICKY(12)]}>
+              <View style={it.closed ? styles.chevShut : undefined}><Glyph name="chevd" size={10} /></View>
+              <Text style={styles.groupText}>{it.label}</Text>
+              <Text style={styles.groupCount}>{it.n}</Text>
+            </View>
+          </Pressable>,
+        );
+        continue;
+      }
+      const tint = colourOf(colourField, it.row);
+      const picked = selected === it.row.id || isPickedRow(sel, it.row.id);
+      if (web && primary) {
+        const piece = { row: it.row, n: it.n, y, selected: picked, hot: hot === it.row.id, tint, names, onTap, onOpen, onHot, onMenu };
+        frozen.push(<RowFrozen key={it.row.id} {...piece} primary={primary} />);
+        rows.push(<RowBody key={it.row.id} {...piece} left={fw} width={width - fw} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} />);
+      } else rows.push(<TableRow key={it.row.id} row={it.row} n={it.n} y={y} width={width} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} selected={picked} tint={tint} names={names} onSelect={p.onSelect} onOpen={onOpen} />);
+      continue;
+    }
+    const r = rowAt(i);
+    const picked = r !== null && (selected === r.id || isPickedRow(sel, r.id));
+    if (web && primary) {
+      const piece = { row: r, n: i + 1, y, selected: picked, hot: r !== null && hot === r.id, tint: r ? colourOf(colourField, r) : null, names, onTap, onOpen, onHot, onMenu };
+      frozen.push(<RowFrozen key={r ? r.id : `p${i}`} {...piece} primary={primary} />);
+      rows.push(<RowBody key={r ? r.id : `p${i}`} {...piece} left={fw} width={width - fw} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} />);
+      continue;
+    }
+    rows.push(<TableRow key={r ? r.id : `p${i}`} row={r} n={i + 1} y={y} width={width} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} selected={picked} tint={r ? colourOf(colourField, r) : null} names={names} onSelect={p.onSelect} onOpen={onOpen} />);
+  }
+  return <View style={{ height: total * ROW_H, width }} testID="records-body" accessibilityLabel={`${total} rows`}>{rows}{web ? <View testID="records-frozen" style={styles.frozenLayer}>{frozen}</View> : null}</View>;
+}
+
 // ---------------------------------------------------------------- the grid
 
 export interface TableViewProps {
@@ -375,7 +452,12 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const clearPick = (): void => setSel(NO_PICK);
   const [hot, setHot] = useState<string | null>(null);
   const tapped = useRef({ id: "", at: 0 });
-  const [scroll, setScroll] = useState({ top: 0, left: 0 });
+  // A vertical scroll re-renders only the rows (Body below owns the top); the grid re-renders when the column window or the 100-row query window moves. The header, the foot
+  // and the toolbar are a few hundred React Native views: drawn again on every scroll frame they were half the frame time of the 100,000-row scroll.
+  const [left, setLeft] = useState(0);
+  const [first, setFirst] = useState(0);
+  const top = useRef(0);
+  const bodyTop = useRef<((top: number) => void) | null>(null);
   const [box, setBox] = useState({ w: 1000, h: 640 });
   const [reopen, setReopen] = useState<{ kind: "filter" | "fields" | "colour"; x: number; y: number } | null>(null);
 
@@ -388,19 +470,18 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
 
   // the window of rows the screen meets, and the 200 the query is asked for
   const total0 = count ?? 0;
-  const vis = rowWindow(scroll.top, Math.max(0, box.h - HEAD_H), v.group ? GROUP_LIMIT : total0);
+  const viewH = Math.max(0, box.h - HEAD_H);
   // the window the query is asked for follows the scroll a beat behind: the fetch and its 200-row copy run in a low-priority render, not in the frame that mounts the rows
-  const wanted = useDeferredValue(queryOffset(vis.first, total0));
+  const wanted = useDeferredValue(queryOffset(first, total0));
   const offset = v.group ? 0 : wanted;
   const q = useLive("records.query", querySpec(type, v, def.titleField, offset));
   const kept = useRef<{ offset: number; rows: RecordRow[] } | null>(null);
-  if (q.status === "ready") kept.current = { offset: v.group ? 0 : offset, rows: q.data.rows };
+  if (q.status === "ready" && (kept.current?.rows !== q.data.rows || kept.current.offset !== (v.group ? 0 : offset))) kept.current = { offset: v.group ? 0 : offset, rows: q.data.rows };
   const loaded = kept.current;
 
   const items = useMemo(() => (groupField && loaded ? groupItems(loaded.rows, groupField, folded, data.nameOf) : null), [groupField, loaded, folded, data]);
   const total = items ? items.length : count ?? loaded?.rows.length ?? 0;
-  const win = rowWindow(scroll.top, Math.max(0, box.h - HEAD_H), total, FLING_OVERSCAN);
-  const colWin = columnWindow(cols, scroll.left, box.w);
+  const colWin = columnWindow(cols, left, box.w);
 
   const edited = isEdited(v, base);
   const set = (next: TableViewState): void => { setV(next); setSelected(null); };
@@ -507,7 +588,6 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   menuRef.current = rowMenu;
   /** Stable, so a memoised row never re-renders because the menu closure changed. */
   const onRowMenu = useCallback((r: RecordRow, x: number, y: number): void => menuRef.current(r, x, y), []);
-  const rowAt = (i: number): RecordRow | null => (loaded ? loaded.rows[i - loaded.offset] ?? null : null);
   const orderIds = useMemo(() => (items ? items.flatMap((it) => (it.g ? [] : [it.row.id])) : loaded ? loaded.rows.map((r) => r.id) : []), [items, loaded]);
   const scroller = useRef<ScrollHandle | null>(null);
   const [jump, setJump] = useState<string | null>(null);
@@ -522,7 +602,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   };
   const onKeyDown = (ev: { key?: string; metaKey?: boolean; ctrlKey?: boolean; preventDefault?: () => void }): void => {
     const cmd = ev.metaKey === true || ev.ctrlKey === true;
-    if (cmd && ev.key === "ArrowUp") { ev.preventDefault?.(); goTo(0); const first = orderIds[0]; if (first && win.first === 0) setSelected(first); }
+    if (cmd && ev.key === "ArrowUp") { ev.preventDefault?.(); goTo(0); const head = orderIds[0]; if (head && rowWindow(top.current, viewH, total, FLING_OVERSCAN).first === 0) setSelected(head); }
     else if (cmd && ev.key === "ArrowDown") { ev.preventDefault?.(); goTo(total - 1); }
     else if (cmd && (ev.key === "g" || ev.key === "G")) { ev.preventDefault?.(); setJump(""); }
     else if (ev.key === "Escape" && picked !== "none") clearPick();
@@ -548,53 +628,16 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   useEffect(() => { upgradeSoon(); return () => { if (idleFaces.current !== null) clearTimeout(idleFaces.current); }; }, [loaded, upgradeSoon]);
   const onScroll = (pos: { top: number; left: number }): void => {
     upgradeSoon();
-    const top = scrollBlockTop(pos.top);
-    const left = Math.floor(pos.left / 40) * 40;
-    setScroll((s) => (s.top === top && s.left === left ? s : { top, left }));
+    const t = scrollBlockTop(pos.top);
+    top.current = t;
+    bodyTop.current?.(t);
+    const l = Math.floor(pos.left / 40) * 40;
+    if (l !== left) setLeft(l);
+    const f = rowWindow(t, viewH, v.group ? GROUP_LIMIT : total0).first;
+    if (queryOffset(f, total0) !== queryOffset(first, total0)) setFirst(f);
   };
 
-  // ---- rows
-  const rows: ReactElement[] = [];
-  const frozen: ReactElement[] = [];
-  const web = Platform.OS === "web";
   const primary = cols[0];
-  const fw = GUTTER + (primary?.width ?? 0);
-  for (let i = win.first; i < win.last; i++) {
-    const y = i * ROW_H;
-    if (items) {
-      const it = items[i];
-      if (!it) continue;
-      if (it.g) {
-        rows.push(
-          <Pressable key={`g:${it.key}`} accessibilityRole="button" accessibilityState={{ expanded: !it.closed }} testID={`group-${it.key || "none"}`}
-            onPress={() => setFolded((f) => (f.includes(it.key) ? f.filter((k) => k !== it.key) : [...f, it.key]))} style={[styles.tr, styles.group, { top: y, width }]}>
-            <View style={[styles.groupIn, STICKY(12)]}>
-              <View style={it.closed ? styles.chevShut : undefined}><Glyph name="chevd" size={10} /></View>
-              <Text style={styles.groupText}>{it.label}</Text>
-              <Text style={styles.groupCount}>{it.n}</Text>
-            </View>
-          </Pressable>,
-        );
-        continue;
-      }
-      const tint = colourOf(colourField, it.row);
-      if (web && primary) {
-        const piece = { row: it.row, n: it.n, y, selected: selected === it.row.id || isPicked(it.row.id), hot: hot === it.row.id, tint, names: data.nameOf, onTap, onOpen, onHot: setHot };
-        frozen.push(<RowFrozen key={it.row.id} {...piece} primary={primary} />);
-        rows.push(<RowBody key={it.row.id} {...piece} left={fw} width={width - fw} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} />);
-      } else rows.push(<TableRow key={it.row.id} row={it.row} n={it.n} y={y} width={width} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} selected={selected === it.row.id || isPicked(it.row.id)} tint={tint} names={data.nameOf} onSelect={setSelected} onOpen={data.nav.openRecord} />);
-      continue;
-    }
-    const r = rowAt(i);
-    if (web && primary) {
-      const piece = { row: r, n: i + 1, y, selected: r !== null && (selected === r.id || isPicked(r.id)), hot: r !== null && hot === r.id, tint: r ? colourOf(colourField, r) : null, names: data.nameOf, onTap, onOpen, onHot: setHot };
-      frozen.push(<RowFrozen key={r ? r.id : `p${i}`} {...piece} primary={primary} />);
-      rows.push(<RowBody key={r ? r.id : `p${i}`} {...piece} left={fw} width={width - fw} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} />);
-      continue;
-    }
-    rows.push(<TableRow key={r ? r.id : `p${i}`} row={r} n={i + 1} y={y} width={width} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} selected={r !== null && (selected === r.id || isPicked(r.id))} tint={r ? colourOf(colourField, r) : null} names={data.nameOf} onSelect={setSelected} onOpen={data.nav.openRecord} />);
-  }
-
   const sortKey = v.sort[0];
   const headCells: ReactElement[] = [];
   for (let i = colWin.from; i < colWin.to; i++) {
@@ -729,7 +772,10 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
               </View>
             )}
           >
-            <View style={{ height: total * ROW_H, width }} testID="records-body" accessibilityLabel={`${total} rows`}>{rows}{web ? <View testID="records-frozen" style={styles.frozenLayer}>{frozen}</View> : null}</View>
+            <Body
+              setTop={bodyTop} top={top.current} viewH={viewH} total={total} items={items} loaded={loaded} width={width} cols={cols} colWin={colWin} selected={selected} sel={sel} hot={hot}
+              colourField={colourField} names={data.nameOf} onTap={onTap} onOpen={onOpen} onHot={setHot} onMenu={onRowMenu} onSelect={setSelected} onFold={setFolded}
+            />
           </Scroller>
         )}
       </View>

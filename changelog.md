@@ -1,5 +1,6 @@
 # Changelog
 
+- Records 100k scroll: a vertical scroll re-renders only the rows. The table body owns the scroll top, and the grid with its header, foot and toolbar re-renders only when the column window or the 100-row query window moves; the frozen and scrolling row pieces also get their missing right-click menu handler.
 - Phone cold start: Metro now actually loads the app config (metro.config.js loaded as an empty ES module in this type: module package, so inlineRequires never applied; it is metro.config.cjs now), a whole-module react-native import on the web resolves to a lazy module that requires each react-native-web export on first use instead of all 63 at once, and the sign-in halftone draws its first dots in the next frame instead of inside the commit.
 - Restore the layer boundaries gate: the daemon hashes the registry through the kernel helper instead of importing node:crypto, and three test-only interop proofs are listed as known exceptions with their reasons.
 - Checkpoint the saved-code recovery client and approved onboarding form: preserve existing identity/Space keys, answer the sealed challenge locally, verify the replacement session and wipe temporary key buffers. Crypto interoperability and orchestration tests pass; full production-browser recovery acceptance remains pending.
