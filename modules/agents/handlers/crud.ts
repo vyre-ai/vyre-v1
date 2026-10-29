@@ -6,7 +6,7 @@
 //   snapshot.take / versions / restore_version             the files a run uses, and rolling back
 // A broken agent.toml never stops an agent: the last good configuration stays in agents_agent.config and is what every read here returns.
 import {
-  AGENT_MD_DEFAULT, AWAKE_MS, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, allows, applyPatch, askerOf, call, canSee, checkToml,
+  AGENT_MD_DEFAULT, AWAKE_MS, isAssistant, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, allows, applyPatch, askerOf, call, canSee, checkToml,
   codeOf, ensure, insertAgent, makeFile, makeFolder, meta, mintId, newConfig, nameKey, parseToml, raise, saveFile, setMeta, slug, statusOf, storeConfig, textOf, tolerant, tomlFor, versionsOf, visible, widenings,
   writeConfig,
 } from "../projections.ts";
@@ -477,7 +477,7 @@ export async function onPersonCreated(ctx: AgentsCtx, event: PrincipalEvent): Pr
   const person = event.payload.principalId;
   if (event.payload.kind !== "person" || typeof person !== "string" || !person.startsWith("usr_")) return [];
   // the role line is the agent's description in its config; the console assistant finds the assistant by the same word
-  const have = allAgents(ctx.db).find((a) => a.ownerId === person && a.config.description === "assistant");
+  const have = allAgents(ctx.db).find((a) => a.ownerId === person && isAssistant(a));
   if (have) return [have.id];
   const base = (event.payload.name ?? "").trim().replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").replace(/^\.+/, "").slice(0, MAX_NAME - 12);
   const first = base.split(" ")[0] ?? "";
