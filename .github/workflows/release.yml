@@ -1,7 +1,7 @@
 name: release
 # Tag to live under 25 minutes (ARCH-DECISIONS 13). Live needs the suite, client, kits, images (or a reused green whole-suite main.yml run for the commit), heavy and security; never native or desktop.
 # After live: sign (in the `release` Environment, after its reviewer approves), publish to the GitHub Release of the tag, and a post-publish smoke. docs/release/runbook.md says how and why.
-# The macOS DMG is downloaded once, by publish, and checked there against the SHA-256 sidecar the signed payload carries; sign and the jobs before it never move it.
+# The macOS DMG is downloaded once, by publish, and checked there against the build's SHA-256 sidecar in the payload handed through sign (the sidecar itself is not signed); sign and the jobs before it never move it.
 # A tag whose name contains "dryrun" is a practice run: it builds and packs everything, validates the bake file (no image is pushed), signs with a key made for the run and thrown away
 # (no server trusts it), publishes a prerelease named after the tag, smoke-tests it, and deletes the prerelease. The real `sign` job (the `release` Environment) is skipped.
 on:
@@ -271,15 +271,15 @@ jobs:
         with: { name: release-signed, path: dist }
       - uses: actions/download-artifact@v4
         with: { name: desktop-macOS, path: desktop-artifact }
-      - name: The one DMG matches the SHA-256 the signed payload carries, before anything is uploaded
+      - name: The one DMG matches the build's SHA-256 sidecar from the payload handed through sign, before anything is uploaded
         run: |
           set -euo pipefail
           mapfile -d '' sums < <(find dist -maxdepth 1 -type f -name '*.dmg.sha256' -print0)
-          [ "${#sums[@]}" -eq 1 ] || { echo "expected exactly one DMG checksum in the signed payload, found ${#sums[@]}"; exit 1; }
+          [ "${#sums[@]}" -eq 1 ] || { echo "expected exactly one DMG checksum in the payload handed through sign, found ${#sums[@]}"; exit 1; }
           dmg_name=$(basename "${sums[0]}" .sha256)
           mapfile -d '' dmgs < <(find desktop-artifact -type f -name '*.dmg' -print0)
           [ "${#dmgs[@]}" -eq 1 ] || { echo "expected exactly one DMG, found ${#dmgs[@]}"; exit 1; }
-          [ "$(basename "${dmgs[0]}")" = "$dmg_name" ] || { echo "the DMG is $(basename "${dmgs[0]}"), the signed payload names $dmg_name"; exit 1; }
+          [ "$(basename "${dmgs[0]}")" = "$dmg_name" ] || { echo "the DMG is $(basename "${dmgs[0]}"), the payload handed through sign names $dmg_name"; exit 1; }
           cp "${dmgs[0]}" "dist/$dmg_name"
           (cd dist && sha256sum -c "$dmg_name.sha256")
       - name: Attach everything to the release of the tag (a prerelease for beta)

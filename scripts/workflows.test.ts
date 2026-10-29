@@ -119,7 +119,7 @@ test("native stays non-blocking for live while the macOS desktop artifact gates 
   assert.match(desktop.text, /name: desktop-macOS-sha256, path: dmg-sum/);
   const publish = rel.jobs.find((j) => j.name === "publish")!;
   assert.match(publish.text, /name: desktop-macOS, path: desktop-artifact/, "publish takes the DMG once");
-  assert.match(publish.text, /sha256sum -c "\$dmg_name\.sha256"/, "publish checks the DMG against the signed payload's SHA-256 before uploading");
+  assert.match(publish.text, /sha256sum -c "\$dmg_name\.sha256"/, "publish checks the DMG against the build's SHA-256 sidecar before uploading");
   assert.ok(publish.text.indexOf("sha256sum -c") < publish.text.indexOf("cli.ts publish"), "the check comes before the upload");
   for (const n of ["sign", "sign-dryrun"]) assert.doesNotMatch(rel.jobs.find((j) => j.name === n)!.text, /desktop-macOS/, `${n} never downloads the DMG`);
   assert.doesNotMatch(assembled.text, /nsis/i, "Windows installers never enter the release payload");
