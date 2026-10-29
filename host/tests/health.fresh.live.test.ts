@@ -23,7 +23,7 @@ test("a new Space with no Docker, no integrations, no backups and no computers r
   const now = (): number => Date.now() + skew;
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0", "--space", "spc_hf", "--space-name", "Fresh Co"], {}, "1.0.0"),
-    platform: fakePlatform({ now }), now, probes: { diskEncrypted: encrypted },
+    platform: fakePlatform({ now }), now, probes: { diskEncrypted: encrypted }, computersSocketPath: path.join(dir, "no-container-engine.sock"),
     intervals: { tick: 100, fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
   const call = async (cap: string, input: object = {}) => {

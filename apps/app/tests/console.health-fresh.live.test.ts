@@ -10,7 +10,7 @@ import { DatabaseSync } from "node:sqlite";
 
 const MATRIX = [["paper", "desktop", 1280, 900], ["graphite", "desktop", 1280, 900], ["paper", "phone", 390, 844], ["graphite", "phone", 390, 844]] as const;
 
-test("production Console: a fresh Space is Server healthy, a real failure is Server down", async (t) => {
+test("production Console: a fresh Space is Server healthy, a real failure is not", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required"); t.skip("VYRE_APP_DIST required for production browser evidence"); return; }
   const { chromium } = await import("playwright-core");
@@ -67,13 +67,14 @@ test("production Console: a fresh Space is Server healthy, a real failure is Ser
     // A real failure: an agent computer exists and this host has no container runtime.
     const db = new DatabaseSync(path.join(space.dir, "modules.db"));
     db.exec("PRAGMA busy_timeout = 5000");
-    db.prepare("INSERT INTO computers_computers (computer_id, agent_id, state, tabs, tab_limit, idle_sleep_minutes, host, created_at) VALUES ('cmp_shot1', 'agt_shot1', 'asleep', 0, 5, 30, 'server', ?)").run(Date.now());
+    db.prepare("INSERT INTO computers_computers (computer_id, agent_id, state, tabs, tab_limit, idle_sleep_minutes, host, created_at) VALUES ('cmp_shot1', 'agt_shot1', 'error', 0, 5, 30, 'server', ?)").run(Date.now());
     db.close();
     await call("health.run");
     const broken = (await call("health.status")).data;
-    assert.equal(broken.overall, "down");
-    assert.equal((broken.checks as { key: string; state: string }[]).find((c) => c.key === "computers")?.state, "down");
-    await matrix("overview-failing", "Server down", true);
+    // Down with no container runtime on this machine, Degraded where one runs: either way a computer in an error state is a real failure and not a healthy Space.
+    assert.notEqual(broken.overall, "healthy");
+    assert.notEqual((broken.checks as { key: string; state: string }[]).find((c) => c.key === "computers")?.state, "healthy");
+    await matrix("overview-failing", `Server ${broken.overall}`, true);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); await web.close?.(); await space.stop(); fs.rmSync(bin, { recursive: true, force: true }); }
 });

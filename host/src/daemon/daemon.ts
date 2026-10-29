@@ -220,6 +220,8 @@ export interface DaemonOptions {
   computersBaseUrl?: string;
   /** How often an agent computer mirrors its home with Files while it runs (tests set it long and trigger passes by waking and sleeping). Default 3 s. */
   computersHomeIntervalMs?: number;
+  /** The container engine socket the agent computers module talks to (default: the system one); tests point it somewhere nothing listens. */
+  computersSocketPath?: string;
   /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan). Omitted: a CLI engine refuses to start. */
   engineSandbox?: unknown;
   /** Tests: swap a CLI engine's program for a command, and expose extra read-only folders in its sandbox (modules/engine runtime `cli`). */
@@ -826,6 +828,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }),
         setComputerHost: () => createComputersHost({
           dataDir: paths.root,
+          ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : {}),
           // the home mirror runs as the agent: the same pipeline as any call, so access, review rules and the scrubber apply
           callAs: createAgentHomeCaller({ db: db!, spaceId, invoke }),
           // large files go to the Files module in process: the slot's one-time token from files.upload_url is the only authority, and no session or bearer is involved
