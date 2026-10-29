@@ -260,12 +260,14 @@ export function subtitleOf(n: DefNode, names: { key?: (id: string) => string } =
     const url = str(inp["url"]);
     if (!url) return "Name the address to call";
     const read = method === "GET" || method === "HEAD";
-    return `${method} ${url.replace(/^https:\/\//, "")}${read ? "" : ", waits for approval when sends are held"}`;
+    const asks = (n as { askBeforeSending?: boolean }).askBeforeSending === true;
+    return `${method} ${url.replace(/^https:\/\//, "")}${read ? "" : asks ? ", asks before sending" : ""}`;
   }
   if (k === "code") {
-    const first = str(inp["source"]).split("\n").map((line) => line.trim()).find((line) => line !== "" && !line.startsWith("//"));
-    const hosts = Array.isArray(inp["hosts"]) ? inp["hosts"].length : 0;
-    return `${first ? first.slice(0, 60) : "Write the code"}${hosts > 0 ? `, reaches ${hosts} ${hosts === 1 ? "host" : "hosts"}` : ", no network"}`;
+    const lines = str(inp["source"]).split("\n").filter((line) => line.trim() !== "" && !line.trim().startsWith("//")).length;
+    const hosts = Array.isArray(inp["hosts"]) ? (inp["hosts"] as unknown[]).filter((h): h is string => typeof h === "string") : [];
+    const reach = hosts.length === 0 ? "no network" : hosts.length <= 2 ? `reaches ${hosts.join(", ")}` : `reaches ${hosts.length} hosts`;
+    return `${lines === 0 ? "Write the code" : `Runs ${lines} ${lines === 1 ? "line" : "lines"} of code`}, ${reach}`;
   }
   if (k === "ai") {
     const prompt = str(inp["prompt"]).replace(/\s+/g, " ").trim().replace(/[.]+$/, "");

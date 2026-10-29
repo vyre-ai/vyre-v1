@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { RUNNER, nodeFlags, readResult } from "../code-sandbox.ts";
+import { RUNNER, guardedLookup, nodeFlags, readResult } from "../code-sandbox.ts";
 
 const codeOf = (e: unknown): string | undefined => (e as { error?: { code?: string } } | null)?.error?.code;
 
@@ -37,10 +37,11 @@ test("undefined becomes null and a function result is not JSON", () => {
   assert.equal(run("return undefined").result, null);
   const f = run("return () => 1");
   assert.equal(f.code, "validation.bad_input");
+  assert.equal(run("throw new Error(JSON.stringify(input))", { secret: "s3cr3t" }).error?.includes("s3cr3t"), false, "the code's own words, which may hold its input, are not in the error");
 });
 
 test("a throw comes back as its message, a syntax error as a failure", () => {
-  assert.deepEqual([run("throw new Error('nope')").code, run("throw new Error('nope')").error], ["validation.bad_input", "nope"]);
+  assert.deepEqual([run("throw new Error('nope')").code, run("throw new Error('nope')").error], ["validation.bad_input", "The code threw Error."]);
   assert.equal(run("return (").code, "validation.bad_input");
 });
 
@@ -58,7 +59,7 @@ test("there is no fetch without a network, no process spawn, and no file outside
 
 test("an output over 1 MB is refused", () => {
   const r = run("return 'a'.repeat(1_000_100)");
-  assert.equal(r.code, "validation.bad_input");
+  assert.equal(r.code, "validation.too_large");
   assert.match(r.error ?? "", /more than 1 MB/);
 });
 
@@ -66,6 +67,12 @@ test("a log keeps 50 lines of 500 characters", () => {
   const r = run("for (let i = 0; i < 80; i++) log('x'.repeat(900)); return 1");
   assert.equal(r.logs?.length, 50);
   assert.equal(r.logs?.[0]?.length, 500);
+});
+
+test("an allocation failure outside the heap is reported as memory", () => {
+  const r = run("throw new RangeError('Array buffer allocation failed')");
+  assert.equal(r.code, "validation.bad_input");
+  assert.match(r.error ?? "", /memory/);
 });
 
 test("a heap over the cap ends the process, and the step says it was memory", () => {
@@ -82,8 +89,17 @@ test("how an ended process is told apart when it left no result", () => {
     assert.throws(() => readResult(dir, { ...none, signal: "SIGKILL" }, 10, 96), (e) => codeOf(e) === "timeout.deadline" && /10 seconds of processor time/.test((e as Error).message));
     assert.throws(() => readResult(dir, { ...none, code: 152 }, 10, 96), (e) => codeOf(e) === "timeout.deadline");
     assert.throws(() => readResult(dir, { ...none, stderr: "FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory" }, 10, 96), (e) => codeOf(e) === "validation.bad_input" && /96 MB/.test((e as Error).message));
-    assert.throws(() => readResult(dir, { ...none, code: 1, stderr: "boom" }, 10, 96), (e) => codeOf(e) === "validation.bad_input" && /did not finish/.test((e as Error).message));
+    assert.throws(() => readResult(dir, { ...none, code: 1, stderr: "boom SECRET" }, 10, 96), (e) => codeOf(e) === "validation.bad_input" && /did not finish/.test((e as Error).message) && !/SECRET/.test((e as Error).message));
     fs.writeFileSync(path.join(dir, "result.json"), "x".repeat(1_100_000));
     assert.throws(() => readResult(dir, none, 10, 96), (e) => codeOf(e) === "validation.too_large");
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("a name that resolves to any address on the shared net-guard list is refused whole, including the newer ranges", async () => {
+  const answer = (ips: string[]) => guardedLookup(async () => ips);
+  for (const bad of ["100.64.0.1", "100.100.1.2", "198.18.0.1", "198.19.255.254", "224.0.0.1", "255.255.255.255", "::", "::1", "64:ff9b:1::1", "fe80::1", "fc00::1", "10.0.0.1", "169.254.169.254", "::ffff:127.0.0.1"]) {
+    assert.deepEqual(await answer([bad])("x.example.com"), [], bad);
+    assert.deepEqual(await answer(["93.184.216.34", bad])("x.example.com"), [], `${bad} next to a public address`);
+  }
+  assert.deepEqual(await answer(["93.184.216.34"])("x.example.com"), ["93.184.216.34"]);
 });

@@ -8,6 +8,7 @@ HTTP 403. Retryable: no.
 
 - conflicts.assist
 - engine.set_model
+- engine.step_turn
 - engine.switch
 - engine.turn.retry
 - memory.capture

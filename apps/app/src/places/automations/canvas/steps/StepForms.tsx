@@ -95,7 +95,7 @@ export function HttpForm({ def, node, onChange, openMenu, vault }: Props & { vau
           </>
         )}
       </Group>
-      <Hint testID="http-send-note">{reads ? "A read goes out every time the step runs, including in a test." : "A send waits for approval when the Gate holds sends, and it is only recorded, not sent, in a test. It carries an Idempotency-Key so a repeat is not a second send."}</Hint>
+      <Hint testID="http-send-note">{reads ? "A read goes out every time the step runs, including in a test." : "A send is only recorded, not sent, in a test. It carries an Idempotency-Key so a repeat is not a second send."}</Hint>
     </>
   );
 }
@@ -121,7 +121,7 @@ export function CodeForm({ def, node, onChange }: Omit<Props, "openMenu">): Reac
         onCommit={(t) => { const r = setHosts(input, t); if (!r.ok) { setHostsText(t); setHostProblem(r.message); return; } setHostsText(null); setHostProblem(null); write(r.value); }}
       />
       {hostProblem ? <Hint danger testID="hosts-problem">{hostProblem}</Hint> : <Hint testID="code-network">{hosts.length === 0 ? "No network. Name a host to let fetch reach it; every other address stays closed." : `fetch reaches ${hosts.join(", ")} and nothing else.`}</Hint>}
-      <Hint testID="code-limits">Runs in a sandbox with 10 seconds of processor time, 96 MB of memory and 1 MB of output. No files, no Vault and no other program.</Hint>
+      <Hint testID="code-limits">Runs in a sandbox with 10 seconds of processor time, 128 MB of memory and 1 MB of output. No files, no Vault and no other program.</Hint>
     </>
   );
 }

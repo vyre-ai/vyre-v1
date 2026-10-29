@@ -1,7 +1,7 @@
 // The Run code step's sandbox (spec 2.12, 4.17). The code runs in the same bubblewrap sandbox the engine uses for CLI engines (sandbox/src/net/bwrap.ts): a new process, its own namespaces, files read-only
 // except one folder made for this run, and a network that is only a unix socket to an egress proxy. The proxy lets through the hosts the step names and nothing else, resolves each name once and refuses a
 // private, loopback or metadata address, so a name that points inside is refused (the same rule as the public fetcher). With no hosts named the proxy allows nothing and the code has no network at all.
-//   limits   10 seconds of processor time (ulimit -t), a 30 second wall clock for the run, a 96 MB V8 heap (Node cannot start under an address-space limit, so memory is the heap cap), 1 MB of output.
+//   limits   10 seconds of processor time (ulimit -t), a 30 second wall clock for the run, a 64 MB V8 heap and a 192 MB kernel data limit (RLIMIT_DATA, which also covers Buffers and ArrayBuffers; 128 MB for the code plus the runtime's own), 1 MB of output.
 //   node     --permission with the run folder as the only readable and writable path: no child process, no worker, no other file, as a second wall inside the first.
 //   never    node:vm. Where bwrap is not available the step is refused (codeAvailability says why); nothing falls back to running the code in the daemon.
 // The input and the source are files in the run folder; the result is a file in it. No environment variable, key or Vault value of the daemon reaches the process.
@@ -10,6 +10,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { startNetWall, bwrapWallCommand, validHostPattern } from "../../sandbox/src/index.ts";
 import type { NetWall, NetWallOptions, Roots, SandboxSpec } from "../../sandbox/src/index.ts";
+import dns from "node:dns/promises";
+import { refusesAddress } from "../../lib/net-guard.ts";
 import { stepError } from "./projections.ts";
 
 /** What the host gives the module: where to make run folders, and how to find bwrap and Node. Tests override the limits. */
@@ -25,11 +27,13 @@ export interface CodeHost {
   cpuSeconds?: number;
   wallMs?: number;
   heapMb?: number;
+  /** The kernel limit on the process's data (RLIMIT_DATA: heap, Buffers and ArrayBuffers). Default 192 MB: 128 MB for the code plus the runtime's own. */
+  dataMb?: number;
   /** Tests: how the egress proxy resolves a name and dials an address (a stand-in for the internet). Default: the system's. */
   egress?: NetWallOptions["egress"];
 }
 
-export const LIMITS = Object.freeze({ cpuSeconds: 10, wallMs: 30_000, heapMb: 96, outputBytes: 1_000_000, sourceChars: 20_000, hosts: 10 });
+export const LIMITS = Object.freeze({ cpuSeconds: 10, wallMs: 30_000, heapMb: 64, dataMb: 192, outputBytes: 1_000_000, sourceChars: 20_000, hosts: 10 });
 const BWRAP = ["/usr/bin/bwrap", "/usr/local/bin/bwrap", "/bin/bwrap"];
 const MAX_LOGS = 50;
 const MAX_LOG = 500;
@@ -38,6 +42,18 @@ const MAX_RUNNING = 4;
 let host: CodeHost | null = null;
 let running = 0;
 const waiting: Array<() => void> = [];
+
+/**
+ * The name lookup the egress proxy uses. The proxy already refuses the addresses of its own list; this adds lib/net-guard.ts, the one list the public fetcher uses (tailnet 100.64/10, 198.18/15,
+ * multicast and reserved, "::", NAT64 and the rest), and answers no address at all when any address of a name is on it, so a name that points inside is refused whole.
+ */
+export function guardedLookup(base?: (host: string) => Promise<readonly string[]>): (host: string) => Promise<readonly string[]> {
+  const resolve = base ?? (async (host: string) => (await dns.lookup(host, { all: true, verbatim: true })).map((r) => r.address));
+  return async (host) => {
+    const ips = await resolve(host);
+    return ips.some((ip) => refusesAddress(ip)) ? [] : ips;
+  };
+}
 
 export function setCodeHost(next: CodeHost | null): void { host = next; }
 
@@ -67,11 +83,11 @@ try {
   const fn = new AsyncFunction("input", "log", '"use strict";\\n' + source);
   const value = await fn(input, log);
   const text = JSON.stringify(value === undefined ? null : value);
-  if (typeof text !== "string") throw new Error("Run code must return JSON.");
-  if (Buffer.byteLength(text) > MAX_OUT) throw new Error("Run code returned more than 1 MB.");
+  if (typeof text !== "string") throw Object.assign(new Error("x"), { name: "NotJson" });
+  if (Buffer.byteLength(text) > MAX_OUT) throw Object.assign(new Error("x"), { name: "OutputTooLarge" });
   finish({ ok: true, text });
 } catch (e) {
-  finish({ ok: false, message: String((e && e.message) || e).slice(0, 500) });
+  finish({ ok: false, name: /allocation failed|out of memory|Invalid array length/i.test(String((e && e.message) || e)) ? "OutOfMemory" : String((e && e.name) || "Error").replace(/[^A-Za-z0-9_]/g, "").slice(0, 40) });
 }
 `;
 
@@ -121,7 +137,7 @@ export async function runInSandbox(source: unknown, input: unknown, hostsRaw?: u
     fs.writeFileSync(path.join(dir, "code.js"), source, { mode: 0o644 });
     fs.writeFileSync(path.join(dir, "input.json"), inputText, { mode: 0o644 });
     // one proxy for this run: it allows the named hosts and is closed when the run ends
-    net = await startNetWall({ allow: hosts, ...(h.egress ? { egress: h.egress } : {}) });
+    net = await startNetWall({ allow: hosts, egress: { ...(h.egress ?? {}), lookup: guardedLookup(h.egress?.lookup) } });
     const node = h.node ?? process.execPath;
     const heap = h.heapMb ?? LIMITS.heapMb;
     const cpu = h.cpuSeconds ?? LIMITS.cpuSeconds;
@@ -133,7 +149,9 @@ export async function runInSandbox(source: unknown, input: unknown, hostsRaw?: u
       mounts: [{ host: dir, mode: "rw" }], egressHosts: hosts, env: hosts.length > 0 ? { NODE_USE_ENV_PROXY: "1", VYRE_CODE_NET: "1" } : {},
     };
     // ulimit -t counts processor seconds: a loop is killed by the kernel, a wait on the network is not counted (the wall clock below ends that).
-    const argv = ["/bin/sh", "-c", `ulimit -t ${cpu}; exec "$@"`, "sh", node, ...nodeFlags(dir, heap), path.join(dir, "runner.mjs"), dir];
+    const dataKb = (h.dataMb ?? LIMITS.dataMb) * 1024;
+    // ulimit -d bounds everything the process maps for data (brk and private writable mappings), so a Buffer or ArrayBuffer loop outside the V8 heap is stopped by the kernel too
+    const argv = ["/bin/sh", "-c", `ulimit -t ${cpu}; ulimit -d ${dataKb}; exec "$@"`, "sh", node, ...nodeFlags(dir, heap), path.join(dir, "runner.mjs"), dir];
     const w = bwrapWallCommand(spec, roots, argv, { wallDir: net.dir, node, ...(h.programRead ? { programRead: h.programRead } : {}) });
     const outcome = await new Promise<{ code: number | null; signal: NodeJS.Signals | null; stderr: string; timedOut: boolean }>((resolve) => {
       const p = spawn(w.cmd, w.args, { env: {}, stdio: ["ignore", "ignore", "pipe"] });
@@ -144,7 +162,7 @@ export async function runInSandbox(source: unknown, input: unknown, hostsRaw?: u
       p.on("error", (err) => { clearTimeout(t); resolve({ code: null, signal: null, stderr: `${stderr}${err.message}`, timedOut }); });
       p.on("close", (code, signal) => { clearTimeout(t); resolve({ code, signal, stderr, timedOut }); });
     });
-    return readResult(dir, outcome, cpu, heap);
+    return readResult(dir, outcome, cpu, heap, 128);
   } finally {
     await net?.close().catch(() => undefined);
     fs.rmSync(dir, { recursive: true, force: true });
@@ -152,7 +170,7 @@ export async function runInSandbox(source: unknown, input: unknown, hostsRaw?: u
   }
 }
 
-export function readResult(dir: string, o: { code: number | null; signal: NodeJS.Signals | null; stderr: string; timedOut: boolean }, cpu: number, heap: number): CodeResult {
+export function readResult(dir: string, o: { code: number | null; signal: NodeJS.Signals | null; stderr: string; timedOut: boolean }, cpu: number, heap: number, memoryMb = heap): CodeResult {
   const file = path.join(dir, "result.json");
   let raw: string | null = null;
   try {
@@ -166,12 +184,17 @@ export function readResult(dir: string, o: { code: number | null; signal: NodeJS
     if (o.timedOut) throw stepError("timeout.deadline", "Run code took too long.", false);
     if (o.signal === "SIGKILL" || o.signal === "SIGXCPU" || o.code === 137 || o.code === 152) throw stepError("timeout.deadline", `Run code used more than ${cpu} seconds of processor time.`, false);
     if (/heap out of memory|allocation failed|ERR_WORKER_OUT_OF_MEMORY/i.test(o.stderr) || o.signal === "SIGABRT" || o.code === 134) throw stepError("validation.bad_input", `Run code used more than ${heap} MB of memory.`, false);
-    const tail = o.stderr.trim().split("\n").slice(-2).join(" ").slice(0, 300);
-    throw stepError("validation.bad_input", `The code did not finish.${tail ? ` ${tail}` : ""}`, false);
+    throw stepError("validation.bad_input", "The code did not finish.", false);
   }
-  let parsed: { ok?: boolean; text?: string; message?: string; logs?: unknown };
+  let parsed: { ok?: boolean; text?: string; name?: string; message?: string; logs?: unknown };
   try { parsed = JSON.parse(raw) as typeof parsed; } catch { throw stepError("validation.bad_input", "Run code must return JSON.", false); }
   const logs = Array.isArray(parsed.logs) ? parsed.logs.filter((l): l is string => typeof l === "string").slice(0, MAX_LOGS) : [];
-  if (parsed.ok !== true) throw stepError("validation.bad_input", parsed.message ?? "The code failed.", false);
+  // the words of the failure are the code's own and may hold the data it was given: only its kind of error is passed on
+  if (parsed.ok !== true) {
+    if (parsed.name === "NotJson") throw stepError("validation.bad_input", "Run code must return JSON.", false);
+    if (parsed.name === "OutOfMemory") throw stepError("validation.bad_input", `Run code used more than ${memoryMb} MB of memory.`, false);
+    if (parsed.name === "OutputTooLarge") throw stepError("validation.too_large", "Run code returned more than 1 MB.", false);
+    throw stepError("validation.bad_input", `The code threw ${parsed.name ?? "an error"}.`, false);
+  }
   try { return { result: JSON.parse(parsed.text ?? "null") as unknown, logs }; } catch { throw stepError("validation.bad_input", "Run code must return JSON.", false); }
 }

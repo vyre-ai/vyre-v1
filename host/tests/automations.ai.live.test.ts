@@ -218,3 +218,29 @@ test("a Space AI step runs as its service on a Space-shared key, and refuses a k
     assert.match(JSON.stringify(bare.data), /needs a Space-shared AI key/);
   } finally { await w.stop(); }
 });
+
+test("a restricted record in the input follows the chat label rule: a provider the policy does not allow for it is refused and nothing is sent", async () => {
+  const w = await world();
+  try {
+    await unlock(w.d);
+    await ok(w.d, "providers.add", { idempotencyKey: "ai-lbl", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "mine" });
+    const nodes = [
+      { id: "rec", key: "transform", input: { value: { id: "rec_secretcase", label: 3, name: "Client" }, mapping: { id: "id", label: "label", name: "name" } }, next: ["ask"] },
+      { id: "ask", key: "ai", input: { prompt: "Summarise the client.", inputs: { client: "{{ steps.rec.out.value }}" } } },
+    ];
+    const id = String((await ok(w.d, "automations.create", { idempotencyKey: "ai-label", name: "Labelled", definition: { triggers: [{ key: "manual" }], nodes } })).automation.id);
+    await ok(w.d, "automations.set_enabled", { automationId: id, enabled: true });
+    await ok(w.d, "engine.policy.set", { labelProviders: { restricted: ["anthropic"] } });
+    const bad = String((await ok(w.d, "automations.run", { automationId: id, idempotencyKey: "ai-label-run-1" })).runId);
+    const failed = await finished(w.d, bad, "failed");
+    const step = failed.steps.find((s) => s.step === "ask")!;
+    assert.equal(step.error?.code, "permission.provider_label", JSON.stringify(step));
+    assert.match(String(step.error?.message), /restricted records in its input/);
+    assert.equal(w.v.requests.length, 0, "nothing went to the provider");
+    await ok(w.d, "engine.policy.set", { labelProviders: { restricted: ["anthropic", "openai"] } });
+    w.v.script.push({ text: "Allowed now." });
+    const good = String((await ok(w.d, "automations.run", { automationId: id, idempotencyKey: "ai-label-run-2" })).runId);
+    await finished(w.d, good, "succeeded");
+    assert.equal(w.v.requests.length, 1);
+  } finally { await w.stop(); }
+});

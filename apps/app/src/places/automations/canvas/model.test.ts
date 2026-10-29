@@ -160,10 +160,11 @@ test("card text: the title falls back to the step's name and the second line say
   assert.equal(subtitleOf({ id: "s", key: "ai", input: {} }), "Write what the AI should do");
   assert.equal(subtitleOf({ id: "s", key: "ai", input: { prompt: "Summarise\nthe note" } }), "Summarise the note. your own AI account");
   assert.equal(subtitleOf({ id: "h", key: "http_request", input: { method: "GET", url: "https://api.example.com/v1/items" } }), "GET api.example.com/v1/items");
-  assert.equal(subtitleOf({ id: "h", key: "http_request", input: { method: "POST", url: "https://api.example.com/orders" } }), "POST api.example.com/orders, waits for approval when sends are held");
+  assert.equal(subtitleOf({ id: "h", key: "http_request", input: { method: "POST", url: "https://api.example.com/orders" } }), "POST api.example.com/orders");
+  assert.equal(subtitleOf({ id: "h", key: "http_request", askBeforeSending: true, input: { method: "POST", url: "https://api.example.com/orders" } } as never), "POST api.example.com/orders, asks before sending");
   assert.equal(subtitleOf({ id: "h", key: "http_request", input: {} }), "Name the address to call");
-  assert.equal(subtitleOf({ id: "c", key: "code", input: { source: "// note\nreturn input.n + 1;" } }), "return input.n + 1;, no network");
-  assert.equal(subtitleOf({ id: "c", key: "code", input: { source: "return 1", hosts: ["a.example.com", "b.example.com"] } }), "return 1, reaches 2 hosts");
+  assert.equal(subtitleOf({ id: "c", key: "code", input: { source: "// note\nreturn input.n + 1;" } }), "Runs 1 line of code, no network");
+  assert.equal(subtitleOf({ id: "c", key: "code", input: { source: "return 1", hosts: ["a.example.com", "b.example.com"] } }), "Runs 1 line of code, reaches a.example.com, b.example.com");
   assert.equal(subtitleOf({ id: "m", key: "send_email", input: { to: ["ada@example.com"], subject: "Hello", message: { version: 2 } } }), "Email ada@example.com: Hello, template v2");
   assert.equal(subtitleOf({ id: "t", key: "send_sms", input: { to: "+1555", body: "Hi" } }), "Text +1555, 1 segment");
   assert.equal(subtitleOf({ id: "c", key: "connector_request", input: { connector: "acme", action: "ping" } }), "acme · ping");

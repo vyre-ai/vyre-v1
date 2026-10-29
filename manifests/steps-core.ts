@@ -204,7 +204,7 @@ export default defineManifest({
       effects: 'read', retry: { max: 1, backoff: 'none', baseMs: 0 }, errors: ['validation.bad_input', 'validation.too_large', 'internal.unexpected', 'timeout.deadline'],
       in: {
         language: t.opt(t.enm('javascript')),
-        source: t.str({ description: 'Async function body; receives input and log, awaits freely and returns a JSON value. Runs in the sandbox: no files, no Vault, no network unless hosts names it. 10 seconds of processor time, 96 MB heap, 1 MB out' }),
+        source: t.str({ description: 'Async function body; receives input and log, awaits freely and returns a JSON value. Runs in the sandbox: no files, no Vault, no network unless hosts names it. 10 seconds of processor time, 128 MB of memory (a kernel limit), 1 MB out' }),
         input: t.opt(t.rec()),
         hosts: t.opt(t.arr(t.str({ examples: ['api.example.com'] }), { maxItems: 10, description: 'Hosts the code may reach with fetch, by name (api.example.com or *.example.com). Empty or absent: no network' })),
       },

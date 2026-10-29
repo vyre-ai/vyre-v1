@@ -240,8 +240,8 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
             {BUILDER_MODES.map((label) => {
               const on = (label === "Advanced") === advanced;
               return (
-                <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: on }} testID={label === "Advanced" ? "toggle-advanced" : "toggle-basic"} onPress={() => setAdvanced(label === "Advanced")} style={pointer}>
-                  <Text style={i.hint}>{label}</Text>
+                <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: on }} testID={label === "Advanced" ? "toggle-advanced" : "toggle-basic"} onPress={() => setAdvanced(label === "Advanced")} style={[i.segBtn, on && i.segBtnOn, pointer]}>
+                  <Text style={[i.segText, on && i.segTextOn]}>{label}</Text>
                 </Pressable>
               );
             })}
@@ -375,7 +375,11 @@ const i = StyleSheet.create({
   embedded: { width: "100%" as unknown as number, flex: 1, borderLeftWidth: 0 },
   head: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, height: 52, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   tile: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--hover)" as string },
-  seg: { flexDirection: "row", gap: 4 },
+  seg: { flexDirection: "row", gap: 2, alignSelf: "flex-start", padding: 2, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  segBtn: { paddingHorizontal: 10, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  segBtnOn: { backgroundColor: "var(--win)" as string },
+  segText: { fontSize: 12, color: "var(--ink-3)" as string },
+  segTextOn: { color: "var(--ink)" as string, fontWeight: "600" },
   title: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   sub: { fontSize: 11.5, color: "var(--ink-3)" as string },
   body: { padding: 14, gap: 12 },

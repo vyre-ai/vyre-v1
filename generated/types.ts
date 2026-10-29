@@ -8593,6 +8593,7 @@ export type EngineStepTurnIn = {
   keyId?: string;
   backupKeyId?: string;
   timeoutMinutes?: number;
+  recordLabel?: number;
   runId: string;
   stepId: string;
   idempotencyKey: string;

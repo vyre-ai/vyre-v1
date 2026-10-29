@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { harness } from "../fixtures/db.ts";
 import { runStep, stepsTest } from "../handlers/control.ts";
-import { aiStep, jsonIn } from "../handlers/ai-step.ts";
+import { aiStep, jsonIn, labelIn } from "../handlers/ai-step.ts";
 import type { StepCall, StepNode } from "../handlers/control.ts";
 
 type H = ReturnType<typeof harness>;
@@ -110,4 +110,16 @@ test("the prompt needs text, and a big input is refused", async () => {
   const h = harness({ "engine.step_turn": () => turn("x") });
   await assert.rejects(aiStep(h.env, ask({ prompt: "  " }), { prompt: "  " }, call()), (e) => codeOf(e) === "validation.bad_input");
   await assert.rejects(aiStep(h.env, ask({}), { prompt: "p", inputs: { blob: "x".repeat(100_001) } }, call()), (e) => codeOf(e) === "validation.too_large");
+});
+
+test("the highest label of a record the run read goes to the engine with the turn", async () => {
+  assert.equal(labelIn({ find: { rows: [{ id: "rec_1", label: 1 }, { id: "rec_2", label: 3 }] } }, { id: "rec_t", label: 2 }), 3);
+  assert.equal(labelIn({ a: { label: 3 } }), 0, "only a record row counts");
+  assert.equal(labelIn(undefined, null, 4), 0);
+  const h = harness({ "engine.step_turn": () => turn("ok") });
+  await run(h, ask({ prompt: "p" }), call({ outputs: { find: { rows: [{ id: "rec_9", label: 2 }] } } }));
+  assert.equal(h.log[0]!.input.recordLabel, 2);
+  const none = harness({ "engine.step_turn": () => turn("ok") });
+  await run(none, ask({ prompt: "p" }), call());
+  assert.equal("recordLabel" in none.log[0]!.input, false);
 });

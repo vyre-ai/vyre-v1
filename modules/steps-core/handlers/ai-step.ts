@@ -31,6 +31,20 @@ export function jsonIn(answer: string): { ok: true; value: unknown } | { ok: fal
   return { ok: false };
 }
 
+/** The highest label of any record the run has read: a record row carries its `label` (0 public to 3 restricted). The trigger payload and every earlier output are searched. */
+export function labelIn(...sources: unknown[]): number {
+  let max = 0;
+  const walk = (v: unknown, depth: number): void => {
+    if (depth > 12 || v === null || typeof v !== "object") return;
+    if (Array.isArray(v)) { for (const x of v) walk(x, depth + 1); return; }
+    const o = v as Rec;
+    if (typeof o["label"] === "number" && Number.isInteger(o["label"]) && o["label"] >= 0 && o["label"] <= 3 && typeof o["id"] === "string" && /^rec_/.test(o["id"])) max = Math.max(max, o["label"]);
+    for (const x of Object.values(o)) walk(x, depth + 1);
+  };
+  for (const s of sources) walk(s, 0);
+  return max;
+}
+
 function promptOf(cfg: Rec, title: string): string {
   const prompt = text(cfg["prompt"]);
   if (!prompt) throw stepError("validation.bad_input", `The AI step "${title}" needs a prompt.`, false);
@@ -58,6 +72,7 @@ export async function aiStep(env: StepEnv, node: StepNode, input: Rec, call: Ste
     ...(text(cfg["keyId"]) ? { keyId: cfg["keyId"] } : {}),
     ...(text(cfg["backupKeyId"]) ? { backupKeyId: cfg["backupKeyId"] } : {}),
     ...(typeof cfg["timeoutMinutes"] === "number" ? { timeoutMinutes: cfg["timeoutMinutes"] } : {}),
+    ...(labelIn(call.outputs, call.trigger, call.item) > 0 ? { recordLabel: labelIn(call.outputs, call.trigger, call.item) } : {}),
     runId: env.run.id, stepId: node.id, idempotencyKey: call.key,
   })) as { text?: string; keyUsed?: string; modelUsed?: string };
   const answer = typeof turn.text === "string" ? turn.text : "";

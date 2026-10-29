@@ -155,6 +155,10 @@ test("real bubblewrap: input in, JSON out, no network, no host files, only the n
     const heavy = await runCode(d, { source: "const a = []; for (;;) a.push(new Array(1000000).fill(1));" });
     assert.equal(heavy.status, "failed");
     assert.match(String(heavy.error?.message), /memory/, JSON.stringify(heavy));
+    // Buffers and ArrayBuffers live outside the V8 heap: the kernel's data limit stops them
+    const buffers = await runCode(d, { source: "const keep = []; for (;;) keep.push(Buffer.alloc(50 * 1024 * 1024, 1));" });
+    assert.equal(buffers.status, "failed");
+    assert.match(String(buffers.error?.message), /memory|did not finish/, JSON.stringify(buffers));
     const big = await runCode(d, { source: "return 'a'.repeat(1100000)" });
     assert.equal(big.status, "failed");
     assert.match(String(big.error?.message), /more than 1 MB/);
@@ -162,7 +166,7 @@ test("real bubblewrap: input in, JSON out, no network, no host files, only the n
     // the code's own failure comes back in its words
     const threw = await runCode(d, { source: "throw new Error('nope, not today')" });
     assert.equal(threw.error?.code, "validation.bad_input");
-    assert.equal(threw.error?.message, "nope, not today");
+    assert.equal(threw.error?.message, "The code threw Error.", "the code's own words are not passed on");
 
     // nothing is left behind
     assert.deepEqual(fs.readdirSync(path.join(dir, "code")), [], "every run folder is removed");

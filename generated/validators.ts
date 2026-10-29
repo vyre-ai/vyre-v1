@@ -31363,6 +31363,7 @@ if ("agentId" in o1941) lf(o1941["agentId"], p + "/agentId", e, L12);
 if ("keyId" in o1941) lf(o1941["keyId"], p + "/keyId", e, L2);
 if ("backupKeyId" in o1941) lf(o1941["backupKeyId"], p + "/backupKeyId", e, L2);
 if ("timeoutMinutes" in o1941) lf(o1941["timeoutMinutes"], p + "/timeoutMinutes", e, L93);
+if ("recordLabel" in o1941) lf(o1941["recordLabel"], p + "/recordLabel", e, L163);
 if ("runId" in o1941) lf(o1941["runId"], p + "/runId", e, L23);
 if ("stepId" in o1941) lf(o1941["stepId"], p + "/stepId", e, L2);
 if ("idempotencyKey" in o1941) lf(o1941["idempotencyKey"], p + "/idempotencyKey", e, L54);

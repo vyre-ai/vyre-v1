@@ -30,6 +30,7 @@ type In = {
   keyId?: string;
   backupKeyId?: string;
   timeoutMinutes?: number;
+  recordLabel?: number;
   runId: string;
   stepId: string;
   idempotencyKey: string;
@@ -56,6 +57,7 @@ type Out = {
 - permission.above_clearance
 - permission.limit
 - permission.no_grant
+- permission.provider_label
 - provider.auth_failed
 - provider.overloaded
 - provider.rate_limited
@@ -74,6 +76,7 @@ type Out = {
     "idempotencyKey": "idem_1",
     "keyId": "#Team_Anthropic_Key",
     "prompt": "example",
+    "recordLabel": 1,
     "runId": "run_a1b2c3",
     "stepId": "example",
     "timeoutMinutes": 1

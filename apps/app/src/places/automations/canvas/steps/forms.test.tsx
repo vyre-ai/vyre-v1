@@ -53,7 +53,7 @@ test("HTTP request, a send: the body kind, a JSON body, the approval note and th
   assert.ok(has(out, 'data-testid="field-json-body"'));
   assert.ok(has(out, "&quot;sku&quot;: &quot;A-1&quot;"));
   assert.equal(value(out, "field-auth-user"), "dana");
-  assert.ok(has(out, "A send waits for approval when the Gate holds sends"));
+  assert.ok(has(out, "A send is only recorded, not sent, in a test."));
   assert.ok(has(out, "Idempotency-Key"));
   const text = panel({ id: "t", key: "http_request", input: { method: "PUT", url: "https://a.example.com", text: "hello" } });
   assert.match(tag(text, "choose-body"), /aria-label="Body: Text"/);
@@ -79,7 +79,7 @@ test("Run code: the code, its input, the hosts it may reach and the limits it ru
   assert.equal(value(out, "rows-input-value-0"), "2");
   assert.ok(has(out, "api.example.com\n*.cdn.example.com") || has(out, "api.example.com&#10;*.cdn.example.com"), "one host per line");
   assert.ok(has(out, "fetch reaches api.example.com, *.cdn.example.com and nothing else."));
-  assert.ok(has(out, "10 seconds of processor time, 96 MB of memory and 1 MB of output"));
+  assert.ok(has(out, "10 seconds of processor time, 128 MB of memory and 1 MB of output"));
   const quiet = panel({ id: "c", key: "code", input: { source: "return 1" } });
   assert.ok(has(quiet, "No network. Name a host to let fetch reach it"));
   noDash(out);
@@ -134,6 +134,6 @@ test("the cards say what each live step does", () => {
   const l = layout(def, {});
   const subs = Object.fromEntries(l.cards.filter((c) => c.node).map((c) => [c.id, c.sub]));
   assert.equal(subs["h"], "GET api.example.com/v1/items");
-  assert.equal(subs["c"], "return 1, no network");
+  assert.equal(subs["c"], "Runs 1 line of code, no network");
   assert.equal(subs["a"], "Summarise the result. your own AI account");
 });

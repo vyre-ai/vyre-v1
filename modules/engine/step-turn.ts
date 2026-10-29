@@ -10,6 +10,7 @@ import { resolveAccount, providerOfModel } from "../../agent/src/accounts/index.
 import type { AccountRow } from "../../agent/src/accounts/index.ts";
 import type { DriverEvent, EngineAgent, SessionSpec, StoredMessage } from "../../agent/src/turn-engine/types.ts";
 import { load } from "./handlers/accounts.ts";
+import { blockedBy, readPolicy as readAiPolicy } from "./handlers/extra/config.ts";
 import { isPaused, limitReached, recordStepUsage } from "./handlers/spend.ts";
 import { ensure, raise, stepOpenOf } from "./projections.ts";
 import type { EngineCtx } from "./projections.ts";
@@ -21,6 +22,8 @@ export interface StepTurnIn {
   keyId?: string;
   backupKeyId?: string;
   timeoutMinutes?: number;
+  /** The highest label (0 public to 3 restricted) of any record the run read before this step: its data may be in the prompt. */
+  recordLabel?: number;
   runId: string;
   stepId: string;
   idempotencyKey: string;
@@ -47,6 +50,18 @@ const codeOfDriver = (code: string): { code: string; retryable: boolean } => {
   if (code === "engine.timeout") return { code: "timeout.deadline", retryable: false };
   return { code: "provider.unavailable", retryable: true };
 };
+
+/** What a person reads for a failed turn. Words are fixed by code: nothing the provider wrote, and nothing from the prompt, goes into an error. */
+const WHY: Readonly<Record<string, string>> = {
+  "provider.rate_limited": "The AI provider is rate limiting this account. Try again in a moment.",
+  "provider.overloaded": "The AI provider is overloaded. Try again in a moment.",
+  "provider.auth_failed": "The AI provider did not accept the key or sign-in for this step. Reconnect it in AI settings.",
+  "provider.context_too_long": "The input to this AI step is longer than the model accepts.",
+  "provider.content_filtered": "The AI provider filtered this request.",
+  "timeout.deadline": "The AI step did not answer in time.",
+};
+const whyOf = (code: string): string => WHY[code] ?? "The AI provider could not answer this step.";
+const LABELS = ["public", "internal", "confidential", "restricted"] as const;
 
 const hex = (s: string): string => {
   let h = 0x811c9dc5;
@@ -127,6 +142,15 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
   if (hit) raise(ctx, "permission.limit", `The ${hit.scope === "space" ? "Space" : hit.scope === "agent" ? "agent" : "person"} has reached a ${hit.limit} AI limit, so this step did not run. Raise it or wait.`, { reason: "limit", scope: hit.scope, limit: hit.limit });
 
   const paid = await accountFor(ctx, input, asker, service, withAgent?.agent);
+  // The label rule of a chat applies to what a step puts in the prompt: records the run read carry their label into the turn, and a provider the Space's policy does not allow for that label is refused.
+  if (typeof input.recordLabel === "number" && input.recordLabel > 0) {
+    const label = LABELS[Math.min(3, Math.max(0, Math.floor(input.recordLabel)))]!;
+    const policy = await readAiPolicy(ctx as never);
+    const keys = [paid.row.driver, paid.row.provider].filter((k): k is string => typeof k === "string" && k !== "");
+    if (!keys.some((k) => blockedBy(policy, { provider: k, label }) === null)) {
+      raise(ctx, "permission.provider_label", `This AI step has ${label} records in its input, and this Space does not let ${label} records go to that AI provider. The step did not run.`, { reason: "label_provider", label });
+    }
+  }
   const agent: EngineAgent = { id: agentKey, ...(withAgent ? { name: withAgent.agent.name } : {}), mode: "lead", ...(withAgent?.agent.model ? { model: withAgent.agent.model } : {}) };
   const slug = hex(input.idempotencyKey);
   const threadId = `thr_step${slug}`;
@@ -142,7 +166,7 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
   const session = await open(spec).catch((e: unknown) => {
     const c = (e as { code?: unknown } | null)?.code;
     const mapped = codeOfDriver(typeof c === "string" ? c : "");
-    raise(ctx, mapped.code as never, e instanceof Error ? e.message.slice(0, 300) : "The AI engine could not start.", { reason: "open_failed" });
+    raise(ctx, mapped.code as never, whyOf(mapped.code), { reason: "open_failed" });
   });
   let reply = "";
   let tokensIn = 0;
@@ -168,7 +192,7 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
   if (timedOut) raise(ctx, "timeout.deadline", `The AI step did not answer within ${minutes} minutes.`, { reason: "timeout" });
   if (failure) {
     const mapped = codeOfDriver(failure.code);
-    raise(ctx, mapped.code as never, failure.message.slice(0, 300), { reason: "engine", engineCode: failure.code });
+    raise(ctx, mapped.code as never, whyOf(mapped.code), { reason: "engine" });
   }
   const out: StepTurnOut = { text: reply, keyUsed: paid.row.ref, modelUsed: model, tokensIn, tokensOut, ...(withAgent ? { agentName: withAgent.agent.name } : {}) };
   ctx.db.run("INSERT OR IGNORE INTO engine_step_turns (key, result_json, at) VALUES (?, ?, ?)", input.idempotencyKey, JSON.stringify(out), ctx.now());
