@@ -33,7 +33,7 @@ jobs:
           retention-days: 7
   shots:
     # Full runs use thirty-six bounded shards. Packet branches retain their single targeted capture.
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, v1]
     timeout-minutes: 35
     strategy:
       fail-fast: false
@@ -60,7 +60,7 @@ jobs:
           if-no-files-found: error
   release-evidence:
     # This starts beside the visual shards so release-critical PWA and real-app proof cannot wait behind the full prototype suite.
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, v1]
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
@@ -115,7 +115,7 @@ jobs:
           if-no-files-found: error
   aggregate-shots:
     needs: [shots, release-evidence]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, v1]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4

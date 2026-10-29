@@ -1,5 +1,6 @@
 # Changelog
 
+- Run the screenshot shards, release evidence and their aggregate, and the affected-perf gate on the self-hosted runners: a full shots run needs 37 jobs, more than the hosted concurrency allows, so runs were queuing behind each other while the self-hosted fleet sat idle.
 
 - Guard Kit undo steps: an install records which record types it actually created, and the stored undo never drops one the Kit did not create (seeded by a manifest or already in the Space), so rolling back or removing the Default Kit leaves note_board alone.
 - Make a classification or access narrowing reach what a device already cached: sync keeps, per device, the fields it is held back from, and a device that cached a field now held back (or has no record from before this guard) is told to purge and resnapshot, with the person's epoch raised, before pull, snapshot or live returns any data. A patch omits a field and never removes one, and the access rescan only revisits wholly visible or hidden rows, so this is the conservative whole-replica reset.
