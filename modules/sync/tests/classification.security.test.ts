@@ -1,0 +1,14 @@
+// @reads /modules/sync/migrations/0001_pull.sql
+import test from 'node:test';import assert from 'node:assert/strict';
+import {AccessSnapshot} from '../../../kernel/src/authorize/snapshot.ts';import {mintRecordId} from '../../../lib/ids.ts';import {openSync} from '../impl.ts';
+const OWNER='usr_classowner',GUEST='usr_classguest',TRACE='11'.repeat(16);
+function access(){const a=new AccessSnapshot();a.putRole({id:'classowner',name:'Owner',clearance:3,perms:['records.read']});a.putRole({id:'classguest',name:'Guest',clearance:1,perms:[]});for(const[id,role]of[[OWNER,'classowner'],[GUEST,'classguest']]){a.putPrincipal({id:id!,kind:'person',status:'active'});a.addPrincipalRole({holder:id!,role:role!});}a.putGrant({id:'class_owner',subject_kind:'actor',subject_id:OWNER,resource_type:'record',resource_id:null,level:'manage'});a.putGrant({id:'class_guest',subject_kind:'actor',subject_id:GUEST,resource_type:'record',resource_id:null,level:'view',conditions:{rowFilter:{op:'eq',field:'region',value:'eu'},hiddenFields:['internalMemo']}});return a;}
+const ctx=(principal:string,deviceId='class-device')=>({trace:{traceId:TRACE},principal,deviceId,deviceClass:'desktop' as const});
+test('canonical typed Schema sensitivity filters snapshot and pull independently of Owner clearance',async()=>{
+ const a=access(),s=openSync({access:()=>a});try{await s.store.define({add_types:[{name:'classrecord',fields:[{name:'name',kind:'text'},{name:'region',kind:'text'},{name:'tax',kind:'text',label:'Tax identifier',sensitivity:'restricted'},{name:'salary',kind:'text',sensitivity:'confidential'},{name:'internalMemo',kind:'text'}]}]});
+ const eu=mintRecordId(),us=mintRecordId();for(const[id,region]of[[eu,'eu'],[us,'us']])await s.store.create('classrecord',id!,{name:region,region,tax:'restricted-fixture-value',salary:'confidential-fixture-value',internalMemo:'hidden-fixture-value'});
+ const owner=await s.handlers['sync.pull'](ctx(OWNER),{cursor:0,epoch:0});assert.ok(!JSON.stringify(owner).includes('restricted-fixture-value'),'Restricted never mirrors to laptops, even Owner');assert.ok(JSON.stringify(owner).includes('confidential-fixture-value'));
+ const guest=await s.handlers['sync.pull'](ctx(GUEST),{cursor:0,epoch:0});assert.deepEqual(guest.changes.map(row=>row.id),[eu]);for(const value of['restricted-fixture-value','confidential-fixture-value','hidden-fixture-value'])assert.ok(!JSON.stringify(guest).includes(value),value);
+ const begin=await s.handlers['sync.snapshot.begin'](ctx(GUEST,'snapshot-device'),{deviceClass:'desktop'});const snapshot=await s.handlers['sync.snapshot.page'](ctx(GUEST,'snapshot-device'),{entity:'classrecord',asOf:begin.asOfSeq});assert.deepEqual(snapshot.rows.map(row=>row.id),[eu]);for(const value of['restricted-fixture-value','confidential-fixture-value','hidden-fixture-value'])assert.ok(!JSON.stringify(snapshot).includes(value),value);
+ }finally{s.host.close();}
+});

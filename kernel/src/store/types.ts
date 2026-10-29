@@ -58,6 +58,8 @@ export class StoreError extends Error {
 export interface Store {
   define(diff: DefineDiff): Promise<DefineResult>;
   types(): Promise<readonly TypeDef[]>;
+  /** Canonical local schema metadata, read in the same tick as a synchronous projection. */
+  typesSnapshot?(): readonly TypeDef[];
   describe(type: string): Promise<{ name: string; fields: { name: string; kind: string }[] } | null>;
   get(type: string, id: RecordId, opts?: { include_deleted?: boolean }): Promise<StoredRecord | null>;
   query(type: string, spec: QuerySpec): Promise<Page<StoredRecord>>;

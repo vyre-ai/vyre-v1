@@ -3,6 +3,7 @@
 // A record type the generated catalog does not list (a type the Space defined itself) gets DEFAULT_ENTITY: everyone mirrors it, a phone takes a window.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import type { TypeDef } from "../../../../kernel/src/store/types.ts";
 import type { DeviceClass } from "../../protocol.ts";
 
 export type ProfileMode = "all" | "window" | "none";
@@ -75,6 +76,8 @@ export function parseCatalog(text: string): Map<string, ServerEntity> {
 }
 
 export interface Catalog {
+  /** Canonical schema classification revision, when supplied by the local typed store. */
+  classificationStamp?(): string;
   /** The entity config, or the default for a Space-defined record type. */
   get(key: string): ServerEntity;
   known(): readonly ServerEntity[];
@@ -97,4 +100,18 @@ export function loadCatalog(file?: string): Catalog {
   if (file !== undefined) return makeCatalog(parseCatalog(readFileSync(file, "utf8")));
   cached ??= makeCatalog(parseCatalog(readFileSync(GENERATED, "utf8")));
   return cached;
+}
+
+/** Overlay the kernel typed store’s canonical sensitivity, never its display labels. */
+export function classifiedCatalog(base:Catalog,types:()=>readonly TypeDef[]):Catalog{
+ const current=()=>new Map(types().map(def=>[def.name,def]));
+ return{
+  ...base,
+  get(key){const original=base.get(key),def=current().get(key);if(!def)return original;
+   const labels={...original.fieldLabels};
+   for(const field of def.fields){const value=field['sensitivity'];if(value!==undefined)labels[field.name]=typeof value==='string'&&value in LABEL_RANKS?LABEL_RANKS[value as keyof typeof LABEL_RANKS]:3;if(field['syncToLaptop']===false)labels[field.name]=3;}
+   return{...original,fieldLabels:labels};
+  },
+  classificationStamp:()=>JSON.stringify([...current().values()].map(def=>[def.name,def.fields.map(field=>[field.name,field['sensitivity']??null,field['syncToLaptop']??null])]).sort((a,b)=>String(a[0]).localeCompare(String(b[0])))),
+ };
 }

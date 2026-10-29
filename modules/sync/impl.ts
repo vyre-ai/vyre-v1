@@ -6,6 +6,7 @@ import type { AccessSnapshot } from "../../kernel/src/authorize/snapshot.ts";
 import { openRecordStore } from "../../kernel/src/store/records.ts";
 import type { ProjectionHost } from "../../kernel/src/store/projection.ts";
 import type { Store } from "../../kernel/src/store/types.ts";
+import {classifiedCatalog} from "../../sync/src/server/pull/catalog.ts";
 import { LABEL_RANKS, ScopeCache, deviceRevoked, loadCatalog } from "../../sync/src/server/pull/index.ts";
 import type { Catalog, PullDeps } from "../../sync/src/server/pull/index.ts";
 import { VyreErr } from "../../packages/contracts/src/errors.ts";
@@ -55,15 +56,18 @@ export interface SyncHandle {
 }
 
 export function openSync(o: SyncOpts): SyncHandle {
-  const catalog = o.catalog ?? loadCatalog();
+  const baseCatalog = o.catalog ?? loadCatalog();
   const clock = o.clock ?? Date.now;
   const opened = o.store ?? openRecordStore({
     path: o.path ?? ":memory:", space: o.space ?? "sp_sync",
-    extra: [syncChanges((entity) => catalog.get(entity).ownerField)],
+    extra: [syncChanges((entity) => baseCatalog.get(entity).ownerField)],
     ...(o.actor !== undefined ? { actor: o.actor } : {}),
     clock,
   });
   const host = opened.host;
+  const metadata=opened.store.typesSnapshot;
+  if(!metadata)throw new Error("Sync requires canonical local typed-store metadata");
+  const catalog=classifiedCatalog(baseCatalog,()=>metadata.call(opened.store));
   let last: Hlc | null = null;
   const deps: PullDeps = {
     db: host.tx,
