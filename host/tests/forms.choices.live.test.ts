@@ -145,3 +145,31 @@ test("publisher-approved choices: labels only on the public page, one real relat
     assert.ok((await post(d, "/v1/forms/choices_candidates", { formId: form.formId, field: "company" }, null)).status >= 401);
   } finally { await d.stop(); }
 });
+
+test("a form published by a non-owner stops accepting a choice when that publisher loses access", async () => {
+  const { d, owner } = await boot();
+  try {
+    const invite = await post<{ link: string }>(d, "/v1/members/invites/create", { role: "rol_member", idempotencyKey: "choices-invite" }, owner);
+    assert.equal(invite.status, 200, JSON.stringify(invite));
+    const code = decodeURIComponent(new URL(invite.data!.link).pathname.split("/").pop() ?? "");
+    const joined = await post<{ personId: string; token: string }>(d, "/v1/members/accept", { code, username: "pia", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop", keys: KEYS }, null);
+    assert.equal(joined.status, 200, JSON.stringify(joined));
+    const { personId, token: pia } = joined.data!;
+    // Pia owns the company record she offers, and publishes her own form
+    const acme = (await post<{ record: { id: string } }>(d, "/v1/records/create", { type: COMPANY, fields: { name: "Pia Partners" }, idempotencyKey: "choices-pia-co" }, pia));
+    assert.equal(acme.status, 200, JSON.stringify(acme));
+    const made = await post<{ form: { formId: string; slug: string } }>(d, "/v1/forms/create", { name: "Pia form", recordType: LEAD, kind: "public", idempotencyKey: "choices-pia-form" }, pia);
+    assert.equal(made.status, 200, JSON.stringify(made));
+    const { formId, slug } = made.data!.form;
+    assert.equal((await post(d, "/v1/forms/fields_set", { formId, fields: [{ field: "email", mode: "ask" }, { field: "company", mode: "ask" }] }, pia)).status, 200);
+    const set = await post(d, "/v1/forms/choices_set", { formId, field: "company", choices: [{ refId: acme.data!.record.id }] }, pia);
+    assert.equal(set.status, 200, JSON.stringify(set));
+    assert.equal((await post(d, "/v1/forms/publish", { formId }, pia)).status, 200);
+    const key = (await post<{ choices: Record<string, { key: string }[]> }>(d, "/v1/forms/get", { formId }, pia)).data!.choices["company"]![0]!.key;
+    const submit = (n: string) => post<{ recordId: string }>(d, "/f/submit", { slug, idempotencyKey: `choices-pia-${n}`, answers: { email: `p${n}@x.example`, company: key } }, null);
+    assert.equal((await submit("1")).status, 200, "while Pia can see the record, the pick is accepted");
+    assert.equal((await post(d, "/v1/members/suspend", { personId }, owner)).status, 200);
+    const after = await submit("2");
+    assert.ok(after.status === 422 || after.status === 403, `a suspended publisher's choices are refused: ${JSON.stringify(after)}`);
+  } finally { await d.stop(); }
+});
