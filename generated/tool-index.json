@@ -38,6 +38,12 @@
     },
     {
       "deferred": false,
+      "name": "access_deciders",
+      "summary": "The people who hold Manage on a resource and so may decide a request about it. Used to route a request to a person even when the caller, an agent, cannot see the resource itself; it names people and shows nothing else",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "access_grants_list",
       "summary": "List grants by resource, subject or source (Console Grants)",
       "toolset": "engineer"

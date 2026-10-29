@@ -2,6 +2,7 @@
 // the Space's values and the owner floor; Copy from another Space; the Kit choice. The handlers run against the module's own migration in the in-memory SQL engine.
 // contract tests for the registry: every SettingDef is searchable; a value the schema refuses is refused with a sentence.
 import test from "node:test";
+import type { SettingsCtx } from "../projections.ts";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
 import { codeOf, harness } from "../fixtures/db.ts";
@@ -250,3 +251,14 @@ test("every statement the module sends is one the host's table guard allows", as
 });
 
 // Run on the final commit of this packet, after merging main, so the CI log lists the file as ok.
+
+test("an agent acting for a person reads that person's settings, and only reads them", async () => {
+  const h = harness();
+  await handlers["settings.set"](asMaya(h), { key: "profile.timezone", value: "Asia/Karachi" });
+  const agent = { ...asMaya(h), principal: { kind: "agent" as const, id: "agt_helper" }, actingFor: MAYA } as SettingsCtx;
+  assert.equal((await handlers["settings.get"](agent, { key: "profile.timezone" })).row.value, "Asia/Karachi");
+  assert.ok((await handlers["settings.list"](agent, {})).rows.length > 0);
+  await assert.rejects(handlers["settings.set"](agent, { key: "profile.timezone", value: "UTC" }), (e) => codeOf(e) === "auth.unauthenticated");
+  const stranger = { ...agent, actingFor: undefined } as SettingsCtx;
+  await assert.rejects(handlers["settings.get"](stranger, { key: "profile.timezone" }), (e) => codeOf(e) === "auth.unauthenticated");
+});

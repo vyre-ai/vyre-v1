@@ -8,7 +8,7 @@ import { handlers } from "../impl.ts";
 import { putPrincipal } from "../handlers/roles.ts";
 import {
   dropShare, foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, levelFor, lists,
-  myAccess, share, shareOf, sharesOf, unshare,
+  deciders, myAccess, share, shareOf, sharesOf, unshare,
 } from "../handlers/share.ts";
 import type { ShareCtx } from "../handlers/share.ts";
 import type { Db } from "../projections.ts";
@@ -302,6 +302,19 @@ test("shares_of names who has access and through what", async () => {
   assert.equal(await code(sharesOf(r.as("usr_b"), { resource: { type: "site", id: "sit_x" } })), "no error", "a viewer may look");
   r.item("sit_y", "usr_a");
   assert.equal(await code(sharesOf(r.as("usr_b"), { resource: { type: "site", id: "sit_y" } })), "permission.no_grant");
+});
+
+test("deciders names the people who hold Manage, and shows a caller who cannot see the resource nothing but those ids", async () => {
+  const r = rig();
+  r.item("sit_x", "usr_a");
+  const a = r.as("usr_a");
+  await share(a, { resource: { type: "site", id: "sit_x" }, subject: { kind: "person", id: "usr_b" }, level: "manage" });
+  await share(a, { resource: { type: "site", id: "sit_x" }, subject: { kind: "person", id: "usr_c" }, level: "view" });
+  assert.deepEqual(await deciders(r.as("usr_a"), { resource: { type: "site", id: "sit_x" } }), { people: ["usr_a", "usr_b"] });
+  // usr_c may not list the shares, but can still find who decides
+  assert.equal(await code(sharesOf(r.as("usr_d"), { resource: { type: "site", id: "sit_x" } })), "permission.no_grant");
+  assert.deepEqual(await deciders(r.as("usr_d"), { resource: { type: "site", id: "sit_x" } }), { people: ["usr_a", "usr_b"] });
+  assert.equal(await code(deciders(r.as("usr_a"), { resource: { type: "site", id: "sit_none" } })), "validation.not_found");
 });
 
 test("folders: names are unique among siblings, a folder cannot move into itself or across scopes, counts follow the items", async () => {

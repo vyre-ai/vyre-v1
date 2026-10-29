@@ -75,10 +75,10 @@ test("without a folder, or when the folder's managers cannot be read, the Space'
   const out = await ask(w, "agt_helper", { folderId: undefined });
   assert.deepEqual(w.called("tasks.create").map((t) => t.input["assigned"]), [{ kind: "person", id: "usr_admin" }, { kind: "person", id: "usr_owner" }]);
   assert.equal(out.request.folderId, undefined);
-  const w2 = world({ fail: { "access.shares_of": "no access" } });
+  const w2 = world({ folderUnreadable: true });
   await ask(w2);
   assert.deepEqual(w2.called("tasks.create").length, 2, "the folder could not be read, so the Space managers get it");
-  assert.match(w2.warnings.join("\n"), /the folder's shares could not be read/);
+  assert.match(w2.warnings.join("\n"), /the folder's managers could not be read/);
   // a manager who asks is not asked
   const w3 = world();
   await handlers["vault.request"](w3.as("usr_mira"), { name: "Mine", reason: "I need it", folderId: FOLDER, idempotencyKey: "m" });

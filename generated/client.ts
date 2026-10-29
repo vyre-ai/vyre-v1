@@ -21,6 +21,7 @@ export function createClient(transport: Transport) {
         update: call("access.actors.update", 1),
       },
       check: call("access.check", 1),
+      deciders: call("access.deciders", 1),
       grants: {
         list: call("access.grants.list", 1),
         update: call("access.grants.update", 1),

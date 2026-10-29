@@ -371,6 +371,25 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/access/deciders",
+    "cap": "access.deciders",
+    "v": 1,
+    "module": "access",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "dynamic",
+      "ref": "/resource"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/access/grants/list",
     "cap": "access.grants.list",
     "v": 1,

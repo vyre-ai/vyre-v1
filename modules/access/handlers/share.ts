@@ -512,6 +512,18 @@ export async function unshare(ctx: ShareCtx, input: { grantId?: string; resource
   return { revoked: doomed.length };
 }
 
+/**
+ * The people who may decide a request about a resource: every active person who holds Manage on it, through ownership, a grant, a group or a role. Unlike shares_of this does not need the caller
+ * to see the resource: an agent asking for a key it cannot reach must still be able to find who decides. It returns person ids and nothing about the grants.
+ */
+export async function deciders(ctx: ShareCtx, input: { resource: ResourceRef }): Promise<{ people: string[] }> {
+  const store = storeOf(ctx);
+  const res = resourceOf(ctx, store, input.resource);
+  const now = ctx.now();
+  const people = [...store.principals.values()].filter((p) => p.kind === "person" && p.status === "active" && atLeast(res.type, levelFor(store, p.id, res, now), "manage")).map((p) => p.id).sort();
+  return { people };
+}
+
 export async function sharesOf(ctx: ShareCtx, input: { resource: ResourceRef }) {
   const store = storeOf(ctx);
   const res = resourceOf(ctx, store, input.resource);

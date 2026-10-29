@@ -117,6 +117,15 @@ export type AccessCheckOut = {
     decisionId: string;
   };
 };
+export type AccessDecidersIn = {
+  resource: {
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    id: string;
+  };
+};
+export type AccessDecidersOut = {
+  people: Array<string>;
+};
 export type AccessGrantsListIn = {
   resource?: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
@@ -27040,6 +27049,7 @@ export interface CapMap {
   "access.actors.set_engineer_mcp": { in: AccessActorsSetEngineerMcpIn; out: AccessActorsSetEngineerMcpOut };
   "access.actors.update": { in: AccessActorsUpdateIn; out: AccessActorsUpdateOut };
   "access.check": { in: AccessCheckIn; out: AccessCheckOut };
+  "access.deciders": { in: AccessDecidersIn; out: AccessDecidersOut };
   "access.grants.list": { in: AccessGrantsListIn; out: AccessGrantsListOut };
   "access.grants.update": { in: AccessGrantsUpdateIn; out: AccessGrantsUpdateOut };
   "access.groups.add_member": { in: AccessGroupsAddMemberIn; out: AccessGroupsAddMemberOut };
