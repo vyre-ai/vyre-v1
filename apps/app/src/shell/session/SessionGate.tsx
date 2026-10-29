@@ -4,7 +4,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
 import { States } from "../../../../../ui/src/States/index.tsx";
-import { loadCryptoKeys } from "../../../../../client/src/crypto/load.ts";
+import { loadCryptoKeys, loadRecoveryCrypto } from "../../../../../client/src/crypto/load.ts";
 import { holdKeyOnOwnNode, isLoopbackUrl } from "../../../../../client/src/gateway/local-key.ts";
 import { JoinFlow } from "../../join/JoinFlow.tsx";
 import type { JoinValues } from "../../join/JoinFlow.tsx";
@@ -14,6 +14,7 @@ import { Button, Foot, Panel, Step, Title } from "../../join/kit.tsx";
 import { JoinFrame } from "../../join/kit.tsx";
 import { Welcome } from "../../join/Welcome.tsx";
 import { completeReset } from "../../join/reset.ts";
+import {completeRecovery} from "../../join/recover.ts";
 import { SpaceEntry } from "../../join/SpaceEntry.tsx";
 import { clearLock, consumeBrowserInvite, inviteAppLink, VYRE_DOWNLOADS, entryTarget, readLock } from "./entry.ts";
 import type { EntryTarget, LockedIdentity } from "./entry.ts";
@@ -30,6 +31,7 @@ import type { OpenSessionOptions, RealSession } from "./session.ts";
 import { clearStored, phaseForStoredAddress, readStored, readStoredSpace, openVerifiedSession, signInAndVerify, spaceAddress, spaceEndpoint } from "./stored.ts";
 import type { SignInOptions, StoredSession } from "./stored.ts";
 
+const RecoveryAccount=lazy(()=>import("../../join/RecoveryAccount.tsx").then(m=>({default:m.RecoveryAccount})));
 const ResetAccount = lazy(() => import("../../join/ResetAccount.tsx").then(m=>({default:m.ResetAccount})));
 const LocalClaim = lazy(() => import("../../claim/ClaimRoute.tsx").then(m=>({default:m.ClaimRoute})));
 const JoinProviderSetup = lazy(() => import("./JoinProviderSetup.tsx").then((m) => ({ default: m.JoinProviderSetup })));
@@ -107,7 +109,7 @@ function SignInScreen({ baseUrl, open, onSignedIn, notice, onBack, unlock }: { b
     return "ok";
   }, [anonymous, baseUrl, onSignedIn, open, options]);
   if(resetting)return <Suspense fallback={null}><ResetAccount space={invite.space} address={baseUrl} onBack={()=>{setResetting(false);setRecoveryHelp(false);}} onReset={async input=>{const keys=await loadCryptoKeys();const stored=await completeReset({call:anonymous,makeBundle:(pw,rc)=>keys.makeBundle(pw,rc),verify:token=>openVerifiedSession({baseUrl,token,open:()=>open({baseUrl,token}),getSpace:()=>authenticatedSpace(baseUrl,token)}),holdKey:(token,key)=>holdKeyOnOwnNode(baseUrl,token,key),wipe:keys.wipe},{...input,deviceClass:desktopBridge()?'desktop':'web'});onSignedIn(stored);}}/></Suspense>;
-  if (recoveryHelp) return <JoinFrame halftoneIntensity="calm"><Panel center><Step id="recovery-help"><Title title="Recover your account" sub="Use a device where you’re still signed in." /><Foot>Open Settings, Sign-in and devices, then change your password. That keeps your private keys and data.</Foot><Foot>If you have no signed-in device, contact the Space owner before resetting your account. This version cannot restore from a recovery code alone, and an account reset can lose private data.</Foot><Button label="Use an administrator reset code" testID="recovery-admin-reset" onPress={()=>setResetting(true)}/><Button label="Back to sign in" testID="recovery-back" onPress={() => setRecoveryHelp(false)} /></Step></Panel></JoinFrame>;
+  if (recoveryHelp) return <Suspense fallback={null}><RecoveryAccount space={invite.space} address={baseUrl} onBack={()=>setRecoveryHelp(false)} onAdminReset={()=>setResetting(true)} onRecover={async input=>{const [crypto,keys]=await Promise.all([loadRecoveryCrypto(),loadCryptoKeys()]);const stored=await completeRecovery({call:anonymous,recover:crypto.recoverAccountKeys,verify:token=>openVerifiedSession({baseUrl,token,open:()=>open({baseUrl,token}),getSpace:()=>authenticatedSpace(baseUrl,token)}),holdKey:(token,key)=>holdKeyOnOwnNode(baseUrl,token,key),wipe:keys.wipe},{...input,deviceClass:desktopBridge()?'desktop':'web'});if(currentAddress.current!==baseUrl)throw new Error("The Space address changed. Sign in again.");onSignedIn(stored);}}/></Suspense>;
   return <JoinFlow key={baseUrl} invite={invite} initial={{ stage: "signin", ...(notice ? { error: SIGNED_OUT_LINE } : {}) }} onSignIn={signIn} onRecoveryCode={() => setRecoveryHelp(true)} {...(onBack?{onBackFromSignIn:onBack}:{})} {...(unlock?{unlock:true}:{})} />;
 }
 
