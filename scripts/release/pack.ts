@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
 import type { Releases } from "./channels.ts";
+import { withReleaseVersion } from "../../lib/chrome-version.ts";
 import { releaseCounter } from "./version.ts";
 
 export const SERVER_TARBALL = "vyre.tgz";
@@ -139,10 +140,12 @@ function walk(dir: string, base = dir): string[] {
 }
 
 /** vyre-chrome.zip: the extension as Chrome loads it (apps/chrome without its tests and its package.json). */
-export function packExtension(o: { dir: string; outFile: string }): { file: string; sha256: string; version: string; names: string[] } {
-  const manifest = JSON.parse(fs.readFileSync(path.join(o.dir, "manifest.json"), "utf8")) as { version?: unknown };
+export function packExtension(o: { dir: string; outFile: string; release?: string }): { file: string; sha256: string; version: string; names: string[] } {
+  // with a release, the manifest in the zip carries that release's version (lib/chrome-version.ts); without one it is the file as it stands
+  const manifestText = o.release === undefined ? fs.readFileSync(path.join(o.dir, "manifest.json"), "utf8") : withReleaseVersion(fs.readFileSync(path.join(o.dir, "manifest.json"), "utf8"), o.release);
+  const manifest = JSON.parse(manifestText) as { version?: unknown };
   const names = walk(o.dir).filter((n) => !n.split(path.sep).includes("tests") && !n.split(path.sep).includes("node_modules") && n !== "package.json").map((n) => n.split(path.sep).join("/"));
-  const zip = zipFiles(names.map((name) => ({ name, data: fs.readFileSync(path.join(o.dir, name)) })));
+  const zip = zipFiles(names.map((name) => ({ name, data: name === "manifest.json" ? Buffer.from(manifestText) : fs.readFileSync(path.join(o.dir, name)) })));
   fs.writeFileSync(o.outFile, zip);
   return { file: o.outFile, sha256: sha256File(o.outFile), version: typeof manifest.version === "string" ? manifest.version : "", names };
 }

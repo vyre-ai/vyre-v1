@@ -8,6 +8,10 @@
 //   turn.completed   usage {input_tokens (includes cached), cached_input_tokens, output_tokens}
 //   turn.failed      error {message}
 //   error            message
+// CHECKED against OpenAI's Codex docs (30 Oct 2026): `codex exec --json` JSONL with thread.started, turn.started, turn.completed (usage input_tokens, cached_input_tokens, output_tokens, reasoning_output_tokens), turn.failed, item.* and error;
+// `codex exec resume <SESSION_ID>`; prompt on stdin with `-`; `--skip-git-repo-check`; `CODEX_API_KEY`; config.toml mcp_servers stdio keys command/args/env/env_vars and HTTP keys url/bearer_token_env_var.
+// STILL NEEDS A REAL ACCOUNT to prove: that `-c mcp_servers.vyre.*` overrides on the command line (the docs show only config.toml), the exact item field names (server, tool, exit_code), flag order before `resume`,
+// and a ChatGPT sign-in (auth.json) through the sandbox. The docs give no complete schema for every event.
 // Codex does not stream deltas: a message arrives whole when it is done.
 import { num, obj, parseLine, str } from "./json.ts";
 import type { Json } from "./json.ts";
@@ -114,7 +118,7 @@ export const codex: CliAdapter = {
       "codex", "exec", "--json", "--skip-git-repo-check",
       // Codex's own sandbox stays on inside ours: read-only unless a work folder was granted and the chat is not in plan mode.
       "-c", `sandbox_mode=${toml(o.workFolder !== null && !o.planMode ? "workspace-write" : "read-only")}`,
-      // ASSUMED until the live recording: Codex's stdio server block takes command, args and env_vars (names of variables to pass on), as its HTTP block takes bearer_token_env_var.
+      // Key names are the documented config.toml ones; passing them as -c overrides is unproven (see top).
       ...(o.mcpStdio
         ? ["-c", `mcp_servers.vyre.command=${toml(o.mcpStdio.command)}`, "-c", `mcp_servers.vyre.args=[${o.mcpStdio.args.map(toml).join(", ")}]`, "-c", `mcp_servers.vyre.env_vars=[${toml(TOKEN_ENV)}]`]
         : ["-c", `mcp_servers.vyre.url=${toml(o.mcpUrl)}`, "-c", `mcp_servers.vyre.bearer_token_env_var=${toml(TOKEN_ENV)}`]),
