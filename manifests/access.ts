@@ -144,6 +144,10 @@ export default defineManifest({
     }),
 
     // ---- Access checker and View as
+    read('access.provider_check', 'Which of these resources may not go to an AI provider, by the same label-against-provider rule a chat turn is held to', {
+      ...V, space: true, in: { resources: t.arr(resourceRef, { maxItems: 200 }), provider: t.str({ examples: ['openai'] }) },
+      out: { blocked: t.arr(t.obj({ id: t.str(), label: t.opt(label) })) }, agent: false,
+    }),
     read('access.check', 'Access checker: can principal P do action A on resource R, with each step in plain words', {
       ...V, space: true, in: { principal: principalRef, actingFor: t.opt(principalRef), action: t.obj({ perm: t.opt(t.str()), level }), resource: resourceRef, fields: t.opt(t.arr(t.str())), provider: t.opt(t.str()) },
       out: { decision }, perm: 'access.manage', tool: 'engineer', team: true,

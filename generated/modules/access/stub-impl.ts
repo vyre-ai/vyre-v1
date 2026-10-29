@@ -33,6 +33,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "access.principals.list": async () => ({"next":"example","principals":[{"createdAt":1760000000000,"groups":["grp_a1b2c3"],"id":"usr_a1b2c3","kind":"person","name":"example","owner":"usr_a1b2c3","roles":["rol_a1b2c3"],"status":"invited","title":"example"}],"total":1} as unknown) as never,
   "access.projection_health": async () => ({"detail":"example","latencyMs":1,"state":"healthy"} as unknown) as never,
   "access.propose_change": async () => ({"taskId":"tsk_a1b2c3"} as unknown) as never,
+  "access.provider_check": async () => ({"blocked":[{"id":"example","label":"public"}]} as unknown) as never,
   "access.request": async () => ({"request":{"at":1760000000000,"id":"arq_a1b2c3","level":"view","note":"example","requester":"usr_a1b2c3","resource":{"id":"rec_a1b2c3","type":"space"},"state":"waiting","taskId":"tsk_a1b2c3"}} as unknown) as never,
   "access.requests.approve": async () => ({"grant":{"by":"example","conditions":{"expiresAt":1760000000000,"hiddenFields":["example"],"labelCeiling":"public","rowFilter":{},"window":{"from":1760000000000,"to":1760000000000}},"createdAt":1760000000000,"id":"gnt_a1b2c3","level":"view","resource":{"id":"rec_a1b2c3","type":"space"},"source":"example","subject":{"id":"usr_a1b2c3","kind":"person"}}} as unknown) as never,
   "access.requests.decline": async () => ({"ok":true} as unknown) as never,

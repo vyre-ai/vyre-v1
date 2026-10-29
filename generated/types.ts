@@ -568,6 +568,19 @@ export type AccessProposeChangeIn = {
 export type AccessProposeChangeOut = {
   taskId: string;
 };
+export type AccessProviderCheckIn = {
+  resources: Array<{
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      id: string;
+    }>;
+  provider: string;
+};
+export type AccessProviderCheckOut = {
+  blocked: Array<{
+      id: string;
+      label?: "public" | "internal" | "confidential" | "restricted";
+    }>;
+};
 export type AccessRequestIn = {
   resource: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
@@ -8593,7 +8606,7 @@ export type EngineStepTurnIn = {
   keyId?: string;
   backupKeyId?: string;
   timeoutMinutes?: number;
-  recordLabel?: number;
+  recordIds?: Array<string>;
   runId: string;
   stepId: string;
   idempotencyKey: string;
@@ -27471,6 +27484,7 @@ export interface CapMap {
   "access.principals.list": { in: AccessPrincipalsListIn; out: AccessPrincipalsListOut };
   "access.projection_health": { in: AccessProjectionHealthIn; out: AccessProjectionHealthOut };
   "access.propose_change": { in: AccessProposeChangeIn; out: AccessProposeChangeOut };
+  "access.provider_check": { in: AccessProviderCheckIn; out: AccessProviderCheckOut };
   "access.request": { in: AccessRequestIn; out: AccessRequestOut };
   "access.requests.approve": { in: AccessRequestsApproveIn; out: AccessRequestsApproveOut };
   "access.requests.decline": { in: AccessRequestsDeclineIn; out: AccessRequestsDeclineOut };

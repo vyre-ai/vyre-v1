@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { harness } from "../fixtures/db.ts";
 import { runStep, stepsTest } from "../handlers/control.ts";
-import { aiStep, jsonIn, labelIn } from "../handlers/ai-step.ts";
+import { aiStep, jsonIn, recordIdsIn } from "../handlers/ai-step.ts";
 import type { StepCall, StepNode } from "../handlers/control.ts";
 
 type H = ReturnType<typeof harness>;
@@ -112,14 +112,13 @@ test("the prompt needs text, and a big input is refused", async () => {
   await assert.rejects(aiStep(h.env, ask({}), { prompt: "p", inputs: { blob: "x".repeat(100_001) } }, call()), (e) => codeOf(e) === "validation.too_large");
 });
 
-test("the highest label of a record the run read goes to the engine with the turn", async () => {
-  assert.equal(labelIn({ find: { rows: [{ id: "rec_1", label: 1 }, { id: "rec_2", label: 3 }] } }, { id: "rec_t", label: 2 }), 3);
-  assert.equal(labelIn({ a: { label: 3 } }), 0, "only a record row counts");
-  assert.equal(labelIn(undefined, null, 4), 0);
+test("the records the run read go to the engine with the turn, so the Space's label rule can be asked of them", async () => {
+  assert.deepEqual(recordIdsIn({ find: { rows: [{ id: "rec_a1", label: 0 }, { id: "rec_b2" }, { id: "usr_x" }] } }, { id: "rec_a1" }, undefined, "text"), ["rec_a1", "rec_b2"]);
+  assert.deepEqual(recordIdsIn(null, 4), []);
   const h = harness({ "engine.step_turn": () => turn("ok") });
-  await run(h, ask({ prompt: "p" }), call({ outputs: { find: { rows: [{ id: "rec_9", label: 2 }] } } }));
-  assert.equal(h.log[0]!.input.recordLabel, 2);
+  await run(h, ask({ prompt: "p" }), call({ outputs: { find: { rows: [{ id: "rec_9z" }] } } }));
+  assert.deepEqual(h.log[0]!.input.recordIds, ["rec_9z"]);
   const none = harness({ "engine.step_turn": () => turn("ok") });
   await run(none, ask({ prompt: "p" }), call());
-  assert.equal("recordLabel" in none.log[0]!.input, false);
+  assert.equal("recordIds" in none.log[0]!.input, false);
 });

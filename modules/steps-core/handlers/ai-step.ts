@@ -31,18 +31,18 @@ export function jsonIn(answer: string): { ok: true; value: unknown } | { ok: fal
   return { ok: false };
 }
 
-/** The highest label of any record the run has read: a record row carries its `label` (0 public to 3 restricted). The trigger payload and every earlier output are searched. */
-export function labelIn(...sources: unknown[]): number {
-  let max = 0;
+/** The ids of the records the run has read: every object with a `rec_` id in the trigger payload and the earlier outputs. The Space's label rule is asked of these, not of a label the row claims. */
+export function recordIdsIn(...sources: unknown[]): string[] {
+  const ids = new Set<string>();
   const walk = (v: unknown, depth: number): void => {
-    if (depth > 12 || v === null || typeof v !== "object") return;
+    if (depth > 12 || ids.size >= 200 || v === null || typeof v !== "object") return;
     if (Array.isArray(v)) { for (const x of v) walk(x, depth + 1); return; }
     const o = v as Rec;
-    if (typeof o["label"] === "number" && Number.isInteger(o["label"]) && o["label"] >= 0 && o["label"] <= 3 && typeof o["id"] === "string" && /^rec_/.test(o["id"])) max = Math.max(max, o["label"]);
+    if (typeof o["id"] === "string" && /^rec_[a-z0-9]+$/.test(o["id"])) ids.add(o["id"]);
     for (const x of Object.values(o)) walk(x, depth + 1);
   };
   for (const s of sources) walk(s, 0);
-  return max;
+  return [...ids];
 }
 
 function promptOf(cfg: Rec, title: string): string {
@@ -72,7 +72,7 @@ export async function aiStep(env: StepEnv, node: StepNode, input: Rec, call: Ste
     ...(text(cfg["keyId"]) ? { keyId: cfg["keyId"] } : {}),
     ...(text(cfg["backupKeyId"]) ? { backupKeyId: cfg["backupKeyId"] } : {}),
     ...(typeof cfg["timeoutMinutes"] === "number" ? { timeoutMinutes: cfg["timeoutMinutes"] } : {}),
-    ...(labelIn(call.outputs, call.trigger, call.item) > 0 ? { recordLabel: labelIn(call.outputs, call.trigger, call.item) } : {}),
+    ...(recordIdsIn(call.outputs, call.trigger, call.item).length > 0 ? { recordIds: recordIdsIn(call.outputs, call.trigger, call.item) } : {}),
     runId: env.run.id, stepId: node.id, idempotencyKey: call.key,
   })) as { text?: string; keyUsed?: string; modelUsed?: string };
   const answer = typeof turn.text === "string" ? turn.text : "";

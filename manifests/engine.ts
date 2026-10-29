@@ -147,7 +147,7 @@ export default defineManifest({
     }),
     write('engine.step_turn', 'Run one AI turn for an automation step: on the owner\'s own account (Personal) or a Space-shared key (Space), optionally as an agent, with no tools. A repeat of the same key returns the first answer.', {
       in: {
-        prompt: t.str({ minLength: 1 }), agentId: t.opt(id.agent), keyId: t.opt(accountRef), backupKeyId: t.opt(accountRef), timeoutMinutes: t.opt(t.int({ minimum: 1, maximum: 30 })), recordLabel: t.opt(t.int({ minimum: 0, maximum: 3 })), runId: id.run, stepId: t.str(),
+        prompt: t.str({ minLength: 1 }), agentId: t.opt(id.agent), keyId: t.opt(accountRef), backupKeyId: t.opt(accountRef), timeoutMinutes: t.opt(t.int({ minimum: 1, maximum: 30 })), recordIds: t.opt(t.arr(id.record, { maxItems: 200 })), runId: id.run, stepId: t.str(),
       },
       out: { text: t.str(), keyUsed: accountRef, modelUsed: t.str(), tokensIn: t.int({ minimum: 0 }), tokensOut: t.int({ minimum: 0 }), agentName: t.opt(t.str()) },
       level: 'view', idem: 'key', risk: 'medium', audit: 'sensitive', agent: false,

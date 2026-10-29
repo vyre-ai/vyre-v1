@@ -10,7 +10,6 @@ import { resolveAccount, providerOfModel } from "../../agent/src/accounts/index.
 import type { AccountRow } from "../../agent/src/accounts/index.ts";
 import type { DriverEvent, EngineAgent, SessionSpec, StoredMessage } from "../../agent/src/turn-engine/types.ts";
 import { load } from "./handlers/accounts.ts";
-import { blockedBy, readPolicy as readAiPolicy } from "./handlers/extra/config.ts";
 import { isPaused, limitReached, recordStepUsage } from "./handlers/spend.ts";
 import { ensure, raise, stepOpenOf } from "./projections.ts";
 import type { EngineCtx } from "./projections.ts";
@@ -22,8 +21,8 @@ export interface StepTurnIn {
   keyId?: string;
   backupKeyId?: string;
   timeoutMinutes?: number;
-  /** The highest label (0 public to 3 restricted) of any record the run read before this step: its data may be in the prompt. */
-  recordLabel?: number;
+  /** The records the run read before this step: their data may be in the prompt, so the Space's label rule is asked of each. */
+  recordIds?: string[];
   runId: string;
   stepId: string;
   idempotencyKey: string;
@@ -61,7 +60,6 @@ const WHY: Readonly<Record<string, string>> = {
   "timeout.deadline": "The AI step did not answer in time.",
 };
 const whyOf = (code: string): string => WHY[code] ?? "The AI provider could not answer this step.";
-const LABELS = ["public", "internal", "confidential", "restricted"] as const;
 
 const hex = (s: string): string => {
   let h = 0x811c9dc5;
@@ -142,13 +140,19 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
   if (hit) raise(ctx, "permission.limit", `The ${hit.scope === "space" ? "Space" : hit.scope === "agent" ? "agent" : "person"} has reached a ${hit.limit} AI limit, so this step did not run. Raise it or wait.`, { reason: "limit", scope: hit.scope, limit: hit.limit });
 
   const paid = await accountFor(ctx, input, asker, service, withAgent?.agent);
-  // The label rule of a chat applies to what a step puts in the prompt: records the run read carry their label into the turn, and a provider the Space's policy does not allow for that label is refused.
-  if (typeof input.recordLabel === "number" && input.recordLabel > 0) {
-    const label = LABELS[Math.min(3, Math.max(0, Math.floor(input.recordLabel)))]!;
-    const policy = await readAiPolicy(ctx as never);
+  // The label rule of a chat applies to what a step puts in the prompt: the Space's rule (label against provider) is asked of every record the run read, and one it forbids refuses the step.
+  if (input.recordIds && input.recordIds.length > 0) {
     const keys = [paid.row.driver, paid.row.provider].filter((k): k is string => typeof k === "string" && k !== "");
-    if (!keys.some((k) => blockedBy(policy, { provider: k, label }) === null)) {
-      raise(ctx, "permission.provider_label", `This AI step has ${label} records in its input, and this Space does not let ${label} records go to that AI provider. The step did not run.`, { reason: "label_provider", label });
+    let blocked: Array<{ id: string; label?: string }> | null = null;
+    for (const k of keys) {
+      const r = (await ctx.call("access.provider_check", { resources: input.recordIds.map((id) => ({ type: "record", id })), provider: k })) as { blocked?: Array<{ id: string; label?: string }> };
+      const b = r.blocked ?? [];
+      if (b.length === 0) { blocked = null; break; }
+      blocked = b;
+    }
+    if (blocked) {
+      const label = blocked.find((x) => x.label)?.label;
+      raise(ctx, "permission.provider_label", `This AI step has ${label ? `${label} ` : "labelled "}records in its input, and this Space does not let them go to that AI provider. The step did not run.`, { reason: "label_provider", count: blocked.length });
     }
   }
   const agent: EngineAgent = { id: agentKey, ...(withAgent ? { name: withAgent.agent.name } : {}), mode: "lead", ...(withAgent?.agent.model ? { model: withAgent.agent.model } : {}) };

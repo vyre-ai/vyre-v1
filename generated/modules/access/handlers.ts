@@ -34,6 +34,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "access.principals.list": Handler<"access.principals.list", X>;
   "access.projection_health": Handler<"access.projection_health", X>;
   "access.propose_change": Handler<"access.propose_change", X>;
+  "access.provider_check": Handler<"access.provider_check", X>;
   "access.request": Handler<"access.request", X>;
   "access.requests.approve": Handler<"access.requests.approve", X>;
   "access.requests.decline": Handler<"access.requests.decline", X>;

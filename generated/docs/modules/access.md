@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: files.
 
-## Capabilities (58)
+## Capabilities (59)
 
 - [access.actors.create](../capabilities/access.actors.create.md): Register an outside actor and issue a one-time token (works once, within 10 minutes)
 - [access.actors.list](../capabilities/access.actors.list.md): List outside actors (registered external tools such as Claude Code or Codex)
@@ -35,6 +35,7 @@ Requires: files.
 - [access.principals.list](../capabilities/access.principals.list.md): List principals (people, agents, outside actors, services) with roles and groups
 - [access.projection_health](../capabilities/access.projection_health.md): Health probe: access projections are current and the epoch is advancing
 - [access.propose_change](../capabilities/access.propose_change.md): View-level Ask: store a drafted change for the editors of an object as a changeset or Review task; writes nothing to the object
+- [access.provider_check](../capabilities/access.provider_check.md): Which of these resources may not go to an AI provider, by the same label-against-provider rule a chat turn is held to
 - [access.request](../capabilities/access.request.md): Ask the Manage holders of a resource (or the admins, for a permission) for access; one open request per person and resource
 - [access.requests.approve](../capabilities/access.requests.approve.md): Approve an access request: shares as the approver and tells the requester
 - [access.requests.decline](../capabilities/access.requests.decline.md): Decline an access request with a note for the requester

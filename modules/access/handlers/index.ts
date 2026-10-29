@@ -3,7 +3,7 @@ import {
   foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, lists, share, sharesOf, unshare,
 } from "./share.ts";
 import {
-  actorsCreate, actorsEngineer, actorsList, actorsRedeem, actorsRevoke, actorsUpdate, check,
+  actorsCreate, actorsEngineer, actorsList, actorsRedeem, actorsRevoke, actorsUpdate, check, providerCheck,
   labelsList, labelsSet, policiesList, policiesReset, policiesSet, projectionHealth, viewAs,
 } from "./check.ts";
 import {
@@ -24,6 +24,7 @@ export const handlers = {
   "access.actors.set_engineer_mcp": actorsEngineer,
   "access.actors.update": actorsUpdate,
   "access.check": check,
+  "access.provider_check": providerCheck,
   "access.grants.list": grantsList,
   "access.grants.update": grantsUpdate,
   "access.groups.add_member": groupsAddMember,

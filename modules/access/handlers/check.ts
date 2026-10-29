@@ -55,6 +55,22 @@ export async function check(ctx: AccessCtx, input: CheckIn) {
   };
 }
 
+/** The label rule of a chat turn, asked of a list of resources for the caller: which may not go to this provider. The caller is who the call acts for, so what they cannot see is not told apart from what is allowed. */
+export async function providerCheck(ctx: AccessCtx, input: { resources: ResourceRef[]; provider: string }) {
+  const store = storeOf(ctx);
+  const who = ctx.actingFor ?? ctx.principal.id;
+  const blocked: { id: string; label?: Label }[] = [];
+  for (const r of input.resources) {
+    const row = store.resourceRow(r.id);
+    const req: Req = { principal: ctx.principal.id, action: { perm: null, level: "view" }, resource: { type: r.type, id: r.id }, now: ctx.now(), provider: input.provider };
+    if (who !== ctx.principal.id) req.actingFor = who;
+    if (row) req.row = row;
+    const d = authorize(store.snapshot(), req);
+    if (d.effect === "deny" && /provider/i.test(d.reason)) blocked.push({ id: r.id, ...(store.resources.get(r.id)?.label ? { label: store.resources.get(r.id)!.label } : {}) });
+  }
+  return { blocked };
+}
+
 export async function viewAs(ctx: AccessCtx, input: { person: string }) {
   const store = storeOf(ctx);
   if (!store.principals.has(input.person)) raise(ctx.trace.traceId, "validation.not_found", "no such person");

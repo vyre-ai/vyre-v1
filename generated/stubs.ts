@@ -53,6 +53,7 @@ export function stubs(ctx: CallCtx) {
       },
       projection_health: call("access.projection_health"),
       propose_change: call("access.propose_change"),
+      provider_check: call("access.provider_check"),
       request: call("access.request"),
       requests: {
         approve: call("access.requests.approve"),

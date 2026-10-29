@@ -23597,6 +23597,107 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "provider": "openai",
+            "resources": [
+              {
+                "id": "rec_a1b2c3",
+                "type": "space"
+              }
+            ]
+          },
+          "name": "example",
+          "output": {
+            "blocked": [
+              {
+                "id": "example",
+                "label": "public"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "provider": {
+            "examples": [
+              "openai"
+            ],
+            "type": "string"
+          },
+          "resources": {
+            "items": {
+              "$ref": "#/$defs/s_f21ece25da"
+            },
+            "maxItems": 200,
+            "type": "array"
+          }
+        },
+        "required": [
+          "resources",
+          "provider"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "access",
+      "name": "access.provider_check",
+      "output": {
+        "properties": {
+          "blocked": {
+            "items": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "enum": [
+                    "public",
+                    "internal",
+                    "confidential",
+                    "restricted"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "blocked"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Which of these resources may not go to an AI provider, by the same label-against-provider rule a chat turn is held to",
+      "surfaces": {
+        "agent": false,
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [
         "access.requested"
@@ -67150,7 +67251,9 @@
             "idempotencyKey": "idem_1",
             "keyId": "#Team_Anthropic_Key",
             "prompt": "example",
-            "recordLabel": 1,
+            "recordIds": [
+              "rec_a1b2c3"
+            ],
             "runId": "run_a1b2c3",
             "stepId": "example",
             "timeoutMinutes": 1
@@ -67201,10 +67304,16 @@
             "minLength": 1,
             "type": "string"
           },
-          "recordLabel": {
-            "maximum": 3,
-            "minimum": 0,
-            "type": "integer"
+          "recordIds": {
+            "items": {
+              "examples": [
+                "rec_a1b2c3"
+              ],
+              "pattern": "^rec_[a-z0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": "array"
           },
           "runId": {
             "examples": [

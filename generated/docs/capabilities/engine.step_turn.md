@@ -30,7 +30,7 @@ type In = {
   keyId?: string;
   backupKeyId?: string;
   timeoutMinutes?: number;
-  recordLabel?: number;
+  recordIds?: Array<string>;
   runId: string;
   stepId: string;
   idempotencyKey: string;
@@ -76,7 +76,9 @@ type Out = {
     "idempotencyKey": "idem_1",
     "keyId": "#Team_Anthropic_Key",
     "prompt": "example",
-    "recordLabel": 1,
+    "recordIds": [
+      "rec_a1b2c3"
+    ],
     "runId": "run_a1b2c3",
     "stepId": "example",
     "timeoutMinutes": 1

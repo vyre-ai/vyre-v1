@@ -219,28 +219,34 @@ test("a Space AI step runs as its service on a Space-shared key, and refuses a k
   } finally { await w.stop(); }
 });
 
-test("a restricted record in the input follows the chat label rule: a provider the policy does not allow for it is refused and nothing is sent", async () => {
+test("a restricted record read by records.find follows the chat label rule into the AI step: nothing is sent, and a public record goes through", async () => {
   const w = await world();
   try {
     await unlock(w.d);
     await ok(w.d, "providers.add", { idempotencyKey: "ai-lbl", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "mine" });
-    const nodes = [
-      { id: "rec", key: "transform", input: { value: { id: "rec_secretcase", label: 3, name: "Client" }, mapping: { id: "id", label: "label", name: "name" } }, next: ["ask"] },
-      { id: "ask", key: "ai", input: { prompt: "Summarise the client.", inputs: { client: "{{ steps.rec.out.value }}" } } },
-    ];
-    const id = String((await ok(w.d, "automations.create", { idempotencyKey: "ai-label", name: "Labelled", definition: { triggers: [{ key: "manual" }], nodes } })).automation.id);
-    await ok(w.d, "automations.set_enabled", { automationId: id, enabled: true });
-    await ok(w.d, "engine.policy.set", { labelProviders: { restricted: ["anthropic"] } });
-    const bad = String((await ok(w.d, "automations.run", { automationId: id, idempotencyKey: "ai-label-run-1" })).runId);
-    const failed = await finished(w.d, bad, "failed");
+    const secret = await ok(w.d, "records.create", { idempotencyKey: "lbl-secret", type: "note_board", fields: { title: "Client X settlement" } });
+    const plain = await ok(w.d, "records.create", { idempotencyKey: "lbl-plain", type: "note_board", fields: { title: "Lunch order" } });
+    await ok(w.d, "access.labels.set", { resource: { type: "record", id: secret.record.id }, label: "restricted" });
+    const def = (title: string) => ({ triggers: [{ key: "manual" }], nodes: [
+      { id: "find", key: "records.find", input: { type: "note_board", filter: { field: "title", op: "eq", value: title } }, next: ["ask"] },
+      { id: "ask", key: "ai", input: { prompt: "Summarise the notes.", inputs: { notes: "{{ steps.find.out.rows }}" } } },
+    ] });
+    const bad = String((await ok(w.d, "automations.create", { idempotencyKey: "ai-label-1", name: "Secret", definition: def("Client X settlement") })).automation.id);
+    await ok(w.d, "automations.set_enabled", { automationId: bad, enabled: true });
+    const run1 = String((await ok(w.d, "automations.run", { automationId: bad, idempotencyKey: "ai-label-run-1" })).runId);
+    const failed = await finished(w.d, run1, "failed");
     const step = failed.steps.find((s) => s.step === "ask")!;
-    assert.equal(step.error?.code, "permission.provider_label", JSON.stringify(step));
-    assert.match(String(step.error?.message), /restricted records in its input/);
+    assert.equal(step.error?.code, "permission.provider_label", JSON.stringify(step) + hostLog(w.d));
+    assert.match(String(step.error?.message), /records in its input/);
     assert.equal(w.v.requests.length, 0, "nothing went to the provider");
-    await ok(w.d, "engine.policy.set", { labelProviders: { restricted: ["anthropic", "openai"] } });
-    w.v.script.push({ text: "Allowed now." });
-    const good = String((await ok(w.d, "automations.run", { automationId: id, idempotencyKey: "ai-label-run-2" })).runId);
-    await finished(w.d, good, "succeeded");
+    const good = String((await ok(w.d, "automations.create", { idempotencyKey: "ai-label-2", name: "Plain", definition: def("Lunch order") })).automation.id);
+    await ok(w.d, "automations.set_enabled", { automationId: good, enabled: true });
+    w.v.script.push({ text: "A lunch order." });
+    const run2 = String((await ok(w.d, "automations.run", { automationId: good, idempotencyKey: "ai-label-run-2" })).runId);
+    await finished(w.d, run2, "succeeded");
     assert.equal(w.v.requests.length, 1);
+    assert.match(w.v.requests[0]!, /Lunch order/);
+    assert.equal(w.v.requests[0]!.includes("settlement"), false);
+    void plain;
   } finally { await w.stop(); }
 });

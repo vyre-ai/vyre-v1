@@ -7,7 +7,6 @@ import { STEP_AGENT, setMinuteForTests, stepTurn } from "../step-turn.ts";
 import type { StepTurnIn } from "../step-turn.ts";
 import { bindStepOpen } from "../projections.ts";
 import { capsSet, pauseAll, usageQuery } from "../handlers/spend.ts";
-import { policySet } from "../handlers/extra/config.ts";
 import { scriptedProvider } from "../../../agent/src/turn-engine/scripted-session.ts";
 import type { DriverEvent } from "../../../agent/src/turn-engine/types.ts";
 
@@ -177,19 +176,22 @@ test("without the agent runtime the step says so", async () => {
   await assert.rejects(run(h), (e) => codeOf(e) === "internal.unavailable");
 });
 
-test("records the run read carry their label into the turn: a provider the policy does not allow for it is refused", async () => {
-  const openai = key({ id: "prv_o", handle: "#OpenAI", itemId: "vit_o", name: "OpenAI", providerKey: "openai", engine: "openai" });
-  const only = scene({ providers: [openai] });
-  await policySet(only.h.ctx, { labelProviders: { restricted: ["anthropic"] } });
-  await assert.rejects(run(only.h, { recordLabel: 3, idempotencyKey: "l3" }), (e) => {
+test("the Space's label rule is asked of every record the run read: a provider it forbids refuses the step", async () => {
+  const asked: unknown[] = [];
+  const { h, provider } = scene();
+  const base = h.ctx.call;
+  h.ctx.call = async (cap: string, i: unknown) => {
+    if (cap === "access.provider_check") { asked.push(i); return { blocked: (i as { resources: { id: string }[] }).resources.filter((r) => r.id === "rec_secret").map((r) => ({ id: r.id, label: "restricted" })) }; }
+    return base(cap, i);
+  };
+  await assert.rejects(run(h, { recordIds: ["rec_ok", "rec_secret"], idempotencyKey: "l1" }), (e) => {
     assert.equal(codeOf(e), "permission.provider_label");
     assert.match((e as { error: { message: string } }).error.message, /restricted records in its input/);
     return true;
   });
-  assert.equal(only.provider.specs.length, 0, "nothing was sent to the provider");
-  assert.equal((await run(only.h, { recordLabel: 1, idempotencyKey: "l1" })).keyUsed, "#OpenAI", "a label the policy does not restrict goes through");
-  assert.equal((await run(only.h, { idempotencyKey: "l0" })).keyUsed, "#OpenAI", "no label, no rule");
-  const allowed = scene({ providers: [key()] });
-  await policySet(allowed.h.ctx, { labelProviders: { restricted: ["anthropic"] } });
-  assert.equal((await run(allowed.h, { recordLabel: 3, idempotencyKey: "l3b" })).keyUsed, "#Mine_Anthropic");
+  assert.equal(provider.specs.length, 0, "nothing was sent to the provider");
+  assert.deepEqual((asked[0] as { provider: string }).provider, "anthropic");
+  assert.equal((await run(h, { recordIds: ["rec_ok"], idempotencyKey: "l2" })).keyUsed, "#Mine_Anthropic");
+  assert.equal((await run(h, { idempotencyKey: "l3" })).keyUsed, "#Mine_Anthropic");
+  assert.equal(asked.length >= 2, true);
 });
