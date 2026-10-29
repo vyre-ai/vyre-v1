@@ -158,7 +158,7 @@ export function AiForm({ def, node, onChange, openMenu, kind, keys, agents, who,
     for (const p of people) if (p.assignee.id !== me.id) entries.push({ label: p.name, checked: ai[field]?.id === p.assignee.id, onSelect: () => writeAi(withAi(ai, field, p.assignee)) });
     openMenu(entries, x, y, "other");
   };
-  const whoLine = (a: Assignee | undefined): string => (a ? nameOf(a.id, who.state === "ready" ? who.items : [], me) : "Nobody");
+  const whoLine = (a: Assignee | undefined): string => (!a ? "Nobody" : a.id === me.id ? `${me.name} (you)` : who.state === "ready" ? nameOf(a.id, who.items, me) : who.state === "loading" ? "Loading..." : a.id);
   const agentList = agents.state === "ready" ? agents.items : [];
   return (
     <>

@@ -94,7 +94,7 @@ test("the AI step: prompt, input data, agent, account, answer shape, reviewer, a
   assert.match(tag(out, "choose-key"), /aria-label="Runs on: Team OpenAI key"/);
   assert.match(tag(out, "choose-backup"), /aria-label="Backup: My OpenAI key"/);
   assert.match(tag(out, "choose-answer"), /aria-label="Answer as: JSON in a shape I set"/);
-  assert.match(tag(out, "choose-reviewer"), /aria-label="Reviewer: usr_dana"/);
+  assert.match(tag(out, "choose-reviewer"), /aria-label="Reviewer: Loading\.\.\."/);
   assert.match(tag(out, "choose-approver"), /aria-label="Approver: Nobody"/);
   assert.equal(value(out, "field-timeout"), "7");
   assert.ok(has(out, "The answer waits as a task."));
@@ -186,4 +186,9 @@ test("an HTTP send has Ask before sending, default Off; a read does not, because
   assert.ok(has(on, "The send waits until someone approves it."));
   assert.equal(has(panel({ id: "g", key: "http_request", input: { method: "GET", url: "https://a.example.com" } }), 'data-testid="ask-before-sending"'), false);
   assert.equal(has(panel({ id: "a", key: "ai", input: { prompt: "p" } }), 'data-testid="ask-before-sending"'), false, "the AI step sends nothing");
+});
+
+test("no control is shown for the AI step's nudge or escalation settings, which the engine does not honour", () => {
+  const out = panel({ id: "a", key: "ai", input: { prompt: "p" }, ai: { nudgeMinutes: 5, escalateTo: { kind: "person", id: "usr_x" } } });
+  assert.equal(/nudge|escalat/i.test(out), false);
 });
