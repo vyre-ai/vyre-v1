@@ -274,6 +274,41 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       await page.screenshot({ path: "shots-evidence/record-file-routes/project.png" });
     });
 
+    await t.test("6d back and forward across three places, and a hard reload on a deep link, keep the place with no flash of Home", async () => {
+      assert.ok(signedIn, "the owner must be signed in");
+      const place = (name: string): string => `[data-testid="${name}-place"]`;
+      const rail = async (name: string): Promise<void> => { await page.getByTestId(`rail-${name}`).or(page.getByTestId(`rail-${name}-selected`)).first().click(); };
+      await page.goto(`${web.origin}/records`, { waitUntil: "load" });
+      await page.locator(place("records")).first().waitFor({ timeout: 15_000 });
+      await rail("files");
+      await page.locator(place("files")).first().waitFor({ timeout: 15_000 });
+      await rail("chats");
+      await page.locator(place("chats")).first().waitFor({ timeout: 15_000 });
+      for (const [move, want] of [["back", "files"], ["back", "records"], ["forward", "files"], ["forward", "chats"]] as const) {
+        if (move === "back") await page.goBack(); else await page.goForward();
+        await page.locator(place(want)).first().waitFor({ timeout: 15_000 });
+        assert.equal(new URL(page.url()).pathname, want === "chats" ? "/chat" : `/${want}`, `${move} lands on ${want}`);
+      }
+      // a hard reload on an open object: from the first frame on, the Home place is never drawn on the way back to the project page
+      const token = await page.evaluate(() => { const saved = JSON.parse(localStorage.getItem("vyre.session.v1") ?? "{}"); return saved.sessions?.[location.origin]?.token ?? saved.token; });
+      const api = createCapCaller({ baseUrl: web.origin, token: () => token, routes: async () => routes });
+      const project = await api("projects.create", { type: "project", title: "Release route project", idempotencyKey: "e2e.route.project" }) as { projectId: string };
+      const deep = `${web.origin}/records#subject=project:${project.projectId}`;
+      await page.goto(deep, { waitUntil: "load" });
+      await page.getByTestId("project-page").waitFor({ timeout: 15_000 });
+      await page.evaluate(() => sessionStorage.setItem("vyre.e2e.watchHome", "1"));
+      await page.addInitScript(() => {
+        if (sessionStorage.getItem("vyre.e2e.watchHome") !== "1") return;
+        const w = window as unknown as { __homeSeen?: boolean };
+        w.__homeSeen = false;
+        new MutationObserver(() => { if (document.querySelector('[data-testid="home-place"], [data-testid="s-needs"]')) w.__homeSeen = true; }).observe(document, { subtree: true, childList: true });
+      });
+      await page.reload({ waitUntil: "load" });
+      await page.getByTestId("project-page").waitFor({ timeout: 15_000 });
+      assert.equal(await page.evaluate(() => (window as unknown as { __homeSeen?: boolean }).__homeSeen), false, "Home never drew during the reload");
+      assert.equal(page.url(), deep, "the deep link survives the reload");
+      await page.evaluate(() => sessionStorage.removeItem("vyre.e2e.watchHome"));
+    });
     await t.test("6c Console uses real backup, device and access capabilities in its standalone frame", async () => {
       const token = await page.evaluate(() => {
         const saved = JSON.parse(localStorage.getItem("vyre.session.v1") ?? "{}");

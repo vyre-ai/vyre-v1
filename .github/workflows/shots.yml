@@ -149,7 +149,9 @@ jobs:
     # Ruling 46: speed budgets are measured only here, on the v1-perf runners. Opt-in (ruling 66): a branch push runs it only when the head commit message holds [perf], or on dispatch,
     # so the few perf runners are not taken by every UI push; packets that need a scroll or startup proof push with [perf].
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[perf]')
-    runs-on: [self-hosted, linux, v1-perf]
+    # The budgets that gate a release are judged on the dedicated ci-4 host (one runner, all cores, nothing else on it): the v1-perf runners share ci-1..3 with other CI jobs, and the same
+    # head measured phone cold start 1199 ms on one run and 1723 ms on the next there.
+    runs-on: [self-hosted, linux, v1-perf-wide]
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
@@ -172,6 +174,9 @@ jobs:
       - name: theme_flash probe (zero wrong frames)
         if: ${{ !cancelled() }}
         run: node scripts/shots/theme-flash.mjs --skip-export
+      - name: Signed-in cold start (reported next to the signed-out budget, phone 4x CPU, median of 7)
+        if: ${{ !cancelled() }}
+        run: node scripts/shots/startup-signed-in.ts --runs 7
       - name: Browser perf probes (ruling 43, warm-up discarded, median of 5, worst printed) desktop 1x and phone 4x CPU
         if: ${{ !cancelled() }}
         env:
