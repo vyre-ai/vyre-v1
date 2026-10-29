@@ -1,5 +1,5 @@
 // The startup report: chunk sizes, which scripts the entry loads, and the median; and the Metro setting that keeps unused modules from being evaluated at start.
-// @reads /apps/app/metro.config.js
+// @reads /apps/app/metro.config.cjs
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { closure, imports } from "../lib/graph.mjs";
-import { chunkSizes, entryScripts, median, report } from "./startup.mjs";
+import { MAX_STEAL_PCT, STEAL_ATTEMPTS, chunkSizes, enforceStartupBudget, entryScripts, measureQuiet, median, report, stealPct } from "./startup.mjs";
 
 function fakeDist(): string {
   const d = fs.mkdtempSync(path.join(os.tmpdir(), "dist-"));
@@ -38,7 +38,7 @@ test("the median ignores runs with no mark", () => {
 });
 
 test("Metro inlines requires, so a module the first screen never touches is not evaluated at start", () => {
-  const cfg = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), "..", "..", "apps", "app", "metro.config.js"), "utf8");
+  const cfg = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), "..", "..", "apps", "app", "metro.config.cjs"), "utf8");
   assert.match(cfg, /inlineRequires:\s*true/);
   assert.match(cfg, /getDefaultConfig\(__dirname\)/, "it extends Expo's own config");
 });
@@ -150,4 +150,33 @@ test("places that draw a Composer preload one shared on-demand editor before bec
   assert.match(places, /Composer\/load\.ts/);
   assert.match(places, /withComposer/);
   for (const id of ["home", "chat", "mail", "sites"]) assert.match(places, new RegExp(`id: ["']${id}["'][^\\n]+withComposer`), `${id} waits for its real composer before PlaceHost marks it usable`);
+});
+
+test("steal only ever throws out a slow result: under budget passes whatever the steal, over budget on a busy host is measured again, then unmeasurable", async () => {
+  const run = (attempts: { steal: number; ms: number }[]) => { let i = 0; const rejected: number[] = []; return { rejected, go: () => measureQuiet(async () => { const a = attempts[i++]!; return { steal: a.steal, cold: [a.ms] }; }, 1500, (r: { steal: number }) => rejected.push(r.steal)) }; };
+  // 1. within budget: a pass however busy the host was (steal can only have added time); the steal is kept on the attempt for the METRIC
+  const fast = await run([{ steal: 16, ms: 1000 }]).go();
+  assert.equal(fast.accepted?.steal, 16);
+  assert.equal(fast.attempts.length, 1);
+  // 2. over budget on a busy host: measured again; a quiet re-measure decides (10% then 1%)
+  const recheck = run([{ steal: 10, ms: 1600 }, { steal: 1, ms: 1400 }]);
+  const b = await recheck.go();
+  assert.equal(b.accepted?.steal, 1, "the quiet second measurement is the one that counts");
+  assert.deepEqual(recheck.rejected, [10], "the rejected attempt is logged with its steal");
+  // ... and over budget on a busy host three times: unmeasurable, which fails
+  const busy = run([{ steal: 10, ms: 1600 }, { steal: 10, ms: 1600 }, { steal: 10, ms: 1600 }, { steal: 1, ms: 1000 }]);
+  const c = await busy.go();
+  assert.equal(c.accepted, null);
+  assert.equal(c.attempts.length, STEAL_ATTEMPTS);
+  assert.deepEqual(busy.rejected, [10, 10, 10]);
+  // 3. over budget on a quiet host: accepted as it is, a real fail (the budget check below turns it red)
+  const slow = await run([{ steal: MAX_STEAL_PCT, ms: 1600 }]).go();
+  assert.equal(slow.accepted?.cold[0], 1600);
+  const prev = process.exitCode;
+  assert.equal(enforceStartupBudget([{ size: "phone", kind: "cold", ms: 1600, budget: 1500 }]).length, 1, "a quiet over-budget median fails");
+  assert.equal(enforceStartupBudget([{ size: "phone", kind: "cold", ms: null, budget: 1500, unmeasurable: true }]).length, 1, "unmeasurable fails, never passes");
+  assert.equal(process.exitCode, 1);
+  process.exitCode = prev;
+  assert.equal(stealPct({ steal: 10, total: 100 }, { steal: 20, total: 200 }), 10);
+  assert.equal(stealPct(null, null), null);
 });

@@ -79,7 +79,8 @@ try {
 
   await ctx.setOffline(true);
   const offline = await page.goto(`${web.origin}/home?offline=1`, { waitUntil: "domcontentloaded", timeout: 30_000 });
-  result.checks.offlineShell = (offline?.status() ?? 0) === 200 && await page.locator("body").count() === 1;
+  // the cached shell must start the app offline, not only answer 200: the scripts come from the worker's cache and the app marks itself usable
+  result.checks.offlineShell = (offline?.status() ?? 0) === 200 && await page.waitForFunction(() => performance.getEntriesByName("app.usable").length > 0, null, { timeout: 30_000 }).then(() => true, () => false);
   await ctx.setOffline(false);
   const reconnect = await page.goto(`${web.origin}/manifest.json?reconnected=1`, { waitUntil: "domcontentloaded", timeout: 30_000 });
   result.checks.reconnect = (reconnect?.status() ?? 0) === 200;

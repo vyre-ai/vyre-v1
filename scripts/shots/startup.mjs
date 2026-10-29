@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Startup of the production web export (apps/app: the app entry only, no shots mounts, no samples), measured the way a person feels it: app.start to app.usable.
-//   node scripts/shots/startup.mjs [--skip-export] [--route /home] [--runs 3] [--enforce]
+//   node scripts/shots/startup.mjs [--skip-export] [--route /home] [--runs 7] [--enforce]
 // Prints (1) the bundle size of every JS chunk, raw and gzip, sorted, with the total and what the first screen loads, and (2) startup per size (desktop 1x CPU, phone 4x CPU), cold and warm, median of --runs.
 // Budgets (V1-SPEC): desktop under 1000 ms, phone under 1500 ms at 4x CPU. --enforce exits 1 over budget. Run on the pinned v1-perf runners (ruling 46).
 import fs from "node:fs";
@@ -62,6 +62,41 @@ export function weights(dist) {
   return [...by.entries()].sort((a, b) => b[1] - a[1]).map(([name, bytes]) => ({ name, bytes }));
 }
 
+/** The host's CPU steal so far (Linux /proc/stat, jiffies), so a run on a busy hypervisor says so in its METRIC; null elsewhere. */
+export function cpuSteal() {
+  try {
+    const f = fs.readFileSync("/proc/stat", "utf8").split("\n")[0].trim().split(/\s+/).slice(1).map(Number);
+    return { steal: f[7] ?? 0, total: f.reduce((a, b) => a + b, 0) };
+  } catch { return null; }
+}
+
+/** Steal between two cpuSteal() readings, in percent of the host's CPU time; null without /proc/stat. */
+export function stealPct(a, b) {
+  return a && b && b.total > a.total ? +((100 * (b.steal - a.steal)) / (b.total - a.total)).toFixed(2) : null;
+}
+
+/** Steal above this is a busy host: it may only explain a result over budget, never excuse one under it. */
+export const MAX_STEAL_PCT = 3;
+/** Measurements of one size before it is called unmeasurable. */
+export const STEAL_ATTEMPTS = 3;
+
+/**
+ * Steal can only add time, never remove it, so it only ever throws out a slow result. An attempt is accepted when its cold median is within budget (whatever the steal, which
+ * is recorded), when the host was quiet (steal at most MAX_STEAL_PCT: an over-budget median is then a real fail), or when there is no steal reading (not Linux). An attempt over
+ * budget on a busy host is rejected (onReject logs it) and measured again, up to STEAL_ATTEMPTS in all; after that accepted is null (unmeasurable: red, never a pass).
+ */
+export async function measureQuiet(measure, budget, onReject = () => {}, max = STEAL_ATTEMPTS, limit = MAX_STEAL_PCT) {
+  const attempts = [];
+  for (let i = 0; i < max; i++) {
+    const r = await measure();
+    attempts.push(r);
+    const ms = median(r.cold);
+    if ((ms !== null && ms <= budget) || r.steal === null || r.steal <= limit) return { accepted: r, attempts };
+    onReject(r);
+  }
+  return { accepted: null, attempts };
+}
+
 export const median = (a) => { const s = a.filter((x) => x !== null).sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
 const kb = (n) => (n / 1024).toFixed(1).padStart(8);
 
@@ -93,32 +128,50 @@ export async function main(argv) {
   const server = await serve(dist, { spa: true });
   const { chromium } = await import("playwright-core");
   const browser = await chromium.launch({ args: ["--no-sandbox"] });
-  const runs = Number(args.runs || 3), rows = [];
+  // seven runs a size: three left the phone median to one or two outliers (1626 to 2210 ms within one job on the dedicated host); same budget, more samples
+  const runs = Number(args.runs || 7), rows = [];
   try {
     for (const [size, vp] of [["desktop", { width: 1280, height: 800 }], ["phone", { width: 390, height: 844 }]]) {
-      const cold = [], warm = [], sizes = [];
+      const measure = async () => {
+      const cold = [], warm = [], sizes = [], phases = [];
+      const steal0 = cpuSteal();
       for (let i = 0; i < runs; i++) {
         const ctx = await browser.newContext({ viewport: vp });
         const page = await ctx.newPage();
         const cdp = await ctx.newCDPSession(page);
         await cdp.send("Emulation.setCPUThrottlingRate", { rate: CPU[size] });
-        let bytes = 0;
-        page.on("response", async (r) => { try { bytes += (await r.body()).length; } catch { /* a cancelled request has no body */ } });
+        // the bytes come from the page's resource timing after the load, not by fetching every response body over CDP while the measured load is running
         for (const kind of ["cold", "warm"]) {
-          bytes = 0;
           await page.goto(server.origin + (args.route || "/home"), { waitUntil: "load" });
           await page.waitForFunction(() => performance.getEntriesByName("app.usable").length > 0, null, { timeout: 30000 }).catch(() => {});
           const marks = await page.evaluate(() => performance.getEntriesByType("mark").map((m) => ({ name: m.name, startTime: m.startTime })));
           const a = marks.find((m) => m.name === "app.start"), b = marks.find((m) => m.name === "app.usable");
           (kind === "cold" ? cold : warm).push(a && b ? b.startTime - a.startTime : null);
-          if (kind === "cold") { sizes.push(bytes); await page.waitForTimeout(1200); }
+          if (kind === "cold") {
+            // where a cold start goes, from app.start: the scripts arrive, run (DOMContentLoaded waits for the deferred bundles), the first paint, and React until app.usable
+            phases.push(await page.evaluate(() => {
+              const t0 = performance.getEntriesByName("app.start")[0]?.startTime ?? 0;
+              const nav = performance.getEntriesByType("navigation")[0];
+              const scripts = performance.getEntriesByType("resource").filter((r) => r.initiatorType === "script" && r.startTime < (nav?.domContentLoadedEventStart ?? Infinity));
+              const at = (x) => (x === undefined ? null : Math.round(x - t0));
+              return { scripts_in: at(Math.max(0, ...scripts.map((r) => r.responseEnd))), dcl: at(nav?.domContentLoadedEventEnd), load: at(nav?.loadEventEnd), fcp: at(performance.getEntriesByName("first-contentful-paint")[0]?.startTime), usable: at(performance.getEntriesByName("app.usable")[0]?.startTime) };
+            }));
+            sizes.push(await page.evaluate(() => performance.getEntriesByType("resource").reduce((n, r) => n + (r.decodedBodySize || 0), 0) + (performance.getEntriesByType("navigation")[0]?.decodedBodySize || 0)));
+            await page.waitForTimeout(1200);
+          }
         }
         await ctx.close();
       }
+      return { cold, warm, sizes, phases, steal: stealPct(steal0, cpuSteal()) };
+      };
+      const got = await measureQuiet(measure, BUDGET_MS[size], (r) => console.log(`startup ${size}: over budget on a busy host (cpu steal ${r.steal}%, limit ${MAX_STEAL_PCT}%), measuring again; rejected cold runs ${JSON.stringify(r.cold)}`));
+      const { cold, warm, sizes, phases, steal: steal_pct } = got.accepted ?? got.attempts[got.attempts.length - 1];
+      const rejected = got.attempts.filter((r) => r !== got.accepted).map((r) => ({ cpu_steal_pct: r.steal, cold_median_ms: median(r.cold), runs: r.cold }));
       for (const [kind, v] of [["cold", cold], ["warm", warm]]) {
-        const ms = median(v);
-        rows.push({ size, kind, ms, budget: BUDGET_MS[size], cpu: CPU[size] });
-        console.log(`METRIC ${JSON.stringify({ name: "startup_prod", size, kind, cpu_rate: CPU[size], ms, runs: v, budget_ms: BUDGET_MS[size], transferred_bytes: median(sizes) })}`);
+        // a size never measured on a quiet host has no figure: it fails as unmeasurable, never passes
+        const ms = got.accepted ? median(v) : null;
+        rows.push({ size, kind, ms, budget: BUDGET_MS[size], cpu: CPU[size], ...(got.accepted ? {} : { unmeasurable: true }) });
+        console.log(`METRIC ${JSON.stringify({ name: "startup_prod", size, kind, cpu_rate: CPU[size], ms, samples: v.length, runs: v, budget_ms: BUDGET_MS[size], transferred_bytes: median(sizes), cpu_steal_pct: steal_pct, ...(got.accepted ? {} : { unmeasurable: true }), ...(rejected.length ? { rejected_attempts: rejected } : {}), ...(kind === "cold" ? { phases_median_ms: Object.fromEntries(["scripts_in", "dcl", "load", "fcp", "usable"].map((k) => [k, median(phases.map((p) => p[k]))])) } : {}) })}`);
       }
     }
   } finally { await browser.close(); server.close(); }
