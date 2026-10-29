@@ -3,11 +3,11 @@
 import { anthropic } from "./anthropic.ts";
 import { classify } from "./errors.ts";
 import { google } from "./google.ts";
-import { openai, openaiCompatible, openrouter, xai } from "./openai.ts";
+import { custom, local, withV1, openai, openaiCompatible, openrouter, opencodeGo, xai } from "./openai.ts";
 import type { ApiSession, SessionDeps } from "./session.ts";
 import { createApiSession } from "./session.ts";
 import type { SessionSpec } from "../../turn-engine/types.ts";
-import type { AccountRef, Authorizer, Clock, Fetch, FetchResponse, ModelInfo, ProviderAdapter, ProviderId } from "./types.ts";
+import type { AccountRef, Authorizer, Clock, Fetch, FetchResponse, ModelInfo, ProviderAdapter, ApiId } from "./types.ts";
 import { PROVIDER_IDS } from "./types.ts";
 
 export interface ProbeOutcome { ok: boolean; models?: number; error?: { code: string; message: string } }
@@ -15,7 +15,7 @@ export interface ProbeOutcome { ok: boolean; models?: number; error?: { code: st
 /** The driver as the pool and the engine see it. */
 export interface ApiDriver {
   readonly kind: "api";
-  readonly id: ProviderId;
+  readonly id: ApiId;
   /** Only what the account can reach. Throws a DriverError when the provider refuses. */
   models(acct: AccountRef): Promise<ModelInfo[]>;
   /** "Test this account": the model list with no Space data. */
@@ -43,9 +43,10 @@ export interface ApiDriverDeps {
 }
 
 /** https, or plain http to this machine only. A key is never sent anywhere else. */
-export function okBase(u: string): boolean {
+export function okBase(u: string, keyless = false): boolean {
   try {
     const x = new URL(u);
+    if (keyless && (x.protocol === "http:" || x.protocol === "https:")) return true;   // no key to leak; the network guard decides which hosts a request may reach
     return x.protocol === "https:" || (x.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(x.hostname));
   } catch { return false; }
 }
@@ -72,7 +73,7 @@ export const realFetch: Fetch = async (url, init) => {
   } satisfies FetchResponse;
 };
 
-export const ADAPTERS: Readonly<Record<ProviderId, ProviderAdapter>> = Object.freeze({ anthropic, openai, openrouter, google, xai });
+export const ADAPTERS: Readonly<Record<ApiId, ProviderAdapter>> = Object.freeze({ anthropic, openai, openrouter, google, xai, opencode_go: opencodeGo, local, custom });
 
 export function createApiDriver(adapter: ProviderAdapter, deps: ApiDriverDeps): ApiDriver {
   const doFetch = deps.fetch ?? realFetch;
@@ -80,21 +81,23 @@ export function createApiDriver(adapter: ProviderAdapter, deps: ApiDriverDeps): 
   const accountOf = deps.accountOf ?? ((spec: SessionSpec): AccountRef => ({ ref: spec.agent.accountRef ?? "" }));
 
   const baseOf = (acct: AccountRef): string => {
-    const base = acct.base ?? adapter.defaultBase;
-    if (!okBase(base)) throw new DriverError("provider.bad_address", "That address is not a place a key may be sent.");
+    if (adapter.id === "custom" && !acct.base) throw new DriverError("provider.bad_address", "This endpoint has no address.");
+    const base = adapter.id === "local" && acct.base ? withV1(acct.base) : acct.base ?? adapter.defaultBase;
+    if (!okBase(base, acct.keyless === true)) throw new DriverError("provider.bad_address", "That address is not a place a key may be sent.");
     return base;
   };
 
   async function get(acct: AccountRef): Promise<ModelInfo[]> {
     const base = baseOf(acct);
     const wire = adapter.modelsRequest();
+    const target = wire.url ?? `${base.replace(/\/+$/, "")}${wire.path}`;
     let auth: Record<string, string>;
     try { auth = await deps.authorize(acct, adapter.id); } catch { throw new DriverError("provider.auth_failed", "No usable key for this account."); }
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), 15_000);
     try {
       let res: FetchResponse;
-      try { res = await doFetch(`${base.replace(/\/+$/, "")}${wire.path}`, { method: "GET", headers: { ...wire.headers, ...auth }, signal: ac.signal }); }
+      try { res = await doFetch(target, { method: "GET", headers: { ...wire.headers, ...auth }, signal: ac.signal }); }
       catch { throw new DriverError("provider.network", "Could not reach the provider."); }
       if (!res.ok) {
         const text = (await res.text().catch(() => "")).slice(0, 200);
@@ -132,7 +135,7 @@ export function createApiDriver(adapter: ProviderAdapter, deps: ApiDriverDeps): 
   };
 }
 
-/** The five providers, one driver each. An OpenAI-compatible endpoint (OpenCode Go, a local model) is `createApiDriver(openaiCompatible({...}), deps)` with its own id. */
+/** The providers, one driver each. An OpenAI-compatible endpoint (OpenCode Go, a local model) is `createApiDriver(openaiCompatible({...}), deps)` with its own id. */
 export function createApiDrivers(deps: ApiDriverDeps): ApiDriver[] {
   return PROVIDER_IDS.map((id) => createApiDriver(ADAPTERS[id], deps));
 }

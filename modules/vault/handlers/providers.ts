@@ -9,33 +9,35 @@ import { atLeast, bad, denied, ensure, first, isId, levelOn, newId, num, rowsOf,
 import type { Row, VaultCtx } from "../projections.ts";
 import { hostOf } from "./use.ts";
 import { readFileSync } from "node:fs";
+import { addressProblem, builtinDefs } from "./provider-defs.ts";
+import type { CatalogEntry } from "./provider-defs.ts";
 
-export interface CatalogEntry { key: string; name: string; logo?: string; connections: ("subscription" | "api_key" | "local_model")[]; modelsSource: string; engine: string; models?: string[]; instruction?: string }
+export type { CatalogEntry } from "./provider-defs.ts";
 
-/** The providers this server knows (the engine drivers). `models` is what a subscription offers when there is no list to read. */
-export const CATALOG: readonly CatalogEntry[] = [
-  { key: "claude-code", name: "Claude Code", connections: ["subscription"], modelsSource: "static", engine: "claude-code", models: ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"], instruction: "On your computer run `claude setup-token`. Vyre saves the token as an AI subscription item in your Mine folder. Then press Done." },
-  { key: "codex", name: "Codex", connections: ["subscription"], modelsSource: "static", engine: "codex", models: ["gpt-5-codex"], instruction: "On your computer run `codex login`. Vyre saves the sign-in as an AI subscription item in your Mine folder. Then press Done." },
-  { key: "grok", name: "Grok", connections: ["subscription"], modelsSource: "static", engine: "grok", models: ["grok-4"], instruction: "On your computer sign in with the Grok command line. Vyre saves the sign-in as an AI subscription item in your Mine folder. Then press Done." },
-  { key: "anthropic", name: "Anthropic", connections: ["api_key"], modelsSource: "https://api.anthropic.com/v1/models", engine: "anthropic" },
-  { key: "openai", name: "OpenAI", connections: ["api_key"], modelsSource: "https://api.openai.com/v1/models", engine: "openai" },
-  { key: "openrouter", name: "OpenRouter", connections: ["api_key"], modelsSource: "https://openrouter.ai/api/v1/models", engine: "openrouter" },
-  { key: "google", name: "Google Gemini", connections: ["api_key"], modelsSource: "https://generativelanguage.googleapis.com/v1beta/models", engine: "google" },
-  { key: "xai", name: "xAI", connections: ["api_key"], modelsSource: "https://api.x.ai/v1/models", engine: "xai" },
-  { key: "opencode-go", name: "OpenCode Go", connections: ["api_key"], modelsSource: "static", engine: "opencode-go" },
-  { key: "local", name: "Local model", connections: ["local_model"], modelsSource: "{address}/v1/models", engine: "local" },
-];
-const entry = (key: unknown): CatalogEntry | undefined => CATALOG.find((c) => c.key === key);
+/** The built-in providers this server knows, read from modules/vault/providers/*.json when the module loads (a bad file stops it there). A Space's custom endpoints are rows (customDefs). */
+export const CATALOG: readonly CatalogEntry[] = builtinDefs();
+
+function customDefs(ctx: VaultCtx): CatalogEntry[] {
+  ensureProviders(ctx);
+  return rowsOf(ctx.db.all(`SELECT * FROM vault_provider_def`)).filter(live).map((r) => ({
+    key: str(r, "key"), name: str(r, "name"), connections: [num(r, "keyless") === 1 ? "local_model" : "api_key"] as CatalogEntry["connections"], modelsSource: `${str(r, "base")}/models`,
+    engine: "custom", base: str(r, "base"), ...(num(r, "keyless") === 1 ? { keyless: true } : {}), models: JSON.parse(str(r, "models")) as string[], custom: true,
+  }));
+}
+/** The definition for a key: a built-in file, else a custom endpoint of this Space. */
+const entry = (ctx: VaultCtx, key: unknown): CatalogEntry | undefined => CATALOG.find((c) => c.key === key) ?? customDefs(ctx).find((c) => c.key === key);
 
 /** What the host does with a key to see whether the provider takes it (omitted: the module cannot say). */
-export interface ProviderProbe { (p: { providerKey: string; connection: string; caller: string; apiKey?: string; address?: string }): Promise<{ ok: boolean; models: string[]; detail?: string }> }
+export interface ProviderProbe { (p: { providerKey: string; connection: string; caller: string; apiKey?: string; address?: string; engine?: string }): Promise<{ ok: boolean; models: string[]; detail?: string }> }
 
 const providersSql = readFileSync(new URL("../migrations/0003_providers.sql", import.meta.url), "utf8");
+const defsSql = readFileSync(new URL("../migrations/0004_provider_defs.sql", import.meta.url), "utf8");
 const ready = new WeakSet<object>();
 function ensureProviders(ctx: VaultCtx): void {
   ensure(ctx);
   if (ready.has(ctx.db)) return;
   try { ctx.db.all(`SELECT "id" FROM vault_provider WHERE "id" = ?`, "probe"); } catch { for (const s of statements(providersSql)) ctx.db.run(s); }
+  try { ctx.db.all(`SELECT "key" FROM vault_provider_def WHERE "key" = ?`, "probe"); } catch { for (const s of statements(defsSql)) ctx.db.run(s); }
   ready.add(ctx.db);
 }
 
@@ -54,14 +56,16 @@ function viaOf(connection: string, scope: string): string {
 }
 
 function rowOut(ctx: VaultCtx, p: Row): Record<string, unknown> {
-  const c = entry(str(p, "providerKey"));
+  const c = entry(ctx, str(p, "providerKey"));
   const item = itemOf(ctx, str(p, "itemId"));
+  const address = first(ctx.db.all(`SELECT "address" FROM vault_provider_extra WHERE "providerId" = ?`, str(p, "id")));
   return {
     id: str(p, "id"), providerKey: str(p, "providerKey"), name: c?.name ?? str(p, "providerKey"), ...(c?.logo ? { logo: c.logo } : {}),
     connection: str(p, "connection"), via: viaOf(str(p, "connection"), str(p, "scope")), scope: str(p, "scope"), itemId: str(p, "itemId"),
     ...(item && str(item, "handle") ? { handle: str(item, "handle") } : {}), agentsUsing: [],
     usage: { tokens: 0, costCents: 0, periodStart: monthStart(ctx.now()) }, engine: c?.engine ?? str(p, "providerKey"),
     spaceMayUse: num(p, "spaceMayUse") === 1, state: str(p, "state"),
+    ...(address ? { address: str(address, "address") } : {}), ...(c?.keyless || str(p, "connection") === "local_model" ? { keyless: true } : {}),
   };
 }
 
@@ -85,8 +89,7 @@ function providerById(ctx: VaultCtx, id: unknown): Row {
 // ---- reads
 
 export async function catalog(ctx: VaultCtx, _input: Record<string, never>) {
-  void ctx;
-  return { providers: CATALOG.map((c) => ({ key: c.key, name: c.name, ...(c.logo ? { logo: c.logo } : {}), connections: c.connections, modelsSource: c.modelsSource, engine: c.engine })) };
+  return { providers: [...CATALOG, ...customDefs(ctx)].map((c) => ({ key: c.key, name: c.name, ...(c.logo ? { logo: c.logo } : {}), connections: c.connections, modelsSource: c.modelsSource, engine: c.engine, ...(c.custom ? { custom: true } : {}), ...(c.base ? { base: c.base } : {}) })) };
 }
 
 export async function list(ctx: VaultCtx, _input: Record<string, never>) {
@@ -114,29 +117,42 @@ async function mineFolder(ctx: VaultCtx): Promise<string> {
 
 export async function add(ctx: VaultCtx, input: { providerKey: string; connection: string; scope: string; apiKey?: string; address?: string; folderId?: string; idempotencyKey: string }) {
   ensureProviders(ctx);
-  const c = entry(input.providerKey);
+  const c = entry(ctx, input.providerKey);
   if (!c) return bad(ctx, "That provider is not known.");
   if (input.connection !== "api_key" && input.connection !== "local_model") return bad(ctx, "Add a key or a local model here; a subscription is connected with Sign in.");
   if (!c.connections.includes(input.connection)) return bad(ctx, `${c.name} does not connect that way.`);
   if (input.scope !== "mine" && input.scope !== "shared") return bad(ctx, "A provider is Mine or Shared.");
   if (input.connection === "api_key" && (typeof input.apiKey !== "string" || input.apiKey.trim() === "")) return bad(ctx, "Paste the key.");
-  if (input.connection === "local_model" && (typeof input.address !== "string" || !/^https?:\/\//.test(input.address))) return bad(ctx, "A local model needs its address, like http://localhost:11434.");
+  // a custom endpoint carries its own address; a local model is told one
+  const address = c.custom ? c.base : input.address;
+  if (input.connection === "local_model" && (typeof address !== "string" || !/^https?:\/\//.test(address))) return bad(ctx, "A local model needs its address, like http://localhost:11434.");
+  if (address !== undefined) {
+    const why = addressProblem(address, input.connection === "api_key") ?? await refusedByHost(ctx, address);
+    if (why) return bad(ctx, why);
+  }
   if (input.scope === "shared" && !input.folderId) return bad(ctx, "Choose the shared folder to keep it in.");
   const folderId = input.folderId ?? await mineFolder(ctx);
-  const n = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter((p) => live(p) && str(p, "providerKey") === c.key && str(p, "owner") === me(ctx)).length;
+  const n = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter((p) => live(p) && entry(ctx, str(p, "providerKey"))?.name === c.name && str(p, "owner") === me(ctx)).length;
   const made = await itemPut(ctx, {
     folderId, name: n === 0 ? c.name : `${c.name} ${n + 1}`, kind: input.connection === "api_key" ? "api_key" : "other",
     fields: [
       ...(input.apiKey ? [{ key: "api_key", value: input.apiKey.trim(), secret: true }] : []),
-      ...(input.address ? [{ key: "address", value: input.address.trim(), secret: false }] : []),
+      ...(address ? [{ key: "address", value: address.trim(), secret: false }] : []),
     ], idempotencyKey: `${input.idempotencyKey}:item`,
   } as Parameters<typeof itemPut>[1]);
   const itemId = str((made as unknown as { item: Row }).item, "id");
   const id = newId("prv", ctx.now());
   ctx.db.run(`INSERT INTO vault_provider ("id", "providerKey", "connection", "scope", "owner", "itemId", "spaceMayUse", "state", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, c.key, input.connection, input.scope, me(ctx), itemId, input.scope === "shared" ? 1 : 0, "ok", ctx.now(), null);
+  if (address) ctx.db.run(`INSERT INTO vault_provider_extra ("providerId", "address") VALUES (?, ?)`, id, address.trim());
   ctx.emit("provider.added", `entity/${id}`, { providerId: id, providerKey: c.key, connection: input.connection, scope: input.scope }, { vis: "participants" });
   return { provider: rowOut(ctx, providerById(ctx, id)) };
+}
+
+/** The host's network guard says no (link-local always; loopback and private unless this is the caller's own computer). No host, no DNS: the syntax check stands. */
+async function refusedByHost(ctx: VaultCtx, address: string): Promise<string | null> {
+  const refuse = hostOf()?.refuse;
+  return refuse ? refuse({ address, caller: me(ctx) }) : null;
 }
 
 export async function remove(ctx: VaultCtx, input: { providerId: string }) {
@@ -164,7 +180,7 @@ export async function setSpaceUse(ctx: VaultCtx, input: { providerId: string; al
 
 export async function subscriptionStart(ctx: VaultCtx, input: { providerKey: string; idempotencyKey: string }) {
   ensureProviders(ctx);
-  const c = entry(input.providerKey);
+  const c = entry(ctx, input.providerKey);
   if (!c || !c.connections.includes("subscription")) return bad(ctx, "That provider does not sign in with a subscription.");
   const id = newId("sub", ctx.now());
   ctx.db.run(`INSERT INTO vault_provider_flow ("id", "person", "providerKey", "startedAt", "doneAt") VALUES (?, ?, ?, ?, ?)`, id, me(ctx), c.key, ctx.now(), null);
@@ -199,8 +215,9 @@ export async function test(ctx: VaultCtx, input: { providerId: string }) {
   ensureProviders(ctx);
   const p = providerById(ctx, input.providerId);
   mayAct(ctx, p, "use");
-  const c = entry(str(p, "providerKey"));
+  const c = entry(ctx, str(p, "providerKey"));
   const item = itemOf(ctx, str(p, "itemId"));
+  const extra = first(ctx.db.all(`SELECT "address" FROM vault_provider_extra WHERE "providerId" = ?`, str(p, "id")));
   const started = Date.now();
   const done = (ok: boolean, models: string[], detail?: string) => {
     ctx.db.run(`UPDATE vault_provider SET "state" = ? WHERE "id" = ?`, ok ? "ok" : str(p, "connection") === "subscription" ? "needs_sign_in" : "failing", str(p, "id"));
@@ -216,10 +233,58 @@ export async function test(ctx: VaultCtx, input: { providerId: string }) {
   const fields = await openFields(ctx, item);
   const value = (k: string): string | undefined => fields.find((f) => f.key === k)?.value;
   try {
-    const r = await probe({ providerKey: str(p, "providerKey"), connection: str(p, "connection"), caller: me(ctx), ...(value("api_key") ? { apiKey: value("api_key")! } : {}), ...(value("address") ? { address: value("address")! } : {}) });
+    const r = await probe({ providerKey: str(p, "providerKey"), connection: str(p, "connection"), caller: me(ctx), ...(value("api_key") ? { apiKey: value("api_key")! } : {}), ...(value("address") ? { address: value("address")! } : extra ? { address: str(extra, "address") } : {}), engine: c?.engine ?? str(p, "providerKey") });
     return done(r.ok, r.models, r.detail);
   } catch (e) {
     return done(false, [], e instanceof Error ? e.message.replace(/sk-[A-Za-z0-9_-]+/g, "[key]").slice(0, 200) : "The provider did not answer.");
   }
 }
 
+
+// ---- custom OpenAI-compatible endpoints (a Space's own definitions)
+
+const slug = (name: string): string => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "endpoint";
+
+function defOut(c: CatalogEntry, ctx: VaultCtx): Record<string, unknown> {
+  const mine = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter((p) => live(p) && str(p, "providerKey") === c.key && str(p, "owner") === me(ctx)).length;
+  return { key: c.key, name: c.name, base: c.base ?? "", keyless: c.keyless === true, models: c.models ?? [], connected: mine };
+}
+
+/** Register an endpoint that speaks Chat Completions (a gateway, vLLM, LiteLLM, a hosted model) and connect it with the caller's key. The base address is checked (https for a key; the host's network guard for the rest). */
+export async function customAdd(ctx: VaultCtx, input: { name: string; baseUrl: string; apiKey?: string; models?: string[]; scope: string; folderId?: string; idempotencyKey: string }) {
+  ensureProviders(ctx);
+  const name = typeof input.name === "string" ? input.name.trim() : "";
+  if (name === "") return bad(ctx, "Give the endpoint a name.");
+  const base = typeof input.baseUrl === "string" ? input.baseUrl.trim().replace(/\/+$/, "") : "";
+  const hasKey = typeof input.apiKey === "string" && input.apiKey.trim() !== "";
+  const why = addressProblem(base, hasKey) ?? await refusedByHost(ctx, base);
+  if (why) return bad(ctx, why);
+  if (input.models !== undefined && (!Array.isArray(input.models) || input.models.some((m) => typeof m !== "string" || m.trim() === ""))) return bad(ctx, "Models are a list of names.");
+  const taken = new Set([...CATALOG.map((c) => c.key), ...rowsOf(ctx.db.all(`SELECT * FROM vault_provider_def`)).map((r) => str(r, "key"))]);
+  const sameBase = rowsOf(ctx.db.all(`SELECT * FROM vault_provider_def`)).find((r) => live(r) && str(r, "base") === base && str(r, "name") === name);
+  let key = sameBase ? str(sameBase, "key") : `custom-${slug(name)}`;
+  if (!sameBase) for (let n = 2; taken.has(key); n++) key = `custom-${slug(name)}-${n}`;
+  if (!sameBase) {
+    ctx.db.run(`INSERT INTO vault_provider_def ("key", "name", "base", "keyless", "models", "createdBy", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      key, name, base, hasKey ? 0 : 1, JSON.stringify((input.models ?? []).map((m) => m.trim())), me(ctx), ctx.now(), null);
+  }
+  const added = await add(ctx, { providerKey: key, connection: hasKey ? "api_key" : "local_model", scope: input.scope, ...(hasKey ? { apiKey: input.apiKey! } : {}), ...(input.folderId ? { folderId: input.folderId } : {}), idempotencyKey: input.idempotencyKey });
+  return { endpoint: defOut(entry(ctx, key)!, ctx), provider: added.provider };
+}
+
+export async function customList(ctx: VaultCtx, _input: Record<string, never>) {
+  return { endpoints: customDefs(ctx).map((c) => defOut(c, ctx)) };
+}
+
+/** Remove an endpoint definition and the caller's own connections to it. Another person's connection to it stops the removal (they remove theirs first, or the owner of the definition asks them). */
+export async function customRemove(ctx: VaultCtx, input: { key: string }) {
+  ensureProviders(ctx);
+  const def = rowsOf(ctx.db.all(`SELECT * FROM vault_provider_def`)).find((r) => live(r) && str(r, "key") === input.key);
+  if (!def) throw fail("validation.not_found", ctx.trace.traceId, { message: "That endpoint is not registered." });
+  if (str(def, "createdBy") !== me(ctx)) denied(ctx, "Only the person who registered an endpoint removes it.");
+  const using = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter((p) => live(p) && str(p, "providerKey") === input.key);
+  if (using.some((p) => str(p, "owner") !== me(ctx))) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Someone else still uses this endpoint. They remove their connection first." });
+  for (const p of using) await remove(ctx, { providerId: str(p, "id") });
+  ctx.db.run(`UPDATE vault_provider_def SET "deleted_at" = ? WHERE "key" = ?`, ctx.now(), input.key);
+  return { ok: true };
+}
