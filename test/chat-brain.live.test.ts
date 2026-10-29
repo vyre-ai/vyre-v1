@@ -124,3 +124,54 @@ test("screen context: what the person had open reaches the agent with the focus 
     assert.equal(got.data.screen.place, "records");
   } finally { await d.stop(); }
 });
+
+test("vault: an agent's request for a key reaches a real person as a task, and approving it gives the agent Use without ever showing the value", async () => {
+  const model = scriptedModel(async function* (input, run) {
+    const folder = /folder (vfd_[a-z0-9]+)/.exec(input.trigger?.body ?? "")?.[1];
+    const r = yield* run("vault_request", { name: "Mailchimp_Key", reason: "Export the client list", ...(folder ? { folderId: folder } : {}), idempotencyKey: "vr-1" });
+    yield { type: "text", text: r.ok ? `asked ${JSON.stringify((r.content as { data?: { request?: { id?: string } } }).data?.request?.id)}` : `refused ${JSON.stringify(r.content).slice(0, 200)}` };
+  });
+  const d = await boot(seededDir(), model);
+  try {
+    await connect(d);
+    const agent = await makeAgent(d, "Fetcher", "You fetch lists.");
+    const folder = (await call(d, "vault.folders.create", { name: "Team keys", scope: "shared", idempotencyKey: "vk-f" })).data.folder.id as string;
+    assert.equal((await call(d, "vault.share", { resource: { type: "vault_folder", id: folder }, subject: { kind: "person", id: "usr_adam" }, level: "manage", idempotencyKey: "vk-s" })).status, 200);
+    // the agent cannot see the folder's shares, yet its request reaches the people who manage it
+    const reply = (await say(d, agent, `Export the list with Mailchimp, the key goes in folder ${folder}`, "vr")).reply;
+    assert.match(reply, /^asked "vrq_/, reply);
+    const id = /vrq_[a-z0-9]+/.exec(reply)![0];
+    const got = (await call(d, "vault.requests.get", { requestId: id })).data.request;
+    assert.equal(got.state, "waiting");
+    assert.ok(got.taskId, "a task asks the managers");
+    const task = (await call(d, "tasks.get", { taskId: got.taskId })).data.task;
+    assert.equal(task.assigned?.kind, "person", JSON.stringify(task));
+    assert.ok(["usr_adam", "usr_olivia"].includes(task.assigned.id));
+    // a manager supplies the key in the fulfil call; the agent gets Use on the new item and never sees the value
+    const done = await call(d, "vault.requests.fulfil", { requestId: id, folderId: folder, fields: [{ key: "value", value: "mc-live-FAKE-0001" }] });
+    assert.equal(done.status, 200, JSON.stringify(done.data));
+    assert.ok(!JSON.stringify(done.data).includes("mc-live-FAKE-0001"), "the value is not echoed");
+    const used = await call(d, "vault.use", { item: "Mailchimp_Key", purpose: "export" });
+    assert.equal(used.status, 200, JSON.stringify(used.data));
+    assert.equal(used.data.handle, "#Mailchimp_Key");
+    assert.equal((await call(d, "vault.requests.get", { requestId: id })).data.request.state, "fulfilled");
+  } finally { await d.stop(); }
+});
+
+test("settings: an agent reads the asker's time zone and cannot change it", async () => {
+  const model = scriptedModel(async function* (input, run) {
+    yield* run("tool_search", { query: "settings get set" });
+    const r = yield* run("settings_get", { key: "profile.timezone" });
+    const w = yield* run("settings_set", { key: "profile.timezone", value: "UTC", idempotencyKey: "tz-w" });
+    yield { type: "text", text: `${(r.content as { data?: { row?: { value?: string } } }).data?.row?.value ?? "none"} ${w.ok ? "changed" : "kept"}` };
+    void input;
+  });
+  const d = await boot(seededDir(), model);
+  try {
+    await connect(d);
+    const agent = await makeAgent(d, "Clock");
+    await call(d, "settings.set", { key: "profile.timezone", value: "Asia/Karachi" });
+    assert.equal((await say(d, agent, "what is my zone", "tz")).reply, "Asia/Karachi kept");
+    assert.equal((await call(d, "settings.get", { key: "profile.timezone" })).data.row.value, "Asia/Karachi");
+  } finally { await d.stop(); }
+});
