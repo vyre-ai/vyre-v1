@@ -1,5 +1,6 @@
 # Changelog
 
+- Console names no longer flash back to the type ("Record") while the page refreshes: resolved names are kept and merged instead of cleared on every refresh. The grant-on-a-record Chromium proof waits for the record name to be read before asserting the row text (same assertion); it raced the name lookup on a fast runner.
 - real-app e2e step 6d: Back and Forward across Records, Files and Chats land on the right place and address, and a hard reload of an open project keeps it without ever drawing Home. The PWA smoke's offline check now requires the cached shell to start the app (app.usable), not only answer 200.
 - Startup steal guard throws out only slow results: a median within budget passes whatever the steal (recorded in METRIC), an over-budget median on a busy host (steal above 3%) is measured again up to twice and then fails as unmeasurable, and an over-budget median on a quiet host is a real fail.
 - Shots perf job reports the signed-in cold start too (scripts/shots/startup-signed-in.ts: a seeded Space on a real daemon, the owner's stored session, phone 4x CPU, median of seven, every run proven to reach the shell), next to the signed-out budget.
