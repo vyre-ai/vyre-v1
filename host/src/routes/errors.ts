@@ -49,9 +49,31 @@ const REASON: Record<string, ErrorCode> = {
 };
 export const codeForReason = (reason: string): ErrorCode => REASON[reason] ?? "permission.no_grant";
 
-/** Anything a handler throws becomes a shaped error. VyreErr and HostError pass through (with this call's trace id); the rest is internal.unexpected and never leaks its message. */
+// Two codes carry the reason a child Run failed, which can be a provider's words: the engine writes "<who> did not finish: <reason>", so only the part before the first ": " is kept. The reason stays on the child Run.
+// run.stopped keeps the words the author wrote in their own Stop step.
+const BEFORE_REASON = new Set(["run.branch_failed", "run.loop_failed"]);
+function safeWords(code: string, message: string): string {
+  if (!BEFORE_REASON.has(code)) return message;
+  const at = message.indexOf(": ");
+  return at === -1 ? message : `${message.slice(0, at)}.`;
+}
+
+/** A step failure the engine already named (`run.loop_too_large`, `run.branch_failed`). Words the engine wrote itself stay; see safeWords for the two that carry a child Run's reason. */
+function runFailure(e: unknown, traceId: string): VyreError | undefined {
+  const shaped = (e as { error?: { code?: unknown; message?: unknown; retryable?: unknown } } | null)?.error;
+  if (!shaped || typeof shaped.code !== "string" || !/^run\.[a-z0-9_]+$/.test(shaped.code)) return undefined;
+  if (typeof shaped.message !== "string" || shaped.message.length === 0 || shaped.message.length > 400 || /[\r\n]/.test(shaped.message)) return undefined;
+  return {
+    code: shaped.code as ErrorCode, message: safeWords(shaped.code, shaped.message), retryable: shaped.retryable === true, traceId,
+    next: [{ kind: "report", label: "Report a problem" }],
+  };
+}
+
+/** Anything a handler throws becomes a shaped error. VyreErr and HostError pass through (with this call's trace id); a named run failure keeps its words; the rest is internal.unexpected and never leaks its message. */
 export function toVyreError(e: unknown, traceId: string): { error: VyreError; unexpected: boolean } {
   if (e instanceof HostError) return { error: { ...e.error, traceId }, unexpected: false };
   if (e instanceof VyreErr) return { error: { ...e.error, traceId }, unexpected: false };
+  const named = runFailure(e, traceId);
+  if (named) return { error: named, unexpected: false };
   return { error: makeError("internal.unexpected", traceId, { message: "Something went wrong on our side.", details: { traceId } }), unexpected: true };
 }

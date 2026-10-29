@@ -4,6 +4,12 @@ import type { DriverEvent } from "../../turn-engine/types.ts";
 
 export type ProviderId = "anthropic" | "openai" | "openrouter" | "google" | "xai";
 export const PROVIDER_IDS: readonly ProviderId[] = ["anthropic", "openai", "openrouter", "google", "xai"];
+/** OpenAI-compatible endpoints (openai.ts): OpenCode Go at its own address, a local server (Ollama, LM Studio, llama.cpp) with no key, and a custom endpoint a Space registered. */
+export type CompatId = "opencode_go" | "local" | "custom";
+export const COMPAT_IDS: readonly CompatId[] = ["opencode_go", "local", "custom"];
+/** Every id an API driver can have. */
+export type ApiId = ProviderId | CompatId;
+export const API_IDS: readonly ApiId[] = [...PROVIDER_IDS, ...COMPAT_IDS];
 
 /** A tool as the model sees it. The list is sorted by name before it is sent so the cached prefix never changes by accident. */
 export interface ApiTool { name: string; description: string; inputSchema: unknown }
@@ -57,7 +63,7 @@ export interface StreamDecoder {
 }
 
 export interface ProviderAdapter {
-  readonly id: ProviderId;
+  readonly id: ApiId;
   readonly defaultBase: string;
   /** The model name the provider's own API takes ("anthropic/claude-x" for the Anthropic driver is "claude-x"). */
   modelName(model: string): string;
@@ -67,17 +73,19 @@ export interface ProviderAdapter {
   readonly inputIncludesCache: boolean;
   request(req: CallRequest): WireRequest;
   decoder(): StreamDecoder;
-  modelsRequest(): { path: string; headers: Record<string, string> };
+  /** `url` is set when the model list lives outside the base address (OpenCode Go). */
+  modelsRequest(): { path: string; headers: Record<string, string>; url?: string };
   parseModels(json: unknown): ModelInfo[];
 }
 
 export interface ModelInfo { id: string; label?: string }
 
 /** An account as a driver sees it: the Vault handle, and the address when the account names its own (OpenAI-compatible endpoints). */
-export interface AccountRef { ref: string; base?: string }
+/** `keyless`: the account has no key (a local server); the authorizer returns no headers and never asks the Vault. */
+export interface AccountRef { ref: string; base?: string; keyless?: boolean }
 
 /** Auth headers for one account, built at the HTTP layer from the Vault. The key never reaches module code. */
-export type Authorizer = (account: AccountRef, provider: ProviderId) => Promise<Record<string, string>>;
+export type Authorizer = (account: AccountRef, provider: ApiId) => Promise<Record<string, string>>;
 
 export type Fetch = (url: string, init: { method: string; headers: Record<string, string>; body?: string; signal: AbortSignal }) => Promise<FetchResponse>;
 export interface FetchResponse {
