@@ -2372,6 +2372,146 @@
       ],
       "type": "object"
     },
+    "s_1c0da72715": {
+      "properties": {
+        "actions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "builtin": {
+          "type": "boolean"
+        },
+        "connections": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "domains": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "key": {
+          "examples": [
+            "hubspot"
+          ],
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "api",
+            "mcp",
+            "dwd",
+            "oauth_app",
+            "webhook_only"
+          ],
+          "type": "string"
+        },
+        "objects": {
+          "additionalProperties": {
+            "properties": {
+              "create": {
+                "type": "string"
+              },
+              "delete": {
+                "type": "string"
+              },
+              "list": {
+                "type": "string"
+              },
+              "listAfter": {
+                "description": "List the next page; takes { after }",
+                "type": "string"
+              },
+              "update": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "object"
+        },
+        "scope": {
+          "enum": [
+            "person",
+            "space"
+          ],
+          "type": "string"
+        },
+        "secrets": {
+          "items": {
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "description"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "sourceFolderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "state": {
+          "enum": [
+            "live",
+            "draft",
+            "failing_tests"
+          ],
+          "type": "string"
+        },
+        "syncedTypes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": "string"
+        },
+        "version": {
+          "examples": [
+            "1.0.0"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "mode",
+        "scope",
+        "builtin",
+        "version",
+        "state",
+        "domains",
+        "secrets",
+        "connections",
+        "syncedTypes",
+        "actions",
+        "sources"
+      ],
+      "type": "object"
+    },
     "s_1c6f35f590": {
       "properties": {
         "actor": {
@@ -3110,6 +3250,100 @@
         "escalateTo",
         "emailBackstopHours",
         "scope"
+      ],
+      "type": "object"
+    },
+    "s_22ee988823": {
+      "properties": {
+        "continuedThreadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "conversationId": {
+          "examples": [
+            "isc_a1b2c3"
+          ],
+          "pattern": "^isc_[a-z0-9]+$",
+          "type": "string"
+        },
+        "importedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "projectId": {
+          "examples": [
+            "prj_a1b2c3"
+          ],
+          "pattern": "^prj_[a-z0-9]+$",
+          "type": "string"
+        },
+        "provider": {
+          "enum": [
+            "codex",
+            "claude_code"
+          ],
+          "type": "string"
+        },
+        "sourceKey": {
+          "type": "string"
+        },
+        "sourceSessionId": {
+          "type": "string"
+        },
+        "startedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "conversationId",
+        "provider",
+        "sourceKey",
+        "sourceSessionId",
+        "title",
+        "startedAt",
+        "importedAt"
+      ],
+      "type": "object"
+    },
+    "s_24f4f7e0a4": {
+      "properties": {
+        "allowGithub": {
+          "type": "boolean"
+        },
+        "allowPassword": {
+          "type": "boolean"
+        },
+        "requireSso": {
+          "type": "boolean"
+        },
+        "secondFactor": {
+          "enum": [
+            "off",
+            "required"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "secondFactor",
+        "requireSso",
+        "allowPassword",
+        "allowGithub"
       ],
       "type": "object"
     },
@@ -6511,27 +6745,7 @@
           "type": "string"
         },
         "spaceKeys": {
-          "items": {
-            "properties": {
-              "epoch": {
-                "minimum": 0,
-                "type": "integer"
-              },
-              "wrapped": {
-                "description": "Base64 ciphertext; the server cannot open it",
-                "examples": [
-                  "d3JhcHBlZA=="
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "epoch",
-              "wrapped"
-            ],
-            "type": "object"
-          },
-          "type": "array"
+          "$ref": "#/$defs/s_e9725ed975"
         }
       },
       "required": [
@@ -7354,6 +7568,41 @@
         "toFolderId"
       ],
       "type": "object"
+    },
+    "s_5b5f5d7449": {
+      "items": {
+        "properties": {
+          "at": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "type": "string"
+          },
+          "sourceMessageId": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sourceMessageId",
+          "role",
+          "text",
+          "at"
+        ],
+        "type": "object"
+      },
+      "type": "array"
     },
     "s_5b5fd6f127": {
       "properties": {
@@ -8310,6 +8559,54 @@
       ],
       "type": "object"
     },
+    "s_6505e83316": {
+      "properties": {
+        "roleId": {
+          "examples": [
+            "rol_a1b2c3"
+          ],
+          "pattern": "^rol_[a-z0-9]+$",
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/s_f22e8a9091"
+        }
+      },
+      "required": [
+        "subject",
+        "roleId"
+      ],
+      "type": "object"
+    },
+    "s_65290eac05": {
+      "items": {
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "ask",
+              "show",
+              "hide"
+            ],
+            "type": "string"
+          },
+          "prefillKey": {
+            "type": "string"
+          },
+          "step": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "field",
+          "mode"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
     "s_6530e00598": {
       "properties": {
         "at": {
@@ -8598,6 +8895,40 @@
       },
       "maxItems": 7,
       "type": "array"
+    },
+    "s_6ac6b58eb6": {
+      "properties": {
+        "id": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "person",
+            "agent",
+            "actor",
+            "service",
+            "group",
+            "role",
+            "grant",
+            "policy",
+            "review",
+            "device",
+            "session",
+            "invite"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "type": "object"
     },
     "s_6b21f82790": {
       "properties": {
@@ -9897,139 +10228,6 @@
       "required": [
         "kind",
         "id"
-      ],
-      "type": "object"
-    },
-    "s_807964c7e1": {
-      "properties": {
-        "actions": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "builtin": {
-          "type": "boolean"
-        },
-        "connections": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "domains": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "key": {
-          "examples": [
-            "hubspot"
-          ],
-          "type": "string"
-        },
-        "mode": {
-          "enum": [
-            "api",
-            "mcp",
-            "dwd",
-            "oauth_app",
-            "webhook_only"
-          ],
-          "type": "string"
-        },
-        "objects": {
-          "additionalProperties": {
-            "properties": {
-              "create": {
-                "type": "string"
-              },
-              "delete": {
-                "type": "string"
-              },
-              "list": {
-                "type": "string"
-              },
-              "listAfter": {
-                "description": "List the next page; takes { after }",
-                "type": "string"
-              },
-              "update": {
-                "type": "string"
-              }
-            },
-            "type": "object"
-          },
-          "type": "object"
-        },
-        "scope": {
-          "enum": [
-            "person",
-            "space"
-          ],
-          "type": "string"
-        },
-        "secrets": {
-          "items": {
-            "properties": {
-              "description": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "name",
-              "description"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "sources": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "state": {
-          "enum": [
-            "live",
-            "draft",
-            "failing_tests"
-          ],
-          "type": "string"
-        },
-        "syncedTypes": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "title": {
-          "type": "string"
-        },
-        "version": {
-          "examples": [
-            "1.0.0"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "key",
-        "title",
-        "mode",
-        "scope",
-        "builtin",
-        "version",
-        "state",
-        "domains",
-        "secrets",
-        "connections",
-        "syncedTypes",
-        "actions",
-        "sources"
       ],
       "type": "object"
     },
@@ -16778,6 +16976,29 @@
       ],
       "type": "object"
     },
+    "s_e9725ed975": {
+      "items": {
+        "properties": {
+          "epoch": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "wrapped": {
+            "description": "Base64 ciphertext; the server cannot open it",
+            "examples": [
+              "d3JhcHBlZA=="
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "epoch",
+          "wrapped"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
     "s_ea14ef3e3b": {
       "properties": {
         "as": {
@@ -17001,25 +17222,6 @@
       },
       "required": [
         "id"
-      ],
-      "type": "object"
-    },
-    "s_ee8a959088": {
-      "properties": {
-        "roleId": {
-          "examples": [
-            "rol_a1b2c3"
-          ],
-          "pattern": "^rol_[a-z0-9]+$",
-          "type": "string"
-        },
-        "subject": {
-          "$ref": "#/$defs/s_6c1eb10d98"
-        }
-      },
-      "required": [
-        "subject",
-        "roleId"
       ],
       "type": "object"
     },
@@ -17403,6 +17605,32 @@
       },
       "required": [
         "type",
+        "id"
+      ],
+      "type": "object"
+    },
+    "s_f22e8a9091": {
+      "properties": {
+        "id": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^(usr|agt|act|svc|grp)_[a-z0-9]+$",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "person",
+            "agent",
+            "actor",
+            "service",
+            "group"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
         "id"
       ],
       "type": "object"
@@ -17802,31 +18030,7 @@
     "s_fa5a4a68fb": {
       "properties": {
         "policy": {
-          "properties": {
-            "allowGithub": {
-              "type": "boolean"
-            },
-            "allowPassword": {
-              "type": "boolean"
-            },
-            "requireSso": {
-              "type": "boolean"
-            },
-            "secondFactor": {
-              "enum": [
-                "off",
-                "required"
-              ],
-              "type": "string"
-            }
-          },
-          "required": [
-            "secondFactor",
-            "requireSso",
-            "allowPassword",
-            "allowGithub"
-          ],
-          "type": "object"
+          "$ref": "#/$defs/s_24f4f7e0a4"
         }
       },
       "required": [
@@ -17970,6 +18174,36 @@
         "contactId",
         "kind",
         "addressId"
+      ],
+      "type": "object"
+    },
+    "s_fc0405d407": {
+      "properties": {
+        "connectionId": {
+          "examples": [
+            "con_a1b2c3"
+          ],
+          "pattern": "^con_[a-z0-9]+$",
+          "type": "string"
+        },
+        "connector": {
+          "examples": [
+            "hubspot"
+          ],
+          "type": "string"
+        },
+        "ownerKind": {
+          "enum": [
+            "person",
+            "space"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "connectionId",
+        "connector",
+        "ownerKind"
       ],
       "type": "object"
     },
@@ -23789,7 +24023,9 @@
                     "kind": "person"
                   }
                 },
-                "lastUsedAt": 1760000000000
+                "lastUsedAt": 1760000000000,
+                "reviewer": "usr_a1b2c3",
+                "taskId": "tsk_a1b2c3"
               }
             ],
             "review": {
@@ -23844,6 +24080,20 @@
                   ],
                   "minimum": 0,
                   "type": "integer"
+                },
+                "reviewer": {
+                  "examples": [
+                    "usr_a1b2c3"
+                  ],
+                  "pattern": "^usr_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "taskId": {
+                  "examples": [
+                    "tsk_a1b2c3"
+                  ],
+                  "pattern": "^tsk_[a-z0-9]+$",
+                  "type": "string"
                 }
               },
               "required": [
@@ -24171,7 +24421,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "$ref": "#/$defs/s_ee8a959088"
+        "$ref": "#/$defs/s_6505e83316"
       },
       "level": "view",
       "module": "access",
@@ -24395,12 +24645,31 @@
           },
           "name": "example",
           "output": {
+            "directHolders": [
+              {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              }
+            ],
             "holders": [
               {
                 "id": "usr_a1b2c3",
                 "kind": "person"
               }
             ],
+            "lastChange": {
+              "after": [
+                "example"
+              ],
+              "at": 1,
+              "before": [
+                "example"
+              ],
+              "by": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              }
+            },
             "role": {
               "assignableToAgents": true,
               "builtIn": true,
@@ -24436,8 +24705,43 @@
       "name": "access.roles.get",
       "output": {
         "properties": {
+          "directHolders": {
+            "items": {
+              "$ref": "#/$defs/s_f22e8a9091"
+            },
+            "type": "array"
+          },
           "holders": {
             "$ref": "#/$defs/s_39a2155802"
+          },
+          "lastChange": {
+            "properties": {
+              "after": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "at": {
+                "type": "integer"
+              },
+              "before": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "by": {
+                "$ref": "#/$defs/s_6c1eb10d98"
+              }
+            },
+            "required": [
+              "before",
+              "after",
+              "by",
+              "at"
+            ],
+            "type": "object"
           },
           "role": {
             "$ref": "#/$defs/s_787644a2cd"
@@ -24477,7 +24781,8 @@
         {
           "input": {
             "cursor": "example",
-            "limit": 1
+            "limit": 1,
+            "q": "example"
           },
           "name": "example",
           "output": {
@@ -24509,6 +24814,9 @@
             "maximum": 500,
             "minimum": 1,
             "type": "integer"
+          },
+          "q": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -24687,7 +24995,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "$ref": "#/$defs/s_ee8a959088"
+        "$ref": "#/$defs/s_6505e83316"
       },
       "level": "view",
       "module": "access",
@@ -28879,6 +29187,10 @@
               "id": "rec_a1b2c3",
               "type": "space"
             },
+            "target": {
+              "id": "usr_a1b2c3",
+              "kind": "person"
+            },
             "to": 1760000000000
           },
           "name": "example",
@@ -28918,6 +29230,9 @@
           },
           "resource": {
             "$ref": "#/$defs/s_f21ece25da"
+          },
+          "target": {
+            "$ref": "#/$defs/s_6ac6b58eb6"
           },
           "to": {
             "description": "Milliseconds since the Unix epoch",
@@ -29088,6 +29403,10 @@
               "id": "rec_a1b2c3",
               "type": "space"
             },
+            "target": {
+              "id": "usr_a1b2c3",
+              "kind": "person"
+            },
             "to": 1760000000000,
             "traceId": "0123456789abcdef0123456789abcdef"
           },
@@ -29164,6 +29483,9 @@
           },
           "resource": {
             "$ref": "#/$defs/s_f21ece25da"
+          },
+          "target": {
+            "$ref": "#/$defs/s_6ac6b58eb6"
           },
           "to": {
             "description": "Milliseconds since the Unix epoch",
@@ -34776,6 +35098,7 @@
           "input": {},
           "name": "example",
           "output": {
+            "enabled": true,
             "encrypted": true,
             "lastBackupAt": 1760000000000,
             "schedule": "example",
@@ -34799,6 +35122,9 @@
       "name": "backup.config_get",
       "output": {
         "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
           "encrypted": {
             "type": "boolean"
           },
@@ -34819,6 +35145,7 @@
         },
         "required": [
           "schedule",
+          "enabled",
           "encrypted"
         ],
         "type": "object"
@@ -35061,6 +35388,111 @@
       "summary": "Start the owner full export as a zip (never secret values, never other people private chats or personal memory)",
       "surfaces": {
         "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "runId": "run_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "expiresAt": 1760000000000,
+            "fileId": "fil_a1b2c3",
+            "name": "example",
+            "runId": "run_a1b2c3",
+            "sizeBytes": 1,
+            "state": "ready"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "runId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "backup",
+      "name": "backup.export_status",
+      "output": {
+        "properties": {
+          "expiresAt": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "runId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer"
+          },
+          "state": {
+            "const": "ready",
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId",
+          "state",
+          "fileId",
+          "name",
+          "sizeBytes",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "permission": "server.backups",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Read current-owner private export readiness and file metadata",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
       },
       "v": 1
     },
@@ -52775,16 +53207,21 @@
       ],
       "errors": [
         "auth.invalid_code",
+        "auth.unauthenticated",
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
         "provider.auth_failed",
-        "validation.bad_input"
+        "provider.bad_response",
+        "provider.network",
+        "validation.bad_input",
+        "validation.precondition_failed"
       ],
       "examples": [
         {
           "input": {
             "code": "example",
+            "error": "example",
             "state": "example"
           },
           "name": "example",
@@ -52799,13 +53236,15 @@
           "code": {
             "type": "string"
           },
+          "error": {
+            "type": "string"
+          },
           "state": {
             "type": "string"
           }
         },
         "required": [
-          "state",
-          "code"
+          "state"
         ],
         "type": "object"
       },
@@ -52834,7 +53273,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Finish an OAuth sign-in from the callback (state and code)",
+      "summary": "Finish an OAuth sign-in from the callback: the state and the code, or the error the app sent back when the person declined. Only the person who started the sign-in can finish it",
       "surfaces": {
         "http": "auto"
       },
@@ -52844,7 +53283,8 @@
       "audit": "always",
       "effects": "write",
       "emits": [
-        "connection.created"
+        "connection.created",
+        "connection.pending"
       ],
       "errors": [
         "internal.unexpected",
@@ -53877,6 +54317,7 @@
                   "name": "example"
                 }
               ],
+              "sourceFolderId": "fld_a1b2c3",
               "sources": [
                 "example"
               ],
@@ -53911,7 +54352,7 @@
       "output": {
         "properties": {
           "connector": {
-            "$ref": "#/$defs/s_807964c7e1"
+            "$ref": "#/$defs/s_1c0da72715"
           }
         },
         "required": [
@@ -54108,9 +54549,7 @@
       },
       "permission": "connectors.manage",
       "resource": {
-        "create": true,
-        "parent": "/key",
-        "type": "connector"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -54163,6 +54602,7 @@
                     "name": "example"
                   }
                 ],
+                "sourceFolderId": "fld_a1b2c3",
                 "sources": [
                   "example"
                 ],
@@ -54208,7 +54648,7 @@
         "properties": {
           "connectors": {
             "items": {
-              "$ref": "#/$defs/s_807964c7e1"
+              "$ref": "#/$defs/s_1c0da72715"
             },
             "type": "array"
           },
@@ -56280,6 +56720,8 @@
                 "over": true,
                 "p50": 1,
                 "p95": 1,
+                "sense": "min",
+                "unit": "example",
                 "worstTraceId": "0123456789abcdef0123456789abcdef"
               }
             ]
@@ -56319,6 +56761,17 @@
                 "p95": {
                   "type": "number"
                 },
+                "sense": {
+                  "enum": [
+                    "min",
+                    "max",
+                    "exact"
+                  ],
+                  "type": "string"
+                },
+                "unit": {
+                  "type": "string"
+                },
                 "worstTraceId": {
                   "examples": [
                     "0123456789abcdef0123456789abcdef"
@@ -56329,6 +56782,8 @@
               },
               "required": [
                 "budgetId",
+                "unit",
+                "sense",
                 "p50",
                 "p95",
                 "budgetP95",
@@ -60860,6 +61315,72 @@
       "summary": "Envelope status at Dropbox Sign",
       "surfaces": {
         "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "emailId": "eml_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "cancelled": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "emailId": {
+            "examples": [
+              "eml_a1b2c3"
+            ],
+            "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "emailId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "email-builder-api",
+      "name": "email_builder.ask_cancel",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "cancelled": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cancelled"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Stop my Ask Vyre request on a design that is still waiting for the agent",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "inbox"
+        }
       },
       "v": 1
     },
@@ -73868,6 +74389,181 @@
       "v": 1
     },
     {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "formId": "frm_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "cancelled": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "formId": {
+            "examples": [
+              "frm_a1b2c3"
+            ],
+            "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "formId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "forms",
+      "name": "forms.ask_cancel",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "cancelled": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cancelled"
+        ],
+        "type": "object"
+      },
+      "permission": "forms.publish",
+      "resource": {
+        "id": "/formId",
+        "type": "form"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Stop my Ask Vyre request on a form that is still waiting for the agent",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "formId": "frm_a1b2c3",
+            "instruction": "example"
+          },
+          "name": "example",
+          "output": {
+            "changes": [
+              {
+                "after": "example",
+                "before": "example",
+                "path": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "formId": {
+            "examples": [
+              "frm_a1b2c3"
+            ],
+            "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          },
+          "instruction": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "formId",
+          "instruction"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "forms",
+      "name": "forms.ask_diff",
+      "output": {
+        "properties": {
+          "changes": {
+            "items": {
+              "properties": {
+                "after": {
+                  "type": "string"
+                },
+                "before": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "before",
+                "after"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "changes"
+        ],
+        "type": "object"
+      },
+      "permission": "forms.publish",
+      "resource": {
+        "id": "/formId",
+        "type": "form"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Ask Vyre edit of a form's source: an agent proposes changes to the HTML, CSS or JavaScript, returned as a per-field diff the author accepts or rejects one by one; nothing is saved",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -73951,6 +74647,235 @@
         "http": "auto",
         "mcp": {
           "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "field": "example",
+            "formId": "frm_a1b2c3",
+            "q": "example"
+          },
+          "name": "example",
+          "output": {
+            "candidates": [
+              {
+                "label": "example",
+                "refId": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "formId": {
+            "examples": [
+              "frm_a1b2c3"
+            ],
+            "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          },
+          "q": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "formId",
+          "field"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "forms",
+      "name": "forms.choices_candidates",
+      "output": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "refId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "refId",
+                "label"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "candidates"
+        ],
+        "type": "object"
+      },
+      "permission": "forms.publish",
+      "resource": {
+        "id": "/formId",
+        "type": "form"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The records the publisher can see, or the people in the Space, that a relation or person question could offer; display labels only",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "sensitive",
+      "effects": "write",
+      "emits": [
+        "form.choices_changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed",
+        "validation.too_large"
+      ],
+      "examples": [
+        {
+          "input": {
+            "choices": [
+              {
+                "refId": "example"
+              }
+            ],
+            "field": "example",
+            "formId": "frm_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "choices": [
+              {
+                "key": "example",
+                "kind": "record",
+                "label": "example",
+                "refId": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "choices": {
+            "items": {
+              "properties": {
+                "refId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "refId"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "field": {
+            "type": "string"
+          },
+          "formId": {
+            "examples": [
+              "frm_a1b2c3"
+            ],
+            "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "formId",
+          "field",
+          "choices"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "forms",
+      "name": "forms.choices_set",
+      "output": {
+        "properties": {
+          "choices": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "record",
+                    "person"
+                  ],
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "refId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "refId",
+                "kind",
+                "label"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "choices"
+        ],
+        "type": "object"
+      },
+      "permission": "forms.publish",
+      "resource": {
+        "id": "/formId",
+        "type": "form"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Publish the records or people a public relation or person question may offer: a bounded list the visitor can only pick from; a visitor sees each one's display label only",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
         }
       },
       "v": 1
@@ -74138,6 +75063,8 @@
           "input": {
             "css": "example",
             "formId": "frm_a1b2c3",
+            "html": "example",
+            "js": "example",
             "logic": {},
             "thankYou": {
               "redirect": "example",
@@ -74162,6 +75089,12 @@
               "frm_a1b2c3"
             ],
             "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          },
+          "js": {
             "type": "string"
           },
           "logic": {
@@ -74209,7 +75142,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Set layout, theme, fonts, custom CSS, cover image, conditional logic and thank-you page or redirect",
+      "summary": "Set layout, theme, fonts, the form source (custom HTML template, CSS and JavaScript), cover image, conditional logic and thank-you page or redirect",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -74252,33 +75185,7 @@
       "input": {
         "properties": {
           "fields": {
-            "items": {
-              "properties": {
-                "field": {
-                  "type": "string"
-                },
-                "mode": {
-                  "enum": [
-                    "ask",
-                    "show",
-                    "hide"
-                  ],
-                  "type": "string"
-                },
-                "prefillKey": {
-                  "type": "string"
-                },
-                "step": {
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "field",
-                "mode"
-              ],
-              "type": "object"
-            },
-            "type": "array"
+            "$ref": "#/$defs/s_65290eac05"
           },
           "formId": {
             "examples": [
@@ -74341,11 +75248,14 @@
           },
           "name": "example",
           "output": {
+            "choices": {},
+            "css": "example",
             "fields": [
               {
                 "field": "example",
                 "mode": "ask",
-                "prefillKey": "example"
+                "prefillKey": "example",
+                "step": 1
               }
             ],
             "form": {
@@ -74357,7 +75267,18 @@
               "state": "draft",
               "submissions": 1
             },
+            "html": "example",
+            "js": "example",
             "logic": {},
+            "settings": {
+              "captcha": true,
+              "consentText": "example",
+              "rateLimit": 1,
+              "thankYou": {
+                "redirect": "example",
+                "text": "example"
+              }
+            },
             "theme": {}
           }
         }
@@ -74383,37 +75304,57 @@
       "name": "forms.get",
       "output": {
         "properties": {
+          "choices": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "css": {
+            "type": "string"
+          },
           "fields": {
-            "items": {
-              "properties": {
-                "field": {
-                  "type": "string"
-                },
-                "mode": {
-                  "enum": [
-                    "ask",
-                    "show",
-                    "hide"
-                  ],
-                  "type": "string"
-                },
-                "prefillKey": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "field",
-                "mode"
-              ],
-              "type": "object"
-            },
-            "type": "array"
+            "$ref": "#/$defs/s_65290eac05"
           },
           "form": {
             "$ref": "#/$defs/s_193ebba03a"
           },
+          "html": {
+            "type": "string"
+          },
+          "js": {
+            "type": "string"
+          },
           "logic": {
             "description": "Any JSON value"
+          },
+          "settings": {
+            "properties": {
+              "captcha": {
+                "type": "boolean"
+              },
+              "consentText": {
+                "type": "string"
+              },
+              "rateLimit": {
+                "type": "integer"
+              },
+              "thankYou": {
+                "properties": {
+                  "redirect": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "consentText",
+              "captcha",
+              "rateLimit"
+            ],
+            "type": "object"
           },
           "theme": {
             "additionalProperties": true,
@@ -74422,7 +75363,8 @@
         },
         "required": [
           "form",
-          "fields"
+          "fields",
+          "settings"
         ],
         "type": "object"
       },
@@ -90195,6 +91137,7 @@
       "caller": "anonymous",
       "effects": "write",
       "emits": [
+        "principal.created",
         "keys.stored",
         "signin.succeeded"
       ],
@@ -90974,6 +91917,157 @@
         "mcp": {
           "toolset": "meta"
         }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "caller": "anonymous",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "auth.invalid_code",
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "username": "example"
+          },
+          "name": "example",
+          "output": {
+            "challenge": {
+              "ct": "example",
+              "eph": "example",
+              "iv": "example",
+              "tag": "example"
+            },
+            "context": "example",
+            "expiresAt": 1760000000000,
+            "keys": {
+              "personKeyByRecovery": "d3JhcHBlZA==",
+              "privateKeyWrapped": "d3JhcHBlZA==",
+              "publicKey": "example",
+              "spaceKeys": [
+                {
+                  "epoch": 1,
+                  "wrapped": "d3JhcHBlZA=="
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "username": {
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": [
+          "username"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "identity",
+      "name": "identity.recovery_fetch",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "challenge": {
+            "properties": {
+              "ct": {
+                "type": "string"
+              },
+              "eph": {
+                "type": "string"
+              },
+              "iv": {
+                "type": "string"
+              },
+              "tag": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "eph",
+              "iv",
+              "ct",
+              "tag"
+            ],
+            "type": "object"
+          },
+          "context": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "keys": {
+            "properties": {
+              "personKeyByRecovery": {
+                "description": "Base64 ciphertext; the server cannot open it",
+                "examples": [
+                  "d3JhcHBlZA=="
+                ],
+                "type": "string"
+              },
+              "privateKeyWrapped": {
+                "description": "Base64 ciphertext; the server cannot open it",
+                "examples": [
+                  "d3JhcHBlZA=="
+                ],
+                "type": "string"
+              },
+              "publicKey": {
+                "type": "string"
+              },
+              "spaceKeys": {
+                "$ref": "#/$defs/s_e9725ed975"
+              }
+            },
+            "required": [
+              "personKeyByRecovery",
+              "publicKey",
+              "privateKeyWrapped",
+              "spaceKeys"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "keys",
+          "challenge",
+          "context",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "rate": {
+        "n": 5,
+        "perSeconds": 60,
+        "scope": "principal"
+      },
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Fetch recovery-only encrypted keys and a short-lived sealed private-key possession challenge",
+      "surfaces": {
+        "http": "auto"
       },
       "v": 1
     },
@@ -105531,6 +106625,8 @@
               {
                 "actingFor": "example",
                 "calls": 1,
+                "closedAt": 1760000000000,
+                "expiresAt": 1760000000000,
                 "kind": "outside",
                 "lastCallAt": 1760000000000,
                 "name": "example",
@@ -105588,6 +106684,22 @@
                   "type": "string"
                 },
                 "calls": {
+                  "type": "integer"
+                },
+                "closedAt": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "expiresAt": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
                   "type": "integer"
                 },
                 "kind": {
@@ -108807,6 +109919,16 @@
           "input": {},
           "name": "example",
           "output": {
+            "capabilities": {
+              "currentHasSecondFactor": true,
+              "github": true,
+              "newMemberMfaEnrollment": true,
+              "ownerHasSecondFactor": true,
+              "password": true,
+              "sso": [
+                "example"
+              ]
+            },
             "policy": {
               "allowGithub": true,
               "allowPassword": true,
@@ -108825,7 +109947,49 @@
       "module": "members",
       "name": "members.sign_in_policy.get",
       "output": {
-        "$ref": "#/$defs/s_fa5a4a68fb"
+        "properties": {
+          "capabilities": {
+            "properties": {
+              "currentHasSecondFactor": {
+                "type": "boolean"
+              },
+              "github": {
+                "type": "boolean"
+              },
+              "newMemberMfaEnrollment": {
+                "type": "boolean"
+              },
+              "ownerHasSecondFactor": {
+                "type": "boolean"
+              },
+              "password": {
+                "type": "boolean"
+              },
+              "sso": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "password",
+              "github",
+              "sso",
+              "newMemberMfaEnrollment",
+              "ownerHasSecondFactor",
+              "currentHasSecondFactor"
+            ],
+            "type": "object"
+          },
+          "policy": {
+            "$ref": "#/$defs/s_24f4f7e0a4"
+          }
+        },
+        "required": [
+          "policy"
+        ],
+        "type": "object"
       },
       "permission": "policy.manage",
       "resource": {
@@ -118835,6 +119999,15 @@
               "host": "example",
               "state": "healthy"
             },
+            "commands": [
+              {
+                "at": 1760000000000,
+                "detail": "example",
+                "kind": "example",
+                "state": "pending",
+                "target": "example"
+              }
+            ],
             "mode": "own_domain",
             "publicIngress": true
           }
@@ -118881,6 +120054,45 @@
             ],
             "type": "object"
           },
+          "commands": {
+            "items": {
+              "properties": {
+                "at": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "detail": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "state": {
+                  "enum": [
+                    "pending",
+                    "applied",
+                    "failed"
+                  ],
+                  "type": "string"
+                },
+                "target": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "target",
+                "state",
+                "at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
           "mode": {
             "enum": [
               "own_domain",
@@ -118896,7 +120108,8 @@
           "address",
           "mode",
           "certificate",
-          "publicIngress"
+          "publicIngress",
+          "commands"
         ],
         "type": "object"
       },
@@ -137411,6 +138624,95 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "conversationId": "isc_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "messages": [
+              {
+                "at": 1760000000000,
+                "role": "user",
+                "sourceMessageId": "example",
+                "text": "example"
+              }
+            ],
+            "session": {
+              "continuedThreadId": "thr_a1b2c3",
+              "conversationId": "isc_a1b2c3",
+              "importedAt": 1760000000000,
+              "projectId": "prj_a1b2c3",
+              "provider": "codex",
+              "sourceKey": "example",
+              "sourceSessionId": "example",
+              "startedAt": 1760000000000,
+              "title": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "conversationId": {
+            "examples": [
+              "isc_a1b2c3"
+            ],
+            "pattern": "^isc_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "conversationId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "import",
+      "name": "sessions.get",
+      "output": {
+        "properties": {
+          "messages": {
+            "$ref": "#/$defs/s_5b5f5d7449"
+          },
+          "session": {
+            "$ref": "#/$defs/s_22ee988823"
+          }
+        },
+        "required": [
+          "session",
+          "messages"
+        ],
+        "type": "object"
+      },
+      "permission": "chats.private",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Read an immutable imported session transcript owned by the signed-in person",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
       "audit": "always",
       "effects": "write",
       "emits": [
@@ -137536,39 +138838,7 @@
             "items": {
               "properties": {
                 "messages": {
-                  "items": {
-                    "properties": {
-                      "at": {
-                        "description": "Milliseconds since the Unix epoch",
-                        "examples": [
-                          1760000000000
-                        ],
-                        "minimum": 0,
-                        "type": "integer"
-                      },
-                      "role": {
-                        "enum": [
-                          "user",
-                          "assistant"
-                        ],
-                        "type": "string"
-                      },
-                      "sourceMessageId": {
-                        "type": "string"
-                      },
-                      "text": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "sourceMessageId",
-                      "role",
-                      "text",
-                      "at"
-                    ],
-                    "type": "object"
-                  },
-                  "type": "array"
+                  "$ref": "#/$defs/s_5b5f5d7449"
                 },
                 "repo": {
                   "properties": {
@@ -137709,6 +138979,90 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply only visible user and assistant text",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "cursor": "example",
+            "limit": 1
+          },
+          "name": "example",
+          "output": {
+            "next": "example",
+            "sessions": [
+              {
+                "continuedThreadId": "thr_a1b2c3",
+                "conversationId": "isc_a1b2c3",
+                "importedAt": 1760000000000,
+                "projectId": "prj_a1b2c3",
+                "provider": "codex",
+                "sourceKey": "example",
+                "sourceSessionId": "example",
+                "startedAt": 1760000000000,
+                "title": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "level": "view",
+      "module": "import",
+      "name": "sessions.list",
+      "output": {
+        "properties": {
+          "next": {
+            "type": "string"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/$defs/s_22ee988823"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "sessions"
+        ],
+        "type": "object"
+      },
+      "permission": "chats.private",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "List the current owner private imported session archive in this Personal Space",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -144078,7 +145432,7 @@
         ],
         "type": "object"
       },
-      "level": "view",
+      "level": "manage",
       "module": "spaces",
       "name": "spaces.switch_address",
       "output": {
@@ -177046,34 +178400,7 @@
       "module": "connectors",
       "name": "connection.created",
       "payload": {
-        "properties": {
-          "connectionId": {
-            "examples": [
-              "con_a1b2c3"
-            ],
-            "pattern": "^con_[a-z0-9]+$",
-            "type": "string"
-          },
-          "connector": {
-            "examples": [
-              "hubspot"
-            ],
-            "type": "string"
-          },
-          "ownerKind": {
-            "enum": [
-              "person",
-              "space"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "connectionId",
-          "connector",
-          "ownerKind"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_fc0405d407"
       },
       "replay": "pure",
       "subject": {
@@ -177139,6 +178466,21 @@
         "type": "connection"
       },
       "summary": "The owner paused a connection",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "connectors",
+      "name": "connection.pending",
+      "payload": {
+        "$ref": "#/$defs/s_fc0405d407"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/connectionId",
+        "type": "connection"
+      },
+      "summary": "A connection was started and waits for its sign-in; it exists (so its owner can use it) but is not announced as made yet",
       "sv": 1,
       "vis": "space"
     },
@@ -179562,6 +180904,41 @@
       "summary": "A follow was removed",
       "sv": 1,
       "vis": "owner"
+    },
+    {
+      "module": "forms",
+      "name": "form.choices_changed",
+      "payload": {
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "field": {
+            "type": "string"
+          },
+          "formId": {
+            "examples": [
+              "frm_a1b2c3"
+            ],
+            "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "formId",
+          "field",
+          "count"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/formId",
+        "type": "form"
+      },
+      "summary": "The records or people a public question offers were changed by its publisher",
+      "sv": 1,
+      "vis": "space"
     },
     {
       "module": "forms",
@@ -186143,6 +187520,9 @@
               "actor",
               "service"
             ],
+            "type": "string"
+          },
+          "name": {
             "type": "string"
           },
           "owner": {

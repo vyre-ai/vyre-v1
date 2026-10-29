@@ -29,6 +29,9 @@ CREATE TABLE IF NOT EXISTS network_endpoint (kind TEXT NOT NULL, url TEXT NOT NU
 CREATE TABLE IF NOT EXISTS network_command (
   id INTEGER PRIMARY KEY, kind TEXT NOT NULL, target TEXT NOT NULL, by_principal TEXT NOT NULL, at INTEGER NOT NULL, done_at INTEGER
 );
+CREATE TABLE IF NOT EXISTS network_result (
+  id INTEGER PRIMARY KEY, kind TEXT NOT NULL, target TEXT NOT NULL, state TEXT NOT NULL, detail TEXT, at INTEGER NOT NULL
+);
 `;
 
 /** Every `modules/<id>/migrations/*.sql` under `codeRoot` that has not run yet, in module then file order. Returns what ran. */

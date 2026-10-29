@@ -6,7 +6,7 @@ import type { CapCall } from "../shell/session/caps.ts";
 import { failureOf } from "./logic.ts";
 import type { ClaimFailure } from "./logic.ts";
 
-export interface ClaimInput { token: string; /** The Space id from the claim link (#s=); the first Space key is sealed for it and the same id is sent. */ spaceId: string; name: string; username: string; password: string; recoveryCode: string; deviceName: string }
+export interface ClaimInput { token: string; /** The Space id from the claim link (#s=); the first Space key is sealed for it and the same id is sent. */ spaceId: string; name: string; username: string; password: string; recoveryCode: string; deviceName: string; deviceClass?:"web"|"desktop" }
 
 export interface ClaimDeps {
   /** An anonymous capability caller on the Space's address. */
@@ -38,7 +38,7 @@ export async function claimOwner(deps: ClaimDeps, i: ClaimInput): Promise<Claime
   try {
     let out: ClaimOut;
     try {
-      out = (await deps.call("identity.claim_owner", { code: i.token, spaceId: i.spaceId, displayName: i.name.trim(), username: i.username, password: i.password, deviceName: i.deviceName, deviceClass: "web", keys })) as ClaimOut;
+      out = (await deps.call("identity.claim_owner", { code: i.token, spaceId: i.spaceId, displayName: i.name.trim(), username: i.username, password: i.password, deviceName: i.deviceName, deviceClass: i.deviceClass ?? "web", keys })) as ClaimOut;
     } catch (e) {
       if (e instanceof CapError) throw new ClaimError(failureOf(e.code, false), e.message);
       throw new ClaimError("unreachable", "The Space did not answer.");

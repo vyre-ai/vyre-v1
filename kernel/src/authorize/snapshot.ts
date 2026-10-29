@@ -7,6 +7,7 @@ import type { Conditions, Expr, GrantRow, GroupMemberRow, Level, Policy, Princip
 export const ELEVATED_ROLES: ReadonlySet<string> = new Set(["owner", "admin", "rol_owner", "rol_admin"]);
 const ELEVATED_NAMES: ReadonlySet<string> = new Set(["owner", "admin"]);
 /** True for a role an agent must never hold: by id, or by the built-in name. */
+export const isOwnerRole = (id: string, name?: string): boolean => id === "owner" || id === "rol_owner" || name?.toLowerCase() === "owner";
 export const isElevatedRole = (id: string, name?: string): boolean => ELEVATED_ROLES.has(id) || (name !== undefined && ELEVATED_NAMES.has(name.toLowerCase()));
 
 export interface SubjectInfo {
@@ -29,6 +30,7 @@ export interface GrantRec {
   readonly filter: Expr | null;
   readonly hidden: readonly string[];
   readonly hasHidden: boolean;
+  readonly ceiling: number;
 }
 
 const NONE: readonly string[] = Object.freeze([]);
@@ -113,14 +115,15 @@ export class AccessSnapshot {
     if (!p) { this.infoCache.set(id, null); return null; }
     const groups = this.groupsOf(id);
     const roleIds = new Set<string>();
-    for (const h of [id, ...groups]) for (const r of this.holderRoles.get(h) ?? []) roleIds.add(r);
+    for (const h of [id, ...groups]) for (const r of this.holderRoles.get(h) ?? []) { if (h !== id && isOwnerRole(r, this.roles.get(r)?.name)) continue; roleIds.add(r); }
     const perms = new Set<string>(), names: string[] = [];
     let clearance = 0;
     const keys = new Set<string>([`actor:${id}`]);
     for (const g of groups) keys.add(`group:${g}`);
     for (const rid of roleIds) {
       const r = this.roles.get(rid);
-      if (p.kind === "agent" && isElevatedRole(rid, r?.name)) continue;
+      if (isOwnerRole(rid, r?.name) && p.kind !== "person") continue;
+      if (p.kind === "agent" && (isElevatedRole(rid, r?.name) || r?.assignableToAgents === false)) continue;
       if (!r) continue;
       keys.add(`role:${rid}`); names.push(r.name ?? r.id);
       if (r.clearance > clearance) clearance = r.clearance;
@@ -140,6 +143,7 @@ export class AccessSnapshot {
         row, key: `${row.subject_kind}:${row.subject_id}`, rank: rankOf(row.level),
         exp: row.expires_at == null ? Infinity : row.expires_at, nb: c.notBefore ?? -Infinity, na: c.notAfter ?? Infinity,
         filter: c.rowFilter ?? null, hidden, hasHidden: hidden.length > 0,
+        ceiling: c.labelCeiling === undefined ? Infinity : Number.isFinite(c.labelCeiling) ? c.labelCeiling : -1,
       };
       const [map, k] = row.resource_id === null ? [tw, row.resource_type] as const : [on, row.resource_id] as const;
       const l = map.get(k); if (l) l.push(rec); else map.set(k, [rec]);

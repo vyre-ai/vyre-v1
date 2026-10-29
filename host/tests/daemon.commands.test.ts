@@ -147,6 +147,7 @@ test("network_command set_domain: the DNS check lands in network_dns and only a 
     assert.deepEqual(r.calls, ["dns space.bad.example x.relay.vyre.run", "dns space.good.example x.relay.vyre.run", "apply own_domain space.good.example"]);
     assert.equal(one(r.db, "SELECT ok FROM network_dns WHERE domain = 'space.bad.example'")["ok"], 0);
     assert.equal(one(r.db, "SELECT ok FROM network_dns WHERE domain = 'space.good.example'")["ok"], 1);
+    assert.deepEqual({...one(r.db, "SELECT address, mode, domain FROM network_config WHERE id = 1")}, { address: 'space.good.example', mode: 'own_domain', domain: 'space.good.example' });
     assert.deepEqual(JSON.parse(String(one(r.db, "SELECT records_json FROM network_dns WHERE domain = 'space.bad.example'")["records_json"])), [{ type: "CNAME", name: "space.bad.example", value: "x.relay.vyre.run" }]);
     assert.equal(r.db.all("SELECT 1 FROM network_command WHERE done_at IS NULL").length, 0);
   } finally { r.close(); }
@@ -156,7 +157,7 @@ test("network_command set_mode, renew, reconnect and remove", async () => {
   const r = rig();
   try {
     r.setNow(7_000);
-    r.db.run("INSERT INTO network_config (id, address, mode, domain, relay_address, public_ingress, ingress_detail, reported_at) VALUES (1, 'x.vyre.run', 'relay', NULL, NULL, 1, NULL, 1)");
+    r.db.run("INSERT INTO network_config (id, address, mode, domain, relay_address, public_ingress, ingress_detail, reported_at) VALUES (1, 'x.vyre.run', 'relay', 'x.vyre.run', NULL, 1, NULL, 1)");
     r.db.run("INSERT INTO network_cert (host, expires_at, reason, reported_at) VALUES ('fail.example', 4000, NULL, 1)");
     r.db.run("INSERT INTO network_server (server_id, name, role, state, heartbeat_at) VALUES ('srv_up', 'Office Mac', 'compute', 'down', 100)");
     r.db.run("INSERT INTO network_server (server_id, name, role, state, heartbeat_at) VALUES ('srv_dead', 'Old box', 'compute', 'down', 100)");
@@ -228,7 +229,7 @@ test("the daemon's copy of a table matches the module's own migration column for
   const mine = openDb(":memory:");
   mine.exec(HOST_TABLES);
   let compared = 0;
-  for (const [module, tables] of [["health", ["health_probe", "health_service", "health_restart"]], ["network", ["network_config", "network_cert", "network_dns", "network_server", "network_endpoint", "network_command"]]] as const) {
+  for (const [module, tables] of [["health", ["health_probe", "health_service", "health_restart"]], ["network", ["network_config", "network_cert", "network_dns", "network_server", "network_endpoint", "network_command", "network_result"]]] as const) {
     const dir = path.join(ROOT, "modules", module, "migrations");
     if (!fs.existsSync(dir)) continue;
     const theirs = openDb(":memory:");
@@ -256,3 +257,27 @@ test("GET query values are typed by the capability schema", () => {
   assert.deepEqual(coerceQuery({ a: "1" }, undefined), { a: "1" });
 });
 
+
+
+test("failed domain apply preserves observed address and records its failure", async () => {
+  const r = rig();
+  try {
+    r.db.run("INSERT INTO network_config (id, address, mode, domain, relay_address, public_ingress, ingress_detail, reported_at) VALUES (1, 'x.vyre.run', 'relay', NULL, 'x.relay.vyre.run', 1, NULL, 1)");
+    r.network.applyAddress = () => Promise.reject(new Error('fixture route refused'));
+    r.db.run("INSERT INTO network_command (kind, target, by_principal, at, done_at) VALUES ('set_domain', 'space.good.example', 'usr_a', 1, NULL)");
+    await pollCommands(r.deps);
+    assert.equal(one(r.db, "SELECT address FROM network_config WHERE id = 1")["address"], 'x.vyre.run');
+    assert.equal(one(r.db, "SELECT state FROM network_result ORDER BY id DESC LIMIT 1")["state"], 'failed');
+    assert.equal(one(r.db, "SELECT ok FROM network_dns WHERE domain = 'space.good.example'")["ok"], 1);
+  } finally { r.close(); }
+});
+
+test("failed disconnect keeps the server and reports a bounded safe failure", async () => {
+ const r=rig();try {
+  r.db.run("INSERT INTO network_server (server_id,name,role,state,heartbeat_at) VALUES ('srv_keep','Keep','compute','down',1)");
+  r.network.disconnect=()=>Promise.reject(new Error('fixture sensitive internal bytes'));
+  r.db.run("INSERT INTO network_command (kind,target,by_principal,at,done_at) VALUES ('remove','srv_keep','usr_a',1,NULL)");
+  await pollCommands(r.deps);assert.equal(r.db.all("SELECT 1 FROM network_server WHERE server_id='srv_keep'").length,1);
+  const result=one(r.db,"SELECT state,detail FROM network_result ORDER BY id DESC LIMIT 1");assert.equal(result["state"],'failed');assert.doesNotMatch(String(result["detail"]),/sensitive internal/);
+ } finally {r.close();}
+});

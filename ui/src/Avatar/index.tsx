@@ -9,12 +9,11 @@ import { Image, Platform, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
 import { faceTint, hueOf, initialsOf, marbleGradient, marbleInner } from "./faces.ts";
 import { cachedFace, currentSkin, faceKey, requestFace } from "./cache.ts";
-import { notionistsSvg } from "./notionists.ts";
+import { loadNotionists } from "./load.ts";
 import type { AvatarKind, AvatarProps } from "./props.ts";
 
 export type { AvatarKind, AvatarProps } from "./props.ts";
 export { faceTint, hash, hueOf, initialsOf, marbleGradient, marbleInner, marbleSpec } from "./faces.ts";
-export { notionistsSvg } from "./notionists.ts";
 export { cachedFace, cachedFaceCount, clearFaceCache, currentSkin, faceKey, requestFace, wrapSvg } from "./cache.ts";
 
 export const AVATAR_DEFAULT_SIZE = 18;
@@ -38,6 +37,7 @@ export function kindOf(name: string, kind?: AvatarKind): AvatarKind {
 
 const VYRE_MARK =
   '<path d="M5.2 6.4l6.3 11.2 4.9-8.6" fill="none" stroke="currentColor" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.6" cy="5.6" r="2.7" fill="var(--beacon, #8B7CF6)"/>';
+const AGENT_PLACEHOLDER = '<circle cx="8" cy="5.6" r="2.7"/><path d="M3.6 14c.5-3 2-4.5 4.4-4.5s3.9 1.5 4.4 4.5"/>';
 const BOLT = '<path d="M9 1.8L4 9h3.5L7 14.2 12 7H8.5z"/>';
 const PEOPLE = '<circle cx="6" cy="6" r="2.3"/><path d="M2 13c.5-2.3 2.1-3.5 4-3.5s3.5 1.2 4 3.5"/><circle cx="11.5" cy="6.5" r="1.8"/><path d="M11.5 9.5c1.4 0 2.4.9 2.8 2.5"/>';
 
@@ -59,10 +59,18 @@ export const Avatar = memo(function Avatar({ name, seedId, kind: kindProp, size 
   const drawn = web && kind === "agent";
   const key = faceKey(seed, kind, size, currentSkin());
   const [, bump] = useState(0);
+  const [agentFace, setAgentFace] = useState<{ key: string; markup: string } | null>(null);
   const bitmap = drawn ? cachedFace(key) : undefined;
   useEffect(() => {
     if (!drawn || cachedFace(key) !== undefined) return;
-    requestFace(key, sized(notionistsSvg(seed), size), size, () => bump((n) => n + 1));
+    let alive = true;
+    void loadNotionists().then(({ notionistsSvg }) => {
+      if (!alive) return;
+      const markup = sized(notionistsSvg(seed), size);
+      setAgentFace({ key, markup });
+      requestFace(key, markup, size, () => bump((n) => n + 1));
+    });
+    return () => { alive = false; };
   }, [drawn, key, kind, seed, size]);
   const id = testID ?? `avatar-${name}`;
   const round = kind === "person";
@@ -80,7 +88,8 @@ export const Avatar = memo(function Avatar({ name, seedId, kind: kindProp, size 
   } else if (kind === "person") {
     face = web ? svg(marbleInner(seed), size, "0 0 80 80") : <NativeLetters name={name} size={size} person tint={`hsl(${hueOf(seed)}, 45%, 70%)`} />;
   } else if (kind === "agent") {
-    face = web ? createElement("span", { style: { display: "block", width: size, height: size, lineHeight: 0 }, dangerouslySetInnerHTML: { __html: sized(notionistsSvg(seed), size) } }) : <NativeLetters name={name} size={size} tint={`#${faceTint(seed)}`} />;
+    const markup = agentFace?.key === key ? agentFace.markup : null;
+    face = web && markup ? createElement("span", { style: { display: "block", width: size, height: size, lineHeight: 0 }, dangerouslySetInnerHTML: { __html: markup } }) : <AgentFallback name={name} seed={seed} size={size} />;
   } else if (kind === "space") {
     face = <NativeLetters name={name} size={size} tint={`hsla(${hueOf(seed)}, 60%, 50%, 0.18)`} ink={`hsl(${hueOf(seed)}, 55%, 46%)`} />;
   } else if (kind === "assistant") {
@@ -113,6 +122,14 @@ function NativeLetters({ name, size, person = false, tint, ink = "#1F1F23" }: { 
   return (
     <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center", backgroundColor: tint }}>
       <Text style={{ color: ink, fontWeight: "600", fontSize: Math.max(9, Math.round(size * 0.48)) }}>{initialsOf(name, size, person)}</Text>
+    </View>
+  );
+}
+
+function AgentFallback({ name, seed, size }: { name: string; seed: string; size: number }): ReactElement {
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center", backgroundColor: `#${faceTint(seed)}` }}>
+      {web ? svg(AGENT_PLACEHOLDER, Math.round(size * 0.72), "0 0 16 16", { fill: "none", stroke: "currentColor", strokeWidth: 1.4, strokeLinecap: "round", strokeLinejoin: "round" }) : <Text style={{ color: "#1F1F23", fontWeight: "600", fontSize: Math.max(9, Math.round(size * 0.48)) }}>{initialsOf(name, size)}</Text>}
     </View>
   );
 }

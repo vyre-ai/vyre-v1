@@ -12,8 +12,8 @@ const INVITE: JoinInvite = {
   names: { first: "Dana", last: "Whitfield" }, deviceName: "Dana's MacBook",
   starting: { agents: ["Intake"], projects: ["Rivera matter"] }, sso: ["Google"], github: true, adminKey: false,
 };
-const flow = (initial: Partial<FlowState>, mode: "light" | "dark" = "light"): string =>
-  renderToStaticMarkup(<JoinFlow invite={INVITE} initial={initial} mode={mode} hold />).replaceAll("<!-- -->", "");
+const flow = (initial: Partial<FlowState>, mode: "light" | "dark" = "light", actions=false): string =>
+  renderToStaticMarkup(<JoinFlow invite={INVITE} initial={initial} mode={mode} hold {...(actions?{onOpenApp:()=>undefined,onDownload:()=>undefined}:{})} />).replaceAll("<!-- -->", "");
 const ITEMS = [
   { key: "photo_and_title" as const, title: "Add a photo and title", done: false },
   { key: "connect_mailbox_and_calendar" as const, title: "Connect your mailbox and calendar", done: false },
@@ -57,7 +57,8 @@ test("the Open button on the finish page sits after the dots, once, with its who
 
 test("the landing renders for both modes with its three actions", () => {
   for (const mode of ["light", "dark"] as const) {
-    const out = flow({}, mode);
-    assert.ok(out.includes("Join Northwind") && tag(out, "open-app") !== "" && out.includes("Download Vyre") && out.includes("Continue in the browser"), mode);
+    const out = flow({}, mode, true);
+    assert.ok(out.includes("Join Northwind") && tag(out, "open-app") !== "" && out.includes("View downloads") && out.includes("Continue in the browser"), mode);
+    const unsupported=flow({},mode);assert.equal(tag(unsupported,"open-app"),"");assert.equal(tag(unsupported,"download"),"");assert.ok(unsupported.includes("Continue in the browser"));
   }
 });

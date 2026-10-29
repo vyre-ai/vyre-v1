@@ -30,4 +30,4 @@ HTTP 422. Retryable: no.
 - conflicts.redo
 - conflicts.resolve
 - conflicts.undo
-- connectors.remove
+- connections.complete_auth

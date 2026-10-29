@@ -6,7 +6,7 @@ import { AccessSnapshot, authorize } from "../../kernel/src/authorize/index.ts";
 import { createIdempotency } from "../../kernel/src/idempotency/index.ts";
 import { createInvoke, createRateLimiter, indexCapabilities, MAX_DEPTH } from "../src/invoke.ts";
 import type { AuditRow, CommitBatch, CtxSeed, GateHook, Handler, InvokeDeps, SpanRecord } from "../src/invoke.ts";
-import { HostError, VyreErr, makeError } from "../src/routes/errors.ts";
+import { HostError, VyreErr, makeError, fail } from "../src/routes/errors.ts";
 import { resolveResource } from "../src/routes/resource.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
@@ -257,4 +257,33 @@ test("pre-auth callers skip authorize", async () => {
   const r = rig([cap({ name: "auth.sign_in", permission: null, resource: { type: "space" } as never })], { "auth.sign_in": () => ({ ok: true }) });
   const res = await r.invoke("auth.sign_in", {}, seed({ principal: { kind: "actor", id: "anonymous" }, preAuth: true }));
   assert.equal(res.status, "ok"); assert.ok(!r.order.includes("authorize"));
+});
+
+test("preview bypasses all module/nested handlers and idempotency; rechecks after audit", async () => {
+  let handlerCalls = 0, revoked = false, finishes = 0;
+  const read = cap({ name: "records.get", effects: "read" });
+  const write = cap({ name: "records.create", effects: "write" });
+  const r = rig([read, write], { "records.get": async ctx => { handlerCalls++; await ctx.call("records.create", {}); }, "records.create": () => { handlerCalls++; } }, {
+    preview: { read: async () => ({ finish: () => { finishes++; if (revoked) throw new Error("revoked during audit"); return { fields: {} }; } }) },
+    commit: async () => { revoked = true; return []; },
+  });
+  const preview = seed({ previewToken: "vas_private-memory-only", actingFor: "usr_eve" });
+  await assert.rejects(r.invoke("records.get", {}, preview));
+  assert.equal(handlerCalls, 0); assert.equal(finishes, 1); assert.ok(!r.order.includes("idem"));
+  await expectErr(r.invoke("records.create", {}, preview), "permission.no_grant");
+  await expectErr(r.invoke("records.get", {}, { ...preview, depth: 1 }), "permission.no_grant");
+  assert.equal(handlerCalls, 0);
+});
+
+
+test("only the trusted host's pre-authorized internal record read retains system authority", async()=>{
+ const c=cap({name:"records.get",effects:"read",permission:null,level:"view"});let projected=0;
+ const r=rig([c],{"records.get":()=>({record:{id:"rec_1",fields:{title:"Shared project"}}})},{recordAccess:{facts:async(_cap,_input,req)=>req,project:async()=>{projected++;throw fail("permission.no_grant","1".repeat(32));}}});
+ const result=await r.invoke("records.get",{id:"rec_1"},seed({preAuth:true,principal:{kind:"service",id:"svc_host"},origin:"hook"}));assert.equal(result.status,"ok");assert.equal(projected,0);
+ for(const principal of [{kind:"actor",id:"act_anonymous"},{kind:"service",id:"svc_"+"a".repeat(32)}] as const)await expectErr(r.invoke("records.get",{id:"rec_1"},seed({preAuth:true,principal})),"permission.no_grant");assert.equal(projected,2);
+ await expectErr(r.invoke("records.get",{id:"rec_1"},seed({principal:{kind:"service",id:"svc_host"}})),"auth.unauthenticated");
+});
+
+test('restricted collection reads take their rate limit before scanning and charge indexed fallbacks once',async()=>{
+ for(const restricted of [true,false]){let scans=0;const c=cap({name:'records.query',effects:'read',permission:'records.read',level:'view',rate:{n:1,perSeconds:10,scope:'person'}});const r=rig([c],{'records.query':()=>({rows:[]})},{recordAccess:{facts:async(_c,_i,req)=>req,project:async(_c,_i,_s,out)=>()=>out,collection:async()=>{scans++;return restricted?{finish:()=>({rows:[]})}:null;}}});assert.equal((await r.invoke('records.query',{id:'rec_1'},seed())).status,'ok');await expectErr(r.invoke('records.query',{id:'rec_1'},seed()),'rate_limit.exceeded');assert.equal(scans,1);}
 });

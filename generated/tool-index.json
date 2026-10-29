@@ -776,6 +776,12 @@
     },
     {
       "deferred": false,
+      "name": "backup_export_status",
+      "summary": "Read current-owner private export readiness and file metadata",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "backup_list",
       "summary": "List backups with size, sequence number and verification state",
       "toolset": "engineer"
@@ -2060,6 +2066,12 @@
     },
     {
       "deferred": false,
+      "name": "email_builder_ask_cancel",
+      "summary": "Stop my Ask Vyre request on a design that is still waiting for the agent",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "email_builder_ask_diff",
       "summary": "Ask Vyre edit: returns a per-change diff the author accepts change by change",
       "toolset": "inbox"
@@ -2774,9 +2786,33 @@
     },
     {
       "deferred": false,
+      "name": "forms_ask_cancel",
+      "summary": "Stop my Ask Vyre request on a form that is still waiting for the agent",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "forms_ask_diff",
+      "summary": "Ask Vyre edit of a form's source: an agent proposes changes to the HTML, CSS or JavaScript, returned as a per-field diff the author accepts or rejects one by one; nothing is saved",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "forms_attribution_get",
       "summary": "First source and Latest source of a record",
       "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "forms_choices_candidates",
+      "summary": "The records the publisher can see, or the people in the Space, that a relation or person question could offer; display labels only",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "forms_choices_set",
+      "summary": "Publish the records or people a public relation or person question may offer: a bounded list the visitor can only pick from; a visitor sees each one's display label only",
+      "toolset": "automations"
     },
     {
       "deferred": false,
@@ -2793,7 +2829,7 @@
     {
       "deferred": false,
       "name": "forms_design_set",
-      "summary": "Set layout, theme, fonts, custom CSS, cover image, conditional logic and thank-you page or redirect",
+      "summary": "Set layout, theme, fonts, the form source (custom HTML template, CSS and JavaScript), cover image, conditional logic and thank-you page or redirect",
       "toolset": "automations"
     },
     {
@@ -5816,8 +5852,20 @@
     },
     {
       "deferred": false,
+      "name": "sessions_get",
+      "summary": "Read an immutable imported session transcript owned by the signed-in person",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "sessions_import",
       "summary": "Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply only visible user and assistant text",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "sessions_list",
+      "summary": "List the current owner private imported session archive in this Personal Space",
       "toolset": "chats"
     },
     {

@@ -6,8 +6,11 @@
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { FieldMode, FormKind } from "../projections.ts";
 import {
-  fail, fieldsOf, formOut, insertForm, isNull, isRec, many, mustForm, num, one, optBool, optInt, optStr, pageOf, parseJson, publicUrl, rec, reqStr, str,
+  fail, fieldsOf, formsConfig, formOut, insertForm, isNull, isRec, many, mustForm, num, one, optBool, optInt, optStr, pageOf, parseJson, publicUrl, rec, reqStr, str,
 } from "../projections.ts";
+import { askCancel, askDiff } from "./ask.ts";
+import { choicesCandidates, choicesOf, choicesSet, needsChoices } from "./choices.ts";
+import { validateCss, validateHtml, validateJs } from "./source.ts";
 import { bookingHandlers } from "./bookings.ts";
 import { linkHandlers } from "./links.ts";
 import { submitHandlers } from "./submit.ts";
@@ -18,7 +21,6 @@ const RECORD_TYPE = /^[a-z][a-z0-9_]*$/;
 const FIELD_NAME = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
 const PREFILL_KEY = /^[a-z][a-z0-9_]{0,39}$/;
 const NAME_MAX = 120;
-const CSS_MAX = 50_000;
 const SECTIONS = ["personal", "shared", "space"];
 
 function esc(text: string): string {
@@ -44,12 +46,23 @@ async function get(ctx: Ctx, input: unknown) {
   const form = mustForm(ctx, reqStr(ctx, o, "formId"));
   const out: Record<string, unknown> = {
     form: formOut(ctx, form),
+    settings: { consentText: str(form.consent_text), captcha: Number(form.captcha) === 1, rateLimit: Number(form.rate_limit), ...(parseJson(form.thank_you) ? { thankYou: parseJson(form.thank_you) } : {}) },
     fields: fieldsOf(ctx, str(form.id)).map((f) => {
       const row: Record<string, unknown> = { field: str(f.field), mode: str(f.mode) };
       if (!isNull(f.prefill_key)) row.prefillKey = str(f.prefill_key);
+      if (!isNull(f.step)) row.step = Number(f.step);
       return row;
     }),
   };
+  const published = choicesOf(ctx, str(form.id)) as (ReturnType<typeof choicesOf>[number] & { field: string })[];
+  if (published.length > 0) {
+    const byField: Record<string, unknown[]> = {};
+    for (const c of published) (byField[c.field] ??= []).push({ key: c.key, refId: c.refId, kind: c.kind, label: c.label });
+    out.choices = byField;
+  }
+  if (!isNull(form.css)) out.css = str(form.css);
+  if (!isNull(form.html)) out.html = str(form.html);
+  if (!isNull(form.js)) out.js = str(form.js);
   const theme = parseJson(form.theme);
   if (isRec(theme)) out.theme = theme;
   const logic = parseJson(form.logic);
@@ -96,6 +109,10 @@ async function update(ctx: Ctx, input: unknown) {
   if (captcha !== undefined) sets.push(["captcha", captcha ? 1 : 0]);
   if (o.uploadPolicy !== undefined && o.uploadPolicy !== null) {
     if (!isRec(o.uploadPolicy)) fail(ctx, "validation.bad_input", "The upload policy is not valid.", { field: "uploadPolicy" });
+    if(o.uploadPolicy.folderId!==undefined){
+      if(typeof o.uploadPolicy.folderId!=='string'||!/^fld_[a-zA-Z0-9_-]+$/.test(o.uploadPolicy.folderId))fail(ctx,'validation.bad_input','Choose a valid upload folder.',{field:'uploadPolicy.folderId'});
+      if(ctx.authorize({perm:'files.write',level:'edit'},{type:'folder',id:o.uploadPolicy.folderId}).effect!=='allow')fail(ctx,'permission.no_grant','You need write access to the upload folder.',{field:'uploadPolicy.folderId'});
+    }
     sets.push(["upload_policy", JSON.stringify(o.uploadPolicy)]);
   }
   const rate = optInt(ctx, o, "rateLimit", 1, 10_000);
@@ -161,9 +178,19 @@ async function designSet(ctx: Ctx, input: unknown) {
   }
   const css = optStr(ctx, o, "css");
   if (css !== undefined) {
-    if (css.length > CSS_MAX) fail(ctx, "validation.too_large", "The custom CSS is too large.", { field: "css" });
-    if (/<\/?\s*style|<script|@import|javascript:|expression\s*\(/i.test(css)) fail(ctx, "validation.bad_input", "The custom CSS may not load other files or run script.", { field: "css" });
+    validateCss(ctx, css);
     sets.push(["css", css.length > 0 ? css : null]);
+  }
+  // The author's own source. A refusal names the line and the reason; nothing is cleaned up silently, so what is saved is exactly what the page serves.
+  const html = optStr(ctx, o, "html");
+  if (html !== undefined) {
+    validateHtml(ctx, form, html);
+    sets.push(["html", html.length > 0 ? html : null]);
+  }
+  const js = optStr(ctx, o, "js");
+  if (js !== undefined) {
+    validateJs(ctx, js);
+    sets.push(["js", js.length > 0 ? js : null]);
   }
   if (o.logic !== undefined) sets.push(["logic", o.logic === null ? null : JSON.stringify(o.logic)]);
   if (o.thankYou !== undefined && o.thankYou !== null) {
@@ -187,6 +214,13 @@ async function designSet(ctx: Ctx, input: unknown) {
 async function publish(ctx: Ctx, input: unknown) {
   const o = rec(ctx, input);
   const form = mustForm(ctx, reqStr(ctx, o, "formId"));
+  const schemaReader=formsConfig().schemaFields;
+  if(schemaReader){
+    const schema=await schemaReader(str(form.record_type)),modes=fieldsOf(ctx,str(form.id)),logic=parseJson(form.logic);
+    const rules=isRec(logic)&&Array.isArray(logic.rules)?logic.rules:[];
+    for(const field of schema)if((field.required||rules.some((rule)=>isRec(rule)&&Array.isArray(rule.require)&&rule.require.includes(field.key)))&&(field.type==='relation'||field.type==='person')&&modes.some((mode)=>mode.field===field.key&&mode.mode==='ask'))
+      if(choicesOf(ctx,str(form.id),field.key).length===0)fail(ctx,'validation.precondition_failed',`${field.title} needs publisher-approved choices before the form can go public. Choose which ${field.type==='person'?'people':'records'} visitors may pick, or hide this question.`,{field:`fields.${field.key}`});
+  }
   if (form.kind === "booking") {
     if (!one(ctx, "SELECT * FROM forms_booking_page WHERE form_id = ?", str(form.id))) fail(ctx, "validation.precondition_failed", "This booking page has no hosts yet.");
   } else if (!fieldsOf(ctx, str(form.id)).some((f) => f.mode === "ask")) {
@@ -221,6 +255,10 @@ export const handlers = {
   "forms.update": (ctx: Ctx, input: unknown) => update(ctx, input),
   "forms.fields_set": (ctx: Ctx, input: unknown) => fieldsSet(ctx, input),
   "forms.design_set": (ctx: Ctx, input: unknown) => designSet(ctx, input),
+  "forms.choices_set": (ctx: Ctx, input: unknown) => choicesSet(ctx, input),
+  "forms.choices_candidates": (ctx: Ctx, input: unknown) => choicesCandidates(ctx, input),
+  "forms.ask_diff": (ctx: Ctx, input: unknown) => askDiff(ctx, input),
+  "forms.ask_cancel": (ctx: Ctx, input: unknown) => askCancel(ctx, input),
   "forms.publish": (ctx: Ctx, input: unknown) => publish(ctx, input),
   "forms.unpublish": (ctx: Ctx, input: unknown) => unpublish(ctx, input),
   "forms.delete": (ctx: Ctx, input: unknown) => remove(ctx, input),

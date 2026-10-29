@@ -6,13 +6,14 @@ Generated from the manifests. The lead completes it by hand (spec sections, reus
 
 ### backup
 
-Capabilities to implement: 10. Events to emit: 5. Contract tests that must go green: `generated/tests/backup/`.
+Capabilities to implement: 11. Events to emit: 5. Contract tests that must go green: `generated/tests/backup/`.
 
 Capabilities:
 - backup.config_get (read, server.backups, level view)
 - backup.config_set (write, server.backups, level manage)
 - backup.delete (write, server.backups, level manage, gate delete)
 - backup.export_start (write, server.backups, level manage)
+- backup.export_status (read, server.backups, level manage)
 - backup.health (read, grant only, level view)
 - backup.list (read, server.backups, level view)
 - backup.restore (write, server.backups, level manage, gate delete)

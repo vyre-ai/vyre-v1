@@ -4,9 +4,10 @@ import {
   totpRemove, usernameAvailable, verifySecondFactor, whoami,
 } from "./signin.ts";
 import { claimOwner } from "./claim.ts";
-import { acceptCreateAccount, changePassword, keysGet, keysPut, recoveryRestore, recoverySave, resetComplete, resetPreview, resetStart } from "./keys.ts";
+import { acceptCreateAccount, changePassword, keysGet, keysPut, recoveryFetch, recoveryRestore, recoverySave, resetComplete, resetPreview, resetStart } from "./keys.ts";
 
 export const handlers = {
+  "identity.recovery_fetch":recoveryFetch,
   "invites.accept_create_account": acceptCreateAccount,
   "identity.change_password": changePassword,
   "identity.claim_owner": claimOwner,

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Runs on a GitHub-hosted mac or windows runner after `tauri build` (ruling 4). Launches the built shell through
 # apps/desktop/tests/shell.heavy.test.ts (shell starts, sidecar reachable, vyre:// link delivered) and takes a
-# screenshot of the running window during the hold. Usage: run-shell.sh <app executable> <output dir>
+# screenshot of the running window during the hold. VYRE_SHELL_RELAUNCH=1 repeats the installed-app smoke after a
+# clean exit. Usage: run-shell.sh <app executable> <output dir>
 set -u
 APP="$1"; OUT="$2"; mkdir -p "$OUT"
 shot() {
@@ -11,7 +12,7 @@ shot() {
     screencapture -x "$1"
   fi
 }
-export VYRE_SHELL_APP="$APP" VYRE_SHELL_HOLD_MS=25000
+export VYRE_SHELL_APP="$APP" VYRE_SHELL_HOLD_MS=25000 VYRE_SHELL_RELAUNCH="${VYRE_SHELL_RELAUNCH:-0}"
 ( sleep 14
   if [ "$RUNNER_OS" = "macOS" ]; then osascript -e 'tell application "System Events" to set frontmost of first process whose name is "vyre-desktop" to true' >/dev/null 2>&1 || true; sleep 2; fi
   shot "$OUT/$RUNNER_OS-shell.png"; sleep 3; shot "$OUT/$RUNNER_OS-shell-2.png" ) &

@@ -8,7 +8,7 @@ import type { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
 import { isElevatedRole } from "../../kernel/src/authorize/snapshot.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { AccessStore, EVERYONE, changed, labelOf, storeOf } from "./projections.ts";
-import type { AccessCtx, Cond, GrantRec, Level, PKind, Ref, Status, SubjectKind } from "./projections.ts";
+import type { AccessCtx, Cond, GrantRec, Label, Level, PKind, Ref, Status, SubjectKind } from "./projections.ts";
 
 export interface LogEvent { seq: number; type: string; payload: unknown }
 
@@ -18,7 +18,7 @@ const CURSOR = "seed_cursor";
 /** the event names access.sync folds; the host sends only these */
 export const ACCESS_EVENTS = [
   "role.defined", "principal.created", "principal.role_set", "group.member_added", "resource.created", "grant.created", "grant.revoked",
-  "principal.suspended", "principal.reactivated", "member.removed",
+  "principal.suspended", "principal.reactivated", "member.removed", "space.ownership_transferred",
 ] as const;
 
 const rec = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {});
@@ -76,7 +76,12 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number): boolean
       const seeded = str(p["id"]) !== undefined;
       const have = store.principals.get(id);
       // identity and access announce an account the module already holds: keep what it has
-      if (have && !seeded) return false;
+      if (have && !seeded) {
+        const name=str(p["name"])?.trim();
+        const placeholder=have.name===id||(have.name==="Owner"&&[...store.resources.values()].some(resource=>resource.type==="space"&&resource.ownerId===id));
+        if(name&&placeholder&&have.kind===pkind(p["kind"])&&name!==have.name){have.name=name;return true;}
+        return false;
+      }
       const given = p["status"];
       const status: Status = given === "suspended" || given === "removed" ? given : "active";
       const next = { id, kind: pkind(p["kind"]), name: str(p["name"]) ?? have?.name ?? id, status, createdAt: have?.createdAt ?? at, ...(str(p["owner"]) ? { owner: str(p["owner"])! } : {}) };
@@ -99,6 +104,15 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number): boolean
       g.members.push({ kind: store.principals.get(mid)?.kind ?? "person", id: mid });
       store.groups.set(gid, g);
       return true;
+    }
+    case "space.ownership_transferred": {
+      const from=str(p['from']),to=str(p['to']);if(!from||!to||from===to||(store.principals.get(to)?.status!=='active'||store.principals.get(to)?.kind!=='person'))return false;
+      const spaces=[...store.resources.values()].filter(row=>row.type==='space'&&row.ownerId===from);if(spaces.length!==1)return false;
+      const row=spaces[0]!;store.resources.set(row.id,{...row,ownerId:to});
+      const isOwner=(id:string):boolean=>id==='owner'||id==='rol_owner'||store.roles.get(id)?.name.toLowerCase()==='owner';
+      for (const [holder, roles] of store.assignments) store.setRoles(holder, roles.filter(id => !isOwner(id)));
+      store.assignments.set(from,[...new Set([...store.rolesOf(from),'rol_admin'])]);
+      store.assignments.set(to,[...new Set([...store.rolesOf(to),'rol_owner'])]);return true;
     }
     case "resource.created": {
       const id = str(p["id"]), type = str(p["type"]);
@@ -199,6 +213,18 @@ export const hostCalls = {
     const store = storeOf(actx);
     apply(actx, store, input.events);
     return withRoleGrants(store.snapshot(), store, actx.space);
+  },
+  /** Files has already authorized folder.settings; this internal seam keeps Personal Spaces out of the public Team-only labels.set gate. */
+  "access.set_resource_label": (ctx: Ctx, input: { resource: { type: string; id: string }; label: Label }): boolean => {
+    if (ctx.origin !== "hook" || ctx.depth !== 0) throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only the server itself may do that." });
+    const actx = ctx as unknown as AccessCtx;
+    const store = storeOf(actx);
+    const resource = store.resources.get(input.resource.id);
+    if (!resource || resource.type !== input.resource.type) return false;
+    if (resource.label === input.label) return false;
+    resource.label = input.label;
+    changed(actx, store, "label");
+    return true;
   },
   /** Ruling 88: a resource changes owner (an agent's folder follows its owner). The previous owner keeps nothing on it: their direct grants on the resource go too. Answers whether anything moved. */
   "access.transfer_ownership": (ctx: Ctx, input: { resource: { type: string; id: string }; from: string; to: string }): boolean => {

@@ -7,6 +7,7 @@ export { configureSheets, configureFilesHost } from "./handlers/index.ts";
 export type { SheetsDrivers } from "./handlers/index.ts";
 
 import { configureFilesHost } from "./handlers/index.ts";
+import { putUploadedBytes } from "./handlers/tree.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
 
 /** Where the host registers its half at boot (ruling 31): setFilesHost gives the module the way to register its root folders as access resources (ruling 65). */

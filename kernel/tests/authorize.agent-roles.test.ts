@@ -62,8 +62,11 @@ test("an agent with a direct Admin role is refused access.manage", () => {
   assert.equal(manage(s, "agt_direct_admin", "usr_boss").effect, "deny");
 });
 
-test("a person in the same Owner group is allowed access.manage", () => {
+test("Owner is never inherited by a person, while a human Admin group remains valid", () => {
   const s = world();
+  assert.ok(!s.info("usr_peer")!.perms.has("access.manage"));
+  assert.equal(manage(s, "usr_peer").effect, "deny");
+  s.addMember({group:"grp_admins",member:"usr_peer"});
   assert.ok(s.info("usr_peer")!.perms.has("access.manage"));
-  assert.equal(manage(s, "usr_peer").effect, "allow");
+  assert.equal(manage(s,"usr_peer").effect,"allow");
 });

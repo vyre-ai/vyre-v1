@@ -1,0 +1,10 @@
+{"type":"response_item","payload":{"id":"user-1","type":"message","role":"user","content":[{"type":"input_text","text":"Plan the release"}]},"timestamp":"2026-10-25T09:00:00.000Z"}
+{"type":"event_msg","payload":{"type":"agent_message","message":"This duplicate must not be imported"},"timestamp":"2026-10-25T09:00:01.000Z"}
+{"type":"response_item","payload":{"id":"assistant-1","type":"message","role":"assistant","content":[{"type":"output_text","text":"I will prepare the release."}]},"timestamp":"2026-10-25T09:00:02.000Z"}
+{"type":"response_item","payload":{"id":"reasoning-1","type":"reasoning","summary":[{"text":"hidden chain"}]},"timestamp":"2026-10-25T09:00:03.000Z"}
+{"type":"response_item","payload":{"id":"tool-1","type":"function_call","name":"shell","arguments":"{\"secret\":\"redacted\"}"},"timestamp":"2026-10-25T09:00:04.000Z"}
+{"type":"turn_context","payload":{"cwd":"/private/work"},"timestamp":"2026-10-25T09:00:05.000Z"}
+{"type":"response_item","payload":{"id":"system-1","type":"message","role":"system","content":[{"type":"output_text","text":"Never expose this"}]},"timestamp":"2026-10-25T09:00:06.000Z"}
+{"type":"world_state","payload":{"ignored":true},"timestamp":"2026-10-25T09:00:07.000Z"}
+{"type":"response_item","payload":{"id":"assistant-2","type":"message","role":"assistant","content":[{"type":"output_text","text":"Final visible answer."}]},"timestamp":"2026-10-25T09:00:08.000Z"}
+{"type":"response_item","payload":

@@ -1,3 +1,5 @@
+import type {SignInPolicy,SignInMethods} from "../../lib/sign-in-policy.ts";
+import {assertSignInPolicy} from "./policy.ts";
 // Identity projections (spec 3.13, 2.25, ARCH 7.13). Accounts, sessions, challenges, one-time codes and the wrapped key bundle.
 // The server keeps a salted Argon2id verifier of the login secret, never the secret, and never an unwrapped key.
 // Durable tables: migrations/0001_identity.sql. Handlers reach them only through ctx.db.
@@ -5,6 +7,7 @@
 import { argon2id } from "../../kernel/src/identity/stretch.ts";
 import { sameMac, sha256b64 } from "../../kernel/src/seal/wire.ts";
 import { fail } from "../../host/src/routes/errors.ts";
+import type {RecoveryCommit} from "../../packages/contracts/src/identity-recovery.ts";
 
 export interface Db {
   all(sql: string, ...args: unknown[]): unknown[];
@@ -12,6 +15,10 @@ export interface Db {
 }
 export interface Github { resolve(code: string): Promise<{ id: string; login: string }> }
 export interface IdentityCtx {
+  recoveryCommit?:RecoveryCommit;
+  signInPolicy?: {current():Readonly<SignInPolicy>;methods:Readonly<SignInMethods>};
+  /** Current canonical Space owner, supplied read-only by the access projection. */
+  spaceOwner?():string|null;
   space: string;
   /** Absent on pre-auth calls (caller 'anonymous'). */
   principal?: { kind: string; id: string };
@@ -206,9 +213,8 @@ export function me(ctx: IdentityCtx): Account {
 }
 export function setKeys(ctx: IdentityCtx, personId: string, keys: KeyBundle, reason: string): void {
   if (!validBundle(keys)) raise(ctx.trace.traceId, "validation.bad_input", "keys must be base64 ciphertext");
-  const recovery = keys.personKeyByRecovery;
   ctx.db.run(`UPDATE identity_accounts SET keys_json = ?, epoch = ?, recovery_hash = ? WHERE person_id = ?`,
-    JSON.stringify(keys), epochOf(keys), recovery ? sha(recovery) : null, personId);
+    JSON.stringify(keys), epochOf(keys), null, personId);
   ctx.emit("keys.stored", personId, { personId, reason });
 }
 
@@ -240,12 +246,14 @@ export function configureSessionTokens(t: SessionTokens | null): void { sessionT
 /** Open a per-device session: devices.register makes the device and its session, the host mints the token for that session, and identity keeps the row that sign-out and reset act on. */
 export async function issueSession(ctx: IdentityCtx, a: Account, dev: Device, method: Method, opts: { joining?: boolean } = {}): Promise<SignInOut> {
   const tid = ctx.trace.traceId;
+  assertSignInPolicy(ctx,a,method);
   if (!sessionTokens || typeof ctx.call !== "function") raise(tid, "internal.unavailable", "Sign-in cannot open a device session on this server yet.");
   // a suspended or removed person gets no session by any route (password, pair code, reset, recovery, GitHub): they are told what a wrong password is told
   const member = ctx.membership?.check(a.person_id, opts);
   if (member === "unavailable") raise(tid, "internal.unavailable", "Access is being re-checked on this server. Try again in a moment.");
   if (member === "refused") raise(tid, "auth.bad_credentials");
   const reg = (await ctx.call("devices.register", { person: a.person_id, name: dev.deviceName, class: dev.deviceClass, idempotencyKey: nid("sin") })) as { device?: { id?: unknown }; sessionId?: unknown };
+  assertSignInPolicy(ctx,a,method);
   const deviceId = typeof reg?.device?.id === "string" ? reg.device.id : "";
   const sessionId = typeof reg?.sessionId === "string" ? reg.sessionId : "";
   if (!deviceId || !sessionId) raise(tid, "internal.unexpected", "The device could not be registered.");
@@ -262,10 +270,11 @@ export async function issueSession(ctx: IdentityCtx, a: Account, dev: Device, me
 }
 /** The caller's own session: the one the call names, else the live session of the device the gateway resolved the token to. */
 export function currentSessionId(ctx: IdentityCtx, personId: string): string | undefined {
-  if (ctx.session?.id) return ctx.session.id;
-  if (!ctx.device) return undefined;
-  const r = ctx.db.all(`SELECT id FROM identity_sessions WHERE device_id = ? AND person_id = ? AND revoked_at IS NULL ORDER BY created_at DESC`, ctx.device, personId)[0] as { id: string } | undefined;
-  return r?.id;
+  const deviceId = ctx.device ?? ctx.session?.deviceId;
+  if (!deviceId) return undefined;
+  const rows = ctx.db.all(`SELECT * FROM identity_sessions WHERE person_id = ?`, personId) as { id: string; device_id: string; revoked_at: number | null; expires_at: number; created_at: number }[];
+  return rows.filter((r) => r.device_id === deviceId && r.revoked_at === null && r.expires_at > ctx.now() && (!ctx.session?.id || r.id === ctx.session.id))
+    .sort((a, b) => b.created_at - a.created_at)[0]?.id;
 }
 /** End one session here and at the gateway. */
 export function endSessionRow(ctx: IdentityCtx, personId: string, sessionId: string): void {
@@ -278,6 +287,10 @@ export function revokeSessions(ctx: IdentityCtx, personId: string, except?: stri
   const live = ctx.db.all(`SELECT id FROM identity_sessions WHERE person_id = ? AND revoked_at IS NULL AND id != ?`, personId, except ?? "") as { id: string }[];
   ctx.db.run(`UPDATE identity_sessions SET revoked_at = ? WHERE person_id = ? AND revoked_at IS NULL AND id != ?`, ctx.now(), personId, except ?? "");
   for (const r of live) sessionTokens?.end(r.id);
+}
+/** The private recovery transaction already revoked both durable session tables. */
+export function finishRecoverySessions(ctx:IdentityCtx,personId:string,sessions:readonly string[]):void{
+ ctx.keyring?.clear(personId);for(const id of sessions)sessionTokens?.end(id);
 }
 /** Resolve a bearer token to its live session; the host gateway calls this to build the principal. */
 export function sessionOfToken(ctx: IdentityCtx, token: string): { sessionId: string; personId: string; deviceId: string } | undefined {
@@ -295,15 +308,19 @@ export function putCode(ctx: IdentityCtx, kind: "pair" | "reset" | "claim", pers
   return expiresAt;
 }
 /** Spend a code once. Unknown, spent and expired codes all read the same to the caller except expired. */
-export function spendCode(ctx: IdentityCtx, kind: "pair" | "reset" | "claim", code: string): { personId: string; purpose: string | null } {
+export function peekCode(ctx: IdentityCtx, kind: "pair" | "reset" | "claim", code: string): { personId: string; purpose: string | null } {
   const h = sha(`${kind}:${code}`);
   const r = ctx.db.all(`SELECT person_id, purpose, expires_at, used_at FROM identity_codes WHERE code_hash = ?`, h)[0] as
     { person_id: string; purpose: string | null; expires_at: number; used_at: number | null } | undefined;
   if (!r || r.used_at !== null) raise(ctx.trace.traceId, "auth.invalid_code");
   if (r.expires_at <= ctx.now()) raise(ctx.trace.traceId, "auth.expired");
-  const got = ctx.db.run(`UPDATE identity_codes SET used_at = ? WHERE code_hash = ? AND used_at IS NULL`, ctx.now(), h);
-  if (got.changes !== 1) raise(ctx.trace.traceId, "auth.invalid_code");
   return { personId: r.person_id, purpose: r.purpose };
+}
+export function spendCode(ctx: IdentityCtx, kind: "pair" | "reset" | "claim", code: string): { personId: string; purpose: string | null } {
+  const row=peekCode(ctx,kind,code);
+  const got = ctx.db.run(`UPDATE identity_codes SET used_at = ? WHERE code_hash = ? AND used_at IS NULL`, ctx.now(), sha(`${kind}:${code}`));
+  if (got.changes !== 1) raise(ctx.trace.traceId, "auth.invalid_code");
+  return row;
 }
 
 // ---- challenges for the second factor

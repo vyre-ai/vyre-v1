@@ -6,7 +6,7 @@
     "mcp.session.close@1": "ddb7326a34b6056a6c7da8fa9755702085cada6178947958c2e7a1efaa0018ea",
     "mcp.session.mint@1": "ceac8b1130a0caea597c372b4b508bc2757a31ae49924986bdf985e789ab0944",
     "mcp.session.open@1": "8fe07b761c4fba8f66c0e0fb0e45a1216782b31e53d32dfad16ba9c6ce0b9027",
-    "mcp.sessions.list@1": "c13e6165a39e0211a3378420e93ced3ce7d835a11435a8468ebb3a7651c20246",
+    "mcp.sessions.list@1": "714ad1cc025cdb911ca975ebc5f3e077288c255fb3b4e08d68e3887253e6100b",
     "mcp.token.issue@1": "1b3cdeb6f8ae257aaaedba6ea1a1b929456c441d02de509be349e2487600e8f4",
     "mcp.token.log_reveal@1": "f103c72761b4f25b50da1bdf9495ddce404c426412b2b61e7cafaef866eab3f6",
     "mcp.token.register@1": "83c295ece137256af19d9e5eec8bdc2e47db7e73bf48736cfa6ec81bdf6e2894",

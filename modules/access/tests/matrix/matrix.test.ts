@@ -192,7 +192,7 @@ test("the Access checker and View as: the checker answers what authorize answers
 
   for (const role of ROLES) {
     h.events.length = 0;
-    const v = await viewAs(h.ctx, { person: `g_${role}` });
+    const v = await viewAs({ ...h.ctx, preview: { issue: () => ({ previewToken: "vas_0123456789abcdef", expiresAt: NOW + 600_000 }) } }, { person: `g_${role}` });
     assert.match(v.previewToken, /^vas_[0-9a-f]+$/);
     assert.ok(v.expiresAt > NOW && v.expiresAt <= NOW + 10 * 60 * 1000, "a preview lasts minutes");
     assert.deepEqual(h.events, [{ name: "view_as.started", subject: `g_${role}`, payload: { target: `g_${role}`, expiresAt: v.expiresAt } }]);
@@ -226,7 +226,8 @@ test("an agent is never given Owner or Admin: not when assigned, not through a r
   assert.equal(await code(rolesAssign(h.ctx, { subject: { kind: "agent", id: "agt_x" }, roleId: boss.id })), "validation.precondition_failed");
   for (const ok of ["rol_developer", "rol_member", "rol_guest"]) assert.equal(await code(rolesAssign(h.ctx, { subject: { kind: "agent", id: "agt_x" }, roleId: ok })), "no error", ok);
   assert.deepEqual(store.rolesOf("agt_x").sort(), ["rol_developer", "rol_guest", "rol_member"]);
-  assert.equal(await code(rolesAssign(h.ctx, { subject: { kind: "person", id: "g_member" }, roleId: "rol_owner" })), "no error", "a person can");
+  assert.equal(await code(rolesAssign(h.ctx, { subject: { kind: "person", id: "g_member" }, roleId: "rol_owner" })), "validation.precondition_failed", "ownership uses the transfer path even for people");
+  assert.equal(await code(rolesAssign(h.ctx, { subject: { kind: "person", id: "g_member" }, roleId: "rol_admin" })), "no error", "a person can hold Admin");
   const roleOf = (id: string) => store.roles.get(id)!;
   assert.deepEqual([roleOf("rol_owner").assignableToAgents, roleOf("rol_admin").assignableToAgents], [false, false]);
 });

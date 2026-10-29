@@ -4,6 +4,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { usePathname, useRouter } from "expo-router";
 import { claimToken } from "../src/claim/logic.ts";
 import { SessionGate } from "../src/shell/session/SessionGate.tsx";
+import { hydrationBaseUrl } from "../src/shell/session/hydration.ts";
 import { UrlSync } from "../src/shell/session/UrlSync.tsx";
 import type { ShellHub } from "../src/shell/spaces/hub.ts";
 import { loadTwilioDevice } from "../src/shell/session/voice.ts";
@@ -12,6 +13,7 @@ import { registerShellPlaces } from "../src/shell/places.ts";
 registerShellPlaces();
 
 /** /claim/<token>: the first screen on a fresh install (ruling 71). Loaded only when that address is opened. */
+const OAuthRoute = lazy(() => import("../src/oauth/OAuthRoute.tsx").then((m) => ({ default: m.OAuthRoute })));
 const ClaimRoute = lazy(() => import("../src/claim/ClaimRoute.tsx").then((m) => ({ default: m.ClaimRoute })));
 
 export default function Layout() {
@@ -23,6 +25,8 @@ export default function Layout() {
   const pathname = usePathname();
   const token = mounted ? claimToken(pathname) : null;
   const router = useRouter();
+  // /oauth/callback: where an app sends a person back after approving a connection; it finishes the sign-in as the signed-in person
+  if (mounted && pathname === "/oauth/callback") return <Suspense fallback={null}><OAuthRoute /></Suspense>;
   if (token) {
     return (
       <Suspense fallback={null}>
@@ -32,7 +36,7 @@ export default function Layout() {
   }
   return (
     <>
-      <SessionGate onHub={setHub} voice={loadTwilioDevice} />
+      <SessionGate baseUrl={hydrationBaseUrl(mounted)} onHub={setHub} voice={loadTwilioDevice} />
       {hub ? <UrlSync hub={hub} /> : null}
     </>
   );

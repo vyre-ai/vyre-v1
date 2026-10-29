@@ -2,8 +2,8 @@
 // server holds the telephony key); otherwise `openPhone` answers undefined and the shell draws no dock. The SDK is loaded by the caller (`loadDevice`): this file never imports it, so a build without
 // the package still exports.
 import type { PhoneCallLike, PhoneDeviceLike } from "../../../../../ui/src/Softphone/index.tsx";
-import { inboxData } from "../providers/inbox.tsx";
-import type { InboxData } from "../../places/inbox/sidebar/index.ts";
+import { inboxData } from "../providers/inbox-data.ts";
+import type { InboxData } from "../../places/inbox/sidebar/data.tsx";
 import type { RealSession } from "./session.ts";
 
 /** What the Voice SDK's Device offers, as far as the softphone uses it. */

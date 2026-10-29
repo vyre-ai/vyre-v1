@@ -9,6 +9,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "backup.config_set": async (ctx) => { throw new VyreErr(notImplemented("backup.config_set", ctx.trace)); },
   "backup.delete": async (ctx) => { throw new VyreErr(notImplemented("backup.delete", ctx.trace)); },
   "backup.export_start": async (ctx) => { throw new VyreErr(notImplemented("backup.export_start", ctx.trace)); },
+  "backup.export_status": async (ctx) => { throw new VyreErr(notImplemented("backup.export_status", ctx.trace)); },
   "backup.health": async (ctx) => { throw new VyreErr(notImplemented("backup.health", ctx.trace)); },
   "backup.list": async (ctx) => { throw new VyreErr(notImplemented("backup.list", ctx.trace)); },
   "backup.restore": async (ctx) => { throw new VyreErr(notImplemented("backup.restore", ctx.trace)); },

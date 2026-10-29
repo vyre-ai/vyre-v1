@@ -20,6 +20,7 @@ const session = `fake-${process.pid}`;
 const out = (o) => process.stdout.write(`${JSON.stringify(o)}\n`);
 const KEYS = ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "CODEX_API_KEY", "XAI_API_KEY"];
 const secret = () => KEYS.map((k) => process.env[k]).find((v) => v !== undefined && v !== "") ?? "";
+let sendSequence = 0;
 
 if (argv.includes("--version")) { process.stdout.write("claude fake 0.0.0\n"); process.exit(0); }
 
@@ -94,8 +95,9 @@ async function sendMail(prompt) {
   let mcp;
   try {
     mcp = await mcpOpen();
+    const idempotencyKey = `fake-send-${address}-${mailbox ?? "default"}-${++sendSequence}`;
     const r = await mcp.call("mail_send", {
-      mailboxId: mailbox ?? "mbx_a1b2c3", to: [{ address }], subject: "Hello from the fake engine", text: "Sent by the fake engine.", idempotencyKey: `fake-send-${address}-${mailbox ?? "default"}`,
+      mailboxId: mailbox ?? "mbx_a1b2c3", to: [{ address }], subject: "Hello from the fake engine", text: "Sent by the fake engine.", idempotencyKey,
     });
     if (r?.error) { reply([`mcp error: ${r.error.message ?? "the call failed"}`]); return; }
     const text = (r?.result?.content ?? []).map((c) => c.text ?? "").join("\n");

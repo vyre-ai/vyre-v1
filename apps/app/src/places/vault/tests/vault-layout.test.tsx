@@ -6,8 +6,9 @@ import assert from "node:assert/strict";
 import { Dimensions } from "react-native";
 import { renderToStaticMarkup } from "react-dom/server";
 import Vault, { VaultLoading } from "../layout/index.tsx";
-import { VaultDataProvider } from "../layout/data.tsx";
+import { VaultDataProvider, retryVaultQueries } from "../layout/data.tsx";
 import type { VaultData } from "../layout/data.tsx";
+import type { QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
 import type { ReactElement, ReactNode } from "react";
 import { ItemEnv } from "../itemenv/index.ts";
 import { createSampleVault, harbor, northwind } from "../layout/sample.ts";
@@ -31,6 +32,17 @@ const queryOf = <T,>(v: SampleVault, screen: string, name: string, state: Record
   return (snap as { data: T }).data;
 };
 const itemNames = (v: SampleVault): string[] => queryOf<{ items: { name: string }[] }>(v, "vault.layout", "items").items.map((i) => i.name);
+
+function failQuery(v: SampleVault, screen: string, name: string): { retries(): number } {
+  const base = v.data.screens;
+  const failure: QueryState<unknown> = { status: "loading", error: { message: "The Space could not answer", code: "gateway.unavailable", traceId: "trace-vault-read" } };
+  let retried = 0;
+  v.data = { ...v.data, screens: {
+    query(screenId, queryName, state) { return screenId === screen && queryName === name ? { subscribe: () => () => undefined, getSnapshot: () => failure } : base.query(screenId, queryName, state); },
+    invalidate() { retried++; },
+  } as ScreenHooks };
+  return { retries: () => retried };
+}
 
 test("sidebar: sections in the prototype's order with counts, Requested and Health only when they have something", () => {
   const out = html(createSampleVault());
@@ -158,6 +170,23 @@ test("the frame before data and the empty Vault", () => {
   assert.ok(has(out, "Your vault is empty") && has(out, "Add an item"));
   assert.ok(has(html(createSampleVault(), { initial: { kind: "health" } }), "GoHighLevel"));
   assert.ok(has(html(createSampleVault(harbor), { initial: { kind: "cards" } }), "Harbor Visa"));
+});
+
+test("request and export query failures render truthful errors with a working retry", () => {
+  const requests = createSampleVault();
+  const requestRetry = failQuery(requests, "vault_requests.list", "requests");
+  const requestOut = html(requests, { route: { surface: "requests" } });
+  assert.ok(has(requestOut, "Couldn&#x27;t load Vault requests") && has(requestOut, "The Space could not answer"));
+  assert.ok(has(requestOut, 'data-testid="state-retry"') && has(requestOut, "trace-vault-read"));
+  assert.equal(retryVaultQueries(requests.data.screens), true);
+  assert.equal(requestRetry.retries(), 1);
+
+  const exports = createSampleVault();
+  failQuery(exports, "vault.export", "open");
+  const exportOut = html(exports, { route: { surface: "export", folderId: "fld_marketing" } });
+  assert.ok(has(exportOut, "Couldn&#x27;t load active exports") && has(exportOut, "The Space could not answer"));
+  assert.ok(has(exportOut, 'data-testid="state-retry"'));
+  assert.ok(!has(exportOut, ">Loading<"), "a failed query does not stay in a loading state forever");
 });
 
 test("sections filter the list: Keys, Logins, Cards, AI providers, a folder, Mine", () => {

@@ -2,3 +2,5 @@
 export { handlers } from "./handlers/index.ts";
 export { consumers, inline, projections } from "./projections.ts";
 export const codecs = {};
+
+export { appendTelemetry, telemetryPosition } from "./telemetry.ts";

@@ -49,10 +49,13 @@ async function stopSidecar(r: Running, dataDir: string): Promise<void> {
   const token = fs.readFileSync(path.join(dataDir, "admin.token"), "utf8").trim();
   const stopped = await fetch(`${r.url}/local/daemon/stop`, { method: "POST", headers: { authorization: `Bearer ${token}` } });
   assert.equal(stopped.status, 202, "the loopback admin endpoint accepts a graceful shutdown");
-  await Promise.race([done, new Promise<void>((resolve) => setTimeout(resolve, 5000))]);
-  if (r.child.exitCode === null) {
-    if (process.platform === "win32" && r.child.pid) spawnSync("taskkill", ["/PID", String(r.child.pid), "/T", "/F"], { stdio: "ignore", timeout: 5000 });
-    else r.child.kill("SIGKILL");
+  try {
+    await Promise.race([done, new Promise<void>((_, reject) => setTimeout(() => reject(new Error("authenticated HTTP stop did not let vyred exit naturally")), 5000))]);
+  } finally {
+    if (r.child.exitCode === null) {
+      if (process.platform === "win32" && r.child.pid) spawnSync("taskkill", ["/PID", String(r.child.pid), "/T", "/F"], { stdio: "ignore", timeout: 5000 });
+      else r.child.kill("SIGKILL");
+    }
   }
 }
 
@@ -113,9 +116,56 @@ test("a sidecar line from another address is not trusted", () => {
 });
 
 const APP = process.env["VYRE_SHELL_APP"];
-test("the built shell starts, reaches its sidecar and takes a vyre:// link", { skip: !APP && "VYRE_SHELL_APP is set only in the desktop job on a built app" }, async () => {
+const RELAUNCH = process.env["VYRE_SHELL_RELAUNCH"] === "1";
+
+async function awaitSidecarStop(url: string): Promise<void> {
+  const end = Date.now() + 10_000;
+  while (Date.now() < end) {
+    try {
+      const res = await fetch(`${url}/healthz`);
+      if (res.status !== 200) return;
+    } catch {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`the packaged sidecar at ${url} stayed live after its app exited`);
+}
+
+function requestNormalQuit(app: ChildProcess): void {
+  if (process.platform === "darwin") {
+    const quit = spawnSync("osascript", ["-e", "tell application id \"ai.vyre.desktop\" to quit"], { encoding: "utf8" });
+    assert.equal(quit.status, 0, `normal macOS app quit failed: ${quit.stderr}`);
+    return;
+  }
+  if (process.platform === "win32") {
+    assert.ok(app.pid, "the packaged Windows shell has a process id");
+    const script = `$p = Get-Process -Id ${String(app.pid)} -ErrorAction Stop; if ($p.MainWindowHandle -eq 0) { exit 2 }; if (-not $p.CloseMainWindow()) { exit 3 }`;
+    const quit = spawnSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", script], { encoding: "utf8" });
+    assert.equal(quit.status, 0, `normal Windows window close failed: ${quit.stderr}`);
+    return;
+  }
+  throw new Error(`normal packaged-shell quit is unsupported on ${process.platform}`);
+}
+
+async function stopBuiltShell(app: ChildProcess, sidecarUrl: string | null, out: string): Promise<void> {
+  if (app.exitCode === null) {
+    const stopped = new Promise<void>((resolve) => app.once("exit", () => resolve()));
+    try {
+      requestNormalQuit(app);
+      await Promise.race([stopped, new Promise<void>((_, reject) => setTimeout(() => reject(new Error(`built shell did not exit after normal quit:\n${out.slice(-2000)}`)), 10_000))]);
+    } catch (error) {
+      app.kill("SIGKILL");
+      throw error;
+    }
+  }
+  if (sidecarUrl) await awaitSidecarStop(sidecarUrl);
+}
+
+async function exerciseBuiltShell(takeLink: boolean): Promise<void> {
   const app = spawn(APP as string, [], { env: { ...process.env, VYRE_SHELL_BANNER: "1" } });
   let out = "";
+  let sidecarUrl: string | null = null;
   app.stdout.on("data", (c: Buffer) => { out += c.toString("utf8"); });
   app.stderr.on("data", (c: Buffer) => { out += c.toString("utf8"); });
   const until = async (re: RegExp, ms: number): Promise<RegExpExecArray> => {
@@ -123,25 +173,38 @@ test("the built shell starts, reaches its sidecar and takes a vyre:// link", { s
     for (;;) {
       const m = re.exec(out);
       if (m) return m;
+      if (app.exitCode !== null || app.signalCode !== null) throw new Error(`built shell exited before ${String(re)} (code ${String(app.exitCode)}, signal ${String(app.signalCode)}):\n${out.slice(-2000)}`);
       if (Date.now() > end) throw new Error(`not seen: ${String(re)}\n${out.slice(-2000)}`);
       await new Promise((r) => setTimeout(r, 200));
     }
   };
   try {
     const ready = await until(/vyre-desktop: sidecar ready at (http:\/\/127\.0\.0\.1:\d+)/, 60_000);
-    assert.equal((await healthz(ready[1])).status, 200);
-    const opener = process.platform === "darwin" ? ["open"] : process.platform === "win32" ? ["cmd", "/c", "start", ""] : ["xdg-open"];
-    const r = spawnSync(opener[0], [...opener.slice(1), "vyre://open?address=acme.example.com"], { encoding: "utf8" });
-    assert.equal(r.status, 0, r.stderr);
-    await until(/vyre-desktop: deep link open received/, 20_000);
+    sidecarUrl = ready[1];
+    assert.equal((await healthz(sidecarUrl)).status, 200);
+    if (takeLink) {
+      const opener = process.platform === "darwin" ? ["open"] : process.platform === "win32" ? ["cmd", "/c", "start", ""] : ["xdg-open"];
+      const r = spawnSync(opener[0], [...opener.slice(1), "vyre://open?address=acme.example.com"], { encoding: "utf8" });
+      assert.equal(r.status, 0, r.stderr);
+      await until(/vyre-desktop: deep link open received/, 20_000);
+    }
     const page = await until(/vyre-desktop: page rendered: (\d+) chars at (?:tauri:\/\/localhost|https?:\/\/tauri\.localhost)/, 20_000);
     console.log(`page: ${page[0]}`);
-    assert.doesNotMatch(out, /acme\.example\.com/, "link parameters never reach the log");
-    // The desktop job takes its screenshot of the running window during this hold.
-    await new Promise((r) => setTimeout(r, Number(process.env["VYRE_SHELL_HOLD_MS"] ?? "0")));
+    if (takeLink) assert.doesNotMatch(out, /acme\.example\.com/, "link parameters never reach the log");
+    // The desktop job takes its screenshot of the first running window during this hold.
+    // The relaunch already proves sidecar health and rendering, so it can exit immediately.
+    if (takeLink) await new Promise((r) => setTimeout(r, Number(process.env["VYRE_SHELL_HOLD_MS"] ?? "0")));
   } finally {
-    app.kill();
+    await stopBuiltShell(app, sidecarUrl, out);
   }
+}
+
+test("the built shell starts, reaches its sidecar and takes a vyre:// link", { skip: !APP && "VYRE_SHELL_APP is set only in the desktop job on a built app" }, async () => {
+  await exerciseBuiltShell(true);
+});
+
+test("the installed shell relaunches after a clean exit", { skip: !APP ? "VYRE_SHELL_APP is set only in the desktop job on a built app" : !RELAUNCH && "VYRE_SHELL_RELAUNCH enables the installed-app proof" }, async () => {
+  await exerciseBuiltShell(false);
 });
 
 // Final run on the last commit of P-L10_03: the app test above runs in the desktop job (VYRE_SHELL_APP); this file reports its own ok line.

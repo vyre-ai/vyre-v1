@@ -229,6 +229,12 @@ export async function rewrap(oldPassword: string, newPassword: string, bundle: K
   } finally { wipe(opened.personKey); wipe(opened.privateKey); }
 }
 
+/** Re-wrap an already opened person key after a recovery possession proof; preserve every other wrapped key. */
+export async function wrapPersonKeyWithPassword<T extends KeyBundle>(personKey:Uint8Array,newPassword:string,bundle:T,o:Options={}):Promise<T>{
+ if(personKey.length!==KEY_BYTES)throw new KeyError("bad_blob","That key data is not valid.");
+ return{...bundle,personKeyByPassword:toBase64(await sealWithSecret(newPassword,personKey,"password",fresh(o)))};
+}
+
 // ---- the Space key (ruling 72)
 
 export const SPACE_KEY_VERSION = 1;

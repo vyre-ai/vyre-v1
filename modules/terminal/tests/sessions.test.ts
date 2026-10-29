@@ -337,6 +337,29 @@ test("health: down with no terminals on the host, degraded when tmux is missing,
   assert.equal((await call(hn, "terminal.health", {})).state, "down");
 });
 
+test("live frames: a value that a frame ends exactly on is removed even when its last character could start another spelling of it", async () => {
+  // The relay holds back a tail that could be the start of a spelling. The last character of a value can itself start one (an s for the plain value, a 7 for its hex form, a c for its base64 form), and a
+  // frame that ends exactly on the value must still be scrubbed whole: holding that character back first and scrubbing the rest leaves the value, less its last character, in the stream.
+  for (const last of ["s", "7", "c"]) {
+    const KEY = `sk-live-ABCDEF12345${last}`;
+    const { hn, host } = setup({ "use key": { exitCode: 0, output: "ok" } });
+    bindValues(fakeValues({ "#Dana_Api.key": KEY }));
+    const r = await call(hn, "terminal.run", { command: "use key", env: { K: "#Dana_Api.key" }, idempotencyKey: idem() }, hn.as(AGENT, "usr_dana"));
+    const att = await call(hn, "terminal.attach", { terminalId: r.terminalId });
+    const got: string[] = [];
+    const live = await openFrames(hn.db, att.ticket, hn.clock.t, (t) => got.push(t));
+    assert.ok(live);
+    host.emitFrame(r.terminalId, `sk-live-ABC`);
+    host.emitFrame(r.terminalId, `DEF12345${last}`);   // ends exactly on the value
+    host.emitFrame(r.terminalId, "\r\nnext\r\n");
+    const seen = got.join("");
+    assert.equal(seen.includes(KEY), false, `value ending in ${last}: the stream never shows it (${JSON.stringify(got)})`);
+    assert.equal(seen.includes("sk-live-ABCDEF12345"), false, `value ending in ${last}: nor all but its last character`);
+    assert.match(seen, /\[#Dana_Api\.key\]\r\nnext/);
+    live.close();
+  }
+});
+
 test("live frames: a spent ticket streams the session's output as it arrives, with Vault values removed even when split across frames, and closing stops it", async () => {
   const KEY = "sk-live-ABCDEF123456";
   const { hn, host } = setup({ "use key": { exitCode: 0, output: "ok" } });

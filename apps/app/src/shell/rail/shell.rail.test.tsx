@@ -53,7 +53,7 @@ test("the Space menu: your Spaces with the open one checked, then the actions; T
   const input = { spaces: SEED_DEFS, openId: "nw", away: false, onSwitch: () => undefined, onAction: () => undefined };
   const nw = spaceMenuEntries(input);
   assert.ok(isHead(nw[0] as MenuEntry) && (nw[0] as { head: string }).head === "Spaces");
-  assert.deepEqual(labels(nw), ["Northwind", "Harbor Studio, needs you", "Personal", "Add a Space", "Invite People", "Space Settings", "Open Terminal", "Set Yourself Away", "Your Profile", "Sign Out"]);
+  assert.deepEqual(labels(nw), ["Northwind", "Harbor Studio, needs you", "Personal", "Add a Space", "Invite People", "Space Settings", "Open Terminal", "Set Yourself Away", "Your Profile", "Lock Vyre", "Sign Out"]);
   assert.equal(nw.filter(isItem).filter((e) => e.checked === true).map((e) => e.label).join(), "Northwind");
   assert.ok(iconsAllOrNone(nw));
   assert.ok(!labels(spaceMenuEntries({ ...input, openId: "hb" })).includes("Open Terminal"), "a member does not get Open Terminal");
@@ -67,7 +67,7 @@ test("choosing a Space or an action calls back with it", () => {
   const seen: string[] = [];
   const entries = spaceMenuEntries({ spaces: SEED_DEFS, openId: "nw", away: false, onSwitch: (id) => seen.push(`switch:${id}`), onAction: (a) => seen.push(`action:${a}`) });
   for (const e of entries.filter(isItem)) e.onSelect?.();
-  assert.deepEqual(seen, ["switch:nw", "switch:hb", "switch:me", "action:add", "action:invite", "action:settings", "action:terminal", "action:away", "action:profile", "action:sign-out"]);
+  assert.deepEqual(seen, ["switch:nw", "switch:hb", "switch:me", "action:add", "action:invite", "action:settings", "action:terminal", "action:away", "action:profile", "action:lock", "action:sign-out"]);
 });
 
 test("the red dot is for another Space that needs you, and the tile says away", () => {

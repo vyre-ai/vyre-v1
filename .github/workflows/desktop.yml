@@ -81,10 +81,42 @@ jobs:
           dmgs=(apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg)
           [ "${#dmgs[@]}" -eq 1 ] || { echo "expected exactly one DMG, found ${#dmgs[@]}"; exit 1; }
           hdiutil verify "${dmgs[0]}"
-      - name: Exercise the packaged shell and capture it
+      - name: Mount, install and exercise the macOS DMG
+        if: runner.os == 'macOS'
         run: |
-          if [ "$RUNNER_OS" = "macOS" ]; then APP="$PWD/apps/desktop/src-tauri/target/release/bundle/macos/Vyre.app/Contents/MacOS/vyre-desktop"; else APP="$PWD/apps/desktop/src-tauri/target/release/vyre-desktop.exe"; fi
-          apps/desktop/src-tauri/ci/run-shell.sh "$APP" "$PWD/out"
+          set -euo pipefail
+          shopt -s nullglob
+          dmgs=(apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg)
+          [ "${#dmgs[@]}" -eq 1 ] || { echo "expected exactly one DMG, found ${#dmgs[@]}"; exit 1; }
+          mount="$RUNNER_TEMP/vyre-dmg"
+          install_root="$RUNNER_TEMP/Vyre-Applications"
+          installed="$install_root/Vyre.app"
+          mkdir -p "$mount" "$install_root"
+          attached=0
+          cleanup() { if [ "$attached" = 1 ]; then hdiutil detach "$mount"; fi; }
+          trap cleanup EXIT
+          hdiutil attach -nobrowse -readonly -mountpoint "$mount" "${dmgs[0]}"
+          attached=1
+          apps=("$mount"/*.app)
+          [ "${#apps[@]}" -eq 1 ] || { echo "expected exactly one app in the DMG, found ${#apps[@]}"; exit 1; }
+          ditto "${apps[0]}" "$installed"
+          hdiutil detach "$mount"
+          attached=0
+          codesign --verify --deep --strict "$installed"
+          codesign -dvvv "$installed" 2>&1 | tee -a proof-codesign.txt
+          grep -F "Signature=adhoc" proof-codesign.txt
+          # Ad-hoc signing proves bundle integrity but has no Developer ID or notarization ticket.
+          # Gatekeeper must reject this release-candidate artifact rather than treating that result as a pass.
+          if spctl --assess --type execute --verbose=4 "$installed" > proof-gatekeeper.txt 2>&1; then
+            cat proof-gatekeeper.txt
+            echo "an ad-hoc, non-notarized DMG unexpectedly passed Gatekeeper assessment"
+            exit 1
+          fi
+          cat proof-gatekeeper.txt
+          VYRE_SHELL_RELAUNCH=1 apps/desktop/src-tauri/ci/run-shell.sh "$installed/Contents/MacOS/vyre-desktop" "$PWD/out"
+      - name: Exercise the packaged Windows shell and capture it
+        if: runner.os == 'Windows'
+        run: apps/desktop/src-tauri/ci/run-shell.sh "$PWD/apps/desktop/src-tauri/target/release/vyre-desktop.exe" "$PWD/out"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -92,6 +124,7 @@ jobs:
           path: |
             out
             proof-codesign.txt
+            proof-gatekeeper.txt
             apps/desktop/src-tauri/target/release/bundle/dmg
             apps/desktop/src-tauri/target/release/bundle/nsis
           if-no-files-found: warn

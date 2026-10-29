@@ -46,6 +46,38 @@ export function loadTargets(dir) {
   return [...seen.values()];
 }
 
+function shardCoordinate(index, total) {
+  const n = Number(total), i = Number(index);
+  if (!Number.isInteger(n) || n < 1) throw new Error(`shard total must be a positive integer, got ${total}`);
+  if (!Number.isInteger(i) || i < 0 || i >= n) throw new Error(`shard index must be an integer from 0 to ${n - 1}, got ${index}`);
+  return { index: i, total: n };
+}
+
+/** Stable modulo partition: every input occurs in exactly one shard and input order is retained. */
+export function shardTargets(targets, index, total) {
+  const shard = shardCoordinate(index, total);
+  return targets.filter((_, position) => position % shard.total === shard.index);
+}
+
+/** Each parallel shard writes a unique index so artifact merging cannot overwrite another shard. */
+export function shardIndexName(index, total) {
+  const shard = shardCoordinate(index, total);
+  if (shard.total === 1) return "index.md";
+  const width = Math.max(2, String(shard.total - 1).length);
+  return `index-shard-${String(shard.index).padStart(width, "0")}-of-${shard.total}.md`;
+}
+
+/** Combine complete shard indexes into the canonical artifact index. */
+export function mergeShotIndexes(indexes, expectedShards) {
+  const expected = Number(expectedShards);
+  if (!Number.isInteger(expected) || expected < 1) throw new Error(`expected shard count must be a positive integer, got ${expectedShards}`);
+  const names = expected === 1 ? ["index.md"] : Array.from({ length: expected }, (_, index) => shardIndexName(index, expected));
+  const actual = indexes.map(({ name }) => name).sort();
+  if (JSON.stringify(actual) !== JSON.stringify(names)) throw new Error(`expected shard indexes ${names.join(", ")}; found ${actual.join(", ") || "none"}`);
+  const rows = indexes.flatMap(({ text }) => String(text).split("\n").filter((line) => /^\| /.test(line) && !/^\| target /.test(line) && !/^\|---/.test(line))).sort();
+  return `# Side-by-side screenshots\n\nMerged from ${expected} shards.\n\n| target | skin | size | file |\n|---|---|---|---|\n${rows.join("\n")}\n`;
+}
+
 /** Side-by-side page: real on the left, prototype on the right, one caption each. */
 export function sideBySideHtml({ title, real, proto }) {
   const esc = (s) => String(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;");

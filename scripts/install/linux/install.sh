@@ -340,6 +340,9 @@ fetch_release() {
   if [ -n "$WANT" ] && [ "$WANT" != latest ] && [ "$WANT" != "$REL_VERSION" ]; then
     die "the $CHANNEL channel offers $REL_VERSION, not $WANT; nothing was installed."
   fi
+  if [ -n "${WANT_SHA256:-}" ] && [ "$WANT_SHA256" != "$sum" ]; then
+    die "the reviewed artifact changed on the $CHANNEL channel; check the release again before installing. Nothing was installed."
+  fi
   case "$url" in http://*|https://*) ;; "") die "the manifest names no artifact; nothing was installed." ;; *) url="$base/$url" ;; esac
   say "  Downloading Vyre Server $REL_VERSION"
   fetch "$url" "$TMP/release.tgz" 900 || die "could not download $url; nothing was installed."

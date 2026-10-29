@@ -74,6 +74,7 @@ export function createConnection(o: ConnectionOpts): Connection {
   let status: Status = "idle";
   let current: { ep: Endpoint; t: Transport } | null = null;
   let generation = 0;
+  let pendingRace: AbortController | null = null;
   let users = 0;
   let attempts = 0;
   let lastRx = 0;
@@ -134,6 +135,8 @@ export function createConnection(o: ConnectionOpts): Connection {
 
   async function race(gen: number): Promise<Racer | null> {
     const abort = new AbortController();
+    pendingRace?.abort();
+    pendingRace = abort;
     const now = clock.now();
     const order = rank(list, now);
     const picks = order.filter((e) => usable(e, now)).slice(0, 2);
@@ -146,11 +149,12 @@ export function createConnection(o: ConnectionOpts): Connection {
         open(ep, gen, abort).then((r) => {
           if (won || gen !== generation) { try { r.t.close("lost the race"); } catch { /* closed */ } return; }
           won = true;
+          if (pendingRace === abort) pendingRace = null;
           abort.abort();
           resolve(r);
         }, (e: unknown) => {
           if (!(e instanceof Superseded)) down(ep);
-          if (--left === 0 && !won) resolve(null);
+          if (--left === 0 && !won) { if (pendingRace === abort) pendingRace = null; resolve(null); }
         }).then(() => undefined);
       }
     });
@@ -228,6 +232,7 @@ export function createConnection(o: ConnectionOpts): Connection {
   }
 
   function drop(): void {
+    pendingRace?.abort(); pendingRace = null;
     stopHeartbeat?.(); stopHeartbeat = null;
     const c = current;
     current = null;

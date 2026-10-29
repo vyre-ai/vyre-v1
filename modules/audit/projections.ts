@@ -2,6 +2,8 @@
 // Rows never hold secret values (scrub), an erase entry records who and when and never what, and a bulk read is one row with a sample of ids.
 // The chain: hash = sha-256(prev_hash, canonical row). An edit changes the row's hash, a deletion leaves a gap, a rewrite of the tail disagrees with the signed
 // checkpoints, which sign the head with the Space key through a signer the host supplies (the module never holds the private key).
+import { AUDIT_TARGET_KINDS } from "../../packages/contracts/src/audit-targets.ts";
+import type { AuditTarget } from "../../packages/contracts/src/audit-targets.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { sha256Hex } from "../../kernel/src/log/hash.ts";
@@ -108,24 +110,27 @@ function setMeta(ctx: AuditCtx, k: string, v: string): void {
 }
 
 export interface NewRow {
-  actor: Ref; onBehalfOf?: Ref | undefined; action: string; class: Klass; resource?: ResRef | undefined; before?: unknown; after?: unknown; requestId?: string | undefined;
+  actor: Ref; onBehalfOf?: Ref | undefined; action: string; class: Klass; resource?: ResRef | undefined; before?: unknown; after?: unknown; targets?: readonly AuditTarget[]; requestId?: string | undefined;
 }
 /** Append one row to the chain. `id` is for seeding; the pipeline and audit.append take a fresh one. */
 export function appendRow(ctx: AuditCtx, n: NewRow, id?: string): { auditId: string; seq: number } {
   const head = headOf(ctx);
   const erased = n.class === "erase";
+  const targets = erased ? [] : (n.targets ?? []).filter((target, index, all) => AUDIT_TARGET_KINDS.includes(target.kind) && target.id.length > 0 && target.id.length <= 200 && all.findIndex((item) => item.kind === target.kind && item.id === target.id) === index).slice(0, SAMPLE_IDS);
+  const after = targets.length ? { ...(n.after !== null && typeof n.after === "object" && !Array.isArray(n.after) ? n.after as Record<string, unknown> : n.after === undefined ? {} : { detail: n.after }), targets } : n.after;
   const base: Omit<RowRec, "hash"> = {
     seq: head.seq + 1, id: id ?? nid("aud"), at: ctx.now(), actor_kind: n.actor.kind, actor_id: n.actor.id,
     behalf_kind: n.onBehalfOf?.kind ?? null, behalf_id: n.onBehalfOf?.id ?? null, action: n.action,
     resource_type: n.resource?.type ?? null, resource_id: n.resource?.id ?? null, class: n.class,
     // an erase entry says who and when, never what
-    before_json: erased ? null : jsonOf(n.before), after_json: erased ? null : jsonOf(sampled(n.after)), trace_id: ctx.trace.traceId, request_id: n.requestId ?? null, prev_hash: head.hash,
+    before_json: erased ? null : jsonOf(n.before), after_json: erased ? null : jsonOf(sampled(after)), trace_id: ctx.trace.traceId, request_id: n.requestId ?? null, prev_hash: head.hash,
   };
   const row: RowRec = { ...base, hash: hashOf(base) };
   ctx.db.run(
     `INSERT INTO audit_row (seq, id, at, actor_kind, actor_id, behalf_kind, behalf_id, action, resource_type, resource_id, class, before_json, after_json, trace_id, request_id, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     row.seq, row.id, row.at, row.actor_kind, row.actor_id, row.behalf_kind, row.behalf_id, row.action, row.resource_type, row.resource_id, row.class,
     row.before_json, row.after_json, row.trace_id, row.request_id, row.prev_hash, row.hash);
+  for (const target of targets) ctx.db.run(`INSERT INTO audit_target (kind, target_id, audit_seq) VALUES (?, ?, ?)`, target.kind, target.id, row.seq);
   return { auditId: row.id, seq: row.seq };
 }
 
@@ -139,6 +144,7 @@ export function classOfInvoke(cls: "allow" | "deny" | "hold", risk: "low" | "med
 // ---- reading rows
 
 export interface Filter {
+  target?: AuditTarget | undefined;
   actor?: Ref | undefined; action?: string | undefined; resource?: ResRef | undefined; class?: Klass | undefined; from?: number | undefined; to?: number | undefined;
   q?: string | undefined; traceId?: string | undefined;
 }
@@ -175,14 +181,28 @@ export function findRows(ctx: AuditCtx, f: Filter, before: number | undefined, l
   const q = f.q?.trim();
   for (;;) {
     const w = whereOf(f, cursor);
-    const chunk = ctx.db.all(`SELECT * FROM audit_row${w.sql} ORDER BY seq DESC LIMIT ?`, ...w.args, CHUNK) as RowRec[];
-    for (const r of chunk) {
-      if (q && !matchesQ(r, q)) continue;
+    let chunk: RowRec[];
+    let indexed: { audit_seq: number }[] | undefined;
+    if (f.target) {
+      indexed = (cursor === undefined
+        ? ctx.db.all(`SELECT audit_seq FROM audit_target WHERE kind = ? AND target_id = ? ORDER BY audit_seq DESC LIMIT ?`, f.target.kind, f.target.id, CHUNK)
+        : ctx.db.all(`SELECT audit_seq FROM audit_target WHERE kind = ? AND target_id = ? AND audit_seq < ? ORDER BY audit_seq DESC LIMIT ?`, f.target.kind, f.target.id, cursor, CHUNK)) as { audit_seq: number }[];
+      if (indexed.length === 0) return { rows: out, more: false };
+      const placeholders = indexed.map(() => "?").join(",");
+      chunk = ctx.db.all(`SELECT * FROM audit_row${w.sql ? `${w.sql} AND` : " WHERE"} seq IN (${placeholders}) ORDER BY seq DESC LIMIT ?`, ...w.args, ...indexed.map((row) => row.audit_seq), CHUNK) as RowRec[];
+    } else chunk = ctx.db.all(`SELECT * FROM audit_row${w.sql} ORDER BY seq DESC LIMIT ?`, ...w.args, CHUNK) as RowRec[];
+    for (const row of chunk) {
+      if (q && !matchesQ(row, q)) continue;
+      if (f.target) {
+        let metadata: { targets?: AuditTarget[] } = {};
+        try { metadata = JSON.parse(row.after_json ?? "{}"); } catch { /* a broken metadata row never matches a target */ }
+        if (!Array.isArray(metadata?.targets) || !metadata.targets.some((target) => target?.kind === f.target!.kind && target.id === f.target!.id)) continue;
+      }
       if (out.length === limit) return { rows: out, more: true };
-      out.push(r);
+      out.push(row);
     }
-    if (chunk.length < CHUNK) return { rows: out, more: false };
-    cursor = chunk[chunk.length - 1]!.seq;
+    if ((indexed?.length ?? chunk.length) < CHUNK) return { rows: out, more: false };
+    cursor = indexed ? indexed[indexed.length - 1]!.audit_seq : chunk[chunk.length - 1]!.seq;
   }
 }
 

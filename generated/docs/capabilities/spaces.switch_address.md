@@ -8,7 +8,7 @@ Move the Space between the relay and an own domain; devices pin the Space key, s
 | Version | 1 (since 1.0.0) |
 | Effects | write |
 | Permission | server.network |
-| Grant level | view |
+| Grant level | manage |
 | Risk | high |
 | Resource | space |
 | Gate | none |

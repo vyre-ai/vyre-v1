@@ -50,6 +50,14 @@ export function readStored(store: KeyValueStore | undefined = browserStore(), ba
   return baseUrl ? all[baseUrl] ?? null : Object.values(all)[0] ?? null;
 }
 
+/** Saved sessions are hints only: every activation still verifies the authenticated Space. */
+export function readStoredSessions(store:KeyValueStore|undefined=browserStore()):StoredSession[]{return Object.values(sessions(store)).filter(candidate=>{
+ try{const url=new URL(candidate.baseUrl),def=candidate.def;return!url.username&&!url.password&&spaceEndpoint(candidate.baseUrl)===candidate.baseUrl&&!!candidate.token&&!!candidate.personId&&(def.kind==='personal'||def.kind==='team')&&typeof def.kit==='string'&&typeof def.skinDefault==='string'&&Array.isArray(def.tint)&&def.tint.length===2&&def.tint.every(value=>typeof value==='string')&&!!def.counts&&!!def.dots;}catch{return false;}
+});}
+
+/** A managed Personal profile keeps its Space identity when its loopback port changes. */
+export function readStoredSpace(spaceId:string,store:KeyValueStore|undefined=browserStore()):StoredSession|null{return Object.values(sessions(store)).find(s=>s.def.spaceId===spaceId)??null;}
+
 /** The gate never carries a prior Space across an address change. */
 export function phaseForStoredAddress<T>(stored: T | null): { kind: "signin" } | { kind: "shell"; stored: T } {
   return stored ? { kind: "shell", stored } : { kind: "signin" };
@@ -94,7 +102,7 @@ export async function signInAndVerify<T extends OpenedSession>({ baseUrl, contin
   if (answer.status === "second_factor_required") return { status: answer.status, options };
   const token = answer.session?.token;
   if (!token) throw new Error("The Space did not return a session. Try again.");
-  const stored = await openVerifiedSession({ baseUrl, token, continuity, open, getSpace, ...(persist ? { persist } : {}) });
+  const stored = await openVerifiedSession({ baseUrl, token, ...(continuity?{continuity}:{}), open, getSpace, ...(persist ? { persist } : {}) });
   await afterVerified?.(stored);
   return { status: "ok", options, stored };
 }
@@ -106,7 +114,7 @@ export async function verifyStoredSession<T extends OpenedSession>({ stored, ope
   const real = await open();
   try {
     const actual = await getSpace(real);
-    if (real.def.spaceId !== actual.id || actual.id !== stored.def.spaceId || actual.marker !== stored.marker) throw new Error("This Space no longer matches the session for this address. Check the address and try again.");
+    if (real.me.id !== stored.personId || real.def.spaceId !== actual.id || actual.id !== stored.def.spaceId || actual.marker !== stored.marker) throw new Error("This Space no longer matches the session for this address. Check the address and try again.");
     return real;
   } catch (error) {
     real.close();

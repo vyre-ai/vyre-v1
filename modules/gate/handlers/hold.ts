@@ -114,7 +114,8 @@ function page<T>(all: readonly T[], cursor?: string, limit?: number): { rows: T[
 }
 
 export async function holdsList(ctx: GateCtx, input: In): Promise<unknown> {
-  const all = holdsWhere(ctx.db).filter((h) =>
+  // a hold is written before its Approve task is made (a retry of the same decision then finds it), so for that moment it has no task: it is not a hold anyone can act on yet, and its empty taskId is not a valid id
+  const all = holdsWhere(ctx.db).filter((h) => h.taskId !== "" &&
     (!input.states || (input.states as string[]).includes(h.state)) && (!input.act || h.act === input.act) && (!input.runId || h.runId === input.runId) && mayHandle(ctx, h));
   const p = page(all, input.cursor, input.limit);
   return clean({ holds: p.rows.map(holdOut), next: p.next, total: p.total });
@@ -122,7 +123,7 @@ export async function holdsList(ctx: GateCtx, input: In): Promise<unknown> {
 
 export async function holdsGet(ctx: GateCtx, input: In): Promise<unknown> {
   const h = getHold(ctx, input.holdId);
-  if (!mayHandle(ctx, h)) raise(ctx, "permission.not_found", "That hold is not available.");
+  if (h.taskId === "" || !mayHandle(ctx, h)) raise(ctx, "permission.not_found", "That hold is not available.");
   return { hold: holdOut(h) };
 }
 

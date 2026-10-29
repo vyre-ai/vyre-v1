@@ -1,0 +1,15 @@
+// A genuine fresh owner session verifies the daemon-advertised origin and canonical socket route.
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
+import {registryHash} from '../../../scripts/lib/registry-hash.mjs';
+import {bootFreshSpace,edge,claimOnEdge} from './real-app-harness.test.ts';
+test('configured loopback address advertises its real WebSocket origin and answers authenticated hello',async t=>{
+ const dist=process.env['VYRE_APP_DIST'];if(!dist){if(process.env['VYRE_REQUIRE_CHROME']==='1')assert.fail('production artifact required');t.skip('production artifact required');return;}
+ const{chromium}=await import('playwright-core');const space=await bootFreshSpace('personal',true),web=await edge(dist,space.url),browser=await chromium.launch({executablePath:process.env['CHROME_BIN']||chromium.executablePath()});
+ try{
+ const page=await browser.newPage();await page.goto(claimOnEdge(space.claim!,web.origin));for(const[id,value]of[['claim-name','Endpoint fixture'],['claim-username','endpointfixture'],['claim-password','fixture endpoint password123'],['claim-confirm','fixture endpoint password123']])await page.getByTestId(id!).fill(value!);await page.getByTestId('claim-next').click();await page.getByTestId('claim-saved').click();await page.getByTestId('claim-create').click();await page.getByTestId('shell').waitFor({timeout:30000});const session=await page.evaluate(()=>JSON.parse(localStorage.getItem('vyre.session.v1')!).sessions[location.origin]);
+ const call=async(path:string,input:unknown)=>{const reply=await page.request.post(space.url+path,{headers:{authorization:'Bearer '+session.token},data:input});assert.equal(reply.status(),200,path+': '+await reply.text());return(await reply.json()).data;};
+ const endpoints=(await call('/v1/sync/endpoints',{})).endpoints;assert.deepEqual(endpoints,[{kind:'direct',url:space.url.replace('http:','ws:')}]);const who=await call('/v1/identity/whoami',{}),status=await call('/v1/sync/status',{});const hello={deviceId:who.deviceId,deviceClass:'web',appVersion:'1.0.0',registryHash:registryHash(),cursor:0,epoch:status.epoch,replica:{entities:{}}};const answer=await call('/sync/v1/hello',hello);assert.equal(answer.mode,'live');assert.equal((await call('/sync/v1/hello',{...hello,registryHash:'unknown-fixture-build'})).mode,'resync');
+ await new Promise<void>((resolve,reject)=>{const socket=new WebSocket(endpoints[0].url+'/sync/v1/ws?token='+encodeURIComponent(session.token));const timer=setTimeout(()=>{socket.close();reject(new Error('real advertised socket hello timeout'));},5000);socket.onopen=()=>socket.send(JSON.stringify({t:'hello',hello}));socket.onerror=()=>{clearTimeout(timer);reject(new Error('advertised socket failed'));};socket.onmessage=event=>{const frame=JSON.parse(String(event.data));if(frame.t==='hello_ok'){clearTimeout(timer);socket.close();resolve();}};});
+ assert.equal((await page.request.post(space.url+'/v1/sync/endpoints',{data:{}})).status(),401);
+ }finally{await browser.close();web.close();await space.stop();fs.rmSync(space.dir,{recursive:true,force:true});}
+});

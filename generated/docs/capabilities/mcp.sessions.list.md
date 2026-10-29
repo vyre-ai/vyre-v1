@@ -52,6 +52,8 @@ type Out = {
       startedAt: number;
       lastCallAt?: number;
       calls: number;
+      closedAt?: number;
+      expiresAt?: number;
     }>;
   next?: string;
   total?: number;
@@ -81,6 +83,8 @@ type Out = {
       {
         "actingFor": "example",
         "calls": 1,
+        "closedAt": 1760000000000,
+        "expiresAt": 1760000000000,
         "kind": "outside",
         "lastCallAt": 1760000000000,
         "name": "example",

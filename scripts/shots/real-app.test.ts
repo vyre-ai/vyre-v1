@@ -22,6 +22,6 @@ test("real-app shots: a row says whether the place drew and which stub modules i
 
 test("real-app shots: every place has its own page route and a selector that proves it drew; Home at phone width is the You screen", () => {
   for (const p of PLACES) { assert.ok(p.route && p.drew, p.id); }
-  assert.equal(PLACES.find((p) => p.id === "apps")?.drew.includes("place-sites-failed"), true, "Apps' calm not-in-this-version frame counts as drawn");
+  assert.equal(PLACES.find((p) => p.id === "apps")?.drew, "[data-testid='apps-place']", "Apps must mount its actual v1 place; obsolete deferred or failed Sites frames are insufficient");
   assert.equal(PHONE_DREW.home, "[data-testid='you-screen']");
 });

@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
+import https from "node:https";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -44,11 +45,11 @@ const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".j
 export interface Edge { origin: string; close(): void }
 
 /** The app's export on one origin, with the gateway (/v1, /sync, /healthz) and the live socket (/live) passed through to the daemon. */
-export function edge(dist: string, daemonUrl: string): Promise<Edge> {
+export function edge(dist: string, daemonUrl: string, tls?: { key: string; cert: string }): Promise<Edge> {
   const target = new URL(daemonUrl);
   const base = path.resolve(dist);
-  const proxied = (p: string): boolean => p.startsWith("/v1/") || p.startsWith("/sync/") || p === "/healthz" || p.startsWith("/live");
-  const server = http.createServer((req, res) => {
+  const proxied = (p: string): boolean => p.startsWith("/v1/") || p.startsWith("/sync/") || p === "/healthz" || p.startsWith("/live") || p.startsWith("/local/vault/key/");
+  const handle: http.RequestListener = (req, res) => {
     const u = new URL(req.url ?? "/", "http://edge");
     if (proxied(u.pathname)) {
       const up = http.request({ host: target.hostname, port: target.port, path: req.url, method: req.method, headers: req.headers }, (r) => { res.writeHead(r.statusCode ?? 502, r.headers); r.pipe(res); });
@@ -62,7 +63,8 @@ export function edge(dist: string, daemonUrl: string): Promise<Edge> {
     if (!file) file = path.join(base, "index.html");
     res.writeHead(200, { "content-type": TYPES[path.extname(file)] ?? "application/octet-stream" });
     fs.createReadStream(file).pipe(res);
-  });
+  };
+  const server = tls ? https.createServer(tls, handle) : http.createServer(handle);
   server.on("upgrade", (req, socket, head) => {
     const up = net.connect(Number(target.port), target.hostname, () => {
       const lines = [`${req.method ?? "GET"} ${req.url ?? "/"} HTTP/1.1`];
@@ -74,7 +76,7 @@ export function edge(dist: string, daemonUrl: string): Promise<Edge> {
     up.on("error", () => socket.destroy());
     socket.on("error", () => up.destroy());
   });
-  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve({ origin: `http://127.0.0.1:${(server.address() as net.AddressInfo).port}`, close: () => server.close() })));
+  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve({ origin: `${tls ? "https" : "http"}://127.0.0.1:${(server.address() as net.AddressInfo).port}`, close: () => server.close() })));
 }
 
 const ADMIN_TOKEN = "e2e-owner-bootstrap-token";
@@ -84,8 +86,8 @@ export interface Space { url: string; token: string; space: string; dir: string;
 const stopper = (child: ChildProcess): (() => Promise<void>) => () => new Promise<void>((resolve) => { child.once("exit", () => resolve()); child.kill("SIGTERM"); setTimeout(() => child.kill("SIGKILL"), 10_000).unref(); });
 
 /** Starts the daemon as a person does and reads the address it prints (and, on a fresh install, the claim link it prints right after). */
-async function startDaemon(dir: string, extra: string[]): Promise<{ child: ChildProcess; url: string; claim: string | null }> {
-  const child: ChildProcess = spawn(process.execPath, ["host/src/daemon/main.ts", "--role", "space", "--data-dir", dir, "--port", "0", ...extra], {
+async function startDaemon(dir: string, extra: string[], port=0): Promise<{ child: ChildProcess; url: string; claim: string | null }> {
+  const child: ChildProcess = spawn(process.execPath, ["host/src/daemon/main.ts", "--role", "space", "--data-dir", dir, "--port", String(port), ...extra], {
     cwd: REPO, env: { ...process.env, VYRE_ADMIN_TOKEN: ADMIN_TOKEN }, stdio: ["ignore", "pipe", "inherit"],
   });
   const printed = await new Promise<{ url: string; claim: string | null }>((resolve, reject) => {
@@ -123,9 +125,12 @@ export async function bootSpace(): Promise<Space> {
 }
 
 /** A fresh install (ruling 71): an empty data directory. The host makes the Space and prints a one-time claim link; the owner becomes the owner by claiming it, as a person does. */
-export async function bootFreshSpace(): Promise<Space> {
+export async function bootFreshSpace(kind?:"personal", publishLocal=false): Promise<Space> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-real-app-fresh-"));
-  const d = await startDaemon(dir, ["--space", "spc_fresh", "--space-name", "Fresh Co"]);
+  const port=publishLocal?await new Promise<number>((resolve,reject)=>{const server=net.createServer();server.once("error",reject);server.listen(0,"127.0.0.1",()=>{const selected=(server.address()as net.AddressInfo).port;server.close(()=>resolve(selected));});}):0;
+  const address=publishLocal?`http://127.0.0.1:${port}`:null;
+  const d = await startDaemon(dir, ["--space", "spc_fresh", "--space-name", kind==="personal"?"Personal":"Fresh Co", ...(kind?["--space-kind",kind]:[]),...(address?["--address",address]:[])],port);
+  if(address&&d.url!==address)throw new Error("The fixture must publish its actual listening endpoint");
   return { url: d.url, token: ADMIN_TOKEN, space: "spc_fresh", dir, stop: stopper(d.child), claim: d.claim };
 }
 

@@ -51,6 +51,31 @@ test("every job that runs steps has timeout-minutes", () => {
   for (const w of all) for (const j of w.jobs) if (!j.uses) assert.ok(j.timeout, `${w.file}: job ${j.name} has no timeout-minutes`);
 });
 
+test("shots shards the complete visual suite and publishes release evidence through one canonical artifact", () => {
+  const shots = wf("shots");
+  const capture = shots.jobs.find((j) => j.name === "shots")!;
+  const evidence = shots.jobs.find((j) => j.name === "release-evidence")!;
+  const aggregate = shots.jobs.find((j) => j.name === "aggregate-shots")!;
+  assert.ok(capture && evidence && aggregate, "capture, release evidence and aggregation jobs exist");
+  assert.match(capture.text, /fromJSON\(startsWith\(github\.ref_name, 'build\/P-'\)/);
+  assert.match(capture.text, /\[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35\]/);
+  assert.match(capture.text, /'1' \|\| '36'/);
+  assert.match(capture.text, /--shard-index "\$\{\{ matrix\.shard \}\}" --shard-total "\$SHARD_TOTAL"/);
+  assert.match(capture.text, /name: shots-part-\$\{\{ matrix\.shard \}\}/);
+  assert.doesNotMatch(capture.text, /pwa-mobile|real-app\.e2e/, "release evidence does not wait behind visual shards");
+  assert.deepEqual(evidence.needs, [], "release evidence starts independently");
+  assert.match(evidence.text, /pwa-mobile\/evidence\.json/);
+  assert.match(evidence.text, /pwa-mobile\/iphone-390x844-standalone-simulated\.png/);
+  assert.deepEqual(aggregate.needs, ["shots", "release-evidence"]);
+  assert.match(aggregate.text, /pattern: shots-part-\*/);
+  assert.match(aggregate.text, /name: shots-evidence/);
+  assert.match(aggregate.text, /merge-index\.mjs/);
+  assert.match(aggregate.text, /SHARD_TOTAL=36/);
+  assert.match(aggregate.text, /name: shots\s*$/m);
+  assert.match(aggregate.text, /if-no-files-found: error/);
+  assert.equal(shots.jobs.reduce((count, job) => count + (job.text.match(/name: shots\s*$/gm) ?? []).length, 0), 1, "only aggregation publishes the canonical shots artifact");
+});
+
 test("check, golden and budget are real jobs in check.yml, budget runs if always() at 5 minutes", () => {
   const c = wf("check");
   for (const n of ["check", "golden", "budget"]) assert.ok(c.jobs.find((j) => j.name === n), `check.yml job ${n}`);
@@ -68,6 +93,7 @@ test("budget jobs run if always() at 5, 10 and 25 minutes", () => {
     assert.match(j!.text, /^ {4}if: always\(\)/m, `${job} if always`);
     assert.match(j!.text, new RegExp(`ci-budget\\.ts --kind ${kind}\\b`));
   }
+  assert.deepEqual(wf("release").jobs.find((j) => j.name === "budget-tag")!.needs, ["live", "deploy"], "tag budget stops at the live and deploy boundary, before desktop publication work");
 });
 
 test("native stays non-blocking for live while the macOS desktop artifact gates only publication", () => {
@@ -82,6 +108,7 @@ test("native stays non-blocking for live while the macOS desktop artifact gates 
   const assembled = rel.jobs.find((j) => j.name === "desktop-release-files");
   assert.ok(assembled, "release assembles the desktop artifact");
   assert.deepEqual(assembled.needs, ["package", "desktop"]);
+  assert.match(assembled.text, /^ {4}timeout-minutes: 15$/m, "the 125 MB desktop artifact has enough time to download and verify");
   assert.match(assembled.text, /name: desktop-macOS, path: desktop-artifact/);
   assert.match(assembled.text, /exactly one DMG/);
   assert.match(assembled.text, /sha256sum/);
@@ -92,6 +119,50 @@ test("native stays non-blocking for live while the macOS desktop artifact gates 
     assert.ok(job.needs.includes("desktop-release-files"), `${n} waits for the macOS package`);
     assert.match(job.text, /name: release-files-desktop, path: dist/);
   }
+});
+
+test("release artifact transfer stages have a bounded thirty-minute window", () => {
+  const rel = wf("release");
+  for (const name of ["sign", "sign-dryrun", "publish"]) {
+    const job = rel.jobs.find((j) => j.name === name);
+    assert.ok(job, `release.yml job ${name}`);
+    assert.match(job!.text, /^ {4}timeout-minutes: 30$/m, `${name} allows the measured 127 MB artifact transfer plus its bounded work`);
+  }
+  assert.match(rel.jobs.find((j) => j.name === "sign")!.text, /name: release-files-desktop, path: dist/);
+  assert.match(rel.jobs.find((j) => j.name === "sign-dryrun")!.text, /name: release-files-desktop, path: dist/);
+  assert.match(rel.jobs.find((j) => j.name === "publish")!.text, /name: release-signed, path: dist/);
+});
+
+test("the macOS desktop release path verifies, mounts, installs and exercises the DMG", () => {
+  const desktop = wf("desktop");
+  assert.doesNotMatch(files.join("\n"), /^mac\.yml$/m, "the removed server-installer workflow cannot stand in for a desktop DMG gate");
+  assert.match(desktop.text, /codesign --verify --deep --strict/);
+  assert.match(desktop.text, /Signature=adhoc/);
+  assert.match(desktop.text, /hdiutil verify/);
+  assert.match(desktop.text, /hdiutil attach/);
+  assert.match(desktop.text, /ditto /);
+  assert.match(desktop.text, /hdiutil detach/);
+  assert.match(desktop.text, /spctl --assess --type execute/);
+  assert.match(desktop.text, /run-shell\.sh/);
+  assert.match(desktop.text, /VYRE_SHELL_RELAUNCH=1/);
+  assert.match(wf("release").text, /name: desktop-macOS, path: desktop-artifact/);
+  const runner = fs.readFileSync(path.resolve(dir, "../../apps/desktop/src-tauri/ci/run-shell.sh"), "utf8");
+  const smoke = fs.readFileSync(path.resolve(dir, "../../apps/desktop/tests/shell.heavy.test.ts"), "utf8");
+  assert.match(runner, /VYRE_SHELL_RELAUNCH/);
+  assert.match(smoke, /VYRE_SHELL_RELAUNCH/);
+  assert.match(smoke, /test\("the installed shell relaunches after a clean exit"/);
+  assert.doesNotMatch(smoke, /if \(RELAUNCH\) await exerciseBuiltShell/,
+    "the relaunch needs its own Node test timeout instead of sharing the first-launch 60 second budget");
+  assert.match(smoke, /function requestNormalQuit/,
+    "platform-specific normal app shutdown belongs in one lifecycle helper");
+  assert.match(smoke, /tell application id \\"ai\.vyre\.desktop\\" to quit/,
+    "macOS smoke must exercise the app's normal quit lifecycle before relaunching");
+  assert.match(smoke, /CloseMainWindow\(\)/,
+    "Windows smoke must close the spawned process's real top-level window");
+  assert.match(smoke, /normal packaged-shell quit is unsupported/,
+    "unsupported platforms must fail explicitly rather than silently using a forceful signal");
+  assert.match(smoke, /awaitSidecarStop/,
+    "the first launch must prove its packaged sidecar stopped before the relaunch begins");
 });
 
 test("no npm install, docker pull or curl outside prewarm", () => {

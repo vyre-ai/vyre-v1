@@ -34,7 +34,7 @@ The budget is not at risk from these numbers, but they are measured on placehold
 
 1. `kernel/tests/gsia.seal.test.ts:102` "a short key is refused" fails on the tag commit. Someone owning kernel/ must look; it blocks a real tag.
 2. `golden/harness.test.ts` and `fixtures/seed/small/small.seed.test.ts` take over 30 s on a loaded fast shard (32 s). They belong on the slow list (ruling 52, scripts/slow-check.ts), or the tag must run golden through `golden.yml` only.
-3. This historical run predates the current release workflow. `release.yml` now has lineage, signing, publishing and smoke stages, and `desktop.yml` builds the ad-hoc-signed macOS DMG used by the release payload. The current gaps are the `release` Environment/key, real deploy, and mobile artifacts; see docs/release/runbook.md.
+3. This historical run predates the current release workflow. `release.yml` now has lineage, signing, publishing and smoke stages, and `desktop.yml` builds the ad-hoc-signed macOS DMG used by the release payload. The remaining gaps are a real tagged release execution, real deploy, and mobile artifacts; see docs/release/runbook.md.
 4. The historical run predated the now-configured GitHub Environment `release`, its protected signing secret, required reviewer, and online signing/build runners. A real release has not run yet.
 
 ## Not run, by instruction

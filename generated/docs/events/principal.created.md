@@ -20,6 +20,7 @@ A person, agent, outside actor or service came to exist
 type Payload = {
   principalId: string;
   kind: "person" | "agent" | "actor" | "service";
+  name?: string;
   owner?: string;
 };
 ```

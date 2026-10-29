@@ -209,7 +209,9 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     const inEscape = await filesIn(escDir.data.folder.folderId as string);
     assert.ok(!inEscape.files.some((f) => f.name === "host-secret.txt"), "nothing was read through the link into Files");
     assert.ok(!(await filesIn(folderId)).files.some((f) => f.name === "host-secret.txt"), "the host file is not in the agent's folder either");
-    fs.rmSync(path.join(dir, "computers", agentId, "Vyre", "escape"), { force: true });
+    const removedEscape = await inBox(`rm -rf -- ${HOME}/escape`);
+    assert.equal(removedEscape.code, 0, `cleaning up the escape fixture failed: ${removedEscape.out}`);
+    assert.deepEqual(fs.readdirSync(hostTmp), ["host-secret.txt"], "cleanup did not follow the link to its host target");
     fs.rmSync(hostTmp, { recursive: true, force: true });
 
     // both sides edit the same file between two passes: Files keeps the path, the computer's version lands beside it, and the owner gets a task
@@ -222,7 +224,7 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     const copy = await until("the conflict copy in Files", async () => (await filesIn(folderId)).files.find((f) => f.name === "both (from computer).txt"));
     assert.equal(await textOf(copy.fileId), "computer wrote this");
     assert.equal(await textOf(both.fileId), "vyre wrote this", "Files kept the original path");
-    assert.equal((await until("the computer shows Files' version", async () => { const t = await onDisk("both.txt"); return t === "vyre wrote this" ? t : null; })).length > 0, true);
+    assert.equal((await until("the computer shows Files' version", async () => { const t = await onDisk("both.txt"); return t === "vyre wrote this\n" ? t : null; })).length > 0, true);
     const tasks = await call(d, "tasks.list", { scope: "all" });
     assert.ok(JSON.stringify(tasks.data).includes("A file changed in two places: both.txt"), "the agent's owner has a task for the conflict");
 
@@ -253,6 +255,13 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     const slept = await call(d, "computers.sleep", { computerId });
     assert.equal(slept.status, 200, JSON.stringify(slept.data));
     assert.equal(slept.data.computer.state, "asleep");
+
+    // remove: the call succeeds and the container is gone
+    const removed = await call(d, "computers.remove", { computerId });
+    assert.equal(removed.status, 200, JSON.stringify(removed.data));
+    const left = await docker(["ps", "-aq", "--filter", `name=^${box}$`], 30_000);
+    assert.equal(left.out.trim(), "", `the container is removed: ${left.out}`);
+    computerId = "";
   } finally {
     if (computerId) await call(d, "computers.remove", { computerId }).catch(() => undefined);
     await d.stop();

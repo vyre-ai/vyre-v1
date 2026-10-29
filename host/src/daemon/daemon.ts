@@ -1,3 +1,7 @@
+import { createChoiceSource } from "./forms-choices.ts";
+import {syncEndpointOrigin} from "./sync-endpoint.ts";
+import {collectSpaceExport,SpaceExportError} from '../seams/space-export.ts';
+import {createOwnerArchives} from './owner-archives.ts';
 // vyred (ARCH 1.2): the one binary. `startDaemon` boots a host in one or both roles.
 //   space   events.db (kernel, single writer) -> access snapshot -> module loader (modules.json + registry) -> invoke pipeline -> gateway and live socket on one HTTP server,
 //           modules.db for every module's tables, the log sink, the supervisor and scheduler, host probes and the two command queues the Console writes.
@@ -5,12 +9,15 @@
 //           the Chrome bridge register as supervised services (`options.services`) when their lanes land.
 // Nothing here knows a module's internals: module code only ever sees the ctx the loader builds.
 import fs from "node:fs";
+import { formUploadAllowed } from "./forms-authority.ts";
+import { createOwnedExports } from "./owned-exports.ts";
 import type http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { authorize } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { LogClient } from "../../../kernel/src/log/index.ts";
+import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 import { registry } from "../../../generated/registry.ts";
 import { routes } from "../../../generated/routes.ts";
 import { validateEvent, validateInput } from "../../../generated/validators.ts";
@@ -31,7 +38,7 @@ import { deferredCaps, deferredModules } from "../routes/deferred.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
 import { createGateway, indexRoutes } from "../gateway.ts";
 import { withEventIds } from "../ids.ts";
-import type { GatewayDeps, RouteRec } from "../gateway.ts";
+import type { GatewayDeps, RouteRec, SessionInfo } from "../gateway.ts";
 import { createInvoke, createRateLimiter, fail, indexCapabilities, makeError, personalMatrix } from "../invoke.ts";
 import type { AuditRow, Handler, Invoke, InvokeDeps } from "../invoke.ts";
 import { fileExportsImporter, fileImporter, fileSeamImporter, loadHost, readModuleList } from "../loader.ts";
@@ -60,9 +67,14 @@ import { withGateNesting } from "./gate-nesting.ts";
 import { createComputersFillHost, createFillRoute } from "../seams/computers.ts";
 import { createComputersHost } from "../seams/computers-host.ts";
 import { createEngineHost } from "../seams/engine.ts";
+import { createEmailAskDriver, createFormAskDriver } from "../seams/email-ask.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
 import { applyPendingRestore, clearRestoredTombstones, createBackupHost, readRestoredTombstones } from "../seams/backup.ts";
 import { createKitsHost } from "../seams/kits.ts";
+import { createTelemetryRecorder } from "../seams/telemetry.ts";
+import { createConnectorsHost } from "../seams/connectors.ts";
+import type { ConnectorNetwork } from "../seams/connectors.ts";
+import { createAuditRecorder } from "../seams/audit.ts";
 import { startRelayBox } from "../seams/relay.ts";
 import { createSyncSeam } from "../seams/sync.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
@@ -71,8 +83,11 @@ import { createRunsHost } from "../seams/runs.ts";
 import type { WebhookAccept } from "../routes/webhooks.ts";
 import { sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { createLocalKeyRoute } from "../routes/local-key.ts";
+import { createMcpRoute } from "../routes/mcp.ts";
+import type { McpRuntime } from "../routes/mcp.ts";
 import { createKeyring } from "../seams/keyring.ts";
 import { createPeopleExtras, githubOAuthFromEnv } from "../seams/people.ts";
+import {createRecoveryCommit} from "../seams/recovery.ts";
 import type { GithubOAuth } from "../seams/people.ts";
 import { createSpaceAdmin } from "../seams/spaceadmin.ts";
 import { preAuthSession } from "./preauth.ts";
@@ -93,15 +108,20 @@ import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
 import type { HookRunner, ModuleHooks } from "./consumers.ts";
 import { createSpaceStore, spaceStoreDrivers, spaceStorePath } from "./store.ts";
+import { createViewAs } from "./view-as.ts";
+import { createRecordAccess } from "./record-access.ts";
+import { createSourceGuard } from "./connector-source-guard.ts";
 import { coreOf, createSyncEngine } from "./syncengine.ts";
 import { collectProjections, createProjectionRunner } from "./projections.ts";
 import type { ProjectionRunner } from "./projections.ts";
-import { defaultNetworkPort, pollCommands } from "./commands.ts";
+import { managedNetworkPort } from "./network-driver.ts";
+import { pollCommands } from "./commands.ts";
 import type { NetworkPort } from "./commands.ts";
 import { alive, clearInfo, ensureAdminToken, ensureDirs, pathsFor, readInfo, writeInfo } from "./config.ts";
 import type { DaemonConfig, DaemonPaths, Role } from "./config.ts";
 import { migrate } from "./hosttables.ts";
 import { requestListener } from "./http.ts";
+import { desktopCors } from "./desktop-cors.ts";
 import { createChromeBridge } from "../bridge/chrome.ts";
 import type { ChromeBridge } from "../bridge/chrome.ts";
 import { coerceQuery } from "./query.ts";
@@ -113,7 +133,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The repo (or install) root that holds generated/, modules/ and host/modules.json. */
 export const CODE_ROOT = path.resolve(HERE, "../../..");
 /** What a device compares its registry with at hello (sync): the hash of registry.json, which the generated module no longer exports (ci: no global hash). */
-const registryHash = sha256b64(fs.readFileSync(new URL("../../../generated/registry.json", import.meta.url)));
+const registryHash = sha256Hex(fs.readFileSync(new URL("../../../generated/registry.json", import.meta.url)));
 const ZERO_TRACE = "0".repeat(32);
 const RING = 5000;
 
@@ -131,6 +151,11 @@ export const repairEventMatches = (stored: { id: string; type: string; sv: numbe
   stored.entity === intended.entity && stored.entity_id === intended.entity_id && stored.on_behalf === intended.on_behalf && stored.device === intended.device && stored.run_id === intended.run_id &&
   stored.cause === intended.cause && stored.origin === intended.origin && stored.depth === (intended.depth ?? 0) && stableJson(stored.fields) === stableJson(intended.fields) &&
   stored.label === (intended.label ?? 0) && stored.enc === (intended.enc ?? 0) && stored.key_id === intended.key_id && stored.nonce === intended.nonce && stableJson(repairPayload(stored.payload)) === stableJson(intended.payload);
+
+/** Outside MCP actors get Engineer tools only through the live Access decision used by every other surface. */
+export const mayUseEngineerMcp = (snap: AccessSnapshot, actorId: string, spaceId: string, now: number): boolean => authorize(snap, {
+  principal: actorId, action: { perm: "engineer.mcp", level: "use" }, resource: { type: "space", id: spaceId }, now,
+}).effect === "allow";
 
 const refusingVault: VaultPort = {
   secret: () => Promise.reject(new Error("The Vault is not live on this server.")),
@@ -155,6 +180,8 @@ function sealKeyFile(file: string): string {
 }
 
 export interface DaemonOptions {
+  /** Lets the process entry resolve after an authenticated HTTP shutdown as well as a signal. */
+  onStopped?:()=>void;
   /** GitHub sign-in (default: VYRE_GH_OAUTH_CLIENT_ID and VYRE_GH_OAUTH_CLIENT_SECRET from the environment; null: not set up) */
   githubOAuth?: GithubOAuth | null;
   config: DaemonConfig;
@@ -172,6 +199,8 @@ export interface DaemonOptions {
   extra?: { caps?: CapabilityDef[]; routes?: RouteRec[]; handlers?: Record<string, Handler>; events?: string[] };
   /** the network under ctx.http (each module still reaches only its connector's domains); tests answer provider calls with it. Omitted: the global fetch. */
   http?: FetchLike;
+  /** Replace only DNS/pinned transport in connector fixtures; policy checks remain active. */
+  connectorNetwork?: ConnectorNetwork;
   /** The Vault, as the connector seams use it. Without one the seams that need a secret refuse, which is right until the Vault module is live. */
   vault?: VaultPort;
   /** The Space ports the Google, Microsoft and IMAP seams read, and (for tests) setters that replace the ones the modules export as `hostSeams`. Omitted ports refuse. */
@@ -283,6 +312,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let hooks: HookRunner | null = null;
   let projections: ProjectionRunner | null = null;
   let log: LogClient | null = null;
+  let guardExportNetworkCommands: (run: () => Promise<number>) => Promise<number> = run => run();
   const probeState = new Map<ProbeName, ProbeResult>();
   const recent: EventEnvelope[] = [];
   let chainBroken = false;
@@ -292,6 +322,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let routeIndex: ((method: string, path: string) => RouteRec | undefined) | null = null;
   let capIndex: ReturnType<typeof indexCapabilities> | null = null;
   let boundPort = cfg.port;
+  let mcpRuntime: McpRuntime | null = null;
+  let startMcpRuntime: ((port: number) => void) | null = null;
+  let stopMcpRuntime: (() => void) | null = null;
   let claim: { url: string; expiresAt: number } | null = null;
   // Assigned once the daemon object exists. The local route acknowledges before
   // shutdown so its caller never races the HTTP response with server.close().
@@ -312,6 +345,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let ownerOfSpace: () => string | null = () => cfg.owner;
   let callerOf: (h: http.IncomingHttpHeaders) => Promise<{ person: string; sessionId?: string } | null> = () => Promise.resolve(null);
   const ownNode = (p: string): boolean => cfg.roles.includes("device") || p === ownerOfSpace();
+  const connectorPort=createConnectorsHost({publicBase:()=>{const address=cfg.address??`http://${cfg.host}:${boundPort}`;return /^https?:\/\//.test(address)?address:`https://${address}`;},own:caller=>ownNode(caller.actingFor??caller.principal.id),...(o.connectorNetwork?{network:o.connectorNetwork}:{})});
   const keyring = createKeyring({ allowed: ownNode, live: (id) => (db ? sessionLive(db, id) : false) });
   closers.push(() => keyring.clearAll());
   const fillRoute = createFillRoute();
@@ -327,7 +361,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let accessStale = false, kicking = false, noAccessModule = false;
   /** While the snapshot is stale only the owner is answered, and each refused call tries the sync again, so the Space heals itself as soon as the module can take the events. */
   const staleFor = (principal: string): boolean => {
-    if (!accessStale || principal === (cfg.owner ?? access.owner())) return false;
+    if (!accessStale || principal === (access.owner() ?? cfg.owner)) return false;
     if (!kicking) { kicking = true; void syncAccess(true).catch(() => {}).finally(() => { kicking = false; }); }
     return true;
   };
@@ -428,12 +462,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       const reg = registry as unknown as RegistryLike;
       const loaded = await loadHost({ registry: reg, modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")), routes, importer: fileImporter(codeRoot), seamImporter: fileSeamImporter(codeRoot), exportsImporter: fileExportsImporter(codeRoot), db, ...(o.http ? { fetch: o.http } : {}) });
+      const telemetry = createTelemetryRecorder({ space, db, module: loaded.moduleExports.get("logs"), now, secrets: () => [token], capabilities: registry.capabilities.map(cap => cap.name) });
+      if (telemetry) sink.setObserver(telemetry.write, telemetry.position(sink.sourceId));
+      closers.push(() => { try { sink.flush(); } catch { /* The committed native source replays on the next boot. */ } finally { sink.setObserver(undefined); } });
       const registryCaps = registry.capabilities as unknown as CapabilityDef[];
       // consumers and periodic jobs the live modules export (ruling 32): each runs through the invoke pipeline as a host-only capability that may emit what its module's capabilities emit
       // the Vault the connector seams read from: the vault module's own port once it is live and configured, else a refusal
       let vaultImpl: (VaultPort & { pullExport?(exportId: string, token: string): string }) | null = null;
-      const vaultPort: VaultPort = { secret: (h, sp) => (vaultImpl ?? refusingVault).secret(h, sp), signRs256: (h, sp, d) => (vaultImpl ?? refusingVault).signRs256(h, sp, d) };
+      const vaultPort: VaultPort = { secret: (h, sp, asker) => (vaultImpl ?? refusingVault).secret(h, sp, asker), signRs256: (h, sp, d) => (vaultImpl ?? refusingVault).signRs256(h, sp, d) };
       let peopleExtras: ReturnType<typeof createPeopleExtras> | null = null;   // set once the hook runner exists
+      let previews: ReturnType<typeof createViewAs> | null = null;
       let invokeRef: Invoke = () => Promise.reject(new Error("the invoke pipeline is not ready"));
       const hookRunner = createHookRunner({
         space, now, db,
@@ -480,9 +518,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const idem = log.idempotency();
       const sinkLog = sink.invokeLogger(space);
       const spaceId = space;
-      // The audit trail proper (hash chain, signed checkpoints) is the audit module's (L7a); until it lands every allow, deny and hold row also goes to logs.db as `audit`.
+      // Preserve the operational log and write the audit module’s hash chain from declared pipeline metadata.
+      const appendAudit = createAuditRecorder({ space: spaceId, db: db!, module: loaded.moduleExports.get("audit"), principal: (id) => access.snap.principal(id) });
       const recordAudit = (r: AuditRow): void => {
         sink.log({ space: spaceId, level: 20, msg: "audit", trace_id: r.traceId, span_id: r.spanId, cap: r.cap, actor: r.principal, ...(r.actingFor ? { on_behalf: r.actingFor } : {}), result: r.class, attrs: { decisionId: r.decisionId, reason: r.reason } });
+        appendAudit(r);
       };
 
       // ctx.schedule: jobs live in modules.db, so a restart keeps them; each runs through the invoke pipeline as the principal that scheduled it (invokeRunner)
@@ -495,6 +535,35 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const sealKey = o.sealKey ?? { key: sealKeyFile(path.join(paths.root, "seal.key")), keyId: "k1" };
       const seal = createCtxSeal(sealKey);
       const blobs = createBlobStore({ dir: path.join(paths.root, "blobs", "ctx"), key: sealKey.key, now });
+
+      const registerExport=async(resource:{id:string;ownerId:string},execution:Parameters<ReturnType<typeof createOwnedExports>['forExecution']>[1]):Promise<void>=>{
+        const row={id:resource.id,type:'file',parent_id:null,label:0,owner_id:resource.ownerId,holds:0};
+        const result=await spaceLog.appendResult({id:`evt_res_${resource.id}`,type:'resource.created',sv:1,trace_id:execution.trace.traceId,actor:execution.principal.id,...(execution.actingFor?{on_behalf:execution.actingFor}:{}),vis:'private',entity:'file',entity_id:resource.id,payload:row});
+        if(!result.ok)throw new Error('Could not register the private export.');if(!result.duplicate){access.fold(result.event);accessPending.push(toAccessEvent(result.event));headSeq=Math.max(headSeq,result.event.seq);await syncAccess();}
+      };
+      const ownedExports=createOwnedExports({db:db!,blobs,space:spaceId,now,register:registerExport});
+      let exportMutationRevision=0,exportMutationsInFlight=0;const exportSnapshots=new WeakMap<object,number>();const publicExportCaps=new Map<string,string>(registryCaps.map(cap=>[cap.name,cap.effects] as const));
+      // Host commands can change the observed Space profile outside invoke's
+      // handler wrapper. Keep the same snapshot boundary until all I/O completes.
+      guardExportNetworkCommands = async run => {
+        exportMutationRevision++; exportMutationsInFlight++;
+        try { return await run(); }
+        finally { exportMutationsInFlight--; exportMutationRevision++; }
+      };
+      const ownerArchives=createOwnerArchives({db:db!,blobs,space:spaceId,now,owner:()=>access.owner()??null,register:(id,ctx)=>registerExport({id,ownerId:ctx.principal.id},ctx),assertSnapshot:ctx=>{if(exportMutationsInFlight!==0||exportSnapshots.get(ctx)!==exportMutationRevision)throw fail('validation.precondition_failed',ctx.trace.traceId,{message:'Shared Space data changed during export persistence. Retry the snapshot.'});},collect:async(ctx,assertOwner)=>{
+        if(!ctx.call)throw new Error('Canonical Space export reads are unavailable.');
+        if(exportMutationsInFlight!==0)throw fail('validation.precondition_failed',ctx.trace.traceId,{message:'A shared Space write is still in progress. Retry after it finishes.'});
+        const mutationBefore=exportMutationRevision;try {const result=await collectSpaceExport({revision:()=>exportMutationRevision,space:spaceId,requester:ctx.principal.id,now,secrets:[token],head:async()=>(await spaceLog.currentHead()).seq,assertOwner:async()=>{assertOwner();if(exportMutationsInFlight!==0)throw new SpaceExportError('A shared Space write is still in progress. Retry after it finishes.');},read:(cap,input)=>ctx.call!(cap as never,input),recordScope:async(_type,row)=>{
+          const scope=row.scope??row.visibility;
+          if(['private','personal','invite'].includes(scope)||row.private===true)return 'private';
+          let resource=access.snap.resource(String(row.id));if(!resource)return 'unknown';const seen=new Set<string>();
+          while(resource){if(resource.id===spaceId&&resource.type==='space')return 'shared';if(seen.has(resource.id))return 'unknown';seen.add(resource.id);if(!resource.parent_id)return resource.owner_id?'private':'unknown';resource=access.snap.resource(resource.parent_id);}
+          return 'unknown';
+        }});if(exportMutationsInFlight!==0||exportMutationRevision!==mutationBefore)throw new SpaceExportError('Shared Space data changed during collection. Retry the snapshot.');exportSnapshots.set(ctx,mutationBefore);return result.entries;}catch(error){if(error instanceof SpaceExportError)throw fail('validation.precondition_failed',ctx.trace.traceId,{message:error.message});throw error;}
+      }});
+      await ownerArchives.cleanup();
+      await ownedExports.cleanup();
+      const exportCleanup=setInterval(()=>{void Promise.all([ownedExports.cleanup(),ownerArchives.cleanup()]).catch(()=>sink.log({space:spaceId,level:40,msg:'exports.cleanup_failed',place:'owned-exports'}));},60000);exportCleanup.unref();closers.push(()=>clearInterval(exportCleanup));
 
       // The Gate hook, only once the Gate module is live (a stub answers with examples, which must never decide a send). Its questions and parked calls run as the Space itself.
       const gate = loaded.serving.get("gate") === "live"
@@ -525,9 +594,27 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           return authorize(access.snap, r);
         },
         membership: (principal, actingFor) => isMemberOrGuest(access.snap, principal) && (actingFor === undefined || isMemberOrGuest(access.snap, actingFor)),
+        sourceGuard: createSourceGuard({ db: { all: (sql, ...args) => db!.all(sql, ...args) }, connectors: { all: (sql, ...args) => spaceStore.open().tx.all(sql, ...args) }, authorize: (r) => authorize(access.snap, r), space: spaceId }),
+        recordAccess: createRecordAccess({store:()=>spaceStore.open().store,snapshot:()=>access.snap,now,fresh:()=>!accessStale}),
+        preview: { read: (token, cap, input, trace) => {
+          if (!previews) throw fail("permission.no_grant", trace);
+          return previews.read(token, cap, input, trace);
+        } },
         resolveItem: (type, kind, value) => resolveVaultItem(db!, type, kind, value),
         handler: (cap, v) => whoamiWithDeferred(cap, (() => {
-          const h = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);
+          const original = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);
+          // Count a public content/access mutation before its handler writes, including the interval before its log commit.
+          const mutation = publicExportCaps.has(cap)&&publicExportCaps.get(cap)!=='read'&&/^(records|schema|files|chat|threads|channels|settings|spaces|access|projects|tasks|agents|esign|sources|connectors|kits|members|identity|devices|network)\./.test(cap);
+          const h:Handler|undefined=original&&mutation?((async(ctx,input)=>{exportMutationRevision++;exportMutationsInFlight++;try{return await original(ctx,input);}finally{exportMutationsInFlight--;exportMutationRevision++;}})):original;
+          if (h && cap === "access.view_as") return ((ctx, input) => h({ ...ctx, preview: { issue: (person: string) => {
+            const sid = (ctx as typeof ctx & { sessionId?: string }).sessionId;
+            if (!previews || ctx.principal.kind !== "person" || ctx.actingFor || !sid || !ctx.device) throw fail("permission.no_grant", ctx.trace.traceId, { message: "Sign in on a device to open a shared record preview." });
+            return previews.issue({ person: ctx.principal.id, sessionId: sid, device: ctx.device }, person, ctx.trace.traceId);
+          } } } as typeof ctx, input)) as Handler;
+          if(h&&["logs.query","logs.trace","logs.spans","logs.export"].includes(cap))return ((ctx,input)=>{sink.flush();return cap==="logs.export"?h({...ctx,exports:ownedExports.forExecution(cap,ctx)} as typeof ctx,input):h(ctx,input);}) as Handler;
+          if(h&&['logs.export','health.support_bundle','audit.export'].includes(cap))return ((ctx,input)=>h({...ctx,exports:ownedExports.forExecution(cap,ctx)} as typeof ctx,input)) as Handler;
+          if(h&&['backup.export_start','backup.export_status'].includes(cap))return ((ctx,input)=>h({...ctx,ownerArchive:ownerArchives.forExecution(cap,ctx)} as typeof ctx,input)) as Handler;
+          if(h&&(cap==='files.get'||cap==='files.read'))return (async(ctx,input)=>ownedExports.has(String((input as {fileId?:unknown})?.fileId??''))?ownedExports.read(cap,ctx,input):ownerArchives.has(String((input as {fileId?:unknown})?.fileId??''))?ownerArchives.read(cap,ctx,input):h(ctx,input)) as Handler;
           // The one internal call a module may make with the host's own authority: devices -> sync.epoch.bump (a device was revoked, its replica must purge). The person revoking their own
           // device holds no sync grant, and a revoke that cannot purge would leave the copy on the device. Nothing else is widened: every other ctx.call keeps the caller's authority.
           const mod = h ? (capIndex?.get(cap)?.module ?? "") : "";
@@ -589,6 +676,30 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         ? invoke(call.cap, call.input, { space: call.space, principal: call.principal, preAuth: true, origin: "schedule", ...(call.traceId ? { trace: { traceId: call.traceId, spanId: "0".repeat(16) } } : {}) }).then(() => undefined)
         : runAsScheduled(call));
       invokeRef = invoke;
+      const mcpExports = loaded.moduleExports.get("mcp");
+      const makeMcp = mcpExports?.["createMcpRuntime"];
+      if (typeof makeMcp === "function") {
+        const unbindServer = mcpExports?.["bindServer"];
+        const unbindEndpoint = mcpExports?.["bindEndpoint"];
+        const unbindEngineerCheck = mcpExports?.["bindEngineerCheck"];
+        stopMcpRuntime = () => {
+          mcpRuntime = null;
+          if (typeof unbindServer === "function") unbindServer(null);
+          if (typeof unbindEndpoint === "function") unbindEndpoint(null);
+          if (typeof unbindEngineerCheck === "function") unbindEngineerCheck(null);
+        };
+        startMcpRuntime = (port) => {
+          stopMcpRuntime?.();
+          const local = `http://127.0.0.1:${port}/mcp`;
+          const address = cfg.address ? (/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`) : `http://${cfg.host}:${port}`;
+          mcpRuntime = (makeMcp as (o: Record<string, unknown>) => McpRuntime)({
+            db, space: spaceId, invoke: invokeRef, now,
+            endpoint: { url: `${address.replace(/\/$/, "")}/mcp`, loopbackUrl: local },
+            engineerCheck: (actorId: string) => mayUseEngineerMcp(access.snap, actorId, spaceId, now()),
+          });
+        };
+        closers.push(() => stopMcpRuntime?.());
+      }
       closers.push(() => hookRunner.pump().catch(() => {}));   // finish the pass in flight before the databases close
       closers.push(() => projectionRunner.pump().catch(() => {}));
       await hookRunner.start();
@@ -622,7 +733,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       // the drivers that need the daemon's own state (the Space log, the access snapshot, the pipeline); the registry in seams/ builds the rest from the Vault
       const spaceLog = log;
-      peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, call: (n, i, as) => hookRunner.call(n, i, as), keyring, github: o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env) });
+      peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, recoveryCommit:createRecoveryCommit({db:db!,now}),call: (n, i, as) => hookRunner.call(n, i, as), keyring, github: o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env) });
       // `trace`: a call the host makes on behalf of a caller keeps that caller's trace (only the principal changes), so the events it writes stay in the caller's trace
       const system = (cap: string, input: unknown, trace?: { traceId: string; spanId: string }): Promise<unknown> =>
         invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook", ...(trace ? { trace } : {}) }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));
@@ -630,10 +741,27 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const spaceStore = createSpaceStore({ path: spaceStorePath(paths.root), space: spaceId });
       closers.push(() => spaceStore.close());
       dispatchSystem = system;
+      const ensureFileRoot = async (f: { id: string; type: "folder"; parentId: string | null; ownerId?: string; privateRoot?: boolean }): Promise<void> => {
+        const old = access.snap.resource(f.id);
+        let privateOwner: string | undefined;
+        if (f.privateRoot) {
+          const row = db!.all("SELECT root_key, owner, parent_id FROM files_folder WHERE id = ?", f.id)[0] as { root_key: string; owner: string; parent_id: string | null } | undefined;
+          if (!row || row.root_key !== `personal:${row.owner}` || row.parent_id !== null) throw new Error("Only a canonical Personal root may stop Space inheritance.");
+          privateOwner = row.owner;
+          if (old?.parent_id === null) return;
+        }
+        if (!privateOwner && old) return;
+        const result = await spaceLog.appendResult({
+          id: privateOwner ? `evt_private_root_${f.id}_${headSeq}` : `evt_res_${f.id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: f.id,
+          payload: { id: f.id, type: f.type, parent_id: privateOwner ? null : f.parentId ?? spaceId, label: old?.label ?? 0, owner_id: old ? old.owner_id : privateOwner ?? f.ownerId ?? access.owner() ?? cfg.owner ?? "usr_owner", holds: old?.holds ?? 0 },
+        });
+        if (!result.ok) throw new Error(`could not register the folder: ${result.message}`);
+        if (!result.duplicate) { access.fold(result.event); accessPending.push(toAccessEvent(result.event)); headSeq = Math.max(headSeq, result.event.seq); await syncAccess(); }
+      };
       const hostDrivers: Record<string, SeamDriver> = {
         setPushPort: () => createPushPort(o.seams?.push),
         // portal invitations and sign-in links go out through mail.send from the service mailbox (P-L8_17)
-        configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: d.publicUrl, owner: () => cfg.owner ?? access.owner() ?? null, warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "portal", attrs }) }),
+        configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: d.publicUrl, owner: () => access.owner() ?? cfg.owner ?? null, warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "portal", attrs }) }),
         // the updates module: the compiled-in release key, the GitHub Releases feed and the vyre-server installer (P-L7b_17)
         configureUpdates: () => createUpdatesHost(),
         // A Kit is a resource in the access projection (type "kit") so that the capabilities on it can be authorized. The module cannot create resources, so the host does: one
@@ -644,7 +772,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             ensure: async (kitId) => {
               const r = await spaceLog.appendResult({
                 id: `evt_res_${kitId}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: kitId,
-                payload: { id: kitId, type: "kit", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 },
+                payload: { id: kitId, type: "kit", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
               });
               if (!r.ok) throw new Error(`could not register the Kit: ${r.message}`);
               if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
@@ -654,22 +782,25 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // the files module's root folders are folders in the access projection (ruling 65): one resource.created each, with an id made from the folder's own, so a reboot repeats the same event
         setFilesHost: () => ({
           resources: {
-            ensure: async (f: { id: string; type: "folder"; parentId: string | null; ownerId?: string }) => {
-              const r = await spaceLog.appendResult({
-                id: `evt_res_${f.id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: f.id,
-                payload: { id: f.id, type: f.type, parent_id: f.parentId ?? spaceId, label: 0, owner_id: f.ownerId ?? cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 },
-              });
-              if (!r.ok) throw new Error(`could not register the folder: ${r.message}`);
-              if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
+            ensure: ensureFileRoot,
+            setLabel: async (f: { id: string; type: "folder"; label: "public" | "internal" | "confidential" | "restricted" }) => {
+              const changed = await hookRunner.call("access.set_resource_label", { resource: { type: f.type, id: f.id }, label: f.label });
+              if (changed !== true && access.snap.resource(f.id)?.label !== f.label) throw new Error(`could not update the folder label: ${f.id}`);
+              await syncAccess();
             },
           },
         }),
         // forms and campaigns build their public links from the address people reach this Space at; unset, the links stay relative
-        setFormsHost: () => (cfg.address ? { publicBase: /^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}` } : {}),
+        setFormsHost: () => ({ choiceSource: createChoiceSource({
+          as: (person, cap, input) => invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "forms-public" }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)))),
+          people: () => [...access.snap.allPrincipals()].filter((p) => p.kind === "person" && p.status === "active").map((p) => ({ id: p.id, name: p.name ?? p.id })),
+        }), ...(cfg.address ? { publicBase: /^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}` } : {}), schemaFields: async (type: string) => { const out = await system("schema.types.get", { type }) as { type: { fields: readonly unknown[] } }; return out.type.fields; }, canUpload: (publisherId: string, formId: string, folderId: string) => {
+          return formUploadAllowed(access.snap,{publisherId,formId,folderId,stale:staleFor(publisherId),liveLocalFolder:!!db!.all("SELECT id FROM files_folder WHERE id = ? AND deleted_at IS NULL",folderId)[0],now:now()});
+        } }),
         setCampaignsHost: () => (cfg.address ? { publicBase: /^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}` } : {}),
         // backups: the Space's own files, the owner from the access layer (P-SEC_07: without owner() every export refuses), exports into the blob store, S3 over the seam fetch with keys from the Vault
         setBackupHost: (d) => createBackupHost({
-          root: paths.root, space: spaceId, log: spaceLog, owner: () => cfg.owner ?? access.owner() ?? null, system, vault: d.vault, fetch: d.fetch,
+          root: paths.root, space: spaceId, log: spaceLog, owner: () => access.owner() ?? cfg.owner ?? null, system, vault: d.vault, fetch: d.fetch,
           blobs: { put: async (bytes, type) => (await blobs.forModule("backup").put(bytes, type)).id }, secrets: () => [token],
         }),
         // the Run executor: the plan and the step runner for a Run come from the Automation and steps-core through their host calls (P-L6_24)
@@ -714,20 +845,61 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }) : null,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
         setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
+        // Ask Vyre in the email builder is one real agent turn in a private Ask pane, run as the asker: their agent, model, account, spend limits and access (host/src/seams/email-ask.ts)
+        configureEmailBuilder: () => ({
+          ask: createEmailAskDriver({
+            now, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "email-builder", ...(attrs ? { attrs } : {}) }),
+            call: async (cap, input, who) => {
+              // exactly the principal that asked, and whom it acts for: an agent is never turned into a person
+              const r = await invoke(cap, input, { space: spaceId, principal: who.principal, ...(who.actingFor ? { actingFor: who.actingFor } : {}), origin: "email-ask" });
+              if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
+              return r.output;
+            },
+          }),
+        }),
+        // Ask Vyre on a form's source is the same agent turn, as the asker, about a form (host/src/seams/email-ask.ts)
+        configureFormsAsk: () => ({
+          ask: createFormAskDriver({
+            now, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "forms", ...(attrs ? { attrs } : {}) }),
+            call: async (cap, input, who) => {
+              const r = await invoke(cap, input, { space: spaceId, principal: who.principal, ...(who.actingFor ? { actingFor: who.actingFor } : {}), origin: "forms-ask" });
+              if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
+              return r.output;
+            },
+          }),
+        }),
         // the import module reads an Airtable or Notion key from the Vault by handle, for one call
         setImportHost: (d) => ({ secret: (_ctx: unknown, handle: string) => d.vault.secret(handle.startsWith("#") ? handle : `#${handle}`, d.space) }),
         setEventsHost: () => createEventsHost({
-          reader: { source: { read: (q) => spaceLog.read(q), head: async () => (await spaceLog.currentHead()).seq }, access: () => access.snap, owner: () => cfg.owner ?? access.owner() ?? null, now },
+          reader: { source: { read: (q) => spaceLog.read(q), head: async () => (await spaceLog.currentHead()).seq }, access: () => access.snap, owner: () => access.owner() ?? cfg.owner ?? null, now },
           post: { allow: o.seams?.webhookAllow ?? (() => []), now, ...(o.seams?.postFetch ? { fetch: o.seams.postFetch } : {}) },
         }),
         // the git module: working trees under the data directory; a GitHub token arrives only through ctx.vault.fill (git_credential), which waits on the Vault module (w12a, P-L7_LIVE)
         setGitHost: () => ({ treesDir: path.join(paths.root, "trees"), takeCredential: () => undefined }),
         ...spaceStoreDrivers(spaceStore),
-        configureSpaceAdmin: () => createSpaceAdmin({ access: () => access.snap, owner: () => cfg.owner ?? access.owner() ?? "usr_owner", space: spaceId, db: db!, system, headSeq: () => headSeq }),
-        configureSync: () => createSyncSeam({ store: spaceStore, ...(loaded.serving.get("conflicts") === "live" ? { conflicts: { open: (c) => hookRunner.call("conflicts.park", c) as Promise<string>, history: async (e) => { await hookRunner.call("conflicts.record_history", e); } } } : {}), access: () => access.snap, space: spaceId, now, registryHash, invoke: (c, i, seed) => invoke(c, i, seed), keyed: (c, v) => capIndex?.get(c, v)?.idempotency === "key", ...(cfg.address ? { endpoints: () => [{ kind: "direct" as const, url: `wss://${cfg.address}/sync/v1/live` }] } : {}) }),
+        configureSpaceAdmin: () => createSpaceAdmin({ access: () => access.snap, owner: () => access.owner() ?? cfg.owner ?? "usr_owner", space: spaceId, db: db!, system, headSeq: () => headSeq,
+          address: () => {
+            const value = db!.all("SELECT mode, address FROM network_config WHERE id = 1")[0] as {mode?:string;address?:string}|undefined;
+            if(!value?.address)return undefined;
+            try{const url=new URL(value.address.includes('://')?value.address:`https://${value.address}`);if(!['http:','https:'].includes(url.protocol)||url.username||url.password)return undefined;return{mode:value.mode==='relay'?'relay':'own_domain',host:url.host};}catch{return undefined;}
+          },
+          changeAddress: async (mode, host) => {
+            const config = db!.all("SELECT relay_address FROM network_config WHERE id = 1")[0] as {relay_address?:string}|undefined;
+            const address = mode === 'own_domain' ? host : config?.relay_address;
+            if (!address) throw fail('validation.precondition_failed', ZERO_TRACE, {message:'No address is configured for this mode.'});
+            if (mode === 'own_domain') {
+              const dns = await network.checkDns(address, config?.relay_address ?? null);
+              if (!dns.ok) throw fail('validation.precondition_failed', ZERO_TRACE, {message:'DNS is not verified for this Space. Configure the domain in Network first.'});
+            }
+            await network.applyAddress({mode, address});
+            db!.run("UPDATE network_config SET address = ?, mode = ?, domain = CASE WHEN ? = 'own_domain' THEN ? ELSE domain END, reported_at = ? WHERE id = 1", address, mode, mode, address, now());
+          },
+        }),
+        configureSync: () => createSyncSeam({ store: spaceStore, ...(loaded.serving.get("conflicts") === "live" ? { conflicts: { open: (c) => hookRunner.call("conflicts.park", c) as Promise<string>, history: async (e) => { await hookRunner.call("conflicts.record_history", e); } } } : {}), access: () => access.snap, space: spaceId, now, registryHash, invoke: (c, i, seed) => invoke(c, i, seed), keyed: (c, v) => capIndex?.get(c, v)?.idempotency === "key", ...(cfg.address ? { endpoints: () => { const url=syncEndpointOrigin(cfg.address!);return url?[{kind:"direct" as const,url}]:[]; } } : {}) }),
         setVaultKeyPort: () => ({ personKey: async (personId: string) => keyring.get(personId) }),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
-        configureVault: () => ({ sinks: o.seams?.vaultSinks ?? {}, db: db!, probe: createProviderProbe({ own: ownNode }), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
+        configureVault: () => ({ sinks: { ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode }), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
+        setConnectorsHost: () => connectorPort,
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
         setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open() }, now }),
         ...(o.seams?.drivers ?? {}),
@@ -759,6 +931,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         } else db!.run("DELETE FROM health_probe WHERE name = ?", "module_drivers");
       }
 
+      // Repair legacy Personal roots before any HTTP request can use an inherited Space grant.
+      for (const row of db!.all("SELECT id FROM files_folder WHERE root_key LIKE 'personal:%'") as { id: string }[]) await ensureFileRoot({ id: row.id, type: "folder", parentId: null, privateRoot: true });
+
       // Runs the last server left queued or running are driven again from their step log (P-L6_24). Started, not awaited: boot does not wait for a Run, and shutdown waits for it.
       if (loaded.serving.get("runs") === "live") {
         const recovering = runsHost.recover().catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "runs.recover_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
@@ -787,14 +962,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         const seeding = startSchema().catch((e: unknown) => { sink.log({ space: spaceId, level: 50, msg: "schema.seed_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }); });
         closers.push(() => seeding);
         for (const rt of registry.recordTypes) {
-          const created = { type: "resource.created", payload: { id: rt.key, type: "record_type", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 } };
+          const created = { type: "resource.created", payload: { id: rt.key, type: "record_type", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 } };
           access.fold(created);
           accessPending.push({ seq: -1, ...created });   // not a log event: the module applies it at every start
         }
         await syncAccess();
       }
 
-      const owner = (): string => cfg.owner ?? access.owner() ?? "usr_owner";
+      const owner = (): string => access.owner() ?? cfg.owner ?? "usr_owner";
 
       // A restore brought an older Space back. What was erased since is erased again, as the host, before any request is served (spec 2.26, ARCH 7.10). If it cannot be done the Space does not open.
       const kept = loaded.serving.get("governance") === "live" ? readRestoredTombstones(paths.root) : null;
@@ -812,17 +987,28 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // Identity comes from the bearer token alone (host/src/daemon/session.ts): a device session row gives the person and the device; the x-vyre-device header and ?device= are ignored.
       // The single admin token is the owner bootstrap path only (ensureAdminToken): it acts as the owner on the fixed device `local-admin`.
       const sessions = createSessionResolver({ db: db!, space: spaceId });
-      const identify = (t: string | null): { space: string; principal: { kind: "person"; id: string }; device: string } | null => {
+      previews = createViewAs({ space: spaceId, snapshot: () => access.snap, store: () => spaceStore.open().store, now,
+        sourceLive: source => {
+          if (!db || accessStale || access.snap.principal(source.person)?.status !== "active") return false;
+          try { return db.all(`SELECT 1 AS ok FROM identity_sessions i JOIN devices_session s ON s.id=i.id JOIN devices_device d ON d.id=s.device_id WHERE i.id=? AND i.person_id=? AND i.device_id=? AND i.revoked_at IS NULL AND i.expires_at>? AND s.kind='device' AND s.person=i.person_id AND s.device_id=i.device_id AND s.revoked_at IS NULL AND d.person=i.person_id AND d.revokedAt IS NULL AND d.deleted_at IS NULL`, source.sessionId, source.person, source.device, now()).length === 1; } catch { return false; }
+        },
+      });
+      const identify = (t: string | null): (SessionInfo & { device: string }) | null => {
         if (!t) return null;
         if (sameToken(t, token)) return { space: spaceId, principal: { kind: "person", id: owner() }, device: ADMIN_DEVICE };
         const s = sessions.resolve(t);
         // a session is only as good as the membership behind it: a suspended, removed or unknown person's live token stops working at once, and a fresh sign-in is needed after reactivation (suspend ends the person's devices)
         if (!s || access.snap.principal(s.person)?.status !== "active") return null;
-        return { space: s.space, principal: { kind: "person", id: s.person }, device: s.device };
+        return { space: s.space, principal: { kind: "person", id: s.person }, device: s.device, sessionId: s.sessionId };
       };
-      const session: GatewayDeps["session"] = o.session ?? ((headers) => identify(bearer(headers["authorization"])));
-      ownerOfSpace = () => cfg.owner ?? access.owner() ?? null;
+      const session: GatewayDeps["session"] = o.session ?? ((headers) => {
+        const token = bearer(headers["authorization"]);
+        if (token?.startsWith("vas_")) { const preview = previews?.resolve(token); return preview ? { space: preview.space, principal: { kind: "person", id: preview.requester }, actingFor: preview.target, device: preview.device, sessionId: preview.sessionId, previewToken: token } : null; }
+        return identify(token);
+      });
+      ownerOfSpace = () => access.owner() ?? cfg.owner ?? null;
       callerOf = async (h) => {
+        if (bearer(h["authorization"])?.startsWith("vas_")) return null;
         const who = await session(h);
         if (!who) return null;
         const token = bearer(h["authorization"]);
@@ -835,7 +1021,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const ensureDefaultPortal = (): Promise<void> => (defaultPortal ??= (async () => {
         const r = await spaceLog.appendResult({
           id: "evt_res_sit_default", type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: "sit_default",
-          payload: { id: "sit_default", type: "site", parent_id: spaceId, label: 0, owner_id: cfg.owner ?? access.owner() ?? "usr_owner", holds: 0 },
+          payload: { id: "sit_default", type: "site", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
         });
         if (!r.ok) throw new Error(`could not register the default portal: ${r.message}`);
         if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
@@ -850,7 +1036,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // GET /spaces/<space>/blobs/<id> (ruling 50): a blob is served to a caller who may read the resource its module stored it for
       blobRoute = createBlobRoute({
         space: spaceId, store: blobs,
-        session: async (h) => { const s = await session(h); return s ? { space: s.space, principal: s.principal, ...(s.actingFor ? { actingFor: s.actingFor } : {}) } : null; },
+        session: async (h) => { if (bearer(h["authorization"])?.startsWith("vas_")) return null; const s = await session(h); return s ? { space: s.space, principal: s.principal, ...(s.actingFor ? { actingFor: s.actingFor } : {}) } : null; },
         allow: (c, r) => !staleFor(c.principal.id) && authorize(access.snap, { principal: c.principal.id, ...(c.actingFor ? { actingFor: c.actingFor } : {}), action: { perm: null, level: "view" }, resource: { type: r.type, id: r.id } }).effect === "allow",
         // the bytes of an upload slot (files.upload_url): the Files module seals them; the slot's one-time token is the authority
         put: async (a) => (await hookRunner.call("files.put_upload", { blobId: a.blobId, token: a.token, base64: Buffer.from(a.bytes).toString("base64") })) as { hash: string; size: number },
@@ -876,7 +1062,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // GET /f/<slug> and /book/<slug> (P-L8_19): the public form pages. A visitor is an act_anon actor; the forms module answers for a published form of the right kind, and an upload goes to the form's Files folder
       {
         const formsNs = loaded.moduleExports.get("forms");
-        const viewOf = formsNs?.["publicFormView"] as ((ctx: unknown, slug: string, page: "form" | "booking") => PublicFormView) | undefined;
+        const viewOf = (formsNs?.["publicFormViewTyped"] ?? formsNs?.["publicFormView"]) as ((ctx: unknown, slug: string, page: "form" | "booking") => PublicFormView | Promise<PublicFormView>) | undefined;
         const linkOf = formsNs?.["linkView"] as ((ctx: unknown, slug: string, token: string) => Promise<{ fields: { field: string; step?: number }[]; partial?: { answers: Record<string, unknown>; step?: number } }>) | undefined;
         const reserveUpload = formsNs?.["reserveUpload"] as ((ctx: unknown, slug: string) => { formId: string; folderId: string }) | undefined;
         const recordUpload = formsNs?.["recordUpload"] as ((ctx: unknown, f: { slug: string; fileId: string; name: string; mime: string; size: number; token?: string | undefined }) => Promise<string>) | undefined;
@@ -888,13 +1074,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           formsPageRoute = createFormsPageRoute({
             // a visitor has no session, so the pipeline could not authorize them: the host runs the three public capabilities as itself and the module is told which visitor (forms.visitorOf)
             call: (cap, input, _caller, trace) => invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook", ...(trace ? { trace } : {}) }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)))),
-            read: async (slug, page, caller) => { try { return viewOf(formCtx(caller), slug, page); } catch { return null; } },
+            read: async (slug, page, caller) => { try { return await viewOf(formCtx(caller), slug, page); } catch { return null; } },
             ...(linkOf ? { link: async (slug, token, caller) => { try { return await linkOf(formCtx(caller), slug, token); } catch { return null; } } } : {}),
             // the file is stored as the host (system), never as the visitor or the forms module; the forms module keeps the binding of the upload to this form and this visitor and issues the id the page gets back
             ...(reserveUpload && recordUpload ? { upload: async (slug: string, file: { name: string; type: string; bytes: Uint8Array; folderId: string }, caller: { kind: string; id: string }, token?: string) => {
               const ctx = formCtx(caller);
               reserveUpload(ctx, slug);
-              const out = await system("files.create", { folderId: file.folderId, name: file.name, mime: file.type, content: { base64: Buffer.from(file.bytes).toString("base64") } }) as { file: { fileId: string } };
+              const uploadKey = sha256b64(Buffer.from(JSON.stringify([slug, file.folderId, caller.id, token ?? "", file.name, sha256b64(file.bytes)])));
+              const out = await system("files.create", { idempotencyKey: `forms-upload:${uploadKey}`, folderId: file.folderId, name: `${uploadKey.replaceAll(/[^a-zA-Z0-9]/g, "").slice(0, 12)}-${file.name}`, mime: file.type, content: { base64: Buffer.from(file.bytes).toString("base64") } }) as { file: { fileId: string } };
               return recordUpload(ctx, { slug, fileId: out.file.fileId, name: file.name, mime: file.type, size: file.bytes.length, token });
             } } : {}),
             now,
@@ -974,15 +1161,39 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     );
   };
 
-  const network = o.network ?? defaultNetworkPort();
-  const runCommands = (): Promise<number> => (db ? pollCommands({ db, supervisor, network, now, log: sink.logger({ space: space ?? "-", place: "commands" }) }) : Promise.resolve(0));
+  const network = o.network ?? managedNetworkPort({
+    adminUrl: cfg.caddyAdmin, space: space ?? '-', upstream: () => `127.0.0.1:${boundPort}`,
+    ingressHost: () => (db?.all("SELECT address FROM network_config WHERE id = 1 AND mode = 'own_domain'")[0] as {address?:string}|undefined)?.address ?? null,
+    relayReady: (address) => !!db?.all("SELECT url FROM network_endpoint WHERE kind = 'relay' AND state = 'healthy' AND heartbeat_at > ?", now() - 60_000).some((raw) => {
+      const url = (raw as {url?:string}).url;
+      if (!url) return false;
+      try { return new URL(url).host === address; } catch { return false; }
+    }),
+  });
+  const runCommands = (): Promise<number> => {
+    if (!db) return Promise.resolve(0);
+    const run = () => pollCommands({ db: db!, supervisor, network, now, log: sink.logger({ space: space ?? "-", place: "commands" }), observed: async (event) => {
+    if (!log) throw new Error('The event log is unavailable.');
+    const stored = await log.append({ id: event.id, type: event.type, sv: 1, trace_id: ZERO_TRACE, actor: event.actor, entity: 'entity', entity_id: event.target, vis: 'space', payload: event.payload });
+    headSeq = Math.max(headSeq, stored.seq);
+  } });
+    // Quiet polls do not change the shared export snapshot.
+    return db.all("SELECT id FROM network_command WHERE done_at IS NULL LIMIT 1").length ? guardExportNetworkCommands(run) : run();
+  };
 
+  const refreshNetworkCertificate = async (): Promise<void> => {
+    if (!db || !network.certificate) return;
+    const row = db.all("SELECT address, mode FROM network_config WHERE id = 1")[0] as {address?:string;mode?:string}|undefined;
+    if (!row?.address || row.mode !== 'own_domain' || !/^[a-z0-9.-]+\.[a-z]+$/i.test(row.address)) return;
+    const result = await network.certificate(row.address);
+    db.run("INSERT INTO network_cert (host, expires_at, reason, reported_at) VALUES (?, ?, ?, ?) ON CONFLICT(host) DO UPDATE SET expires_at = COALESCE(excluded.expires_at, network_cert.expires_at), reason = excluded.reason, reported_at = excluded.reported_at", row.address, result.expiresAt, result.reason ?? null, now());
+  };
   const fast = o.intervals?.fast ?? 15_000, slow = o.intervals?.slow ?? 60_000;
   const group = (names: ProbeName[]): ProbeName[] => names.filter((n) => relevant.includes(n));
   // a signed-out person's key leaves memory within the interval, not whenever someone next reads it
   scheduler.add({ name: "keyring.sweep", schedule: { everyMs: o.intervals?.sweep ?? 30_000 }, run: () => { keyring.sweep(); } });
   scheduler.add({ name: "probes.fast", schedule: { everyMs: fast }, run: async () => { await runProbes(group(["events_db", "index_db", "scheduler", "disk_space"])); } });
-  scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"])); reportNetwork(); } });
+  scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"])); reportNetwork(); await refreshNetworkCertificate(); } });
   scheduler.add({ name: "probes.encryption", schedule: { everyMs: o.intervals?.encryption ?? 300_000 }, run: async () => { await runProbes(group(["disk_encrypted"])); } });
   if (hasSpace) {
     scheduler.add({ name: "commands.poll", schedule: { everyMs: o.intervals?.commands ?? 1000 }, run: async () => { await runCommands(); } });
@@ -1019,7 +1230,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       health, coerce,
       gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),
     });
+    const mcpRoute = createMcpRoute(() => mcpRuntime);
     server.on("request", (req, res) => {
+      if(desktopCors(req,res))return;
+      if (bearer(req.headers.authorization)?.startsWith("vas_")) {
+        // Do not hand a preview to public share/forms, MCP, sync, uploads,
+        // exports or local credential routes, including one-time upload slots.
+        if ((req.url ?? "").startsWith("/v1/")) listener(req, res);
+        else { res.writeHead(401, { "content-type": "application/json", "cache-control": "no-store" }); res.end(JSON.stringify({ error: { code: "auth.unauthenticated", message: "This route is unavailable in a shared record preview." } })); }
+        return;
+      }
       const stop = req.method === "POST" && req.url === "/local/daemon/stop";
       if (stop) {
         if (!loopback(req.socket.remoteAddress) || !sameToken(bearer(req.headers.authorization) ?? "", token)) {
@@ -1032,7 +1252,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         res.once("finish", () => { setImmediate(requestStop); });
         return;
       }
-      if (chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
+      if (mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {
@@ -1041,6 +1261,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       server.listen(boundPort, cfg.host, () => { server.off("error", onError); resolve(); });
     });
     boundPort = (server.address() as { port: number }).port;
+    startMcpRuntime?.(boundPort);
     const exited = new Promise<UnitExit>((resolve) => {
       server.once("close", () => resolve({ code: 0 }));
       server.on("error", (err) => resolve({ error: err.message }));
@@ -1110,6 +1331,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     sink.log({ space: space ?? "-", level: 20, msg: "daemon.stopping", place: "boot" });
     for (const c of closers.reverse()) await Promise.resolve(c()).catch(() => {});
     clearInfo(paths);
+    o.onStopped?.();
   };
   requestStop = () => { void stop(); };
 

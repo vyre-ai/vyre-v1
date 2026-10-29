@@ -46,9 +46,23 @@ type Out = {
       field: string;
       mode: "ask" | "show" | "hide";
       prefillKey?: string;
+      step?: number;
     }>;
+  settings: {
+    consentText: string;
+    captcha: boolean;
+    rateLimit: number;
+    thankYou?: {
+      text?: string;
+      redirect?: string;
+    };
+  };
+  css?: string;
+  html?: string;
+  js?: string;
   theme?: Record<string, unknown>;
   logic?: unknown;
+  choices?: Record<string, unknown>;
 };
 ```
 
@@ -69,11 +83,14 @@ type Out = {
     "formId": "frm_a1b2c3"
   },
   "output": {
+    "choices": {},
+    "css": "example",
     "fields": [
       {
         "field": "example",
         "mode": "ask",
-        "prefillKey": "example"
+        "prefillKey": "example",
+        "step": 1
       }
     ],
     "form": {
@@ -85,7 +102,18 @@ type Out = {
       "state": "draft",
       "submissions": 1
     },
+    "html": "example",
+    "js": "example",
     "logic": {},
+    "settings": {
+      "captcha": true,
+      "consentText": "example",
+      "rateLimit": 1,
+      "thankYou": {
+        "redirect": "example",
+        "text": "example"
+      }
+    },
     "theme": {}
   }
 }

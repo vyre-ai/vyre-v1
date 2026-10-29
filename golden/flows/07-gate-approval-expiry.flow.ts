@@ -7,4 +7,5 @@ export default defineFlow({
   title: "Gate approval and expiry",
   needs: ["gate", "tasks", "mail"],
   events: ["gate.requested", "task.escalated", "gate.expired"],
+  tracePolicy: "multiple",
 });

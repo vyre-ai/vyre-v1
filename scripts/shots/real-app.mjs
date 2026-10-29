@@ -16,7 +16,7 @@ export const PLACES = [
   { id: "records", route: "records", rail: "rail-records", drew: "[data-testid='records-place']", needs: ["sign in", "records"] },
   { id: "files", route: "files", rail: "rail-files", drew: "[data-testid='files-place']", needs: ["sign in", "files"] },
   { id: "inbox", route: "mail", rail: "rail-inbox", drew: "[data-testid='inbox-place']", needs: ["sign in", "inbox"] },
-  { id: "apps", route: "sites", rail: "rail-apps", drew: "[data-testid='place-sites'], [data-testid='place-sites-failed']", needs: ["sign in", "apps"] },
+  { id: "apps", route: "sites", rail: "rail-apps", drew: "[data-testid='apps-place']", needs: ["sign in", "apps"] },
   { id: "automations", route: "automations", rail: "rail-automations", drew: "[data-testid='automations-place']", needs: ["sign in", "automations"] },
   { id: "vault", route: "vault", rail: "rail-vault", drew: "[data-testid='vault-place']", needs: ["sign in", "vault"] },
   { id: "settings", route: "settings", rail: "rail-settings", drew: "[data-testid='settings-place']", needs: ["sign in", "settings"] },

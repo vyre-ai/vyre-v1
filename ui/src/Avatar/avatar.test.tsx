@@ -2,7 +2,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Avatar, faceKey, faceTint, hash, hueOf, kindOf, marbleInner, marbleSpec, initialsOf, notionistsSvg } from "./index.tsx";
+import { Avatar, faceKey, faceTint, hash, hueOf, kindOf, marbleInner, marbleSpec, initialsOf } from "./index.tsx";
+import { notionistsSvg } from "./notionists.ts";
 import { marbleGradient } from "./faces.ts";
 import { hslHex } from "./faces.ts";
 
@@ -35,14 +36,14 @@ test("the same name draws the same face and different names draw different ones"
   assert.notEqual(p1, p2);
 });
 
-test("an agent is a DiceBear Notionists face on a soft tint, with a 30 percent radius", () => {
+test("an agent paints a tinted SVG fallback before its deferred Notionists face, with a 30 percent radius", () => {
   assert.equal(faceTint("Scheduler"), hslHex(hueOf("Scheduler"), 55, 86));
   assert.match(faceTint("Scheduler"), /^[0-9a-f]{6}$/);
   const html = renderToStaticMarkup(<Avatar name="Scheduler" kind="agent" size={20} />);
   assert.match(html, /data-avatar="agent"/);
-  assert.match(html, /<svg[^>]* width="20" height="20"/, "drawn at the size it is given");
-  assert.match(html, /viewBox="0 0 \d+ \d+"/);
-  assert.ok(html.toLowerCase().includes(`#${faceTint("Scheduler")}`) || html.toLowerCase().includes(faceTint("Scheduler")), "the tint fills the ground");
+  assert.match(html, /<svg/, "the lightweight first paint has a face-shaped mark without evaluating the portrait catalog");
+  assert.doesNotMatch(html, />S</, "the shared face never regresses to a letter tile");
+  assert.match(html, /background-color:/, "the tint fills the ground");
   assert.match(html, /border-top-left-radius:30%/);
 });
 
@@ -172,9 +173,7 @@ test("different seedIds with the same name draw different faces", () => {
   const a = renderToStaticMarkup(<Avatar name="Sam Lee" seedId="usr_1" />);
   const b = renderToStaticMarkup(<Avatar name="Sam Lee" seedId="usr_2" />);
   assert.notEqual(faceOf(a), faceOf(b));
-  const x = renderToStaticMarkup(<Avatar name="Helper" kind="agent" seedId="agt_1" />);
-  const y = renderToStaticMarkup(<Avatar name="Helper" kind="agent" seedId="agt_2" />);
-  assert.notEqual(faceOf(x), faceOf(y));
+  assert.notEqual(notionistsSvg("agt_1"), notionistsSvg("agt_2"));
 });
 
 test("with no seedId, or an empty one, the name seeds the face as before", () => {

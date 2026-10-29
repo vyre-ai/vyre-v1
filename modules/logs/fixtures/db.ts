@@ -328,7 +328,9 @@ export function harness(o: { now?: number; principal?: string; actingFor?: strin
   const raw = new FakeLogsDb();
   const events: EmittedEvent[] = [];
   let clock = o.now ?? NOW;
+  let exportIndex=0;
   const ctx: LogCtx = {
+    exports: { logs: async () => `fil_fixture${exportIndex++}` },
     space: SPACE,
     principal: { kind: "person", id: o.principal ?? "usr_admin" },
     ...(o.actingFor ? { actingFor: o.actingFor } : {}),

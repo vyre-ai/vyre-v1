@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, TextInput, View } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
-import { Glyph, ICON_UP, plainText } from "../Composer/index.tsx";
+import { Glyph, ICON_UP, plainText } from "../Composer/shared.tsx";
 import { menuTrigger, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 import { COMMENT_REPLY_SEND, COMMENT_REPLY_WIDTH } from "./props.ts";

@@ -96,6 +96,12 @@ export function harness(o: { principal?: Principal; now?: number; captcha?: bool
           records.set(id, { id, type: String(i.type), fields: { ...(i.fields as Record<string, unknown>) } });
           return { record: { id } };
         }
+        case "records.relate": {
+          const r = records.get(String(i.recordId));
+          if (!r) throw err("validation.not_found", "The thing does not exist.");
+          r.fields[String(i.field)] = [String(i.toId)];
+          return { record: { id: r.id } };
+        }
         case "records.update": {
           if (state.failRecords) throw err("internal.unexpected", "records are down");
           const r = records.get(String(i.recordId));

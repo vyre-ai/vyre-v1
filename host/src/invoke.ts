@@ -6,12 +6,15 @@
 import { formatHlc, tickHlc } from "../../lib/hlc.ts";
 import type { Hlc } from "../../lib/hlc.ts";
 import { mintId } from "../../lib/ids.ts";
+import {isHostService} from "../../lib/trust.ts";
 import { mintEventId } from "./ids.ts";
 import type { Decision as KernelDecision, Req as AuthReq, ResourceRef } from "../../kernel/src/authorize/index.ts";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
 import type { CallOpts, Ctx, Decision, EmitOpts, Logger } from "../../packages/contracts/src/ctx.ts";
 import type { CapabilityDef, CapName, EventName, TraceContext } from "../../packages/contracts/src/types.ts";
 import { BindingError, resolveResource } from "./routes/resource.ts";
+import { auditTargets } from "./routes/audit-targets.ts";
+import type { AuditTarget } from "./routes/audit-targets.ts";
 import { codeForReason, fail, HostError, toVyreError } from "./routes/errors.ts";
 import type { ResourceRegistrar } from "./gateway/resources.ts";
 import type { PrincipalRegistrar } from "./gateway/principals.ts";
@@ -37,6 +40,8 @@ export function indexCapabilities(caps: readonly CapabilityDef[]): CapIndex {
 export interface PrincipalSeed { kind: Ctx["principal"]["kind"]; id: string }
 /** What the caller knows before the pipeline starts: who, for whom, where from. */
 export interface CtxSeed {
+  sessionId?: string | undefined;
+  previewToken?: string | undefined;
   space: string;
   principal: PrincipalSeed;
   actingFor?: string | undefined;
@@ -64,6 +69,8 @@ export interface CtxSeed {
 export interface AuditRow {
   class: "allow" | "deny" | "hold"; cap: string; v: number; principal: string; actingFor?: string | undefined; decisionId: string; reason: string;
   resource: ResourceRef | null; traceId: string; spanId: string; at: number; risk: CapabilityDef["risk"];
+  /** Whitelisted object identifiers for Activity views; never request/response bodies. */
+  targets?: AuditTarget[];
 }
 /** One atomic commit: the events a handler emitted plus its audit row (ARCH 4.4 step 7). Returns the events as stored (seq set). */
 export interface CommitBatch { cap: string; v: number; principal: string; events: EventEnvelope[]; audit: AuditRow | null }
@@ -88,6 +95,14 @@ export interface GateHook {
 }
 
 export interface InvokeDeps {
+  /** The Files mutation guard for connector sources (host/src/daemon/connector-source-guard.ts): an extra check on top of normal Files authorization. */
+  sourceGuard?: { check(a: { cap: string; input: unknown; seed: CtxSeed; now: number }): { key: string; reason: string } | null };
+  recordAccess?: {
+    facts(cap:string,input:unknown,req:AuthReq,trace:string):Promise<AuthReq>;
+    project(cap:string,input:unknown,seed:CtxSeed,output:unknown,trace:string):Promise<()=>unknown>;
+    collection?(cap:string,input:unknown,seed:CtxSeed,req:AuthReq,trace:string):Promise<{finish():unknown}|null>;
+  };
+  preview?: { read(token: string, cap: string, input: unknown, trace: string): Promise<{ finish(): unknown }> };
   caps: CapIndex;
   validateInput(cap: string, v: number, input: unknown): string[];
   validateEvent?(name: string, payload: unknown): string[];
@@ -130,6 +145,7 @@ export type InvokeResult =
 
 const defaultHex = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 const DESTRUCTIVE = /(^|[._])(delete|remove|purge|erase|destroy)([._]|$)/;
+const SCOPED_RECORD_READS=new Set(["records.get","records.query","records.search","records.history"]);
 const noop = (): void => {};
 const nullLogger: Logger = { debug: noop, info: noop, warn: noop, error: noop };
 
@@ -199,6 +215,28 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       const problems = deps.validateInput(c.name, c.v, input);
       if (problems.length) throw fail("validation.bad_input", traceId, { details: { errors: problems.slice(0, 20), cap: c.name } });
 
+      // A preview never enters idempotency, Gate, module handlers or ctx.call.
+      // The closed read facade returns a final synchronous authority/redaction
+      // check, run after the awaited audit commit and immediately before release.
+      if (seed.previewToken) {
+        if (!deps.preview || seed.preAuth || depth !== 0 || c.effects !== "read") throw fail("permission.no_grant", traceId);
+        const result = await deps.preview.read(seed.previewToken, c.name, input, traceId);
+        await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events: [], audit: { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: `dec_${hex(16)}`, reason: "ok", resource: null, traceId, spanId: trace.spanId, at: now(), risk: c.risk } });
+        return { status: "ok", output: await result.finish(), traceId };
+      }
+
+      let collectionRateChecked=false;
+      if(!(seed.preAuth&&isHostService(seed.principal))&&deps.recordAccess?.collection&&["records.query","records.search","records.counts"].includes(c.name)){
+        const resource=resolveResource(c,input,seed.space,deps.resolveItem);
+        const req:AuthReq={principal:seed.principal.id,actingFor:seed.actingFor,provider:seed.provider,action:{perm:c.permission,level:"view"},resource,now:now(),cap:c.name,input};
+        if(c.rate&&deps.rate){const key=c.rate.scope==="space"?`space:${seed.space}:${c.name}`:`${seed.principal.id}:${c.name}`;if(!deps.rate.take(key,c.rate,now()))throw fail("rate_limit.exceeded",traceId,{details:{cap:c.name,perSeconds:c.rate.perSeconds}});collectionRateChecked=true;}
+        const scoped=await deps.recordAccess.collection(c.name,input,seed,req,traceId);
+        if(scoped){
+          await deps.commit({cap:c.name,v:c.v,principal:seed.principal.id,events:[],audit:{class:"allow",cap:c.name,v:c.v,principal:seed.principal.id,actingFor:seed.actingFor,decisionId:`dec_${hex(16)}`,reason:"ok",resource,traceId,spanId:trace.spanId,at:now(),risk:c.risk}});
+          return{status:"ok",output:await scoped.finish(),traceId};
+        }
+      }
+
       // 3 idempotency: a 'key' capability requires the key; the stored result of a repeat is returned without running anything
       let key: string | undefined;
       if (c.idempotency === "key") {
@@ -206,7 +244,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         if (typeof k !== "string" || k.length === 0) throw fail("validation.bad_input", traceId, { details: { errors: ["/idempotencyKey: required"], cap: c.name } });
         key = seed.approval ? `${k}:approved` : k;
       }
-      const run = (): Promise<InvokeResult> => stepsFour(c, input, seed, trace, depth);
+      const run = (): Promise<InvokeResult> => stepsFour(c, input, seed, trace, depth, collectionRateChecked);
       const result = key !== undefined && deps.idem ? await deps.idem.once(seed.principal.id, c.name, key, input, run) : await run();
       span(result.status === "held" ? "held" : "ok");
       return { ...result, traceId };
@@ -221,9 +259,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
   };
 
   // 4 rate limit, 5 authorize and Gate, 6 handler, 7 commit, 8 publish
-  async function stepsFour(c: CapabilityDef, input: unknown, seed: CtxSeed, trace: TraceContext, depth: number): Promise<InvokeResult> {
+  async function stepsFour(c: CapabilityDef, input: unknown, seed: CtxSeed, trace: TraceContext, depth: number, rateChecked=false): Promise<InvokeResult> {
     const traceId = trace.traceId, t = now();
-    if (c.rate && deps.rate) {
+    if (c.rate && deps.rate && !rateChecked) {
       const k = c.rate.scope === "space" ? `space:${seed.space}:${c.name}` : `${seed.principal.id}:${c.name}`;
       if (!deps.rate.take(k, c.rate, t)) throw fail("rate_limit.exceeded", traceId, { details: { cap: c.name, perSeconds: c.rate.perSeconds } });
     }
@@ -241,11 +279,12 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       }
       approved = seed.approval !== undefined && deps.gate !== undefined && deps.gate.verify(seed.approval, { cap: c, input, seed });
       const memberOnly = c.level === "member";
-      const req: AuthReq = {
+      let req: AuthReq = {
         principal: seed.principal.id, actingFor: seed.actingFor,
         action: { perm: c.permission, level: c.level === "member" ? "view" : c.level, destructive: DESTRUCTIVE.test(c.name) },
         resource, provider: seed.provider, cap: c.name, input, spendMicros: deps.spend?.(seed.principal.id), approved, now: t,
       };
+      if(deps.recordAccess&&SCOPED_RECORD_READS.has(c.name))req=await deps.recordAccess.facts(c.name,input,req,traceId);
       // level 'member' (ruling 69): any role or grant in the Space is enough, so a person whose only grant is one folder can sync that folder; the handler filters rows per resource. A stranger is refused as before.
       const d = memberOnly && deps.membership ? (deps.membership(seed.principal.id, seed.actingFor) ? memberAllow(mintId("dec", t)) : deps.authorize(req)) : deps.authorize(req);
       kd = d;
@@ -261,6 +300,12 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       if (d.effect === "hold") {
         const g = d.obligations.find((o) => o.type === "gate");
         return park(c, input, seed, traceId, d.decisionId, g && g.type === "gate" ? g.act : (c.gate?.act ?? "approve"), audit("hold", d.reason));
+      }
+      // Files and connector authorization are separate questions: a call that reaches a connector's source folder must pass the connector's own check as well
+      const guarded = deps.sourceGuard?.check({ cap: c.name, input, seed, now: t });
+      if (guarded) {
+        await deps.audit?.(audit("deny", guarded.reason));
+        throw fail("permission.no_grant", traceId, { message: "This folder is the source of a connector. Changing it takes edit access to that connector as well.", details: { cap: c.name, reason: guarded.reason, connector: guarded.key } });
       }
     }
     // the capability's own Gate (spec 2.14): fail closed when a Gate is declared and nothing can park the call
@@ -300,14 +345,16 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     }
 
     // 7 commit: events, inline projections and the audit row land together
+    const finishOutput=SCOPED_RECORD_READS.has(c.name)&&!(seed.preAuth&&isHostService(seed.principal))?await deps.recordAccess?.project(c.name,input,seed,output,traceId):undefined;
+    const targets = shouldAudit(c) ? auditTargets(c.name, input, output) : undefined;
     const auditRow: AuditRow | null = shouldAudit(c)
-      ? { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: did(), reason: "ok", resource, traceId, spanId: trace.spanId, at: t, risk: c.risk }
+      ? { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: did(), reason: "ok", resource, traceId, spanId: trace.spanId, at: t, risk: c.risk, ...(targets ? { targets } : {}) }
       : null;
     let stored = events;
     if (events.length || auditRow) stored = await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events, audit: auditRow });
     // 8 publish after commit
     if (stored.length) deps.publish?.(stored);
-    return { status: "ok", output, traceId };
+    return { status: "ok", output:finishOutput?await finishOutput():output, traceId };
   }
 
   async function park(c: CapabilityDef, input: unknown, seed: CtxSeed, traceId: string, decisionId: string, act: string, row: AuditRow | null): Promise<InvokeResult> {
@@ -338,6 +385,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       space: seed.space, principal: seed.principal, ...(seed.actingFor ? { actingFor: seed.actingFor } : {}), trace,
       ...(seed.run ? { run: seed.run } : {}), ...(seed.thread ? { thread: seed.thread } : {}), origin: seed.origin ?? "user", depth,
       ...(seed.device ? { device: seed.device } : {}), now,
+      ...(seed.sessionId ? { sessionId: seed.sessionId } : {}),
       db: svc.db ?? { all: unavailable("db"), run: unavailable("db") },
       emit<T>(name: EventName, subject: string, payload: T, opts?: EmitOpts): EventEnvelope<T> {
         if (!c.emits.includes(name)) throw fail("internal.unexpected", trace.traceId, { message: "Something went wrong on our side.", details: { cap: c.name, event: name, why: "event not declared in emits" } });

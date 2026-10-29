@@ -39,6 +39,7 @@ type Out = {
     vaultName?: string;
   };
   schedule: string;
+  enabled: boolean;
   encrypted: boolean;
   lastBackupAt?: number;
 };
@@ -59,6 +60,7 @@ type Out = {
   "name": "example",
   "input": {},
   "output": {
+    "enabled": true,
     "encrypted": true,
     "lastBackupAt": 1760000000000,
     "schedule": "example",

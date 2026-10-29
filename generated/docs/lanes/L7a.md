@@ -169,7 +169,7 @@ Events:
 
 ### identity
 
-Capabilities to implement: 27. Events to emit: 10. Contract tests that must go green: `generated/tests/identity/`.
+Capabilities to implement: 28. Events to emit: 10. Contract tests that must go green: `generated/tests/identity/`.
 
 Capabilities:
 - identity.change_password (write, grant only, level view)
@@ -183,6 +183,7 @@ Capabilities:
 - identity.pair_redeem (write, grant only, level view)
 - identity.passkey_register (write, grant only, level view)
 - identity.passkey_remove (write, grant only, level view)
+- identity.recovery_fetch (write, grant only, level view)
 - identity.recovery_restore (write, grant only, level view)
 - identity.recovery_save (write, grant only, level view)
 - identity.reset_complete (write, grant only, level view)
@@ -281,7 +282,7 @@ Capabilities:
 - spaces.onboarding.complete (write, grant only, level view)
 - spaces.onboarding.dismiss (write, grant only, level view)
 - spaces.onboarding.get (read, grant only, level view)
-- spaces.switch_address (write, server.network, level view)
+- spaces.switch_address (write, server.network, level manage)
 - spaces.switcher (read, grant only, level view)
 - spaces.transfer_ownership (write, grant only, level manage)
 - spaces.update (write, policy.manage, level view)

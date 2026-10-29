@@ -66,6 +66,8 @@ test("an event-stream reply gives one line per event, and an endpoint that is do
   const c2 = net.connect(b2.socket);
   const g2 = lines(c2, 1);
   c2.write(`${JSON.stringify({ auth: "t" })}\n{"jsonrpc":"2.0","id":1,"method":"x"}\n`);
-  assert.match((await g2)[0]!, /could not be reached/);
+  const failure = JSON.parse((await g2)[0]!) as { id: unknown; error?: { message?: string } };
+  assert.equal(failure.id, 1, "the client can settle the request instead of waiting forever");
+  assert.match(failure.error?.message ?? "", /could not be reached/);
   await b2.close();
 });

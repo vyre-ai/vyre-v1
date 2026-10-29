@@ -110,7 +110,16 @@ export function statusOf(ctx: NetworkCtx) {
   const cert = certs(ctx).find((c) => c.host === host);
   const certificate: { host: string; expiresAt?: number; state: State } = { host, state: cert?.state ?? "degraded" };
   if (cert?.expiresAt !== undefined) certificate.expiresAt = cert.expiresAt;
-  return { address: host, mode: cfg?.mode ?? "relay", certificate, publicIngress: cfg?.publicIngress ?? false };
+  const commands = ctx.db.all("SELECT kind, target, state, detail, at FROM network_result ORDER BY at DESC, id DESC LIMIT 10").map((raw) => {
+    const row = asRow(raw)!;
+    return { kind: String(row["kind"]), target: String(row["target"]), state: row["state"] as "pending" | "applied" | "failed", at: Number(row["at"]), ...(typeof row["detail"] === "string" ? { detail: row["detail"] } : {}) };
+  });
+  const pending = ctx.db.all("SELECT kind, target, at FROM network_command WHERE done_at IS NULL ORDER BY at DESC, id DESC LIMIT 10").map((raw) => {
+    const row = asRow(raw)!;
+    return { kind: String(row['kind']), target: String(row['target']), state: 'pending' as const, at: Number(row['at']) };
+  });
+  const recent = [...pending, ...commands].sort((a, b) => b.at - a.at).slice(0, 10);
+  return { address: host, mode: cfg?.mode ?? "relay", certificate, publicIngress: cfg?.publicIngress ?? false, commands: recent };
 }
 
 export function hostnames(ctx: NetworkCtx) {

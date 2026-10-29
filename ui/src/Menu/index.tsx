@@ -322,7 +322,7 @@ export function Menu(props: MenuViewProps): ReactElement | null {
       <Pressable
         accessibilityLabel="Close menu"
         style={styles.backdrop}
-        onPress={close}
+        onPress={(event) => { event.stopPropagation(); close(); }}
         {...webProps({ onContextMenu: (event: { preventDefault: () => void }) => { event.preventDefault(); close(); }, tabIndex: -1 })}
       />
       <View
@@ -365,7 +365,7 @@ function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
       role="menuitem"
       aria-label={entry.label}
       aria-checked={entry.checked === true ? true : undefined}
-      onPress={onChoose}
+      onPress={(event) => { event.stopPropagation(); onChoose(); }}
       onHoverIn={onHover}
       onFocus={onHover}
       testID={report ? "menu-item-report" : `menu-item-${entry.label}`}

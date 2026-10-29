@@ -217,6 +217,7 @@ export function createClient(transport: Transport) {
       config_set: call("backup.config_set", 1),
       delete: call("backup.delete", 1),
       export_start: call("backup.export_start", 1),
+      export_status: call("backup.export_status", 1),
       health: call("backup.health", 1),
       list: call("backup.list", 1),
       restore: call("backup.restore", 1),
@@ -581,6 +582,7 @@ export function createClient(transport: Transport) {
       status: call("dropbox_sign.status", 1),
     },
     email_builder: {
+      ask_cancel: call("email_builder.ask_cancel", 1),
       ask_diff: call("email_builder.ask_diff", 1),
       create: call("email_builder.create", 1),
       get: call("email_builder.get", 1),
@@ -789,7 +791,11 @@ export function createClient(transport: Transport) {
       toggle: call("follows.toggle", 1),
     },
     forms: {
+      ask_cancel: call("forms.ask_cancel", 1),
+      ask_diff: call("forms.ask_diff", 1),
       attribution_get: call("forms.attribution_get", 1),
+      choices_candidates: call("forms.choices_candidates", 1),
+      choices_set: call("forms.choices_set", 1),
       create: call("forms.create", 1),
       delete: call("forms.delete", 1),
       design_set: call("forms.design_set", 1),
@@ -1035,6 +1041,7 @@ export function createClient(transport: Transport) {
       pair_redeem: call("identity.pair_redeem", 1),
       passkey_register: call("identity.passkey_register", 1),
       passkey_remove: call("identity.passkey_remove", 1),
+      recovery_fetch: call("identity.recovery_fetch", 1),
       recovery_restore: call("identity.recovery_restore", 1),
       recovery_save: call("identity.recovery_save", 1),
       reset_complete: call("identity.reset_complete", 1),
@@ -1693,7 +1700,9 @@ export function createClient(transport: Transport) {
     },
     sessions: {
       continue: call("sessions.continue", 1),
+      get: call("sessions.get", 1),
       import: call("sessions.import", 1),
+      list: call("sessions.list", 1),
     },
     settings: {
       copy_profile: call("settings.copy_profile", 1),

@@ -8,7 +8,7 @@ export interface Warm { screen: string; query: string; state?: Record<string, un
 export const PLACE_QUERIES: Readonly<Partial<Record<PlaceId, readonly Warm[]>>> = {
   chats: [{ screen: "chats.sidebar", query: "recent", state: { filter: "all" } }],
   inbox: [{ screen: "inbox.contact-list", query: "rows" }],
-  records: [{ screen: "records.saved-views", query: "views" }],
+  records: [{ screen: "records.types", query: "types" }],
   files: [{ screen: "files.list", query: "items" }],
   automations: [{ screen: "automations.sidebar", query: "automations" }],
   vault: [{ screen: "vault.layout", query: "items" }],

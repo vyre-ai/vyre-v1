@@ -7,10 +7,13 @@ import { openRecordStore } from "../../kernel/src/store/records.ts";
 import type { ProjectionHost, Tx } from "../../kernel/src/store/projection.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
 import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
+import { writeConnectorFolder, writeSourceFolder } from "./handlers/files.ts";
+import { readSource } from "./handlers/source.ts";
 import { createConnectorsHandlers } from "./handlers/index.ts";
 import type { ConnectorsHandlers } from "./handlers/index.ts";
 import { ensureTables, seedBuiltins } from "./projections.ts";
-import type { BuiltinRow, ConnectorsCtx } from "./projections.ts";
+import { refuse } from "./projections.ts";
+import type { BuiltinRow, ConnectorsCtx, ConnectionDb, ConnectorDef } from "./projections.ts";
 import type { SyncDeps, SyncEngine } from "./handlers/sync.ts";
 
 export function loadBuiltins(path: URL = new URL("../../generated/registry.json", import.meta.url)): BuiltinRow[] {
@@ -37,13 +40,16 @@ export function openConnectors(o: Partial<Omit<SyncDeps, "tx">> & { tx?: Tx; pat
 
 // ---- loader entry ----
 
-type HostCtx = Omit<ConnectorsCtx, "actor"> & { principal?: { id: string } };
+type HostCtx = Omit<ConnectorsCtx, "actor"> & { authorize(action:{perm:string|null;level:"use"|"view"|"edit"|"manage"},resource:{type:string;id:string|null}):{effect:string};rememberVaultItem?(id:string):void;assertAuthorized?():void;space:string; principal: { kind:string;id: string };actingFor?:string;depth:number;trace:{traceId:string;spanId:string} };
+interface ConnectorsHost { publicBase():string; fill(ctx:HostCtx,binding:{connector:string;connectionId:string;slot:string;handle:string}):Promise<string>;http(ctx:HostCtx,domains:readonly string[],url:string,init?:{method?:string;headers?:Record<string,string>;body?:string}):ReturnType<ConnectorsCtx['http']> }
+let connectorHost:ConnectorsHost|null=null;
+export function setConnectorsHost(host:ConnectorsHost|null):void{connectorHost=host;}
 let shared: ConnectorsHandle | null = null;
 let spaceSeam: SpaceStoreSeam | null = null;
 let engine: SyncEngine | null = null;
 /** The host hands the Space store (P-H_08, ruling 31). */
 export function setConnectorsSpaceStore(seam: SpaceStoreSeam | null): void { spaceSeam = seam; shared = null; }
-export const hostSeams: SeamSetters = { setConnectorsSpaceStore, setSyncEngine };
+export const hostSeams: SeamSetters = { setConnectorsSpaceStore, setSyncEngine, setConnectorsHost };
 const live = (): ConnectorsHandle => {
   if (!shared) {
     shared = openConnectors(spaceSeam ? { tx: spaceSeam.open().tx } : {});
@@ -56,11 +62,49 @@ export function setSyncEngine(e: SyncEngine | null): void { engine = e; if (shar
 
 function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {
-    const cc: ConnectorsCtx = {
-      trace: ctx.trace, emit: (n, s, p, o) => ctx.emit(n, s, p, o), call: (c, i) => ctx.call(c, i), http: (u, i) => ctx.http(u, i),
-      ...(ctx.log ? { log: ctx.log } : {}), ...(ctx.principal ? { actor: ctx.principal.id } : {}),
+    const handle = live(), port=connectorHost, args=input as Record<string,unknown>;
+    const connectionId=typeof args['connectionId']==='string'?args['connectionId']:typeof args['state']==='string'?handle.tx.get<{connection_id:string}>('SELECT connection_id FROM cn_oauth WHERE state = ?',args['state'])?.connection_id:undefined;
+    const connection=connectionId?handle.tx.get<ConnectionDb>('SELECT * FROM cn_connections WHERE connection_id = ?',connectionId):undefined;
+    const key=typeof args['key']==='string'?args['key']:typeof args['connector']==='string'?args['connector']:connection?.connector;
+    const stored=key?handle.tx.get<{def:string;state:string}>('SELECT def,state FROM cn_connectors WHERE key = ?',key):undefined;
+    const definition=stored?JSON.parse(stored.def) as ConnectorDef:undefined;
+    const usedVaultItems=new Set<string>(), usedBindings=new Map<string,{connector:string;connectionId:string;slot:string;handle:string}>();
+    const assertAuthorized=()=>{
+      const current=key?handle.tx.get<{def:string;state:string}>('SELECT def,state FROM cn_connectors WHERE key = ?',key):undefined;
+      if(!current||current.state!=='live'||current.def!==stored?.def)return refuse(cc,'validation.precondition_failed','The connector changed while preparing this request. Try again.');
+      const resource=name==='connections.complete_auth'?{type:'space',id:ctx.space}:name==='connectors.run'?{type:'connector',id:key!}:{type:'connection',id:connectionId??''};
+      const action={perm:name==='connectors.run'||name==='sync_types.discover'?'connectors.manage':null,level:name==='connectors.run'||name==='connections.complete_auth'?'use' as const:'view' as const};
+      if(ctx.authorize(action,resource).effect!=='allow')return refuse(cc,'permission.no_grant','Access changed before this connector request.');
+      for(const binding of usedBindings.values()){
+        const row=handle.tx.get<ConnectionDb>('SELECT * FROM cn_connections WHERE connection_id = ?',binding.connectionId);
+        if(!row||row.connector!==binding.connector||(row.owner_kind==='person'&&row.owner_id!==(ctx.actingFor??ctx.principal.id))||(JSON.parse(row.secrets) as Record<string,string>)[binding.slot]!==binding.handle||(name!=='connections.complete_auth'&&['paused','pending','needs_reconnect'].includes(row.state)))return refuse(cc,'validation.precondition_failed','The connection changed while preparing this request. Try again.');
+        if(ctx.authorize({perm:null,level:'view'},{type:'connection',id:row.connection_id}).effect!=='allow')return refuse(cc,'permission.no_grant','Connection access changed before this request.');
+      }
+      for(const id of usedVaultItems)if(ctx.authorize({perm:null,level:'use'},{type:'vault_item',id}).effect!=='allow')return refuse(cc,'permission.no_grant','Vault access changed before this connector request.');
     };
-    return (live().handlers[name] as (c: ConnectorsCtx, i: unknown) => Promise<unknown>)(cc, input);
+    const execution={...ctx,rememberVaultItem:(id:string)=>usedVaultItems.add(id),assertAuthorized};
+    const cc: ConnectorsCtx = {
+      trace: ctx.trace, emit: (n, s, p, o) => ctx.emit(n, s, p, o), call: (c, i) => ctx.call(c, i),
+      http: (url,init) => port&&definition&&stored?.state==='live'?port.http(execution,definition.domains,url,init):ctx.http(url,init),
+      ...(ctx.log ? { log: ctx.log } : {}), ...((ctx.actingFor??ctx.principal?.id)?{actor:ctx.actingFor??ctx.principal!.id}:{}),
+    };
+    const bound = createConnectorsHandlers({ ...handle.deps, writeFolder: (key, files) => writeConnectorFolder(cc, key, files), writeSource: (key, files, register) => writeSourceFolder(cc, key, files, register),
+      // the editable source is read through the original caller's Files access, so what they may not open is never compiled
+      loadFolderDef: async (key: string) => { const folder = handle.tx.get<{ folder_id: string }>('SELECT folder_id FROM cn_source_folders WHERE key = ?', key)?.folder_id; return folder ? (await readSource(cc, key, folder)).def : undefined; },
+      assertCanPublish: (key: string) => { if (ctx.authorize({ perm: 'connectors.manage', level: 'edit' }, { type: 'connector', id: key }).effect !== 'allow') refuse(cc, 'permission.no_grant', 'Your access to this connector changed while it was being tested. Nothing was published.'); }, ...(port?{
+      publicBase:port.publicBase(),
+      resolveSecret:async(secretHandle:string,binding?:{connector:string;connectionId:string;slot:string})=>{
+        if(!binding) return refuse(cc,'permission.no_grant','Select an authorized connection before using a Vault item.');
+        const selected=handle.tx.get<ConnectionDb>('SELECT * FROM cn_connections WHERE connection_id = ?',binding.connectionId);
+        const row=selected?handle.tx.get<{def:string}>('SELECT def FROM cn_connectors WHERE key = ?',selected.connector):undefined;
+        const def=row?JSON.parse(row.def) as ConnectorDef:undefined;
+        if(!selected||selected.connector!==binding.connector||!def?.secrets.some(slot=>slot.name===binding.slot)||(JSON.parse(selected.secrets) as Record<string,string>)[binding.slot]!==secretHandle||(selected.owner_kind==='person'&&selected.owner_id!==cc.actor))return refuse(cc,'permission.no_grant','That connection cannot use this Vault item.');
+        await ctx.call('connections.get',{connectionId:selected.connection_id});
+        usedBindings.set(`${binding.connectionId}:${binding.slot}`,{...binding,handle:secretHandle});
+        return port.fill(execution,{...binding,handle:secretHandle});
+      },
+    }: {}) });
+    return (bound[name] as (c: ConnectorsCtx, i: unknown) => Promise<unknown>)(cc, input);
   };
 }
 

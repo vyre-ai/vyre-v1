@@ -37,6 +37,14 @@ type Out = {
     allowPassword: boolean;
     allowGithub: boolean;
   };
+  capabilities?: {
+    password: boolean;
+    github: boolean;
+    sso: Array<string>;
+    newMemberMfaEnrollment: boolean;
+    ownerHasSecondFactor: boolean;
+    currentHasSecondFactor: boolean;
+  };
 };
 ```
 
@@ -56,6 +64,16 @@ type Out = {
   "name": "example",
   "input": {},
   "output": {
+    "capabilities": {
+      "currentHasSecondFactor": true,
+      "github": true,
+      "newMemberMfaEnrollment": true,
+      "ownerHasSecondFactor": true,
+      "password": true,
+      "sso": [
+        "example"
+      ]
+    },
     "policy": {
       "allowGithub": true,
       "allowPassword": true,

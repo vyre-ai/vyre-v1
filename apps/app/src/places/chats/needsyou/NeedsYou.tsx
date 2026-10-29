@@ -160,7 +160,7 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
   );
 
   return (
-    <View testID="needs-you" accessibilityLabel="Needs you" style={st.root} {...{ tabIndex: 0, onKeyDown }}>
+    <View testID="needs-you" accessibilityLabel="Needs you" style={st.root} {...({ tabIndex: 0, onKeyDown } as object)}>
       {narrow ? (screen === "detail" && current ? detail : listPane) : <>{listPane}<View style={st.detail}>{detail}</View></>}
       {menu.element}
     </View>
@@ -266,7 +266,7 @@ function noteLabel(a: Action): string {
   return a.key === "send_back" ? "What to change" : "Note";
 }
 
-function Block({ view }: { view: BlockView }): ReactElement {
+export function TaskBlock({ view }: { view: BlockView }): ReactElement {
   if (view.type === "table") {
     const head: ReactElement[] = [];
     for (const [i, c] of view.columns.entries()) head.push(<Text key={c} style={[st.th, i > 0 && st.tdR]}>{c}</Text>);
@@ -309,6 +309,7 @@ function Block({ view }: { view: BlockView }): ReactElement {
   }
   return <Text testID="block-line" style={st.blockLine}>{view.text}</Text>;
 }
+const Block = TaskBlock;
 
 const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, flexDirection: "row", backgroundColor: "var(--win)" as string },

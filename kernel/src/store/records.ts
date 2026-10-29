@@ -187,6 +187,7 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
       return { applied: changes.length > 0, changes };
     },
     async types() { return tx.all<{ def: string }>("SELECT def FROM rs_types ORDER BY rowid").map((r) => JSON.parse(r.def) as TypeDef); },
+    typesSnapshot() { return tx.all<{ def: string }>("SELECT def FROM rs_types ORDER BY rowid").map((r) => JSON.parse(r.def) as TypeDef); },
     async describe(type) {
       const t = defOf(type);
       return t ? { name: t.name, fields: t.fields.map((f) => ({ name: f.name, kind: f.kind })) } : null;

@@ -8,6 +8,7 @@ import { MAX_SNAPSHOT_PAGE } from "../../protocol.ts";
 import type { DeviceClass } from "../../protocol.ts";
 import type { Cell, Cells } from "./fold.ts";
 import { pullError } from "./errors.ts";
+import { recordHeldBack } from "./classify.ts";
 import { deviceRevoked, headSeq } from "./pull.ts";
 import type { PullDeps } from "./pull.ts";
 import { Viewer, Window } from "./scope.ts";
@@ -59,6 +60,8 @@ export function snapshotBegin(d: PullDeps, who: Who, req: { entities?: string[];
     // The device is starting over: it holds nothing the server should assume.
     if (wanted) for (const e of wanted) db.run("DELETE FROM sync_seen_rows WHERE person = ? AND device = ? AND entity = ?", who.person, who.device, e);
     else db.run("DELETE FROM sync_seen_rows WHERE person = ? AND device = ?", who.person, who.device);
+    // the device starts over under today's rules: what it is held back from is recorded, so a later narrowing is told from a first sight
+    recordHeldBack(d, who, new Viewer({ cache: d.cache, who, now, phoneCeiling: d.phoneCeiling() }));
     db.run("INSERT INTO sync_snapshots (person, device, as_of, expires) VALUES (?, ?, ?, ?) ON CONFLICT(person, device, as_of) DO UPDATE SET expires = excluded.expires", who.person, who.device, asOfSeq, expiresAt);
     db.exec("COMMIT");
   } catch (e) {
