@@ -1,5 +1,6 @@
 # Changelog
 
+- A personal automation runs only as its owner. A space automation run is stored as that automation's service principal.
 - Prove an outward send held for approval through the live daemon. The run resumes on the same attempt and the same idempotency key. A promoted Space automation is a service principal its owner can share with, the hold names the run, and the approved result replaces the hold stored for that key.
 - Prove a failed parallel lane through the live daemon. waitFor all fails the parent and names that lane. waitFor any waits while another lane is open, then succeeds on the lane that finished, and the failed lane stays listed. A named run failure keeps its words instead of becoming a generic internal error.
 - Prove a retryable failure through the live daemon. The next attempt has its own key, and a step that already finished is not run again. The host queue drives the run again when that attempt is due.

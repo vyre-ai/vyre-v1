@@ -4,10 +4,11 @@
 // stops at depth 8 (the setting can only lower it).
 // DECISION: the depth of an event is the number of Automation hops behind it (0 for a person's or a connector's). `fire` drops depth >= the limit, so the ninth hop never starts.
 // DECISION: `automations.stop` without a run id stops every active Run of the Automation and pauses it; with `pause: false` it only stops the Runs.
+import { isTrustedService } from "../../../lib/trust.ts";
 import { registry } from "../../../generated/registry.ts";
 import { validateDefinition } from "./defs.ts";
 import {
-  allAutomations, clean, emitAuto, findRunLink, getAutomation, listChildLinks, me, principalFor, raise, readPolicy, saveRunLink, touch, vaultAllowlist, versionDefinition,
+  allAutomations, clean, emitAuto, findRunLink, getAutomation, isOwner, listChildLinks, me, principalFor, raise, readPolicy, saveRunLink, serviceFor, touch, vaultAllowlist, versionDefinition,
 } from "../projections.ts";
 import type { AutoCtx, Automation, Definition, Policy, RunLink, RunScope, TriggerRef } from "../projections.ts";
 
@@ -60,6 +61,14 @@ export function loadRunPlan(ctx: Pick<AutoCtx, "db">, runId: string): { link: Ru
 function usable(ctx: AutoCtx, a: Automation): void {
   if (a.status === "paused") raise(ctx, "validation.precondition_failed", a.pausedReason ?? "This automation is paused.", { reason: "paused" });
 }
+
+/** A personal automation starts only as its owner. Its own service may start it, and so may a host service (the schedule clock). A Space automation does not use this rule. */
+function onlyAsOwner(ctx: AutoCtx, a: Automation): void {
+  if (a.kind !== "personal") return;
+  if (isOwner(ctx, a) || isTrustedService(ctx.principal)) return;
+  if (ctx.principal.kind === "service" && ctx.principal.id === serviceFor(a.id)) return;
+  raise(ctx, "permission.not_found", "A personal automation runs only as its owner.");
+}
 function mustBeValid(ctx: AutoCtx, a: Automation): void {
   const issues = validateDefinition(a.definition, readPolicy(ctx.db));
   const bad = issues.find((i) => i.severity === "error");
@@ -68,6 +77,7 @@ function mustBeValid(ctx: AutoCtx, a: Automation): void {
 
 export async function test(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = getAutomation(ctx, input.automationId);
+  onlyAsOwner(ctx, a);
   const key: string = input.trigger ?? a.definition.triggers[0]?.key ?? "manual";
   const def = TRIGGERS.get(key);
   if (!def) raise(ctx, "validation.bad_input", `There is no trigger called ${key}.`);
@@ -80,6 +90,7 @@ export async function test(ctx: AutoCtx, input: In): Promise<unknown> {
 
 export async function run(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = getAutomation(ctx, input.automationId);
+  onlyAsOwner(ctx, a);
   usable(ctx, a);
   mustBeValid(ctx, a);
   const key: string = input.trigger ?? "manual";
@@ -222,6 +233,7 @@ export async function fireOne(ctx: AutoCtx, a: Automation, f: Firing): Promise<{
 
 export async function fire(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = getAutomation(ctx, input.automationId);
+  onlyAsOwner(ctx, a);
   if (!TRIGGERS.has(input.trigger)) raise(ctx, "validation.bad_input", `There is no trigger called ${input.trigger}.`);
   if (!a.definition.triggers.some((x) => x.key === input.trigger)) raise(ctx, "validation.precondition_failed", "This automation does not use that trigger.", { reason: "no_such_trigger", trigger: input.trigger });
   const r = await fireOne(ctx, a, {
