@@ -1,5 +1,6 @@
 # Changelog
 
+- Startup probe: seven cold and warm runs per size (median, same budgets), the raw runs, sample count and host CPU steal in each METRIC line, and transferred bytes read from resource timing after the load instead of fetching every body over CDP during the measured load.
 - scripts/shots/startup.test.ts reads the Metro config at its new name, apps/app/metro.config.cjs.
 - The shots perf job (startup, scroll and browser budgets) runs on the dedicated v1-perf-wide host instead of the shared v1-perf runners, whose co-tenant CI jobs moved the same head's phone cold start by 500 ms between runs.
 - Records 100k scroll: a moving scroll keeps FLING_OVERSCAN rows ahead but only a few behind (it carried twelve rows it had left), and the chip dot sits by its bottom margin instead of position: relative, which made every dot a paint layer; pixels unchanged.
