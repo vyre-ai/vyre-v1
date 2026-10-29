@@ -1,4 +1,5 @@
 [
+  {"file":"apps/app/tests/recovery.account.live.test.ts","capSec":120,"owner":"L9","reason":"fresh daemon and actual Chromium claim an owner, keep a private Mine Vault item, then recover with the saved code and verify keys, old credentials, new session and secret absence","heavy":true},
   {"file":"apps/app/tests/sync.endpoint.live.test.ts","capSec":120,"owner":"L9","reason":"fresh production owner claim verifies the advertised loopback socket origin, real authenticated hello and actual socket route","heavy":true},
   {"file":"apps/app/tests/spaces.switch.live.test.ts","capSec":120,"owner":"L9","reason":"two fresh daemon owner sessions verify production multi-Space runtime isolation, restored desktop/phone tabs, actual socket closure, scoped signout and global lock","heavy":true},
   {"file":"apps/app/tests/console.webhooks.live.test.ts","capSec":120,"owner":"L9","reason":"real browser verifies webhook filters, one-time signing secrets, review, lifecycle and actual delivery failure","heavy":true},
