@@ -10,3 +10,5 @@ ALTER TABLE network_server ADD COLUMN credential_hash TEXT;
 ALTER TABLE network_server ADD COLUMN requested_at INTEGER;
 ALTER TABLE network_server ADD COLUMN decided_by TEXT;
 ALTER TABLE network_server ADD COLUMN decided_at INTEGER;
+-- the newest signed status request accepted: each must be later than the last, so a captured one cannot be replayed
+ALTER TABLE network_server ADD COLUMN last_status_at INTEGER;

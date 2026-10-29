@@ -320,7 +320,7 @@ async function providerSet(ctx: Ctx, input: unknown): Promise<{ ok: true }> {
 async function health(ctx: Ctx): Promise<{ state: "healthy" | "degraded" | "down"; detail?: string; latencyMs?: number }> {
   const key = defaultProvider(ctx);
   const p = providerOf(key);
-  if (!p) return { state: "down", detail: `${key.replace("_", " ")} is not connected.` };
+  if (!p) return { state: "healthy", detail: `${key.replace("_", " ")} is not connected yet.` };
   if (!p.health) return { state: "healthy", detail: "Connected; this provider has no health check." };
   const t0 = performance.now();
   try {

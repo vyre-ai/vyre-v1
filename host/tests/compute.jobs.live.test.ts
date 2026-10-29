@@ -6,7 +6,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { pathToFileURL, fileURLToPath } from "node:url";
+import { fileURLToPath } from "node:url";
+import { fileExportsImporter } from "../src/loader.ts";
 import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
@@ -169,9 +170,9 @@ test("the node's copy of an agent's home is a working mirror: what was edited on
   const executed: string[] = [];
   const { agentId, folderId } = await agent(d, owner, "Scout");
   const mirror = path.join(nodeDir, "computers", agentId, "Vyre");
-  // the module's own home mirror, over a folder, calling Files through the job's token; loaded by path, as the node's host does
+  // the module's own home mirror, over a folder, calling Files through the job's token; loaded through the host loader, as the node does
   const homeOf = async (link: HomeLink) => {
-    const { createHomeSync } = (await import(pathToFileURL(path.join(ROOT, "modules/computers/handlers/home.ts")).href)) as { createHomeSync: (o: unknown, d: unknown) => { pass(): Promise<{ failed: number }> } };
+    const { createHomeSync } = (await fileExportsImporter(ROOT)("computers")) as unknown as { createHomeSync: (o: unknown, d: unknown) => { pass(): Promise<{ failed: number }> } };
     const sync = createHomeSync({ agentId, computerId: "cmp", fs: dirFs(mirror), manifest: path.join(nodeDir, "computers", agentId, "home-manifest.json") }, { callAs: link.call, putBytes: link.put, now: Date.now, log: () => undefined });
     return async (kind: string): Promise<unknown> => {
       if (kind === "start") { await sync.pass(); return {}; }

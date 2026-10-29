@@ -1,6 +1,7 @@
 // The Resend backend against recorded responses (spec 2.18, 2.19; ARCH 8.2): sending, delivery lookups, domains and their DNS records, health, and the
 // delivery events (delivered, bounced, complained, and the rest) and inbound mail the host passes on after it has verified the signature.
 import test from "node:test";
+import { fail } from "../../../host/src/routes/errors.ts";
 import assert from "node:assert/strict";
 import {
   domainsCreate, domainsDelete, domainsGet, domainsList, domainsVerify, getEmail, health, inboundGetEmail, parseInbound, parseWebhook, receiveInbound, receiveWebhook, sendEmail,
@@ -209,7 +210,9 @@ test("health is healthy when the key lists domains, and down or degraded for the
   h.on("GET /domains?limit=1", { status: 0, throws: true });
   assert.deepEqual(await health(h.ctx), { state: "down", detail: "Resend could not be reached." });
   setResendHost(null);
-  assert.deepEqual(await health(h.ctx), { state: "down", detail: "Resend is not set up on this server." });
+  assert.deepEqual(await health(h.ctx), { state: "healthy", detail: "Resend is not set up yet." });
+  setResendHost({ async secret(ctx: { trace: { traceId: string } }) { throw fail("provider.auth_failed", ctx.trace.traceId); } } as never);
+  assert.deepEqual(await health(h.ctx), { state: "healthy", detail: "Resend has no API key yet. Add Resend_Key to the Vault." });
 });
 
 // ---- delivery events

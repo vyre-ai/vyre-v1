@@ -183,8 +183,14 @@ jobs:
           node scripts/release/cli.ts assets dist
       - name: No key material is left in the workspace (the key was only ever in this step's environment, never written)
         if: always()
+        env:
+          VYRE_SIGNING_KEY: ${{ secrets.VYRE_SIGNING_KEY }}
+        # The checked-out sources hold test fixtures that spell "PRIVATE KEY", so the workspace is searched for this key's own body, and the signed output for any private key at all
         run: |
-          if grep -rIl "PRIVATE KEY" "$GITHUB_WORKSPACE" 2>/dev/null; then echo "a private key is in the workspace"; exit 1; fi
+          body=$(printf '%s\n' "$VYRE_SIGNING_KEY" | grep -v -- '-----' | tr -d '\n')
+          [ "${#body}" -ge 40 ] || { echo "the signing key body is missing, so the leak check cannot run"; exit 1; }
+          if grep -rIlF "$body" "$GITHUB_WORKSPACE" 2>/dev/null; then echo "the signing key is in the workspace"; exit 1; fi
+          if grep -rIl "PRIVATE KEY" dist 2>/dev/null; then echo "a private key is in the signed output"; exit 1; fi
       - uses: actions/upload-artifact@v4
         with: { name: release-signed, path: dist, if-no-files-found: error, retention-days: 7 }
   sign-dryrun:

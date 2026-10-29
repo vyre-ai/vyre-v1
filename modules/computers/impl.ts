@@ -42,6 +42,7 @@ export const handlers: Record<string, Handler> = table as unknown as Record<stri
 export { bindFill, bindHost, bindKit, bindTeam, boundHost, redeemTicket, rememberSecrets, forgetSecrets, addStep, ensure } from "./projections.ts";
 export type { ComputerHost, CompCtx, Probe, RecordResult, SessionInfo } from "./projections.ts";
 export { sleepIdle, awaken } from "./handlers/lifecycle.ts";
+export { createHomeSync } from "./handlers/home.ts";
 export { maskEvents, maskHar } from "./handlers/record.ts";
 
 // ---- the Docker host -----------------------------------------------------------------------------------------------------------------------------------

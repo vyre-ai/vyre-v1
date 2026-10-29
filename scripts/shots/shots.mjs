@@ -80,10 +80,12 @@ try {
   for (const t of targets) for (const skin of skins) for (const [sizeName, vp] of sizes) {
     const dir = path.join(out, t.id); fs.mkdirSync(dir, { recursive: true });
     const stem = `${skin}-${sizeName}`;
-    const shoot = async (url, file, settleMs, scheme, click) => {
+    const shoot = async (url, file, settleMs, scheme, click, first) => {
       const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: scheme, reducedMotion: "reduce" });
       const page = await ctx.newPage();
       await page.goto(url, { waitUntil: "load", timeout: 60000 });
+      // a target driven by a real click (target "click", as its probe is) is clicked before its waitFor, so the shot shows the state the probe measures
+      if (first) await page.click(first, { timeout: 30000 }).catch(() => {});
       if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 30000 }).catch(() => {});
       await page.waitForTimeout(settleMs);
       // a prototype state with no hash token is reached the way a person does: press the control in whichever frame has it
@@ -92,7 +94,7 @@ try {
       await ctx.close();
     };
     const scheme = skin === "graphite" ? "dark" : "light";
-    await shoot(routeUrl(real.origin, t.route, skin), path.join(dir, `${stem}-real.png`), 800, scheme);
+    await shoot(routeUrl(real.origin, t.route, skin), path.join(dir, `${stem}-real.png`), 800, scheme, undefined, t.click);
     await shoot(`${proto.origin}/vyre-v1.html#${protoHash(t.proto, skin)}`, path.join(dir, `${stem}-proto.png`), t.protoSettleMs ?? 3000, scheme, t.protoClick);
     const cmp = path.join(dir, `${stem}-compare.html`);
     fs.writeFileSync(cmp, sideBySideHtml({ title: `${t.id} - ${skin} - ${sizeName} ${vp.width}x${vp.height}`, real: `${stem}-real.png`, proto: `${stem}-proto.png` }));

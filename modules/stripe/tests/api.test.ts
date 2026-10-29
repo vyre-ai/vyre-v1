@@ -311,9 +311,9 @@ test("health reads the balance: healthy with a latency, down on a refused key, d
   h.on("GET /v1/balance", { status: 200, throws: true });
   assert.deepEqual([(await health(h.ctx)).state, (await health(h.ctx)).detail], ["down", "Stripe could not be reached."]);
   setStripeHost(null);
-  assert.deepEqual(await health(h.ctx), { state: "down", detail: "Stripe is not set up on this server." });
+  assert.deepEqual(await health(h.ctx), { state: "healthy", detail: "Stripe is not set up yet." });
   setStripeHost({ async secret(ctx) { throw fail("provider.auth_failed", ctx.trace.traceId); } });
-  assert.deepEqual(await health(h.ctx), { state: "down", detail: "There is no Stripe key. Add Stripe_Key to the Vault." });
+  assert.deepEqual(await health(h.ctx), { state: "healthy", detail: "There is no Stripe key yet. Add Stripe_Key to the Vault." });
   setStripeHost({ async secret() { throw new Error("vault exploded"); } });
   await assert.rejects(health(h.ctx), /vault exploded/);
 });

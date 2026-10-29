@@ -44,7 +44,7 @@ export interface Called { cap: string; input: Record<string, unknown> }
 export interface Emitted { name: string; subject: string; payload: Record<string, unknown> }
 type Script = (input: Record<string, unknown>) => unknown;
 
-export function harness(o: { noHost?: boolean } = {}) {
+export function harness(o: { noHost?: boolean; noKey?: boolean } = {}) {
   const emitted: Emitted[] = [];
   const called: Called[] = [];
   const requests: Seen[] = [];
@@ -58,6 +58,7 @@ export function harness(o: { noHost?: boolean } = {}) {
 
   const host: ZoomHost = {
     async secret(_ctx, handle) {
+      if (o.noKey) throw fail("provider.auth_failed", TRACE);
       if (handle === "#Zoom_S2S.account_id") return ACCOUNT;
       if (handle === "#Zoom_S2S.client_id") return CLIENT;
       if (handle === "#Zoom_S2S.client_secret") return SECRET;

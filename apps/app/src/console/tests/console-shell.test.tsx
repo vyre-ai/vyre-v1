@@ -11,7 +11,7 @@ import { ATTENTION_PAGE } from "../pages/overview/Overview.tsx";
 import { ConsoleShell, skinMenuEntries, SYSTEM_SKIN } from "../shell/ConsoleShell.tsx";
 import type { ConsoleShellProps } from "../shell/ConsoleShell.tsx";
 import { ConsoleDataProvider } from "../shell/data.tsx";
-import { ago, actionPhrase, money } from "../shell/format.ts";
+import { ago, actionPhrase, activityTitle, money } from "../shell/format.ts";
 import { GROUPS, PAGES, visiblePages } from "../shell/nav.ts";
 import { AUDIT, NAMES, SAMPLE_NOW, createSampleConsole } from "../shell/sample.ts";
 import type { SampleConsole } from "../shell/sample.ts";
@@ -184,6 +184,9 @@ test("text helpers: relative times, whole dollars and action phrases", () => {
   assert.equal(ago(SAMPLE_NOW, SAMPLE_NOW - 30 * 86_400_000), "2025-09-24");
   assert.equal(money(412_000_000), "$412");
   assert.equal(actionPhrase("gate.rule_changed"), "gate rule changed");
+  assert.equal(activityTitle("Olivia Owner", "audit.viewed", "space/spc_fresh"), "Olivia Owner opened the audit log");
+  assert.equal(activityTitle("act_anon_12ca17b49af22894", "identity.claim_owner", undefined), "The owner claimed this Space");
+  assert.equal(activityTitle("Priya Raman", "gate.rule_changed", "Send"), "Priya Raman gate rule changed Send");
 });
 
 test("the skin menu lists System, then Dark and Light skins, and checks the open one", () => {

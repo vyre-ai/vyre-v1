@@ -22,11 +22,11 @@ const tmp = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "vyre-daemon-cmd
 
 // ---- probes
 
-test("disk_encrypted on a Mac reads fdesetup: on is healthy, off is down, an unreadable answer is degraded", async () => {
+test("disk_encrypted on a Mac reads fdesetup: on is healthy, off is degraded (needs you, the server still works), an unreadable answer is degraded", async () => {
   const mac = (stdout: string, code = 0) => fakePlatform({ os: "darwin", commands: { "fdesetup status": { stdout, code } } });
   assert.equal((await probes.diskEncrypted(mac("FileVault is On.\n"), "/d")).state, "healthy");
   const off = await probes.diskEncrypted(mac("FileVault is Off.\n"), "/d");
-  assert.equal(off.state, "down");
+  assert.equal(off.state, "degraded");
   assert.match(off.detail ?? "", /System Settings/);
   assert.equal((await probes.diskEncrypted(mac("", 127), "/d")).state, "degraded");
 });
@@ -35,7 +35,7 @@ test("disk_encrypted on Linux follows the mount to its device and looks for a cr
   const linux = (types: string) => fakePlatform({ os: "linux", commands: { "findmnt -n -o SOURCE --target /srv/vyre": { stdout: "/dev/mapper/vyre-data\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre-data": { stdout: types } } });
   assert.equal((await probes.diskEncrypted(linux("crypt\nlvm\ndisk\n"), "/srv/vyre")).state, "healthy");
   const plain = await probes.diskEncrypted(linux("part\ndisk\n"), "/srv/vyre");
-  assert.equal(plain.state, "down");
+  assert.equal(plain.state, "degraded");
   assert.match(plain.detail ?? "", /not encrypted/);
   assert.equal((await probes.diskEncrypted(fakePlatform({ os: "linux" }), "/srv/vyre")).state, "degraded", "findmnt missing");
   assert.equal((await probes.diskEncrypted(fakePlatform({ os: "win32" }), "C:\\vyre")).state, "degraded", "not checkable");

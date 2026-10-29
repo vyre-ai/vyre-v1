@@ -185,7 +185,10 @@ test("production Console Access: People directory, person object, groups, device
       assert.deepEqual(grants.find((g) => g.subject.id === guest.personId)?.conditions.hiddenFields, ["phone"]);
       const seen = await call("records.get", { type: "contact", recordId: rec }, guest.token);
       assert.equal(seen.status, 200); assert.equal(seen.data.record.fields.name, "Zephyr Quill"); assert.equal(seen.data.record.fields.phone, undefined, "the hidden field is not returned");
-      assert.match(await page.getByTestId("console-grants").innerText(), /Gus Hale[\s\S]*view · Zephyr Quill · Phone hidden/, "the grant row names the record and what is hidden");
+      // the row names the record once its name has been read; wait for that, then assert the same text
+      const grantRow = /Gus Hale[\s\S]*view · Zephyr Quill · Phone hidden/;
+      await page.waitForFunction((src) => new RegExp(src).test(document.querySelector('[data-testid="console-grants"]')?.textContent ?? ""), grantRow.source, { timeout: 15_000 }).catch(() => undefined);
+      assert.match(await page.getByTestId("console-grants").innerText(), grantRow, "the grant row names the record and what is hidden");
       await matrix("grant-on-record", async (p) => { await goTo(p, "grants", "Grants", "Access"); await p.getByTestId("console-grants").waitFor(); });
     });
     await t.test("an outside actor: create with a role, redeem the one-time token, edit its roles, revoke, and the credential stops working", async () => {

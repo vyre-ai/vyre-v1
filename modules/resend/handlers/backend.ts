@@ -173,7 +173,8 @@ export async function health(ctx: ResendCtx): Promise<{ state: "healthy" | "degr
     if (a.status === 429) return { state: "degraded", detail: "Resend is asking us to slow down.", latencyMs };
     return { state: "degraded", detail: "Resend is not answering well right now.", latencyMs };
   } catch (e) {
-    if (e instanceof HostError && e.error.code === "internal.unavailable") return { state: "down", detail: "Resend is not set up on this server." };
+    if (e instanceof HostError && e.error.code === "internal.unavailable") return { state: "healthy", detail: "Resend is not set up yet." };
+    if (e instanceof HostError && e.error.code === "provider.auth_failed") return { state: "healthy", detail: "Resend has no API key yet. Add Resend_Key to the Vault." };
     if (e instanceof HostError && e.error.code === "provider.network") return { state: "down", detail: "Resend could not be reached." };
     throw e;
   }

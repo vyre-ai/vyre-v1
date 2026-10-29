@@ -321,11 +321,12 @@ test("list: personal, shared and space sections, host and state filters, what th
 
 // ---- health and the live relay
 
-test("health: down with no terminals on the host, degraded when tmux is missing, healthy with the session count", async () => {
+test("health: healthy with a hint when no terminals run on the host, degraded when tmux is missing, healthy with the session count", async () => {
   const { hn, host } = setup();
   bindHost(null);
   const down = await call(hn, "terminal.health", {});
-  assert.deepEqual([down.state, down.sessions], ["down", 0]);
+  assert.deepEqual([down.state, down.sessions], ["healthy", 0]);
+  assert.match(String(down.detail), /Terminals are not running on this host/);
   bindHost(host.host);
   await openAgent(hn);
   const up = await call(hn, "terminal.health", {});
