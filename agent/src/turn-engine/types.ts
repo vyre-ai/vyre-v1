@@ -2,6 +2,7 @@
 // The session types mirror ARCH 6.6 (agent/src/driver.ts is lead-owned and not on main yet); when it lands, adapt `OpenSession` to it in one place.
 import type { RouteMention, RouteReason } from "../../../lib/route.ts";
 import type { AccountKind, ResolveReason } from "../accounts/types.ts";
+import type { TurnContext } from "./context.ts";
 
 export type ThreadKind = "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
 export type AgentMode = "lead" | "listen";
@@ -137,6 +138,8 @@ export interface TurnInput {
   resumed?: ResumedCall;
   /** What memory recalled for the message that caused this turn (memory.pointer, as the asker). Absent when nothing matched or memory is not available. */
   recall?: readonly RecallLine[];
+  /** The ordered turn context (identity, where, skills, what the agent can do here, screen, time ...), built by the engine module as the asker; drivers render it (agent/src/turn-engine/context.ts). */
+  context?: TurnContext;
 }
 
 export interface ResumedCall { taskId: string; callId: string; toolName: string; approved: boolean; result: ToolResult }

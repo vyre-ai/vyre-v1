@@ -13,6 +13,8 @@ import { createSessionOpener } from "../../agent/src/drivers/open/index.ts";
 import type { McpPort, SessionOpener } from "../../agent/src/drivers/open/index.ts";
 import type { ValueSource, VaultRunDeps } from "../../agent/src/vault-use/index.ts";
 import { recallText } from "../../agent/src/turn-engine/recall.ts";
+import { contextBlocks, ordered } from "../../agent/src/turn-engine/context.ts";
+import type { ContextSection } from "../../agent/src/turn-engine/context.ts";
 import type { SessionSpec, TurnInput } from "../../agent/src/turn-engine/types.ts";
 
 /** The ports the host builds (host/src/seams/engine-session.ts), as the module sees them: structural, so neither side imports the other. */
@@ -37,24 +39,33 @@ export interface OpenerHost {
 const MEMORY_RULES = "You remember through Vyre memory. Facts recalled for a message come with their source: say where you know a thing from. Save what you learn with memory_propose and cite where it came from. Memory you cannot see is not yours to guess.";
 
 /**
- * The system prompt of an API-key chat. Stable blocks come first and carry the cache marker: the role, the memory rules and the agent's MAP.md as the nightly job last wrote it (agent layer only, never
- * a person's memory). What memory recalled for this one message follows as a volatile block, so the stable prefix is the same from turn to turn.
+ * The system prompt of an API-key chat. With the turn context (modules/engine/context.ts) it is the ordered context: identity, rules, where, the memory block, skills, what the agent can do here,
+ * the screen, the focus skill, the time, what it waits on. Stable sections come first and carry the cache marker. The memory block is the memory module's: the memory rules and the agent's MAP.md
+ * as the nightly job last wrote it (agent layer only, never a person's memory); what memory recalled for this one message follows as a volatile block. A turn with no context (a failed build,
+ * a test) gets the one-line role as before.
  */
 export function roleBlocks(call: OpenerHost["call"]): (spec: SessionSpec, input?: TurnInput) => Promise<SystemBlock[]> {
   return async (spec, input) => {
-    let text: string;
-    try {
-      const out = (await call("agents.get", { agentId: spec.agent.id }, spec.asker)) as { agent?: { name?: string; role?: string } };
-      const a = out.agent;
-      text = `You are ${a?.name ?? spec.agent.id}, an agent in Vyre.${a?.role ? ` ${a.role}` : ""}`;
-    } catch {
-      text = `You are ${spec.agent.id}, an agent in Vyre.`;
-    }
-    const blocks: SystemBlock[] = [{ text, stable: true }, { text: MEMORY_RULES, stable: true }];
+    const memory: ContextSection[] = [{ id: "memory", stable: true, text: MEMORY_RULES }];
     try {
       const out = (await call("memory.map.get", { agentId: spec.agent.id }, spec.asker)) as { map?: { body?: string } };
-      if (out.map?.body) blocks.push({ text: `Your memory map (MAP.md):\n${out.map.body}`, stable: true });
+      if (out.map?.body) memory.push({ id: "memory", stable: true, text: `Your memory map (MAP.md):\n${out.map.body}` });
     } catch { /* no map yet, or this person may not read it: the turn goes on without it */ }
+    const blocks: SystemBlock[] = [];
+    if (input?.context) {
+      const merged: ContextSection[] = ordered([...input.context.sections, { id: "memory", stable: true, text: memory.map((m) => m.text).join("\n\n") }]);
+      blocks.push(...contextBlocks({ ...input.context, sections: merged }));
+    } else {
+      let text: string;
+      try {
+        const out = (await call("agents.get", { agentId: spec.agent.id }, spec.asker)) as { agent?: { name?: string; role?: string } };
+        const a = out.agent;
+        text = `You are ${a?.name ?? spec.agent.id}, an agent in Vyre.${a?.role ? ` ${a.role}` : ""}`;
+      } catch {
+        text = `You are ${spec.agent.id}, an agent in Vyre.`;
+      }
+      blocks.push({ text, stable: true }, ...memory.map((m) => ({ text: m.text, stable: true })));
+    }
     const recalled = input?.recall ? recallText(input.recall) : "";
     if (recalled !== "") blocks.push({ text: recalled, stable: false });
     return blocks;

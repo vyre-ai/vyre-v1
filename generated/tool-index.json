@@ -296,6 +296,12 @@
     },
     {
       "deferred": false,
+      "name": "agents_builtin_skill_get",
+      "summary": "Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "agents_builtin_skills_list",
       "summary": "Skills every agent carries, led by \"Working in Vyre\": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces",
       "toolset": "agents"
@@ -1258,6 +1264,12 @@
       "deferred": false,
       "name": "chat_recent",
       "summary": "Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_screen_get",
+      "summary": "The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows",
       "toolset": "chats"
     },
     {

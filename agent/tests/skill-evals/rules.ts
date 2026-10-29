@@ -7,7 +7,7 @@ import { variantsOf } from "../../src/vault-use/index.ts";
 
 export type CallResult = { ok: true; data?: unknown } | { ok?: false; missing?: true; held?: true; taskId?: string; error?: { code: string; message: string; retryable: boolean; traceId: string; next?: string[] } };
 export type Step = { say: string } | { call: string; input: unknown; result?: CallResult } | { block: { type: string; data: unknown } };
-export interface Scenario { id: string; prompt: string; rules: string[]; trace: Step[]; context?: { planMode?: boolean; pasted?: string; space?: string } }
+export interface Scenario { id: string; prompt: string; rules: string[]; trace: Step[]; context?: { planMode?: boolean; pasted?: string; space?: string; utcOffsetHours?: number; localHour?: number; cronDow?: number; sendAllowed?: boolean; confirmed?: boolean } }
 export interface World { space: string; thread: string; secrets: Record<string, string> }
 
 export interface ToolInfo { name: string; planMode: "allowed" | "blocked"; effects: "read" | "write" | "outward"; inputSchema: unknown }
@@ -20,16 +20,16 @@ export interface Tools {
 
 export interface Violation { rule: string; scenario: string; step: number; message: string }
 
-const isCall = (s: Step): s is Extract<Step, { call: string }> => "call" in s;
-const isSay = (s: Step): s is Extract<Step, { say: string }> => "say" in s;
+export const isCall = (s: Step): s is Extract<Step, { call: string }> => "call" in s;
+export const isSay = (s: Step): s is Extract<Step, { say: string }> => "say" in s;
 const isBlock = (s: Step): s is Extract<Step, { block: unknown }> => "block" in s;
 const text = (s: Step): string => (isSay(s) ? s.say : isCall(s) ? JSON.stringify(s.input) : JSON.stringify(s.block));
 const handlesIn = (s: string): string[] => [...s.matchAll(/#([A-Za-z0-9_]+)(?:\.[A-Za-z0-9_]+)?/g)].map((m) => m[1]!);
-const finalSay = (trace: readonly Step[]): string => [...trace].reverse().find(isSay)?.say ?? "";
+export const finalSay = (trace: readonly Step[]): string => [...trace].reverse().find(isSay)?.say ?? "";
 const LINK = /\b(thr|tsk|rec|fil|fct|prj|run)_[a-z0-9]+/;
 const SEARCH_TOOLS = new Set(["memory_search", "facts_as_of", "transcript_search", "read_note"]);
 
-type Check = (scn: Scenario, world: World, tools: Tools) => Array<{ step: number; message: string }>;
+export type Check = (scn: Scenario, world: World, tools: Tools) => Array<{ step: number; message: string }>;
 
 /** Tools the trace may call at this step: the listed set, plus whatever tool_search returned before it. */
 function loadedBefore(trace: readonly Step[], upTo: number): Set<string> {
@@ -43,7 +43,7 @@ function loadedBefore(trace: readonly Step[], upTo: number): Set<string> {
   return out;
 }
 
-const toolsAvailable: Check = (scn, _w, tools) => {
+export const toolsAvailable: Check = (scn, _w, tools) => {
   const out: Array<{ step: number; message: string }> = [];
   scn.trace.forEach((s, i) => {
     if (!isCall(s)) return;
@@ -225,7 +225,7 @@ export const RULES: Readonly<Record<string, Check>> = {
 };
 
 /** Every secret the world holds, in every spelling the scrubber knows: none may appear in anything the model says, calls or attaches. */
-const secretNever: Check = (scn, w) => {
+export const secretNever: Check = (scn, w) => {
   const out: Array<{ step: number; message: string }> = [];
   const spellings = Object.entries(w.secrets).flatMap(([name, value]) => variantsOf(value).map((v) => [name, v] as const));
   scn.trace.forEach((s, i) => {

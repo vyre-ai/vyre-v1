@@ -42,6 +42,28 @@ type In = {
     routineOwner: string;
   };
   clientId?: string;
+  screen?: {
+    place: string;
+    title?: string;
+    open?: Array<{
+        type: string;
+        id: string;
+        title?: string;
+      }>;
+    selection?: Array<{
+        type: string;
+        id: string;
+        title?: string;
+      }>;
+    filters?: Record<string, unknown>;
+    rows?: {
+      shown: number;
+      total?: number;
+      sample?: Array<string>;
+    };
+    actions?: Array<string>;
+    focus?: string;
+  };
   idempotencyKey: string;
 };
 ```
@@ -122,6 +144,36 @@ type Out = {
       }
     ],
     "replyTo": "msg_a1b2c3",
+    "screen": {
+      "actions": [
+        "example"
+      ],
+      "filters": {},
+      "focus": "example",
+      "open": [
+        {
+          "id": "rec_a1b2c3",
+          "title": "example",
+          "type": "record"
+        }
+      ],
+      "place": "records",
+      "rows": {
+        "sample": [
+          "example"
+        ],
+        "shown": 1,
+        "total": 1
+      },
+      "selection": [
+        {
+          "id": "rec_a1b2c3",
+          "title": "example",
+          "type": "record"
+        }
+      ],
+      "title": "example"
+    },
     "threadId": "thr_a1b2c3",
     "via": {
       "routineOwner": "usr_a1b2c3"

@@ -2490,6 +2490,32 @@
     },
     {
       "blocks": [],
+      "cap": "agents.builtin_skill.get",
+      "deferred": false,
+      "description": "Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "examples": [
+              "focus-records"
+            ],
+            "pattern": "^[a-z][a-z0-9-]{0,63}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "name": "agents_builtin_skill_get",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.builtin_skills.list",
       "deferred": false,
       "description": "Skills every agent carries, led by \"Working in Vyre\": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces",
@@ -9447,6 +9473,114 @@
             "pattern": "^msg_[a-z0-9]+$",
             "type": "string"
           },
+          "screen": {
+            "properties": {
+              "actions": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "filters": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "focus": {
+                "description": "Name of the focus skill the place asks for",
+                "type": "string"
+              },
+              "open": {
+                "items": {
+                  "properties": {
+                    "id": {
+                      "examples": [
+                        "rec_a1b2c3"
+                      ],
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "examples": [
+                        "record"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "place": {
+                "description": "home, chats, inbox, records, files, apps, automations, vault, console, projects, agents, tasks, calendar",
+                "examples": [
+                  "records"
+                ],
+                "type": "string"
+              },
+              "rows": {
+                "properties": {
+                  "sample": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "shown": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "total": {
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "shown"
+                ],
+                "type": "object"
+              },
+              "selection": {
+                "items": {
+                  "properties": {
+                    "id": {
+                      "examples": [
+                        "rec_a1b2c3"
+                      ],
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "examples": [
+                        "record"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "place"
+            ],
+            "type": "object"
+          },
           "threadId": {
             "examples": [
               "thr_a1b2c3"
@@ -9544,6 +9678,39 @@
         "type": "object"
       },
       "name": "chat_recent",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.screen.get",
+      "deferred": false,
+      "description": "The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "chat_screen_get",
       "planMode": "allowed",
       "toolset": "chats",
       "v": 1

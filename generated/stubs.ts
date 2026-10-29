@@ -83,6 +83,9 @@ export function stubs(ctx: CallCtx) {
       view_as: call("access.view_as"),
     },
     agents: {
+      builtin_skill: {
+        get: call("agents.builtin_skill.get"),
+      },
       builtin_skills: {
         list: call("agents.builtin_skills.list"),
       },
@@ -347,6 +350,9 @@ export function stubs(ctx: CallCtx) {
       },
       react: call("chat.react"),
       recent: call("chat.recent"),
+      screen: {
+        get: call("chat.screen.get"),
+      },
       start: call("chat.start"),
       thread: call("chat.thread"),
       transcript: {

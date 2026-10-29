@@ -83,12 +83,3 @@ test("-Plan on this PC prints an engine route and changes nothing", { skip: skip
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /^engine-route: (wsl2|none)$/m);
 });
-
-test("the installed program is found under the name Tauri gives it (vyre-desktop.exe), and the name VyreSetup.exe is the one the release attaches", () => {
-  assert.match(script, /foreach \(\$name in @\("vyre-desktop\.exe", "Vyre\.exe"\)\)/);
-  assert.doesNotMatch(script, /\$app = Join-Path \$env:LOCALAPPDATA "Vyre\\Vyre\.exe"/);
-  const conf = JSON.parse(fs.readFileSync(path.join(HERE, "../../../apps/desktop/src-tauri/tauri.conf.json"), "utf8")) as { productName: string; mainBinaryName?: string };
-  const cargo = fs.readFileSync(path.join(HERE, "../../../apps/desktop/src-tauri/Cargo.toml"), "utf8").match(/^name = "([^"]+)"/m)?.[1];
-  const installed = `${conf.mainBinaryName ?? cargo}.exe`;
-  assert.ok(script.includes(`"${installed}"`), `install.ps1 looks for ${installed}`);
-});

@@ -10,6 +10,7 @@ import type { Invoke } from "../../host/src/invoke.ts";
 import { createEngineApiTools } from "./api-tools.ts";
 import { buildOpener, roleBlocks } from "./session.ts";
 import { withRecall } from "./recall.ts";
+import { createContextBuilder, diskSkills, withTurnContext } from "./context.ts";
 import { defaultSandbox } from "./sandbox-default.ts";
 import type { DefaultSandbox } from "./sandbox-default.ts";
 import type { SandboxPlan } from "./sandbox.ts";
@@ -41,6 +42,8 @@ export interface EngineHostSeam {
   log?: (msg: string, attrs?: Record<string, unknown>) => void;
   /** Run chat.post as an agent (the host builds the call with the agent as principal). With it the chat bridge is attached: the engine's replies become chat posts. */
   postAs?: PostAs;
+  /** The skills the turn context indexes and loads a focus skill from. Default: the built-in skills on disk (agent/skills). */
+  skills?: import("./context.ts").SkillsPort;
   /** Runs once the runtime exists and before it is bound (the chat bridge attaches here). */
   extend?: (engine: TurnEngine) => void;
 }
@@ -114,8 +117,14 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   building ??= (async () => {
     const now = h.now ?? Date.now;
     const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
+    // The turn context is built as the asker before each turn (modules/engine/context.ts); what the agent waits on is read off the engine once it exists.
+    let live: TurnEngine | null = null;
+    const turnContext = createContextBuilder({
+      call: h.call, skills: h.skills ?? diskSkills(), now,
+      waiting: (threadId, agentId) => (live?.waiting(threadId) ?? []).filter((w) => w.agentId === agentId).map((w) => `an answer to task ${w.taskId} (a held call needs approval)`),
+    });
     const engine = createTurnEngine({
-      holder: h.holder, openSession: withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), now,
+      holder: h.holder, openSession: withTurnContext(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), turnContext), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
       resolveAccount: (q) => accountFor(h, q),
       onNoAccount: async (info) => {
@@ -125,6 +134,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       onTurnEnd: (turn, account) => meter(h, turn, account),
       ...(apiTools ? { callTool: apiTools.runner } : {}),
     });
+    live = engine;
     bridge?.attach(engine);
     h.extend?.(engine);
     bindEngine(engine);
