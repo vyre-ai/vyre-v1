@@ -106,7 +106,14 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
   };
   const openSearch = useCallback((): void => {
     const a = below(searchBtn);
-    const entries: MenuEntry[] = [{ head: "Go to" }, ...visiblePages(data.can, data.allowedScreens).map((p): MenuEntry => ({ label: p.title, onSelect: () => go(p.id) }))];
+    const entries: MenuEntry[] = [{ head: "Go to" }];
+    let group: string | null = null;
+    for (const p of visiblePages(data.can, data.allowedScreens)) {
+      if (p.group !== "" && p.group !== group) entries.push({ separator: true }, { head: p.group });
+      if (p.group === "") { if (group !== "") entries.push({ separator: true }); }
+      group = p.group;
+      entries.push({ label: p.title, onSelect: () => go(p.id) });
+    }
     menu.show(entries, a.x, a.y, "other", { label: "Console search" });
   }, [data, go, menu]);
 

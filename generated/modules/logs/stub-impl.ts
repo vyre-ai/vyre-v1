@@ -4,7 +4,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
-  "logs.client_upload": async () => ({"accepted":1} as unknown) as never,
+  "logs.client_upload": async () => ({"accepted":1,"sampled":1} as unknown) as never,
   "logs.export": async () => ({"fileId":"fil_a1b2c3"} as unknown) as never,
   "logs.purge": async () => ({"more":true,"removed":1,"skippedOnHold":1} as unknown) as never,
   "logs.query": async () => ({"next":"example","rows":[{"actor":"example","at":1760000000000,"attrs":{},"cap":"example","costMicros":1,"durMs":1,"entity":"example","entityId":"example","id":1,"label":1,"level":"debug","msg":"example","onBehalf":"example","place":"example","result":"example","runId":"run_a1b2c3","spanId":"example","traceId":"0123456789abcdef0123456789abcdef"}],"total":1} as unknown) as never,

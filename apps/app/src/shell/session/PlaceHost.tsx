@@ -5,7 +5,8 @@ import type { ComponentType, ErrorInfo, LazyExoticComponent, ReactElement, React
 import { States } from "../../../../../ui/src/States/index.tsx";
 import { PlaceHashProvider } from "../hash/context.tsx";
 import type { PlaceHash } from "../hash/context.tsx";
-import { mark } from "../../startup/marks.ts";
+import { mark, takeStartupMs } from "../../startup/marks.ts";
+import { speed } from "../../speed/recorder.ts";
 import { webUiStateStore } from "../../startup/persisted.ts";
 import { loaderFor } from "../../startup/places.ts";
 import { SHELL_PLACES, registerShellPlaces } from "../places.ts";
@@ -53,11 +54,15 @@ class PlaceBoundary extends Component<{ place: string; children?: ReactNode }, {
   }
 }
 
-function Usable({ place }: { place: string }): null {
+function Usable({ place, spaceId }: { place: string; spaceId: string | null }): null {
   useEffect(() => {
     webUiStateStore().write({ lastPlace: place });
     mark("app.usable");
-  }, [place]);
+    // the first usable screen of this page load is a real startup measurement for the Space it opened in
+    const perf = (globalThis as { performance?: { getEntriesByType?: (t: string) => { name: string; startTime: number }[] } }).performance;
+    const ms = spaceId ? takeStartupMs(perf?.getEntriesByType?.("mark") ?? []) : null;
+    if (spaceId && ms !== null) speed.record(spaceId, "startup", ms);
+  }, [place, spaceId]);
   return null;
 }
 
@@ -73,7 +78,7 @@ export function PlaceHost({ place, runtime, hash = "", opened }: { place: PlaceI
       <PlaceBoundary key={routeId} place={routeId}>
         <Suspense fallback={null}>
           <Place place={routeId} />
-          <Usable place={routeId} />
+          <Usable place={routeId} spaceId={runtime?.space.id ?? null} />
         </Suspense>
       </PlaceBoundary>
     </PlaceHashProvider>

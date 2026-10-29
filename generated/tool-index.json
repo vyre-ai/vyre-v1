@@ -4838,6 +4838,24 @@
     },
     {
       "deferred": false,
+      "name": "network_my_computer_approve",
+      "summary": "Admit your own waiting computer",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_my_computer_code",
+      "summary": "Make a join code for your own computer (a Mac, PC or Linux box): it will run only your own agents",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_my_computer_decline",
+      "summary": "Turn your own waiting computer away",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "network_public_hostnames",
       "summary": "Public hostnames and /hooks endpoints served by this Space",
       "toolset": "engineer"
@@ -4846,6 +4864,18 @@
       "deferred": false,
       "name": "network_relay_set",
       "summary": "Switch the Space to the relay or back, with no re-invite (devices pin the Space key, not the address)",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_server_approve",
+      "summary": "Admit a waiting computer to the Space: a person looks at its name, what it runs on and its fingerprint and approves once",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_server_decline",
+      "summary": "Turn a waiting computer away",
       "toolset": "engineer"
     },
     {
@@ -4869,7 +4899,7 @@
     {
       "deferred": false,
       "name": "network_servers",
-      "summary": "Servers in the Space: grey rows when offline, with Reconnect and Remove",
+      "summary": "Computers in the Space (the Space server and the computers that joined for compute, waiting ones included): grey rows when offline, with Reconnect and Remove",
       "toolset": "engineer"
     },
     {

@@ -302,7 +302,7 @@ async function samplesOf(ctx: ViewCtx, b: Budget, since: number): Promise<Sample
       const at = num(s["at"]);
       if (at === undefined || at < since) continue;
       const attrs = asRow(s["attrs"]);
-      const value = b.unit === "ms" ? (num(s["durUs"]) ?? 0) / 1000 : num(attrs?.["value"]) ?? num(attrs?.["count"]);
+      const value = b.unit === "ms" ? (num(s["durUs"]) ?? 0) / 1000 : num(attrs?.["measured"]) ?? num(attrs?.["value"]) ?? num(attrs?.["count"]);
       if (value === undefined) continue;
       const traceId = str(s["traceId"]);
       out.push({ value, ...(traceId ? { traceId } : {}) });

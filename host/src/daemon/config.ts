@@ -6,7 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-export type Role = "space" | "device";
+export type Role = "space" | "device" | "compute";
 
 /** Resolve a leading ~ against the home directory. */
 export const untilde = (p: string): string => p.replace(/^~(?=$|\/)/, os.homedir());
@@ -29,15 +29,20 @@ export function pathsFor(root: string): DaemonPaths {
 export function parseRoles(text: string): Role[] {
   const out: Role[] = [];
   for (const part of text.split(",").map((s) => s.trim()).filter(Boolean)) {
-    if (part !== "space" && part !== "device") throw new Error(`unknown role "${part}": use space, device or space,device`);
+    if (part !== "space" && part !== "device" && part !== "compute") throw new Error(`unknown role "${part}": use space, device, space,device or compute`);
     if (!out.includes(part)) out.push(part);
   }
-  if (!out.length) throw new Error("a role is needed: space, device or space,device");
+  if (!out.length) throw new Error("a role is needed: space, device, space,device or compute");
+  // a compute computer is only that: it joins somebody else's Space and keeps no Space of its own
+  if (out.includes("compute") && out.length > 1) throw new Error("the compute role runs alone: a computer that joins a Space for compute hosts no Space of its own");
   return out;
 }
 
 export interface DaemonConfig {
   roles: Role[];
+  /** compute role: the Space to join (its address) and the one-time code from Console, Network, Add a computer; the code is needed only the first time */
+  server?: string;
+  join?: string;
   dataDir: string;
   /** the Space id; read from events.db when absent */
   space: string | null;
@@ -84,6 +89,8 @@ export function loadConfig(argv: readonly string[], env: NodeJS.ProcessEnv = pro
     dataDir: path.resolve(untilde(flag(argv, "data-dir") ?? dataHome(env))),
     space: flag(argv, "space") ?? env["VYRE_SPACE"] ?? null,
     host: flag(argv, "host") ?? env["VYRE_HOST"] ?? DEFAULTS.host,
+    ...((flag(argv, "server") ?? env["VYRE_SERVER"]) ? { server: (flag(argv, "server") ?? env["VYRE_SERVER"])! } : {}),
+    ...((flag(argv, "join") ?? env["VYRE_JOIN"]) ? { join: (flag(argv, "join") ?? env["VYRE_JOIN"])! } : {}),
     port,
     version,
     owner: flag(argv, "owner") ?? env["VYRE_OWNER"] ?? null,

@@ -10231,7 +10231,7 @@ export type FormsUpdateOut = {
 export type GateActsListIn = Record<string, unknown>;
 export type GateActsListOut = {
   acts: Array<{
-      key: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+      key: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
       title: string;
       risk: "low" | "medium" | "high";
       humanToo: boolean;
@@ -10252,7 +10252,7 @@ export type GateEffectiveRuleIn = {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
   };
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
 };
 export type GateEffectiveRuleOut = {
   hold: boolean;
@@ -10280,7 +10280,7 @@ export type GateHoldsGetIn = {
 export type GateHoldsGetOut = {
   hold: {
     id: string;
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
     capName: string;
     taskId: string;
     runId?: string;
@@ -10297,7 +10297,7 @@ export type GateHoldsGetOut = {
 };
 export type GateHoldsListIn = {
   states?: Array<"held" | "approved" | "denied" | "expired">;
-  act?: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act?: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   runId?: string;
   cursor?: string;
   limit?: number;
@@ -10305,7 +10305,7 @@ export type GateHoldsListIn = {
 export type GateHoldsListOut = {
   holds: Array<{
       id: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
       capName: string;
       taskId: string;
       runId?: string;
@@ -10327,7 +10327,7 @@ export type GateParkIn = {
   capVersion: number;
   input: unknown;
   payloadHash: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   principal: {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
@@ -10357,7 +10357,7 @@ export type GateRulesListIn = {
 };
 export type GateRulesListOut = {
   rules: Array<{
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
       mode: "hold" | "allow";
       approvers: string;
       peopleOnly: boolean;
@@ -10371,7 +10371,7 @@ export type GateRulesListOut = {
     }>;
 };
 export type GateRulesSetIn = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   mode: "hold" | "allow";
@@ -10383,7 +10383,7 @@ export type GateRulesSetIn = {
 };
 export type GateRulesSetOut = {
   rule: {
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
     mode: "hold" | "allow";
     approvers: string;
     peopleOnly: boolean;
@@ -14137,9 +14137,17 @@ export type LogsClientUploadIn = {
       msg: string;
       attrs?: Record<string, unknown>;
     }>;
+  samples?: Array<{
+      budgetId: string;
+      value: number;
+      at: number;
+      traceId?: string;
+      attrs?: Record<string, unknown>;
+    }>;
 };
 export type LogsClientUploadOut = {
   accepted: number;
+  sampled?: number;
 };
 export type LogsExportIn = {
   person?: string;
@@ -17284,6 +17292,32 @@ export type NetworkEndpointsOut = {
       rttMs?: number;
     }>;
 };
+export type NetworkEnrollIn = {
+  code: string;
+  publicKey: string;
+  name: string;
+  facts?: {
+    os?: string;
+    arch?: string;
+    docker?: boolean;
+    version?: string;
+  };
+};
+export type NetworkEnrollOut = {
+  serverId: string;
+  fingerprint: string;
+  state: "pending";
+};
+export type NetworkEnrollStatusIn = {
+  serverId: string;
+  at: number;
+  signature: string;
+};
+export type NetworkEnrollStatusOut = {
+  state: "pending" | "approved" | "declined" | "revoked";
+  fingerprint: string;
+  credential?: string;
+};
 export type NetworkHealthIn = Record<string, unknown>;
 export type NetworkHealthOut = {
   state: "healthy" | "degraded" | "down";
@@ -17295,6 +17329,25 @@ export type NetworkIngressCheckIn = Record<string, unknown>;
 export type NetworkIngressCheckOut = {
   reachable: boolean;
   detail?: string;
+};
+export type NetworkMyComputerApproveIn = {
+  serverId: string;
+};
+export type NetworkMyComputerApproveOut = {
+  state: "approved";
+};
+export type NetworkMyComputerCodeIn = {
+  idempotencyKey: string;
+};
+export type NetworkMyComputerCodeOut = {
+  code: string;
+  expiresAt: number;
+};
+export type NetworkMyComputerDeclineIn = {
+  serverId: string;
+};
+export type NetworkMyComputerDeclineOut = {
+  state: "declined";
 };
 export type NetworkPublicHostnamesIn = Record<string, unknown>;
 export type NetworkPublicHostnamesOut = {
@@ -17309,6 +17362,18 @@ export type NetworkRelaySetIn = {
 };
 export type NetworkRelaySetOut = {
   address: string;
+};
+export type NetworkServerApproveIn = {
+  serverId: string;
+};
+export type NetworkServerApproveOut = {
+  state: "approved";
+};
+export type NetworkServerDeclineIn = {
+  serverId: string;
+};
+export type NetworkServerDeclineOut = {
+  state: "declined";
 };
 export type NetworkServerJoinCodeIn = {
   idempotencyKey: string;
@@ -17337,6 +17402,16 @@ export type NetworkServersOut = {
       state: "healthy" | "degraded" | "down";
       role: "space" | "compute";
       lastSeenAt?: number;
+      enrollment?: "pending" | "approved";
+      fingerprint?: string;
+      owner?: string;
+      facts?: {
+        os: string;
+        arch: string;
+        docker: boolean;
+        version: string;
+      };
+      requestedAt?: number;
     }>;
 };
 export type NetworkStatusIn = Record<string, unknown>;
@@ -27881,10 +27956,17 @@ export interface CapMap {
   "network.certificate_renew": { in: NetworkCertificateRenewIn; out: NetworkCertificateRenewOut };
   "network.domain_set": { in: NetworkDomainSetIn; out: NetworkDomainSetOut };
   "network.endpoints": { in: NetworkEndpointsIn; out: NetworkEndpointsOut };
+  "network.enroll": { in: NetworkEnrollIn; out: NetworkEnrollOut };
+  "network.enroll_status": { in: NetworkEnrollStatusIn; out: NetworkEnrollStatusOut };
   "network.health": { in: NetworkHealthIn; out: NetworkHealthOut };
   "network.ingress_check": { in: NetworkIngressCheckIn; out: NetworkIngressCheckOut };
+  "network.my_computer_approve": { in: NetworkMyComputerApproveIn; out: NetworkMyComputerApproveOut };
+  "network.my_computer_code": { in: NetworkMyComputerCodeIn; out: NetworkMyComputerCodeOut };
+  "network.my_computer_decline": { in: NetworkMyComputerDeclineIn; out: NetworkMyComputerDeclineOut };
   "network.public_hostnames": { in: NetworkPublicHostnamesIn; out: NetworkPublicHostnamesOut };
   "network.relay_set": { in: NetworkRelaySetIn; out: NetworkRelaySetOut };
+  "network.server_approve": { in: NetworkServerApproveIn; out: NetworkServerApproveOut };
+  "network.server_decline": { in: NetworkServerDeclineIn; out: NetworkServerDeclineOut };
   "network.server_join_code": { in: NetworkServerJoinCodeIn; out: NetworkServerJoinCodeOut };
   "network.server_reconnect": { in: NetworkServerReconnectIn; out: NetworkServerReconnectOut };
   "network.server_remove": { in: NetworkServerRemoveIn; out: NetworkServerRemoveOut };
@@ -29455,14 +29537,14 @@ export type FormSubmittedPayload = {
 };
 export type GateApprovedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   taskId: string;
   by: string;
   forPerson?: string;
 };
 export type GateDeniedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   taskId: string;
   by: string;
   mode: "send_back" | "drop";
@@ -29470,14 +29552,14 @@ export type GateDeniedPayload = {
 };
 export type GateExpiredPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   taskId: string;
   outcome: "dropped" | "escalated";
   escalatedTo?: string;
 };
 export type GateRequestedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   capName: string;
   taskId: string;
   principal: {
@@ -29489,7 +29571,7 @@ export type GateRequestedPayload = {
   expiresAt: number;
 };
 export type GateRuleChangedPayload = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   by: string;
@@ -30227,6 +30309,11 @@ export type NetworkServerAddedPayload = {
 };
 export type NetworkServerRemovedPayload = {
   serverId: string;
+};
+export type NetworkServerRequestedPayload = {
+  serverId: string;
+  name: string;
+  fingerprint: string;
 };
 export type NoteErasedPayload = {
   noteId: string;
@@ -32113,6 +32200,7 @@ export interface EventMap {
   "network.domain_changed": NetworkDomainChangedPayload;
   "network.server_added": NetworkServerAddedPayload;
   "network.server_removed": NetworkServerRemovedPayload;
+  "network.server_requested": NetworkServerRequestedPayload;
   "note.erased": NoteErasedPayload;
   "notification.capped": NotificationCappedPayload;
   "notification.delegate_changed": NotificationDelegateChangedPayload;
