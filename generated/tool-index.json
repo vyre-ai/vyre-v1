@@ -4370,6 +4370,24 @@
     },
     {
       "deferred": false,
+      "name": "members_sign_in_github_clear",
+      "summary": "Forget the GitHub sign-in app set in the app (a server environment setting stays)",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "members_sign_in_github_get",
+      "summary": "The GitHub sign-in app: the client id, whether the secret is set (never the secret), where it comes from, and the callback address to register at GitHub",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "members_sign_in_github_set",
+      "summary": "Turn on GitHub sign-in: the OAuth app client id and secret; the secret goes into the Vault as a Space item and is never shown again",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "members_sign_in_policy_get",
       "summary": "The Space sign-in policy: second-factor floor, SSO required, allowed methods",
       "toolset": "engineer"

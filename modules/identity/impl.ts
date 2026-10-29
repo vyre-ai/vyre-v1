@@ -22,7 +22,11 @@ export const hostCalls = {
     ctx.db.run(`CREATE TABLE IF NOT EXISTS "identity_space" ("id" TEXT PRIMARY KEY, "name" TEXT NOT NULL, "logo_file_id" TEXT, "fingerprint" TEXT NOT NULL, "github" INTEGER NOT NULL DEFAULT 0, "second_factor_required" INTEGER NOT NULL DEFAULT 0, "sso_json" TEXT NOT NULL DEFAULT '[]')`);
     let h = 0x811c9dc5;
     const hex = Array.from(ctx.space).map((c) => { h = Math.imul(h ^ c.charCodeAt(0), 0x01000193) >>> 0; return h.toString(16).padStart(8, "0"); }).join("").slice(-16).padStart(16, "0");
-    ctx.db.run(`INSERT OR IGNORE INTO identity_space (id, name, logo_file_id, fingerprint, github, second_factor_required, sso_json) VALUES (?, ?, NULL, ?, ?, 0, '[]')`,
+    ctx.db.run(`INSERT OR IGNORE INTO identity_space (id, name, logo_file_id, fingerprint, github, second_factor_required, sso_json) VALUES (?, ?, NULL, ?, ?, 0, '[]') ON CONFLICT(id) DO UPDATE SET github = excluded.github`,
       ctx.space, i.name, hex.replace(/(.{4})(?=.)/g, "$1 "), i.github ? 1 : 0);
+  },
+  /** whether the server has a GitHub app now (the environment's, or the one an admin saved in the app) */
+  "identity.set_github": (ctx: { space: string; db: { run(sql: string, ...a: unknown[]): unknown } }, i: { on: boolean }): void => {
+    try { ctx.db.run(`UPDATE identity_space SET github = ? WHERE id = ?`, i.on ? 1 : 0, ctx.space); } catch { /* the Space row is made at boot */ }
   },
 };

@@ -5249,6 +5249,45 @@
       ],
       "type": "object"
     },
+    "s_46c7513fb7": {
+      "properties": {
+        "github": {
+          "properties": {
+            "callbackUrl": {
+              "type": "string"
+            },
+            "clientId": {
+              "type": "string"
+            },
+            "createUrl": {
+              "type": "string"
+            },
+            "secretSet": {
+              "type": "boolean"
+            },
+            "source": {
+              "enum": [
+                "env",
+                "space",
+                "none"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "secretSet",
+            "source",
+            "callbackUrl",
+            "createUrl"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "github"
+      ],
+      "type": "object"
+    },
     "s_475c563580": {
       "properties": {
         "act": {
@@ -108408,6 +108447,184 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "policy.changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.needs_team",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "github": {
+              "callbackUrl": "example",
+              "clientId": "example",
+              "createUrl": "example",
+              "secretSet": true,
+              "source": "env"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "members",
+      "name": "members.sign_in_github.clear",
+      "output": {
+        "$ref": "#/$defs/s_46c7513fb7"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Forget the GitHub sign-in app set in the app (a server environment setting stays)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "teamOnly": true,
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.needs_team",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "github": {
+              "callbackUrl": "example",
+              "clientId": "example",
+              "createUrl": "example",
+              "secretSet": true,
+              "source": "env"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "members",
+      "name": "members.sign_in_github.get",
+      "output": {
+        "$ref": "#/$defs/s_46c7513fb7"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The GitHub sign-in app: the client id, whether the secret is set (never the secret), where it comes from, and the callback address to register at GitHub",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "teamOnly": true,
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "policy.changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.needs_team",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "clientId": "example",
+            "clientSecret": "example"
+          },
+          "name": "example",
+          "output": {
+            "github": {
+              "callbackUrl": "example",
+              "clientId": "example",
+              "createUrl": "example",
+              "secretSet": true,
+              "source": "env"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "clientId": {
+            "type": "string"
+          },
+          "clientSecret": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "clientId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "members",
+      "name": "members.sign_in_github.set",
+      "output": {
+        "$ref": "#/$defs/s_46c7513fb7"
+      },
+      "permission": "policy.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Turn on GitHub sign-in: the OAuth app client id and secret; the secret goes into the Vault as a Space item and is never shown again",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "teamOnly": true,
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -209456,11 +209673,23 @@
     },
     {
       "actions": {
+        "clear_github": {
+          "cap": "members.sign_in_github.clear",
+          "confirm": "Forget the GitHub app?",
+          "input": {}
+        },
         "remove_sso": {
           "cap": "members.sso.remove",
           "confirm": "Remove this provider?",
           "input": {
             "key": "/state/key"
+          }
+        },
+        "save_github": {
+          "cap": "members.sign_in_github.set",
+          "input": {
+            "clientId": "/state/clientId",
+            "clientSecret": "/state/clientSecret"
           }
         },
         "save_sso": {
@@ -209494,6 +209723,11 @@
       },
       "place": "console",
       "queries": {
+        "github": {
+          "cap": "members.sign_in_github.get",
+          "input": {},
+          "live": true
+        },
         "policy": {
           "cap": "members.sign_in_policy.get",
           "input": {},

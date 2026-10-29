@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access, home.
 
-## Capabilities (17)
+## Capabilities (20)
 
 - [members.accept](../capabilities/members.accept.md): Accept an invite: pick a username and password, the device makes its keys; the person becomes active
 - [members.invites.create](../capabilities/members.invites.create.md): Invite a person: role, groups, the agents, projects and channels they start in, expiry; returns the link (address, one-time code, Space key fingerprint)
@@ -16,6 +16,9 @@ Requires: access, home.
 - [members.remove](../capabilities/members.remove.md): Remove a person with the wizard plan: reassign owned things, pause routines, revoke mailbox connections, rotate the Space key epoch
 - [members.remove_preview](../capabilities/members.remove_preview.md): Removal wizard: each kind of thing the person owns, its default action and the transfer diff
 - [members.second_factor.report](../capabilities/members.second_factor.report.md): Who has a second factor and who does not (when the floor is on, the ones locked out soon)
+- [members.sign_in_github.clear](../capabilities/members.sign_in_github.clear.md): Forget the GitHub sign-in app set in the app (a server environment setting stays)
+- [members.sign_in_github.get](../capabilities/members.sign_in_github.get.md): The GitHub sign-in app: the client id, whether the secret is set (never the secret), where it comes from, and the callback address to register at GitHub
+- [members.sign_in_github.set](../capabilities/members.sign_in_github.set.md): Turn on GitHub sign-in: the OAuth app client id and secret; the secret goes into the Vault as a Space item and is never shown again
 - [members.sign_in_policy.get](../capabilities/members.sign_in_policy.get.md): The Space sign-in policy: second-factor floor, SSO required, allowed methods
 - [members.sign_in_policy.set](../capabilities/members.sign_in_policy.set.md): Set the sign-in policy (owner floor: nobody goes below it)
 - [members.sso.list](../capabilities/members.sso.list.md): List SSO providers set for this Space

@@ -29484,6 +29484,61 @@
     },
     {
       "blocks": [],
+      "cap": "members.sign_in_github.clear",
+      "deferred": false,
+      "description": "Forget the GitHub sign-in app set in the app (a server environment setting stays)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "members_sign_in_github_clear",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "members.sign_in_github.get",
+      "deferred": false,
+      "description": "The GitHub sign-in app: the client id, whether the secret is set (never the secret), where it comes from, and the callback address to register at GitHub",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "members_sign_in_github_get",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "members.sign_in_github.set",
+      "deferred": false,
+      "description": "Turn on GitHub sign-in: the OAuth app client id and secret; the secret goes into the Vault as a Space item and is never shown again",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "clientId": {
+            "type": "string"
+          },
+          "clientSecret": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "clientId"
+        ],
+        "type": "object"
+      },
+      "name": "members_sign_in_github_set",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "members.sign_in_policy.get",
       "deferred": false,
       "description": "The Space sign-in policy: second-factor floor, SSO required, allowed methods",

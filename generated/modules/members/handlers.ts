@@ -15,6 +15,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "members.remove": Handler<"members.remove", X>;
   "members.remove_preview": Handler<"members.remove_preview", X>;
   "members.second_factor.report": Handler<"members.second_factor.report", X>;
+  "members.sign_in_github.clear": Handler<"members.sign_in_github.clear", X>;
+  "members.sign_in_github.get": Handler<"members.sign_in_github.get", X>;
+  "members.sign_in_github.set": Handler<"members.sign_in_github.set", X>;
   "members.sign_in_policy.get": Handler<"members.sign_in_policy.get", X>;
   "members.sign_in_policy.set": Handler<"members.sign_in_policy.set", X>;
   "members.sso.list": Handler<"members.sso.list", X>;

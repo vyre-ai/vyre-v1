@@ -1,15 +1,16 @@
 import {useEffect,useState} from "react";
 import type {ReactElement} from "react";
 import {View} from "react-native";
-import type {AccessPoliciesListOut,AuditListOut,MembersSignInPolicyGetOut} from "../../../../../generated/types.ts";
+import type {AccessPoliciesListOut,AuditListOut,MembersSignInGithubGetOut,MembersSignInPolicyGetOut} from "../../../../../generated/types.ts";
 import {ObjectPage,ObjectSection,withBaseTabs} from "../../../../../ui/src/ObjectPage/index.tsx";
 import {Row} from "../../../../../ui/src/Row/index.tsx";
 import {ObjectList} from "../objects/ObjectList.tsx";
 import {useConsoleData} from "../shell/data.tsx";
 import {Group} from "../shell/ui.tsx";
 import {SecuritySheet} from "../../places/settings/SecuritySheet.tsx";
-import {Actions,Button,Note,ReadState,Select,useAction,useRead} from "./shared.tsx";
+import {Actions,Button,Field,Note,ReadState,Select,useAction,useRead} from "./shared.tsx";
 type SignIn=MembersSignInPolicyGetOut;
+type GithubApp=MembersSignInGithubGetOut["github"];
 type PolicyRow={id:string;title:string;note:string;area:string;page?:string};
 const OWNED:readonly PolicyRow[]=[{id:"gate",title:"Gate rules",note:"Review rules and approval impact before changing them.",area:"AI",page:"gate"},{id:"spend",title:"Spend and limits",note:"Provider budgets and usage limits.",area:"AI",page:"spend"},{id:"labels",title:"Sensitivity labels",note:"Rules for handling sensitive information.",area:"Data",page:"labels"},{id:"retention",title:"Retention",note:"Retention rules and holds are managed together.",area:"Data",page:"retention"},{id:"models",title:"Models and providers",note:"Available providers and allowed model policies.",area:"AI",page:"models"}];
 export function mfaPrerequisite(out:SignIn):string{
@@ -33,11 +34,30 @@ function PolicyObject({id,onBack}:{id:string;onBack:()=>void}):ReactElement{
  {tab==="activity"?<PolicyActivity id={id}/>:tab==="access"?<ObjectSection title="Who can change this policy"><Note>Policy managers can review and change Space policy. Only the current Space owner may lower sign-in requirements. The server checks permission and lockout safeguards on every change.</Note></ObjectSection>:id==="sign_in"?<SignInPolicy/>:id==="sharing.public_links"?<PublicLinks/>:owned?<ObjectSection title={owned.title}><Note>{owned.note}</Note><Button label={`Open ${owned.title.toLowerCase()}`} onPress={()=>data.nav.openPage(owned.page!)}/></ObjectSection>:<ObjectSection title="Vault access levels"><Group>{[{title:"Use",note:"An approved action can use a secret without showing its value."},{title:"View",note:"Read a secret value when authorized."},{title:"Edit",note:"Change the stored secret."},{title:"Manage",note:"Manage access and ownership."}].map(row=><Row key={row.title} title={row.title} note={row.note}/>)}</Group><Note>The access ladder is a fixed security boundary. Set each item’s access in Vault.</Note></ObjectSection>}
  </ObjectPage></View>;
 }
+// The GitHub app behind "Sign in with GitHub": an admin pastes the client id and secret. The secret goes to the Vault as a Space item and is never shown again; this page only learns "set".
+export function GithubAppView({github,editing=false,busy=false,note="",onSave,onClear}:{github:GithubApp;editing?:boolean;busy?:boolean;note?:string;onSave?:(input:{clientId:string;clientSecret?:string})=>void;onClear?:()=>void}):ReactElement{
+ const[clientId,setClientId]=useState(github.clientId??"");const[secret,setSecret]=useState("");const[copied,setCopied]=useState(false);
+ const copy=()=>{void (globalThis as {navigator?:{clipboard?:{writeText(text:string):Promise<void>}}}).navigator?.clipboard?.writeText(github.callbackUrl).then(()=>setCopied(true),()=>setCopied(false));};
+ const create=()=>{(globalThis as {open?:(url:string,target:string,features:string)=>unknown}).open?.(github.createUrl,"_blank","noopener,noreferrer");};
+ return <ObjectSection title="GitHub app"><Group><Row title="Client ID" note={github.clientId??"Not set"}/><Row title="Client secret" note={github.secretSet?"Set, kept in the Vault":"Not set"}/><Row title="Callback address" note={github.callbackUrl}/></Group>
+ {github.source==="env"?<Note>This server sets the GitHub app in its environment, and that takes priority over what is saved here.</Note>:null}
+ <Actions><Button label={copied?"Copied":"Copy callback address"} testID="github-copy-callback" onPress={copy}/><Button label="Create the GitHub app" testID="github-create-app" onPress={create}/></Actions>
+ <Note>Register this callback address when you create the app at GitHub, then paste the app’s Client ID and a new Client secret below.</Note>
+ {editing?<><Field label="GitHub client ID" value={clientId} onChange={setClientId} testID="github-client-id"/><Field label={github.secretSet?"New client secret (leave empty to keep the saved one)":"GitHub client secret"} value={secret} onChange={setSecret} secure testID="github-client-secret"/>
+ <Actions><Button label="Save GitHub app" testID="github-save" disabled={busy||!clientId.trim()||(!secret.trim()&&!github.secretSet)} onPress={()=>{onSave?.({clientId,...(secret.trim()?{clientSecret:secret}:{})});setSecret("");}}/>{github.source==="space"?<Button label="Forget the GitHub app" testID="github-clear" danger disabled={busy} onPress={()=>onClear?.()}/>:null}</Actions></>:null}
+ {note?<Note>{note}</Note>:null}</ObjectSection>;
+}
+function GithubAppSection({editing,onChanged}:{editing:boolean;onChanged:()=>void}):ReactElement|null{
+ const query=useRead<MembersSignInGithubGetOut>("members.sign_in_github.get",{});const action=useAction(()=>{query.refresh();onChanged();});
+ if(!query.data)return query.error?<ReadState error={query.error} retry={query.refresh}/>:null;
+ return <GithubAppView github={query.data.github} editing={editing} busy={action.busy} note={action.note} onSave={input=>void action.run("members.sign_in_github.set",input,"GitHub app saved")} onClear={()=>void action.run("members.sign_in_github.clear",{},"GitHub app forgotten")}/>;
+}
 function SignInPolicy({editing=false,onSaved}:{editing?:boolean;onSaved?:()=>void}):ReactElement{
  const data=useConsoleData();const query=useRead<SignIn>("members.sign_in_policy.get",{});const[draft,setDraft]=useState<SignIn["policy"]|null>(null);const[confirm,setConfirm]=useState(false);const[enroll,setEnroll]=useState(false);const action=useAction(query.refresh);
  if(!query.data)return <ReadState error={query.error} retry={query.refresh}/>;
  const out=query.data;const policy=draft??out.policy;const prerequisite=mfaPrerequisite(out);const methods=out.capabilities;const alternate=!!methods?.github||!!methods?.sso.length;
  return <ObjectSection title="Sign-in requirements"><Group><Row title="Password sign-in" note={out.policy.allowPassword&&!out.policy.requireSso?"Allowed":"Disabled by Space policy"}/><Row title="GitHub sign-in" note={methods?.github?(out.policy.allowGithub?"Configured and allowed":"Configured, disabled by policy"):"Unavailable: this server has no GitHub authorization integration"}/><Row title="Single sign-on" note={methods?.sso.length?methods.sso.join(", "):"Unavailable: this server has no supported SSO sign-in flow"}/><Row title="Authenticator requirement" note={out.policy.secondFactor==="required"?"Required":"Optional; each person can enroll now"}/></Group>
+ <GithubAppSection editing={editing} onChanged={query.refresh}/>
  {prerequisite?<Note>{prerequisite}</Note>:null}{!methods?.currentHasSecondFactor?<Button label="Set up your authenticator" testID="policy-enroll" onPress={()=>setEnroll(true)}/>:null}
  {editing?<><Select label="Password sign-in" value={String(policy.allowPassword)} options={[{key:"true",title:"Allowed"},...(alternate?[{key:"false",title:"Disabled"}]:[])]} onChange={value=>{setDraft({...policy,allowPassword:value==="true"});setConfirm(false);}}/>{methods?.github?<Select label="GitHub sign-in" value={String(policy.allowGithub)} options={[{key:"true",title:"Allowed"},{key:"false",title:"Disabled"}]} onChange={value=>{setDraft({...policy,allowGithub:value==="true"});setConfirm(false);}}/>:null}<Select label="Authenticator requirement" value={policy.secondFactor} options={[{key:"off",title:"Optional"},...(!prerequisite||out.policy.secondFactor==="required"?[{key:"required",title:"Required"}]:[])]} onChange={value=>{setDraft({...policy,secondFactor:value as "off"|"required"});setConfirm(false);}}/>{methods?.sso.length?<Select label="Require single sign-on" value={String(policy.requireSso)} options={[{key:"false",title:"No"},{key:"true",title:"Yes"}]} onChange={value=>{setDraft({...policy,requireSso:value==="true"});setConfirm(false);}}/>:out.policy.requireSso?<Button label="Restore password sign-in" onPress={()=>setDraft({...policy,allowPassword:true,requireSso:false})}/>:null}
  {confirm?<><Note>Save these sign-in requirements? They apply to the next account creation and sign-in. Current sessions stay available; only the Owner can lower an existing requirement.</Note><Actions><Button label="Cancel review" onPress={()=>setConfirm(false)}/><Button label="Confirm sign-in policy" testID="policy-signin-confirm" disabled={action.busy} onPress={()=>void action.run("members.sign_in_policy.set",{policy},"Sign-in policy saved").then(result=>{if(result){setDraft(null);setConfirm(false);onSaved?.();}})}/></Actions></>:<Button label="Review sign-in changes" testID="policy-signin-review" disabled={action.busy||!draft} onPress={()=>setConfirm(true)}/>}</>:null}

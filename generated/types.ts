@@ -15775,6 +15775,39 @@ export type MembersSecondFactorReportOut = {
   next?: string;
   total?: number;
 };
+export type MembersSignInGithubClearIn = Record<string, unknown>;
+export type MembersSignInGithubClearOut = {
+  github: {
+    clientId?: string;
+    secretSet: boolean;
+    source: "env" | "space" | "none";
+    callbackUrl: string;
+    createUrl: string;
+  };
+};
+export type MembersSignInGithubGetIn = Record<string, unknown>;
+export type MembersSignInGithubGetOut = {
+  github: {
+    clientId?: string;
+    secretSet: boolean;
+    source: "env" | "space" | "none";
+    callbackUrl: string;
+    createUrl: string;
+  };
+};
+export type MembersSignInGithubSetIn = {
+  clientId: string;
+  clientSecret?: string;
+};
+export type MembersSignInGithubSetOut = {
+  github: {
+    clientId?: string;
+    secretSet: boolean;
+    source: "env" | "space" | "none";
+    callbackUrl: string;
+    createUrl: string;
+  };
+};
 export type MembersSignInPolicyGetIn = Record<string, unknown>;
 export type MembersSignInPolicyGetOut = {
   policy: {
@@ -27865,6 +27898,9 @@ export interface CapMap {
   "members.remove": { in: MembersRemoveIn; out: MembersRemoveOut };
   "members.remove_preview": { in: MembersRemovePreviewIn; out: MembersRemovePreviewOut };
   "members.second_factor.report": { in: MembersSecondFactorReportIn; out: MembersSecondFactorReportOut };
+  "members.sign_in_github.clear": { in: MembersSignInGithubClearIn; out: MembersSignInGithubClearOut };
+  "members.sign_in_github.get": { in: MembersSignInGithubGetIn; out: MembersSignInGithubGetOut };
+  "members.sign_in_github.set": { in: MembersSignInGithubSetIn; out: MembersSignInGithubSetOut };
   "members.sign_in_policy.get": { in: MembersSignInPolicyGetIn; out: MembersSignInPolicyGetOut };
   "members.sign_in_policy.set": { in: MembersSignInPolicySetIn; out: MembersSignInPolicySetOut };
   "members.sso.list": { in: MembersSsoListIn; out: MembersSsoListOut };
