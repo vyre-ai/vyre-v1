@@ -34,18 +34,19 @@ export function createOauth(deps: ConnectorsDeps) {
   const { tx } = deps;
 
   /** The client secret, by its declared slot, read through the Vault like any other secret of the connection. */
-  const clientSecretOf = async (def: ConnectorDef, conn: ConnectionDb): Promise<string | undefined> => {
+  const clientSecretOf = async (ctx: ConnectorsCtx, def: ConnectorDef, conn: ConnectionDb): Promise<string | undefined> => {
     const slot = def.auth.clientSecret;
     const handle = slot ? secretsOf(conn)[slot] : undefined;
     if (!slot || !handle || !deps.resolveSecret) return undefined;
-    return deps.resolveSecret(handle, { connector: def.key, connectionId: conn.connection_id, slot });
+    try { return await deps.resolveSecret(handle, { connector: def.key, connectionId: conn.connection_id, slot }); }
+    catch (e) { return vaultFailure(ctx, e, conn); }
   };
 
   /** POST to the token address (a declared domain, https) and read the tokens. Never throws a message with a code, token or secret in it. */
   async function tokenCall(ctx: ConnectorsCtx, def: ConnectorDef, conn: ConnectionDb, form: URLSearchParams, hide: string[]): Promise<TokenSet> {
     const eg = def.auth.tokenUrl ? checkEgress(def.auth.tokenUrl, def.domains) : { ok: false as const, reason: "no token address is declared" };
     if (!eg.ok) return refuse(ctx, "permission.no_grant", `Egress refused: ${eg.reason}.`);
-    const clientSecret = await clientSecretOf(def, conn);
+    const clientSecret = await clientSecretOf(ctx, def, conn);
     if (def.auth.clientId) form.set("client_id", def.auth.clientId);
     if (clientSecret) form.set("client_secret", clientSecret);
     const scrub = scrubber([...hide, ...(clientSecret ? [clientSecret] : [])]);
@@ -167,7 +168,7 @@ export function createOauth(deps: ConnectorsDeps) {
         if (!token) continue;
         const form = new URLSearchParams({ token, token_type_hint: it.slot === def.auth.secret ? "access_token" : "refresh_token" });
         if (def.auth.clientId) form.set("client_id", def.auth.clientId);
-        const clientSecret = await clientSecretOf(def, conn).catch(() => undefined);
+        const clientSecret = await clientSecretOf(ctx, def, conn).catch(() => undefined);
         if (clientSecret) form.set("client_secret", clientSecret);
         try { await ctx.http(eg.url.toString(), { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form.toString() }); }
         catch (e) { ctx.log?.warn("oauth revoke did not reach the app", { connectionId: conn.connection_id, error: scrubber([token, ...(clientSecret ? [clientSecret] : [])]).text(e instanceof Error ? e.message : String(e)) }); }

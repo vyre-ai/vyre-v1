@@ -123,6 +123,8 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       const authUrl = authUrlFor(def, row, input.scopes ?? [], false, ctx);
       // An OAuth connection is made when the sign-in comes back (complete_auth announces it); every other kind exists now.
       if (!authUrl) ctx.emit("connection.created", `connection/${id}`, { connectionId: id, connector: input.connector, ownerKind: input.ownerKind });
+      // The sign-in has not happened, so it is not announced as made, but the connection exists and its owner must be able to act on it (the client secret is filled for the code exchange before it completes)
+      else ctx.emit("connection.pending", `connection/${id}`, { connectionId: id, connector: input.connector, ownerKind: input.ownerKind });
       return { connection: rowOf(row), ...(authUrl ? { authUrl } : {}) };
     },
 

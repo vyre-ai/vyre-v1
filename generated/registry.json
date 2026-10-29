@@ -17915,6 +17915,36 @@
       ],
       "type": "object"
     },
+    "s_fc0405d407": {
+      "properties": {
+        "connectionId": {
+          "examples": [
+            "con_a1b2c3"
+          ],
+          "pattern": "^con_[a-z0-9]+$",
+          "type": "string"
+        },
+        "connector": {
+          "examples": [
+            "hubspot"
+          ],
+          "type": "string"
+        },
+        "ownerKind": {
+          "enum": [
+            "person",
+            "space"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "connectionId",
+        "connector",
+        "ownerKind"
+      ],
+      "type": "object"
+    },
     "s_fc475b05bc": {
       "properties": {
         "folder": {
@@ -51414,7 +51444,8 @@
       "audit": "always",
       "effects": "write",
       "emits": [
-        "connection.created"
+        "connection.created",
+        "connection.pending"
       ],
       "errors": [
         "internal.unexpected",
@@ -176159,34 +176190,7 @@
       "module": "connectors",
       "name": "connection.created",
       "payload": {
-        "properties": {
-          "connectionId": {
-            "examples": [
-              "con_a1b2c3"
-            ],
-            "pattern": "^con_[a-z0-9]+$",
-            "type": "string"
-          },
-          "connector": {
-            "examples": [
-              "hubspot"
-            ],
-            "type": "string"
-          },
-          "ownerKind": {
-            "enum": [
-              "person",
-              "space"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "connectionId",
-          "connector",
-          "ownerKind"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_fc0405d407"
       },
       "replay": "pure",
       "subject": {
@@ -176252,6 +176256,21 @@
         "type": "connection"
       },
       "summary": "The owner paused a connection",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "connectors",
+      "name": "connection.pending",
+      "payload": {
+        "$ref": "#/$defs/s_fc0405d407"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/connectionId",
+        "type": "connection"
+      },
+      "summary": "A connection was started and waits for its sign-in; it exists (so its owner can use it) but is not announced as made yet",
       "sv": 1,
       "vis": "space"
     },

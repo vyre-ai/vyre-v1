@@ -28949,6 +28949,11 @@ export type ConnectionNeedsReconnectPayload = {
 export type ConnectionPausedPayload = {
   connectionId: string;
 };
+export type ConnectionPendingPayload = {
+  connectionId: string;
+  connector: string;
+  ownerKind: "person" | "space";
+};
 export type ConnectionReconnectedPayload = {
   connectionId: string;
 };
@@ -31764,6 +31769,7 @@ export interface EventMap {
   "connection.deleted": ConnectionDeletedPayload;
   "connection.needs_reconnect": ConnectionNeedsReconnectPayload;
   "connection.paused": ConnectionPausedPayload;
+  "connection.pending": ConnectionPendingPayload;
   "connection.reconnected": ConnectionReconnectedPayload;
   "connection.resumed": ConnectionResumedPayload;
   "connector.built": ConnectorBuiltPayload;

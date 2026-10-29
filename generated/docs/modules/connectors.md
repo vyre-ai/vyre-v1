@@ -51,12 +51,13 @@ Requires: records, schema.
 - [sync_types.undo_push](../capabilities/sync_types.undo_push.md): Reverse one push using the stored replaced value
 - [sync_types.update](../capabilities/sync_types.update.md): Change field directions, transforms, match, create-at-source, deletes, conflict rule or polling
 
-## Events (24)
+## Events (25)
 
 - [connection.created](../events/connection.created.md): A connection was made
 - [connection.deleted](../events/connection.deleted.md): A connection was removed
 - [connection.needs_reconnect](../events/connection.needs_reconnect.md): The provider rejected the sign-in; the owner must reconnect
 - [connection.paused](../events/connection.paused.md): The owner paused a connection
+- [connection.pending](../events/connection.pending.md): A connection was started and waits for its sign-in; it exists (so its owner can use it) but is not announced as made yet
 - [connection.reconnected](../events/connection.reconnected.md): A connection signed in again
 - [connection.resumed](../events/connection.resumed.md): A paused connection resumed
 - [connector.built](../events/connector.built.md): The build-connector flow produced a draft
