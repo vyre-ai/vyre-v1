@@ -20,11 +20,14 @@ export function heldBack(d: PullDeps, viewer: Viewer): Record<string, string[]> 
   for (const k of d.catalog.classified?.() ?? []) keys.add(k);
   for (const r of d.db.all<{ entity: string }>("SELECT DISTINCT entity FROM sync_rows")) keys.add(r.entity);
   const out: Record<string, string[]> = {};
+  const granted = d.cache.hiddenByGrants(viewer.who.person, viewer.now);
   for (const key of [...keys].sort()) {
     const cfg = d.catalog.get(key);
     if (cfg.profile[viewer.who.deviceClass] === "none") continue;
     const sc = viewer.scope(cfg);
     const fields = new Set<string>(sc.hidden);
+    // a grant on a record type or an ancestor can hide a field of any row it reaches; which rows it reaches is decided per row, so the device is treated as held back from it on every entity of that access resource
+    if (cfg.resource === "record") for (const f of granted) fields.add(f);
     for (const [f, rank] of Object.entries(cfg.fieldLabels)) if (rank > sc.cap) fields.add(f);
     if (fields.size) out[key] = [...fields].sort();
   }

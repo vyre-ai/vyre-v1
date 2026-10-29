@@ -86,6 +86,8 @@ export interface SyncHubPort {
   accept(t: SyncTransport, who: { person: string; device: string; deviceClass: "desktop" | "phone" | "web" }): { close(reason?: string): void };
   /** The log committed: sessions flush what they owe. */
   commit(): void;
+  /** The host is stopping: stop the hub's heartbeats and close its sessions. */
+  close?(): void;
 }
 
 export interface LiveSession { space: string; principal: CtxSeed["principal"]; device: string; actingFor?: string | undefined }
@@ -273,6 +275,7 @@ export function createLiveHub(o: LiveOptions): LiveHub {
     close: () => new Promise((resolve) => {
       clearInterval(timer);
       for (const c of [...conns.values()]) close(c, 1001, "server stopping");
+      try { o.sync?.close?.(); } catch { /* the sockets are already closed */ }
       server.close(() => resolve());
       server.closeAllConnections();
     }),

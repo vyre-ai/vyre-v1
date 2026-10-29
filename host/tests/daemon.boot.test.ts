@@ -234,7 +234,7 @@ test("boot collection sees grant.revoked and does not recreate an imported agent
   }
 });
 
-test("the live socket answers example.echo on the same server with the same trace id in the response, the numbered event and the log", async () => {
+test("the live socket answers example.echo on the same server with the same trace id in the response and the log; a sync session hears row batches, never the raw event", async () => {
   const dir = seededDir();
   const d = await boot(dir);
   try {
@@ -252,17 +252,18 @@ test("the live socket answers example.echo on the same server with the same trac
     });
     const ofType = async (type: string): Promise<Record<string, unknown>> => { for (;;) { const f = await next(); if (f["t"] === type) return f; } };
 
-    ws.send(JSON.stringify({ t: "hello", cursor: head }));
-    assert.equal((await ofType("hello_ok"))["head"], head);
+    // the Space's sync module serves the socket: hello is the modern { hello } frame and the answer the modern { ok } envelope
+    ws.send(JSON.stringify({ t: "hello", hello: { deviceId: "dev1", deviceClass: "desktop", appVersion: "1.2.3", registryHash: "unknown", cursor: head, epoch: 0, replica: { entities: {} } } }));
+    const hello = (await ofType("hello_ok"))["ok"] as { head: number; mode: string };
+    assert.equal(typeof hello.head, "number", "the head is the sync feed's own (rows only), not the event log's");
+    assert.equal(hello.mode, "resync", "a build hash the server does not know must resync");
     const tr = `${"a1".repeat(16)}-${"b2".repeat(8)}`;
     ws.send(JSON.stringify({ t: "call", id: 1, cap: "example.echo", input: { n: 9 }, tr }));
-    const evFrame = await ofType("ev");
     const res = await ofType("res");
     assert.equal(res["ok"], true);
     assert.deepEqual((res["data"] as { output: unknown }).output, { n: 9 });
     assert.equal(String(res["tr"]).slice(0, 32), "a1".repeat(16), "the response is in the caller's trace");
-    assert.equal(evFrame["seq"], head + 1);
-    assert.equal(evFrame["tr"], "a1".repeat(16));
+    assert.ok(!frames.some((f) => f["t"] === "ev"), "the raw example.said event is not a row, so a sync session is sent no ev frame for it");
     assert.equal(d.sink.trace("a1".repeat(16)).logs.some((l) => l.msg === "ws.call"), true, "and the log has the call");
     ws.close();
 
