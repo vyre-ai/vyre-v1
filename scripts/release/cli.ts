@@ -81,7 +81,7 @@ export function main(argv: string[]): number {
         if (images.VYRE_IMAGE) { packServer({ root, outDir: a, version: b, images }); made.push("vyre.tgz"); }
         const dist = process.env["APP_DIST"];
         if (dist) { packFolder({ dir: dist, outFile: path.join(a, APP_TARBALL), topName: "app-web" }); made.push(APP_TARBALL); }
-        packExtension({ dir: path.join(root, "apps/chrome"), outFile: path.join(a, EXTENSION_ZIP) }); made.push(EXTENSION_ZIP);
+        packExtension({ dir: path.join(root, "apps/chrome"), outFile: path.join(a, EXTENSION_ZIP), release: b }); made.push(EXTENSION_ZIP);
         packFolder({ dir: path.join(root, "kits"), outFile: path.join(a, KITS_TARBALL), topName: "kits" }); made.push(KITS_TARBALL);
         fs.writeFileSync(path.join(a, "releases.json"), JSON.stringify(releasesFrom({ version: b, dir: a })));
         console.log(`release: packed ${made.join(", ")}`);
