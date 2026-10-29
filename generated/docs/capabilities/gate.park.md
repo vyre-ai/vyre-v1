@@ -29,7 +29,7 @@ type In = {
   capVersion: number;
   input: unknown;
   payloadHash: string;
-  act: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   principal: {
     kind: "person" | "agent" | "actor" | "service";
     id: string;

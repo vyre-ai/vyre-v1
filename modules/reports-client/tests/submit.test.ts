@@ -314,12 +314,19 @@ test("the drivers must be wired", async () => {
 
 test("impl.ts registers every reports-client capability as deferred: it refuses with the shared message", async () => {
   const w = world();
-  for (const name of Object.keys(impl.handlers)) {
+  for (const name of Object.keys(impl.handlers).filter((n) => n !== "reports.health")) {
     let err: { error?: { code?: string; message?: string } } | null = null;
     try { await (impl.handlers as Record<string, (c: unknown, i: unknown) => unknown>)[name]!(w.ctx, {}); } catch (e) { err = e as { error?: { code?: string; message?: string } }; }
     assert.equal(err?.error?.code, "internal.unavailable", name);
     assert.equal(err?.error?.message, "Not in this version yet", name);
   }
+});
+
+test("impl.ts keeps the health check real: a server without the reports client reads healthy with a hint, not down", async () => {
+  const w = world();
+  const h = await (impl.handlers as Record<string, (c: unknown, i: unknown) => unknown>)["reports.health"]!(w.ctx, {}) as { state: string; detail?: string };
+  assert.equal(h.state, "healthy");
+  assert.match(String(h.detail), /not part of this version/);
 });
 
 test("impl.ts exposes every reports-client handler, the host wiring and no projections", () => {

@@ -48,11 +48,12 @@
       "proto": "records,record,{skin}",
       "waitFor": "[data-testid='navigate-probe']",
       "protoSettleMs": 3000,
-      "note": "The navigate probe, in-app: performance marks nav-start when a row is opened and nav-end when the record page content first paints; browser.mjs reads the measure on the perf runner (budget 50 ms, median of 5 after a warm-up).",
+      "note": "The navigate probe, in-app: the runner clicks a row for real (target click, a discrete input event) and performance marks nav-start in its press handler and nav-end when the record page content first paints; browser.mjs reads the measure on the perf runner (budget 50 ms, median of 5 after a warm-up).",
       "probes": {
         "navigate": {},
         "layout_shift": {}
-      }
+      },
+      "click": "[data-testid='navigate-row']"
     }
   ]
 }

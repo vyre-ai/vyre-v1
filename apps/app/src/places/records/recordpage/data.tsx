@@ -44,10 +44,14 @@ export function usePageData(): RecordPageData {
   return v;
 }
 
-/** A live capability query; the input is compared by value, so an equal object keeps the subscription. */
-export function useLive<C extends LiveCap>(cap: C, input: CapMap[C]["in"]): QueryState<CapMap[C]["out"]> {
+/** A query that is not asked yet: loading, and nothing to subscribe to. */
+const notYet: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: () => NOT_YET };
+const NOT_YET: QueryState<never> = { status: "loading" };
+
+/** A live capability query; the input is compared by value, so an equal object keeps the subscription. With `enabled` false it is not asked yet and reads as loading. */
+export function useLive<C extends LiveCap>(cap: C, input: CapMap[C]["in"], enabled = true): QueryState<CapMap[C]["out"]> {
   const { live } = usePageData();
   const key = JSON.stringify(input);
-  const q = useMemo(() => live(cap, JSON.parse(key) as CapMap[C]["in"]), [live, cap, key]);
+  const q = useMemo(() => (enabled ? live(cap, JSON.parse(key) as CapMap[C]["in"]) : (notYet as LiveQuery<CapMap[C]["out"]>)), [live, cap, key, enabled]);
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }

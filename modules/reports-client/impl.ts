@@ -8,6 +8,7 @@ export { inline, projections } from "./projections.ts";
 
 // Report a problem is deferred (ruling 60, docs/deferred.md): every capability is registered and refuses with "Not in this version yet" until the host has its reports.vyre.run client and replay sandbox.
 // The deferred packet swaps this line for `export { handlers } from "./handlers/index.ts"` and brings `consumers` back.
-export const handlers = deferredHandlers(Object.keys(real));
+// The health check stays real: it answers healthy "not part of this version yet" so a deferred module is not a red light on every server.
+export const handlers = { ...deferredHandlers(Object.keys(real).filter((k) => k !== "reports.health")), "reports.health": real["reports.health"] };
 export const consumers = {};
 export const codecs = {};

@@ -122,7 +122,11 @@ test("chain health: empty, no checkpoint, fresh, stale, broken", async () => {
   const ask = (seams: AuditSeams = { signer }) => handlers["audit.chain_health"](h.as(ADMIN, seams), {});
   assert.equal((await ask()).state, "healthy");
   await add(h, "grant.created");
-  assert.equal((await ask()).state, "degraded");
+  const young = await ask();
+  assert.equal(young.state, "healthy", "a chain younger than a day has not been checkpointed yet, which is not a fault");
+  assert.match(young.detail!, /first is signed within minutes/);
+  h.advance(25 * 3_600_000);
+  assert.equal((await ask()).state, "degraded", "a day later, still no checkpoint is a real problem");
   await handlers["audit.checkpoint"](h.as(ADMIN, { signer }), {});
   const fresh = await ask();
   assert.equal(fresh.state, "healthy");

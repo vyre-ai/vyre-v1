@@ -32,7 +32,7 @@ type In = Record<string, unknown>;
 ```ts
 type Out = {
   acts: Array<{
-      key: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+      key: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
       title: string;
       risk: "low" | "medium" | "high";
       humanToo: boolean;

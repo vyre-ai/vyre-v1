@@ -186,12 +186,12 @@ test("rules: scope checks, never loosening, the defaults list, one event", async
   await refused(set({ scope: "agent", agentId: bot.id, afterHours: 9 }), "validation.precondition_failed", "would_loosen");
   await set({ scope: "agent", agentId: bot.id, afterHours: 4 });
   const all = (await h.call("gate.rules.list", {}, owner)).rules;
-  assert.equal(all.filter((x: { scope: string }) => x.scope === "space").length, 10, "every act has a Space rule, stored or default");
+  assert.equal(all.filter((x: { scope: string }) => x.scope === "space").length, 11, "every act has a Space rule, stored or default");
   assert.equal(all.find((x: { act: string; scope: string }) => x.act === "send" && x.scope === "space").afterHours, 8);
   assert.equal(all.find((x: { act: string; scope: string }) => x.act === "pay" && x.scope === "space").approvers, "owner");
   assert.deepEqual((await h.call("gate.rules.list", { scope: "agent" }, owner)).rules.map((x: { agentId: string }) => x.agentId), [bot.id]);
   assert.deepEqual((await h.call("gate.rules.list", { scope: "agent", agentId: bot2.id }, owner)).rules, []);
-  assert.equal((await h.call("gate.acts.list", {}, owner)).acts.length, 10);
+  assert.equal((await h.call("gate.acts.list", {}, owner)).acts.length, 11);
 });
 
 test("the gate settings change the defaults", async () => {
@@ -315,10 +315,13 @@ test("a hold whose Approve task is still being made is not listed or readable: n
   const h = harness();
   let release!: () => void;
   const slow = new Promise<void>((r) => { release = r; });
-  h.callee("tasks.create", async () => { await slow; return { task: { id: "tsk_slow1" } }; });
+  let reached!: () => void;
+  const taskCallReached = new Promise<void>((r) => { reached = r; });
+  h.callee("tasks.create", async () => { reached(); await slow; return { task: { id: "tsk_slow1" } }; });
   const parking = park(h);
-  // the hold row is written before the task call (so a retry of the same decision finds it); while the task is being made, it must not be visible
-  for (let i = 0; i < 5; i++) await new Promise<void>((r) => setImmediate(r));
+  // the hold row is written before the task call (so a retry of the same decision finds it); while the task is being made, it must not be visible.
+  // Wait for the task call itself, not for a number of event-loop turns: the row is written after an async hash that runs on the thread pool, so a turn count is no ordering at all.
+  await taskCallReached;
   assert.equal(holdsWhere(h.db).length, 1, "the row exists while the task is pending");
   const rows = (await h.call("gate.holds.list", { states: ["held"] }, svc)).holds as { id: string; taskId: string }[];
   assert.deepEqual(rows, [], "a hold with no task yet is not listed");

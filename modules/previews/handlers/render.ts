@@ -1279,7 +1279,8 @@ async function health(ctx: Ctx, _input: unknown): Promise<Row> {
   const queued = (ctx.db.all("SELECT * FROM previews_queue") as Row[]).length;
   const latencyMs = Date.now() - started;
   if (!sampleOk) return { state: "down", detail: "The thumbnail maker did not answer on the sample file.", latencyMs, queued };
-  if (missing.length > 0) return { state: "degraded", detail: `Not installed: ${missing.join(", ")}`, latencyMs, queued };
+  // Missing tools only hurt once a preview is waiting on them; a new Space has none.
+  if (missing.length > 0) return { state: queued > 0 ? "degraded" : "healthy", detail: `Not installed: ${missing.join(", ")}`, latencyMs, queued };
   if (queued > 500) return { state: "degraded", detail: `${queued} versions are waiting for a preview`, latencyMs, queued };
   return { state: "healthy", latencyMs, queued };
 }

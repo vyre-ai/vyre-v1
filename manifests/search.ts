@@ -7,7 +7,7 @@ import { id, label, pageIn, pageOut } from './_common.ts';
 
 const kind = t.enm('person', 'agent', 'chat', 'inbox', 'record', 'file', 'automation', 'app', 'setting', 'memory', 'task', 'channel');
 const hit = t.obj({
-  kind, id: t.str({ examples: ['rec_a1b2c3'] }), title: t.str(), snippet: t.opt(t.str()), path: t.opt(t.str()),
+  kind, id: t.str({ examples: ['rec_a1b2c3'] }), title: t.str(), recordType: t.opt(t.str({ description: 'For a record hit: the record type it belongs to' })), snippet: t.opt(t.str()), path: t.opt(t.str()),
   link: t.str({ description: 'Source link that opens through the place', examples: ['vyre://record/rec_a1b2c3'] }),
   label: t.opt(label), score: t.num(), updatedAt: t.opt(t.ts()),
 });
@@ -34,6 +34,9 @@ export default defineManifest({
     }),
     read('search.actions.list', 'Actions offered after the > prefix (New task, Call someone, Switch skin, Set yourself away, Go offline)', {
       in: { q: t.opt(t.str()) }, out: { actions: t.arr(action) }, tool: 'meta',
+    }),
+    read('search.resolve', 'One indexed item by kind and id, if the caller may see it; a record names its record type', {
+      in: { kind, itemId: t.str() }, out: { hit: t.opt(hit) }, label: 'filter', tool: 'meta',
     }),
     read('search.related', 'Items related to one item by links, relations and shared terms', {
       in: { kind, itemId: t.str(), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) }, out: { hits: t.arr(hit) }, label: 'filter', tool: 'meta',

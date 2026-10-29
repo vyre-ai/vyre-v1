@@ -30,7 +30,7 @@ export async function diskEncrypted(p: Platform, dataDir: string): Promise<Probe
     const r = await p.run("fdesetup", ["status"]);
     const on = r.code === 0 || r.stdout ? parseFdesetup(r.stdout) : null;
     if (on === true) return result("healthy", "FileVault is on.");
-    if (on === false) return result("down", "FileVault is off. Turn it on in System Settings, Privacy and Security, then run vyre-server doctor.");
+    if (on === false) return result("degraded", "Turn on FileVault in System Settings to encrypt this computer's disk.");
     return result("degraded", "Could not read the FileVault state.");
   }
   if (p.os === "linux") {
@@ -41,7 +41,7 @@ export async function diskEncrypted(p: Platform, dataDir: string): Promise<Probe
     if (t.code !== 0) return result("degraded", `Could not inspect ${source}.`);
     return stackIsEncrypted(t.stdout)
       ? result("healthy", `${source} sits on an encrypted volume.`)
-      : result("down", `${source} is not encrypted. Put the data directory on a LUKS or dm-crypt volume.`);
+      : result("degraded", `${source} is not encrypted. Put the data directory on a LUKS or dm-crypt volume to encrypt this computer's disk. The server works without it.`);
   }
   return result("degraded", `Disk encryption cannot be checked on ${p.os}.`);
 }

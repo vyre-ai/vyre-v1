@@ -218,7 +218,10 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const lq = useLive("schema.layout.get", { type });
   const pq = useLive("records.page_prefs.get", { type });
   const cq = useLive("records.completeness", { type, recordId });
-  const mq = useLive("records.relations_map", { type, recordId, hops: 2 });
+  // the relationships two hops out feed the map, the relation fields and the [[links]], none of which the first frame draws: asked with the late pass, or at once for the map
+  const [late, setLate] = useState(typeof window === "undefined" || start.pane !== undefined || start.tab !== undefined || start.edit !== undefined || start.all === true);
+  const [map, setMap] = useState(start.map === true);
+  const mq = useLive("records.relations_map", { type, recordId, hops: 2 }, late || map);
   const width = useWindowDimensions().width;
   const wide = width === 0 || width >= 900;
   const [editing, setEditing] = useState<{ key: string; text: string; error?: string } | null>(start.edit ?? null);
@@ -226,10 +229,8 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const [all, setAll] = useState(start.all === true || start.edit !== undefined);
   const [pane, setPane] = useState<boolean | null>(start.pane ?? null);
   const [tab, setTab] = useState<PaneKey>(start.tab ?? "activity");
-  const [map, setMap] = useState(start.map === true);
   const busy = useRef(false);
-  // the right pane (its three reads and its rows) comes after the first paint on a screen; a server render or a test has no frames, so it is there at once
-  const [late, setLate] = useState(typeof window === "undefined" || start.pane !== undefined || start.tab !== undefined || start.edit !== undefined || start.all === true);
+  // the right pane (its three reads and its rows) comes after the first paint on a screen (late, above); a server render or a test has no frames, so it is there at once
   useEffect(() => {
     if (late) return;
     let b = 0;
