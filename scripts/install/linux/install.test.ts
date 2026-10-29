@@ -432,3 +432,14 @@ test('manual rollback respects the same active operation lock before changing st
   const out=sh(SERVER,'trap cleanup EXIT; cmd_rollback',{VYRE_DIR:dir,TMPDIR:dir});assert.equal(out.status,75,out.stderr);assert.equal(fs.existsSync(lock),true);
  }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });
+
+test("the default release feed is the GitHub feed of the chosen channel (no dependency on vyre.run), and VYRE_UPDATE_URL wins", () => {
+  const feed = (a: string, env: Record<string, string> = {}): string => sh(INSTALL, `parse_args ${a}; echo "$UPDATE_URL"`, { VYRE_DIR: "/srv/vyre", ...env }).stdout.trim();
+  assert.equal(feed("--yes"), "https://github.com/vyre-ai/vyre-v1/releases/latest/download/");
+  assert.equal(feed("--channel beta"), "https://github.com/vyre-ai/vyre-v1/releases/download/channel-beta/");
+  assert.equal(feed("--channel nightly"), "https://github.com/vyre-ai/vyre-v1/releases/download/channel-nightly/");
+  assert.equal(feed("--channel beta", { VYRE_UPDATE_URL: "https://updates.example/server/" }), "https://updates.example/server/");
+  assert.doesNotMatch(read(INSTALL), /vyre\.run\/server/);
+  assert.doesNotMatch(read(SERVER), /vyre\.run\/server/);
+  assert.match(read(SERVER), /printf 'https:\/\/github\.com\/vyre-ai\/vyre-v1\/releases\/latest\/download\/'/, "an install with no update-url file reads the stable feed");
+});

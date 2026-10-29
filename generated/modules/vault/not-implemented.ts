@@ -7,6 +7,9 @@ import type { Handlers } from './handlers.ts';
 export const handlers: Handlers<HandlerCtx> = {
   "providers.add": async (ctx) => { throw new VyreErr(notImplemented("providers.add", ctx.trace)); },
   "providers.catalog": async (ctx) => { throw new VyreErr(notImplemented("providers.catalog", ctx.trace)); },
+  "providers.custom_add": async (ctx) => { throw new VyreErr(notImplemented("providers.custom_add", ctx.trace)); },
+  "providers.custom_list": async (ctx) => { throw new VyreErr(notImplemented("providers.custom_list", ctx.trace)); },
+  "providers.custom_remove": async (ctx) => { throw new VyreErr(notImplemented("providers.custom_remove", ctx.trace)); },
   "providers.list": async (ctx) => { throw new VyreErr(notImplemented("providers.list", ctx.trace)); },
   "providers.remove": async (ctx) => { throw new VyreErr(notImplemented("providers.remove", ctx.trace)); },
   "providers.set_space_use": async (ctx) => { throw new VyreErr(notImplemented("providers.set_space_use", ctx.trace)); },

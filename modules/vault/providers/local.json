@@ -1,0 +1,12 @@
+{
+  "order": 10,
+  "key": "local",
+  "name": "Local model",
+  "connections": [
+    "local_model"
+  ],
+  "modelsSource": "{address}/v1/models",
+  "engine": "local",
+  "keyless": true,
+  "instruction": "Start Ollama, LM Studio or the llama.cpp server on your computer, then paste its address, like http://localhost:11434."
+}
