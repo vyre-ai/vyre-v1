@@ -302,3 +302,84 @@ test("a resolved address that is public is allowed when every address is public"
   });
   assert.deepEqual(out, { ok: true, text: "both", finalUrl: "https://example.com/a" });
 });
+
+test("connect receives the vetted lookup addresses and fetch is not called", async () => {
+  let fetched = false;
+  const calls: { href: string; addresses: readonly string[]; signal: AbortSignal }[] = [];
+  const out = await fetchPublicDocument("https://api.example/doc", {
+    lookup: async (host) => {
+      assert.equal(host, "api.example");
+      return ["1.1.1.1"];
+    },
+    fetch: (async () => { fetched = true; return new Response("no"); }) as typeof fetch,
+    connect: async (req) => {
+      calls.push({ href: req.url.href, addresses: req.addresses, signal: req.signal });
+      return new Response("pinned body", { status: 200 });
+    },
+  });
+  assert.deepEqual(out, { ok: true, text: "pinned body", finalUrl: "https://api.example/doc" });
+  assert.equal(fetched, false);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]!.href, "https://api.example/doc");
+  assert.deepEqual(calls[0]!.addresses, ["1.1.1.1"]);
+  assert.ok(calls[0]!.signal instanceof AbortSignal);
+});
+
+test("connect is not called when lookup returns 127.0.0.1", async () => {
+  let connected = false;
+  let fetched = false;
+  const out = await fetchPublicDocument("https://api.example/doc", {
+    lookup: async () => ["127.0.0.1"],
+    fetch: (async () => { fetched = true; return new Response("no"); }) as typeof fetch,
+    connect: async () => { connected = true; return new Response("no"); },
+  });
+  assert.equal(connected, false);
+  assert.equal(fetched, false);
+  assert.equal(out.ok, false);
+  if (out.ok) return;
+  assert.equal(out.reason, "That address is not a public host.");
+});
+
+test("a redirect to a private host calls connect only for the first hop", async () => {
+  const hops: string[] = [];
+  const looked: string[] = [];
+  let fetched = false;
+  const out = await fetchPublicDocument("https://docs.example/start", {
+    lookup: async (host) => {
+      looked.push(host);
+      return host === "evil.example" ? ["10.1.2.3"] : ["1.1.1.1"];
+    },
+    fetch: (async () => { fetched = true; return new Response("no"); }) as typeof fetch,
+    connect: async (req) => {
+      hops.push(req.url.href);
+      assert.deepEqual(req.addresses, ["1.1.1.1"]);
+      return new Response("", { status: 302, headers: { location: "https://evil.example/next" } });
+    },
+  });
+  assert.equal(fetched, false);
+  assert.deepEqual(hops, ["https://docs.example/start"]);
+  assert.deepEqual(looked, ["docs.example", "evil.example"]);
+  assert.equal(out.ok, false);
+  if (out.ok) return;
+  assert.equal(out.reason, "That address is not a public host.");
+});
+
+test("an https IP URL passes that address to connect", async () => {
+  let fetched = false;
+  let looked = false;
+  const addresses: readonly string[][] = [];
+  const out = await fetchPublicDocument("https://1.1.1.1/doc", {
+    lookup: async () => { looked = true; return ["127.0.0.1"]; },
+    fetch: (async () => { fetched = true; return new Response("no"); }) as typeof fetch,
+    connect: async (req) => {
+      addresses.push([...req.addresses]);
+      assert.equal(req.url.href, "https://1.1.1.1/doc");
+      assert.ok(req.signal instanceof AbortSignal);
+      return new Response("literal", { status: 200 });
+    },
+  });
+  assert.equal(looked, false);
+  assert.equal(fetched, false);
+  assert.deepEqual(addresses, [["1.1.1.1"]]);
+  assert.deepEqual(out, { ok: true, text: "literal", finalUrl: "https://1.1.1.1/doc" });
+});

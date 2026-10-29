@@ -6,9 +6,17 @@ import { isIP } from "node:net";
 
 export type Lookup = (host: string) => Promise<string[]>;
 
+export interface ConnectRequest {
+  url: URL;
+  addresses: readonly string[];
+  signal: AbortSignal;
+}
+export type Connect = (req: ConnectRequest) => Promise<Response>;
+
 export interface FetchDeps {
   fetch: typeof fetch;
   lookup: Lookup;
+  connect?: Connect;
 }
 
 export type FetchResult =
@@ -146,10 +154,10 @@ function targetOf(raw: string): { ok: true; url: URL; host: string } | { ok: fal
   return { ok: true, url, host };
 }
 
-async function vet(raw: string, lookup: Lookup): Promise<{ ok: true; url: URL } | { ok: false; reason: string }> {
+async function vet(raw: string, lookup: Lookup): Promise<{ ok: true; url: URL; addresses: readonly string[] } | { ok: false; reason: string }> {
   const target = targetOf(raw);
   if (!target.ok) return target;
-  if (isAddress(target.host)) return { ok: true, url: target.url };
+  if (isAddress(target.host)) return { ok: true, url: target.url, addresses: [target.host] };
   let ips: string[];
   try {
     ips = await lookup(target.host);
@@ -158,7 +166,7 @@ async function vet(raw: string, lookup: Lookup): Promise<{ ok: true; url: URL } 
   }
   if (!Array.isArray(ips) || ips.length === 0) return { ok: false, reason: NO_RESOLVE };
   if (ips.some((ip) => typeof ip !== "string" || refusesAddress(ip))) return { ok: false, reason: NOT_PUBLIC };
-  return { ok: true, url: target.url };
+  return { ok: true, url: target.url, addresses: ips };
 }
 
 async function readCapped(response: Response): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
@@ -206,7 +214,7 @@ function nextLocation(location: string | null, base: URL): { ok: true; href: str
   }
 }
 
-/** Fetch one public https document. Redirects are followed by hand, at most three. */
+/** Fetch one public https document. Redirects are followed by hand, at most three. Passing connect binds the request to the vetted addresses. Omitting connect still checks DNS first but does not bind the socket. */
 export async function fetchPublicDocument(url: string, deps: FetchDeps): Promise<FetchResult> {
   let current = url;
   for (let followed = 0; followed <= MAX_REDIRECTS; followed++) {
@@ -214,11 +222,19 @@ export async function fetchPublicDocument(url: string, deps: FetchDeps): Promise
     if (!vetted.ok) return vetted;
     let response: Response;
     try {
-      response = await deps.fetch(vetted.url.href, {
-        redirect: "manual",
-        credentials: "omit",
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
+      if (deps.connect) {
+        response = await deps.connect({
+          url: vetted.url,
+          addresses: vetted.addresses,
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+        });
+      } else {
+        response = await deps.fetch(vetted.url.href, {
+          redirect: "manual",
+          credentials: "omit",
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+        });
+      }
     } catch {
       return { ok: false, reason: NO_LOAD };
     }
