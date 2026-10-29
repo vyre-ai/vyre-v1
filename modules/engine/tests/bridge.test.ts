@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createBridge } from "../handlers/bridge.ts";
-import type { AgentPost, Bridge } from "../handlers/bridge.ts";
+import type { AgentPost, Bridge, StreamEvent } from "../handlers/bridge.ts";
 import { harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { scriptedProvider } from "../../../agent/src/turn-engine/scripted-session.ts";
@@ -16,7 +16,7 @@ const WATCHER = "agt_watch";
 
 interface ChatRow { messageId: string; threadId: string; threadSeq: number; author: { kind: string; id: string }; body: string; blocks: unknown[]; mentions: unknown[]; via?: { routineOwner: string }; depth: number }
 
-function setup(opts: { agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
+function setup(opts: { stream?: (e: StreamEvent) => void; agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
   const h = harness();
   const chat: ChatRow[] = [];
   const echoes: Array<{ id: string; result: unknown }> = [];
@@ -39,7 +39,7 @@ function setup(opts: { agents?: Array<{ agentId: string; mode: "lead" | "listen"
     const result = await bridge.onEvent(ctx, { name: "message.received", payload: { messageId: row.messageId, threadId: T, author: { kind: "agent", id: agentId }, mentions: p.mentions, depth: 1 } });
     echoes.push({ id: row.messageId, result });
   };
-  bridge = createBridge({ postAs });
+  bridge = createBridge({ postAs, ...(opts.stream ? { stream: opts.stream } : {}) });
   const provider = scriptedProvider({ script: opts.script });
   const engine = h.runtime({ openSession: bridge.tap(provider.openSession), schedule: () => () => {} });
   bridge.attach(engine);
@@ -164,4 +164,35 @@ test("a thread with no agents is left alone, and a host without an engine skips"
   assert.equal(s.h.rows("SELECT id FROM engine_messages").length, 0);
   const bare = createBridge({ postAs: async () => {} });
   assert.deepEqual(await bare.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_x", threadId: T } }), { skipped: "engine_not_running" });
+});
+
+test("a live turn streams start, each piece of text, end, then the message it became, in that order", async () => {
+  const seen: StreamEvent[] = [];
+  const s = setup({ stream: (e) => seen.push(e), script: [{ type: "text", text: "Hel" }, { type: "text", text: "lo." }, { type: "usage", inputTokens: 1, outputTokens: 1 }, { type: "done" }] });
+  await s.say("hi");
+  const post = s.chat.find((r) => r.author.id === LEAD);
+  assert.deepEqual(seen.map((e) => e.kind), ["start", "delta", "delta", "end", "final"]);
+  assert.deepEqual(seen.filter((e) => e.kind === "delta").map((e) => (e as { text: string }).text), ["Hel", "lo."]);
+  assert.equal(new Set(seen.map((e) => e.turnId)).size, 1, "one turn id on every event");
+  const last = seen[seen.length - 1] as Extract<StreamEvent, { kind: "final" }>;
+  assert.equal(last.messageId, post?.messageId, "the final event names the chat message the turn became");
+  assert.equal(seen.every((e) => e.threadId === T && e.agentId === LEAD), true);
+});
+
+test("a stream listener that throws never fails the turn or the post", async () => {
+  const s = setup({ stream: () => { throw new Error("socket gone"); }, script: reply("Fine.") });
+  await s.say("hi");
+  assert.equal(s.engine.turns(T)[0]?.state, "completed");
+  assert.equal(s.chat.filter((r) => r.author.id === LEAD).length, 1);
+});
+
+test("a failed turn ends the stream as failed and its final names the status post", async () => {
+  const seen: StreamEvent[] = [];
+  const s = setup({ stream: (e) => seen.push(e), script: [{ type: "text", text: "Part" }, { type: "error", code: "provider.down", message: "boom", retryable: false }] });
+  await s.say("hi");
+  const end = seen.find((e) => e.kind === "end") as Extract<StreamEvent, { kind: "end" }> | undefined;
+  assert.equal(end?.state, "failed");
+  const fin = seen[seen.length - 1] as Extract<StreamEvent, { kind: "final" }>;
+  assert.equal(fin.kind, "final");
+  assert.equal(fin.messageId, s.chat.find((r) => r.author.id === LEAD)?.messageId);
 });

@@ -883,7 +883,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           log: (u) => sink.log({ space: spaceId, level: 30, msg: "computers.fill", place: "computers", attrs: { ...u } }),
         }) : null,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
-        setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
+        setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
         // Ask Vyre in the email builder is one real agent turn in a private Ask pane, run as the asker: their agent, model, account, spend limits and access (host/src/seams/email-ask.ts)
         configureEmailBuilder: () => ({
           ask: createEmailAskDriver({

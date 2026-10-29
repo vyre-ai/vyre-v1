@@ -123,6 +123,8 @@ export interface LiveHub {
   listen(port?: number): Promise<number>;
   /** Number the events, send them to every connected device of the Space and keep them until acked. */
   publish(space: string, events: EventEnvelope[]): void;
+  /** A live turn frame (text as it is written) to the sockets whose person `allow` accepts, in the order given. Never replayed, never held for an ack: a device that missed it reads the finished message. */
+  publishTurn(frame: { t: "turn"; turn: string; delta: Record<string, unknown> }, allow: (personId: string) => boolean | Promise<boolean>): void;
   connections(space?: string): { device: string; acked: number; pending: number }[];
   /** A person's epoch moved: every socket of theirs is told to purge and closed. Returns how many. (The sync module's LiveHub port.) */
   purge(person: string, epoch: number): number;
@@ -140,6 +142,7 @@ export function createLiveHub(o: LiveOptions): LiveHub {
 
   const server = http.createServer((_req, res) => { res.writeHead(426, { "content-type": "text/plain" }).end("upgrade required"); });
 
+  let turnChain: Promise<void> = Promise.resolve();
   const send = (c: Conn, frame: Record<string, unknown>): void => { if (!c.closed) c.socket.write(encodeFrame(0x1, Buffer.from(JSON.stringify(frame)))); };
   const close = (c: Conn, code: number, why: string): void => {
     if (c.closed) return;
@@ -272,6 +275,17 @@ export function createLiveHub(o: LiveOptions): LiveHub {
         if (c.link) { if (last) send(c, { t: "changed", seq: last.seq }); continue; }
         for (const e of events) { c.pending.push(e); send(c, eventFrame(e)); }
       }
+    },
+    publishTurn(frame, allow) {
+      turnChain = turnChain.then(async () => {
+        const targets = [...conns.values()].filter((c) => !c.closed);
+        const verdict = new Map<string, boolean>();
+        for (const c of targets) {
+          const who = c.session.principal.id;
+          if (!verdict.has(who)) verdict.set(who, await Promise.resolve(allow(who)).catch(() => false));
+        }
+        for (const c of targets) if (verdict.get(c.session.principal.id)) send(c, frame);
+      }).catch(() => undefined);
     },
     connections: (space) => [...conns.values()].filter((c) => !space || c.session.space === space).map((c) => ({ device: c.session.device, acked: c.acked, pending: c.pending.length })),
     purge: (person, epoch) => purgeWhere((c) => c.session.principal.id === person, epoch, 4004, "purged"),

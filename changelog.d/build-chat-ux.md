@@ -1,0 +1,1 @@
+- Chat replies now appear as the agent writes them. The words stream over the live connection to everyone who can read the chat, a row for the reply is on the page from the first word, and the saved message lands on the same row with nothing jumping. A device that is offline, or a chat nobody has open, behaves as before and shows the finished reply.

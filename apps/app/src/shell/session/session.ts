@@ -14,6 +14,7 @@ import { CapError, createCapCaller } from "./caps.ts";
 import type { CapCall, RouteRow } from "./caps.ts";
 import { createDeferred } from "../../../../../client/src/runtime/deferred.ts";
 import { createLiveLink } from "./live.ts";
+import { createTurnStreams } from "./turn-streams.ts";
 import type { LiveLink, LiveStatus } from "./live.ts";
 import { BUILD_REGISTRY_HASH } from "../../../../../client/src/connection/registry-hash.ts";
 import type { Dial, Scheduler } from "../../../../../client/src/connection/index.ts";
@@ -160,6 +161,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const purgeListeners = new Set<(epoch: number) => void>();
   let live: LiveStatus = "offline";
   let everLive = false;
+  const turns = createTurnStreams();
   const link: LiveLink = createLiveLink({
     baseUrl: o.baseUrl,
     token: () => token,
@@ -168,7 +170,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     ...(o.onSyncEpoch ? { onEpoch: o.onSyncEpoch } : {}),
     registryHash: o.registryHash ?? BUILD_REGISTRY_HASH,
     onChange: refresh,
-    onStatus: (s) => { live = s; if (s === "live") everLive = true; tell(); },
+    onStatus: (s) => { live = s; if (s === "live") everLive = true; else turns.reset(); tell(); },
+    onTurn: (f) => turns.onFrame(f),
     onPurge: (epoch) => { for (const l of [...purgeListeners]) l(epoch); },
     ...(o.dial ? { dial: o.dial } : {}),
     ...(o.scheduler ? { scheduler: o.scheduler } : {}),
@@ -249,6 +252,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const runtime: ShellRuntime = {
     createRecordsPreview: ticket => createRecordsPreview({...ticket,baseUrl:o.baseUrl,...(o.fetch?{fetch:o.fetch}:{}),...(o.routes?{routes:o.routes}:{}),now:o.now??Date.now}),
     screens: hooks,
+    turns,
     call: (cap, input) => call(cap, input),
     connection: {
       get: () => (reachable && !(everLive && live === "offline") ? "online" : "offline"),
@@ -287,6 +291,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       for (const t of warmTimers) clearTimeout(t);
       if (refreshTimer !== null) clearTimeout(refreshTimer);
       link.stop();
+      turns.dispose();
       for (const off of keep) off();
       hooks.close();
       listeners.clear();

@@ -15,7 +15,19 @@ export interface EngineAgentPost { actingFor?: string; threadId: string; body: s
 /** Plain ports for the session opener (agent/src/drivers/open): a Vault lookup that returns a secret for a handle, a loopback MCP token, and the scrub-miss report. */
 export type EngineSessionPorts = EngineSessionHost;
 
+/** A live turn event as the bridge reports it (modules/engine/handlers/bridge.ts StreamEvent), structural here. */
+export type EngineStreamEvent =
+  | { kind: "start"; threadId: string; turnId: string; agentId: string; asker: string }
+  | { kind: "delta"; threadId: string; turnId: string; agentId: string; text: string }
+  | { kind: "end"; threadId: string; turnId: string; agentId: string; state: "done" | "failed" | "cancelled" | "waiting" }
+  | { kind: "final"; threadId: string; turnId: string; agentId: string; messageId: string | null };
+
+/** Where a live turn frame goes: every live socket whose person `allow` says may read the thread. */
+export type PublishTurn = (frame: { t: "turn"; turn: string; delta: Record<string, unknown> }, allow: (personId: string) => boolean | Promise<boolean>) => void;
+
 export interface EngineHostSeam {
+  /** Live turn events, already filtered to who may read the thread. Absent: nothing streams and the reply lands whole, as before. */
+  stream?: (e: EngineStreamEvent) => void;
   /** 'host:<space>' */
   holder: string;
   call: EngineInvoke;
@@ -49,6 +61,8 @@ export interface EngineHostDeps {
   sandbox?: unknown;
   dataDir?: string;
   cli?: unknown;
+  /** The live socket's publisher; late-bound because the socket opens after the modules load. */
+  publishTurn?: () => PublishTurn | null;
 }
 
 const SYSTEM = { kind: "service", id: "svc_host" } as const;
@@ -67,6 +81,23 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
   // chat.post is a keyed write: the bridge's own message id is the key, so a replay of the same reply is one post
   // An agent has no standing of its own in a Space: it speaks for the person whose turn it is, so what it may post is what that person may (the kernel answers agent_needs_actor otherwise).
   const postAs: EngineHostSeam["postAs"] = (agentId, { actingFor, ...post }) => run("chat.post", { ...post, idempotencyKey: `brg-${post.clientId}` }, { kind: "agent", id: agentId }, actingFor);
+  // Who may watch a turn: whoever can read the thread (the same threads.get a person's own screen makes). The answer is kept a minute, so a stream of deltas asks once.
+  const seen = new Map<string, { at: number; ok: Promise<boolean> }>();
+  const mayRead = (threadId: string, person: string): Promise<boolean> => {
+    const k = `${threadId}\u0000${person}`, t = (d.now ?? Date.now)();
+    const hit = seen.get(k);
+    if (hit && t - hit.at < 60_000) return hit.ok;
+    const ok = call("threads.get", { threadId }, person).then(() => true, () => false);
+    seen.set(k, { at: t, ok });
+    if (seen.size > 2000) for (const [key, v] of seen) if (t - v.at >= 60_000) seen.delete(key);
+    return ok;
+  };
+  const stream: EngineHostSeam["stream"] = (e) => {
+    const pub = d.publishTurn?.();
+    if (!pub) return;
+    const { turnId, kind, ...rest } = e;
+    pub({ t: "turn", turn: turnId, delta: { kind, ...rest } }, (person) => mayRead(e.threadId, person));
+  };
   const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space }) : undefined;
-  return { holder: `host:${d.space}`, call, postAs, ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), invoke: d.invoke, space: d.space };
+  return { holder: `host:${d.space}`, call, postAs, ...(d.publishTurn ? { stream } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), invoke: d.invoke, space: d.space };
 }

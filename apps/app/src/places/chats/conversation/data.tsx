@@ -5,6 +5,7 @@ import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
 import type { ComposerLists } from "../../../../../../ui/src/Composer/index.tsx";
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
+import type { LiveTurn } from "../../../shell/session/turn-streams.ts";
 import type { Candidate, Clock } from "./model.ts";
 
 /** Where a click goes. The shell supplies these (tabs, the pane, the agent page); the conversation never decides how a thing opens. */
@@ -19,6 +20,14 @@ export interface ConversationNav {
   openBeside(kind: string, id: string): void;
   /** The channel menu's "Connect an outside agent": the sheet for this channel (P-L9b_23). Left out where the shell has no such sheet. */
   openConnectOutsideAgent?(channelId: string): void;
+}
+
+/** The live replies of a chat: a row for each reply that is being written or just finished and not yet saved. */
+export interface LiveTurns {
+  turnsOf(threadId: string): readonly LiveTurn[];
+  subscribe(l: () => void): () => void;
+  /** The saved message is on screen: its stream can go. */
+  settle(messageId: string): void;
 }
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
@@ -40,8 +49,10 @@ export interface ConversationData {
   directory: readonly Candidate[];
   /** A fresh idempotency key for one send; the same key is reused if the send is retried. */
   newKey(): string;
-  /** The stream of a message that is still being written; none once it is complete. */
+  /** The stream of a message that is still being written; none once it is complete. A row id `turn:<id>` is a reply that has no saved message yet. */
   streamOf(messageId: string): StreamStore | undefined;
+  /** Replies being written in this chat, from the live socket. Left out where there is no live link: the reply then lands whole. */
+  live?: LiveTurns;
   /** Copy to the clipboard (Copy in the hover bar, Copy trace id). */
   copy(text: string): void;
   /** A line the app shows for a moment ("Copied"). */
