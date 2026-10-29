@@ -2018,6 +2018,12 @@
     },
     {
       "deferred": false,
+      "name": "email_builder_ask_cancel",
+      "summary": "Stop my Ask Vyre request on a design that is still waiting for the agent",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "email_builder_ask_diff",
       "summary": "Ask Vyre edit: returns a per-change diff the author accepts change by change",
       "toolset": "inbox"

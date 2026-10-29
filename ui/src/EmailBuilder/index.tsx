@@ -328,6 +328,14 @@ export function splitTokens(text: string): readonly { token?: string; field?: st
 export interface EmailBuilderViewProps extends Omit<EmailBuilderProps, "onTestSend" | "onAcceptDiff"> {
   onTestSend?: () => void | Promise<void>;
   onAcceptDiff?: (id: string) => void | boolean;
+  /** The author turned one proposed change down; it stays listed as Rejected and nothing is applied. */
+  onRejectDiff?: (id: string) => void;
+  /** An Ask is waiting for its agent: the pane says who is working and offers Cancel. Absent: no Ask is running. */
+  asking?: { agent: string; onCancel: () => void };
+  /** Why the last Ask failed, in the words the server gave; shown in the Ask pane until the next Ask. */
+  askError?: string;
+  /** The agent the composer says will answer: the one picked in the Ask control. */
+  askAgent?: string;
   /** External persistence state, when a capability-backed editor saves the design. */
   saveState?: string;
   savedVersions?: readonly { version: number; at: number; by: string }[];
@@ -456,6 +464,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   const [plain, setPlain] = useState(props.plain ?? "");
   const [selected, setSelected] = useState<string | null>(null);
   const [accepted, setAccepted] = useState<ReadonlySet<string>>(() => new Set((props.diffs ?? []).filter((d) => d.accepted === true).map((d) => d.id)));
+  const [rejected, setRejected] = useState<ReadonlySet<string>>(() => new Set());
   const [version, setVersion] = useState(props.version ?? 1);
   const initial: EmailSnapshot = { subjectB: props.subjectB ?? null, subject: props.subject, previewText: props.previewText ?? "", blocks: props.blocks ?? [], html: props.html ?? "", plain: props.plain ?? "" };
   const [hist, setHist] = useState<EmailHistory>({ entries: [initial], at: 0 });
@@ -537,6 +546,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
     changeBlocks(next, `Added ${blockLabel(kind).toLowerCase()}`);
     setSelected(b.id);
   };
+  const reject = (d: EmailDiff): void => { props.onRejectDiff?.(d.id); setRejected((r) => new Set([...r, d.id])); };
   const accept = (d: EmailDiff): void => { if (!onAcceptDiff) { setSendError("Connect an editor before applying this change."); return; } if (onAcceptDiff(d.id) === false) return; setAccepted((a) => new Set([...a, d.id])); };
 
   const anchorMenu = (name: string, items: Parameters<typeof menu.show>[0]): void => {
@@ -962,16 +972,24 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
                 <Text style={s.msgText}>{m.text}</Text>
               </View>
             ))}
+            {props.asking !== undefined ? (
+              <View style={s.msgBot} testID="em-asking" accessibilityLiveRegion="polite">
+                <Text style={s.msgText}>{`Asking ${props.asking.agent}…`}</Text>
+                <Btn label="Cancel" onPress={props.asking.onCancel} testID="em-ask-cancel" />
+              </View>
+            ) : null}
+            {props.askError !== undefined && props.askError !== "" && props.asking === undefined ? <Text style={s.note} accessibilityRole="alert" testID="em-ask-error">{props.askError}</Text> : null}
             <Text style={s.sec}>Suggested changes</Text>
             {diffs.length === 0 ? <Text style={s.note}>Nothing suggested yet. Ask an agent to rewrite the subject or tighten the body; each change comes back here to accept one at a time.</Text> : null}
             {each(diffs, (d) => (
               <View key={d.id} testID={`em-diff-${d.id}`} {...webProps({ "data-accepted": accepted.has(d.id) ? "true" : "false" })}>
                 <Row id={d.id} title={d.summary}
-                  trailing={accepted.has(d.id) ? <Text style={s.done}>Accepted</Text> : <Btn label="Accept" strong onPress={() => accept(d)} testID={`em-accept-${d.id}`} />} />
+                  trailing={accepted.has(d.id) ? <Text style={s.done}>Accepted</Text> : rejected.has(d.id) ? <Text style={s.note} testID={`em-rejected-${d.id}`}>Rejected</Text>
+                    : <View style={{ flexDirection: "row", gap: 6 }}><Btn label="Reject" onPress={() => reject(d)} testID={`em-reject-${d.id}`} /><Btn label="Accept" strong onPress={() => accept(d)} testID={`em-accept-${d.id}`} /></View>} />
               </View>
             ))}
             <View style={s.composer} testID="em-composer">
-              <Composer whoWillAnswer={props.ask?.agents.find((a) => a.assistant === true)?.name ?? "Assistant"} placeholder="What should change?" symbols={["at", "hash", "slash"]}
+              <Composer whoWillAnswer={props.askAgent ?? props.ask?.agents.find((a) => a.assistant === true)?.name ?? "Assistant"} placeholder="What should change?" symbols={["at", "hash", "slash"]}
                 onSend={(text) => { setThread((th) => [...th, { from: "you", text }]); props.onAsk?.(text); }} />
             </View>
           </View>

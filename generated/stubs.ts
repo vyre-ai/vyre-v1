@@ -572,6 +572,7 @@ export function stubs(ctx: CallCtx) {
       status: call("dropbox_sign.status"),
     },
     email_builder: {
+      ask_cancel: call("email_builder.ask_cancel"),
       ask_diff: call("email_builder.ask_diff"),
       create: call("email_builder.create"),
       get: call("email_builder.get"),

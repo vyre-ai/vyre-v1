@@ -15,6 +15,7 @@ import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { CODE_ROOT, startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
+import { vendor } from "./fixtures/model-vendor.ts";
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 const KEY = "sk-test-fixture-0123456789abcdef"; // secret-scan: fake
@@ -26,29 +27,6 @@ function seededDir(): string {
   fs.copyFileSync(core.file, path.join(dir, "events.db"));
   core.close();
   return dir;
-}
-
-/** The model vendor: one streamed chat completion per request, with whatever the test scripts next (an answer, or an HTTP error). */
-async function vendor() {
-  const script: Array<{ status?: number; text?: string; hold?: boolean }> = [];
-  const requests: string[] = [];
-  const server = http.createServer((req, res) => {
-    let body = "";
-    req.on("data", (c) => (body += c));
-    req.on("end", () => {
-      requests.push(body);
-      const next = script.shift() ?? { text: "{}" };
-      if (next.status && next.status !== 200) { res.writeHead(next.status, { "content-type": "application/json" }); res.end(JSON.stringify({ error: { message: "vendor says no", type: "invalid_request_error" } })); return; }
-      res.writeHead(200, { "content-type": "text/event-stream" });
-      const chunk = (o: unknown): void => { res.write(`data: ${JSON.stringify(o)}\n\n`); };
-      if (next.hold) { chunk({ id: "1", choices: [{ index: 0, delta: { role: "assistant", content: "thinking" } }] }); req.on("close", () => res.end()); return; }
-      chunk({ id: "1", choices: [{ index: 0, delta: { role: "assistant", content: next.text ?? "" } }] });
-      chunk({ id: "1", choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 50, completion_tokens: 20, total_tokens: 70 } });
-      res.write("data: [DONE]\n\n"); res.end();
-    });
-  });
-  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
-  return { script, requests, base: `http://127.0.0.1:${(server.address() as { port: number }).port}`, close: () => server.close() };
 }
 
 async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: number; data: any }> {   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -66,7 +44,6 @@ test("email builder Ask on a booted daemon: a real agent turn proposes a per-cha
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"), codeRoot: CODE_ROOT,
     platform: fakePlatform({ os: "linux", hostname: "email-ask", free: 80e9, commands: { [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" }, "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" } } }),
     fetch: caddyFetch, intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
-    vault: { secret: async () => KEY, signRs256: async () => "" },
   });
   const pump = async (): Promise<void> => { await d.hooks?.pump?.(); };
   const pumping = setInterval(() => void pump(), 150);   // the daemon's hook timer is an hour here; this is the pass it would make
@@ -124,6 +101,20 @@ test("email builder Ask on a booted daemon: a real agent turn proposes a per-cha
     const prose = await call(d, "email_builder.ask_diff", { emailId, instruction: "Shorten", agentId });
     assert.ok(prose.status >= 400, JSON.stringify(prose.data));
     assert.match(JSON.stringify(prose.data), /not with a design change/);
+
+    // 6b Cancel: the model is still thinking when the author cancels. The Ask ends at once, in words, and the turn is stopped (the vendor stream is closed)
+    v.script.push({ hold: true });
+    const before = v.requests.length;
+    const pending = call(d, "email_builder.ask_diff", { emailId, instruction: "Rewrite everything", agentId });
+    const started = Date.now();
+    while (v.requests.length === before) { if (Date.now() - started > 20_000) throw new Error("the model request never started"); await new Promise((r) => setTimeout(r, 50)); }
+    const cancel = await call(d, "email_builder.ask_cancel", { emailId });
+    assert.equal(cancel.status, 200, JSON.stringify(cancel.data));
+    assert.equal(cancel.data.cancelled, 1, "one Ask was asked to stop");
+    const stopped = await pending;
+    assert.ok(stopped.status >= 400 && /cancelled/i.test(JSON.stringify(stopped.data)), JSON.stringify(stopped.data));
+    assert.equal((await call(d, "email_builder.ask_cancel", { emailId })).data.cancelled, 0, "nothing is left running");
+    assert.equal((await call(d, "email_builder.get", { emailId })).data.email.subject, "Welcome!");
 
     // 7 an answer the module's save rules refuse (an unknown block kind) is refused the same way a bad save is
     v.script.push({ text: JSON.stringify({ mode: "blocks", blocks: [{ type: "not_a_block", props: {} }] }) });

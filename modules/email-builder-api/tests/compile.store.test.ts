@@ -255,7 +255,7 @@ test("ask diff: the agent's proposal becomes per-change differences the author a
 });
 
 test("module: every capability the manifest names has a handler; seed and projections add nothing", () => {
-  const caps = ["create", "get", "list", "save", "versions", "restore_version", "render", "html_set", "ask_diff", "send_test", "merge_fields", "snippets.list", "snippets.save", "snippets.delete", "saved_blocks.list", "saved_blocks.save"].map((c) => `email_builder.${c}`);
+  const caps = ["create", "get", "list", "save", "versions", "restore_version", "render", "html_set", "ask_diff", "ask_cancel", "send_test", "merge_fields", "snippets.list", "snippets.save", "snippets.delete", "saved_blocks.list", "saved_blocks.save"].map((c) => `email_builder.${c}`);
   assert.deepEqual(Object.keys(handlers).sort(), caps.sort());
   assert.equal(seed.rows.length, 0);
   assert.deepEqual([inline, consumers], [{}, {}]);

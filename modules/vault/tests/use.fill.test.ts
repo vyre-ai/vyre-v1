@@ -227,3 +227,19 @@ test('a use grant revoked during asynchronous field opening cannot reach a fill 
  h.ctx.authorize=()=>({effect:'deny',reason:'revoked',decisionId:'dec_fixture'});
  assert.equal(await refusedWith(filling),'permission.no_grant');assert.equal(got.length,0);u.configureVault(null);h.cleanup();
 });
+
+test("the host port reads the asker's own Mine item with their key, a Shared item for anyone, and never another person's Mine item", async () => {
+  const h = harness();
+  try {
+    const mineFolder = await folder(h, "mine"), sharedFolder = await folder(h, "shared");
+    await put(h, mineFolder, "Mine Engine Key", "mine-secret-value");
+    await put(h, sharedFolder, "Shared Engine Key", "shared-secret-value");
+    const port = u.secretPort(h.ctx.db);
+    assert.equal(await port.secret("#Mine_Engine_Key.api_key", "spc_vault", MAYA), "mine-secret-value");
+    assert.equal(await port.secret("#Shared_Engine_Key.api_key", "spc_vault"), "shared-secret-value");
+    await assert.rejects(() => port.secret("#Mine_Engine_Key.api_key", "spc_vault"), /no shared item/, "without an asker only Shared items come out");
+    await assert.rejects(() => port.secret("#Mine_Engine_Key.api_key", "spc_vault", ROB), /no shared item/, "another person's Mine item is never read");
+    h.lock(MAYA);
+    await assert.rejects(() => port.secret("#Mine_Engine_Key.api_key", "spc_vault", MAYA), /locked/, "a locked key opens nothing");
+  } finally { h.cleanup(); }
+});

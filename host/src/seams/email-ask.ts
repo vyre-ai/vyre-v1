@@ -73,7 +73,7 @@ function errorOf(e: unknown): AskDriverError {
   return new AskDriverError("internal.unexpected", e instanceof Error ? e.message : "The agent could not answer.");
 }
 
-export function createEmailAskDriver(d: EmailAskDeps): { propose(req: EmailAskRequest): Promise<Json> } {
+export function createEmailAskDriver(d: EmailAskDeps): { propose(req: EmailAskRequest): Promise<Json>; cancel(asker: string, emailId: string): number } {
   const now = d.now ?? Date.now;
   const sleep = d.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const timeoutMs = d.timeoutMs ?? 120_000, pollMs = d.pollMs ?? 250;
@@ -94,8 +94,24 @@ export function createEmailAskDriver(d: EmailAskDeps): { propose(req: EmailAskRe
     try { await d.call("engine.stop", { threadId, agentId }, asker); } catch (e) { d.log?.("email ask: could not stop the turn", { threadId, error: errorOf(e).message }); }
   }
 
+  // the Asks in flight, by asker and design, so the person's Cancel reaches the turn that is running for them and nobody else's
+  const running = new Map<string, Set<AbortController>>();
+
   return {
-    async propose(req) {
+    /** Stops the Asks this person has running on this design. Returns how many were asked to stop. */
+    cancel(asker, emailId) {
+      const set = running.get(`${asker}:${emailId}`);
+      for (const c of set ?? []) c.abort();
+      return set?.size ?? 0;
+    },
+    async propose(req0) {
+      const own = new AbortController(), key0 = `${req0.asker}:${req0.doc.emailId}`;
+      req0.signal?.addEventListener("abort", () => own.abort(), { once: true });
+      if (req0.signal?.aborted) own.abort();
+      const req = { ...req0, signal: own.signal };
+      let set = running.get(key0);
+      if (!set) running.set(key0, (set = new Set()));
+      set.add(own);
       try {
         const agentId = await pickAgent(req);
         // the first engine call builds the runtime; a message written before it exists is never handed to an engine
@@ -124,6 +140,7 @@ export function createEmailAskDriver(d: EmailAskDeps): { propose(req: EmailAskRe
           await sleep(pollMs);
         }
       } catch (e) { throw errorOf(e); }
+      finally { set.delete(own); if (set.size === 0) running.delete(key0); }
     },
   };
 }

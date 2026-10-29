@@ -7470,6 +7470,12 @@ export type DropboxSignStatusIn = {
 export type DropboxSignStatusOut = {
   status: string;
 };
+export type EmailBuilderAskCancelIn = {
+  emailId: string;
+};
+export type EmailBuilderAskCancelOut = {
+  cancelled: number;
+};
 export type EmailBuilderAskDiffIn = {
   emailId: string;
   instruction: string;
@@ -27163,6 +27169,7 @@ export interface CapMap {
   "dropbox_sign.fetch_signed": { in: DropboxSignFetchSignedIn; out: DropboxSignFetchSignedOut };
   "dropbox_sign.health": { in: DropboxSignHealthIn; out: DropboxSignHealthOut };
   "dropbox_sign.status": { in: DropboxSignStatusIn; out: DropboxSignStatusOut };
+  "email_builder.ask_cancel": { in: EmailBuilderAskCancelIn; out: EmailBuilderAskCancelOut };
   "email_builder.ask_diff": { in: EmailBuilderAskDiffIn; out: EmailBuilderAskDiffOut };
   "email_builder.create": { in: EmailBuilderCreateIn; out: EmailBuilderCreateOut };
   "email_builder.get": { in: EmailBuilderGetIn; out: EmailBuilderGetOut };

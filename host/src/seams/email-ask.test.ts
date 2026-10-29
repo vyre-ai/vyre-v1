@@ -63,3 +63,20 @@ test("the proposal is read from plain JSON, a fence or braces inside prose, and 
   assert.throws(() => parseProposal("[1,2]"), AskDriverError);
   assert.match(askPrompt("Do it", { a: 1 }), /Instruction: Do it/);
 });
+
+test("cancel stops only this person's Ask on this design", async () => {
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((r) => { release = r; });
+  const slow: Reply = (cap, input) => cap === "chat.messages.list" ? gate.then(() => ({ messages: [] })) : base(cap, input);
+  const { d, calls } = driver(slow);
+  const mine = d.propose({ instruction: "x", agentId: "agt_a", doc, asker: "usr_me" }).catch((e: AskDriverError) => e);
+  const theirs = d.propose({ instruction: "x", agentId: "agt_a", doc, asker: "usr_you" }).catch((e: AskDriverError) => e);
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(d.cancel("usr_me", "eml_1"), 1);
+  assert.equal(d.cancel("usr_me", "eml_other"), 0);
+  release();
+  assert.match(((await mine) as AskDriverError).message, /cancelled/);
+  assert.equal(calls.filter((c) => c.cap === "engine.stop").length >= 1, true);
+  assert.equal(d.cancel("usr_me", "eml_1"), 0, "a finished Ask is forgotten");
+  void theirs;
+});

@@ -46,6 +46,8 @@ export interface Change { path: string; before: unknown; after: unknown }
 /** What an agent proposes for an instruction: the design after the edit. The engine lane supplies the driver; tests script it. */
 export interface AskDriver {
   propose(req: { instruction: string; agentId: string | null; doc: EmailDoc; asker: string; signal?: AbortSignal }): Promise<Partial<EmailDoc> & { blocks?: Block[] }>;
+  /** Stops the Asks this person has running on this design; how many were asked to stop. */
+  cancel?(asker: string, emailId: string): number;
 }
 
 let askDriver: AskDriver | null = null;
@@ -765,6 +767,14 @@ async function askDiff(ctx: Ctx, input: unknown): Promise<{ changes: Change[] }>
   return { changes: diffDocs(doc, next) };
 }
 
+async function askCancel(ctx: Ctx, input: unknown): Promise<{ cancelled: number }> {
+  const o = rec(ctx, input);
+  const emailId = reqStr(ctx, o, "emailId");
+  mustEmail(ctx, emailId);
+  // only the caller's own Asks: the driver keys them by person and design
+  return { cancelled: askDriver?.cancel?.(ctx.principal.id, emailId) ?? 0 };
+}
+
 async function sendTest(ctx: Ctx, input: unknown): Promise<{ sent: boolean }> {
   const o = rec(ctx, input);
   const emailId = reqStr(ctx, o, "emailId");
@@ -900,6 +910,7 @@ export const compileHandlers = {
   "email_builder.render": (ctx: Ctx, input: unknown) => render(ctx, input),
   "email_builder.html_set": (ctx: Ctx, input: unknown) => htmlSet(ctx, input),
   "email_builder.ask_diff": (ctx: Ctx, input: unknown) => askDiff(ctx, input),
+  "email_builder.ask_cancel": (ctx: Ctx, input: unknown) => askCancel(ctx, input),
   "email_builder.send_test": (ctx: Ctx, input: unknown) => sendTest(ctx, input),
   "email_builder.merge_fields": (ctx: Ctx, input: unknown) => mergeFields(ctx, input),
   "email_builder.snippets.list": (ctx: Ctx, input: unknown) => snippetsList(ctx, input),

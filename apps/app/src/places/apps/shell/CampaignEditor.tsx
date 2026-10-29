@@ -51,7 +51,7 @@ export function CampaignEditor({ route, back }: { route: AppsRoute; back(): void
     await mutate(d, "campaigns.schedule_set", { campaignId: route.id, windows: { from, to, tz: zone, days: days.split(",").map((n) => Number(n.trim())) }, throttlePerHour: Number(throttle), stopOnReply: stopOnReply === "on" }, key);
     setDirty(false); setNotice("Saved the campaign steps and send settings."); campaign.refresh();
   };
-  return <Frame testID={route.id ? "apps-campaign-detail" : "apps-create-campaign"} title={route.id ? name || "Campaign" : "New campaign"} back={back} offline={!online} error={error ?? campaign.error ?? types.error ?? views.error ?? boxes.error} loading={campaign.loading} retry={campaign.refresh}>
+  return <Frame testID={route.id ? "apps-campaign-detail" : "apps-create-campaign"} title={route.id ? name || "Campaign" : "New campaign"} back={back} offline={!online} error={error ?? campaign.error ?? types.error ?? views.error ?? boxes.error} loading={campaign.loading && !campaign.data} retry={campaign.refresh}>
     <Card title="Campaign"><Field label="Campaign name" value={name} onChange={(v) => change(setName, v)} disabled={disabled} />{!route.id ? <Select label="Campaign kind" value={kind} options={[{ key: "one_time", title: "One-time campaign" }, { key: "sequence", title: "Sequence" }, { key: "triggered", title: "Triggered campaign" }]} onChange={setKind} disabled={disabled} /> : <Text style={s.text}>{`${kind} · ${campaign.data?.campaign.state ?? ""} · ${campaign.data?.campaign.audienceCount ?? 0} recipients`}</Text>}</Card>
     {route.id ? <>
       <Card title="Audience"><Text style={s.text}>Choose a saved record view, or all accessible records of one type. Saving screens out suppressed and do-not-contact recipients.</Text>
