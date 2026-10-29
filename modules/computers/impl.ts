@@ -31,6 +31,8 @@ import type { HomeDeps, HomeSync } from "./handlers/home.ts";
 import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
 import { bindFill, bindHost } from "./projections.ts";
+import { nodeHomeCheck, nodeJobs, nodeResult } from "./handlers/node.ts";
+import { nodeRun } from "./remote.ts";
 import { ToolError } from "./handlers/tools/common.ts";
 import type { ToolAnswer, ToolCode, ToolHost } from "./handlers/tools/common.ts";
 import type { ComputerHost, HostKind, Probe, RecordResult, SessionInfo } from "./projections.ts";
@@ -40,6 +42,7 @@ export const handlers: Record<string, Handler> = table as unknown as Record<stri
 export { bindFill, bindHost, bindKit, bindTeam, boundHost, redeemTicket, rememberSecrets, forgetSecrets, addStep, ensure } from "./projections.ts";
 export type { ComputerHost, CompCtx, Probe, RecordResult, SessionInfo } from "./projections.ts";
 export { sleepIdle, awaken } from "./handlers/lifecycle.ts";
+export { createHomeSync } from "./handlers/home.ts";
 export { maskEvents, maskHar } from "./handlers/record.ts";
 
 // ---- the Docker host -----------------------------------------------------------------------------------------------------------------------------------
@@ -192,13 +195,15 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
     }
     return h;
   }
-  async function homePass(computerId: string, agentId: string | undefined): Promise<void> {
+  /** One pass; true when it finished with nothing left undone (or there is no mirror), so a caller that is about to wipe its copy knows it is safe to. */
+  async function homePass(computerId: string, agentId: string | undefined): Promise<boolean> {
     const h = homeOf(computerId, agentId);
-    if (!h) return;
+    if (!h) return true;
     try {
       const r = await h.sync.pass();
       if (r.down + r.up + r.conflicts + r.removed + r.suggested + r.refused.length > 0) o.home?.deps.log("info", "computers.home.pass", { computer: computerId, ...r, refused: r.refused.slice(0, 10) });
-    } catch (e) { o.home?.deps.log("warn", "computers.home.pass_failed", { computer: computerId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); }
+      return r.failed === 0;
+    } catch (e) { o.home?.deps.log("warn", "computers.home.pass_failed", { computer: computerId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); return false; }
   }
 
   const host: ComputerHost & ToolHost = {
@@ -239,9 +244,9 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       const home = homes.get(a.computerId);
       if (home?.timer) { clearInterval(home.timer); home.timer = null; }
       await o.api.containerStop(name, 10);
-      if (a.reason !== "remove") await homePass(a.computerId, a.agentId);
+      const homeSynced = a.reason !== "remove" ? await homePass(a.computerId, a.agentId) : false;
       if (o.profile && a.reason !== "remove") await o.profile.seal(a.computerId);
-      return sessions ? { sessions } : {};
+      return { ...(sessions ? { sessions } : {}), ...(a.reason !== "remove" ? { homeSynced } : {}) };
     },
     async remove(computerId) {
       const name = nameOf(computerId);
@@ -352,16 +357,25 @@ export interface ComputersHostConfig {
   home?: { callAs: HomeDeps["callAs"]; putBytes: HomeDeps["putBytes"]; intervalMs?: number; manifest(agentId: string): string; log?: HomeDeps["log"] };
 }
 
-export function setComputerHost(c: ComputersHostConfig | null): void {
-  if (c === null) { bindHost(null); return; }
+/** The Docker host for a machine, not yet bound: the Space binds it as its own; a computer that joined runs jobs on it. */
+export function buildComputerHost(c: ComputersHostConfig): ComputerHost & ToolHost {
   const http = unixSocketHttp(c.socketPath);
-  bindHost(createDockerComputerHost({
+  return createDockerComputerHost({
     api: createDockerApi(http), http,
     ...(c.image !== undefined ? { image: c.image } : {}),
     ...(c.filesRoot !== undefined ? { filesRoot: c.filesRoot } : {}),
     ...(c.startTimeoutMs !== undefined ? { startTimeoutMs: c.startTimeoutMs } : {}),
     ...(c.home ? { home: { deps: { callAs: c.home.callAs, putBytes: c.home.putBytes, now: Date.now, log: c.home.log ?? (() => undefined) }, ...(c.home.intervalMs !== undefined ? { intervalMs: c.home.intervalMs } : {}), manifest: c.home.manifest } } : {}),
-  }));
+  });
 }
 
+export function setComputerHost(c: ComputersHostConfig | null): void {
+  bindHost(c === null ? null : buildComputerHost(c));
+}
+
+// Only the setters the daemon wires are host seams (the loader reports any other function here as a driver left unwired); what a computer that joined needs is exported beside them.
 export const hostSeams = { setComputersFill, setComputerHost };
+export { nodeRun };
+
+/** What the host asks of this module on behalf of a computer that joined (host/src/routes/compute.ts): never a capability, never reachable from a session. */
+export const hostCalls = { "computers.node_jobs": nodeJobs, "computers.node_result": nodeResult, "computers.node_home_check": nodeHomeCheck };

@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import type { ReactElement } from "react";
 import VaultLayout, { VaultLoading } from "../../places/vault/layout/index.tsx";
-import type { VaultData, VaultRoute } from "../../places/vault/layout/index.tsx";
+import type { VaultBrowsers, VaultData, VaultRoute } from "../../places/vault/layout/index.tsx";
 import { usePlaceHash } from "../hash/context.tsx";
 import type { HashTarget } from "../hash/hash.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
@@ -18,7 +18,25 @@ export function vaultRoute(target: HashTarget): VaultRoute {
   return { surface: "layout" };
 }
 
-export function vaultData(rt: ShellRuntime): VaultData {
+type Invoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
+const shellInvoke = (): Invoke | undefined => (globalThis as { __TAURI__?: { core?: { invoke?: Invoke } } }).__TAURI__?.core?.invoke;
+
+/** Install Vyre for Chrome through the desktop shell's three fixed commands (src-tauri/src/chrome.rs); undefined in a browser, so the web app has no such row. */
+export function desktopBrowsers(invoke: Invoke | undefined = shellInvoke()): VaultBrowsers | undefined {
+  if (!invoke) return undefined;
+  return {
+    async install() {
+      const raw = await invoke("install_chrome_extension");
+      const r = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+      if (typeof r["extensionDir"] !== "string" || !Array.isArray(r["browsers"])) throw new Error("Vyre could not tell where it put the extension.");
+      return { extensionDir: r["extensionDir"], version: typeof r["version"] === "string" ? r["version"] : "", browsers: r["browsers"].filter((b): b is string => typeof b === "string") };
+    },
+    async openExtensionsPage() { await invoke("open_chrome_extensions"); },
+    async revealFolder() { await invoke("reveal_chrome_extension"); },
+  };
+}
+
+export function vaultData(rt: ShellRuntime, browsers: VaultBrowsers | undefined = desktopBrowsers()): VaultData {
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, principals: rt.principals, me: rt.me, spaceName: rt.space.name,
     nav: {
@@ -32,6 +50,7 @@ export function vaultData(rt: ShellRuntime): VaultData {
       openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
     },
     clock: () => ({ now: rt.clock().now }),
+    ...(browsers ? { browsers } : {}),
   };
 }
 

@@ -27,7 +27,7 @@ Switch engine mid-chat: the new engine starts from the rolling summary, the last
 type In = {
   threadId: string;
   agentId?: string;
-  driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "claude_code" | "codex" | "grok";
+  driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "custom" | "claude_code" | "codex" | "grok";
   model: string;
   provider?: string;
   effort?: "low" | "medium" | "high" | "max";

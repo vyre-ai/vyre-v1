@@ -8,6 +8,10 @@
 //   turn.completed   usage {input_tokens (includes cached), cached_input_tokens, output_tokens}
 //   turn.failed      error {message}
 //   error            message
+// CHECKED against OpenAI's Codex docs (30 Oct 2026): `codex exec --json` JSONL with thread.started, turn.started, turn.completed (usage input_tokens, cached_input_tokens, output_tokens, reasoning_output_tokens), turn.failed, item.* and error;
+// `codex exec resume <SESSION_ID>`; prompt on stdin with `-`; `--skip-git-repo-check`; `CODEX_API_KEY`; config.toml mcp_servers stdio keys command/args/env/env_vars and HTTP keys url/bearer_token_env_var.
+// STILL NEEDS A REAL ACCOUNT to prove: that `-c mcp_servers.vyre.*` overrides on the command line (the docs show only config.toml), the exact item field names (server, tool, exit_code), flag order before `resume`,
+// and a ChatGPT sign-in (auth.json) through the sandbox. The docs give no complete schema for every event.
 // Codex does not stream deltas: a message arrives whole when it is done.
 import { num, obj, parseLine, str } from "./json.ts";
 import type { Json } from "./json.ts";

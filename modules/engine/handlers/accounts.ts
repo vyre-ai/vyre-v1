@@ -9,7 +9,7 @@ import type { AccountRow, AccountStatus, ProbeResult } from "../../../agent/src/
 
 interface ProviderRow {
   id: string; providerKey: string; name: string; connection: "subscription" | "api_key" | "local_model"; scope: "mine" | "shared"; handle?: string; itemId: string;
-  engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing";
+  engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing"; address?: string; keyless?: boolean;
 }
 interface ThreadOut { thread: { starter: string; agents: Array<{ agentId: string; accountRef?: string; provider?: string; model?: string }> } }
 interface AgentOut { agent: { accountPolicy: "asker" | "key"; accountKey?: string; model?: string } }
@@ -18,7 +18,7 @@ interface DefaultsOut { fallback: Array<{ accountRef?: string }> }
 interface PlacementOut { placement: "host" | "device" | "wait" }
 
 const STATUS: Readonly<Record<ProviderRow["state"], AccountStatus>> = { ok: "ok", needs_sign_in: "expired", failing: "failed" };
-const DRIVERS = new Set(["anthropic", "openai", "openrouter", "google", "xai", "opencode_go", "local", "claude_code", "codex", "grok"]);
+const DRIVERS = new Set(["anthropic", "openai", "openrouter", "google", "xai", "opencode_go", "local", "custom", "claude_code", "codex", "grok"]);
 
 function driverOf(p: ProviderRow): string {
   const e = p.engine.replace(/-/g, "_");
@@ -27,28 +27,31 @@ function driverOf(p: ProviderRow): string {
   return DRIVERS.has(p.providerKey) ? p.providerKey : "openrouter";
 }
 
-export async function load(ctx: Ctx): Promise<{ rows: AccountRow[]; idByRef: Map<string, string>; itemByRef: Map<string, string> }> {
+export async function load(ctx: Ctx): Promise<{ rows: AccountRow[]; idByRef: Map<string, string>; itemByRef: Map<string, string>; where: Map<string, { base?: string; keyless?: boolean }> }> {
   const me = ctx.actingFor ?? ctx.principal.id;
   const out = (await ctx.call("providers.list", {})) as { providers: ProviderRow[] };
   const rows: AccountRow[] = [];
   const idByRef = new Map<string, string>();
   const itemByRef = new Map<string, string>();
+  const where = new Map<string, { base?: string; keyless?: boolean }>();
   for (const p of out.providers) {
     const ref = p.handle ?? p.itemId;
     idByRef.set(ref, p.id);
     itemByRef.set(ref, p.itemId);
+    if (p.address || p.keyless) where.set(ref, { ...(p.address ? { base: p.address } : {}), ...(p.keyless ? { keyless: true } : {}) });
     rows.push({
       ref, driver: driverOf(p), provider: p.providerKey, kind: p.connection === "subscription" ? "subscription" : "api_key", title: p.name,
       mine: p.scope === "mine", ownerId: p.scope === "mine" ? me : null, status: STATUS[p.state], lastProbeAt: null, spaceMayUse: p.spaceMayUse,
     });
   }
-  return { rows, idByRef, itemByRef };
+  return { rows, idByRef, itemByRef, where };
 }
 
 export async function accountsList(ctx: Ctx, _input: Record<string, never>) {
-  const { rows } = await load(ctx);
+  const { rows, where } = await load(ctx);
   return {
     accounts: rows.map((r) => ({
+      ...where.get(r.ref),
       ref: r.ref, driver: r.driver, kind: r.kind, title: r.title, mine: r.mine, ...(r.ownerId ? { ownerId: r.ownerId } : {}), status: r.status,
       ...(r.lastProbeAt !== null ? { lastProbeAt: r.lastProbeAt } : {}),
     })),

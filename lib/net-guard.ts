@@ -1,130 +1,151 @@
-// Which IP addresses a server must never dial on a stranger's say-so. One list, used by the public document fetcher and by the connector HTTP step.
-// An address is refused when it is loopback, private, link-local, shared (carrier-grade NAT, where a tailnet lives), unspecified, multicast, reserved, or an IPv6 form that wraps one of those (mapped, NAT64, 6to4).
-import { isIP } from "node:net";
+// The one network guard for an address a person typed (a local model, a custom OpenAI-compatible endpoint): never link-local, and on a node that is not the caller's own computer never loopback or private
+// either; the socket then connects to the address that was checked, so a name that answers differently the second time (DNS rebinding) changes nothing. Redirects are not followed.
+// Used by the provider probe (host/src/seams/vault.ts) and by the API drivers' guarded fetch (agent/src/drivers/open), which streams.
+import dns from "node:dns/promises";
+import http from "node:http";
+import https from "node:https";
+import net from "node:net";
+import { refusesAddress, reservedAddress } from "./address-guard.ts";
 
-export function normalizedHost(raw: string): string {
-  let host = raw.trim().toLowerCase();
-  if (host.startsWith("[") && host.endsWith("]")) host = host.slice(1, -1);
-  host = host.replace(/\.+$/, "");
-  const zone = host.indexOf("%");
-  if (zone !== -1) host = host.slice(0, zone);
-  return host;
-}
-
-function parseV4(ip: string): [number, number, number, number] | null {
-  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip);
-  if (!match) return null;
-  const parts = [match[1], match[2], match[3], match[4]].map((part) => Number(part));
-  if (parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return null;
-  return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0, parts[3] ?? 0];
-}
-
-export function blockedV4(first: number, second: number, third = 0): boolean {
-  if (first === 0 || first === 10 || first === 127) return true;
-  if (first === 100 && second >= 64 && second <= 127) return true;   // shared address space, where the tailnet lives
-  if (first === 169 && second === 254) return true;
-  if (first === 172 && second >= 16 && second <= 31) return true;
-  if (first === 192 && second === 168) return true;
-  if (first === 192 && second === 0 && third === 0) return true;     // protocol assignments
-  if (first === 198 && (second === 18 || second === 19)) return true; // benchmarking
-  if (first >= 224) return true;                                      // multicast, reserved, broadcast
-  return false;
-}
-
-function expandV6(ip: string): number[] | null {
-  let text = ip.toLowerCase();
-  try {
-    text = new URL(`https://[${text}]/`).hostname.slice(1, -1).toLowerCase();
-  } catch {
+/** An address the probe may not reach (SSRF): link-local always (cloud metadata is 169.254.169.254); loopback, private, unique-local and unspecified unless this is the caller's own computer. */
+export function blockedAddress(ip: string, own: boolean): string | null {
+  // The shared address list first: it covers the forms the lines below do not (multicast, reserved, benchmarking, NAT64, 6to4, a mapped address written in hex).
+  if (own ? reservedAddress(ip) : net.isIP(ip) !== 0 && refusesAddress(ip)) return "a reserved address";
+  const v4 = (a: number, b: number): string | null => {
+    if (a === 169 && b === 254) return "a link-local address";
+    if (own) return null;
+    if (a === 127) return "a loopback address";
+    if (a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)) return "a private network address";
+    if (a === 0) return "an unspecified address";
+    if (a === 100 && b >= 64 && b <= 127) return "a shared network address";
+    return null;
+  };
+  if (net.isIPv4(ip)) { const [a, b] = ip.split(".").map(Number); return v4(a!, b!); }
+  if (net.isIPv6(ip)) {
+    const low = ip.toLowerCase();
+    const mapped = /^::ffff:(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(low);
+    if (mapped) return v4(Number(mapped[1]), Number(mapped[2]));
+    const first = parseInt(low.split(":")[0] || "0", 16);
+    if ((first & 0xffc0) === 0xfe80) return "a link-local address";
+    if (own) return null;
+    if (low === "::1") return "a loopback address";
+    if (low === "::") return "an unspecified address";
+    if ((first & 0xfe00) === 0xfc00) return "a private network address";
     return null;
   }
-  const halves = text.split("::");
-  if (halves.length > 2) return null;
-  const side = (part: string): number[] | null => {
-    if (part === "") return [];
-    const labels = part.split(":");
-    const out: number[] = [];
-    for (let i = 0; i < labels.length; i++) {
-      const label = labels[i] ?? "";
-      if (label.includes(".")) {
-        if (i !== labels.length - 1) return null;
-        const v4 = parseV4(label);
-        if (!v4) return null;
-        out.push((v4[0] << 8) | v4[1], (v4[2] << 8) | v4[3]);
-        continue;
-      }
-      if (!/^[0-9a-f]{1,4}$/.test(label)) return null;
-      out.push(parseInt(label, 16));
-    }
-    return out;
+  return "not an address";
+}
+
+/** Where a local model may be reached from this node: http or https, and every address its name resolves to allowed (a name that resolves to a refused address is refused whole). `ips` are the addresses to connect to. */
+export async function checkModelAddress(address: string, own: boolean, resolve: (host: string) => Promise<string[]> = async (h) => (await dns.lookup(h, { all: true })).map((r) => r.address)): Promise<{ why: string } | { url: URL; ips: string[] }> {
+  let u: URL;
+  try { u = new URL(address); } catch { return { why: "That is not an address." }; }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return { why: "A local model is reached over http or https." };
+  const host = u.hostname.replace(/^\[|\]$/g, "");
+  let ips: string[];
+  try { ips = net.isIP(host) ? [host] : await resolve(host); } catch { return { why: "That address could not be found." }; }
+  if (!ips.length) return { why: "That address could not be found." };
+  for (const ip of ips) {
+    const why = blockedAddress(ip, own);
+    if (why) return { why: own ? "That address is not allowed." : `A local model on this server cannot be ${why}.` };
+  }
+  return { url: u, ips };
+}
+
+/** Null when the address may be probed from this node, else why not. */
+export async function refuseModelAddress(address: string, own: boolean, resolve?: (host: string) => Promise<string[]>): Promise<string | null> {
+  const r = await checkModelAddress(address, own, resolve);
+  return "why" in r ? r.why : null;
+}
+
+export interface PinnedResponse { status: number; ok: boolean; json(): Promise<unknown> }
+export type PinnedRequest = (url: URL, o: { headers: Record<string, string>; ips: readonly string[]; timeoutMs?: number }) => Promise<PinnedResponse>;
+
+/**
+ * GET `url` connecting to one of `ips` (the addresses that were checked), whatever the name would resolve to now: the Host header and the TLS server name stay the name\'s, the socket goes to the checked
+ * address. A redirect is not followed (it answers as a non-ok status). This is what closes the gap between checking an address and connecting to it (DNS rebinding).
+ */
+export const pinnedGet: PinnedRequest = (url, o) => new Promise((resolve, reject) => {
+  const secure = url.protocol === "https:";
+  const lib = secure ? https : http;
+  const ips = [...o.ips];
+  const req = lib.request({
+    host: url.hostname.replace(/^\[|\]$/g, ""), port: url.port || (secure ? 443 : 80), path: `${url.pathname}${url.search}`, method: "GET",
+    headers: { ...o.headers, host: url.host }, ...(secure ? { servername: net.isIP(url.hostname) ? undefined : url.hostname } : {}),
+    lookup: (_host: string, opts: { all?: boolean }, cb: (err: Error | null, a: unknown, f?: number) => void) => {
+      const pick = ips.map((address) => ({ address, family: net.isIPv6(address) ? 6 : 4 }));
+      if (opts && opts.all) cb(null, pick); else cb(null, pick[0]!.address, pick[0]!.family);
+    },
+    timeout: o.timeoutMs ?? 10_000,
+  } as http.RequestOptions, (res) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    res.on("data", (c: Buffer) => { size += c.length; if (size > 1_000_000) { req.destroy(new Error("too large")); return; } chunks.push(c); });
+    res.on("end", () => {
+      const status = res.statusCode ?? 0;
+      resolve({ status, ok: status >= 200 && status < 300, json: async () => JSON.parse(Buffer.concat(chunks).toString("utf8")) });
+    });
+  });
+  req.on("timeout", () => req.destroy(new Error("timeout")));
+  req.on("error", reject);
+  req.end();
+});
+
+
+/** The shape the API drivers' Fetch port has (agent/src/drivers/api/types.ts), written structurally so lib imports nothing. */
+export interface GuardedInit { method: string; headers: Record<string, string>; body?: string; signal: AbortSignal }
+export interface GuardedResponse {
+  ok: boolean;
+  status: number;
+  headers: { get(name: string): string | null };
+  body: AsyncIterable<Uint8Array> | null;
+  text(): Promise<string>;
+  json(): Promise<unknown>;
+}
+
+export class AddressRefused extends Error {
+  constructor(message: string) { super(message); this.name = "AddressRefused"; }
+}
+
+/**
+ * A fetch for the drivers that talk to an address a person gave: every call checks the address (checkModelAddress) and then connects to one of the checked ips. The response body streams (server-sent
+ * events pass through). Aborting the signal destroys the socket. `own` is true when the caller's own computer is the one asked (loopback and private allowed); link-local is never allowed.
+ */
+export function createGuardedFetch(o: { own: boolean; resolve?: (host: string) => Promise<string[]> }): (url: string, init: GuardedInit) => Promise<GuardedResponse> {
+  return async (address, init) => {
+    const checked = await checkModelAddress(address, o.own, o.resolve);
+    if ("why" in checked) throw new AddressRefused(checked.why);
+    const url = checked.url;
+    const secure = url.protocol === "https:";
+    const ips = checked.ips;
+    return new Promise<GuardedResponse>((resolve, reject) => {
+      const req = (secure ? https : http).request({
+        host: url.hostname.replace(/^\[|\]$/g, ""), port: url.port || (secure ? 443 : 80), path: `${url.pathname}${url.search}`, method: init.method,
+        headers: { ...init.headers, host: url.host, ...(init.body !== undefined ? { "content-length": String(Buffer.byteLength(init.body)) } : {}) },
+        ...(secure ? { servername: net.isIP(url.hostname.replace(/^\[|\]$/g, "")) ? undefined : url.hostname } : {}),
+        lookup: (_host: string, opts: { all?: boolean }, cb: (err: Error | null, a: unknown, f?: number) => void) => {
+          const pick = ips.map((address) => ({ address, family: net.isIPv6(address) ? 6 : 4 }));
+          if (opts && opts.all) cb(null, pick); else cb(null, pick[0]!.address, pick[0]!.family);
+        },
+      } as http.RequestOptions, (res) => {
+        const status = res.statusCode ?? 0;
+        let used = false;
+        const drain = async (): Promise<string> => { const parts: Buffer[] = []; for await (const c of res) parts.push(c as Buffer); return Buffer.concat(parts).toString("utf8"); };
+        resolve({
+          ok: status >= 200 && status < 300,
+          status,
+          headers: { get: (n) => { const v = res.headers[n.toLowerCase()]; return Array.isArray(v) ? v.join(", ") : v ?? null; } },
+          body: { [Symbol.asyncIterator]: () => { used = true; return (res as unknown as AsyncIterable<Uint8Array>)[Symbol.asyncIterator](); } },
+          text: async () => (used ? "" : drain()),
+          json: async () => JSON.parse(await drain()) as unknown,
+        });
+      });
+      const abort = (): void => req.destroy(new Error("aborted"));
+      if (init.signal.aborted) abort(); else init.signal.addEventListener("abort", abort, { once: true });
+      req.on("error", reject);
+      req.on("close", () => init.signal.removeEventListener("abort", abort));
+      if (init.body !== undefined) req.write(init.body);
+      req.end();
+    });
   };
-  if (halves.length === 1) {
-    const full = side(text);
-    return full && full.length === 8 ? full : null;
-  }
-  const left = side(halves[0] ?? "");
-  const right = side(halves[1] ?? "");
-  if (!left || !right) return null;
-  const missing = 8 - left.length - right.length;
-  if (missing < 1) return null;
-  return [...left, ...new Array<number>(missing).fill(0), ...right];
-}
-
-function blockedV6(words: number[]): boolean {
-  const w0 = words[0] ?? 0;
-  const w1 = words[1] ?? 0;
-  const w2 = words[2] ?? 0;
-  const w3 = words[3] ?? 0;
-  const w4 = words[4] ?? 0;
-  const w5 = words[5] ?? 0;
-  const w6 = words[6] ?? 0;
-  const w7 = words[7] ?? 0;
-  if (words.every((w) => w === 0)) return true;                     // "::" dials localhost on Linux
-  if (w0 === 0x0064 && w1 === 0xff9b && w2 === 1) return true;      // 64:ff9b:1::/48, local-use NAT64
-  if ((w0 & 0xff00) === 0xff00) return true;                        // multicast
-  if ((w0 & 0xfe00) === 0xfc00) return true;
-  if ((w0 & 0xffc0) === 0xfe80) return true;
-  if (w0 === 0 && w1 === 0 && w2 === 0 && w3 === 0 && w4 === 0 && w5 === 0 && w6 === 0 && w7 === 1) return true;
-  const mapped = w0 === 0 && w1 === 0 && w2 === 0 && w3 === 0 && w4 === 0 && (w5 === 0 || w5 === 0xffff);
-  const nat64 = w0 === 0x0064 && w1 === 0xff9b && w2 === 0 && w3 === 0 && w4 === 0 && w5 === 0;
-  const sixToFour = w0 === 0x2002;
-  if ((mapped || nat64) && blockedV4(w6 >> 8, w6 & 0xff, w7 >> 8)) return true;
-  if (sixToFour && blockedV4(w1 >> 8, w1 & 0xff, w2 >> 8)) return true;
-  return false;
-}
-
-/** True when the address text is not a public unicast address, or is not an address at all. */
-export function refusesAddress(raw: string): boolean {
-  const host = normalizedHost(raw);
-  if (isIP(host) === 4) {
-    const parts = parseV4(host);
-    if (!parts) return true;
-    return blockedV4(parts[0], parts[1], parts[2]);
-  }
-  if (isIP(host) !== 6) return true;
-  const words = expandV6(host);
-  if (!words) return true;
-  return blockedV6(words);
-}
-
-
-/** The addresses that are wrong for anyone to dial, even a caller's own computer: multicast, reserved, broadcast, benchmarking, protocol assignments, local-use NAT64. */
-export function reservedAddress(raw: string): boolean {
-  const host = normalizedHost(raw);
-  const v4 = (a: number, b: number, c: number): boolean => a >= 224 || (a === 198 && (b === 18 || b === 19)) || (a === 192 && b === 0 && c === 0);
-  if (isIP(host) === 4) {
-    const parts = parseV4(host);
-    return parts ? v4(parts[0], parts[1], parts[2]) : true;
-  }
-  if (isIP(host) !== 6) return true;
-  const w = expandV6(host);
-  if (!w) return true;
-  const w0 = w[0] ?? 0;
-  if ((w0 & 0xff00) === 0xff00) return true;
-  if (w0 === 0x0064 && w[1] === 0xff9b && w[2] === 1) return true;
-  const mapped = w0 === 0 && w[1] === 0 && w[2] === 0 && w[3] === 0 && w[4] === 0 && (w[5] === 0 || w[5] === 0xffff);
-  const nat64 = w0 === 0x0064 && w[1] === 0xff9b && w[2] === 0 && w[3] === 0 && w[4] === 0 && w[5] === 0;
-  if ((mapped || nat64) && v4((w[6] ?? 0) >> 8, (w[6] ?? 0) & 0xff, (w[7] ?? 0) >> 8)) return true;
-  if (w0 === 0x2002 && v4((w[1] ?? 0) >> 8, (w[1] ?? 0) & 0xff, (w[2] ?? 0) >> 8)) return true;
-  return false;
 }

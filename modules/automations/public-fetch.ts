@@ -3,7 +3,7 @@
 // The body is returned as text. It is not parsed, evaluated, or scanned.
 
 import { isIP } from "node:net";
-import { normalizedHost, refusesAddress } from "../../lib/net-guard.ts";
+import { normalizedHost, refusesAddress } from "../../lib/address-guard.ts";
 
 export type Lookup = (host: string) => Promise<string[]>;
 

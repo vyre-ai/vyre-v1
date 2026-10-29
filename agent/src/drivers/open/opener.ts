@@ -15,8 +15,8 @@ import type { Used, ValueSource, VaultRunDeps, Where } from "../../vault-use/ind
 import { ADAPTERS, DriverError, createApiDriver } from "../api/driver.ts";
 import type { ApiDriverDeps } from "../api/driver.ts";
 import type { SessionDeps } from "../api/session.ts";
-import { PROVIDER_IDS } from "../api/types.ts";
-import type { Clock, Fetch, ProviderId } from "../api/types.ts";
+import { API_IDS } from "../api/types.ts";
+import type { ApiId, Clock, Fetch } from "../api/types.ts";
 import { CLI_ADAPTERS, createCliDriver } from "../cli/driver.ts";
 import type { CliDriverDeps } from "../cli/driver.ts";
 import { CLI_IDS } from "../cli/types.ts";
@@ -25,10 +25,11 @@ import { cliCredential } from "./credentials.ts";
 import type { CredentialKind } from "./credentials.ts";
 import { createFillAuthorizer } from "./fill-authorizer.ts";
 import { createFillLauncher } from "./fill-launcher.ts";
+import { createGuardedFetch } from "../../../../lib/net-guard.ts";
 import type { FillWho } from "./fill-launcher.ts";
 
 /** The account a turn runs on, as the accounts module resolved it (SessionSpec.account, agent/src/turn-engine/types.ts). `ref` is a Vault handle, never a value. */
-export interface OpenAccount { ref: string; driver: string; kind: CredentialKind; payer?: string }
+export interface OpenAccount { ref: string; driver: string; kind: CredentialKind; payer?: string; base?: string; keyless?: boolean }
 
 /** A session spec as the opener reads it: the engine adds the account and the turn's ids. A spec without an account never opens. */
 export type OpenerSpec = SessionSpec & { account?: OpenAccount; turnId?: string; traceId?: string };
@@ -57,6 +58,8 @@ export interface SessionOpenerDeps {
   /** A device keeps a few sessions per driver; the host a few per person. Default "host". */
   placement?: PoolOptions["placement"];
   fetch?: Fetch;
+  /** True when the person is on their own computer (loopback and private addresses allowed for a local or custom endpoint). Default: never. */
+  own?(person: string): boolean;
   clock?: Clock;
   api?: Pick<ApiDriverDeps, "summarize" | "retry" | "idleMs" | "maxSteps" | "random">;
   cli?: Pick<CliDriverDeps, "system" | "workFolder" | "env" | "planMode" | "resume" | "idleMs" | "graceMs" | "prewarm">;
@@ -118,20 +121,22 @@ export function createSessionOpener(d: SessionOpenerDeps): SessionOpener {
     },
   });
 
-  const apiDriver = (id: ProviderId): PoolDriver => ({
+  const apiDriver = (id: ApiId): PoolDriver => ({
     id, kind: "api",
     async open(spec0) {
       const spec = need(spec0);
+      // An address a person typed (local, custom) is reached only through the network guard (lib/net-guard.ts); a test that hands in its own fetch bypasses it.
+      const guarded = (id === "local" || id === "custom") && !d.fetch ? { fetch: createGuardedFetch({ own: d.own?.(spec.asker) ?? false }) as Fetch } : d.fetch ? { fetch: d.fetch } : {};
       const driver = createApiDriver(ADAPTERS[id], {
-        ...d.api, context: d.apiContext, ...(d.fetch ? { fetch: d.fetch } : {}), ...(d.clock ? { clock: d.clock } : {}),
+        ...d.api, context: d.apiContext, ...guarded, ...(d.clock ? { clock: d.clock } : {}),
         authorize: createFillAuthorizer({ source: d.source, reportMiss: d.reportMiss, who: whoOf(spec), onUsed: used(spec) }),
-        accountOf: (s) => ({ ref: need(s).account.ref }),
+        accountOf: (s) => { const a = need(s).account; return { ref: a.ref, ...(a.base ? { base: a.base } : {}), ...(a.keyless ? { keyless: true } : {}) }; },
       });
       return driver.open(spec);
     },
   });
 
-  const drivers: PoolDriver[] = [...CLI_IDS.map(cliDriver), ...PROVIDER_IDS.map(apiDriver)];
+  const drivers: PoolDriver[] = [...CLI_IDS.map(cliDriver), ...API_IDS.map(apiDriver)];
   const known = new Set(drivers.map((x) => x.id));
   const pool = createPool({ placement: d.placement ?? "host", drivers, ...d.pool });
 

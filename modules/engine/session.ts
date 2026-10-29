@@ -12,7 +12,8 @@ import type { SystemBlock } from "../../agent/src/drivers/api/types.ts";
 import { createSessionOpener } from "../../agent/src/drivers/open/index.ts";
 import type { McpPort, SessionOpener } from "../../agent/src/drivers/open/index.ts";
 import type { ValueSource, VaultRunDeps } from "../../agent/src/vault-use/index.ts";
-import type { SessionSpec } from "../../agent/src/turn-engine/types.ts";
+import { recallText } from "../../agent/src/turn-engine/recall.ts";
+import type { SessionSpec, TurnInput } from "../../agent/src/turn-engine/types.ts";
 
 /** The ports the host builds (host/src/seams/engine-session.ts), as the module sees them: structural, so neither side imports the other. */
 export interface EngineSessionPorts { source: ValueSource; reportMiss: VaultRunDeps["reportMiss"]; mcp: McpPort }
@@ -30,11 +31,18 @@ export interface OpenerHost {
   cliCommand?: Readonly<Record<string, readonly string[]>>;
   /** Tools for API-key chats (modules/engine/api-tools.ts). Without them an API chat answers in words only. */
   apiTools?: ApiTools;
+  own?: (person: string) => boolean;
   now?: () => number;
 }
 
-export function roleBlocks(call: OpenerHost["call"]): (spec: SessionSpec) => Promise<SystemBlock[]> {
-  return async (spec) => {
+const MEMORY_RULES = "You remember through Vyre memory. Facts recalled for a message come with their source: say where you know a thing from. Save what you learn with memory_propose and cite where it came from. Memory you cannot see is not yours to guess.";
+
+/**
+ * The system prompt of an API-key chat. Stable blocks come first and carry the cache marker: the role, the memory rules and the agent's MAP.md as the nightly job last wrote it (agent layer only, never
+ * a person's memory). What memory recalled for this one message follows as a volatile block, so the stable prefix is the same from turn to turn.
+ */
+export function roleBlocks(call: OpenerHost["call"]): (spec: SessionSpec, input?: TurnInput) => Promise<SystemBlock[]> {
+  return async (spec, input) => {
     let text: string;
     try {
       const out = (await call("agents.get", { agentId: spec.agent.id }, spec.asker)) as { agent?: { name?: string; role?: string } };
@@ -43,7 +51,14 @@ export function roleBlocks(call: OpenerHost["call"]): (spec: SessionSpec) => Pro
     } catch {
       text = `You are ${spec.agent.id}, an agent in Vyre.`;
     }
-    return [{ text, stable: true }];
+    const blocks: SystemBlock[] = [{ text, stable: true }, { text: MEMORY_RULES, stable: true }];
+    try {
+      const out = (await call("memory.map.get", { agentId: spec.agent.id }, spec.asker)) as { map?: { body?: string } };
+      if (out.map?.body) blocks.push({ text: `Your memory map (MAP.md):\n${out.map.body}`, stable: true });
+    } catch { /* no map yet, or this person may not read it: the turn goes on without it */ }
+    const recalled = input?.recall ? recallText(input.recall) : "";
+    if (recalled !== "") blocks.push({ text: recalled, stable: false });
+    return blocks;
   };
 }
 
@@ -62,6 +77,7 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     source: h.session.source,
     reportMiss: h.session.reportMiss,
     mcp: h.session.mcp,
+    ...(h.own ? { own: h.own } : {}),
     launcher: {
       spawn: async (spec) => {
         const swap = spec.argv[0] !== undefined ? h.cliCommand?.[spec.argv[0]] : undefined;
@@ -75,7 +91,7 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     // A session with tools "none" (an automation's AI step) gets no tools and no agent role: its prompt carries everything it needs.
     apiContext: async (spec, input) => {
       if (spec.tools === "none") return { system: [{ text: "You are completing one step of an automation. Answer with the result only.", stable: true }], tools: [] };
-      return h.apiTools ? h.apiTools.context(spec, input) : { system: await system(spec), tools: [] };
+      return h.apiTools ? h.apiTools.context(spec, input) : { system: await system(spec, input), tools: [] };
     },
   });
 }

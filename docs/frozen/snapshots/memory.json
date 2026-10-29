@@ -23,7 +23,7 @@
     "memory.map.get@1": "2ec8af83998b8217f20fd68baf16eb399bb7491dc928ab73d29f1aa23ad77ec5",
     "memory.notes.erase@1": "dd81a39305008aee7f3f350162b195248c6417328481c68ec9cba911d94ef2bd",
     "memory.notes.list@1": "8812ed58623663cdc5bcc752b161d669e866f211df00a75851edc90ad3445d26",
-    "memory.pointer@1": "c171053115b1483d3b3530afff03a64200522868bdfa85ff4b982894c42f5f74",
+    "memory.pointer@1": "ec99a5829ce1ff4024d42b27a514a05a37e69dc0f1b6784cfabc8da7099a6bb8",
     "memory.promote@1": "9137fa569acef50de2ffe07582fecab4b064579b1cbfc785c38aa50f765239e6",
     "memory.promotion.approve@1": "38d6793aa8a2e9da935583cf909236eef2af2790ee3a4740f1d3cfc20fddb05b",
     "memory.promotion.reject@1": "a626cb1f68eb0dbc5a625b512158a3a055f4584a4a8ac5f61b793d79b1abc77e",
