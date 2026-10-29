@@ -16,9 +16,8 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { routes } from "../../../generated/routes.ts";
-import { confirmedSessionInput } from "../../app/src/places/settings/session-import-model.ts";
 
 const APP = process.env["VYRE_SHELL_APP"];
 const ON = process.platform === "darwin" && APP !== undefined && process.env["VYRE_PERSONAL_PROOF"] === "1";
@@ -35,6 +34,8 @@ const home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-persona
 const data = path.join(home, "Library", "Application Support", "ai.vyre.desktop", "personal");
 
 type Reply = { status: number; body: { data?: any; error?: { code?: string; message?: string } } };   // eslint-disable-line @typescript-eslint/no-explicit-any
+// apps/desktop may not import apps/app (same layer); the UI's own payload builder is loaded by path (this file is listed in rules.dynamicOk in scripts/boundaries.json).
+const { confirmedSessionInput } = await import(pathToFileURL(path.join(REPO, "apps/app/src/places/settings/session-import-model.ts")).href) as { confirmedSessionInput(p: unknown, now: number): unknown };
 const routeOf = (cap: string): string => { const r = routes.find((x) => x.cap === cap); if (!r) throw new Error(`no route for ${cap}`); return r.path; };
 
 function setup(): void {

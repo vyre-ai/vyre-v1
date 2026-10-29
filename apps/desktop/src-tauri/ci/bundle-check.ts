@@ -23,7 +23,7 @@ try {
   const up = run("console.log('up', process.platform)");
   if (up.signal !== null || up.status !== 0 || !/^up darwin/.test(up.stdout)) { console.error(`the bundled Node did not start under the profile: status ${String(up.status)} signal ${String(up.signal)} ${up.stderr}`); process.exit(1); }
   const outside = path.join(path.dirname(work), `outside-${process.pid}.txt`);
-  const w = run(`try { require('fs').writeFileSync(${JSON.stringify(outside)}, 'x'); console.log('WROTE'); } catch (e) { console.log(e.code); }`);
+  const w = run(`try { require('node:fs').writeFileSync(${JSON.stringify(outside)}, 'x'); console.log('WROTE'); } catch (e) { console.log(e.code); }`);
   if (w.stdout.trim() !== "EPERM" || fs.existsSync(outside)) { console.error(`a write outside the work folder was not refused: ${w.stdout} ${w.stderr}`); process.exit(1); }
   console.log(`bundle ok: ${need.length} paths present, the bundled Node (${process.version}) runs under Seatbelt and a write outside the work folder is refused`);
 } finally {

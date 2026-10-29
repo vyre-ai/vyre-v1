@@ -62,7 +62,7 @@ test("confinement holds: a write in the work folder works; a write outside it, a
   const port = (listener.address() as net.AddressInfo).port;
   try {
     const script = `
-      const fs = require("fs"), net = require("net");
+      const fs = require("node:fs"), net = require("node:net");
       const tried = (f) => { try { f(); return "allowed"; } catch (e) { return e.code; } };
       const res = {
         inside: tried(() => fs.writeFileSync("inside.txt", "x")),
@@ -94,7 +94,7 @@ test("the CLI keeps its home, temp and config folders in the person's scratch fo
   const got = JSON.parse(r.out.trim()) as Record<string, string>;
   const scratch = scratchFolder(data, PERSON);
   for (const v of Object.values(got)) assert.ok(v.startsWith(`${scratch}${path.sep}`), `${v} is under ${scratch}`);
-  const w = await run([process.execPath, "-e", `const fs = require("fs"); fs.mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true }); fs.writeFileSync(process.env.CLAUDE_CONFIG_DIR + "/state.json", "{}"); fs.writeFileSync(process.env.TMPDIR + "/t", "x"); console.log("ok")`]);
+  const w = await run([process.execPath, "-e", `const fs = require("node:fs"); fs.mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true }); fs.writeFileSync(process.env.CLAUDE_CONFIG_DIR + "/state.json", "{}"); fs.writeFileSync(process.env.TMPDIR + "/t", "x"); console.log("ok")`]);
   assert.equal(w.out.trim(), "ok", w.err);
 });
 
