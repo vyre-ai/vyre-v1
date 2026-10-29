@@ -663,7 +663,7 @@
     {
       "deferred": false,
       "name": "automations_replay",
-      "summary": "Run a past run again on the same definition version or the current one",
+      "summary": "Live rerun of a past run on the same definition version or the current one, not a sandbox replay",
       "toolset": "automations"
     },
     {

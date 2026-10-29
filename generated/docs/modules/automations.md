@@ -30,7 +30,7 @@ Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, recor
 - [automations.packages.list](../capabilities/automations.packages.list.md): List portable Automation packages this person has exported
 - [automations.preview_promote](../capabilities/automations.preview_promote.md): Show what Promote to Space grants as an access diff, and which subscription keys must be replaced by shared API keys
 - [automations.promote](../capabilities/automations.promote.md): Promote a Personal Automation to the Space: keeps history and versions, runs on access granted to the automation itself
-- [automations.replay](../capabilities/automations.replay.md): Run a past run again on the same definition version or the current one
+- [automations.replay](../capabilities/automations.replay.md): Live rerun of a past run on the same definition version or the current one, not a sandbox replay
 - [automations.restore_version](../capabilities/automations.restore_version.md): Restore an Automation to an earlier version (saved as a new version)
 - [automations.retry](../capabilities/automations.retry.md): Retry a failed run of this Automation from the start or from a step
 - [automations.run](../capabilities/automations.run.md): Run an Automation now with a payload (the manual trigger or a button)

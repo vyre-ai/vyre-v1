@@ -177,8 +177,8 @@ test("replay offers the same version or the current one; test can pin any earlie
   const id = await makeLive(h);
   const old = await h.call("automations.run", { automationId: id }, alice);
   await h.call("automations.update", { automationId: id, definition: goodDefinition({ nodes: [node("a", "records.update", { type: "contact", recordId: "rec_zzz", patch: {} })] }) }, alice);
-  const same = await h.call("automations.replay", { automationId: id, runId: old.runId, version: "same" }, alice);
-  const cur = await h.call("automations.replay", { automationId: id, runId: old.runId, version: "current" }, alice);
+  const same = await h.call("automations.replay", { automationId: id, runId: old.runId, version: "same", confirm: true }, alice);
+  const cur = await h.call("automations.replay", { automationId: id, runId: old.runId, version: "current", confirm: true }, alice);
   assert.equal(findRunLink(h.db, same.runId)!.version, 1);
   assert.equal(findRunLink(h.db, cur.runId)!.version, 2);
   assert.equal(findRunLink(h.db, same.runId)!.parentRun, old.runId);

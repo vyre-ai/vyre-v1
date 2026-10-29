@@ -117,7 +117,9 @@ export async function retry(ctx: AutoCtx, input: In): Promise<unknown> {
   return { runId: r.runId };
 }
 
+/** A live rerun repeats outward steps. It is not a sandbox replay, so a missing confirmation does not start a run. */
 export async function replay(ctx: AutoCtx, input: In): Promise<unknown> {
+  if (input.confirm !== true) raise(ctx, "validation.precondition_failed", "A live rerun needs confirmation.", { reason: "needs_confirm" });
   const a = getAutomation(ctx, input.automationId);
   const old = findRunLink(ctx.db, input.runId);
   if (!old || old.automationId !== a.id) raise(ctx, "validation.precondition_failed", "That run does not belong to this automation.", { reason: "not_a_run_of_this" });

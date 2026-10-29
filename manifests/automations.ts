@@ -266,8 +266,9 @@ export default defineManifest({
     write('automations.retry', 'Retry a failed run of this Automation from the start or from a step', {
       in: { ...target, runId: id.run, fromStep: t.opt(t.str()) }, out: runStarted, on: ['automation', '/automationId'], level: 'use', emits: ['automation.run_started'], run: { kind: 'automation', stoppable: true }, tool: 'automations',
     }),
-    write('automations.replay', 'Run a past run again on the same definition version or the current one', {
-      in: { ...target, runId: id.run, version: t.enm('same', 'current') }, out: runStarted, on: ['automation', '/automationId'], level: 'use', emits: ['automation.run_started'], run: { kind: 'automation', stoppable: true }, tool: 'automations',
+    write('automations.replay', 'Live rerun of a past run on the same definition version or the current one, not a sandbox replay', {
+      in: { ...target, runId: id.run, version: t.enm('same', 'current'), confirm: t.lit(true) }, out: runStarted, on: ['automation', '/automationId'], level: 'use', emits: ['automation.run_started'], run: { kind: 'automation', stoppable: true }, audit: 'always', tool: 'automations',
+      errors: ['validation.precondition_failed'],
     }),
     read('automations.preview_promote', 'Show what Promote to Space grants as an access diff, and which subscription keys must be replaced by shared API keys', {
       in: target, out: { diff: accessDiff, ready: t.bool() }, on: ['automation', '/automationId'], tool: 'automations',
@@ -397,7 +398,7 @@ export default defineManifest({
         unfollow: ['automations.followers.remove', { automationId: '/route/automationId', follower: '/state/follower' }],
         webhookUrl: ['automations.webhook_url.rotate', { automationId: '/route/automationId', confirm: '/state/confirm' }, 'Rotate the webhook URL? The old one stops working.'],
         retry: ['automations.retry', { automationId: '/route/automationId', runId: '/state/runId', fromStep: '/state/fromStep' }],
-        replay: ['automations.replay', { automationId: '/route/automationId', runId: '/state/runId', version: '/state/version' }],
+        replay: ['automations.replay', { automationId: '/route/automationId', runId: '/state/runId', version: '/state/version', confirm: '/state/confirm' }, 'Running this live can repeat outward steps. Sandbox replay does not.'],
       },
       empty: 'No settings to show',
     }),
