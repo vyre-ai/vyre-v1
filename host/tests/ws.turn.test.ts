@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createLiveHub } from "../src/ws.ts";
-import { createEngineHost } from "../src/seams/engine.ts";
+import { READER_LOSS, createEngineHost } from "../src/seams/engine.ts";
 import type { PublishTurn } from "../src/seams/engine.ts";
 import type { Invoke } from "../src/invoke.ts";
 import { fail } from "../src/routes/errors.ts";
@@ -56,12 +56,12 @@ test("a check that throws means no frame, and never breaks the ones after it", a
   } finally { await hub.close(); }
 });
 
-function seam() {
+function seam(o: { refuse?: Set<string> } = {}) {
   const published: Array<{ frame: Parameters<PublishTurn>[0]; allow: Parameters<PublishTurn>[1] }> = [];
   const asked: Array<{ cap: string; as: string | undefined }> = [];
   const invoke: Invoke = async (cap, _input, seed) => {
     asked.push({ cap, as: seed.principal.id });
-    if (seed.principal.id === "usr_out") return fail("permission.no_grant" as never, "c".repeat(32));
+    if (seed.principal.id === "usr_out" || o.refuse?.has(seed.principal.id)) return fail("permission.no_grant" as never, "c".repeat(32));
     return { status: "ok", output: {}, traceId: "c".repeat(32) } as never;
   };
   const host = createEngineHost({ space: SPACE, invoke, publishTurn: () => (frame, allow) => { published.push({ frame, allow }); } });
@@ -89,4 +89,39 @@ test("the audience check is kept a minute: a stream of deltas asks once per pers
 test("with no live socket yet, a turn event is dropped and nothing throws", () => {
   const host = createEngineHost({ space: SPACE, invoke: (async () => ({ status: "ok", output: {}, traceId: "c".repeat(32) })) as never, publishTurn: () => null });
   assert.doesNotThrow(() => host.stream?.({ kind: "start", threadId: "thr_a", turnId: "trn_9", agentId: "agt_x", asker: "usr_in" }));
+});
+
+test("a person removed from the chat mid-turn gets no further text: the next piece asks again and is refused", async () => {
+  const refuse = new Set<string>();
+  const s = seam({ refuse });
+  const send = (i: number): void => s.host.stream?.({ kind: "delta", threadId: "thr_a", turnId: "trn_9", agentId: "agt_x", text: String(i) });
+  send(1);
+  assert.equal(await s.published[0]!.allow("usr_in"), true, "still in the chat");
+  refuse.add("usr_in");                       // removed from the chat
+  send(2);
+  assert.equal(await s.published[1]!.allow("usr_in"), true, "without a signal the answer is kept for a moment");
+  s.host.forgetReaders?.();                    // the daemon calls this when a member-removed or grant-revoked event is published
+  send(3);
+  assert.equal(await s.published[2]!.allow("usr_in"), false, "the next piece is refused");
+  assert.equal(await s.published[2]!.allow("usr_other"), true, "someone still in the chat keeps watching");
+});
+
+test("an answer that was in flight when the person was removed is asked again, never trusted", async () => {
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((r) => { release = r; });
+  let removed = false;
+  const invoke: Invoke = async (_cap, _in, seed) => { await gate; return removed && seed.principal.id === "usr_in" ? fail("permission.no_grant" as never, "c".repeat(32)) : ({ status: "ok", output: {}, traceId: "c".repeat(32) } as never); };
+  const pubs: Array<Parameters<PublishTurn>[1]> = [];
+  const host = createEngineHost({ space: SPACE, invoke, publishTurn: () => (_f, allow) => { pubs.push(allow); } });
+  host.stream?.({ kind: "delta", threadId: "thr_a", turnId: "t", agentId: "agt_x", text: "x" });
+  const pending = pubs[0]!("usr_in");          // the check is under way
+  removed = true;
+  host.forgetReaders?.();                      // the removal lands while it is
+  release();
+  assert.equal(await pending, false, "the stale yes was not used");
+});
+
+test("the events that mean someone may no longer read a chat are the ones that make the host forget its watchers", () => {
+  for (const name of ["channel.member_removed", "member.removed", "grant.revoked", "agent.disengaged", "thread.closed", "channel.archived"]) assert.ok(READER_LOSS.test(name), name);
+  for (const name of ["message.received", "channel.member_added", "thread.started"]) assert.ok(!READER_LOSS.test(name), name);
 });

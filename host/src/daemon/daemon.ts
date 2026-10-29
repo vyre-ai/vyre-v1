@@ -67,7 +67,7 @@ import { withGateNesting } from "./gate-nesting.ts";
 import { createComputersFillHost, createFillRoute } from "../seams/computers.ts";
 import { homeCallAllowed, homeScopeOf } from "./home-confine.ts";
 import { createComputersHost } from "../seams/computers-host.ts";
-import { createEngineHost } from "../seams/engine.ts";
+import { READER_LOSS, createEngineHost } from "../seams/engine.ts";
 import { createEmailAskDriver, createFormAskDriver } from "../seams/email-ask.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
 import { applyPendingRestore, clearRestoredTombstones, createBackupHost, readRestoredTombstones } from "../seams/backup.ts";
@@ -335,6 +335,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let chainBroken = false;
   let verified = { seq: 0, hash: "" };
   let hub: LiveHub | null = null;
+  let engineSeam: { forgetReaders?: () => void } | null = null;
   let hubFactory: (() => LiveHub) | null = null;
   // the sync module's live hub: it registers a lazy factory through its seam, and the socket asks for the hub only when a device connects, after every module is loaded
   const syncLive = createSyncLiveBridge((msg, attrs) => sink.log({ space: "-", level: 40, msg, place: "sync", ...(attrs ? { attrs } : {}) }));
@@ -712,6 +713,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           recent.push(...events);
           if (recent.length > RING) recent.splice(0, recent.length - RING);
           hub?.publish(spaceId, events);
+          // someone left a chat or lost a grant: whoever was watching a reply being written is asked about again before the next piece reaches them
+          if (events.some((e) => READER_LOSS.test(e.type))) engineSeam?.forgetReaders?.();
           void hookRunner.pump().catch((e: unknown) => sink.log({ space: spaceId, level: 30, msg: "hooks.pump_failed", place: "hooks", attrs: { error: e instanceof Error ? e.message : String(e) } }));
           void projectionRunner.pump().catch((e: unknown) => sink.log({ space: spaceId, level: 30, msg: "projections.pump_failed", place: "projections", attrs: { error: e instanceof Error ? e.message : String(e) } }));
         },
@@ -887,7 +890,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           log: (u) => sink.log({ space: spaceId, level: 30, msg: "computers.fill", place: "computers", attrs: { ...u } }),
         }) : null,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
-        setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
+        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) })),
         // Ask Vyre in the email builder is one real agent turn in a private Ask pane, run as the asker: their agent, model, account, spend limits and access (host/src/seams/email-ask.ts)
         configureEmailBuilder: () => ({
           ask: createEmailAskDriver({
