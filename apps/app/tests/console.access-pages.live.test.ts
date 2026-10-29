@@ -24,7 +24,7 @@ test("production Console Access pages: Groups, Roles, Policies and Access review
   const page = await context.newPage();
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  const shots = process.env["VYRE_CONSOLE_ACCESS_SHOTS"] ?? "/tmp/vyre-console-access-shots"; fs.mkdirSync(shots, { recursive: true });
+  const shots = process.env["VYRE_CONSOLE_PAGES_SHOTS"] ?? "/tmp/vyre-console-pages-shots"; fs.mkdirSync(shots, { recursive: true });
   try {
     await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
     await page.getByTestId("claim-name").fill("Olivia Owner"); await page.getByTestId("claim-username").fill("olivia");
