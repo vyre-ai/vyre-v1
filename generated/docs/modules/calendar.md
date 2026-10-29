@@ -4,9 +4,10 @@ Lane L5. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (19)
+## Capabilities (20)
 
 - [calendar.availability](../capabilities/calendar.availability.md): Busy blocks for people over a range (the shaded stripes while adding people)
+- [calendar.connect_provider](../capabilities/calendar.connect_provider.md): Put a member's Google or Microsoft calendar in Calendar, owned by them and read as their account; connected false (an excluded member) removes it
 - [calendar.create_calendar](../capabilities/calendar.create_calendar.md): Create a local calendar (for example a private Personal one)
 - [calendar.create_event](../capabilities/calendar.create_event.md): Create an event (drag in 15 minute steps); the provider invites attendees
 - [calendar.delete_calendar](../capabilities/calendar.delete_calendar.md): Delete a local calendar (provider calendars are disconnected, not deleted)

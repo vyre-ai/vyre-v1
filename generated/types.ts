@@ -3405,6 +3405,19 @@ export type CalendarAvailabilityOut = {
     }>;
   unknown: Array<string>;
 };
+export type CalendarConnectProviderIn = {
+  provider: "google" | "microsoft";
+  ownerId: string;
+  account: string;
+  connectionId: string;
+  remoteId?: string;
+  title?: string;
+  connected?: boolean;
+};
+export type CalendarConnectProviderOut = {
+  calendarId?: string;
+  created: boolean;
+};
 export type CalendarCreateCalendarIn = {
   title: string;
   color?: string;
@@ -27176,6 +27189,7 @@ export interface CapMap {
   "bookings.list": { in: BookingsListIn; out: BookingsListOut };
   "bookings.page_create": { in: BookingsPageCreateIn; out: BookingsPageCreateOut };
   "calendar.availability": { in: CalendarAvailabilityIn; out: CalendarAvailabilityOut };
+  "calendar.connect_provider": { in: CalendarConnectProviderIn; out: CalendarConnectProviderOut };
   "calendar.create_calendar": { in: CalendarCreateCalendarIn; out: CalendarCreateCalendarOut };
   "calendar.create_event": { in: CalendarCreateEventIn; out: CalendarCreateEventOut };
   "calendar.delete_calendar": { in: CalendarDeleteCalendarIn; out: CalendarDeleteCalendarOut };

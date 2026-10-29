@@ -6,6 +6,7 @@ import type { Handlers } from './handlers.ts';
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
   "calendar.availability": async (ctx) => { throw new VyreErr(notImplemented("calendar.availability", ctx.trace)); },
+  "calendar.connect_provider": async (ctx) => { throw new VyreErr(notImplemented("calendar.connect_provider", ctx.trace)); },
   "calendar.create_calendar": async (ctx) => { throw new VyreErr(notImplemented("calendar.create_calendar", ctx.trace)); },
   "calendar.create_event": async (ctx) => { throw new VyreErr(notImplemented("calendar.create_event", ctx.trace)); },
   "calendar.delete_calendar": async (ctx) => { throw new VyreErr(notImplemented("calendar.delete_calendar", ctx.trace)); },

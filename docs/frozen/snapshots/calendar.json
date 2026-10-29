@@ -2,6 +2,7 @@
   "module": "calendar",
   "capabilities": {
     "calendar.availability@1": "5033567176638de283346d7657e5703301726176d2b56b625670b7769774842f",
+    "calendar.connect_provider@1": "df50f26eff179a745dc2e9c7f3a5165c1d1f8b35aef69df1899203fd077ecf04",
     "calendar.create_calendar@1": "eb033ab1693fb1da3cbd541df79a5e66c81273c40a5baf4b33400e007a832728",
     "calendar.create_event@1": "d32f9d31079525ddd9dd567fad316c35dbb1cbf0b17985068af88a3dee24b69e",
     "calendar.delete_calendar@1": "436a7d3d816888649c34288bf6f228efa4caf1d083391c3323e27076d7c8cb76",

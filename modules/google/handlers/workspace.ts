@@ -10,6 +10,7 @@ import {
 import type { Call, GoogleCtx } from "../projections.ts";
 import { ensureMailbox, pollInterval, pullMailbox } from "./gmail.ts";
 import { pullMeet } from "./meet.ts";
+import { connectCalendar, syncCalendar } from "./calendar.ts";
 import type { Act } from "./gmail.ts";
 
 const g = (ctx: GoogleCtx, a: Act, cap: string, scope: string, c: Omit<Call, "cap" | "connectionId" | "as" | "scope">): Promise<Record<string, unknown>> =>
@@ -124,6 +125,7 @@ export async function dwdSetup(ctx: GoogleCtx, input: { vaultItem: string; admin
     const out = obj(await ctx.call("mail.auto_connect_members", { provider: "google", members: mapped, idempotencyKey: `${input.idempotencyKey}:members` }));
     connected = int(out.created) ?? 0;
     for (const m of mapped) ctx.db.run(`UPDATE google_member SET "mailboxState" = ? WHERE email = ?`, "pending", m.email);
+    for (const m of mapped) await connectCalendar(ctx, { connectionId, userId: m.userId, email: m.email });   // their calendars come in with their mail
   }
   ctx.db.run(`UPDATE google_config SET configured = ?, updated_at = ? WHERE id = ?`, 1, now, CONFIG_ID);
   ctx.emit("google.dwd_configured", "connector/google", { connector: "google", adminEmail: admin, mappedMembers: mapped.length, autoConnect });
@@ -198,6 +200,13 @@ export async function dwdSetExcluded(ctx: GoogleCtx, input: { email: string; exc
     ctx.db.run(`INSERT INTO google_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, email, null, 0, input.excluded ? 1 : 0, null, now);
   }
   forgetTokens();
+  // An excluded member's calendar leaves Calendar; including them again brings a fresh one in.
+  const member = first(ctx.db.all(`SELECT "userId", mapped FROM google_member WHERE email = ?`, email));
+  const connectionId = strOrNull(config(ctx), "connectionId");
+  const userId = strOrNull(member, "userId");
+  if (connectionId && userId && num(member, "mapped") === 1 && (input.excluded || num(config(ctx), "autoConnect") === 1)) {
+    await connectCalendar(ctx, { connectionId, userId, email, connected: !input.excluded });
+  }
   return { excluded: rowsOf(ctx.db.all(`SELECT email FROM google_member WHERE excluded = ?`, 1)).map((r) => str(r, "email")).sort() };
 }
 
@@ -266,6 +275,7 @@ async function pullAndSchedule(ctx: GoogleCtx, email: string, cause: string): Pr
     delay = pollInterval(now, null, false);
   }
   // Meet transcripts ride on the same pass; a Meet failure never fails the mailbox pull
+  await syncCalendar(ctx, { connectionId, email });
   await pullMeet(ctx, { connectionId, mailbox: email }).catch((e: unknown) => ctx.log.warn("google meet pull failed", { mailbox: email, code: codeOf(e) }));
   const box = first(ctx.db.all(`SELECT "nextPollAt" FROM google_mailbox WHERE email = ?`, email));
   const queued = box && typeof box.nextPollAt === "number" ? box.nextPollAt : 0;

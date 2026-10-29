@@ -14,6 +14,7 @@ import {
 import type { MsCtx } from "../projections.ts";
 import { ensureMailbox, pollInterval, pullMailbox } from "./graph.ts";
 import { pullTeams } from "./teams.ts";
+import { connectCalendar, syncCalendar } from "./calendar.ts";
 import type { Act } from "./graph.ts";
 import { mintUuid } from "../../../lib/ids.ts";
 
@@ -219,6 +220,7 @@ async function pullAndSchedule(ctx: MsCtx, email: string, cause: string): Promis
     delay = pollInterval(now, null, false);
   }
   // Teams transcripts ride on the same pass; a Teams failure never fails the mailbox pull
+  await syncCalendar(ctx, { connectionId, email });
   await pullTeams(ctx, { connectionId, mailbox: email }).catch((e: unknown) => ctx.log.warn("microsoft teams pull failed", { mailbox: email, code: codeOf(e) }));
   const box = first(ctx.db.all(`SELECT "nextPollAt" FROM microsoft_mailbox WHERE email = ?`, email));
   const queued = box && typeof box.nextPollAt === "number" ? box.nextPollAt : 0;
@@ -346,6 +348,7 @@ export async function consentSetup(ctx: MsCtx, input: { vaultItem: string; tenan
     const out = obj(await ctx.call("mail.auto_connect_members", { provider: "microsoft", members: mapped, idempotencyKey: `${input.idempotencyKey}:members` }));
     connected = int(out.created) ?? 0;
     for (const m of mapped) ctx.db.run(`UPDATE microsoft_member SET "mailboxState" = ? WHERE email = ?`, "pending", m.email);
+    for (const m of mapped) await connectCalendar(ctx, { connectionId, userId: m.userId, email: m.email });   // their calendars come in with their mail
   }
   ctx.emit("microsoft.consent_configured", "connector/microsoft", { connector: "microsoft", tenantId: input.tenantId, mappedMembers: mapped.length, autoConnect });
   // Subscriptions live about three days: queue the first renewal Run now.
@@ -430,6 +433,13 @@ export async function consentExclude(ctx: MsCtx, input: { email: string; exclude
     ctx.db.run(`UPDATE microsoft_member SET excluded = ?, updated_at = ? WHERE email = ?`, input.excluded ? 1 : 0, now, email);
   } else {
     ctx.db.run(`INSERT INTO microsoft_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, email, null, 0, input.excluded ? 1 : 0, null, now);
+  }
+  // An excluded member's calendar leaves Calendar; including them again brings a fresh one in.
+  const member = first(ctx.db.all(`SELECT "userId", mapped FROM microsoft_member WHERE email = ?`, email));
+  const connectionId = strOrNull(config(ctx), "connectionId");
+  const userId = strOrNull(member, "userId");
+  if (connectionId && userId && num(member, "mapped") === 1 && (input.excluded || num(config(ctx), "autoConnect") === 1)) {
+    await connectCalendar(ctx, { connectionId, userId, email, connected: !input.excluded });
   }
   return { excluded: rowsOf(ctx.db.all(`SELECT email FROM microsoft_member WHERE excluded = ?`, 1)).map((r) => str(r, "email")).sort() };
 }

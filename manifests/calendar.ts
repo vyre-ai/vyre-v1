@@ -110,6 +110,10 @@ const manifest = defineManifest({
       },
       out: { eventId: cevId, meetingId: t.opt(id.record), merged: t.bool() }, emits: ['calendar_event.created', 'calendar_event.updated', 'calendar_event.deleted'], idem: 'natural',
     }),
+    write('calendar.connect_provider', "Put a member's Google or Microsoft calendar in Calendar, owned by them and read as their account; connected false (an excluded member) removes it", {
+      in: { provider: t.enm('google', 'microsoft'), ownerId: id.user, account: email, connectionId: id.connection, remoteId: t.opt(t.str()), title: t.opt(t.str()), connected: t.opt(t.bool()) },
+      out: { calendarId: t.opt(calId), created: t.bool() }, perm: 'connectors.manage', audit: 'always', idem: 'natural', tool: 'meta',
+    }),
     read('calendar.health', 'Calendar sync health: age of the last successful sync per calendar', { in: {}, out: healthOut }),
   ],
   health: [

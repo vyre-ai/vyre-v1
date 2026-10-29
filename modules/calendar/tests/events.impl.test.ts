@@ -7,7 +7,7 @@ import { at, contractErrors, harness, seedCalendar } from "../fixtures/harness.t
 
 test("impl serves exactly the capabilities the manifest declares for calendar", () => {
   const declared = [...new Set(registry.capabilities.filter((c) => c.module === "calendar").map((c) => c.name))].sort();
-  assert.equal(declared.length, 19);
+  assert.equal(declared.length, 20);
   assert.deepEqual(Object.keys(handlers).sort(), declared);
 });
 
