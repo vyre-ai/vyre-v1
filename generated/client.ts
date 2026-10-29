@@ -182,6 +182,7 @@ export function createClient(transport: Transport) {
       migrate_runs: call("automations.migrate_runs", 1),
       migration_preview: call("automations.migration_preview", 1),
       move: call("automations.move", 1),
+      open_document: call("automations.open_document", 1),
       packages: {
         export: call("automations.packages.export", 1),
         import: call("automations.packages.import", 1),

@@ -20,6 +20,7 @@
     "automations.migrate_runs@1": "3f1c5a593a78b2575fc14efb686e1a33b90477ebd14de1a0c9941a8c7ee1ef0c",
     "automations.migration_preview@1": "f67648d3b4ae9fa124c56b2f0813c2f9ea85d154ffcbf1fea6f7ae96c5af098a",
     "automations.move@1": "376d641d094518fc7169361fd26daeb772e7a1f6fa06d579d899c100650361b3",
+    "automations.open_document@1": "62ffb3426e35c2f235640dcfa60d1dd68ca3d3cee59e383ae1c6887cbbc565d0",
     "automations.packages.export@1": "5217f957b15f9d3039112ece8018ebf15d3605b8b2eeef58f13dae69a5be55da",
     "automations.packages.import@1": "f20cf0cda5ff555ff86909e7136c7fced39f57d167ad4d6c34679a01d31bc4f7",
     "automations.packages.list@1": "e2afc74fe9ae28039d96b2e99ad865986b614d4ea1f39788169efac1f55bace3",

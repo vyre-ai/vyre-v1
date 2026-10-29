@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (40)
+## Capabilities (41)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
@@ -25,6 +25,7 @@ Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, recor
 - [automations.migrate_runs](../capabilities/automations.migrate_runs.md): Move selected active runs onto a definition version without replaying finished steps
 - [automations.migration_preview](../capabilities/automations.migration_preview.md): Group active runs by the step they are on before moving them to a definition version
 - [automations.move](../capabilities/automations.move.md): Move an Automation into a Group, or out with null
+- [automations.open_document](../capabilities/automations.open_document.md): Open one public https document. A private, loopback, link-local, or metadata address is refused. The page text is not returned.
 - [automations.packages.export](../capabilities/automations.packages.export.md): Save a portable copy of an Automation definition
 - [automations.packages.import](../capabilities/automations.packages.import.md): Create a draft Automation from a package this person exported
 - [automations.packages.list](../capabilities/automations.packages.list.md): List portable Automation packages this person has exported

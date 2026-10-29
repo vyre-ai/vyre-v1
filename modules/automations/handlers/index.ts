@@ -5,6 +5,7 @@ import {
 } from "./defs.ts";
 import { accountPicks } from "./accounts.ts";
 import { draftConnector } from "./draft-connector.ts";
+import { openDocument } from "./open-document.ts";
 import { migrateRuns, migrationPreview } from "./migrate.ts";
 import { exportPackage, importPackage, packagesList } from "./packages.ts";
 import { scheduleChoose } from "./schedule.ts";
@@ -17,6 +18,7 @@ export const handlers = {
   "automations.create": create,
   "automations.delete": remove,
   "automations.draft_connector": draftConnector,
+  "automations.open_document": openDocument,
   "automations.fire": fire,
   "automations.followers.add": followersAdd,
   "automations.followers.remove": followersRemove,

@@ -5021,6 +5021,28 @@
     },
     {
       "blocks": [],
+      "cap": "automations.open_document",
+      "deferred": false,
+      "description": "Open one public https document. A private, loopback, link-local, or metadata address is refused. The page text is not returned.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      },
+      "name": "automations_open_document",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.packages.export",
       "deferred": false,
       "description": "Save a portable copy of an Automation definition",

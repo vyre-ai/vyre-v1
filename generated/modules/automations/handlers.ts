@@ -24,6 +24,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.migrate_runs": Handler<"automations.migrate_runs", X>;
   "automations.migration_preview": Handler<"automations.migration_preview", X>;
   "automations.move": Handler<"automations.move", X>;
+  "automations.open_document": Handler<"automations.open_document", X>;
   "automations.packages.export": Handler<"automations.packages.export", X>;
   "automations.packages.import": Handler<"automations.packages.import", X>;
   "automations.packages.list": Handler<"automations.packages.list", X>;

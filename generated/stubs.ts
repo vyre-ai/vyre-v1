@@ -182,6 +182,7 @@ export function stubs(ctx: CallCtx) {
       migrate_runs: call("automations.migrate_runs"),
       migration_preview: call("automations.migration_preview"),
       move: call("automations.move"),
+      open_document: call("automations.open_document"),
       packages: {
         export: call("automations.packages.export"),
         import: call("automations.packages.import"),

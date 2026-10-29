@@ -2610,6 +2610,14 @@ export type AutomationsMoveOut = {
     updatedAt: number;
   };
 };
+export type AutomationsOpenDocumentIn = {
+  url: string;
+};
+export type AutomationsOpenDocumentOut = {
+  ok: boolean;
+  finalUrl?: string;
+  reason?: string;
+};
 export type AutomationsPackagesExportIn = {
   automationId: string;
   name?: string;
@@ -27256,6 +27264,7 @@ export interface CapMap {
   "automations.migrate_runs": { in: AutomationsMigrateRunsIn; out: AutomationsMigrateRunsOut };
   "automations.migration_preview": { in: AutomationsMigrationPreviewIn; out: AutomationsMigrationPreviewOut };
   "automations.move": { in: AutomationsMoveIn; out: AutomationsMoveOut };
+  "automations.open_document": { in: AutomationsOpenDocumentIn; out: AutomationsOpenDocumentOut };
   "automations.packages.export": { in: AutomationsPackagesExportIn; out: AutomationsPackagesExportOut };
   "automations.packages.import": { in: AutomationsPackagesImportIn; out: AutomationsPackagesImportOut };
   "automations.packages.list": { in: AutomationsPackagesListIn; out: AutomationsPackagesListOut };

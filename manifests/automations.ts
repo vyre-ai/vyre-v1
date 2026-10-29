@@ -309,6 +309,12 @@ export default defineManifest({
     write('automations.groups.delete', 'Delete a Group; its Automations become ungrouped', {
       in: { groupId }, out: { deleted: t.bool() }, on: ['automation_group', '/groupId'], level: 'manage', emits: ['automation.group_deleted'], tool: 'automations',
     }),
+    read('automations.open_document', 'Open one public https document. A private, loopback, link-local, or metadata address is refused. The page text is not returned.', {
+      in: { url: t.str() },
+      out: { ok: t.bool(), finalUrl: t.opt(t.str()), reason: t.opt(t.str()) },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
   ],
   triggers: [
     trigger('record_change', 'A record changes', { events: ['record.created', 'record.updated', 'record.deleted'], filter: recordFilter },

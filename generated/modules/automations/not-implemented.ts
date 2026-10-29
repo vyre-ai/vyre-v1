@@ -24,6 +24,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "automations.migrate_runs": async (ctx) => { throw new VyreErr(notImplemented("automations.migrate_runs", ctx.trace)); },
   "automations.migration_preview": async (ctx) => { throw new VyreErr(notImplemented("automations.migration_preview", ctx.trace)); },
   "automations.move": async (ctx) => { throw new VyreErr(notImplemented("automations.move", ctx.trace)); },
+  "automations.open_document": async (ctx) => { throw new VyreErr(notImplemented("automations.open_document", ctx.trace)); },
   "automations.packages.export": async (ctx) => { throw new VyreErr(notImplemented("automations.packages.export", ctx.trace)); },
   "automations.packages.import": async (ctx) => { throw new VyreErr(notImplemented("automations.packages.import", ctx.trace)); },
   "automations.packages.list": async (ctx) => { throw new VyreErr(notImplemented("automations.packages.list", ctx.trace)); },

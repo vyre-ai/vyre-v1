@@ -632,6 +632,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_open_document",
+      "summary": "Open one public https document. A private, loopback, link-local, or metadata address is refused. The page text is not returned.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_packages_export",
       "summary": "Save a portable copy of an Automation definition",
       "toolset": "automations"
