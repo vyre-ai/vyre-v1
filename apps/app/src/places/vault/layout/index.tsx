@@ -19,6 +19,7 @@ import { Btn, Glyph, IconBtn, QuietLine } from "./parts.tsx";
 import { Sidebar } from "./Sidebar.tsx";
 import { Sheet } from "./Sheet.tsx";
 import { PolicyView } from "./PolicyView.tsx";
+import { ChromeSheet } from "./ChromeSheet.tsx";
 import { declineVaultRequest, exportVaultFolder, fulfilVaultRequest, requestFields, revokeVaultExport } from "./routed-actions.ts";
 import { HealthView } from "../health/index.ts";
 import { ImportSheet } from "../import/index.ts";
@@ -28,7 +29,7 @@ import type { ConnectionKind } from "../providers/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 
 export { VaultDataProvider } from "./data.tsx";
-export type { VaultData, VaultNav } from "./data.tsx";
+export type { VaultBrowsers, VaultData, VaultNav } from "./data.tsx";
 
 export const LAYOUT_SCREEN = "vault.layout";
 type ItemsOut = CapMap["vault.items.list"]["out"];
@@ -332,17 +333,20 @@ function RequestCard({ request, items, requester }: { request: RequestsOut["requ
 }
 
 function AdvancedView({ onClose }: { onClose(): void }): ReactElement {
-  const { nav } = useVaultData();
+  const { nav, browsers } = useVaultData();
+  const [chrome, setChrome] = useState(false);
   const rows = [
     ["Backups", "Review, verify, restore, or run encrypted Space backups", nav.openBackups],
     ["Devices", "See and revoke the computers that can open this Vault", nav.openDevices],
     ["Outside agents", "Create, scope, or revoke access for Claude Code, Codex, and other tools", nav.openOutsideActors],
     ["Policy", "Who may export a folder, the longest a download link lasts, and whether a reveal asks why", nav.openPolicy],
+    ...(browsers ? [["Browsers", "Fill and save logins in Chrome with Vyre for Chrome", () => setChrome(true)] as const] : []),
   ] as const;
   return (
     <View style={s.routed} testID="vault-advanced">
       <View style={s.routedHead}><Btn label="Back" icon="back" onPress={onClose} /><Text accessibilityRole="header" style={s.routedTitle}>Advanced</Text></View>
       {rows.map(([title, sub, open]) => <Row key={title} id={`vault-advanced-${title.toLowerCase().replace(/\s+/g, "-")}`} title={title} note={sub} tall onPress={open} trailing={<Glyph name="chevron" />} />)}
+      {chrome && browsers ? <ChromeSheet browsers={browsers} onClose={() => setChrome(false)} /> : null}
     </View>
   );
 }

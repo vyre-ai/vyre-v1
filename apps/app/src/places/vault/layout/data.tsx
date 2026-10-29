@@ -27,6 +27,16 @@ export interface VaultNav {
   ask?(agentId: string, mode: "chat" | "do", about: { kind: string; id: string; title: string }): void;
 }
 
+/** The desktop app's way to put Vyre for Chrome into Chrome (no Web Store listing yet). Only the desktop shell supplies it; the web app and the phone have no Advanced row for it. */
+export interface VaultBrowsers {
+  /** Copies the extension out of the app, registers the native host with the installed browsers, and says where the folder is. Rejects with words for a person. */
+  install(): Promise<{ extensionDir: string; version: string; browsers: string[] }>;
+  /** Opens Chrome's extensions page. */
+  openExtensionsPage(): Promise<void>;
+  /** Shows the installed folder in the file manager. */
+  revealFolder(): Promise<void>;
+}
+
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
 
 export interface VaultData {
@@ -44,6 +54,8 @@ export interface VaultData {
   copy?(text: string): Promise<void> | void;
   /** Opens the system file chooser for an export to import; resolves the stored file's id, or null when the person cancels. The shell supplies it. */
   pickFile?(accept: string): Promise<string | null>;
+  /** Install Vyre for Chrome from this app (desktop only). Without it the Advanced page has no row for it. */
+  browsers?: VaultBrowsers;
 }
 
 const DataCtx = createContext<VaultData | null>(null);

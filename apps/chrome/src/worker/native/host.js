@@ -15,25 +15,33 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDecoder, encode } from "../framing.js";
 
-/** Where a vyred data directory may be, in the order a person's own setting wins. @param {NodeJS.ProcessEnv} env */
+/**
+ * Where a vyred data directory may be, in the order a person's own setting wins. The desktop app keeps three beside each other: `server` (this Mac run as the Space server),
+ * `personal` (the Personal Space) and `vyred` (the device daemon, which hosts no Space). @param {NodeJS.ProcessEnv} env
+ */
 export function dataDirs(env) {
   const home = os.homedir();
   /** @type {string[]} */
   const dirs = [];
   if (env["VYRE_DATA_DIR"]) dirs.push(env["VYRE_DATA_DIR"]);
   dirs.push(path.join(home, ".vyre"));
-  dirs.push(path.join(home, "Library", "Application Support", "ai.vyre.desktop", "vyred"));
-  if (env["APPDATA"]) dirs.push(path.join(env["APPDATA"], "ai.vyre.desktop", "vyred"));
-  dirs.push(path.join(env["XDG_DATA_HOME"] || path.join(home, ".local", "share"), "ai.vyre.desktop", "vyred"));
+  /** @type {string[]} */
+  const bases = [path.join(home, "Library", "Application Support", "ai.vyre.desktop")];
+  if (env["APPDATA"]) bases.push(path.join(env["APPDATA"], "ai.vyre.desktop"));
+  bases.push(path.join(env["XDG_DATA_HOME"] || path.join(home, ".local", "share"), "ai.vyre.desktop"));
+  for (const base of bases) for (const name of ["server", "personal", "vyred"]) dirs.push(path.join(base, name));
   return dirs;
 }
 
 /**
- * The running device daemon: its loopback URL and admin token, or null when none is running.
+ * The running device daemon: its loopback URL and admin token, or null when none is running. The first one that hosts a Space wins, because only a daemon with a Space has
+ * anything to fill from; the device daemon of the same app answers "not available" to everything. With none hosting a Space, the first running one.
  * @param {string[]} dirs @param {(pid: number) => boolean} [alive]
  * @returns {{ url: string, token: string } | null}
  */
 export function findDaemon(dirs, alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return /** @type {any} */ (e).code === "EPERM"; } }) {
+  /** @type {{ url: string, token: string } | null} */
+  let first = null;
   for (const dir of dirs) {
     try {
       const info = JSON.parse(fs.readFileSync(path.join(dir, "vyred.json"), "utf8"));
@@ -41,10 +49,13 @@ export function findDaemon(dirs, alive = (pid) => { try { process.kill(pid, 0); 
       const u = new URL(info.url);
       if (u.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(u.hostname)) continue;
       const token = fs.readFileSync(path.join(dir, "admin.token"), "utf8").trim();
-      if (token) return { url: u.origin, token };
+      if (!token) continue;
+      const found = { url: u.origin, token };
+      if (Array.isArray(info.roles) && info.roles.includes("space")) return found;
+      first ??= found;
     } catch { /* not this directory */ }
   }
-  return null;
+  return first;
 }
 
 /**

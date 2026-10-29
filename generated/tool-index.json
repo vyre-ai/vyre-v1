@@ -5252,6 +5252,24 @@
     },
     {
       "deferred": false,
+      "name": "providers_custom_add",
+      "summary": "Register an OpenAI-compatible endpoint (a gateway, vLLM, LiteLLM, a hosted model) by base address and connect it with my key, held in the Vault by handle",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "providers_custom_list",
+      "summary": "The custom OpenAI-compatible endpoints this Space registered",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "providers_custom_remove",
+      "summary": "Remove a custom endpoint I registered, and my connections to it",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
       "name": "providers_list",
       "summary": "My connected AI providers: logo, how connected, Mine or Shared, agents using it, this month's usage",
       "toolset": "vault"

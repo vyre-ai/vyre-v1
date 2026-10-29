@@ -252,3 +252,11 @@ test("--dry-run on the whole installer stops at the FileVault check with exit 3 
 test("the Linux installer points a Mac at this installer", () => {
   assert.match(read(LINUX), /install-mac\.sh/);
 });
+
+test("the default release feed is the GitHub feed of the chosen channel, and VYRE_UPDATE_URL wins", () => {
+  const feed = (a: string, env: Record<string, string> = {}): string => sh(INSTALL, `parse_args ${a}; echo "$UPDATE_URL"`, { VYRE_DIR: "/Users/pat/.vyre/server", ...env }).stdout.trim();
+  assert.equal(feed("--yes"), "https://github.com/vyre-ai/vyre-v1/releases/latest/download/");
+  assert.equal(feed("--channel beta"), "https://github.com/vyre-ai/vyre-v1/releases/download/channel-beta/");
+  assert.equal(feed("--channel beta", { VYRE_UPDATE_URL: "https://updates.example/server/" }), "https://updates.example/server/");
+  assert.doesNotMatch(read(INSTALL), /vyre\.run\/server/);
+});

@@ -138,6 +138,8 @@ jobs:
         with: { name: release-files, path: dist }
       - uses: actions/download-artifact@v4
         with: { name: desktop-macOS-sha256, path: desktop-sum }
+      - uses: actions/download-artifact@v4
+        with: { name: desktop-Windows-sha256, path: desktop-sum-win }
       - name: Exactly one macOS DMG, named by its SHA-256 sidecar from the desktop build
         run: |
           set -euo pipefail
@@ -149,6 +151,14 @@ jobs:
           # one line, "<64 hex>  <the DMG's own name>": publish checks the downloaded DMG against exactly this
           awk -v n="$dmg_name" 'NR == 1 && substr($0, 1, 64) ~ /^[0-9a-f]+$/ && length(substr($0, 1, 64)) == 64 && substr($0, 65, 2) == "  " && substr($0, 67) == n { ok = 1 } END { exit !(ok && NR == 1) }' "${sums[0]}" || { echo "the DMG checksum sidecar is malformed"; exit 1; }
           cp "${sums[0]}" "dist/$sum_name"
+      - name: Exactly one Windows setup program checksum, VyreSetup.exe.sha256 (the program itself goes to publish, not through sign)
+        run: |
+          set -euo pipefail
+          mapfile -d '' wsums < <(find desktop-sum-win -type f -name '*.sha256' -print0)
+          [ "${#wsums[@]}" -eq 1 ] || { echo "expected exactly one Windows checksum, found ${#wsums[@]}"; exit 1; }
+          [ "$(basename "${wsums[0]}")" = "VyreSetup.exe.sha256" ] || { echo "the Windows checksum is not VyreSetup.exe.sha256"; exit 1; }
+          awk 'NR == 1 && substr($0, 1, 64) ~ /^[0-9a-f]+$/ && length(substr($0, 1, 64)) == 64 && substr($0, 65, 2) == "  " && substr($0, 67) == "VyreSetup.exe" { ok = 1 } END { exit !(ok && NR == 1) }' "${wsums[0]}" || { echo "the Windows checksum sidecar is malformed"; exit 1; }
+          cp "${wsums[0]}" dist/VyreSetup.exe.sha256
       - uses: actions/upload-artifact@v4
         with: { name: release-files-desktop, path: dist, if-no-files-found: error, retention-days: 7 }
   live:
@@ -241,6 +251,8 @@ jobs:
         with: { name: release-signed, path: dist }
       - uses: actions/download-artifact@v4
         with: { name: desktop-macOS, path: desktop-artifact }
+      - uses: actions/download-artifact@v4
+        with: { name: desktop-Windows-exe, path: desktop-win }
       - name: The one DMG matches the build's SHA-256 sidecar from the payload handed through sign, before anything is uploaded
         run: |
           set -euo pipefail
@@ -252,6 +264,15 @@ jobs:
           [ "$(basename "${dmgs[0]}")" = "$dmg_name" ] || { echo "the DMG is $(basename "${dmgs[0]}"), the payload handed through sign names $dmg_name"; exit 1; }
           cp "${dmgs[0]}" "dist/$dmg_name"
           (cd dist && sha256sum -c "$dmg_name.sha256")
+      - name: VyreSetup.exe matches the build's SHA-256 sidecar from the payload handed through sign, and SHA256SUMS lists both installers, before anything is uploaded
+        run: |
+          set -euo pipefail
+          [ -f desktop-win/VyreSetup.exe ] && [ "$(find desktop-win -type f | wc -l)" -eq 1 ] || { echo "expected exactly one VyreSetup.exe"; exit 1; }
+          cp desktop-win/VyreSetup.exe dist/VyreSetup.exe
+          (cd dist && sha256sum -c VyreSetup.exe.sha256)
+          # install.ps1 reads the line for VyreSetup.exe from this file; the DMG line is there for anyone checking by hand
+          (cd dist && cat *.dmg.sha256 VyreSetup.exe.sha256 > SHA256SUMS)
+          cat dist/SHA256SUMS
       - name: Attach everything to the release of the tag (a prerelease for beta)
         run: node scripts/release/cli.ts publish dist
       - name: The rolling release a prerelease channel is read from

@@ -1520,6 +1520,9 @@ export function stubs(ctx: CallCtx) {
     providers: {
       add: call("providers.add"),
       catalog: call("providers.catalog"),
+      custom_add: call("providers.custom_add"),
+      custom_list: call("providers.custom_list"),
+      custom_remove: call("providers.custom_remove"),
       list: call("providers.list"),
       remove: call("providers.remove"),
       set_space_use: call("providers.set_space_use"),
