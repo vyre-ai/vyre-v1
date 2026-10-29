@@ -12,3 +12,4 @@ export { KnowRouter } from "./KnowRouter.tsx";
 export { Empty, Flash, KnowColumn, KnowHeader, SectionHead } from "./KnowFrame.tsx";
 export type { Crumb, FlashState } from "./KnowFrame.tsx";
 export * from "./know.ts";
+export { SourceChip, SubjectTile, TextButton } from "./KnowParts.tsx";
