@@ -114,6 +114,20 @@ jobs:
           fi
           cat proof-gatekeeper.txt
           VYRE_SHELL_RELAUNCH=1 apps/desktop/src-tauri/ci/run-shell.sh "$installed/Contents/MacOS/vyre-desktop" "$PWD/out"
+      - name: The DMG's name and SHA-256, a small file the release carries instead of the DMG until publish
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dmgs=(apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg)
+          [ "${#dmgs[@]}" -eq 1 ] || { echo "expected exactly one DMG, found ${#dmgs[@]}"; exit 1; }
+          name=$(basename "${dmgs[0]}")
+          mkdir -p dmg-sum
+          (cd "$(dirname "${dmgs[0]}")" && shasum -a 256 "$name") > "dmg-sum/$name.sha256"
+          cat "dmg-sum/$name.sha256"
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'macOS'
+        with: { name: desktop-macOS-sha256, path: dmg-sum, if-no-files-found: error }
       - name: Exercise the packaged Windows shell and capture it
         if: runner.os == 'Windows'
         run: apps/desktop/src-tauri/ci/run-shell.sh "$PWD/apps/desktop/src-tauri/target/release/vyre-desktop.exe" "$PWD/out"

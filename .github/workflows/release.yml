@@ -1,6 +1,7 @@
 name: release
 # Tag to live under 25 minutes (ARCH-DECISIONS 13). Live needs the suite, client, kits, images and security; never native or desktop.
 # After live: sign (in the `release` Environment, after its reviewer approves), publish to the GitHub Release of the tag, and a post-publish smoke. docs/release/runbook.md says how and why.
+# The macOS DMG is downloaded once, by publish, and checked there against the build's SHA-256 sidecar in the payload handed through sign (the sidecar itself is not signed); sign and the jobs before it never move it.
 # A tag whose name contains "dryrun" is a practice run: it builds and packs everything, validates the bake file (no image is pushed), signs with a key made for the run and thrown away
 # (no server trusts it), publishes a prerelease named after the tag, smoke-tests it, and deletes the prerelease. The real `sign` job (the `release` Environment) is skipped.
 on:
@@ -125,23 +126,27 @@ jobs:
   desktop:
     uses: ./.github/workflows/desktop.yml
   desktop-release-files:
+    # The DMG (about 127 MB) crosses the network once, into publish: the payload signed and handed between jobs carries only its SHA-256 sidecar. rc.2 spent 35 of 81 minutes pulling
+    # the DMG into this job, sign and publish at about 0.18 MB/s.
     needs: [package, desktop]
     runs-on: [self-hosted, linux, v1]
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/download-artifact@v4
         with: { name: release-files, path: dist }
       - uses: actions/download-artifact@v4
-        with: { name: desktop-macOS, path: desktop-artifact }
-      - name: Include exactly one macOS DMG and its checksum
+        with: { name: desktop-macOS-sha256, path: desktop-sum }
+      - name: Exactly one macOS DMG, named by its SHA-256 sidecar from the desktop build
         run: |
           set -euo pipefail
-          mapfile -d '' dmgs < <(find desktop-artifact -type f -name '*.dmg' -print0)
-          [ "${#dmgs[@]}" -eq 1 ] || { echo "expected exactly one DMG, found ${#dmgs[@]}"; exit 1; }
-          dmg_name=$(basename "${dmgs[0]}")
-          case "$dmg_name" in *$'\n'*|*$'\r'*) echo "invalid DMG name"; exit 1 ;; esac
-          cp "${dmgs[0]}" "dist/$dmg_name"
-          (cd dist && sha256sum "$dmg_name" > "$dmg_name.sha256" && sha256sum -c "$dmg_name.sha256")
+          mapfile -d '' sums < <(find desktop-sum -type f -name '*.dmg.sha256' -print0)
+          [ "${#sums[@]}" -eq 1 ] || { echo "expected exactly one DMG checksum, found ${#sums[@]}"; exit 1; }
+          sum_name=$(basename "${sums[0]}")
+          dmg_name="${sum_name%.sha256}"
+          case "$dmg_name" in *$'\n'*|*$'\r'*|*/*|"") echo "invalid DMG name"; exit 1 ;; esac
+          # one line, "<64 hex>  <the DMG's own name>": publish checks the downloaded DMG against exactly this
+          awk -v n="$dmg_name" 'NR == 1 && substr($0, 1, 64) ~ /^[0-9a-f]+$/ && length(substr($0, 1, 64)) == 64 && substr($0, 65, 2) == "  " && substr($0, 67) == n { ok = 1 } END { exit !(ok && NR == 1) }' "${sums[0]}" || { echo "the DMG checksum sidecar is malformed"; exit 1; }
+          cp "${sums[0]}" "dist/$sum_name"
       - uses: actions/upload-artifact@v4
         with: { name: release-files-desktop, path: dist, if-no-files-found: error, retention-days: 7 }
   live:
@@ -232,6 +237,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with: { name: release-signed, path: dist }
+      - uses: actions/download-artifact@v4
+        with: { name: desktop-macOS, path: desktop-artifact }
+      - name: The one DMG matches the build's SHA-256 sidecar from the payload handed through sign, before anything is uploaded
+        run: |
+          set -euo pipefail
+          mapfile -d '' sums < <(find dist -maxdepth 1 -type f -name '*.dmg.sha256' -print0)
+          [ "${#sums[@]}" -eq 1 ] || { echo "expected exactly one DMG checksum in the payload handed through sign, found ${#sums[@]}"; exit 1; }
+          dmg_name=$(basename "${sums[0]}" .sha256)
+          mapfile -d '' dmgs < <(find desktop-artifact -type f -name '*.dmg' -print0)
+          [ "${#dmgs[@]}" -eq 1 ] || { echo "expected exactly one DMG, found ${#dmgs[@]}"; exit 1; }
+          [ "$(basename "${dmgs[0]}")" = "$dmg_name" ] || { echo "the DMG is $(basename "${dmgs[0]}"), the payload handed through sign names $dmg_name"; exit 1; }
+          cp "${dmgs[0]}" "dist/$dmg_name"
+          (cd dist && sha256sum -c "$dmg_name.sha256")
       - name: Attach everything to the release of the tag (a prerelease for beta)
         run: node scripts/release/cli.ts publish dist
       - name: The rolling release a prerelease channel is read from

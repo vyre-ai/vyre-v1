@@ -108,11 +108,20 @@ test("native stays non-blocking for live while the macOS desktop artifact gates 
   const assembled = rel.jobs.find((j) => j.name === "desktop-release-files");
   assert.ok(assembled, "release assembles the desktop artifact");
   assert.deepEqual(assembled.needs, ["package", "desktop"]);
-  assert.match(assembled.text, /^ {4}timeout-minutes: 15$/m, "the 125 MB desktop artifact has enough time to download and verify");
-  assert.match(assembled.text, /name: desktop-macOS, path: desktop-artifact/);
+  assert.match(assembled.text, /^ {4}timeout-minutes: 30$/m, "assembling has room for a slow artifact service (rc.2 hit 15)");
+  // the DMG crosses the network once, into publish: assembling and signing carry only its SHA-256 sidecar
+  assert.match(assembled.text, /name: desktop-macOS-sha256, path: desktop-sum/);
+  assert.doesNotMatch(assembled.text, /name: desktop-macOS,/, "assembling never downloads the DMG");
   assert.match(assembled.text, /exactly one DMG/);
-  assert.match(assembled.text, /sha256sum/);
   assert.match(assembled.text, /name: release-files-desktop/);
+  const desktop = wf("desktop");
+  assert.match(desktop.text, /shasum -a 256/);
+  assert.match(desktop.text, /name: desktop-macOS-sha256, path: dmg-sum/);
+  const publish = rel.jobs.find((j) => j.name === "publish")!;
+  assert.match(publish.text, /name: desktop-macOS, path: desktop-artifact/, "publish takes the DMG once");
+  assert.match(publish.text, /sha256sum -c "\$dmg_name\.sha256"/, "publish checks the DMG against the build's SHA-256 sidecar before uploading");
+  assert.ok(publish.text.indexOf("sha256sum -c") < publish.text.indexOf("cli.ts publish"), "the check comes before the upload");
+  for (const n of ["sign", "sign-dryrun"]) assert.doesNotMatch(rel.jobs.find((j) => j.name === n)!.text, /desktop-macOS/, `${n} never downloads the DMG`);
   assert.doesNotMatch(assembled.text, /nsis/i, "Windows installers never enter the release payload");
   for (const n of ["sign", "sign-dryrun"] as const) {
     const job = rel.jobs.find((j) => j.name === n)!;
