@@ -8,10 +8,17 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "network.certificate_renew": Handler<"network.certificate_renew", X>;
   "network.domain_set": Handler<"network.domain_set", X>;
   "network.endpoints": Handler<"network.endpoints", X>;
+  "network.enroll": Handler<"network.enroll", X>;
+  "network.enroll_status": Handler<"network.enroll_status", X>;
   "network.health": Handler<"network.health", X>;
   "network.ingress_check": Handler<"network.ingress_check", X>;
+  "network.my_computer_approve": Handler<"network.my_computer_approve", X>;
+  "network.my_computer_code": Handler<"network.my_computer_code", X>;
+  "network.my_computer_decline": Handler<"network.my_computer_decline", X>;
   "network.public_hostnames": Handler<"network.public_hostnames", X>;
   "network.relay_set": Handler<"network.relay_set", X>;
+  "network.server_approve": Handler<"network.server_approve", X>;
+  "network.server_decline": Handler<"network.server_decline", X>;
   "network.server_join_code": Handler<"network.server_join_code", X>;
   "network.server_reconnect": Handler<"network.server_reconnect", X>;
   "network.server_remove": Handler<"network.server_remove", X>;

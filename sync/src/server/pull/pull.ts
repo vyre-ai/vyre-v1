@@ -241,14 +241,14 @@ export function pullChanges(d: PullDeps, who: Who, req: PullReq, trace = "0".rep
           const sc = viewer.scope(cfg);
           const visible = viewer.visible(sc, row, cells) && window.holds(cfg, mode, row);
           if (visible && !was) {
-            const change: Change = { seq: c.seq, entity: c.entity, id: c.id, op: "upsert", fields: wireFields(viewer.fields(sc, cells)) };
+            const change: Change = { seq: c.seq, entity: c.entity, id: c.id, op: "upsert", fields: wireFields(viewer.fields(sc, cells, undefined, { row, cells })) };
             out.push({ kind: "change", row: key, terminal: false, change });
             seen.set(c.entity, c.id, true, c.seq); used++;
             whole.set(key, change);
           } else if (visible && was && c.op !== "rescan" && whole.has(key)) {
             whole.get(key)!.seq = c.seq;
           } else if (visible && was && c.op !== "rescan") {
-            const f = wireFields(viewer.fields(sc, JSON.parse(c.fields) as Cells));
+            const f = wireFields(viewer.fields(sc, JSON.parse(c.fields) as Cells, undefined, { row, cells }));
             if (Object.keys(f).length) { out.push({ kind: "change", row: key, terminal: false, change: { seq: c.seq, entity: c.entity, id: c.id, op: c.op, fields: f } }); used++; }
           } else if (!visible && was) {
             out.push({ kind: "hide", row: key, terminal: true, hide: { entity: c.entity, id: c.id, seq: c.seq } });

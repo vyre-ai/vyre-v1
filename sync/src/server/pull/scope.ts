@@ -1,6 +1,9 @@
 // Who may see which row, which fields, and what a phone keeps (ARCH 5.3 server algorithm, 5.11 profiles).
 // Row visibility is the kernel's scopeFor predicate evaluated on the row, then the label ceiling (person clearance, entity maxLabel, device ceiling), then the private-row rule.
 // Field visibility drops the grant's hiddenFields and any field labelled above that ceiling; the client treats an omitted field as unknown and shows it locked, never as empty.
+import { evalExpr } from "../../../../kernel/src/authorize/expr.ts";
+import type { GrantRec } from "../../../../kernel/src/authorize/snapshot.ts";
+import { rankOf } from "../../../../kernel/src/authorize/types.ts";
 import { evalPred, scopeFor } from "../../../../kernel/src/authorize/scope.ts";
 import type { Pred, ScopeResult } from "../../../../kernel/src/authorize/scope.ts";
 import type { AccessSnapshot } from "../../../../kernel/src/authorize/snapshot.ts";
@@ -21,6 +24,11 @@ export interface Who {
 export interface RowRec {
   entity: string; id: string; owner_id: string | null; label: number; deleted: number; enc: number; vis: string; seq: number; updated_at: number; fields: string;
 }
+
+/** What the grants that reach one row (on its type, on its own resource or on an ancestor of it) give a person: whether any lets them read it, and the fields every one of those grants hides. */
+export interface RowGrant { allow: boolean; hidden: ReadonlySet<string> }
+const NO_FIELDS: ReadonlySet<string> = new Set();
+const liveGrant = (g: GrantRec, now: number): boolean => g.exp > now && now >= g.nb && now <= g.na;
 
 export interface EntityScope { cfg: ServerEntity; pred: Pred; hidden: ReadonlySet<string>; cap: number }
 
@@ -49,6 +57,39 @@ export class ScopeCache {
     let timed = false;
     if (me) for (const g of snap.allGrantRecs()) if (me.keys.has(g.key) && (g.exp !== Infinity || g.nb !== -Infinity || g.na !== Infinity)) { timed = true; break; }
     return `${id}:${snap.epoch}:${timed ? Math.floor(now / RECOMPILE_MS) : "-"}`;
+  }
+  /**
+   * The grants that reach this row: type-wide ones for its access resource type, and any on the row's own resource or its ancestors (a record type, a folder, the Space). A grant counts when its
+   * subject is the person, it is live, its label ceiling covers the row and its row filter, read on the row's own values, matches. A row several grants reach hides only the fields all of them hide.
+   * scopeFor answers the type-wide case alone, so a grant on a record type that hid a field would otherwise leave that field in the person's replica.
+   */
+  rowGrant(person: string, resource: string, row: RowRec, cells: Cells, now: number): RowGrant {
+    const snap = this.snap();
+    const me = snap.info(person);
+    if (!me || me.p.status !== "active") return { allow: false, hidden: NO_FIELDS };
+    const rank = rankOf("view");
+    const ctx = Viewer.context(row, cells);
+    const reach: GrantRec[] = [];
+    const consider = (g: GrantRec): void => {
+      if (!me.keys.has(g.key) || g.rank < rank || !liveGrant(g, now) || row.label > g.ceiling) return;
+      if (g.filter && !evalExpr(g.filter, ctx, row.owner_id, person)) return;
+      reach.push(g);
+    };
+    for (const g of snap.typeWide(resource) ?? []) consider(g);
+    for (const anc of snap.chain(row.id) ?? []) for (const g of snap.grantsOn(anc.id) ?? []) consider(g);
+    if (!reach.length) return { allow: false, hidden: NO_FIELDS };
+    let hidden: Set<string> | null = null;
+    for (const g of reach) hidden = hidden === null ? new Set(g.hidden) : new Set([...hidden].filter((f) => g.hidden.includes(f)));
+    return { allow: true, hidden: hidden ?? NO_FIELDS };
+  }
+  /** Every field any live grant of this person hides, wherever the grant sits. Over-wide on purpose: it only decides whether a device that cached such a field must start over (classify.ts). */
+  hiddenByGrants(person: string, now: number): string[] {
+    const snap = this.snap();
+    const me = snap.info(person);
+    if (!me) return [];
+    const out = new Set<string>();
+    for (const g of snap.allGrantRecs()) if (g.hasHidden && me.keys.has(g.key) && liveGrant(g, now)) for (const f of g.hidden) out.add(f);
+    return [...out];
   }
   get(person: string, resource: string, now: number): ScopeResult {
     const snap = this.snap();
@@ -98,15 +139,24 @@ export class Viewer {
     if (sc.pred.t === "false") return false;
     if ((row.enc === 2 || row.vis === "owner" || row.vis === "private") && row.owner_id !== this.o.who.person) return false;
     if (row.label > sc.cap) return false;
-    return evalPred(sc.pred, Viewer.context(row, cells));
+    if (evalPred(sc.pred, Viewer.context(row, cells))) return true;
+    return this.o.cache.rowGrant(this.o.who.person, sc.cfg.resource, row, cells, this.o.now).allow;
+  }
+
+  /** The fields hidden from this person on this row: what the grants reaching it all hide (the person's own rows hide nothing), else the type-wide scope's. */
+  hiddenFor(sc: EntityScope, row: RowRec, cells: Cells): ReadonlySet<string> {
+    if (row.owner_id === this.o.who.person) return NO_FIELDS;
+    const g = this.o.cache.rowGrant(this.o.who.person, sc.cfg.resource, row, cells, this.o.now);
+    return g.allow ? g.hidden : sc.hidden;
   }
 
   /** Fields this person and device may hold. `seq` stays on the cell for snapshot rows and is stripped by the caller for pull. */
-  fields(sc: EntityScope, cells: Cells, only?: Iterable<string>): Record<string, Cell> {
+  fields(sc: EntityScope, cells: Cells, only?: Iterable<string>, of?: { row: RowRec; cells: Cells }): Record<string, Cell> {
     const out: Record<string, Cell> = {};
+    const hidden = of ? this.hiddenFor(sc, of.row, of.cells) : sc.hidden;
     for (const k of only ?? Object.keys(cells)) {
       const c = cells[k];
-      if (!c || sc.hidden.has(k)) continue;
+      if (!c || hidden.has(k)) continue;
       const rank = sc.cfg.fieldLabels[k];
       if (rank !== undefined && rank > sc.cap) continue;
       out[k] = c;

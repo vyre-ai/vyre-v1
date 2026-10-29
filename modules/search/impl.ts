@@ -14,6 +14,15 @@ export type { Embedder, Source };
 export { ensure } from "./projections.ts";
 
 /** What a consumer reads of an event: its name, its sequence, whether it is end-to-end (enc = 2) and the payload. */
+/** What the host hands a consumer (`name`, `subject` as entity/id), as opposed to the stored shape (`type`, `entityId`) the index logic and its tests use. */
+export interface HostEvent { name: string; seq: number; subject?: string; payload: Record<string, unknown> }
+/** Accept either shape: the live host's event is turned into the stored one, so what the host sends reaches the index. */
+export function indexEventOf(e: IndexEvent | HostEvent): IndexEvent {
+  if ("type" in e) return e;
+  const at = (e.subject ?? "").indexOf("/");
+  return { type: e.name, seq: e.seq, enc: 0, ...(at > 0 ? { entity: e.subject!.slice(0, at), entityId: e.subject!.slice(at + 1) } : {}), payload: e.payload };
+}
+
 export interface IndexEvent { type: string; seq: number; enc?: number; entity?: string; entityId?: string; payload: Record<string, unknown> }
 
 /** The events that change what the index holds: which entity, which payload key holds its id, and whether the event removes it. */
@@ -61,15 +70,15 @@ export const consumers = {
   /** A changed row is read again and put in the full text index (or taken out when it was removed, hidden or turned out to be end-to-end). */
   "search.fts": {
     on: Object.keys(WATCHED),
-    run: async (ctx: SearchCtx, event: IndexEvent): Promise<void> => {
-      for (const t of targetsOf(event)) await indexApply(ctx, t);
+    run: async (ctx: SearchCtx, event: IndexEvent | HostEvent): Promise<void> => {
+      for (const t of targetsOf(indexEventOf(event))) await indexApply(ctx, t);
     },
   },
   /** What changed gets its vector within seconds: the newest documents without one are embedded in a small batch. */
   "search.vectors": {
     on: Object.keys(WATCHED),
-    run: async (ctx: SearchCtx, event: IndexEvent): Promise<void> => {
-      if (targetsOf(event).length > 0) await embedRun(ctx, { limit: 50 });
+    run: async (ctx: SearchCtx, event: IndexEvent | HostEvent): Promise<void> => {
+      if (targetsOf(indexEventOf(event)).length > 0) await embedRun(ctx, { limit: 50 });
     },
   },
 };

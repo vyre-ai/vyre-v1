@@ -19,7 +19,7 @@ The outside tool trades its one-time token for a registered credential; the acto
 | HTTP | POST /v1/access/actors/redeem |
 | MCP tool | none |
 | CLI | none |
-| Emits | none |
+| Emits | access.changed |
 
 ## Input
 

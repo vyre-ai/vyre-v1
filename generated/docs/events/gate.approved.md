@@ -19,7 +19,7 @@ A gated act was approved and released
 ```ts
 type Payload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   taskId: string;
   by: string;
   forPerson?: string;

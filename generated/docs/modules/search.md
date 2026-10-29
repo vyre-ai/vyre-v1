@@ -4,7 +4,7 @@ Lane L1. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (10)
+## Capabilities (11)
 
 - [search.actions.list](../capabilities/search.actions.list.md): Actions offered after the > prefix (New task, Call someone, Switch skin, Set yourself away, Go offline)
 - [search.embed.run](../capabilities/search.embed.run.md): Embeddings consumer: compute pending vectors with the small local model (384 dimensions)
@@ -16,6 +16,7 @@ Requires: nothing.
 - [search.recent.list](../capabilities/search.recent.list.md): Recent items before typing (opened and edited by the caller)
 - [search.recent.record](../capabilities/search.recent.record.md): Note that the caller opened something so it shows under Recent
 - [search.related](../capabilities/search.related.md): Items related to one item by links, relations and shared terms
+- [search.resolve](../capabilities/search.resolve.md): One indexed item by kind and id, if the caller may see it; a record names its record type
 
 ## Events (1)
 

@@ -180,3 +180,11 @@ test("a merge takes the merged-away record out of the index and reads the surviv
   await consumers["search.fts"].run(h2.ctx, event);
   assert.deepEqual(h2.rows("SELECT id FROM search_docs ORDER BY id").map((r) => r["id"]), ["rec_keep"]);
 });
+
+test("the host's event shape (name and subject) reaches the index as the stored shape does", async () => {
+  const { indexEventOf } = await import("../impl.ts");
+  assert.deepEqual(targetOf(indexEventOf({ name: "record.created", seq: 7, subject: "record/rec_a", payload: { recordId: "rec_a", type: "contact" } })), { entity: "record:contact", id: "rec_a", op: "upsert", seq: 7 });
+  const stored = { type: "file.purged", seq: 9, payload: { fileId: "fil_a" } };
+  assert.equal(indexEventOf(stored), stored, "the stored shape passes through");
+  assert.equal(targetOf(indexEventOf({ name: "turn.started", seq: 1, payload: {} })), null);
+});

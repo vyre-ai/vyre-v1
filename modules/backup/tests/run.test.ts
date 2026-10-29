@@ -297,7 +297,9 @@ test("a job that fires after the switch was turned off takes a manual backup and
 test("health reads the age of the last good backup and whether the target takes a write", async () => {
   const w = world();
   configureBackup(w.drivers);
-  assert.deepEqual(await call("backup.health", w.ctx, {}), { state: "degraded", detail: "No backup target is set." });
+  assert.deepEqual(await call("backup.health", w.ctx, {}), { state: "healthy", detail: "No backups yet. Set up backups in Console, Infrastructure, Backups." }, "a new Space has nothing worth losing yet");
+  w.setNow(NOW + 25 * 3_600_000);
+  assert.deepEqual(await call("backup.health", w.ctx, {}), { state: "degraded", detail: "No backup target is set. Set up backups in Console, Infrastructure, Backups." }, "after a day it is a real gap");
   const r = await ready();
   assert.equal(((await call("backup.health", r.ctx, {})) as { state: string }).state, "degraded");
   await call("backup.run", r.ctx, {});

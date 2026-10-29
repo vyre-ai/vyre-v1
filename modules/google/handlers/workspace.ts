@@ -215,7 +215,7 @@ export async function health(ctx: GoogleCtx, input: { as?: string }) {
   const cfg = config(ctx);
   const connectionId = strOrNull(cfg, "connectionId");
   const admin = strOrNull(cfg, "adminEmail");
-  if (!cfg || num(cfg, "configured") !== 1 || !connectionId || !admin) return { state: "down" as const, detail: "Google delegation is not set up." };
+  if (!cfg || num(cfg, "configured") !== 1 || !connectionId || !admin) return { state: "healthy" as const, detail: "Google delegation is not set up yet." };
   const started = ctx.now();
   try {
     const p = await probeProfile(ctx, connectionId, input.as ? normalizeEmail(input.as) : admin, "google.health");

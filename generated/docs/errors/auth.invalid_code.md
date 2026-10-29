@@ -23,3 +23,5 @@ HTTP 401. Retryable: no.
 - mcp.token.register
 - members.accept
 - members.invites.preview
+- network.enroll
+- network.enroll_status

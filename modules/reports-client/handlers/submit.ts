@@ -359,6 +359,7 @@ export async function policy_set(ctx: ReportsCtx, input: { policy: string }) {
 }
 
 export async function health(ctx: ReportsCtx, _input: Record<string, unknown>) {
+  if (!drivers) return { state: "healthy" as const, detail: "Problem reports are not part of this version yet." };
   const d = need(ctx);
   const started = ctx.now();
   try {

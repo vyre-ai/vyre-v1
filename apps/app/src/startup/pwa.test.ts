@@ -83,3 +83,30 @@ test("the web session persistence contract remains local and explicit", () => {
   assert.match(sw, /startsWith\("\/api\/"\)/);
   assert.match(sw, /startsWith\("\/sync"\)/);
 });
+
+test("the service worker registers once the app is usable after load, not at load while startup still runs", async () => {
+  const { bootScript } = await import("./boot.ts");
+  const run = (order: ("load" | "usable")[], waitMs: number): Promise<number> => {
+    const on = new Map<string, () => void>();
+    let registered = 0;
+    const timers: { at: number; fn: () => void }[] = [];
+    let now = 0;
+    const win = {
+      performance: { mark() {}, now: () => 0 }, location: { search: "" }, URLSearchParams,
+      document: { documentElement: { style: { setProperty() {} }, setAttribute() {} } },
+      navigator: { serviceWorker: { register: () => { registered++; return { catch() {} }; } } },
+      addEventListener: (type: string, fn: () => void) => on.set(type, fn),
+      setTimeout: (fn: () => void, ms: number) => timers.push({ at: now + ms, fn }),
+    };
+    new Function(...Object.keys(win), "window", bootScript())(...Object.values(win), win);
+    for (const e of order) on.get(e === "load" ? "load" : "vyre:usable")?.();
+    now = waitMs;
+    for (const t of timers.splice(0)) if (t.at <= now) t.fn();
+    return Promise.resolve(registered);
+  };
+  assert.equal(await run(["load"], 100), 0, "load alone does not register while the app is still starting");
+  assert.equal(await run(["load", "usable"], 0), 1);
+  assert.equal(await run(["usable", "load"], 0), 1);
+  assert.equal(await run(["load"], 5000), 1, "a page that never marks usable still gets its worker");
+  assert.equal(await run(["load", "usable", "usable"], 5000), 1, "registered once");
+});

@@ -2,6 +2,8 @@
 // change only revisits rows that became wholly visible or hidden. So a device keeps whatever it cached under the old rules. This guard names, per (person, device), the fields it was last allowed to
 // hold back (`sync_class_sig`), and when a field that was cached is now held back, or the server has no record of what the device was allowed (a replica from before this guard), the device is purged:
 // the person's epoch rises, the seen marks go, and the replica comes back through a snapshot cut under the current rules. Conservative on purpose: a purge costs a resync, a stale field costs a leak.
+// The epoch is the PERSON's, so every device of that person resnapshots, not only the narrowed one: a device scope exists only for revocation (a revoked device is refused for good), and the person's other devices
+// may hold the same cached field.
 import type { Tx } from "../../../../kernel/src/store/projection.ts";
 import type { PullDeps } from "./pull.ts";
 import type { Viewer, Who } from "./scope.ts";
@@ -20,11 +22,14 @@ export function heldBack(d: PullDeps, viewer: Viewer): Record<string, string[]> 
   for (const k of d.catalog.classified?.() ?? []) keys.add(k);
   for (const r of d.db.all<{ entity: string }>("SELECT DISTINCT entity FROM sync_rows")) keys.add(r.entity);
   const out: Record<string, string[]> = {};
+  const granted = d.cache.hiddenByGrants(viewer.who.person, viewer.now);
   for (const key of [...keys].sort()) {
     const cfg = d.catalog.get(key);
     if (cfg.profile[viewer.who.deviceClass] === "none") continue;
     const sc = viewer.scope(cfg);
     const fields = new Set<string>(sc.hidden);
+    // a grant on a record type or an ancestor can hide a field of any row it reaches; which rows it reaches is decided per row, so the device is treated as held back from it on every entity of that access resource
+    if (cfg.resource === "record") for (const f of granted) fields.add(f);
     for (const [f, rank] of Object.entries(cfg.fieldLabels)) if (rank > sc.cap) fields.add(f);
     if (fields.size) out[key] = [...fields].sort();
   }

@@ -72,15 +72,14 @@ import { createEventsHost } from "../seams/events-ports.ts";
 import { applyPendingRestore, clearRestoredTombstones, createBackupHost, readRestoredTombstones } from "../seams/backup.ts";
 import { createKitsHost } from "../seams/kits.ts";
 import { createTelemetryRecorder } from "../seams/telemetry.ts";
-import { connectorReadSender } from "../seams/connector-read.ts";
-import { documentPin } from "../seams/document-pin.ts";
 import { createConnectorsHost } from "../seams/connectors.ts";
 import type { ConnectorNetwork } from "../seams/connectors.ts";
 import { createAuditRecorder } from "../seams/audit.ts";
 import { startRelayBox } from "../seams/relay.ts";
-import { createSyncSeam } from "../seams/sync.ts";
+import { createSyncLiveBridge, createSyncSeam } from "../seams/sync.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
 import { createWebhookRoute } from "../routes/webhooks.ts";
+import { createComputeRoute } from "../routes/compute.ts";
 import { createRunsHost } from "../seams/runs.ts";
 import type { WebhookAccept } from "../routes/webhooks.ts";
 import { sha256b64 } from "../../../kernel/src/seal/index.ts";
@@ -222,6 +221,8 @@ export interface DaemonOptions {
   computersBaseUrl?: string;
   /** How often an agent computer mirrors its home with Files while it runs (tests set it long and trigger passes by waking and sleeping). Default 3 s. */
   computersHomeIntervalMs?: number;
+  /** The container engine socket the agent computers module talks to (default: the system one); tests point it somewhere nothing listens. */
+  computersSocketPath?: string;
   /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan). Omitted: a CLI engine refuses to start. */
   engineSandbox?: unknown;
   /** Tests: swap a CLI engine's program for a command, and expose extra read-only folders in its sandbox (modules/engine runtime `cli`). */
@@ -321,6 +322,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let verified = { seq: 0, hash: "" };
   let hub: LiveHub | null = null;
   let hubFactory: (() => LiveHub) | null = null;
+  // the sync module's live hub: it registers a lazy factory through its seam, and the socket asks for the hub only when a device connects, after every module is loaded
+  const syncLive = createSyncLiveBridge((msg, attrs) => sink.log({ space: "-", level: 40, msg, place: "sync", ...(attrs ? { attrs } : {}) }));
   let routeIndex: ((method: string, path: string) => RouteRec | undefined) | null = null;
   let capIndex: ReturnType<typeof indexCapabilities> | null = null;
   let boundPort = cfg.port;
@@ -341,6 +344,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const exportRoute = createVaultExportRoute({ pull: (id, t) => pullVaultExport(id, t) });
   // POST /hooks/<connector> (P-L5_17): a provider's signed webhook; the connector module's host call `<connector>.accept_webhook` verifies the signature and records the event once
   let webhooks: { has(c: string): boolean; accept(c: string, a: WebhookAccept): Promise<unknown> } = { has: () => false, accept: () => Promise.reject(new Error("webhooks are not ready")) };
+  // POST /compute/poll: a computer that joined the Space reports in with its credential; the network module's host call decides (it knows only the credential's hash)
+  let computePoll: (credential: string, report: { docker?: boolean; version?: string }) => Promise<{ serverId: string; owner?: string } | null> = () => Promise.resolve(null);
+  const computeRoute = createComputeRoute({ poll: (c, r) => computePoll(c, r) });
   const webhookRoute = createWebhookRoute({ has: (c) => webhooks.has(c), accept: (c, a) => webhooks.accept(c, a), publicBase: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; } });
   // Ruling 62: the person's own key, handed over by their client on their own node (POST /local/vault/key/unlock, loopback only), held in memory only. A device-role daemon is the computer of whoever signs in on it;
   // a Space server holds the key of its owner alone.
@@ -490,6 +496,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       closers.push(() => runsHost.settle(5_000));
       const acceptors = new Set([...loaded.moduleExports].flatMap(([id, ns]) => (ns["hostCalls"] && typeof ns["hostCalls"] === "object" && `${id}.accept_webhook` in (ns["hostCalls"] as object) ? [id] : [])));
       webhooks = { has: (c) => acceptors.has(c), accept: (c, a) => hookRunner.call(`${c}.accept_webhook`, a) };
+      computePoll = (credential, report) => hookRunner.call("network.node_poll", { credential, report }) as Promise<{ serverId: string; owner?: string } | null>;
       // the async projections the live modules export (P-H_07): the events module's webhooks_out turns subscribed events into signed deliveries
       // crash recovery: a webhook delivery row inserted but never dispatched (the daemon died between the two) is sent again; the send is idempotent per attempt
       let dispatchSystem: ((cap: string, input: unknown) => Promise<unknown>) | null = null;
@@ -624,6 +631,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           if (h && mod === "identity") return ((ctx, input) => h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown, opts?: unknown) => (name === "devices.register" ? system(name, callInput, ctx.trace) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
           // accepting an invite: the person proved the code, and the invite's role, groups and starting places were the inviter's to give. Those join effects run as the host, not as the signed-out caller.
           if (h && cap === "members.accept") return ((ctx, input) => h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown) => system(name, callInput, ctx.trace) } as typeof ctx, input)) as Handler;
+          // handing an agent to another person: ownership of the agent and its folder moves with the host's authority (ruling 88). The call itself was authorized (manage on the agent, and the Gate for a non-person);
+          // only this one call from this one capability is widened, and it is the host-only access.transfer_ownership
+          if (h && cap === "agents.set_owner") return ((ctx, input) => h({ ...ctx, call: (name: string, callInput: unknown, opts?: unknown) => (name === "access.transfer_ownership" ? hookRunner.call(name, callInput) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
           if (h && peopleExtras?.(mod, {})) return ((ctx, input) => h({ ...ctx, ...peopleExtras!(mod, ctx) } as typeof ctx, input)) as Handler;
           if (!h || !cap.startsWith("devices.")) return h;
           const wrapped: Handler = (ctx, input) => h({ ...ctx, call: (name, callInput, opts) => (name === "sync.epoch.bump" ? system(name, callInput, ctx.trace) : ctx.call(name, callInput, opts)) } as typeof ctx, input);
@@ -825,8 +835,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }),
         setComputerHost: () => createComputersHost({
           dataDir: paths.root,
-          // Unset, the engine socket is the machine default. A release daemon sets this to a path that is not there when the proof needs a down host.
-          ...(process.env["VYRE_COMPUTER_SOCKET"] ? { socketPath: process.env["VYRE_COMPUTER_SOCKET"] } : {}),
+          ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : {}),
           // the home mirror runs as the agent: the same pipeline as any call, so access, review rules and the scrubber apply
           callAs: createAgentHomeCaller({ db: db!, spaceId, invoke }),
           // large files go to the Files module in process: the slot's one-time token from files.upload_url is the only authority, and no session or bearer is involved
@@ -899,13 +908,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             db!.run("UPDATE network_config SET address = ?, mode = ?, domain = CASE WHEN ? = 'own_domain' THEN ? ELSE domain END, reported_at = ? WHERE id = 1", address, mode, mode, address, now());
           },
         }),
-        configureSync: () => createSyncSeam({ store: spaceStore, ...(loaded.serving.get("conflicts") === "live" ? { conflicts: { open: (c) => hookRunner.call("conflicts.park", c) as Promise<string>, history: async (e) => { await hookRunner.call("conflicts.record_history", e); } } } : {}), access: () => access.snap, space: spaceId, now, registryHash, invoke: (c, i, seed) => invoke(c, i, seed), keyed: (c, v) => capIndex?.get(c, v)?.idempotency === "key", ...(cfg.address ? { endpoints: () => { const url=syncEndpointOrigin(cfg.address!);return url?[{kind:"direct" as const,url}]:[]; } } : {}) }),
+        configureSync: () => createSyncSeam({ store: spaceStore, ...(loaded.serving.get("conflicts") === "live" ? { conflicts: { open: (c) => hookRunner.call("conflicts.park", c) as Promise<string>, history: async (e) => { await hookRunner.call("conflicts.record_history", e); } } } : {}), access: () => access.snap, space: spaceId, now, registryHash, liveHub: syncLive.seam, invoke: (c, i, seed) => invoke(c, i, seed), keyed: (c, v) => capIndex?.get(c, v)?.idempotency === "key", ...(cfg.address ? { endpoints: () => { const url=syncEndpointOrigin(cfg.address!);return url?[{kind:"direct" as const,url}]:[]; } } : {}) }),
         setVaultKeyPort: () => ({ personKey: async (personId: string) => keyring.get(personId) }),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
         configureVault: () => ({ sinks: { ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode }), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
         setConnectorsHost: () => connectorPort,
-        setDocumentNetwork: () => documentPin(),
-        setConnectorReadSender: (d) => connectorReadSender(d),
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
         setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open() }, now }),
         ...(o.seams?.drivers ?? {}),
@@ -1010,7 +1017,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const session: GatewayDeps["session"] = o.session ?? ((headers) => {
         const token = bearer(headers["authorization"]);
         if (token?.startsWith("vas_")) { const preview = previews?.resolve(token); return preview ? { space: preview.space, principal: { kind: "person", id: preview.requester }, actingFor: preview.target, device: preview.device, sessionId: preview.sessionId, previewToken: token } : null; }
-        return identify(token);
+        const known = identify(token);
+        if (known || !token) return known;
+        // an outside tool's long-lived credential (issued by access.actors.redeem): the active actor holding it, only while the access snapshot still has that actor active
+        return (async (): Promise<(SessionInfo & { device: string }) | null> => {
+          const found = (await hookRunner.call("access.actor_by_credential", { credential: token }).catch(() => null)) as { actorId: string } | null;
+          if (!found || access.snap.principal(found.actorId)?.status !== "active") return null;
+          return { space: spaceId, principal: { kind: "actor", id: found.actorId }, device: "outside-actor" };
+        })();
       });
       ownerOfSpace = () => access.owner() ?? cfg.owner ?? null;
       callerOf = async (h) => {
@@ -1104,7 +1118,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         invoke, sink,
         eventsSince: (_s, cursor) => (recent.length && recent[0]!.seq <= cursor + 1 ? recent.filter((e) => e.seq > cursor) : []),
         head: () => headSeq,
-        ...(o.liveSync ? { sync: o.liveSync.hub } : {}),
+        // an explicit hub (a test) wins; otherwise the sync module's own hub, when it offered one. Neither: the legacy socket, which never claims replication.
+        ...(o.liveSync ? { sync: o.liveSync.hub } : syncLive.provided() ? { sync: syncLive.port } : {}),
       });
       hubFactory = mkHub;
     } else {
@@ -1124,13 +1139,20 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     chainBroken = true;
     return probes.eventsDb({ ok: false, seq: verified.seq, why: `${v.why} at event ${v.at}`, latencyMs: now() - t0 });
   };
+  // Docker and Caddy matter once an agent computer exists. Before that, a Space without them has nothing waiting on them, so a miss is a hint, not a failure.
+  const unusedRuntime = (r: ProbeResult): ProbeResult => {
+    if (r.state !== "down") return r;
+    let used = true;
+    try { used = Number((db?.all("SELECT COUNT(*) AS n FROM computers_computers") as { n?: unknown }[] | undefined)?.[0]?.n ?? 0) > 0; } catch { used = false; }
+    return used ? r : { ...r, state: "healthy", detail: `${r.detail ?? "Not running."} Agent computers need it; none exist yet.` };
+  };
   const probeFns: Record<ProbeName, () => Promise<ProbeResult> | ProbeResult> = {
     disk_encrypted: () => (o.probes?.diskEncrypted ? o.probes.diskEncrypted() : probes.diskEncrypted(platform, paths.root)),
     events_db: events,
     index_db: () => probes.indexLag(o.probes?.indexLag ? o.probes.indexLag() : null),
     scheduler: () => probes.schedulerTick(scheduler.lastTickAt, now()),
-    docker: () => probes.docker(platform),
-    caddy: () => (fetchFn ? probes.caddy(fetchFn, cfg.caddyAdmin, now) : { state: "down", detail: "No HTTP client to reach the Caddy admin API." }),
+    docker: async () => unusedRuntime(await probes.docker(platform)),
+    caddy: async () => unusedRuntime(fetchFn ? await probes.caddy(fetchFn, cfg.caddyAdmin, now) : { state: "down", detail: "No HTTP client to reach the Caddy admin API." }),
     disk_space: () => probes.diskSpace(platform, paths.root),
     time_skew: () => probes.timeSkew(fetchFn, cfg.relayUrl, now),
   };
@@ -1230,6 +1252,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const h = hubFactory ? hubFactory() : createLiveHub({ session: () => null });
     hub = h;
     o.liveSync?.onHub?.(h);
+    syncLive.setHost(h);
     const server = h.server;
     server.removeAllListeners("request");
     const listener = requestListener({
@@ -1258,7 +1281,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         res.once("finish", () => { setImmediate(requestStop); });
         return;
       }
-      if (mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
+      if (mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {

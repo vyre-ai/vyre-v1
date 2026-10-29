@@ -113,6 +113,24 @@ test("raising a field's classification after a device cached it makes that devic
   } finally { s.host.close(); }
 });
 
+test("the purge is the person's: a second device of the same person also starts over, cleanly, and the new copies never carry the field", async () => {
+  const { s } = await seeded();
+  try {
+    const laptop = await pull(s, OWNER, "laptop", 0, 0);
+    const tablet = await pull(s, OWNER, "tablet", 0, 0);
+    await s.store.define({ change_types: [RAISED] });
+    assert.equal((await pull(s, OWNER, "laptop", laptop.next, laptop.epoch)).reset, "purge");
+    const next = (await pull(s, OWNER, "tablet", tablet.next, tablet.epoch));
+    assert.equal(next.reset, "purge", "the tablet cached the field too");
+    for (const device of ["laptop", "tablet"]) {
+      const fresh = await pull(s, OWNER, device, 0, next.epoch);
+      assert.equal(fresh.reset, undefined, `${device} resyncs without a second purge`);
+      assert.ok(!JSON.stringify(fresh).includes("salary-fixture-value"));
+      assert.equal((await pull(s, OWNER, device, fresh.next, fresh.epoch)).reset, undefined);
+    }
+  } finally { s.host.close(); }
+});
+
 test("a classification raise purges only people who cached the field; a device that never held the type is untouched", async () => {
   const { s } = await seeded();
   try {
@@ -151,5 +169,30 @@ test("a snapshot taken after the raise has no trace of the field, and a lowered 
     assert.equal(head.reset, undefined, "the snapshot recorded what the device may hold");
     await s.store.define({ change_types: [EMPLOYEE] });
     assert.equal((await pull(s, OWNER, "snap", head.next, head.epoch)).reset, undefined, "lowering a label removes nothing the device holds");
+  } finally { s.host.close(); }
+});
+
+test("a grant on a record's type or ancestor that hides a field removes it from the person's rows, and a device that cached the field before the grant narrowed is purged", async () => {
+  const a = access();
+  a.putResource({ id: "rt_hubtype", type: "record_type", parent_id: null, owner_id: null, label: 0 } as never);
+  const s = open(a);
+  try {
+    await s.store.define({ add_types: [EMPLOYEE] });
+    const id = mintRecordId()!;
+    await s.store.create("employee", id, { name: "Ada", salary: "salary-fixture-value", note: "note-fixture-value" });
+    // the Guest reaches the row through a grant on an ancestor that hides `note`
+    a.putResource({ id, type: "record", parent_id: "rt_hubtype", owner_id: OWNER, label: 0 } as never);
+    a.putGrant({ id: "anc_guest", subject_kind: "actor", subject_id: GUEST, resource_type: "record_type", resource_id: "rt_hubtype", level: "view", conditions: { hiddenFields: ["note"] } });
+    const first = await pull(s, GUEST, "guest-laptop", 0, 0);
+    const text = JSON.stringify(first);
+    assert.ok(text.includes("Ada"), "the Guest reaches the row through its ancestor");
+    assert.ok(!text.includes("note-fixture-value"), "the field the ancestor grant hides is not sent");
+    assert.ok(text.includes("salary-fixture-value"), "a field no grant hides is sent");
+    // narrowing: a second field is hidden after the device already holds it
+    a.putGrant({ id: "anc_guest", subject_kind: "actor", subject_id: GUEST, resource_type: "record_type", resource_id: "rt_hubtype", level: "view", conditions: { hiddenFields: ["note", "salary"] } });
+    const stale = await pull(s, GUEST, "guest-laptop", first.next, first.epoch);
+    assert.equal(stale.reset, "purge", "the device cached salary, which is now hidden from it");
+    const fresh = JSON.stringify(await pull(s, GUEST, "guest-laptop", 0, stale.epoch));
+    assert.ok(!fresh.includes("salary-fixture-value") && !fresh.includes("note-fixture-value") && fresh.includes("Ada"), "the new copy has the row without either hidden field");
   } finally { s.host.close(); }
 });

@@ -6,6 +6,7 @@ import { pendingAction, safeDownload } from "./infra-model.ts";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
 import { useConsoleData } from "../shell/data.tsx";
+import { Glyph } from "../shell/glyphs.tsx";
 
 export function useRead<T>(cap: string, input: Record<string, unknown> = {}, options: { direct?: boolean; enabled?: boolean } = {}) {
   const { call, screens } = useConsoleData();
@@ -60,7 +61,7 @@ export function Actions({ children }: { children: ReactNode }): ReactElement { r
 export function Note({ children }: { children: ReactNode }): ReactElement { return <Text accessibilityRole="status" style={s.note}>{children}</Text>; }
 export function ReadState({ error, retry }: { error?: string | undefined; retry: () => void }): ReactElement { return error ? <States kind="error" message={error} retryable onRetry={retry} /> : <Text accessibilityRole="progressbar">Loading…</Text>; }
 export function Select({label,value,options,onChange,disabled=false}:{label:string;value:string;options:readonly {key:string;title:string}[];onChange(value:string):void;disabled?:boolean}):ReactElement{
- const menu=useMenu();return <View style={s.field}><Text style={s.label}>{label}</Text><Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} style={s.button} onPress={(event)=>{const rect=(event.currentTarget as unknown as {getBoundingClientRect?():{left:number;bottom:number}})?.getBoundingClientRect?.();menu.show(options.map((item)=>({label:item.title,checked:item.key===value,onSelect:()=>onChange(item.key)})),rect?.left??20,rect?.bottom??100,'other');}}><Text style={s.buttonText}>{options.find((item)=>item.key===value)?.title??(value||'Choose…')}</Text></Pressable>{menu.element}</View>;
+ const menu=useMenu();return <View style={s.field}><Text style={s.label}>{label}</Text><Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} style={s.button} onPress={(event)=>{const rect=(event.currentTarget as unknown as {getBoundingClientRect?():{left:number;bottom:number}})?.getBoundingClientRect?.();menu.show(options.map((item)=>({label:item.title,checked:item.key===value,onSelect:()=>onChange(item.key)})),rect?.left??20,rect?.bottom??100,'other');}}><View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:8}}><Text style={[s.buttonText,{flexShrink:1}]} numberOfLines={1}>{options.find((item)=>item.key===value)?.title??(value||'Choose…')}</Text><Glyph name="chevD" size={11} color="var(--ink-3)"/></View></Pressable>{menu.element}</View>;
 }
 export function useFileDownload(){
  const {call}=useConsoleData();const urls=useRef<string[]>([]);const [url,setUrl]=useState(''),[name,setName]=useState('');

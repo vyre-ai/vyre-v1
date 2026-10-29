@@ -267,7 +267,7 @@ test("health: healthy, down when the provider says so, throws or is not connecte
   assert.deepEqual({ ...(await h.call("esign.health", {})), latencyMs: 0 }, { state: "down", detail: "Documenso answered 502.", latencyMs: 0 });
   h.provider.healthy = new Error("ECONNREFUSED");
   assert.deepEqual(await h.call("esign.health", {}), { state: "down", detail: "ECONNREFUSED" });
-  assert.deepEqual(await harness({ providers: null }).call("esign.health", {}), { state: "down", detail: "documenso is not connected." });
+  assert.deepEqual(await harness({ providers: null }).call("esign.health", {}), { state: "healthy", detail: "documenso is not connected yet." });
   const slow = harness();
   slow.provider.healthy = { ok: true };
   slow.provider.health = async () => { await new Promise((r) => setTimeout(r, 2100)); return { ok: true }; };

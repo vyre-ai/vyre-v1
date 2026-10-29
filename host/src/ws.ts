@@ -86,6 +86,8 @@ export interface SyncHubPort {
   accept(t: SyncTransport, who: { person: string; device: string; deviceClass: "desktop" | "phone" | "web" }): { close(reason?: string): void };
   /** The log committed: sessions flush what they owe. */
   commit(): void;
+  /** The host is stopping: stop the hub's heartbeats and close its sessions. */
+  close?(): void;
 }
 
 export interface LiveSession { space: string; principal: CtxSeed["principal"]; device: string; actingFor?: string | undefined }
@@ -134,7 +136,7 @@ export function createLiveHub(o: LiveOptions): LiveHub {
   const conns = new Map<string, Conn>();   // key: space + device
   const spans: SpanSink = o.spans ?? o.sink ?? { span: () => {} };
   const key = (s: LiveSession): string => `${s.space}\u0000${s.device}`;
-  const connKey = (c: Conn): string => (c.link ? `${key(c.session)}\u0000${c.id}` : key(c.session));   // a sync socket may race two per device; the hub caps them
+  const connKey = (c: Conn): string => key(c.session);   // one live socket per device, whichever protocol it speaks
 
   const server = http.createServer((_req, res) => { res.writeHead(426, { "content-type": "text/plain" }).end("upgrade required"); });
 
@@ -219,6 +221,9 @@ export function createLiveHub(o: LiveOptions): LiveHub {
       const accept = crypto.createHash("sha1").update(wsKey + GUID).digest("base64");
       socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
       const c: Conn = { id: crypto.randomUUID(), session, socket, reader: new FrameReader(), lastSeen: now(), acked: 0, pending: [], closed: false };
+      // a device holds one live socket: a newer connection replaces the older (the perf budget connection_count), before the hub is told about the new one
+      const old = conns.get(key(session));
+      if (old) close(old, 4000, "replaced by a newer connection from this device");
       if (o.sync) {
         const frameCbs: Array<(f: unknown) => void> = [], closeCbs: Array<(r: string) => void> = [];
         const sess = o.sync.accept({
@@ -228,9 +233,6 @@ export function createLiveHub(o: LiveOptions): LiveHub {
           onClose: (cb) => { closeCbs.push(cb); },
         }, { person: session.principal.id, device: session.device, deviceClass: deviceClassOf(req.url) });
         c.link = { frame: (f) => { for (const cb of frameCbs) cb(f); }, gone: (r) => { for (const cb of closeCbs) cb(r); }, session: sess };
-      } else {
-        const old = conns.get(key(session));
-        if (old) close(old, 4000, "replaced by a newer connection from this device");
       }
       if (!c.closed) conns.set(connKey(c), c);   // a revoked device was already told and closed inside accept
       o.sink?.log({ space: session.space, level: 20, msg: "live.opened", device: session.device, actor: session.principal.id });
@@ -262,8 +264,12 @@ export function createLiveHub(o: LiveOptions): LiveHub {
     listen: (port = 0) => new Promise((resolve) => server.listen(port, "127.0.0.1", () => resolve((server.address() as { port: number }).port))),
     publish(space, events) {
       o.sync?.commit();
+      // A sync session is sent filtered row batches by its hub, never raw events. Rows are not everything a screen shows (chat messages, notifications, tasks and counts live in module tables), so the
+      // session also gets a bare `changed` tick: no payload, only the newest event number. The client answers by re-reading what is on screen through the normal, authorized calls.
+      const last = events[events.length - 1];
       for (const c of conns.values()) {
-        if (c.session.space !== space || c.link) continue;
+        if (c.session.space !== space) continue;
+        if (c.link) { if (last) send(c, { t: "changed", seq: last.seq }); continue; }
         for (const e of events) { c.pending.push(e); send(c, eventFrame(e)); }
       }
     },
@@ -273,6 +279,7 @@ export function createLiveHub(o: LiveOptions): LiveHub {
     close: () => new Promise((resolve) => {
       clearInterval(timer);
       for (const c of [...conns.values()]) close(c, 1001, "server stopping");
+      try { o.sync?.close?.(); } catch { /* the sockets are already closed */ }
       server.close(() => resolve());
       server.closeAllConnections();
     }),

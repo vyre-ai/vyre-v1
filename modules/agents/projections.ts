@@ -25,7 +25,7 @@ export interface AgentsCtx {
   emit(name: EventName, subject: string, payload: unknown): unknown;
   call?(cap: string, input: unknown, opts?: { idempotencyKey?: string }): Promise<unknown>;
   authorize?(action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }): { effect: "allow" | "deny" | "hold" };
-  log: { warn(msg: string, attrs?: Record<string, unknown>): void };
+  log: { warn(msg: string, attrs?: Record<string, unknown>): void; error(msg: string, attrs?: Record<string, unknown>): void };
 }
 
 type Row = Record<string, unknown>;

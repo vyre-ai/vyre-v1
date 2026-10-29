@@ -100,6 +100,7 @@ Example: `send`.
 |---|---|---|---|---|
 | campaign_launch | Launch a campaign | high | yes | table |
 | delete | Delete | high | no | record_card |
+| enroll_node | Admit a computer to the Space | high | no | record_card |
 | pay | Send money or submit a card | high | no | table |
 | post | Post publicly | medium | no | doc_excerpt |
 | push_protected | Push to a protected branch | high | yes | diff |
@@ -108,6 +109,7 @@ Example: `send`.
 | signature_send | Send a document for signature | high | no | file |
 | site_promote | Promote a site to production | high | yes | deploy |
 | spend_raise | Raise a spend cap | medium | no | table |
+| transfer | Hand over ownership | high | no | record_card |
 
 ## Task kinds
 

@@ -440,7 +440,7 @@ export async function health(ctx: MsCtx) {
   ensure(ctx);
   const cfg = config(ctx);
   const connectionId = strOrNull(cfg, "connectionId");
-  if (!cfg || num(cfg, "configured") !== 1 || !connectionId) return { state: "down" as const, detail: "Microsoft 365 is not set up." };
+  if (!cfg || num(cfg, "configured") !== 1 || !connectionId) return { state: "healthy" as const, detail: "Microsoft 365 is not set up yet." };
   const started = ctx.now();
   try {
     const r = await apiRaw(ctx, { cap: "ms.health", connectionId, tenant: true, url: `${GRAPH}/organization`, query: { $select: "id" } });

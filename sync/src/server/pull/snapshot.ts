@@ -110,7 +110,7 @@ export function snapshotPage(d: PullDeps, who: Who, req: { entity: string; after
       last = row.id;
       const cells = JSON.parse(row.fields) as Cells;
       if (!viewer.visible(sc, row, cells) || !window.holds(cfg, mode, row)) continue;
-      rows.push({ id: row.id, seq: row.seq, label: row.label, fields: viewer.fields(sc, cells) });
+      rows.push({ id: row.id, seq: row.seq, label: row.label, fields: viewer.fields(sc, cells, undefined, { row, cells }) });
       if (rows.length >= MAX_SNAPSHOT_PAGE) { full = true; break; }
     }
     if (full) break;

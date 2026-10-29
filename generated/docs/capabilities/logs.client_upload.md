@@ -1,6 +1,6 @@
 # logs.client_upload
 
-Upload the device ring-buffer log keyed by trace id (queued while offline, sent on reconnect)
+Upload the device ring-buffer log keyed by trace id, with the timing samples the device measured against the performance budgets (queued while offline, sent on reconnect)
 
 | | |
 |---|---|
@@ -33,6 +33,13 @@ type In = {
       msg: string;
       attrs?: Record<string, unknown>;
     }>;
+  samples?: Array<{
+      budgetId: string;
+      value: number;
+      at: number;
+      traceId?: string;
+      attrs?: Record<string, unknown>;
+    }>;
 };
 ```
 
@@ -41,6 +48,7 @@ type In = {
 ```ts
 type Out = {
   accepted: number;
+  sampled?: number;
 };
 ```
 
@@ -66,10 +74,20 @@ type Out = {
         "msg": "example",
         "traceId": "0123456789abcdef0123456789abcdef"
       }
+    ],
+    "samples": [
+      {
+        "at": 1760000000000,
+        "attrs": {},
+        "budgetId": "startup",
+        "traceId": "0123456789abcdef0123456789abcdef",
+        "value": 1
+      }
     ]
   },
   "output": {
-    "accepted": 1
+    "accepted": 1,
+    "sampled": 1
   }
 }
 ```

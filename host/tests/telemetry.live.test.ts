@@ -9,7 +9,9 @@ test('real daemon telemetry reaches scoped canonical HTTP reads, scrubs content 
  try{
   const invoked=await call('spaces.get',{});assert.equal(invoked.status,200);assert.ok(invoked.trace);
   const spans=await call('logs.spans',{limit:200});assert.equal(spans.status,200);assert.ok(spans.body.data.spans.length>0,'actual invoke spans must be visible');
-  const span=spans.body.data.spans.find((row:{name:string})=>(row as {traceId?:string}).traceId===invoked.trace);assert.ok(span,'actual spaces.get span');
+  // the list is oldest first and a booted Space indexes its seeded events, so the call's own span is looked up by its trace, not found in the first page
+  const own=await call('logs.spans',{traceId:invoked.trace,limit:200});assert.equal(own.status,200);
+  const span=own.body.data.spans.find((row:{name:string})=>(row as {traceId?:string}).traceId===invoked.trace);assert.ok(span,'actual spaces.get span');
   const trace=await call('logs.trace',{traceId:span.traceId});assert.ok(trace.body.data.spans.some((row:{spanId:string})=>row.spanId===span.spanId));
   d.sink.log({space:CORE_SPACE,level:40,msg:'service.state',trace_id:span.traceId,attrs:{body:'prohibited body fixture',message:'prohibited message fixture',count:7,nested:{password:'prohibited password fixture'},known:d.token,embedded:`prefix ${d.token} suffix`,error:'provider echoed forbidden fixture payload',reason:'credential_shaped_unknown_fixture',cap:d.token}});
   d.sink.log({space:CORE_SPACE,level:40,msg:'credential_shaped_unknown_fixture',trace_id:span.traceId,attrs:{reason:'credential_shaped_unknown_fixture'}});

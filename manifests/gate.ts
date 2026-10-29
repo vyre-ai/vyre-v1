@@ -6,7 +6,7 @@
 import { defineManifest, ev, gateAct, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, principalRef, risk } from './_common.ts';
 
-const actKey = t.enm('send', 'post', 'pay', 'delete', 'push_protected', 'campaign_launch', 'secret_export', 'site_promote', 'signature_send', 'spend_raise');
+const actKey = t.enm('send', 'post', 'pay', 'delete', 'transfer', 'enroll_node', 'push_protected', 'campaign_launch', 'secret_export', 'site_promote', 'signature_send', 'spend_raise');
 const holdState = t.enm('held', 'approved', 'denied', 'expired');
 const approverRule = t.str({ description: "role:<name>, owner or asker", examples: ['role:admin'] });
 const ruleRow = t.obj({
@@ -29,6 +29,8 @@ export default defineManifest({
     gateAct('post', 'Post publicly', 'medium', 'doc_excerpt', { approvers: { default: 'asker', peopleOnly: true, agentOkFor: 'low' } }),
     gateAct('pay', 'Send money or submit a card', 'high', 'table', { approvers: { default: 'owner', peopleOnly: true } }),
     gateAct('delete', 'Delete', 'high', 'record_card', { approvers: { default: 'asker', peopleOnly: true } }),
+    gateAct('transfer', 'Hand over ownership', 'high', 'record_card', { approvers: { default: 'asker', peopleOnly: true } }),
+    gateAct('enroll_node', 'Admit a computer to the Space', 'high', 'record_card', { approvers: { default: 'asker', peopleOnly: true } }),
     gateAct('push_protected', 'Push to a protected branch', 'high', 'diff', { appliesTo: { actors: ['agent', 'automation', 'campaign'], humanToo: true } }),
     gateAct('campaign_launch', 'Launch a campaign', 'high', 'table', { appliesTo: { actors: ['agent', 'automation', 'campaign'], humanToo: true } }),
     gateAct('secret_export', 'Export secrets', 'high', 'table', { appliesTo: { actors: ['agent', 'automation', 'campaign'], humanToo: true } }),

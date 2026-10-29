@@ -3209,6 +3209,40 @@
     },
     {
       "blocks": [],
+      "cap": "agents.set_owner",
+      "deferred": false,
+      "description": "Hand an agent to another active person: its home folder and the agent change owner with it and the previous owner keeps nothing on them",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ownerId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "ownerId"
+        ],
+        "type": "object"
+      },
+      "name": "agents_set_owner",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.status",
       "deferred": false,
       "description": "Live status of an agent: Awake (idle 2 minutes), Working, Asleep or Paused with reason and who",
@@ -19635,6 +19669,8 @@
               "post",
               "pay",
               "delete",
+              "transfer",
+              "enroll_node",
               "push_protected",
               "campaign_launch",
               "secret_export",
@@ -19720,6 +19756,8 @@
               "post",
               "pay",
               "delete",
+              "transfer",
+              "enroll_node",
               "push_protected",
               "campaign_launch",
               "secret_export",
@@ -19809,6 +19847,8 @@
               "post",
               "pay",
               "delete",
+              "transfer",
+              "enroll_node",
               "push_protected",
               "campaign_launch",
               "secret_export",
@@ -33110,6 +33150,84 @@
     },
     {
       "blocks": [],
+      "cap": "network.my_computer_approve",
+      "deferred": false,
+      "description": "Admit your own waiting computer",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "serverId": {
+            "examples": [
+              "srv_a1b2c3"
+            ],
+            "pattern": "^srv_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId"
+        ],
+        "type": "object"
+      },
+      "name": "network_my_computer_approve",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.my_computer_code",
+      "deferred": false,
+      "description": "Make a join code for your own computer (a Mac, PC or Linux box): it will run only your own agents",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "network_my_computer_code",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.my_computer_decline",
+      "deferred": false,
+      "description": "Turn your own waiting computer away",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "serverId": {
+            "examples": [
+              "srv_a1b2c3"
+            ],
+            "pattern": "^srv_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId"
+        ],
+        "type": "object"
+      },
+      "name": "network_my_computer_decline",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "network.public_hostnames",
       "deferred": false,
       "description": "Public hostnames and /hooks endpoints served by this Space",
@@ -33145,6 +33263,58 @@
         "type": "object"
       },
       "name": "network_relay_set",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.server_approve",
+      "deferred": false,
+      "description": "Admit a waiting computer to the Space: a person looks at its name, what it runs on and its fingerprint and approves once",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "serverId": {
+            "examples": [
+              "srv_a1b2c3"
+            ],
+            "pattern": "^srv_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId"
+        ],
+        "type": "object"
+      },
+      "name": "network_server_approve",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.server_decline",
+      "deferred": false,
+      "description": "Turn a waiting computer away",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "serverId": {
+            "examples": [
+              "srv_a1b2c3"
+            ],
+            "pattern": "^srv_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId"
+        ],
+        "type": "object"
+      },
+      "name": "network_server_decline",
       "planMode": "blocked",
       "toolset": "engineer",
       "v": 1
@@ -33231,7 +33401,7 @@
       "blocks": [],
       "cap": "network.servers",
       "deferred": false,
-      "description": "Servers in the Space: grey rows when offline, with Reconnect and Remove",
+      "description": "Computers in the Space (the Space server and the computers that joined for compute, waiting ones included): grey rows when offline, with Reconnect and Remove",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -39473,6 +39643,46 @@
         "type": "object"
       },
       "name": "search_related",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "search.resolve",
+      "deferred": false,
+      "description": "One indexed item by kind and id, if the caller may see it; a record names its record type",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "person",
+              "agent",
+              "chat",
+              "inbox",
+              "record",
+              "file",
+              "automation",
+              "app",
+              "setting",
+              "memory",
+              "task",
+              "channel"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "name": "search_resolve",
       "planMode": "allowed",
       "toolset": "meta",
       "v": 1

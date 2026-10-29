@@ -116,6 +116,7 @@ export function createClient(transport: Transport) {
       routines: {
         list: call("agents.routines.list", 1),
       },
+      set_owner: call("agents.set_owner", 1),
       snapshot: {
         take: call("agents.snapshot.take", 1),
       },
@@ -1428,10 +1429,17 @@ export function createClient(transport: Transport) {
       certificate_renew: call("network.certificate_renew", 1),
       domain_set: call("network.domain_set", 1),
       endpoints: call("network.endpoints", 1),
+      enroll: call("network.enroll", 1),
+      enroll_status: call("network.enroll_status", 1),
       health: call("network.health", 1),
       ingress_check: call("network.ingress_check", 1),
+      my_computer_approve: call("network.my_computer_approve", 1),
+      my_computer_code: call("network.my_computer_code", 1),
+      my_computer_decline: call("network.my_computer_decline", 1),
       public_hostnames: call("network.public_hostnames", 1),
       relay_set: call("network.relay_set", 1),
+      server_approve: call("network.server_approve", 1),
+      server_decline: call("network.server_decline", 1),
       server_join_code: call("network.server_join_code", 1),
       server_reconnect: call("network.server_reconnect", 1),
       server_remove: call("network.server_remove", 1),
@@ -1707,6 +1715,7 @@ export function createClient(transport: Transport) {
         record: call("search.recent.record", 1),
       },
       related: call("search.related", 1),
+      resolve: call("search.resolve", 1),
     },
     sessions: {
       continue: call("sessions.continue", 1),

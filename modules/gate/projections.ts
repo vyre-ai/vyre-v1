@@ -6,7 +6,7 @@ import { isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { canonical } from "../../lib/canonical.ts";
 
-export type ActKey = "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+export type ActKey = "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
 export type Risk = "low" | "medium" | "high";
 export type Mode = "hold" | "allow";
 export type Scope = "space" | "floor" | "agent";
@@ -26,6 +26,8 @@ export const ACTS: readonly ActDef[] = [
   act("post", "Post publicly", "medium", "doc_excerpt", "asker", { agentOkFor: "low" }),
   act("pay", "Send money or submit a card", "high", "table", "owner"),
   act("delete", "Delete", "high", "record_card", "asker"),
+  act("transfer", "Hand over ownership", "high", "record_card", "asker"),
+  act("enroll_node", "Admit a computer to the Space", "high", "record_card", "asker"),
   act("push_protected", "Push to a protected branch", "high", "diff", "role:admin", { humanToo: true }),
   act("campaign_launch", "Launch a campaign", "high", "table", "role:admin", { humanToo: true }),
   act("secret_export", "Export secrets", "high", "table", "role:admin", { humanToo: true }),

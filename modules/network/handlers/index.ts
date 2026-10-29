@@ -3,6 +3,7 @@
 
 import { asRow, certs, endpoints, failWith, healthProbe, hostnames, ingress, queue, readConfig, servers, statusOf, JOIN_CODE_MS } from "./status.ts";
 import type { Mode, NetworkCtx } from "./status.ts";
+import { approve, approveMine, decline, declineMine, enroll, enrollStatus, makeJoinCode, revoke } from "./enroll.ts";
 
 export type { NetworkCtx } from "./status.ts";
 
@@ -63,14 +64,8 @@ export async function certificateRenew(ctx: NetworkCtx, input: { host: string })
   return { state: cert.state };
 }
 
-export async function serverJoinCode(ctx: NetworkCtx, _input: In) {
-  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(8));
-  const ch = Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
-  const code = `VYRE-${ch.slice(0, 4)}-${ch.slice(4)}`;
-  const expiresAt = ctx.now() + JOIN_CODE_MS;
-  ctx.db.run("INSERT INTO network_join (code, by_principal, expires_at) VALUES (?, ?, ?)", code, ctx.principal.id, expiresAt);
-  return { code, expiresAt };
-}
+export async function serverJoinCode(ctx: NetworkCtx, _input: In) { return makeJoinCode(ctx, "space"); }
+export async function myComputerCode(ctx: NetworkCtx, _input: In) { return makeJoinCode(ctx, "personal"); }
 
 export async function serverReconnect(ctx: NetworkCtx, input: { serverId: string }) {
   const s = servers(ctx).find((x) => x.serverId === input.serverId);
@@ -83,8 +78,9 @@ export async function serverRemove(ctx: NetworkCtx, input: { serverId: string })
   const s = servers(ctx).find((x) => x.serverId === input.serverId);
   if (!s) return { removed: false };
   if (s.role === "space") return failWith(ctx.trace.traceId, "validation.precondition_failed", "The Space server cannot be removed.", { serverId: input.serverId });
-  queue(ctx, "remove", input.serverId);
-  return { removed: false };
+  // a computer that joined for compute is taken out here and now: its credential stops working at once
+  revoke(ctx, input.serverId);
+  return { removed: true };
 }
 
 export const handlers = {
@@ -97,6 +93,13 @@ export const handlers = {
   "network.endpoints": endpointList,
   "network.servers": serverList,
   "network.server_join_code": serverJoinCode,
+  "network.my_computer_code": myComputerCode,
+  "network.enroll": enroll,
+  "network.enroll_status": enrollStatus,
+  "network.server_approve": approve,
+  "network.server_decline": decline,
+  "network.my_computer_approve": approveMine,
+  "network.my_computer_decline": declineMine,
   "network.server_reconnect": serverReconnect,
   "network.server_remove": serverRemove,
   "network.health": health,

@@ -16,7 +16,9 @@ import type { ConflictOpen } from "../../sync/src/server/push/types.ts";
 import type { DeviceClass, PullReq, PushReq } from "../../sync/src/protocol.ts";
 import { createPullHandlers, createPushHandlers, toPullCtx } from "./handlers/index.ts";
 import { createPurgeHandlers, purgeDepsOf, toPurgeCtx } from "./handlers/purge.ts";
+import { systemClock } from "../../sync/src/live/index.ts";
 import type { LiveHub } from "../../sync/src/live/index.ts";
+import { createSyncLiveHub } from "./handlers/live.ts";
 import type { BumpInput, ReindexInput } from "../../sync/src/purge/index.ts";
 import type { PullHandlers } from "./handlers/index.ts";
 import { syncChanges } from "./projections.ts";
@@ -111,6 +113,12 @@ let info: ReturnType<typeof createInfoHandlers> | null = null;
 export function configureSync(s: SyncHostSeam | null): void {
   seam = s; shared = null; pushDeps = null; docs = null; info = null;
   if (s) s.store.declare([syncChanges((entity) => loadCatalog().get(entity).ownerField)]);
+  if (s?.liveHub) {
+    const host = s.liveHub;
+    // the hub is built on the first connection, from the same handle, clock and registry hash as every other sync call; a purge goes to the host socket hub, which frames and closes the sockets it concerns
+    host.provide(() => createSyncLiveHub(live().deps, { clock: systemClock, registryHash: s.registryHash, ...(s.serverVersion !== undefined ? { serverVersion: s.serverVersion } : {}) }));
+    setLiveHub({ purge: (person, epoch) => host.host()?.purge(person, epoch) ?? 0, purgeDevice: (person, device, epoch) => host.host()?.purgeDevice(person, device, epoch) ?? 0 });
+  } else setLiveHub(null);
 }
 export const hostSeams: SeamSetters = { configureSync };
 

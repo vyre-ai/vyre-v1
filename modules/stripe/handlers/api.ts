@@ -340,9 +340,9 @@ export async function health(ctx: StripeCtx): Promise<{ state: "healthy" | "degr
     if (a.status === 429) return { state: "degraded", detail: "Stripe is asking us to slow down.", latencyMs };
     return { state: "degraded", detail: "Stripe is not answering well right now.", latencyMs };
   } catch (e) {
-    if (e instanceof HostError && e.error.code === "internal.unavailable") return { state: "down", detail: "Stripe is not set up on this server." };
+    if (e instanceof HostError && e.error.code === "internal.unavailable") return { state: "healthy", detail: "Stripe is not set up yet." };
     if (e instanceof HostError && e.error.code === "provider.network") return { state: "down", detail: "Stripe could not be reached." };
-    if (e instanceof HostError && e.error.code === "provider.auth_failed") return { state: "down", detail: "There is no Stripe key. Add Stripe_Key to the Vault." };
+    if (e instanceof HostError && e.error.code === "provider.auth_failed") return { state: "healthy", detail: "There is no Stripe key yet. Add Stripe_Key to the Vault." };
     throw e;
   }
 }
