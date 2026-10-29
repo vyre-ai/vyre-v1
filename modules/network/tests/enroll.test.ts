@@ -44,10 +44,8 @@ test("a join code admits nothing by itself: the computer waits, is approved once
   // a person approves; the next poll hands over the credential once
   const ok = await call("network.server_approve", h.ctx, { serverId: asked.serverId });
   checked("network.server_approve", ok);
-  const poll2 = await call("network.enroll_status", h.ctx, { serverId: asked.serverId, at: NOW, signature: await n.sign(asked.serverId, NOW) });
+  const poll2 = await call("network.enroll_status", h.ctx, { serverId: asked.serverId, at: NOW + 1, signature: await n.sign(asked.serverId, NOW + 1) });
   assert.equal(poll2.state, "approved"); assert.match(poll2.credential, /^vcc_[0-9a-f]{48}$/);
-  const poll3 = await call("network.enroll_status", h.ctx, { serverId: asked.serverId, at: NOW, signature: await n.sign(asked.serverId, NOW) });
-  assert.equal(poll3.credential, undefined, "the credential is shown once");
   assert.deepEqual(await nodeByCredential(h.ctx, poll2.credential), { serverId: asked.serverId });
   assert.equal(await nodeByCredential(h.ctx, "vcc_wrong"), null);
   const stored = JSON.stringify(h.raw.rows("network_server"));
@@ -79,6 +77,7 @@ test("only the computer that holds the key can ask about its row: a wrong, stale
   const asked = await call("network.enroll", h.ctx, { code: made.code, publicKey: mine.publicKey, name: "Mine", facts });
   const bad = (input: unknown) => assert.rejects(call("network.enroll_status", h.ctx, input), (e: unknown) => codeOf(e) === "auth.invalid_code");
   await bad({ serverId: asked.serverId, at: NOW, signature: await other.sign(asked.serverId, NOW) });
+  await assert.doesNotReject(call("network.enroll_status", h.ctx, { serverId: asked.serverId, at: NOW, signature: await mine.sign(asked.serverId, NOW) }));
   await bad({ serverId: asked.serverId, at: NOW - 6 * 60_000, signature: await mine.sign(asked.serverId, NOW - 6 * 60_000) });
   await bad({ serverId: asked.serverId, at: NOW, signature: await mine.sign("srv_other", NOW) });
   await bad({ serverId: "srv_missing", at: NOW, signature: await mine.sign("srv_missing", NOW) });
@@ -107,4 +106,47 @@ test("a personal computer is approved only by the person whose code it used", as
   const stranger = { ...h.ctx, principal: { kind: "person" as const, id: "usr_stranger" } };
   await assert.rejects(call("network.my_computer_approve", stranger, { serverId: asked.serverId }), (e: unknown) => codeOf(e) === "validation.not_found");
   checked("network.my_computer_approve", await call("network.my_computer_approve", h.ctx, { serverId: asked.serverId }));
+});
+
+test("two enrolls at once with one code give one waiting computer and one refusal", async () => {
+  const h = harness();
+  const [a, b] = [await node(), await node()];
+  const made = await call("network.server_join_code", h.ctx, {});
+  const results = await Promise.allSettled([
+    call("network.enroll", h.ctx, { code: made.code, publicKey: a.publicKey, name: "A", facts }),
+    call("network.enroll", h.ctx, { code: made.code, publicKey: b.publicKey, name: "B", facts }),
+  ]);
+  assert.deepEqual(results.map((r) => r.status).sort(), ["fulfilled", "rejected"]);
+  const lost = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+  assert.equal(codeOf(lost.reason), "auth.invalid_code");
+  assert.equal(servers(h.ctx).filter((s) => s.enrollment === "pending").length, 1, "one pending row");
+});
+
+test("a captured signed status request cannot be replayed: each one must be later than the last accepted", async () => {
+  const h = harness();
+  const n = await node();
+  const asked = await call("network.enroll", h.ctx, { code: (await call("network.server_join_code", h.ctx, {})).code, publicKey: n.publicKey, name: "Mac", facts });
+  const waiting = { serverId: asked.serverId, at: NOW, signature: await n.sign(asked.serverId, NOW) };
+  assert.equal((await call("network.enroll_status", h.ctx, waiting)).state, "pending");
+  await call("network.server_approve", h.ctx, { serverId: asked.serverId });
+  const refused = (input: unknown) => assert.rejects(call("network.enroll_status", h.ctx, input), (e: unknown) => codeOf(e) === "auth.invalid_code");
+  await refused(waiting);   // the waiting poll, captured and replayed right after approval
+  await refused({ serverId: asked.serverId, at: NOW - 1, signature: await n.sign(asked.serverId, NOW - 1) });
+  const real = await call("network.enroll_status", h.ctx, { serverId: asked.serverId, at: NOW + 1, signature: await n.sign(asked.serverId, NOW + 1) });
+  assert.match(real.credential, /^vcc_/);
+  await refused({ serverId: asked.serverId, at: NOW + 1, signature: await n.sign(asked.serverId, NOW + 1) });   // and that one, replayed, gets nothing
+});
+
+test("a lost approval reply heals itself: a fresh signed request after approval gets a new credential and the old one stops", async () => {
+  const h = harness();
+  const n = await node();
+  const asked = await call("network.enroll", h.ctx, { code: (await call("network.server_join_code", h.ctx, {})).code, publicKey: n.publicKey, name: "Mac", facts });
+  await call("network.server_approve", h.ctx, { serverId: asked.serverId });
+  const first = await call("network.enroll_status", h.ctx, { serverId: asked.serverId, at: NOW + 1, signature: await n.sign(asked.serverId, NOW + 1) });
+  const second = await call("network.enroll_status", h.ctx, { serverId: asked.serverId, at: NOW + 2, signature: await n.sign(asked.serverId, NOW + 2) });
+  assert.match(second.credential, /^vcc_/);
+  assert.notEqual(second.credential, first.credential);
+  assert.equal(await nodeByCredential(h.ctx, first.credential), null, "the old credential no longer works");
+  assert.deepEqual(await nodeByCredential(h.ctx, second.credential), { serverId: asked.serverId });
+  assert.equal(JSON.stringify(h.raw.rows("network_server")).includes(second.credential), false, "only a hash is stored");
 });

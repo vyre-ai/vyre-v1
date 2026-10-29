@@ -53,7 +53,9 @@ export async function enroll(ctx: NetworkCtx, input: In): Promise<{ serverId: st
   const row = ctx.db.all("SELECT code, by_principal, expires_at, scope, used_at FROM network_join WHERE code = ?", codeText.toUpperCase())[0] as Record<string, unknown> | undefined;
   if (!row || row["used_at"] !== null && row["used_at"] !== undefined || Number(row["expires_at"]) <= ctx.now()) return failWith(ctx.trace.traceId, "auth.invalid_code", NOT_YOURS);
   if (!(await verifyKey(publicKey))) return failWith(ctx.trace.traceId, "validation.bad_input", "The public key is not an Ed25519 key.", { field: "publicKey" });
-  ctx.db.run("UPDATE network_join SET used_at = ? WHERE code = ?", ctx.now(), String(row["code"]));
+  // consume the code in one step that only one enroll can win: two at once with the same code cannot both pass the check above across the key verification
+  const consumed = ctx.db.run("UPDATE network_join SET used_at = ? WHERE code = ? AND used_at IS NULL AND expires_at > ?", ctx.now(), String(row["code"]), ctx.now()).changes;
+  if (consumed !== 1) return failWith(ctx.trace.traceId, "auth.invalid_code", NOT_YOURS);
   const f = (input["facts"] && typeof input["facts"] === "object" ? input["facts"] : {}) as Record<string, unknown>;
   const facts = { os: str(f["os"], 40) ?? "unknown", arch: str(f["arch"], 20) ?? "unknown", docker: f["docker"] === true, version: str(f["version"], 40) ?? "unknown" };
   const fingerprint = await fingerprintOf(publicKey);
@@ -74,9 +76,13 @@ export async function enrollStatus(ctx: NetworkCtx, input: In): Promise<{ state:
   const key = await verifyKey(String(row["public_key"]));
   const sig = fromB64(signature);
   if (!key || !sig || !(await crypto.subtle.verify({ name: "Ed25519" }, key, sig as Uint8Array<ArrayBuffer>, new TextEncoder().encode(`vyre-enroll:${serverId}:${at}`)))) return same();
+  // each signed request must be later than the last one accepted: a captured request replays as a refusal, so only the key holder, who can sign a fresh one, can ask
+  const fresh = ctx.db.run("UPDATE network_server SET last_status_at = ? WHERE server_id = ? AND (last_status_at IS NULL OR last_status_at < ?)", at, serverId, at).changes;
+  if (fresh !== 1) return same();
   const state = String(row["enrollment"]) as "pending" | "approved" | "declined" | "revoked";
   const out: { state: typeof state; fingerprint: string; credential?: string } = { state, fingerprint: String(row["fingerprint"]) };
-  if (state === "approved" && (row["credential_hash"] === null || row["credential_hash"] === undefined)) {
+  if (state === "approved") {
+    // approved: every fresh signed request gets a credential, and it replaces the last (a reply that was lost heals itself; the old one stops working at once)
     const credential = `vcc_${token()}`;
     ctx.db.run("UPDATE network_server SET credential_hash = ? WHERE server_id = ?", await sha256(credential), serverId);
     out.credential = credential;

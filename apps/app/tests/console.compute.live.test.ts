@@ -111,7 +111,14 @@ test("production Console Network: a computer joins with a code, waits, is approv
       await page.getByTestId("computers-waiting").waitFor({ state: "detached" });
       poll = await anon("network.enroll_status", { serverId: asked.data.serverId, ...(await node.sign(asked.data.serverId)) });
       assert.equal(poll.data.state, "approved"); assert.match(poll.data.credential, /^vcc_/);
-      assert.equal((await anon("network.enroll_status", { serverId: asked.data.serverId, ...(await node.sign(asked.data.serverId)) })).data.credential, undefined, "the credential is handed over once");
+      // a lost approval reply heals itself: the next fresh signed request gets a new credential, and the first one stops working
+      const first = poll.data.credential as string;
+      await new Promise((r) => setTimeout(r, 5));
+      const healed = (await anon("network.enroll_status", { serverId: asked.data.serverId, ...(await node.sign(asked.data.serverId)) })).data.credential as string;
+      assert.match(healed, /^vcc_/); assert.notEqual(healed, first);
+      const poll401 = async (credential: string) => (await fetch(`${space.url}/compute/poll`, { method: "POST", headers: { authorization: `Bearer ${credential}`, "content-type": "application/json" }, body: "{}" })).status;
+      assert.equal(await poll401(first), 401, "the old credential no longer works");
+      assert.equal(await poll401(healed), 200, "the new one does");
       assert.ok((await page.getByTestId("computers-list").innerText()).includes("Office Linux box"));
       await matrix("computers-admitted", async (p) => { await goNetwork(p); await p.getByTestId("computers-list").waitFor(); });
       // someone else's key cannot ask about this row
