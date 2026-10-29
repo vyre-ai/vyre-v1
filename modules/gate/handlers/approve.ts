@@ -92,6 +92,8 @@ export async function release(ctx: GateCtx, input: In): Promise<unknown> {
     throw e;
   }
   delete h.error;
+  const kept = result === undefined || result === null ? undefined : JSON.stringify(result);
+  if (kept !== undefined) h.result = kept.length <= 100_000 ? result : { truncated: true };
   settle(ctx, h, "approved", claims.by);
   await cancelSchedules(ctx, h);
   saveHold(ctx.db, h);

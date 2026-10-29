@@ -1561,6 +1561,11 @@ export function stubs(ctx: CallCtx) {
       stages: {
         set: call("projects.stages.set"),
       },
+      teammates: {
+        create: call("projects.teammates.create"),
+        list: call("projects.teammates.list"),
+        remove: call("projects.teammates.remove"),
+      },
       templates: {
         list: call("projects.templates.list"),
       },

@@ -2619,6 +2619,13 @@
             "pattern": "^usr_[a-z0-9]+$",
             "type": "string"
           },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
           "role": {
             "type": "string"
           },
@@ -2774,6 +2781,13 @@
             "minimum": 1,
             "type": "integer"
           },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
           "section": {
             "enum": [
               "personal",
@@ -2793,6 +2807,14 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "teammates": {
+            "enum": [
+              "hide",
+              "include",
+              "only"
+            ],
+            "type": "string"
           }
         },
         "type": "object"
@@ -34141,6 +34163,13 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
           "connectionId": {
             "examples": [
               "mcs_a1b2c3"
@@ -34154,10 +34183,19 @@
             ],
             "minLength": 1,
             "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "space",
+              "agent"
+            ],
+            "type": "string"
           }
         },
         "required": [
-          "connectionId",
           "idempotencyKey"
         ],
         "type": "object"
@@ -34245,6 +34283,10 @@
             "minLength": 1,
             "type": "string"
           },
+          "marketplace": {
+            "description": "The marketplace by name, for a Kit that cannot know its id",
+            "type": "string"
+          },
           "marketplaceId": {
             "examples": [
               "mkt_a1b2c3"
@@ -34267,7 +34309,6 @@
           }
         },
         "required": [
-          "marketplaceId",
           "plugin",
           "scope",
           "idempotencyKey"
@@ -34393,10 +34434,13 @@
             ],
             "pattern": "^mkt_[a-z0-9]+$",
             "type": "string"
+          },
+          "name": {
+            "description": "The marketplace by name, for a Kit that cannot know its id",
+            "type": "string"
           }
         },
         "required": [
-          "marketplaceId",
           "idempotencyKey"
         ],
         "type": "object"
@@ -34490,11 +34534,21 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
             ],
             "minLength": 1,
+            "type": "string"
+          },
+          "name": {
             "type": "string"
           },
           "pluginId": {
@@ -34503,10 +34557,16 @@
             ],
             "pattern": "^plg_[a-z0-9]+$",
             "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "space",
+              "agent"
+            ],
+            "type": "string"
           }
         },
         "required": [
-          "pluginId",
           "idempotencyKey"
         ],
         "type": "object"
@@ -35785,6 +35845,128 @@
       "name": "projects_stages_set",
       "planMode": "blocked",
       "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.teammates.create",
+      "deferred": false,
+      "description": "Make a teammate for this project: an agent with no computer and a project role (Lead, Member or Reviewer), by one yes; it shows on the Teammates tab, not on the Agents page",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "brief": {
+            "description": "The use-me-when line",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "Security reviewer"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "lead",
+              "member",
+              "reviewer"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "name",
+          "role",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "projects_teammates_create",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.teammates.list",
+      "deferred": false,
+      "description": "The teammates of a project: agents with a role there, with the lead first. The lead is the default participant in a new chat in the project.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_teammates_list",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.teammates.remove",
+      "deferred": false,
+      "description": "Take a teammate off the project; one made for this project moves to Trash with it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "agentId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "projects_teammates_remove",
+      "planMode": "blocked",
+      "toolset": "records",
       "v": 1
     },
     {

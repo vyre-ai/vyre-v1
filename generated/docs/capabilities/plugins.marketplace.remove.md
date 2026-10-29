@@ -25,7 +25,8 @@ Remove a marketplace; the plugins installed from it stay until they are removed
 
 ```ts
 type In = {
-  marketplaceId: string;
+  marketplaceId?: string;
+  name?: string;
   idempotencyKey: string;
 };
 ```
@@ -53,7 +54,8 @@ type Out = {
   "name": "example",
   "input": {
     "idempotencyKey": "idem_1",
-    "marketplaceId": "mkt_a1b2c3"
+    "marketplaceId": "mkt_a1b2c3",
+    "name": "example"
   },
   "output": {
     "removed": true

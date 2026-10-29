@@ -13,14 +13,24 @@ export interface PluginToolsDeps {
 }
 interface Entry { def: ToolDef; server: string; tool: string; agentId: string }
 
+/** A stable, non-cryptographic fingerprint (a key to deduplicate a retry, not a secret). */
+const hash = (s: string): string => {
+  let a = 5381, b = 52711;
+  for (let i = 0; i < s.length; i++) { a = ((a << 5) + a + s.charCodeAt(i)) >>> 0; b = ((b << 5) ^ b ^ s.charCodeAt(i)) >>> 0; }
+  return `${a.toString(36)}${b.toString(36)}`;
+};
 const slug = (s: string): string => s.replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "x";
-/** mcp__<server>__<tool>, at most 64 characters (a model API limit): the server part is cut and a short hash keeps two long names apart. */
+/** mcp__<server>__<tool>, at most 64 characters (a model API limit): a long server part is cut and a short hash of the whole name keeps two long names apart. The tool part is kept. */
 export function mcpToolName(server: string, tool: string): string {
-  const full = `mcp__${slug(server)}__${slug(tool)}`;
+  const sv = slug(server), tl = slug(tool);
+  const full = `mcp__${sv}__${tl}`;
   if (full.length <= 64) return full;
   let h = 0;
   for (const ch of full) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return `${full.slice(0, 57)}_${h.toString(36).slice(0, 6)}`;
+  const tag = h.toString(36).slice(0, 5);
+  const tail = tl.length > 36 ? tl.slice(0, 36) : tl;
+  const room = Math.max(4, 64 - "mcp__".length - "_".length - tag.length - "__".length - tail.length);
+  return `mcp__${sv.slice(0, room)}_${tag}__${tail}`;
 }
 
 /** A hook's matcher against a tool name: empty or * is every tool; anything else is a pattern that must match the whole name. */
@@ -55,8 +65,7 @@ export function createPluginTools(d: PluginToolsDeps): { extra(ctx: ToolCtx): Pr
     return out;
   };
 
-  return {
-    async extra(ctx) {
+  const list = async (ctx: ToolCtx): Promise<ToolDef[]> => {
       const rt = d.runtime();
       const mine = new Map<string, Entry>();
       byThread.set(ctx.thread.threadId, mine);
@@ -77,12 +86,23 @@ export function createPluginTools(d: PluginToolsDeps): { extra(ctx: ToolCtx): Pr
         } catch (e) { d.log?.("an outside tool server did not list its tools", { server: spec.key, error: e instanceof Error ? e.message : String(e) }); }
       }));
       return defs.sort((a, b) => a.name.localeCompare(b.name));
-    },
+  };
+
+  return {
+    extra: list,
     dynamic: {
-      find: (ctx, name) => byThread.get(ctx.thread.threadId)?.get(name)?.def,
+      find: async (ctx, name) => {
+        const known = byThread.get(ctx.thread.threadId)?.get(name)?.def;
+        if (known || !name.startsWith("mcp__")) return known;
+        await list(ctx);   // this turn has not listed its tools yet (it resumed after a hold, or a restart)
+        return byThread.get(ctx.thread.threadId)?.get(name)?.def;
+      },
       input: (ctx, t, input) => {
         const e = byThread.get(ctx.thread.threadId)?.get(t.name);
-        return { agentId: e?.agentId ?? ctx.agentId, server: e?.server ?? "", tool: e?.tool ?? "", input: input ?? {} };
+        const body = { agentId: e?.agentId ?? ctx.agentId, server: e?.server ?? "", tool: e?.tool ?? "", input: input ?? {} };
+        // A call that may change things carries an idempotency key. It comes from the turn and the call itself, so a call held at the Gate and resumed after approval is the same call (the approval is
+        // bound to its payload), while the same words in another turn are a new one.
+        return t.cap === "engine.mcp.call" ? { ...body, idempotencyKey: `mcp-${hash(`${ctx.thread.threadId}|${ctx.turnId ?? ""}|${t.name}|${JSON.stringify(body.input)}`)}` } : body;
       },
     },
     hooks: {

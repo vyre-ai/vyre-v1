@@ -74,3 +74,11 @@ test("the hook runs in the sandbox: it writes its marker in the work folder, can
   const slow = await rt!.runHook({ ...hook, command: "sleep 30", args: [], timeoutSec: 1 }, who, {});
   assert.equal(slow.timedOut, true);
 });
+
+test("a hook that runs while the server is up does not disturb the server: the next call still answers", { skip }, async () => {
+  assert.equal((await rt!.callTool(server, who, "shout", { text: "before" })).text, "BEFORE");
+  const hook: HookSpec = { pluginId: "plg_greeter", plugin: "greeter", event: "PostToolUse", matcher: "*", command: "node ${CLAUDE_PLUGIN_ROOT}/hooks/after-tool.mjs", args: [], timeoutSec: 20 };
+  await rt!.runHook(hook, who, { hook_event_name: "PostToolUse", tool_name: "x" });
+  const after = await Promise.race([rt!.callTool(server, who, "shout", { text: "after" }), new Promise<{ text: string }>((r) => setTimeout(() => r({ text: "HUNG" }), 8000))]);
+  assert.equal(after.text, "AFTER");
+});

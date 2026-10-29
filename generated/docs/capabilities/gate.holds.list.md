@@ -52,6 +52,7 @@ type Out = {
       payloadHash: string;
       createdAt: number;
       expiresAt: number;
+      result?: unknown;
     }>;
   next?: string;
   total?: number;
@@ -93,6 +94,7 @@ type Out = {
           "id": "usr_a1b2c3",
           "kind": "person"
         },
+        "result": {},
         "runId": "run_a1b2c3",
         "state": "held",
         "taskId": "tsk_a1b2c3"

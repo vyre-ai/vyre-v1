@@ -5,8 +5,12 @@ import { linkTasks, openTaskThread, plan, reschedule, stagesSet, unlinkTasks } f
 import {
   create, fileChat, fromChannel, get, list, membersList, membersRemove, membersSet, overview, pinFile, postUpdate, shareOut, sharedView, unshareOut, templatesList, unpinFile,
 } from "./project.ts";
+import { teammatesCreate, teammatesList, teammatesRemove } from "./teammates.ts";
 
 export const handlers = {
+  "projects.teammates.create": teammatesCreate,
+  "projects.teammates.list": teammatesList,
+  "projects.teammates.remove": teammatesRemove,
   "projects.apply_cascade": applyCascade,
   "projects.cascade": cascade,
   "projects.create": create,

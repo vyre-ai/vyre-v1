@@ -189,7 +189,10 @@ export interface Hold {
   id: string; act: ActKey; capName: string; capVersion: number; input: unknown; inputHash: string; payloadHash: string; principal: PrincipalRef; actingFor?: string; decisionId: string;
   runId?: string; threadId?: string; taskId: string; state: HoldState; summary: string; approver: Assignee; rule: Effective; createdAt: number; expiresAt: number;
   backstopAt?: number; backstopSchedule?: string; expireSchedule?: string; escalatedAt?: number; sendingAt?: number; decidedAt?: number; decidedBy?: string; possiblySent: boolean; error?: string;
+  /** What the approved call answered, for a chat turn that waited on it. */
+  result?: unknown;
 }
+const HOLD_SELECT_EXTRA = ", result";
 const HOLD_COLS = `id, act, cap_name, cap_version, input, input_hash, payload_hash, principal_kind, principal_id, acting_for, decision_id, run_id, thread_id, task_id, state, summary, approver, rule,
   created_at, expires_at, backstop_at, backstop_schedule, expire_schedule, escalated_at, sending_at, decided_at, decided_by, possibly_sent, error`;
 
@@ -204,6 +207,7 @@ function holdFrom(r: Raw): Hold {
     taskId: (r.task_id as string) ?? "", state: r.state as HoldState, summary: r.summary as string, approver: parse<Assignee>(r.approver, { kind: "role", id: "rol_admin" }),
     rule: parse<Effective>(r.rule, effectiveFallback()), createdAt: r.created_at as number, expiresAt: r.expires_at as number, possiblySent: num(r.possibly_sent) === 1,
   };
+  const res = str(r.result); if (res) h.result = parse<unknown>(res, null);
   const af = str(r.acting_for); if (af) h.actingFor = af;
   const run = str(r.run_id); if (run) h.runId = run;
   const th = str(r.thread_id); if (th) h.threadId = th;
@@ -220,7 +224,7 @@ function holdFrom(r: Raw): Hold {
 const effectiveFallback = (): Effective => ({ hold: true, reason: "", approvers: "role:admin", peopleOnly: true, afterHours: 24, onTimeout: "escalate", escalateTo: "delegate", emailBackstopHours: 4, sources: { space: "hold" } });
 
 export function findHold(db: Db, id: string): Hold | undefined {
-  const rows = db.all(`SELECT ${HOLD_COLS} FROM gate_holds WHERE id = ?`, id) as Raw[];
+  const rows = db.all(`SELECT ${HOLD_COLS}${HOLD_SELECT_EXTRA} FROM gate_holds WHERE id = ?`, id) as Raw[];
   return rows[0] ? holdFrom(rows[0]) : undefined;
 }
 export function getHold(ctx: GateCtx, id: string): Hold {
@@ -229,7 +233,7 @@ export function getHold(ctx: GateCtx, id: string): Hold {
   return h;
 }
 export function holdsWhere(db: Db, where = "", ...args: unknown[]): Hold[] {
-  return (db.all(`SELECT ${HOLD_COLS} FROM gate_holds${where ? ` WHERE ${where}` : ""} ORDER BY created_at DESC, id DESC`, ...args) as Raw[]).map(holdFrom);
+  return (db.all(`SELECT ${HOLD_COLS}${HOLD_SELECT_EXTRA} FROM gate_holds${where ? ` WHERE ${where}` : ""} ORDER BY created_at DESC, id DESC`, ...args) as Raw[]).map(holdFrom);
 }
 const n = (v: unknown): unknown => (v === undefined ? null : v);
 export function insertHold(db: Db, h: Hold): void {
@@ -244,16 +248,16 @@ export function insertHold(db: Db, h: Hold): void {
 export function saveHold(db: Db, h: Hold): void {
   db.run(
     `UPDATE gate_holds SET task_id = ?, state = ?, approver = ?, rule = ?, expires_at = ?, backstop_at = ?, backstop_schedule = ?, expire_schedule = ?, escalated_at = ?, sending_at = ?,
-       decided_at = ?, decided_by = ?, possibly_sent = ?, error = ? WHERE id = ?`,
+       decided_at = ?, decided_by = ?, possibly_sent = ?, error = ?, result = ? WHERE id = ?`,
     h.taskId, h.state, JSON.stringify(h.approver), JSON.stringify(h.rule), h.expiresAt, n(h.backstopAt), n(h.backstopSchedule), n(h.expireSchedule), n(h.escalatedAt), n(h.sendingAt),
-    n(h.decidedAt), n(h.decidedBy), h.possiblySent ? 1 : 0, n(h.error), h.id,
+    n(h.decidedAt), n(h.decidedBy), h.possiblySent ? 1 : 0, n(h.error), h.result === undefined ? null : JSON.stringify(h.result), h.id,
   );
 }
 
 export function holdOut(h: Hold): Record<string, unknown> {
   return clean({
     id: h.id, act: h.act, capName: h.capName, taskId: h.taskId, runId: h.runId, principal: h.principal, actingFor: h.actingFor, state: h.state, payloadHash: h.payloadHash,
-    createdAt: h.createdAt, expiresAt: h.expiresAt,
+    createdAt: h.createdAt, expiresAt: h.expiresAt, result: h.result,
   });
 }
 

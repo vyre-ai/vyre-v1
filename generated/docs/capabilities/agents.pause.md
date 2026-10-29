@@ -64,6 +64,7 @@ type Out = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
 };
 ```
@@ -112,6 +113,7 @@ type Out = {
       "pausedReason": "example",
       "role": "example",
       "status": "awake",
+      "teammateOf": "prj_a1b2c3",
       "templateVersion": 1,
       "toolsAllowed": [
         "example"

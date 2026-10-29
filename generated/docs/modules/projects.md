@@ -2,9 +2,9 @@
 
 Lane L3. Kind module. Version 0.1.0.
 
-Requires: records, tasks.
+Requires: agents, records, tasks.
 
-## Capabilities (24)
+## Capabilities (27)
 
 - [projects.apply_cascade](../capabilities/projects.apply_cascade.md): Apply a cascade proposal, or keep the dates
 - [projects.cascade](../capabilities/projects.cascade.md): Propose the cascade after something slips: which later tasks move and which dates still hold (an agent may call this too)
@@ -26,6 +26,9 @@ Requires: records, tasks.
 - [projects.share_out](../capabilities/projects.share_out.md): Make a read-only link to the project Overview for a client; it expires in 30 days unless expiresAt or expiresInDays says otherwise
 - [projects.shared_view](../capabilities/projects.shared_view.md): System: what a shared link shows a client (title, status, goal, status update, next milestones; no people, threads or files). Only the host calls it, for /share/project/<token>
 - [projects.stages.set](../capabilities/projects.stages.set.md): Create, rename, reorder or remove the stages of a plan
+- [projects.teammates.create](../capabilities/projects.teammates.create.md): Make a teammate for this project: an agent with no computer and a project role (Lead, Member or Reviewer), by one yes; it shows on the Teammates tab, not on the Agents page
+- [projects.teammates.list](../capabilities/projects.teammates.list.md): The teammates of a project: agents with a role there, with the lead first. The lead is the default participant in a new chat in the project.
+- [projects.teammates.remove](../capabilities/projects.teammates.remove.md): Take a teammate off the project; one made for this project moves to Trash with it
 - [projects.templates.list](../capabilities/projects.templates.list.md): Project templates: record types derived from Project and template projects from installed Kits
 - [projects.unlink_tasks](../capabilities/projects.unlink_tasks.md): Remove a dependency arrow
 - [projects.unpin_file](../capabilities/projects.unpin_file.md): Unpin a file from the Overview

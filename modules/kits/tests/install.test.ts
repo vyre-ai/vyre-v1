@@ -68,7 +68,7 @@ test("sheetOf: every capability the Kit calls, record type, domain, Vault name a
   const kit = checkKit(kitManifest()).kit!;
   assert.deepEqual(sheetOf(kit), {
     tools: ["automations.create", "automations.delete", "mail.send", "records.create", "schema.apply"],
-    recordTypes: ["matter"], networkDomains: ["api.stripe.com"], vaultNames: ["#Stripe_Key"], scripts: 1, problems: [],
+    recordTypes: ["matter"], networkDomains: ["api.stripe.com"], vaultNames: ["#Stripe_Key"], scripts: 1, skills: [], marketplaces: [], plugins: [], connections: [], agents: [], problems: [],
   });
   const withScriptCaps = checkKit(kitManifest({ scripts: [{ name: "s", source: "return 1", caps: ["records.query", "records.create"] }] })).kit!;
   assert.deepEqual(sheetOf(withScriptCaps).tools, ["automations.create", "automations.delete", "mail.send", "records.create", "records.query", "schema.apply"]);
@@ -101,7 +101,7 @@ test("install sheet lists everything the Kit adds, and install needs the sheet c
   const { problems, ...listed } = (await h.call("kits.install_sheet", { kitId })).sheet;
   assert.deepEqual(listed, {
     tools: ["automations.create", "automations.delete", "mail.send", "records.create", "schema.apply"],
-    recordTypes: ["matter"], networkDomains: ["api.stripe.com"], vaultNames: ["#Stripe_Key"], scripts: 1,
+    recordTypes: ["matter"], networkDomains: ["api.stripe.com"], vaultNames: ["#Stripe_Key"], scripts: 1, skills: [], marketplaces: [], plugins: [], connections: [], agents: [],
   });
   // the fixture's steps are sketches (they do not fit the real contracts), so the sheet check names them before anyone installs
   assert.ok(problems.length > 0 && problems.every((p: Obj) => typeof p.item === "string" && ["apply", "undo"].includes(p.step) && typeof p.cap === "string" && typeof p.message === "string"));
@@ -349,3 +349,40 @@ test("install: a record type the Space already has identically is accepted witho
 });
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
 // rerun on the final commit
+
+const SKILL_TEXT = "---\nname: intake-rules\ndescription: How we take a new matter.\n---\n\nAsk for the conflict names first.\n";
+const sugar = (items: Obj[]): Obj => kitManifest({ items });
+
+test("a Kit brings skills, a marketplace, a plugin, an outside tool server and an agent as shorthand, compiled to ordinary steps with an undo", () => {
+  const r = checkKit(sugar([
+    { key: "sk.intake", content: "tools", type: "skill", title: "Intake rules", skill: { text: SKILL_TEXT, files: { "references/list.md": "one" } } },
+    { key: "mk.firm", content: "tools", type: "marketplace", title: "Firm plugins", marketplace: { name: "firm-plugins", source: "https://github.com/firm/plugins" } },
+    { key: "pl.greeter", content: "tools", type: "plugin", title: "Greeter", plugin: { marketplace: "firm-plugins", name: "greeter", config: { echo_token: "#Firm_Echo.token" } } },
+    { key: "mcp.crm", content: "tools", type: "connection", title: "CRM", connection: { name: "crm", url: "https://crm.example.com/mcp", headers: { Authorization: "#Crm_Key.token" } } },
+    { key: "ag.clerk", content: "tools", type: "agent", title: "Clerk", agent: { name: "Clerk", role: "Takes intake." } },
+  ]));
+  assert.deepEqual(r.problems, []);
+  const by = (k: string) => r.kit!.items.find((i) => i.key === k)!;
+  assert.deepEqual(by("sk.intake").apply, { cap: "skills.add", input: { text: SKILL_TEXT, files: { "references/list.md": "one" }, source: "kit:law-intake", idempotencyKey: "kit.law-intake.sk.intake" } });
+  assert.deepEqual(by("sk.intake").undo, { cap: "skills.remove", input: { name: "intake-rules", idempotencyKey: "kit.law-intake.sk.intake.undo" } });
+  assert.deepEqual(by("mk.firm").undo?.input["name"], "firm-plugins");
+  assert.deepEqual([by("pl.greeter").apply!.cap, by("pl.greeter").undo!.cap, by("pl.greeter").apply!.input["marketplace"], by("pl.greeter").undo!.input["scope"]], ["plugins.install", "plugins.uninstall", "firm-plugins", "space"]);
+  assert.deepEqual([by("mcp.crm").apply!.cap, by("mcp.crm").undo!.cap], ["plugins.connection.add", "plugins.connection.remove"]);
+  assert.deepEqual([by("ag.clerk").apply!.cap, by("ag.clerk").undo], ["agents.create", undefined]);
+  // the sheet names each of them, and the Vault handle a plugin option needs
+  const sheet = sheetOf(r.kit!);
+  assert.deepEqual([sheet.skills, sheet.marketplaces, sheet.plugins, sheet.connections, sheet.agents], [["intake-rules"], ["https://github.com/firm/plugins"], ["greeter from firm-plugins"], ["crm"], ["Clerk"]]);
+  assert.deepEqual(sheet.vaultNames, ["#Firm_Echo"]);
+  assert.ok(sheet.tools.includes("skills.add") && sheet.tools.includes("plugins.install"));
+});
+
+test("shorthand is checked: one per item, not with an apply step, and each one with what it needs", () => {
+  const bad = (items: Obj[]): string => checkKit(sugar(items)).problems.join(" | ");
+  assert.match(bad([{ key: "a", content: "tools", type: "skill", title: "A", skill: { text: SKILL_TEXT }, agent: { name: "X" } }]), /carries skill and agent; use one/);
+  assert.match(bad([{ key: "a", content: "tools", type: "skill", title: "A", skill: { text: SKILL_TEXT }, apply: { cap: "records.create", input: {} } }]), /and an apply step/);
+  assert.match(bad([{ key: "a", content: "tools", type: "skill", title: "A", skill: { text: "no front matter at all" } }]), /skill\.text/);
+  assert.match(bad([{ key: "a", content: "tools", type: "plugin", title: "A", plugin: { name: "x" } }]), /a plugin has a marketplace/);
+  assert.match(bad([{ key: "a", content: "tools", type: "plugin", title: "A", plugin: { marketplace: "m", name: "x", scope: "agent" } }]), /agentId/);
+  assert.match(bad([{ key: "a", content: "tools", type: "connection", title: "A", connection: { name: "c" } }]), /either a url or a command/);
+  assert.match(bad([{ key: "a", content: "tools", type: "marketplace", title: "A", marketplace: { source: "x" } }]), /name and a source/);
+});

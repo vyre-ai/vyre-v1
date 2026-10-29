@@ -3,9 +3,8 @@
 // sandbox. Any MCP server (a URL, or a command that runs in the sandbox) can also be connected on its own. Plugin code never runs in the daemon or on the Space host.
 // DECISION: installing and the allowlist are admin acts (kits.install). Putting a plugin into one agent needs agents.manage and the plugin on the allowlist.
 // DECISION: a secret is a Vault handle (#Name.field) and the value is filled at the last moment, in the sandbox environment or the request header. No value is stored here.
-import { read, t, write } from '../packages/contracts/src/index.ts';
-import type { CapabilityDef, EventDef } from '../packages/contracts/src/index.ts';
-import { ev } from '../packages/contracts/src/index.ts';
+import { ev, read, screen, t, write } from '../packages/contracts/src/index.ts';
+import type { CapabilityDef, EventDef, KitScreenDef } from '../packages/contracts/src/index.ts';
 import { id, pageIn } from './_common.ts';
 
 const mktId = t.id('mkt');
@@ -77,19 +76,19 @@ export const pluginCapabilities: CapabilityDef[] = [
     tool: 'agents', mcpName: 'plugins_marketplace_refresh',
   }),
   write('plugins.marketplace.remove', 'Remove a marketplace; the plugins installed from it stay until they are removed', {
-    in: { marketplaceId: mktId }, out: { removed: t.bool() }, perm: 'kits.install', level: 'manage', risk: 'medium', idem: 'key', audit: 'always', emits: ['plugin.marketplace_removed'], tool: 'agents', mcpName: 'plugins_marketplace_remove',
+    in: { marketplaceId: t.opt(mktId), name: t.opt(t.str({ description: 'The marketplace by name, for a Kit that cannot know its id' })) }, out: { removed: t.bool() }, perm: 'kits.install', level: 'manage', risk: 'medium', idem: 'key', audit: 'always', emits: ['plugin.marketplace_removed'], tool: 'agents', mcpName: 'plugins_marketplace_remove',
   }),
   write('plugins.allow.set', 'Allow or stop allowing a whole marketplace, or one plugin of it', {
     in: { kind: t.enm('marketplace', 'plugin'), marketplace: t.str(), plugin: t.opt(t.str()), allowed: t.bool() }, out: { allowed: t.arr(allowRow) }, perm: 'kits.install', level: 'manage', risk: 'high', idem: 'key', audit: 'always',
     emits: ['plugin.allowlist_changed'], tool: 'agents', mcpName: 'plugins_allow',
   }),
   write('plugins.install', 'Install a plugin from a marketplace into the whole Space (admin) or into one agent: its skills, commands, sub-agents, hooks and MCP servers become available', {
-    in: { marketplaceId: mktId, plugin: t.str({ examples: ['deploy-tools'] }), scope: t.enm('space', 'agent'), agentId: t.opt(id.agent), config: t.opt(handleMap) },
+    in: { marketplaceId: t.opt(mktId), marketplace: t.opt(t.str({ description: 'The marketplace by name, for a Kit that cannot know its id' })), plugin: t.str({ examples: ['deploy-tools'] }), scope: t.enm('space', 'agent'), agentId: t.opt(id.agent), config: t.opt(handleMap) },
     out: { plugin: pluginRow }, perm: 'agents.manage', level: 'manage', risk: 'high', idem: 'key', audit: 'always', emits: ['plugin.installed'], tool: 'agents', mcpName: 'plugins_install',
     errors: ['validation.not_found', 'validation.precondition_failed', 'validation.duplicate', 'provider.unavailable', 'validation.too_large'],
   }),
   write('plugins.uninstall', 'Remove an installed plugin and what it brought', {
-    in: { pluginId: plgId }, out: { removed: t.bool() }, perm: 'agents.manage', level: 'manage', risk: 'medium', idem: 'key', audit: 'always', emits: ['plugin.uninstalled'], tool: 'agents', mcpName: 'plugins_uninstall',
+    in: { pluginId: t.opt(plgId), name: t.opt(t.str()), scope: t.opt(t.enm('space', 'agent')), agentId: t.opt(id.agent) }, out: { removed: t.bool() }, perm: 'agents.manage', level: 'manage', risk: 'medium', idem: 'key', audit: 'always', emits: ['plugin.uninstalled'], tool: 'agents', mcpName: 'plugins_uninstall',
   }),
   write('plugins.set_enabled', 'Turn an installed plugin off or on without removing it', {
     in: { pluginId: plgId, enabled: t.bool() }, out: { plugin: pluginRow }, perm: 'agents.manage', level: 'manage', idem: 'key', audit: 'always', emits: ['plugin.changed'], errors: ['validation.not_found'], tool: 'agents', mcpName: 'plugins_set_enabled',
@@ -108,7 +107,7 @@ export const pluginCapabilities: CapabilityDef[] = [
     out: { connection: connectionRow }, perm: 'agents.manage', level: 'manage', risk: 'high', idem: 'key', audit: 'always', emits: ['plugin.connection_added'], tool: 'agents', mcpName: 'plugins_connection_add', errors: ['validation.duplicate'],
   }),
   write('plugins.connection.remove', 'Disconnect an MCP server made by hand', {
-    in: { connectionId: mcsId }, out: { removed: t.bool() }, perm: 'agents.manage', level: 'manage', idem: 'key', audit: 'always', emits: ['plugin.connection_removed'], tool: 'agents', mcpName: 'plugins_connection_remove',
+    in: { connectionId: t.opt(mcsId), name: t.opt(t.str()), scope: t.opt(t.enm('space', 'agent')), agentId: t.opt(id.agent) }, out: { removed: t.bool() }, perm: 'agents.manage', level: 'manage', idem: 'key', audit: 'always', emits: ['plugin.connection_removed'], tool: 'agents', mcpName: 'plugins_connection_remove',
   }),
 ];
 
@@ -122,4 +121,30 @@ export const pluginEvents: EventDef[] = [
   ev('plugin.changed', 'A plugin was turned on or off, configured, or used to make an agent', { p: { pluginId: plgId, name: t.str(), by: t.str() }, subject: ['entity', '/pluginId'] }),
   ev('plugin.connection_added', 'An MCP server was connected', { p: { connectionId: mcsId, name: t.str(), scope: t.enm('space', 'agent'), agentId: t.opt(id.agent), by: t.str() }, subject: ['entity', '/connectionId'] }),
   ev('plugin.connection_removed', 'An MCP connection was removed', { p: { connectionId: mcsId, name: t.str(), by: t.str() }, subject: ['entity', '/connectionId'] }),
+];
+
+export const pluginScreens: KitScreenDef[] = [
+  screen('console.skills', 'console', 'ui:ConsoleSkills', {
+    q: { skills: ['skills.list', { includeOff: true }, true] },
+    a: {
+      add: ['skills.add', { text: '/draft/text', name: '/draft/name' }], remove: ['skills.remove', { name: '/state/name', agentId: '/state/agentId' }, 'Remove this skill?'],
+      toggle: ['skills.set_enabled', { name: '/state/name', agentId: '/state/agentId', enabled: '/state/enabled' }],
+    },
+    empty: 'No skills of your own yet', primary: 'Add a skill', needs: ['agents.manage'],
+  }),
+  screen('console.plugins', 'console', 'ui:ConsolePlugins', {
+    q: {
+      marketplaces: ['plugins.marketplaces.list', {}, true], browse: ['plugins.browse', { marketplaceId: '/state/marketplaceId', q: '/state/q' }, true], installed: ['plugins.list', {}, true],
+      connections: ['plugins.connections.list', {}, true], allowed: ['plugins.allow.list', {}, true],
+    },
+    a: {
+      addMarketplace: ['plugins.marketplace.add', { source: '/draft/source', ref: '/draft/ref' }, 'Add this marketplace and allow it?'], refresh: ['plugins.marketplace.refresh', { marketplaceId: '/state/marketplaceId' }],
+      removeMarketplace: ['plugins.marketplace.remove', { marketplaceId: '/state/marketplaceId' }, 'Remove this marketplace?'], allow: ['plugins.allow.set', { kind: '/state/kind', marketplace: '/state/marketplace', plugin: '/state/plugin', allowed: '/state/allowed' }],
+      install: ['plugins.install', { marketplaceId: '/state/marketplaceId', plugin: '/state/plugin', scope: '/state/scope', agentId: '/state/agentId', config: '/draft/config' }, 'Install this plugin?'],
+      uninstall: ['plugins.uninstall', { pluginId: '/state/pluginId' }, 'Remove this plugin?'], toggle: ['plugins.set_enabled', { pluginId: '/state/pluginId', enabled: '/state/enabled' }],
+      configure: ['plugins.config.set', { pluginId: '/state/pluginId', config: '/draft/config' }], connect: ['plugins.connection.add', { name: '/draft/name', scope: '/draft/scope', agentId: '/draft/agentId', url: '/draft/url', command: '/draft/command', args: '/draft/args', env: '/draft/env', headers: '/draft/headers' }],
+      disconnect: ['plugins.connection.remove', { connectionId: '/state/connectionId' }, 'Disconnect this server?'],
+    },
+    empty: 'No plugins yet', primary: 'Add a marketplace', needs: ['agents.manage'],
+  }),
 ];

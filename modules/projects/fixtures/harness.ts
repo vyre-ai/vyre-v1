@@ -58,6 +58,8 @@ export function fakeWorld(clock: { t: number }) {
   });
   const recordOut = (r: { id: string; type: string; fields: Record<string, unknown> }) => ({ id: r.id, type: r.type, version: 1, label: 0, fields: r.fields, createdAt: clock.t, updatedAt: clock.t, holds: 0 });
 
+  const agents = new Map<string, Record<string, unknown>>();
+  const trashed: string[] = [];
   const handlers: Record<string, Handler> = {
     "schema.types.get": (i) => { const t = types.get(i.type) ?? fail("validation.not_found", "no such type"); return { type: { ...t, plural: t.title, icon: "x", label: 0, system: false, fields: [], version: 1 } }; },
     "schema.describe": () => ({ types: [...types.values()].map((t) => ({ ...t, fields: t.template ? [{ key: "status", type: "status", title: "Status", options: { stages: [{ key: "planning" }, { key: "active" }, { key: "done" }] } }] : [] })) }),
@@ -86,6 +88,9 @@ export function fakeWorld(clock: { t: number }) {
     "threads.list": () => ({ threads: [{ threadId: "thr_recent", title: "Kickoff", createdAt: clock.t }] }),
     "access.principals.get": (i) => (unknown.has(i.principal.id) ? fail("validation.not_found", "no such person, agent or actor") : { principal: { id: i.principal.id, kind: i.principal.kind, status: "active" } }),
     "access.groups.get": (i) => (unknown.has(i.groupId) ? fail("validation.not_found", "no such group") : { group: { id: i.groupId }, roles: [], grants: [] }),
+    "agents.create": (i, o) => keyed(o, "ag", () => { const agentId = next("agt"); agents.set(agentId, { agentId, name: i.name, ...(i.role ? { role: i.role } : {}), status: "awake", ...(i.projectId ? { teammateOf: i.projectId } : {}) }); return { agent: agents.get(agentId) }; }),
+    "agents.get": (i) => ({ agent: agents.get(i.agentId) ?? (i.agentId === BOT ? { agentId: BOT, name: "Helper", status: "awake" } : fail("validation.not_found", "no such agent")) }),
+    "agents.delete": (i) => { trashed.push(i.agentId); agents.delete(i.agentId); return { deleted: true }; },
     "access.share": (i, o) => keyed(o, "as", () => { grants.push({ resource: i.resource, subject: i.subject, level: i.level, source: i.source }); return { grant: { id: next("gnt") } }; }),
     "access.unshare": (i) => {
       const before = grants.length;
@@ -113,7 +118,7 @@ export function fakeWorld(clock: { t: number }) {
     },
     "tasks.dependencies.remove": (i) => { const t = tasks.get(i.taskId) ?? fail("validation.not_found", "no such task"); t.dependsOn = t.dependsOn.filter((d) => d !== i.dependsOnId); return { task: taskRow(t) }; },
   };
-  return { calls, records, tasks, grants, folders, channels, posts, threadFolders, types, handlers, root, down, unknown, next };
+  return { calls, records, tasks, grants, folders, channels, posts, threadFolders, types, handlers, root, down, unknown, next, agents, trashed };
 }
 export type FakeWorld = ReturnType<typeof fakeWorld>;
 

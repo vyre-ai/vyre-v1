@@ -5348,6 +5348,24 @@
     },
     {
       "deferred": false,
+      "name": "projects_teammates_create",
+      "summary": "Make a teammate for this project: an agent with no computer and a project role (Lead, Member or Reviewer), by one yes; it shows on the Teammates tab, not on the Agents page",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_teammates_list",
+      "summary": "The teammates of a project: agents with a role there, with the lead first. The lead is the default participant in a new chat in the project.",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_teammates_remove",
+      "summary": "Take a teammate off the project; one made for this project moves to Trash with it",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_templates_list",
       "summary": "Project templates: record types derived from Project and template projects from installed Kits",
       "toolset": "records"

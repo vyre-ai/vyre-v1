@@ -1290,6 +1290,89 @@
       ],
       "type": "object"
     },
+    "s_0fe7dc663b": {
+      "properties": {
+        "act": {
+          "$ref": "#/$defs/s_75dff07a61"
+        },
+        "actingFor": {
+          "type": "string"
+        },
+        "capName": {
+          "examples": [
+            "mail.send"
+          ],
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expiresAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "hld_a1b2c3"
+          ],
+          "pattern": "^hld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "payloadHash": {
+          "type": "string"
+        },
+        "principal": {
+          "$ref": "#/$defs/s_6c1eb10d98"
+        },
+        "result": {
+          "description": "Any JSON value"
+        },
+        "runId": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "held",
+            "approved",
+            "denied",
+            "expired"
+          ],
+          "type": "string"
+        },
+        "taskId": {
+          "examples": [
+            "tsk_a1b2c3"
+          ],
+          "pattern": "^tsk_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "act",
+        "capName",
+        "taskId",
+        "principal",
+        "state",
+        "payloadHash",
+        "createdAt",
+        "expiresAt"
+      ],
+      "type": "object"
+    },
     "s_101a8e8ab2": {
       "properties": {
         "activeSec": {
@@ -2431,29 +2514,6 @@
       ],
       "type": "object"
     },
-    "s_1e9d108dd4": {
-      "properties": {
-        "idempotencyKey": {
-          "examples": [
-            "idem_1"
-          ],
-          "minLength": 1,
-          "type": "string"
-        },
-        "marketplaceId": {
-          "examples": [
-            "mkt_a1b2c3"
-          ],
-          "pattern": "^mkt_[a-z0-9]+$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "marketplaceId",
-        "idempotencyKey"
-      ],
-      "type": "object"
-    },
     "s_1ea9f5ebb0": {
       "properties": {
         "itemId": {
@@ -3147,149 +3207,6 @@
         "type": "object"
       },
       "type": "array"
-    },
-    "s_2819d08f97": {
-      "properties": {
-        "accountKey": {
-          "description": "Vault handle, never a value",
-          "examples": [
-            "#Team_Anthropic_Key"
-          ],
-          "type": "string"
-        },
-        "accountPolicy": {
-          "enum": [
-            "asker",
-            "key"
-          ],
-          "type": "string"
-        },
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "captureMode": {
-          "enum": [
-            "propose",
-            "auto_low_risk",
-            "off"
-          ],
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "face": {
-          "description": "DiceBear Notionists seed tinted per Space",
-          "examples": [
-            "intake"
-          ],
-          "type": "string"
-        },
-        "fallbackModel": {
-          "type": "string"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "hasComputer": {
-          "type": "boolean"
-        },
-        "lastActiveAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "limits": {
-          "$ref": "#/$defs/s_dd54f66d0c"
-        },
-        "model": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "ownerId": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "pattern": "^usr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "pausedBy": {
-          "type": "string"
-        },
-        "pausedReason": {
-          "type": "string"
-        },
-        "role": {
-          "description": "The \"use me when\" line",
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "awake",
-            "working",
-            "asleep",
-            "paused"
-          ],
-          "type": "string"
-        },
-        "templateVersion": {
-          "type": "integer"
-        },
-        "toolsAllowed": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "toolsDenied": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "vaultKeys": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "agentId",
-        "name",
-        "face",
-        "status",
-        "ownerId",
-        "folderId",
-        "accountPolicy",
-        "toolsAllowed",
-        "toolsDenied",
-        "vaultKeys",
-        "limits",
-        "captureMode",
-        "hasComputer",
-        "templateVersion",
-        "createdAt"
-      ],
-      "type": "object"
     },
     "s_2842806102": {
       "properties": {
@@ -5560,6 +5477,52 @@
         "from",
         "to",
         "tz"
+      ],
+      "type": "object"
+    },
+    "s_483b2d837b": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "madeForProject": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "lead",
+            "member",
+            "reviewer",
+            "guest"
+          ],
+          "type": "string"
+        },
+        "roleLine": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "awake",
+            "working",
+            "asleep",
+            "paused"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "agentId",
+        "name",
+        "role",
+        "status",
+        "madeForProject"
       ],
       "type": "object"
     },
@@ -12520,86 +12483,6 @@
       },
       "type": "array"
     },
-    "s_a7a9bf3d71": {
-      "properties": {
-        "act": {
-          "$ref": "#/$defs/s_75dff07a61"
-        },
-        "actingFor": {
-          "type": "string"
-        },
-        "capName": {
-          "examples": [
-            "mail.send"
-          ],
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "expiresAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "hld_a1b2c3"
-          ],
-          "pattern": "^hld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "payloadHash": {
-          "type": "string"
-        },
-        "principal": {
-          "$ref": "#/$defs/s_6c1eb10d98"
-        },
-        "runId": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "state": {
-          "enum": [
-            "held",
-            "approved",
-            "denied",
-            "expired"
-          ],
-          "type": "string"
-        },
-        "taskId": {
-          "examples": [
-            "tsk_a1b2c3"
-          ],
-          "pattern": "^tsk_[a-z0-9]+$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "act",
-        "capName",
-        "taskId",
-        "principal",
-        "state",
-        "payloadHash",
-        "createdAt",
-        "expiresAt"
-      ],
-      "type": "object"
-    },
     "s_a803997f5b": {
       "properties": {
         "count": {
@@ -15957,6 +15840,156 @@
       ],
       "type": "object"
     },
+    "s_d5bbc76c6b": {
+      "properties": {
+        "accountKey": {
+          "description": "Vault handle, never a value",
+          "examples": [
+            "#Team_Anthropic_Key"
+          ],
+          "type": "string"
+        },
+        "accountPolicy": {
+          "enum": [
+            "asker",
+            "key"
+          ],
+          "type": "string"
+        },
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "captureMode": {
+          "enum": [
+            "propose",
+            "auto_low_risk",
+            "off"
+          ],
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "face": {
+          "description": "DiceBear Notionists seed tinted per Space",
+          "examples": [
+            "intake"
+          ],
+          "type": "string"
+        },
+        "fallbackModel": {
+          "type": "string"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "hasComputer": {
+          "type": "boolean"
+        },
+        "lastActiveAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "limits": {
+          "$ref": "#/$defs/s_dd54f66d0c"
+        },
+        "model": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ownerId": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^usr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "pausedBy": {
+          "type": "string"
+        },
+        "pausedReason": {
+          "type": "string"
+        },
+        "role": {
+          "description": "The \"use me when\" line",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "awake",
+            "working",
+            "asleep",
+            "paused"
+          ],
+          "type": "string"
+        },
+        "teammateOf": {
+          "examples": [
+            "prj_a1b2c3"
+          ],
+          "pattern": "^prj_[a-z0-9]+$",
+          "type": "string"
+        },
+        "templateVersion": {
+          "type": "integer"
+        },
+        "toolsAllowed": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "toolsDenied": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "vaultKeys": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "agentId",
+        "name",
+        "face",
+        "status",
+        "ownerId",
+        "folderId",
+        "accountPolicy",
+        "toolsAllowed",
+        "toolsDenied",
+        "vaultKeys",
+        "limits",
+        "captureMode",
+        "hasComputer",
+        "templateVersion",
+        "createdAt"
+      ],
+      "type": "object"
+    },
     "s_d5e112d024": {
       "items": {
         "properties": {
@@ -16410,17 +16443,6 @@
       },
       "type": "object"
     },
-    "s_dd8211e1b7": {
-      "properties": {
-        "agent": {
-          "$ref": "#/$defs/s_2819d08f97"
-        }
-      },
-      "required": [
-        "agent"
-      ],
-      "type": "object"
-    },
     "s_de4eba3dc2": {
       "properties": {
         "agentId": {
@@ -16812,6 +16834,17 @@
       },
       "required": [
         "rules"
+      ],
+      "type": "object"
+    },
+    "s_e2f4c3a96a": {
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/s_d5bbc76c6b"
+        }
+      },
+      "required": [
+        "agent"
       ],
       "type": "object"
     },
@@ -26207,6 +26240,7 @@
             "model": "example",
             "name": "Intake",
             "ownerId": "usr_a1b2c3",
+            "projectId": "prj_a1b2c3",
             "role": "example",
             "templateKey": "example",
             "tools": {
@@ -26246,6 +26280,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
                 "example"
@@ -26295,6 +26330,13 @@
             "pattern": "^usr_[a-z0-9]+$",
             "type": "string"
           },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
           "role": {
             "type": "string"
           },
@@ -26334,7 +26376,7 @@
       "name": "agents.create",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_e2f4c3a96a"
       },
       "permission": "agents.create",
       "resource": {
@@ -26470,6 +26512,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
                 "example"
@@ -26505,7 +26548,7 @@
       "module": "agents",
       "name": "agents.get",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_e2f4c3a96a"
       },
       "permission": null,
       "resource": {
@@ -26691,10 +26734,12 @@
             "cursor": "example",
             "folderId": "fld_a1b2c3",
             "limit": 1,
+            "projectId": "prj_a1b2c3",
             "section": "personal",
             "status": [
               "awake"
-            ]
+            ],
+            "teammates": "hide"
           },
           "name": "example",
           "output": {
@@ -26725,6 +26770,7 @@
                 "pausedReason": "example",
                 "role": "example",
                 "status": "awake",
+                "teammateOf": "prj_a1b2c3",
                 "templateVersion": 1,
                 "toolsAllowed": [
                   "example"
@@ -26760,6 +26806,13 @@
             "minimum": 1,
             "type": "integer"
           },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
           "section": {
             "enum": [
               "personal",
@@ -26779,6 +26832,14 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "teammates": {
+            "enum": [
+              "hide",
+              "include",
+              "only"
+            ],
+            "type": "string"
           }
         },
         "type": "object"
@@ -26791,7 +26852,7 @@
         "properties": {
           "agents": {
             "items": {
-              "$ref": "#/$defs/s_2819d08f97"
+              "$ref": "#/$defs/s_d5bbc76c6b"
             },
             "type": "array"
           },
@@ -26870,6 +26931,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
                 "example"
@@ -26907,7 +26969,7 @@
       "module": "agents",
       "name": "agents.pause",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_e2f4c3a96a"
       },
       "permission": null,
       "resource": {
@@ -26970,6 +27032,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
                 "example"
@@ -27004,7 +27067,7 @@
       "module": "agents",
       "name": "agents.restore",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_e2f4c3a96a"
       },
       "permission": null,
       "resource": {
@@ -27069,6 +27132,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
                 "example"
@@ -27118,7 +27182,7 @@
       "module": "agents",
       "name": "agents.restore_version",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_e2f4c3a96a"
       },
       "permission": null,
       "resource": {
@@ -27184,6 +27248,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
                 "example"
@@ -27218,7 +27283,7 @@
       "module": "agents",
       "name": "agents.resume",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_e2f4c3a96a"
       },
       "permission": null,
       "resource": {
@@ -27282,6 +27347,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
                 "example"
@@ -27325,7 +27391,7 @@
       "output": {
         "properties": {
           "agent": {
-            "$ref": "#/$defs/s_2819d08f97"
+            "$ref": "#/$defs/s_d5bbc76c6b"
           },
           "undoVersionId": {
             "examples": [
@@ -27966,6 +28032,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
                 "example"
@@ -28012,7 +28079,7 @@
       "module": "agents",
       "name": "agents.set_owner",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_e2f4c3a96a"
       },
       "permission": null,
       "resource": {
@@ -28965,6 +29032,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
                 "example"
@@ -29005,7 +29073,7 @@
       "name": "agents.update",
       "offline": "patch",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_e2f4c3a96a"
       },
       "permission": null,
       "resource": {
@@ -75951,6 +76019,7 @@
                 "id": "usr_a1b2c3",
                 "kind": "person"
               },
+              "result": {},
               "runId": "run_a1b2c3",
               "state": "held",
               "taskId": "tsk_a1b2c3"
@@ -75981,7 +76050,7 @@
       "output": {
         "properties": {
           "hold": {
-            "$ref": "#/$defs/s_a7a9bf3d71"
+            "$ref": "#/$defs/s_0fe7dc663b"
           }
         },
         "required": [
@@ -76039,6 +76108,7 @@
                   "id": "usr_a1b2c3",
                   "kind": "person"
                 },
+                "result": {},
                 "runId": "run_a1b2c3",
                 "state": "held",
                 "taskId": "tsk_a1b2c3"
@@ -76093,7 +76163,7 @@
         "properties": {
           "holds": {
             "items": {
-              "$ref": "#/$defs/s_a7a9bf3d71"
+              "$ref": "#/$defs/s_0fe7dc663b"
             },
             "type": "array"
           },
@@ -98576,7 +98646,19 @@
           "name": "example",
           "output": {
             "sheet": {
+              "agents": [
+                "example"
+              ],
+              "connections": [
+                "example"
+              ],
+              "marketplaces": [
+                "example"
+              ],
               "networkDomains": [
+                "example"
+              ],
+              "plugins": [
                 "example"
               ],
               "problems": [
@@ -98592,6 +98674,9 @@
                 "example"
               ],
               "scripts": 1,
+              "skills": [
+                "example"
+              ],
               "tools": [
                 "example"
               ],
@@ -98625,7 +98710,31 @@
         "properties": {
           "sheet": {
             "properties": {
+              "agents": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "connections": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "marketplaces": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
               "networkDomains": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "plugins": {
                 "items": {
                   "type": "string"
                 },
@@ -98675,6 +98784,12 @@
               "scripts": {
                 "type": "integer"
               },
+              "skills": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
               "tools": {
                 "items": {
                   "type": "string"
@@ -98694,6 +98809,11 @@
               "networkDomains",
               "vaultNames",
               "scripts",
+              "skills",
+              "marketplaces",
+              "plugins",
+              "connections",
+              "agents",
               "problems"
             ],
             "type": "object"
@@ -123030,8 +123150,11 @@
       "examples": [
         {
           "input": {
+            "agentId": "agt_a1b2c3",
             "connectionId": "mcs_a1b2c3",
-            "idempotencyKey": "idem_1"
+            "idempotencyKey": "idem_1",
+            "name": "example",
+            "scope": "space"
           },
           "name": "example",
           "output": {
@@ -123042,6 +123165,13 @@
       "idempotency": "key",
       "input": {
         "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
           "connectionId": {
             "examples": [
               "mcs_a1b2c3"
@@ -123055,10 +123185,19 @@
             ],
             "minLength": 1,
             "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "space",
+              "agent"
+            ],
+            "type": "string"
           }
         },
         "required": [
-          "connectionId",
           "idempotencyKey"
         ],
         "type": "object"
@@ -123482,6 +123621,7 @@
             "agentId": "agt_a1b2c3",
             "config": {},
             "idempotencyKey": "idem_1",
+            "marketplace": "example",
             "marketplaceId": "mkt_a1b2c3",
             "plugin": "deploy-tools",
             "scope": "space"
@@ -123557,6 +123697,10 @@
             "minLength": 1,
             "type": "string"
           },
+          "marketplace": {
+            "description": "The marketplace by name, for a Kit that cannot know its id",
+            "type": "string"
+          },
           "marketplaceId": {
             "examples": [
               "mkt_a1b2c3"
@@ -123579,7 +123723,6 @@
           }
         },
         "required": [
-          "marketplaceId",
           "plugin",
           "scope",
           "idempotencyKey"
@@ -123852,7 +123995,27 @@
       ],
       "idempotency": "key",
       "input": {
-        "$ref": "#/$defs/s_1e9d108dd4"
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "marketplaceId": {
+            "examples": [
+              "mkt_a1b2c3"
+            ],
+            "pattern": "^mkt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "marketplaceId",
+          "idempotencyKey"
+        ],
+        "type": "object"
       },
       "level": "manage",
       "module": "agents",
@@ -123893,7 +124056,8 @@
         {
           "input": {
             "idempotencyKey": "idem_1",
-            "marketplaceId": "mkt_a1b2c3"
+            "marketplaceId": "mkt_a1b2c3",
+            "name": "example"
           },
           "name": "example",
           "output": {
@@ -123903,7 +124067,30 @@
       ],
       "idempotency": "key",
       "input": {
-        "$ref": "#/$defs/s_1e9d108dd4"
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "marketplaceId": {
+            "examples": [
+              "mkt_a1b2c3"
+            ],
+            "pattern": "^mkt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "description": "The marketplace by name, for a Kit that cannot know its id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
       },
       "level": "manage",
       "module": "agents",
@@ -124307,8 +124494,11 @@
       "examples": [
         {
           "input": {
+            "agentId": "agt_a1b2c3",
             "idempotencyKey": "idem_1",
-            "pluginId": "plg_a1b2c3"
+            "name": "example",
+            "pluginId": "plg_a1b2c3",
+            "scope": "space"
           },
           "name": "example",
           "output": {
@@ -124319,11 +124509,21 @@
       "idempotency": "key",
       "input": {
         "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
             ],
             "minLength": 1,
+            "type": "string"
+          },
+          "name": {
             "type": "string"
           },
           "pluginId": {
@@ -124332,10 +124532,16 @@
             ],
             "pattern": "^plg_[a-z0-9]+$",
             "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "space",
+              "agent"
+            ],
+            "type": "string"
           }
         },
         "required": [
-          "pluginId",
           "idempotencyKey"
         ],
         "type": "object"
@@ -127943,6 +128149,294 @@
         "http": "auto",
         "mcp": {
           "toolset": "tasks"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "project.member_set",
+        "agent.created"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.not_contained",
+        "validation.bad_input",
+        "validation.duplicate",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "brief": "example",
+            "idempotencyKey": "idem_1",
+            "name": "Security reviewer",
+            "projectId": "prj_a1b2c3",
+            "role": "lead"
+          },
+          "name": "example",
+          "output": {
+            "teammate": {
+              "agentId": "agt_a1b2c3",
+              "madeForProject": true,
+              "name": "example",
+              "role": "lead",
+              "roleLine": "example",
+              "status": "awake"
+            }
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "brief": {
+            "description": "The use-me-when line",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "Security reviewer"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "lead",
+              "member",
+              "reviewer"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "name",
+          "role",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "projects",
+      "name": "projects.teammates.create",
+      "output": {
+        "properties": {
+          "teammate": {
+            "$ref": "#/$defs/s_483b2d837b"
+          }
+        },
+        "required": [
+          "teammate"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/projectId",
+        "type": "project"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Make a teammate for this project: an agent with no computer and a project role (Lead, Member or Reviewer), by one yes; it shows on the Teammates tab, not on the Agents page",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "projectId": "prj_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "leadAgentId": "agt_a1b2c3",
+            "teammates": [
+              {
+                "agentId": "agt_a1b2c3",
+                "madeForProject": true,
+                "name": "example",
+                "role": "lead",
+                "roleLine": "example",
+                "status": "awake"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "projects",
+      "name": "projects.teammates.list",
+      "output": {
+        "properties": {
+          "leadAgentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "teammates": {
+            "items": {
+              "$ref": "#/$defs/s_483b2d837b"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "teammates"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/projectId",
+        "type": "project"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The teammates of a project: agents with a role there, with the lead first. The lead is the default participant in a new chat in the project.",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "project.member_removed",
+        "agent.deleted"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "idempotencyKey": "idem_1",
+            "projectId": "prj_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "removed": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "agentId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "projects",
+      "name": "projects.teammates.remove",
+      "output": {
+        "properties": {
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/projectId",
+        "type": "project"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Take a teammate off the project; one made for this project moves to Trash with it",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
         }
       },
       "v": 1
@@ -203020,6 +203514,7 @@
       "kind": "module",
       "owner": "L3",
       "requires": [
+        "agents",
         "records",
         "tasks"
       ],
@@ -209769,6 +210264,147 @@
     },
     {
       "actions": {
+        "addMarketplace": {
+          "cap": "plugins.marketplace.add",
+          "confirm": "Add this marketplace and allow it?",
+          "input": {
+            "ref": "/draft/ref",
+            "source": "/draft/source"
+          }
+        },
+        "allow": {
+          "cap": "plugins.allow.set",
+          "input": {
+            "allowed": "/state/allowed",
+            "kind": "/state/kind",
+            "marketplace": "/state/marketplace",
+            "plugin": "/state/plugin"
+          }
+        },
+        "configure": {
+          "cap": "plugins.config.set",
+          "input": {
+            "config": "/draft/config",
+            "pluginId": "/state/pluginId"
+          }
+        },
+        "connect": {
+          "cap": "plugins.connection.add",
+          "input": {
+            "agentId": "/draft/agentId",
+            "args": "/draft/args",
+            "command": "/draft/command",
+            "env": "/draft/env",
+            "headers": "/draft/headers",
+            "name": "/draft/name",
+            "scope": "/draft/scope",
+            "url": "/draft/url"
+          }
+        },
+        "disconnect": {
+          "cap": "plugins.connection.remove",
+          "confirm": "Disconnect this server?",
+          "input": {
+            "connectionId": "/state/connectionId"
+          }
+        },
+        "install": {
+          "cap": "plugins.install",
+          "confirm": "Install this plugin?",
+          "input": {
+            "agentId": "/state/agentId",
+            "config": "/draft/config",
+            "marketplaceId": "/state/marketplaceId",
+            "plugin": "/state/plugin",
+            "scope": "/state/scope"
+          }
+        },
+        "refresh": {
+          "cap": "plugins.marketplace.refresh",
+          "input": {
+            "marketplaceId": "/state/marketplaceId"
+          }
+        },
+        "removeMarketplace": {
+          "cap": "plugins.marketplace.remove",
+          "confirm": "Remove this marketplace?",
+          "input": {
+            "marketplaceId": "/state/marketplaceId"
+          }
+        },
+        "toggle": {
+          "cap": "plugins.set_enabled",
+          "input": {
+            "enabled": "/state/enabled",
+            "pluginId": "/state/pluginId"
+          }
+        },
+        "uninstall": {
+          "cap": "plugins.uninstall",
+          "confirm": "Remove this plugin?",
+          "input": {
+            "pluginId": "/state/pluginId"
+          }
+        }
+      },
+      "builtin": "ui:ConsolePlugins",
+      "id": "console.plugins",
+      "module": "agents",
+      "needs": [
+        "agents.manage"
+      ],
+      "perf": {
+        "completeMs": 100,
+        "firstPaintMs": 50
+      },
+      "place": "console",
+      "queries": {
+        "allowed": {
+          "cap": "plugins.allow.list",
+          "input": {},
+          "live": true
+        },
+        "browse": {
+          "cap": "plugins.browse",
+          "input": {
+            "marketplaceId": "/state/marketplaceId",
+            "q": "/state/q"
+          },
+          "live": true
+        },
+        "connections": {
+          "cap": "plugins.connections.list",
+          "input": {},
+          "live": true
+        },
+        "installed": {
+          "cap": "plugins.list",
+          "input": {},
+          "live": true
+        },
+        "marketplaces": {
+          "cap": "plugins.marketplaces.list",
+          "input": {},
+          "live": true
+        }
+      },
+      "slot": "main",
+      "states": {
+        "empty": {
+          "line": "No plugins yet",
+          "primary": "Add a marketplace"
+        },
+        "error": {
+          "line": "Couldn't load this",
+          "primary": "Try again"
+        },
+        "offline": {
+          "line": "Offline, showing your saved copy"
+        }
+      }
+    },
+    {
+      "actions": {
         "apply": {
           "cap": "schema.apply",
           "confirm": "Apply these changes?",
@@ -209968,6 +210604,67 @@
         "empty": {
           "line": "No updates yet",
           "primary": "Check for updates"
+        },
+        "error": {
+          "line": "Couldn't load this",
+          "primary": "Try again"
+        },
+        "offline": {
+          "line": "Offline, showing your saved copy"
+        }
+      }
+    },
+    {
+      "actions": {
+        "add": {
+          "cap": "skills.add",
+          "input": {
+            "name": "/draft/name",
+            "text": "/draft/text"
+          }
+        },
+        "remove": {
+          "cap": "skills.remove",
+          "confirm": "Remove this skill?",
+          "input": {
+            "agentId": "/state/agentId",
+            "name": "/state/name"
+          }
+        },
+        "toggle": {
+          "cap": "skills.set_enabled",
+          "input": {
+            "agentId": "/state/agentId",
+            "enabled": "/state/enabled",
+            "name": "/state/name"
+          }
+        }
+      },
+      "builtin": "ui:ConsoleSkills",
+      "id": "console.skills",
+      "module": "agents",
+      "needs": [
+        "agents.manage"
+      ],
+      "perf": {
+        "completeMs": 100,
+        "firstPaintMs": 50
+      },
+      "place": "console",
+      "queries": {
+        "skills": {
+          "cap": "skills.list",
+          "input": {
+            "includeOff": true
+          },
+          "live": true
+        }
+      },
+      "slot": "main",
+      "states": {
+        "empty": {
+          "line": "No skills of your own yet",
+          "primary": "Add a skill"
         },
         "error": {
           "line": "Couldn't load this",

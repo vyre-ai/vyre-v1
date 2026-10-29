@@ -856,3 +856,13 @@ export async function makeFolder(ctx: AgentsCtx, parentId: string, name: string,
 export async function makeFile(ctx: AgentsCtx, folderId: string, name: string, text: string, key: string): Promise<FileOut> {
   return (await call<{ file: FileOut }>(ctx, "files.create", { folderId, name, content: { text }, idempotencyKey: key }, { idempotencyKey: key })).file;
 }
+
+/** The project an agent was made for (a teammate), or undefined for an agent of the Space. Kept in agents_meta so the agent record keeps its shape. */
+export const teammateOf = (db: Db, agentId: string): string | undefined => meta(db, `teammate:${agentId}`);
+export const markTeammate = (db: Db, agentId: string, projectId: string): void => setMeta(db, `teammate:${agentId}`, projectId);
+/** An agent as the contract returns it, with the project it is a teammate of when it is one. */
+export function agentView(db: Db, a: AgentRec, now: number): Record<string, unknown> {
+  const out = agentOut(a, now);
+  const project = teammateOf(db, a.id);
+  return project === undefined ? out : { ...out, teammateOf: project };
+}

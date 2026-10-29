@@ -1561,6 +1561,11 @@ export function createClient(transport: Transport) {
       stages: {
         set: call("projects.stages.set", 1),
       },
+      teammates: {
+        create: call("projects.teammates.create", 1),
+        list: call("projects.teammates.list", 1),
+        remove: call("projects.teammates.remove", 1),
+      },
       templates: {
         list: call("projects.templates.list", 1),
       },

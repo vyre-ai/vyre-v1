@@ -1060,6 +1060,7 @@ export type AgentsCreateIn = {
     minutesPerRun?: number;
     tokensPerDay?: number;
   };
+  projectId?: string;
   idempotencyKey: string;
 };
 export type AgentsCreateOut = {
@@ -1093,6 +1094,7 @@ export type AgentsCreateOut = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
 };
 export type AgentsDeleteIn = {
@@ -1135,6 +1137,7 @@ export type AgentsGetOut = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
 };
 export type AgentsGuideGetIn = Record<string, unknown>;
@@ -1161,6 +1164,8 @@ export type AgentsListIn = {
   section?: "personal" | "shared" | "space";
   folderId?: string;
   status?: Array<"awake" | "working" | "asleep" | "paused">;
+  teammates?: "hide" | "include" | "only";
+  projectId?: string;
   cursor?: string;
   limit?: number;
 };
@@ -1195,6 +1200,7 @@ export type AgentsListOut = {
       templateVersion: number;
       createdAt: number;
       lastActiveAt?: number;
+      teammateOf?: string;
     }>;
   next?: string;
   total?: number;
@@ -1234,6 +1240,7 @@ export type AgentsPauseOut = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
 };
 export type AgentsRestoreIn = {
@@ -1270,6 +1277,7 @@ export type AgentsRestoreOut = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
 };
 export type AgentsRestoreVersionIn = {
@@ -1308,6 +1316,7 @@ export type AgentsRestoreVersionOut = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
 };
 export type AgentsResumeIn = {
@@ -1344,6 +1353,7 @@ export type AgentsResumeOut = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
 };
 export type AgentsRoleLineSetIn = {
@@ -1381,6 +1391,7 @@ export type AgentsRoleLineSetOut = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
   undoVersionId: string;
 };
@@ -1536,6 +1547,7 @@ export type AgentsSetOwnerOut = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
 };
 export type AgentsSnapshotTakeIn = {
@@ -1722,6 +1734,7 @@ export type AgentsUpdateOut = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
 };
 export type AgentsVersionsIn = {
@@ -10344,6 +10357,7 @@ export type GateHoldsGetOut = {
     payloadHash: string;
     createdAt: number;
     expiresAt: number;
+    result?: unknown;
   };
 };
 export type GateHoldsListIn = {
@@ -10369,6 +10383,7 @@ export type GateHoldsListOut = {
       payloadHash: string;
       createdAt: number;
       expiresAt: number;
+      result?: unknown;
     }>;
   next?: string;
   total?: number;
@@ -14069,6 +14084,11 @@ export type KitsInstallSheetOut = {
     networkDomains: Array<string>;
     vaultNames: Array<string>;
     scripts: number;
+    skills: Array<string>;
+    marketplaces: Array<string>;
+    plugins: Array<string>;
+    connections: Array<string>;
+    agents: Array<string>;
     problems: Array<{
         item: string;
         step: "apply" | "undo";
@@ -17894,7 +17914,10 @@ export type PluginsConnectionAddOut = {
   };
 };
 export type PluginsConnectionRemoveIn = {
-  connectionId: string;
+  connectionId?: string;
+  name?: string;
+  scope?: "space" | "agent";
+  agentId?: string;
   idempotencyKey: string;
 };
 export type PluginsConnectionRemoveOut = {
@@ -17975,7 +17998,8 @@ export type PluginsHooksListOut = {
     }>;
 };
 export type PluginsInstallIn = {
-  marketplaceId: string;
+  marketplaceId?: string;
+  marketplace?: string;
   plugin: string;
   scope: "space" | "agent";
   agentId?: string;
@@ -18091,7 +18115,8 @@ export type PluginsMarketplaceRefreshOut = {
   };
 };
 export type PluginsMarketplaceRemoveIn = {
-  marketplaceId: string;
+  marketplaceId?: string;
+  name?: string;
   idempotencyKey: string;
 };
 export type PluginsMarketplaceRemoveOut = {
@@ -18171,7 +18196,10 @@ export type PluginsSetEnabledOut = {
   };
 };
 export type PluginsUninstallIn = {
-  pluginId: string;
+  pluginId?: string;
+  name?: string;
+  scope?: "space" | "agent";
+  agentId?: string;
   idempotencyKey: string;
 };
 export type PluginsUninstallOut = {
@@ -18694,6 +18722,45 @@ export type ProjectsStagesSetOut = {
       title: string;
       order: number;
     }>;
+};
+export type ProjectsTeammatesCreateIn = {
+  projectId: string;
+  name: string;
+  role: "lead" | "member" | "reviewer";
+  brief?: string;
+  idempotencyKey: string;
+};
+export type ProjectsTeammatesCreateOut = {
+  teammate: {
+    agentId: string;
+    name: string;
+    role: "lead" | "member" | "reviewer" | "guest";
+    roleLine?: string;
+    status: "awake" | "working" | "asleep" | "paused";
+    madeForProject: boolean;
+  };
+};
+export type ProjectsTeammatesListIn = {
+  projectId: string;
+};
+export type ProjectsTeammatesListOut = {
+  teammates: Array<{
+      agentId: string;
+      name: string;
+      role: "lead" | "member" | "reviewer" | "guest";
+      roleLine?: string;
+      status: "awake" | "working" | "asleep" | "paused";
+      madeForProject: boolean;
+    }>;
+  leadAgentId?: string;
+};
+export type ProjectsTeammatesRemoveIn = {
+  projectId: string;
+  agentId: string;
+  idempotencyKey: string;
+};
+export type ProjectsTeammatesRemoveOut = {
+  removed: boolean;
 };
 export type ProjectsTemplatesListIn = Record<string, unknown>;
 export type ProjectsTemplatesListOut = {
@@ -28629,6 +28696,9 @@ export interface CapMap {
   "projects.share_out": { in: ProjectsShareOutIn; out: ProjectsShareOutOut };
   "projects.shared_view": { in: ProjectsSharedViewIn; out: ProjectsSharedViewOut };
   "projects.stages.set": { in: ProjectsStagesSetIn; out: ProjectsStagesSetOut };
+  "projects.teammates.create": { in: ProjectsTeammatesCreateIn; out: ProjectsTeammatesCreateOut };
+  "projects.teammates.list": { in: ProjectsTeammatesListIn; out: ProjectsTeammatesListOut };
+  "projects.teammates.remove": { in: ProjectsTeammatesRemoveIn; out: ProjectsTeammatesRemoveOut };
   "projects.templates.list": { in: ProjectsTemplatesListIn; out: ProjectsTemplatesListOut };
   "projects.unlink_tasks": { in: ProjectsUnlinkTasksIn; out: ProjectsUnlinkTasksOut };
   "projects.unpin_file": { in: ProjectsUnpinFileIn; out: ProjectsUnpinFileOut };

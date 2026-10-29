@@ -409,6 +409,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.console.plugins",
+      "place": "console",
+      "screen": "console.plugins"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.console.schema",
       "place": "console",
       "screen": "console.schema"
@@ -426,6 +433,13 @@
       "id": "screen.console.server-updates",
       "place": "console",
       "screen": "console.server-updates"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.skills",
+      "place": "console",
+      "screen": "console.skills"
     },
     {
       "completeMs": 100,

@@ -219,6 +219,7 @@ export const NAV: readonly NavGroup[] = [
   { key: "agents", title: "Agents and actors", pages: [
     { key: "console.agents-register", title: "Agents", perm: C }, { key: "console.outside-actors", title: "Outside actors", perm: "access.manage" },
     { key: "console.agent-computers", title: "Agent computers", perm: C }, { key: "console.agent-template", title: "Agent template", perm: "agents.manage" },
+    { key: "console.skills", title: "Skills", perm: "agents.manage" }, { key: "console.plugins", title: "Plugins and tools", perm: "agents.manage" },
   ] },
   { key: "data", title: "Data", pages: [
     { key: "console.schema", title: "Schema", perm: "schema.manage" }, { key: "console.labels", title: "Sensitivity labels", perm: "policy.manage" },

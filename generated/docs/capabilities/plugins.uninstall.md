@@ -25,7 +25,10 @@ Remove an installed plugin and what it brought
 
 ```ts
 type In = {
-  pluginId: string;
+  pluginId?: string;
+  name?: string;
+  scope?: "space" | "agent";
+  agentId?: string;
   idempotencyKey: string;
 };
 ```
@@ -52,8 +55,11 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "agentId": "agt_a1b2c3",
     "idempotencyKey": "idem_1",
-    "pluginId": "plg_a1b2c3"
+    "name": "example",
+    "pluginId": "plg_a1b2c3",
+    "scope": "space"
   },
   "output": {
     "removed": true

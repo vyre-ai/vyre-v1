@@ -2972,6 +2972,135 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "console.plugins",
+    "module": "agents",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsolePlugins",
+    "caller": "principal",
+    "queries": {
+      "marketplaces": {
+        "cap": "plugins.marketplaces.list",
+        "input": {},
+        "live": true
+      },
+      "browse": {
+        "cap": "plugins.browse",
+        "input": {
+          "marketplaceId": "/state/marketplaceId",
+          "q": "/state/q"
+        },
+        "live": true
+      },
+      "installed": {
+        "cap": "plugins.list",
+        "input": {},
+        "live": true
+      },
+      "connections": {
+        "cap": "plugins.connections.list",
+        "input": {},
+        "live": true
+      },
+      "allowed": {
+        "cap": "plugins.allow.list",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "addMarketplace": {
+        "cap": "plugins.marketplace.add",
+        "input": {
+          "source": "/draft/source",
+          "ref": "/draft/ref"
+        },
+        "confirm": "Add this marketplace and allow it?"
+      },
+      "refresh": {
+        "cap": "plugins.marketplace.refresh",
+        "input": {
+          "marketplaceId": "/state/marketplaceId"
+        }
+      },
+      "removeMarketplace": {
+        "cap": "plugins.marketplace.remove",
+        "input": {
+          "marketplaceId": "/state/marketplaceId"
+        },
+        "confirm": "Remove this marketplace?"
+      },
+      "allow": {
+        "cap": "plugins.allow.set",
+        "input": {
+          "kind": "/state/kind",
+          "marketplace": "/state/marketplace",
+          "plugin": "/state/plugin",
+          "allowed": "/state/allowed"
+        }
+      },
+      "install": {
+        "cap": "plugins.install",
+        "input": {
+          "marketplaceId": "/state/marketplaceId",
+          "plugin": "/state/plugin",
+          "scope": "/state/scope",
+          "agentId": "/state/agentId",
+          "config": "/draft/config"
+        },
+        "confirm": "Install this plugin?"
+      },
+      "uninstall": {
+        "cap": "plugins.uninstall",
+        "input": {
+          "pluginId": "/state/pluginId"
+        },
+        "confirm": "Remove this plugin?"
+      },
+      "toggle": {
+        "cap": "plugins.set_enabled",
+        "input": {
+          "pluginId": "/state/pluginId",
+          "enabled": "/state/enabled"
+        }
+      },
+      "configure": {
+        "cap": "plugins.config.set",
+        "input": {
+          "pluginId": "/state/pluginId",
+          "config": "/draft/config"
+        }
+      },
+      "connect": {
+        "cap": "plugins.connection.add",
+        "input": {
+          "name": "/draft/name",
+          "scope": "/draft/scope",
+          "agentId": "/draft/agentId",
+          "url": "/draft/url",
+          "command": "/draft/command",
+          "args": "/draft/args",
+          "env": "/draft/env",
+          "headers": "/draft/headers"
+        }
+      },
+      "disconnect": {
+        "cap": "plugins.connection.remove",
+        "input": {
+          "connectionId": "/state/connectionId"
+        },
+        "confirm": "Disconnect this server?"
+      }
+    },
+    "needs": [
+      "agents.manage"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "console.schema",
     "module": "schema",
     "place": "console",
@@ -3141,6 +3270,55 @@ export const screens: ScreenIndexEntry[] = [
     },
     "needs": [
       "server.update"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "console.skills",
+    "module": "agents",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleSkills",
+    "caller": "principal",
+    "queries": {
+      "skills": {
+        "cap": "skills.list",
+        "input": {
+          "includeOff": true
+        },
+        "live": true
+      }
+    },
+    "actions": {
+      "add": {
+        "cap": "skills.add",
+        "input": {
+          "text": "/draft/text",
+          "name": "/draft/name"
+        }
+      },
+      "remove": {
+        "cap": "skills.remove",
+        "input": {
+          "name": "/state/name",
+          "agentId": "/state/agentId"
+        },
+        "confirm": "Remove this skill?"
+      },
+      "toggle": {
+        "cap": "skills.set_enabled",
+        "input": {
+          "name": "/state/name",
+          "agentId": "/state/agentId",
+          "enabled": "/state/enabled"
+        }
+      }
+    },
+    "needs": [
+      "agents.manage"
     ],
     "perf": {
       "firstPaintMs": 50,

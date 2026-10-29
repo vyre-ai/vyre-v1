@@ -16,7 +16,8 @@ export type ToolOutcome =
 
 /** Tools of a turn that are not in the generated catalog: the MCP tools of a plugin or a connection. Each is called through one capability (def.cap), so access, the Gate and the audit apply as to any tool. */
 export interface DynamicTools {
-  find(ctx: ToolCtx, name: string): ToolDef | undefined;
+  /** May be async: a turn that resumes after a hold or a restart has not listed its tools again yet, so the first call finds them then. */
+  find(ctx: ToolCtx, name: string): ToolDef | undefined | Promise<ToolDef | undefined>;
   /** The input of that capability for one call of the tool. */
   input(ctx: ToolCtx, t: ToolDef, input: unknown): unknown;
 }
@@ -89,7 +90,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
 
   async function call(ctx: ToolCtx, name: string, input: unknown, opts: { approval?: string } = {}): Promise<ToolOutcome> {
     const traceId = ctx.trace?.traceId ?? newTrace();
-    const t = deps.catalog.byName(name) ?? deps.dynamic?.find(ctx, name);
+    const t = deps.catalog.byName(name) ?? (await deps.dynamic?.find(ctx, name));
     if (!t) return fail("validation.unknown_capability", traceId, { message: "There is no such tool.", details: { tool: name } });
 
     const level = askLevel(deps, ctx.asker, ctx.thread);

@@ -25,7 +25,10 @@ Disconnect an MCP server made by hand
 
 ```ts
 type In = {
-  connectionId: string;
+  connectionId?: string;
+  name?: string;
+  scope?: "space" | "agent";
+  agentId?: string;
   idempotencyKey: string;
 };
 ```
@@ -52,8 +55,11 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "agentId": "agt_a1b2c3",
     "connectionId": "mcs_a1b2c3",
-    "idempotencyKey": "idem_1"
+    "idempotencyKey": "idem_1",
+    "name": "example",
+    "scope": "space"
   },
   "output": {
     "removed": true

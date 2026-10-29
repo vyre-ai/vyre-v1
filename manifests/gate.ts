@@ -17,6 +17,7 @@ const ruleRow = t.obj({
 const holdRow = t.obj({
   id: t.id('hld'), act: actKey, capName: t.str({ examples: ['mail.send'] }), taskId: id.task, runId: t.opt(id.run), principal: principalRef,
   actingFor: t.opt(t.str()), state: holdState, payloadHash: t.str(), createdAt: t.ts(), expiresAt: t.ts(),
+  result: t.opt(t.json()),
 });
 const holdId = t.id('hld');
 

@@ -147,13 +147,14 @@ export async function marketplaceRefresh(ctx: AgentsCtx, input: { marketplaceId:
   return { marketplace: mktOut(ctx, mktBy(ctx, old.id)) };
 }
 
-export async function marketplaceRemove(ctx: AgentsCtx, input: { marketplaceId: string; idempotencyKey: string }) {
+export async function marketplaceRemove(ctx: AgentsCtx, input: { marketplaceId?: string; name?: string; idempotencyKey: string }) {
   ensure(ctx.db);
-  const m = (ctx.db.all("SELECT * FROM agents_marketplaces WHERE id = ?", input.marketplaceId) as Row[])[0];
+  if (input.marketplaceId === undefined && input.name === undefined) raise(ctx, "validation.bad_input", "Name the marketplace.");
+  const m = (ctx.db.all(input.marketplaceId !== undefined ? "SELECT * FROM agents_marketplaces WHERE id = ?" : "SELECT * FROM agents_marketplaces WHERE name = ?", input.marketplaceId ?? input.name) as Row[])[0];
   if (!m) return { removed: false };
-  ctx.db.run("DELETE FROM agents_marketplaces WHERE id = ?", input.marketplaceId);
+  ctx.db.run("DELETE FROM agents_marketplaces WHERE id = ?", str(m["id"]));
   ctx.db.run("DELETE FROM agents_plugin_allow WHERE marketplace = ?", str(m["name"]));
-  ctx.emit("plugin.marketplace_removed", input.marketplaceId, { marketplaceId: input.marketplaceId, name: str(m["name"]), by: by(ctx) });
+  ctx.emit("plugin.marketplace_removed", str(m["id"]), { marketplaceId: str(m["id"]), name: str(m["name"]), by: by(ctx) });
   return { removed: true };
 }
 
@@ -211,9 +212,10 @@ function checkConfig(ctx: AgentsCtx, c: PluginContents, given: Record<string, st
 /** The SKILL.md of a plugin skill under its Vyre name `<plugin>:<skill>`. Non-secret options are filled in; the plugin folder is named by its plugin. */
 const skillName = (plugin: string, skill: string): string => `${plugin}:${skill}`;
 
-export async function install(ctx: AgentsCtx, input: { marketplaceId: string; plugin: string; scope: "space" | "agent"; agentId?: string; config?: Record<string, string>; idempotencyKey: string }) {
+export async function install(ctx: AgentsCtx, input: { marketplaceId?: string; marketplace?: string; plugin: string; scope: "space" | "agent"; agentId?: string; config?: Record<string, string>; idempotencyKey: string }) {
   ensure(ctx.db);
-  const m = mktBy(ctx, input.marketplaceId);
+  if (input.marketplaceId === undefined && input.marketplace === undefined) raise(ctx, "validation.bad_input", "Name the marketplace.");
+  const m = input.marketplaceId !== undefined ? mktBy(ctx, input.marketplaceId) : mkts(ctx).find((x) => x.name === input.marketplace) ?? raise(ctx, "validation.not_found", `There is no marketplace called ${input.marketplace}.`);
   const entry = m.entries.find((e) => e.name === input.plugin);
   if (!entry) raise(ctx, "validation.not_found", `${m.name} has no plugin called ${input.plugin}.`);
   if (!isAllowed(ctx, m.name, entry.name)) raise(ctx, "validation.precondition_failed", `${entry.name} is not on the allowlist. An admin allows a marketplace or a plugin first.`);
@@ -221,7 +223,7 @@ export async function install(ctx: AgentsCtx, input: { marketplaceId: string; pl
   if (input.scope === "agent") {
     const a = agentId === "" ? null : agentBy(ctx.db, agentId);
     if (!a || !canSee(ctx, a)) raise(ctx, "validation.bad_input", "Pick the agent to put the plugin in.");
-  } else if (ctx.authorize?.({ perm: "kits.install", level: "manage" }, { type: "space", id: null }).effect === "deny") {
+  } else if (ctx.authorize?.({ perm: "kits.install", level: "manage" }, { type: "space", id: ctx.space }).effect !== "allow") {
     raise(ctx, "permission.role_lacks_permission", "Only an admin can install a plugin for the whole Space. Put it in one agent instead.");
   }
   const again = (ctx.db.all("SELECT id FROM agents_plugins WHERE name = ? AND scope = ? AND agent_id = ?", entry.name, input.scope, agentId) as Row[])[0];
@@ -270,9 +272,12 @@ async function dropSkills(ctx: AgentsCtx, p: Plug, key: string): Promise<void> {
   }
 }
 
-export async function uninstall(ctx: AgentsCtx, input: { pluginId: string; idempotencyKey: string }) {
+export async function uninstall(ctx: AgentsCtx, input: { pluginId?: string; name?: string; scope?: "space" | "agent"; agentId?: string; idempotencyKey: string }) {
   ensure(ctx.db);
-  const r = (ctx.db.all("SELECT * FROM agents_plugins WHERE id = ?", input.pluginId) as Row[])[0];
+  if (input.pluginId === undefined && input.name === undefined) raise(ctx, "validation.bad_input", "Name the plugin.");
+  const r = (input.pluginId !== undefined
+    ? ctx.db.all("SELECT * FROM agents_plugins WHERE id = ?", input.pluginId)
+    : ctx.db.all("SELECT * FROM agents_plugins WHERE name = ? AND scope = ? AND agent_id = ?", input.name, input.scope ?? "space", input.scope === "agent" ? input.agentId ?? "" : "") as Row[])[0];
   if (!r) return { removed: false };
   const p = plugOf(r);
   await dropSkills(ctx, p, input.idempotencyKey);
@@ -445,12 +450,15 @@ export async function connectionAdd(ctx: AgentsCtx, input: { name: string; scope
   ctx.emit("plugin.connection_added", id, { connectionId: id, name, scope: input.scope, ...(agentId !== "" ? { agentId } : {}), by: by(ctx) });
   return { connection: connectionOut((ctx.db.all("SELECT * FROM agents_mcp_connections WHERE id = ?", id) as Row[])[0]!) };
 }
-export async function connectionRemove(ctx: AgentsCtx, input: { connectionId: string; idempotencyKey: string }) {
+export async function connectionRemove(ctx: AgentsCtx, input: { connectionId?: string; name?: string; scope?: "space" | "agent"; agentId?: string; idempotencyKey: string }) {
   ensure(ctx.db);
-  const r = (ctx.db.all("SELECT * FROM agents_mcp_connections WHERE id = ?", input.connectionId) as Row[])[0];
+  if (input.connectionId === undefined && input.name === undefined) raise(ctx, "validation.bad_input", "Name the connection.");
+  const r = (input.connectionId !== undefined
+    ? ctx.db.all("SELECT * FROM agents_mcp_connections WHERE id = ?", input.connectionId)
+    : ctx.db.all("SELECT * FROM agents_mcp_connections WHERE name = ? AND scope = ? AND agent_id = ?", input.name, input.scope ?? "space", input.scope === "agent" ? input.agentId ?? "" : "") as Row[])[0];
   if (!r) return { removed: false };
-  ctx.db.run("DELETE FROM agents_mcp_connections WHERE id = ?", input.connectionId);
-  ctx.emit("plugin.connection_removed", input.connectionId, { connectionId: input.connectionId, name: str(r["name"]), by: by(ctx) });
+  ctx.db.run("DELETE FROM agents_mcp_connections WHERE id = ?", str(r["id"]));
+  ctx.emit("plugin.connection_removed", str(r["id"]), { connectionId: str(r["id"]), name: str(r["name"]), by: by(ctx) });
   return { removed: true };
 }
 

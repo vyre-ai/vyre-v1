@@ -25,7 +25,8 @@ Install a plugin from a marketplace into the whole Space (admin) or into one age
 
 ```ts
 type In = {
-  marketplaceId: string;
+  marketplaceId?: string;
+  marketplace?: string;
   plugin: string;
   scope: "space" | "agent";
   agentId?: string;
@@ -93,6 +94,7 @@ type Out = {
     "agentId": "agt_a1b2c3",
     "config": {},
     "idempotencyKey": "idem_1",
+    "marketplace": "example",
     "marketplaceId": "mkt_a1b2c3",
     "plugin": "deploy-tools",
     "scope": "space"
