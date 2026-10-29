@@ -415,14 +415,17 @@ function Body(p: BodyProps): ReactElement {
     }
     rows.push(<TableRow key={r ? r.id : `p${i}`} row={r} n={i + 1} y={y} width={width} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} selected={picked} tint={r ? colourOf(colourField, r) : null} names={names} onSelect={p.onSelect} onOpen={onOpen} />);
   }
-  return <View style={{ height: total * ROW_H, width }} testID="records-body" accessibilityLabel={`${total} rows`}>{rows}{web ? <View testID="records-frozen" style={styles.frozenLayer}>{FROZEN_ANCHOR}{frozen}</View> : null}</View>;
+  return <View style={{ height: total * ROW_H, width }} testID="records-body" accessibilityLabel={`${total} rows`}>{rows}{web ? <View testID="records-frozen" style={styles.frozenLayer}>{items ? null : frozenAnchor(total * ROW_H)}{frozen}</View> : null}</View>;
 }
 
 /**
- * The frozen layer's first paint: one pixel left of the scroller's edge, always clipped. Chrome keys a composited layer by its first paint chunk; the frozen layer painted nothing of its own,
- * so its first chunk was the top frozen row, and every row that scrolled off made a new layer that was rastered whole (525 layers in one 100,000-row fling, run 40808834427).
+ * The frozen layer's first paint: a one-pixel strip the height of the table at its left edge, under the frozen rows (which paint over it) and the colour of the window behind it. Chrome keys
+ * a composited layer by its first paint chunk; the frozen layer paints nothing of its own, so its first chunk was the top frozen row, and every row that scrolled off made a new layer that
+ * was rastered whole (525 layers in one 100,000-row fling, run 40808834427). Full height so it is never outside the paint cull rect. Left out of a grouped table, whose group rows it would cover.
  */
-const FROZEN_ANCHOR = Platform.OS === "web" ? createElement("div", { "aria-hidden": true, style: { position: "absolute", left: -1, top: 0, width: 1, height: 1, backgroundColor: "var(--win)", pointerEvents: "none" } }) : null;
+function frozenAnchor(height: number): ReactElement {
+  return createElement("div", { "aria-hidden": true, style: { position: "absolute", left: 0, top: 0, width: 1, height, backgroundColor: "var(--win)", pointerEvents: "none" } });
+}
 
 // ---------------------------------------------------------------- the grid
 
