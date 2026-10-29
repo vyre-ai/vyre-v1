@@ -217649,7 +217649,7 @@
             "type": "string"
           },
           "maxIterations": {
-            "maximum": 10000,
+            "maximum": 1000,
             "minimum": 1,
             "type": "integer"
           }

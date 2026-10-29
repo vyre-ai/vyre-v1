@@ -98,6 +98,45 @@ test("a step nothing reaches is a warning; the Automation is still valid", async
   assert.deepEqual(start.issues.map((i) => i.nodeId), ["a"], "the start list decides what is reached");
 });
 
+test("a loop above 1000 iterations is an error, and so is a loop inside a loop", async () => {
+  const h = harness();
+  const make = node("make", "records.create", { type: "note", fields: { title: "Item" } });
+  const after = node("after", "stop", {});
+  const over = await validate(h, {
+    triggers: trig,
+    nodes: [node("each", "loop", { items: "trigger.items", maxIterations: 1001 }, { branches: [{ label: "body", to: "make" }], next: ["after"] }), make, after],
+  });
+  assert.equal(over.ok, false);
+  assert.ok(over.issues.some((i) => i.nodeId === "each" && i.severity === "error" && i.message === "A loop allows at most 1000 iterations."));
+  const atCap = await validate(h, {
+    triggers: trig,
+    nodes: [node("each", "loop", { items: "trigger.items", maxIterations: 1000 }, { branches: [{ label: "body", to: "make" }], next: ["after"] }), make, after],
+  });
+  assert.equal(atCap.ok, true, JSON.stringify(atCap.issues));
+  const nested = await validate(h, {
+    triggers: trig,
+    nodes: [
+      node("outer", "loop", { items: "trigger.items" }, { branches: [{ label: "body", to: "prep" }], next: ["after"] }),
+      node("prep", "records.create", { type: "note", fields: { title: "Prep" } }, { next: ["inner"] }),
+      node("inner", "loop", { items: "item.rows" }, { branches: [{ label: "body", to: "make" }], next: ["after"] }),
+      make,
+      after,
+    ],
+  });
+  assert.equal(nested.ok, false);
+  assert.ok(nested.issues.some((i) => i.nodeId === "inner" && i.severity === "error" && i.message === "A loop cannot contain another loop."));
+  const sequence = await validate(h, {
+    triggers: trig,
+    nodes: [
+      node("first", "loop", { items: "trigger.items", maxIterations: 1000 }, { branches: [{ label: "body", to: "make" }], next: ["second"] }),
+      make,
+      node("second", "loop", { items: "trigger.more", maxIterations: 1000 }, { branches: [{ label: "body", to: "make2" }] }),
+      node("make2", "records.create", { type: "note", fields: { title: "More" } }),
+    ],
+  });
+  assert.equal(sequence.ok, true, JSON.stringify(sequence.issues));
+});
+
 test("a path that loops back is an error unless it goes through a Loop step", async () => {
   const h = harness();
   const find = { type: "contact" };

@@ -222,8 +222,11 @@ test("Loop refuses a list over its limit, a limit above 1000, a value that is no
   });
   await assert.rejects(runStep(h.env, node("l", "loop", { items: "trigger.items", maxIterations: 1001 }), callOf({ trigger: { items: [1] } })), (e) => {
     assert.equal(codeOf(e), "run.loop_too_large");
+    assert.equal((e as Error).message, "A loop allows at most 1000 iterations.");
     return true;
   });
+  const atCap = await runStep(h.env, node("l", "loop", { items: "trigger.items", maxIterations: 1000 }), callOf({ prepare: true, trigger: { items: [1] } }));
+  assert.equal(atCap.prepare?.iterations.length, 1);
   const overDefault = Array.from({ length: 501 }, (_v, i) => i);
   await refused(runStep(h.env, node("l", "loop", { items: "trigger.items" }), callOf({ trigger: { items: overDefault } })), "run.loop_too_large");
   await refused(runStep(h.env, node("l", "loop", { items: "trigger.n" }), callOf({ trigger: { n: 5 } })), "validation.bad_input");

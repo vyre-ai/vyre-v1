@@ -114,7 +114,7 @@ export default defineManifest({
       effects: 'read', in: { branches: t.arr(t.str(), { minItems: 2 }), waitFor: t.opt(t.enm('all', 'any')) }, out: { finished: t.arr(t.str()) },
     }),
     step('loop', 'Loop', 'control', 'control', {
-      effects: 'read', in: { items: expr, maxIterations: t.opt(t.int({ minimum: 1, maximum: 10000 })), concurrency: t.opt(t.int({ minimum: 1, maximum: 20 })) },
+      effects: 'read', in: { items: expr, maxIterations: t.opt(t.int({ minimum: 1, maximum: 1000 })), concurrency: t.opt(t.int({ minimum: 1, maximum: 20 })) },
       out: { iterations: t.int(), results: t.arr(t.json()) },
     }),
     step('stop', 'Stop', 'control', 'control', {

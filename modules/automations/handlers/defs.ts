@@ -35,6 +35,83 @@ function edges(n: Node): string[] {
   return [...(n.next ?? []), ...(n.branches ?? []).map((b) => b.to), ...(n.onError?.mode === "route" && n.onError.route ? [n.onError.route] : [])];
 }
 
+function laneEntries(n: Node): string[] {
+  if (n.branches && n.branches.length > 0) return n.branches.map((b) => b.to ?? "");
+  const raw = n.input?.["branches"];
+  if (Array.isArray(raw) && raw.every((x) => typeof x === "string")) return raw;
+  return [];
+}
+
+function afterIds(n: Node): string[] {
+  if (n.key === "loop") return n.next ?? [];
+  const lanes = laneEntries(n);
+  if (n.branches && n.branches.length > 0) return lanes;
+  if (n.key === "parallel" && lanes.length > 0) return lanes;
+  return n.next ?? [];
+}
+
+function reached(byId: Map<string, Node>, from: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const walk = (id: string): void => {
+    if (!id || seen.has(id)) return;
+    const n = byId.get(id);
+    if (!n) return;
+    seen.add(id);
+    out.push(id);
+    if (n.key === "loop") {
+      const body = laneEntries(n)[0];
+      if (body) walk(body);
+    }
+    for (const s of afterIds(n)) walk(s);
+  };
+  walk(from);
+  return out;
+}
+
+function joinId(byId: Map<string, Node>, n: Node): string | null {
+  const heads = laneEntries(n).filter((id) => id.length > 0);
+  if (heads.length < 2) return null;
+  const sets = heads.map((h) => new Set(reached(byId, h)));
+  for (const id of reached(byId, heads[0]!)) if (sets.every((s) => s.has(id))) return id;
+  return null;
+}
+
+// The host refuses a Loop whose body contains another Loop. The body starts at the first branch and stops at this Loop and at what follows it.
+function loopBody(byId: Map<string, Node>, loop: Node): Node[] {
+  const entry = laneEntries(loop)[0] ?? "";
+  if (!entry) return [];
+  const stop = new Set<string>([loop.id, ...(loop.next ?? [])]);
+  const out: Node[] = [];
+  const seen = new Set<string>();
+  const walk = (id: string): void => {
+    if (!id || seen.has(id) || stop.has(id)) return;
+    const n = byId.get(id);
+    if (!n) return;
+    seen.add(id);
+    out.push(n);
+    if (n.key === "parallel") {
+      const join = joinId(byId, n);
+      if (join) walk(join);
+      else for (const s of n.next ?? []) walk(s);
+      return;
+    }
+    if (n.key === "loop") {
+      for (const s of n.next ?? []) walk(s);
+      return;
+    }
+    const lanes = laneEntries(n);
+    if ((n.key === "if" || n.key === "paths") && lanes.some((lane) => lane.length > 0)) {
+      for (const lane of lanes) walk(lane);
+      for (const s of n.next ?? []) walk(s);
+      return;
+    }
+    for (const s of afterIds(n)) walk(s);
+  };
+  walk(entry);
+  return out;
+}
+
 /** The structural problems that make a definition unreadable: duplicate ids, references to nodes that do not exist, steps and triggers that are not in the catalogue. */
 export function structuralIssues(def: Definition): Issue[] {
   const out: Issue[] = [];
@@ -73,7 +150,20 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
     if (n.key === "connector_request" && !present(have["connectionId"])) out.push(issue("error", "An authenticated request needs a connection.", n.id));
     if (n.key === "connector_request" && containsSecret(have["input"])) out.push(issue("error", "An authenticated request cannot hold a secret. Use the connection.", n.id));
     if (s.kind === "ai" && !n.ai?.agentId && !n.ai?.keyId && !present(have.agentId) && !present(have.keyId)) out.push(issue("error", `${s.title} needs an agent or a key.`, n.id));
+    if (n.key === "loop") {
+      const max = have["maxIterations"];
+      if (typeof max === "number" && max > 1000) out.push(issue("error", "A loop allows at most 1000 iterations.", n.id));
+    }
     if (n.onError?.mode === "route" && !n.onError.route) out.push(issue("error", "On error: route needs a step to go to.", n.id));
+  }
+  const nested = new Set<string>();
+  for (const n of def.nodes) {
+    if (n.key !== "loop") continue;
+    for (const inner of loopBody(byId, n)) {
+      if (inner.key !== "loop" || nested.has(inner.id)) continue;
+      nested.add(inner.id);
+      out.push(issue("error", "A loop cannot contain another loop.", inner.id));
+    }
   }
   const starts = (def.start && def.start.length ? def.start : def.nodes[0] ? [def.nodes[0].id] : []).filter((s) => byId.has(s));
   const seen = new Set<string>();
