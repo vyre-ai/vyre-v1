@@ -126,7 +126,23 @@ test("production Console Access pages: Groups, Roles, Policies and Access review
       await api("access.roles.assign", { subject: { kind: "person", id: priya.personId }, roleId: cloned.id });
       await page.reload({ waitUntil: "load" }); await goTo(page, "roles", "Roles", "Access"); await page.getByRole("button", { name: "Open Intake reader", exact: true }).click();
       await page.getByRole("tab", { name: /^Holders/ }).click(); await page.getByTestId("row-role-holder-" + priya.personId).waitFor();
-      await matrix("role-object-holders", async (p) => { await goTo(p, "roles", "Roles", "Access"); await p.getByTestId("permission-matrix").waitFor(); await p.getByRole("button", { name: "Open Intake reader", exact: true }).click(); await p.getByRole("tab", { name: /^Holders/ }).click(); await p.getByTestId("row-role-holder-" + priya.personId).waitFor(); });
+      await matrix("role-object-holders", async (p) => { await goTo(p, "roles", "Roles", "Access"); await p.getByTestId("permission-matrix").waitFor(); if (p.viewportSize()!.width < 720) { await p.getByRole("button", { name: "Role", exact: true }).click(); await p.getByRole("menuitem", { name: "Intake reader", exact: true }).click(); } await p.getByRole("button", { name: "Open Intake reader", exact: true }).click(); await p.getByRole("tab", { name: /^Holders/ }).click(); await p.getByTestId("row-role-holder-" + priya.personId).waitFor(); });
+      // phone: no matrix, one role at a time from the Role menu, its permissions in one column with the toggle at the right
+      {
+        const phone = await context.newPage(); await phone.setViewportSize({ width: 390, height: 844 });
+        await phone.goto(`${web.origin}/console?skin=paper`, { waitUntil: "load" }); await phone.getByTestId("console").waitFor({ timeout: 30_000 });
+        await goTo(phone, "roles", "Roles", "Access"); await phone.getByTestId("permission-matrix").waitFor();
+        await phone.getByRole("button", { name: "Role", exact: true }).click(); await phone.getByRole("menuitem", { name: "Intake reader", exact: true }).click();
+        await phone.getByText("Custom role. Tap a permission to stage a change.").first().waitFor();
+        const now = ((await api("access.roles.get", { roleId: cloned.id })).role.permissions as string[]);
+        const toggled = now[0]!;
+        assert.ok(await phone.getByTestId(`matrix-${cloned.id}-${toggled}`).count(), "the toggle for a permission the role holds is drawn");
+        await phone.getByTestId(`matrix-${cloned.id}-${toggled}`).click(); await phone.getByTestId("roles-preview-changes").click(); await phone.getByTestId("roles-apply-changes").click();
+        await eventually(async () => !((await api("access.roles.get", { roleId: cloned.id })).role.permissions as string[]).includes(toggled), "the phone toggle changed the role");
+        assert.equal(await phone.getByText(/^1 holders?$/).count(), 0);
+        for (const [skin, mode] of [["paper", "light"], ["graphite", "graphite"]] as const) { await phone.goto(`${web.origin}/console?skin=${skin}`, { waitUntil: "load" }); await goTo(phone, "roles", "Roles", "Access"); await phone.getByTestId("permission-matrix").waitFor(); await phone.getByRole("button", { name: "Role", exact: true }).click(); await phone.getByRole("menuitem", { name: "Intake reader", exact: true }).click(); await phone.waitForTimeout(300); await phone.screenshot({ path: path.join(shots, `roles-phone-compact-${mode}.png`), animations: "disabled" }); }
+        await phone.close();
+      }
       // a role with holders cannot be deleted; once they are gone it can
       await page.getByTestId("object-more").click(); await page.getByRole("menuitem", { name: "Delete role", exact: true }).click(); await page.getByTestId("object-confirm-go").click();
       await page.waitForTimeout(600);
