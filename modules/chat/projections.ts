@@ -49,6 +49,20 @@ export function refOf(id: string): { kind: Principal["kind"]; id: string } {
   const p = id.slice(0, 4);
   return { kind: p === "agt_" ? "agent" : p === "act_" ? "actor" : p === "svc_" ? "service" : "person", id };
 }
+/**
+ * A person can only bring in, ask or @mention an agent they may see: the agents module answers "not found" for one they may not (a person's private assistant is one), and so does this.
+ * Agents act for themselves (an agent posting is not a person choosing who to talk to), and a host with no agents module to ask keeps the old behaviour.
+ */
+export async function refuseUnseenAgents(ctx: ChatCtx, ids: readonly string[]): Promise<void> {
+  if (!ctx.call || ctx.principal.kind !== "person") return;
+  for (const agentId of new Set(ids)) {
+    try { await ctx.call("agents.get", { agentId }); } catch (e) {
+      const code = (e as { code?: string; error?: { code?: string } }).code ?? (e as { error?: { code?: string } }).error?.code;
+      if (code === "validation.not_found") raise(ctx, "validation.not_found", "That agent does not exist.", { agentId });
+    }
+  }
+}
+
 /** The person behind a call: the person an agent acts for, else the caller. */
 export const askerOf = (ctx: Pick<ChatCtx, "principal" | "actingFor">): string => ctx.actingFor ?? ctx.principal.id;
 
