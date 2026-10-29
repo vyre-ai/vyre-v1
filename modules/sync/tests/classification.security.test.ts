@@ -72,3 +72,84 @@ test("Restricted, the label Access keeps off laptops (access.labels.list: syncTo
   for (const cls of ["desktop", "web", "phone"] as const) assert.ok(DEVICE_CEILING[cls] < LABEL_RANKS.restricted, `${cls} ceiling ${DEVICE_CEILING[cls]} is below Restricted`);
   assert.ok(DEVICE_CEILING.desktop >= LABEL_RANKS.confidential, "Confidential may travel to a laptop for a person cleared for it");
 });
+
+// ---- a classification raised after a device cached the field ----
+// A patch omits a field, it never removes one, so a device that already holds `salary` keeps it unless it is told to start over.
+
+const EMPLOYEE = { name: "employee", fields: [{ name: "name", kind: "text" }, { name: "salary", kind: "text", sensitivity: "internal" }, { name: "note", kind: "text" }] };
+const RAISED = { ...EMPLOYEE, fields: EMPLOYEE.fields.map((f) => (f.name === "salary" ? { ...f, sensitivity: "restricted" } : f)) };
+const open = (a: AccessSnapshot) => openSync({ access: () => a });
+type Sync = ReturnType<typeof open>;
+const pull = async (s: Sync, who: string, device: string, cursor: number, epoch: number) => s.handlers["sync.pull"](ctx(who, device), { cursor, epoch });
+
+async function seeded(): Promise<{ s: Sync; id: string }> {
+  const s = open(access());
+  await s.store.define({ add_types: [EMPLOYEE] });
+  const id = mintRecordId()!;
+  await s.store.create("employee", id, { name: "Ada", salary: "salary-fixture-value", note: "note-fixture-value" });
+  return { s, id };
+}
+
+test("raising a field's classification after a device cached it makes that device start over, and the new copy never carries the field", async () => {
+  const { s, id } = await seeded();
+  try {
+    const first = await pull(s, OWNER, "laptop", 0, 0);
+    assert.ok(JSON.stringify(first).includes("salary-fixture-value"), "while the field is Internal the device holds it");
+    assert.equal((await pull(s, OWNER, "laptop", first.next, first.epoch)).reset, undefined, "an unchanged classification leaves the device alone");
+
+    await s.store.define({ change_types: [RAISED] });
+    const stale = await pull(s, OWNER, "laptop", first.next, first.epoch);
+    assert.equal(stale.reset, "purge", "the device cached a field it may no longer hold, so it must purge");
+    assert.deepEqual([stale.changes, stale.hide], [[], []], "no data goes back with a purge");
+    assert.ok(stale.epoch > first.epoch, "the epoch rose, so the old copy cannot be presented again");
+    assert.equal((await pull(s, OWNER, "laptop", first.next, first.epoch)).reset, "purge", "a replay of the stale pull is refused again");
+
+    const again = await pull(s, OWNER, "laptop", 0, stale.epoch);
+    assert.equal(again.reset, undefined);
+    assert.ok(again.changes.some((c) => c.id === id), "the row comes back");
+    assert.ok(!JSON.stringify(again).includes("salary-fixture-value"), "without the field that is now Restricted");
+    assert.ok(JSON.stringify(again).includes("note-fixture-value"), "and with the fields that are still allowed");
+    assert.equal((await pull(s, OWNER, "laptop", again.next, again.epoch)).reset, undefined, "the fresh copy is not purged again");
+  } finally { s.host.close(); }
+});
+
+test("a classification raise purges only people who cached the field; a device that never held the type is untouched", async () => {
+  const { s } = await seeded();
+  try {
+    const owner = await pull(s, OWNER, "laptop", 0, 0);
+    const guest = await pull(s, GUEST, "guest-laptop", 0, 0);
+    assert.deepEqual(guest.changes, [], "the Guest's grant gives the Guest no employee rows");
+    await s.store.define({ change_types: [RAISED] });
+    assert.equal((await pull(s, GUEST, "guest-laptop", guest.next, guest.epoch)).reset, undefined, "the Guest cached nothing of it");
+    assert.equal((await pull(s, OWNER, "laptop", owner.next, owner.epoch)).reset, "purge");
+  } finally { s.host.close(); }
+});
+
+test("a replica from before the guard existed, with no record of what it may hold, is purged once and then tracked", async () => {
+  const { s } = await seeded();
+  try {
+    const first = await pull(s, OWNER, "old-laptop", 0, 0);
+    await s.store.define({ change_types: [RAISED] });
+    s.host.tx.run("DELETE FROM sync_class_sig WHERE person = ? AND device = ?", OWNER, "old-laptop");
+    const old = await pull(s, OWNER, "old-laptop", first.next, first.epoch);
+    assert.equal(old.reset, "purge", "no record and a held field that is held back: it cannot be vouched for");
+    const fresh = await pull(s, OWNER, "old-laptop", 0, old.epoch);
+    assert.equal(fresh.reset, undefined);
+    assert.equal((await pull(s, OWNER, "old-laptop", fresh.next, fresh.epoch)).reset, undefined);
+  } finally { s.host.close(); }
+});
+
+test("a snapshot taken after the raise has no trace of the field, and a lowered classification does not purge", async () => {
+  const { s } = await seeded();
+  try {
+    await s.store.define({ change_types: [RAISED] });
+    const begin = await s.handlers["sync.snapshot.begin"](ctx(OWNER, "snap"), { deviceClass: "desktop" });
+    const page = await s.handlers["sync.snapshot.page"](ctx(OWNER, "snap"), { entity: "employee", asOf: begin.asOfSeq });
+    assert.equal(page.rows.length, 1);
+    assert.ok(!JSON.stringify(page).includes("salary-fixture-value"));
+    const head = await pull(s, OWNER, "snap", begin.asOfSeq, 0);
+    assert.equal(head.reset, undefined, "the snapshot recorded what the device may hold");
+    await s.store.define({ change_types: [EMPLOYEE] });
+    assert.equal((await pull(s, OWNER, "snap", head.next, head.epoch)).reset, undefined, "lowering a label removes nothing the device holds");
+  } finally { s.host.close(); }
+});
