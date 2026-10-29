@@ -30,4 +30,4 @@ HTTP 422. Retryable: no.
 - mail.mailbox.create
 - members.accept
 - mounts.add
-- providers.add
+- plugins.agent_template.use

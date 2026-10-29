@@ -1464,6 +1464,54 @@ export function stubs(ctx: CallCtx) {
       },
       send: call("notifications.send"),
     },
+    plugins: {
+      agent_template: {
+        use: call("plugins.agent_template.use"),
+      },
+      agent_templates: {
+        list: call("plugins.agent_templates.list"),
+      },
+      allow: {
+        list: call("plugins.allow.list"),
+        set: call("plugins.allow.set"),
+      },
+      browse: call("plugins.browse"),
+      command: {
+        render: call("plugins.command.render"),
+      },
+      commands: {
+        list: call("plugins.commands.list"),
+      },
+      config: {
+        set: call("plugins.config.set"),
+      },
+      connection: {
+        add: call("plugins.connection.add"),
+        remove: call("plugins.connection.remove"),
+      },
+      connections: {
+        list: call("plugins.connections.list"),
+      },
+      get: call("plugins.get"),
+      hooks: {
+        list: call("plugins.hooks.list"),
+      },
+      install: call("plugins.install"),
+      list: call("plugins.list"),
+      marketplace: {
+        add: call("plugins.marketplace.add"),
+        refresh: call("plugins.marketplace.refresh"),
+        remove: call("plugins.marketplace.remove"),
+      },
+      marketplaces: {
+        list: call("plugins.marketplaces.list"),
+      },
+      mcp: {
+        servers: call("plugins.mcp.servers"),
+      },
+      set_enabled: call("plugins.set_enabled"),
+      uninstall: call("plugins.uninstall"),
+    },
     portal: {
       account_create: call("portal.account_create"),
       account_disable: call("portal.account_disable"),

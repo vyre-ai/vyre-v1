@@ -17692,6 +17692,443 @@ export type NotificationsSendOut = {
   outcome: "interrupt" | "badge" | "digest" | "dropped_muted" | "capped";
   notificationId?: string;
 };
+export type PluginsAgentTemplateUseIn = {
+  pluginId: string;
+  name: string;
+  agentName?: string;
+  idempotencyKey: string;
+};
+export type PluginsAgentTemplateUseOut = {
+  agentId: string;
+};
+export type PluginsAgentTemplatesListIn = Record<string, unknown>;
+export type PluginsAgentTemplatesListOut = {
+  templates: Array<{
+      pluginId: string;
+      plugin: string;
+      name: string;
+      description: string;
+      tools: Array<string>;
+      model?: string;
+    }>;
+};
+export type PluginsAllowListIn = Record<string, unknown>;
+export type PluginsAllowListOut = {
+  allowed: Array<{
+      kind: "marketplace" | "plugin";
+      marketplace: string;
+      plugin?: string;
+      by: string;
+      at: number;
+    }>;
+};
+export type PluginsAllowSetIn = {
+  kind: "marketplace" | "plugin";
+  marketplace: string;
+  plugin?: string;
+  allowed: boolean;
+  idempotencyKey: string;
+};
+export type PluginsAllowSetOut = {
+  allowed: Array<{
+      kind: "marketplace" | "plugin";
+      marketplace: string;
+      plugin?: string;
+      by: string;
+      at: number;
+    }>;
+};
+export type PluginsBrowseIn = {
+  marketplaceId?: string;
+  q?: string;
+  cursor?: string;
+  limit?: number;
+};
+export type PluginsBrowseOut = {
+  plugins: Array<{
+      marketplaceId: string;
+      marketplace: string;
+      name: string;
+      description?: string;
+      version?: string;
+      category?: string;
+      source: string;
+      allowed: boolean;
+      installed: Array<{
+          pluginId: string;
+          scope: "space" | "agent";
+          agentId?: string;
+        }>;
+    }>;
+  next?: string;
+  total?: number;
+};
+export type PluginsCommandRenderIn = {
+  name: string;
+  args?: string;
+  agentId?: string;
+};
+export type PluginsCommandRenderOut = {
+  prompt: string;
+  description: string;
+  allowedTools: Array<string>;
+  model?: string;
+  pluginId: string;
+};
+export type PluginsCommandsListIn = {
+  agentId?: string;
+};
+export type PluginsCommandsListOut = {
+  commands: Array<{
+      name: string;
+      description: string;
+      argumentHint?: string;
+      plugin: string;
+      pluginId: string;
+    }>;
+};
+export type PluginsConfigSetIn = {
+  pluginId: string;
+  config: Record<string, string>;
+  idempotencyKey: string;
+};
+export type PluginsConfigSetOut = {
+  plugin: {
+    pluginId: string;
+    name: string;
+    marketplace: string;
+    marketplaceId: string;
+    scope: "space" | "agent";
+    agentId?: string;
+    version?: string;
+    description?: string;
+    enabled: boolean;
+    parts: {
+      skills: Array<string>;
+      commands: Array<string>;
+      agents: Array<string>;
+      hooks: number;
+      mcpServers: Array<string>;
+    };
+    userConfig: Array<{
+        key: string;
+        type: string;
+        title: string;
+        description: string;
+        required: boolean;
+        sensitive: boolean;
+      }>;
+    config: Record<string, string>;
+    configured: boolean;
+    warnings: Array<string>;
+    installedAt: number;
+  };
+};
+export type PluginsConnectionAddIn = {
+  name: string;
+  scope: "space" | "agent";
+  agentId?: string;
+  url?: string;
+  command?: string;
+  args?: Array<string>;
+  env?: Record<string, string>;
+  headers?: Record<string, string>;
+  idempotencyKey: string;
+};
+export type PluginsConnectionAddOut = {
+  connection: {
+    connectionId: string;
+    name: string;
+    scope: "space" | "agent";
+    agentId?: string;
+    transport: "stdio" | "http";
+    url?: string;
+    command?: string;
+    args: Array<string>;
+    env: Record<string, string>;
+    headers: Record<string, string>;
+    enabled: boolean;
+    createdAt: number;
+  };
+};
+export type PluginsConnectionRemoveIn = {
+  connectionId: string;
+  idempotencyKey: string;
+};
+export type PluginsConnectionRemoveOut = {
+  removed: boolean;
+};
+export type PluginsConnectionsListIn = {
+  agentId?: string;
+};
+export type PluginsConnectionsListOut = {
+  connections: Array<{
+      connectionId: string;
+      name: string;
+      scope: "space" | "agent";
+      agentId?: string;
+      transport: "stdio" | "http";
+      url?: string;
+      command?: string;
+      args: Array<string>;
+      env: Record<string, string>;
+      headers: Record<string, string>;
+      enabled: boolean;
+      createdAt: number;
+    }>;
+};
+export type PluginsGetIn = {
+  pluginId: string;
+};
+export type PluginsGetOut = {
+  plugin: {
+    pluginId: string;
+    name: string;
+    marketplace: string;
+    marketplaceId: string;
+    scope: "space" | "agent";
+    agentId?: string;
+    version?: string;
+    description?: string;
+    enabled: boolean;
+    parts: {
+      skills: Array<string>;
+      commands: Array<string>;
+      agents: Array<string>;
+      hooks: number;
+      mcpServers: Array<string>;
+    };
+    userConfig: Array<{
+        key: string;
+        type: string;
+        title: string;
+        description: string;
+        required: boolean;
+        sensitive: boolean;
+      }>;
+    config: Record<string, string>;
+    configured: boolean;
+    warnings: Array<string>;
+    installedAt: number;
+  };
+};
+export type PluginsHooksListIn = {
+  agentId?: string;
+};
+export type PluginsHooksListOut = {
+  hooks: Array<{
+      pluginId: string;
+      plugin: string;
+      event: string;
+      matcher: string;
+      command: string;
+      args: Array<string>;
+      timeoutSec?: number;
+    }>;
+};
+export type PluginsInstallIn = {
+  marketplaceId: string;
+  plugin: string;
+  scope: "space" | "agent";
+  agentId?: string;
+  config?: Record<string, string>;
+  idempotencyKey: string;
+};
+export type PluginsInstallOut = {
+  plugin: {
+    pluginId: string;
+    name: string;
+    marketplace: string;
+    marketplaceId: string;
+    scope: "space" | "agent";
+    agentId?: string;
+    version?: string;
+    description?: string;
+    enabled: boolean;
+    parts: {
+      skills: Array<string>;
+      commands: Array<string>;
+      agents: Array<string>;
+      hooks: number;
+      mcpServers: Array<string>;
+    };
+    userConfig: Array<{
+        key: string;
+        type: string;
+        title: string;
+        description: string;
+        required: boolean;
+        sensitive: boolean;
+      }>;
+    config: Record<string, string>;
+    configured: boolean;
+    warnings: Array<string>;
+    installedAt: number;
+  };
+};
+export type PluginsListIn = {
+  agentId?: string;
+};
+export type PluginsListOut = {
+  plugins: Array<{
+      pluginId: string;
+      name: string;
+      marketplace: string;
+      marketplaceId: string;
+      scope: "space" | "agent";
+      agentId?: string;
+      version?: string;
+      description?: string;
+      enabled: boolean;
+      parts: {
+        skills: Array<string>;
+        commands: Array<string>;
+        agents: Array<string>;
+        hooks: number;
+        mcpServers: Array<string>;
+      };
+      userConfig: Array<{
+          key: string;
+          type: string;
+          title: string;
+          description: string;
+          required: boolean;
+          sensitive: boolean;
+        }>;
+      config: Record<string, string>;
+      configured: boolean;
+      warnings: Array<string>;
+      installedAt: number;
+    }>;
+};
+export type PluginsMarketplaceAddIn = {
+  source: string;
+  ref?: string;
+  idempotencyKey: string;
+};
+export type PluginsMarketplaceAddOut = {
+  marketplace: {
+    marketplaceId: string;
+    name: string;
+    kind: "git" | "local";
+    source: string;
+    ref?: string;
+    owner: string;
+    description?: string;
+    plugins: number;
+    allowed: boolean;
+    warnings: Array<string>;
+    revision?: string;
+    updatedAt: number;
+  };
+};
+export type PluginsMarketplaceRefreshIn = {
+  marketplaceId: string;
+  idempotencyKey: string;
+};
+export type PluginsMarketplaceRefreshOut = {
+  marketplace: {
+    marketplaceId: string;
+    name: string;
+    kind: "git" | "local";
+    source: string;
+    ref?: string;
+    owner: string;
+    description?: string;
+    plugins: number;
+    allowed: boolean;
+    warnings: Array<string>;
+    revision?: string;
+    updatedAt: number;
+  };
+};
+export type PluginsMarketplaceRemoveIn = {
+  marketplaceId: string;
+  idempotencyKey: string;
+};
+export type PluginsMarketplaceRemoveOut = {
+  removed: boolean;
+};
+export type PluginsMarketplacesListIn = Record<string, unknown>;
+export type PluginsMarketplacesListOut = {
+  marketplaces: Array<{
+      marketplaceId: string;
+      name: string;
+      kind: "git" | "local";
+      source: string;
+      ref?: string;
+      owner: string;
+      description?: string;
+      plugins: number;
+      allowed: boolean;
+      warnings: Array<string>;
+      revision?: string;
+      updatedAt: number;
+    }>;
+};
+export type PluginsMcpServersIn = {
+  agentId?: string;
+};
+export type PluginsMcpServersOut = {
+  servers: Array<{
+      key: string;
+      name: string;
+      from: "plugin" | "connection";
+      pluginId?: string;
+      transport: "stdio" | "http" | "sse" | "ws";
+      command?: string;
+      args: Array<string>;
+      env: Record<string, string>;
+      url?: string;
+      headers: Record<string, string>;
+      files?: string;
+      needs: Array<string>;
+    }>;
+};
+export type PluginsSetEnabledIn = {
+  pluginId: string;
+  enabled: boolean;
+  idempotencyKey: string;
+};
+export type PluginsSetEnabledOut = {
+  plugin: {
+    pluginId: string;
+    name: string;
+    marketplace: string;
+    marketplaceId: string;
+    scope: "space" | "agent";
+    agentId?: string;
+    version?: string;
+    description?: string;
+    enabled: boolean;
+    parts: {
+      skills: Array<string>;
+      commands: Array<string>;
+      agents: Array<string>;
+      hooks: number;
+      mcpServers: Array<string>;
+    };
+    userConfig: Array<{
+        key: string;
+        type: string;
+        title: string;
+        description: string;
+        required: boolean;
+        sensitive: boolean;
+      }>;
+    config: Record<string, string>;
+    configured: boolean;
+    warnings: Array<string>;
+    installedAt: number;
+  };
+};
+export type PluginsUninstallIn = {
+  pluginId: string;
+  idempotencyKey: string;
+};
+export type PluginsUninstallOut = {
+  removed: boolean;
+};
 export type PortalAccountCreateIn = {
   siteId: string;
   email: string;
@@ -28084,6 +28521,28 @@ export interface CapMap {
   "notifications.rules.get": { in: NotificationsRulesGetIn; out: NotificationsRulesGetOut };
   "notifications.rules.set": { in: NotificationsRulesSetIn; out: NotificationsRulesSetOut };
   "notifications.send": { in: NotificationsSendIn; out: NotificationsSendOut };
+  "plugins.agent_template.use": { in: PluginsAgentTemplateUseIn; out: PluginsAgentTemplateUseOut };
+  "plugins.agent_templates.list": { in: PluginsAgentTemplatesListIn; out: PluginsAgentTemplatesListOut };
+  "plugins.allow.list": { in: PluginsAllowListIn; out: PluginsAllowListOut };
+  "plugins.allow.set": { in: PluginsAllowSetIn; out: PluginsAllowSetOut };
+  "plugins.browse": { in: PluginsBrowseIn; out: PluginsBrowseOut };
+  "plugins.command.render": { in: PluginsCommandRenderIn; out: PluginsCommandRenderOut };
+  "plugins.commands.list": { in: PluginsCommandsListIn; out: PluginsCommandsListOut };
+  "plugins.config.set": { in: PluginsConfigSetIn; out: PluginsConfigSetOut };
+  "plugins.connection.add": { in: PluginsConnectionAddIn; out: PluginsConnectionAddOut };
+  "plugins.connection.remove": { in: PluginsConnectionRemoveIn; out: PluginsConnectionRemoveOut };
+  "plugins.connections.list": { in: PluginsConnectionsListIn; out: PluginsConnectionsListOut };
+  "plugins.get": { in: PluginsGetIn; out: PluginsGetOut };
+  "plugins.hooks.list": { in: PluginsHooksListIn; out: PluginsHooksListOut };
+  "plugins.install": { in: PluginsInstallIn; out: PluginsInstallOut };
+  "plugins.list": { in: PluginsListIn; out: PluginsListOut };
+  "plugins.marketplace.add": { in: PluginsMarketplaceAddIn; out: PluginsMarketplaceAddOut };
+  "plugins.marketplace.refresh": { in: PluginsMarketplaceRefreshIn; out: PluginsMarketplaceRefreshOut };
+  "plugins.marketplace.remove": { in: PluginsMarketplaceRemoveIn; out: PluginsMarketplaceRemoveOut };
+  "plugins.marketplaces.list": { in: PluginsMarketplacesListIn; out: PluginsMarketplacesListOut };
+  "plugins.mcp.servers": { in: PluginsMcpServersIn; out: PluginsMcpServersOut };
+  "plugins.set_enabled": { in: PluginsSetEnabledIn; out: PluginsSetEnabledOut };
+  "plugins.uninstall": { in: PluginsUninstallIn; out: PluginsUninstallOut };
   "portal.account_create": { in: PortalAccountCreateIn; out: PortalAccountCreateOut };
   "portal.account_disable": { in: PortalAccountDisableIn; out: PortalAccountDisableOut };
   "portal.accounts": { in: PortalAccountsIn; out: PortalAccountsOut };
@@ -30542,6 +31001,60 @@ export type PlanStepDonePayload = {
   threadId: string;
   stepId: string;
 };
+export type PluginAllowlistChangedPayload = {
+  kind: "marketplace" | "plugin";
+  marketplace: string;
+  plugin?: string;
+  allowed: boolean;
+  by: string;
+};
+export type PluginChangedPayload = {
+  pluginId: string;
+  name: string;
+  by: string;
+};
+export type PluginConnectionAddedPayload = {
+  connectionId: string;
+  name: string;
+  scope: "space" | "agent";
+  agentId?: string;
+  by: string;
+};
+export type PluginConnectionRemovedPayload = {
+  connectionId: string;
+  name: string;
+  by: string;
+};
+export type PluginInstalledPayload = {
+  pluginId: string;
+  name: string;
+  marketplace: string;
+  scope: "space" | "agent";
+  agentId?: string;
+  by: string;
+};
+export type PluginMarketplaceAddedPayload = {
+  marketplaceId: string;
+  name: string;
+  source: string;
+  by: string;
+};
+export type PluginMarketplaceRefreshedPayload = {
+  marketplaceId: string;
+  name: string;
+  plugins: number;
+  by: string;
+};
+export type PluginMarketplaceRemovedPayload = {
+  marketplaceId: string;
+  name: string;
+  by: string;
+};
+export type PluginUninstalledPayload = {
+  pluginId: string;
+  name: string;
+  by: string;
+};
 export type PolicyChangedPayload = {
   key: string;
   scope: string;
@@ -32339,6 +32852,15 @@ export interface EventMap {
   "plan.proposed": PlanProposedPayload;
   "plan.rejected": PlanRejectedPayload;
   "plan.step_done": PlanStepDonePayload;
+  "plugin.allowlist_changed": PluginAllowlistChangedPayload;
+  "plugin.changed": PluginChangedPayload;
+  "plugin.connection_added": PluginConnectionAddedPayload;
+  "plugin.connection_removed": PluginConnectionRemovedPayload;
+  "plugin.installed": PluginInstalledPayload;
+  "plugin.marketplace_added": PluginMarketplaceAddedPayload;
+  "plugin.marketplace_refreshed": PluginMarketplaceRefreshedPayload;
+  "plugin.marketplace_removed": PluginMarketplaceRemovedPayload;
+  "plugin.uninstalled": PluginUninstalledPayload;
   "policy.changed": PolicyChangedPayload;
   "portal.account_created": PortalAccountCreatedPayload;
   "portal.message_posted": PortalMessagePostedPayload;

@@ -11,6 +11,7 @@
 //   CapabilityDef has no such field, so the computers and terminal capabilities do not carry it.
 import { atool, create, defineManifest, ev, field, list, read, rtype, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, versionRow } from './_common.ts';
+import { pluginCapabilities, pluginEvents } from './_agents-plugins.ts';
 
 const agentStatus = t.enm('awake', 'working', 'asleep', 'paused');
 const captureMode = t.enm('propose', 'auto_low_risk', 'off');
@@ -227,6 +228,7 @@ export default defineManifest({
     write('skills.remove', 'Remove a skill from the Space library, or from one agent', {
       in: { name: t.str(), agentId: t.opt(id.agent) }, out: { removed: t.bool() }, perm: 'agents.manage', level: 'manage', idem: 'key', emits: ['skill.removed'], audit: 'always', tool: 'agents', mcpName: 'skills_remove',
     }),
+    ...pluginCapabilities,
     write('skills.set_enabled', 'Turn a Space or agent skill off or on without removing it', {
       in: { name: t.str(), agentId: t.opt(id.agent), enabled: t.bool() }, out: { skill: skillRow }, perm: 'agents.manage', level: 'manage', idem: 'key', emits: ['skill.changed'], audit: 'always', tool: 'agents', mcpName: 'skills_set_enabled', errors: ['validation.not_found'],
     }),
@@ -234,6 +236,7 @@ export default defineManifest({
   events: [
     ev('skill.added', 'A skill was added to the Space library or to one agent', { p: { name: t.str(), tier: t.enm('space', 'agent'), agentId: t.opt(id.agent), source: t.str(), by: t.str() }, subject: ['entity', '/name'] }),
     ev('skill.removed', 'A skill was removed from the Space library or from one agent', { p: { name: t.str(), agentId: t.opt(id.agent), by: t.str() }, subject: ['entity', '/name'] }),
+    ...pluginEvents,
     ev('skill.changed', 'A skill was turned off or on', { p: { name: t.str(), agentId: t.opt(id.agent), enabled: t.bool(), by: t.str() }, subject: ['entity', '/name'] }),
     ev('agent.created', 'An agent was created', { p: { agentId: id.agent, name: t.str(), ownerId: id.user, folderId: t.str(), templateVersion: t.int() }, subject: ['agent', '/agentId'], trigger: { title: 'An agent is created' } }),
     ev('agent.paused', 'An agent was paused', { p: { agentId: id.agent, reason: t.opt(t.str()), by: t.str() }, subject: ['agent', '/agentId'], trigger: { title: 'An agent is paused' } }),

@@ -94,3 +94,15 @@ export function skillText(name: string, description: string, body: string, extra
   const lines = ["---", `name: ${name}`, `description: ${q(description)}`, ...Object.entries(extra).map(([k, v]) => `${k}: ${q(v)}`), "---", "", body.replace(/^\n+/, "")];
   return `${lines.join("\n").replace(/\n+$/, "")}\n`;
 }
+
+/** The same SKILL.md under another name: the front matter `name:` line is replaced, or added when there is none. Everything else is kept as written. */
+export function withSkillName(text: string, name: string): string {
+  const m = FRONT.exec(text);
+  if (!m) {
+    const r = parseSkill(text, name);
+    return skillText(name, r.ok ? r.skill.description : name, text);
+  }
+  const block = m[1]!;
+  const next = /^name:.*$/m.test(block) ? block.replace(/^name:.*$/m, `name: ${name}`) : `name: ${name}\n${block}`;
+  return `---\n${next}\n---\n${text.slice(m[0].length)}`;
+}

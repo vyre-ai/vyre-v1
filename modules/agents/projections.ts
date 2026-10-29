@@ -47,7 +47,7 @@ export const askerOf = (ctx: Pick<AgentsCtx, "principal" | "actingFor">): string
 
 // ---- schema -----------------------------------------------------------------------------------------------------------------------------------------
 
-const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
+const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
@@ -55,7 +55,7 @@ const ready = new WeakSet<object>();
 /** Make sure the agents tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT key FROM agents_meta WHERE key = ?", "probe"); db.all("SELECT routineId FROM agents_routine_watch WHERE routineId = ?", "probe"); db.all("SELECT id FROM agents_skills WHERE id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
+  try { db.all("SELECT key FROM agents_meta WHERE key = ?", "probe"); db.all("SELECT routineId FROM agents_routine_watch WHERE routineId = ?", "probe"); db.all("SELECT id FROM agents_skills WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_connections WHERE id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   ready.add(db);
 }
 

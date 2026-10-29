@@ -1,0 +1,9 @@
+{
+  "name": "vyre-test-market",
+  "description": "A small marketplace the tests install from.",
+  "owner": { "name": "Vyre tests" },
+  "plugins": [
+    { "name": "greeter", "source": "./plugins/greeter", "description": "Greets people: a skill, a command, a sub-agent, a hook and an MCP server.", "version": "1.0.0", "category": "demo" },
+    { "name": "notes", "source": "./plugins/notes", "description": "One skill and nothing else.", "category": "demo" }
+  ]
+}

@@ -1464,6 +1464,54 @@ export function createClient(transport: Transport) {
       },
       send: call("notifications.send", 1),
     },
+    plugins: {
+      agent_template: {
+        use: call("plugins.agent_template.use", 1),
+      },
+      agent_templates: {
+        list: call("plugins.agent_templates.list", 1),
+      },
+      allow: {
+        list: call("plugins.allow.list", 1),
+        set: call("plugins.allow.set", 1),
+      },
+      browse: call("plugins.browse", 1),
+      command: {
+        render: call("plugins.command.render", 1),
+      },
+      commands: {
+        list: call("plugins.commands.list", 1),
+      },
+      config: {
+        set: call("plugins.config.set", 1),
+      },
+      connection: {
+        add: call("plugins.connection.add", 1),
+        remove: call("plugins.connection.remove", 1),
+      },
+      connections: {
+        list: call("plugins.connections.list", 1),
+      },
+      get: call("plugins.get", 1),
+      hooks: {
+        list: call("plugins.hooks.list", 1),
+      },
+      install: call("plugins.install", 1),
+      list: call("plugins.list", 1),
+      marketplace: {
+        add: call("plugins.marketplace.add", 1),
+        refresh: call("plugins.marketplace.refresh", 1),
+        remove: call("plugins.marketplace.remove", 1),
+      },
+      marketplaces: {
+        list: call("plugins.marketplaces.list", 1),
+      },
+      mcp: {
+        servers: call("plugins.mcp.servers", 1),
+      },
+      set_enabled: call("plugins.set_enabled", 1),
+      uninstall: call("plugins.uninstall", 1),
+    },
     portal: {
       account_create: call("portal.account_create", 1),
       account_disable: call("portal.account_disable", 1),

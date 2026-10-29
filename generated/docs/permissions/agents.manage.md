@@ -15,6 +15,13 @@ Area: agents. Risk: medium. Applies to: agent.
 ## Capabilities that need it
 
 - agents.template.apply
+- plugins.agent_template.use
+- plugins.config.set
+- plugins.connection.add
+- plugins.connection.remove
+- plugins.install
+- plugins.set_enabled
+- plugins.uninstall
 - skills.add
 - skills.remove
 - skills.set_enabled

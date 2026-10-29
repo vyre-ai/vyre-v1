@@ -12,6 +12,7 @@ HTTP 422. Retryable: no.
 - files.write
 - forms.choices_set
 - import.commit
+- plugins.install
 - sheets.append_rows
 - skills.add
 - sources.ingest
