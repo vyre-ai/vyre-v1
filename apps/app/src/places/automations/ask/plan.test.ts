@@ -48,6 +48,7 @@ test("an unknown app asks for a document already in hand", () => {
   const turn = planAsk({ text: "create a stripe customer", accounts: [], steps });
   assert.equal(turn.kind, "need_doc");
   if (turn.kind !== "need_doc") return;
+  assert.equal(turn.app, "stripe");
   assert.match(turn.say, /OpenAPI document you already have/);
   assert.match(turn.say, /not opened/);
   assert.equal(turn.say.includes("https://"), false);

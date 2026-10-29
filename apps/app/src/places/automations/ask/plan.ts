@@ -42,6 +42,7 @@ const APP_WORDS: readonly { app: string; words: readonly string[] }[] = [
   { app: "ms", words: ["microsoft", "outlook", "onedrive", "sharepoint"] },
   { app: "github", words: ["github"] },
   { app: "mail", words: ["mailbox"] },
+  { app: "stripe", words: ["stripe"] },
 ];
 
 const SECRET_HINT = "Paste this into Vault. Ask Vyre does not see the value.";

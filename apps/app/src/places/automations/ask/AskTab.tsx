@@ -10,6 +10,9 @@ import {
   accountFromCreate, connectionCreateInput, firstFolderId, handleOf, itemIdOf, linesFor, linkAccount, planAsk, publicLine, savedLine, setupShape, vaultPutInput,
 } from "./plan.ts";
 import type { AskLine, AskStep, AskTurn, PasteSlot } from "./plan.ts";
+import { shouldHunt } from "./hunt.ts";
+import { placeSteps, placeWebhook, showTry, triggersFrom } from "./place.ts";
+import type { TriggerOffer } from "./place.ts";
 import { actionsFrom, proposalsFrom } from "./proposals.ts";
 import type { StepProposal } from "./proposals.ts";
 import { publicResult, readOffer } from "./read.ts";
@@ -34,6 +37,7 @@ export function AskTab({ def, selectedId, accounts, steps, onChange, onOpenChat,
   const [turn, setTurn] = useState<AskTurn | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [proposals, setProposals] = useState<StepProposal[]>([]);
+  const [hooks, setHooks] = useState<TriggerOffer[]>([]);
   const [linked, setLinked] = useState<AccountOption | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -101,6 +105,7 @@ export function AskTab({ def, selectedId, accounts, steps, onChange, onOpenChat,
       const out = await call("automations.draft_connector", { document: parsed });
       const shape = setupShape(out);
       setProposals(proposalsFrom(actionsFrom(out)));
+      setHooks(triggersFrom(out));
       const raw = text.trim() || "use this document";
       if (shape.fields.length === 0 && shape.actions.length === 0) say("This document does not say how to sign in.");
       else ask(raw, shape.fields, shape.actions[0] ?? null);
@@ -123,6 +128,59 @@ export function AskTab({ def, selectedId, accounts, steps, onChange, onOpenChat,
       say(err instanceof Error ? err.message : "That read did not run.");
     }
     setBusy(false);
+  };
+
+  const submit = async (): Promise<void> => {
+    const raw = text.trim();
+    if (!raw || busy) return;
+    const planned = planAsk({ text: raw, accounts, steps });
+    if (!shouldHunt(planned)) {
+      setProposals([]);
+      setHooks([]);
+      ask(raw);
+      return;
+    }
+    setBusy(true);
+    setProposals([]);
+    setHooks([]);
+    try {
+      const out = await call("automations.draft_connector", { app: planned.app, intent: raw });
+      const shape = setupShape(out);
+      const nextProposals = proposalsFrom(actionsFrom(out));
+      const offers = triggersFrom(out);
+      setProposals(nextProposals);
+      setHooks(offers);
+      const next = planAsk({
+        text: raw,
+        accounts,
+        steps,
+        ...(shape.fields.length > 0 ? { fields: shape.fields } : {}),
+        ...(shape.actions[0] ? { action: shape.actions[0] } : {}),
+      });
+      const shown = next.kind === "need_doc" && (nextProposals.length > 0 || offers.length > 0)
+        ? { ...next, say: "The official document is drafted. Link a connection, then add a step." }
+        : next;
+      setLines((cur) => [...cur, ...linesFor(raw, shown)]);
+      setTurn(next);
+      setValues({});
+      setText("");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "That document did not load.";
+      setLines((cur) => [...cur, ...linesFor(raw, { ...planned, say: message })]);
+      setTurn(planned);
+      setText("");
+    }
+    setBusy(false);
+  };
+
+  const addAll = (): void => {
+    const account = accountNow();
+    if (!account) { say("Link a connection before adding this step."); return; }
+    const placed = placeSteps(def, proposals, account, selectedId);
+    if ("error" in placed) { say(placed.error); return; }
+    onChange(placed.def);
+    setLinked(account);
+    say(`Added ${placed.nodeIds.length} steps. An outward call waits until you run it.`);
   };
 
   const addProposal = (proposal: StepProposal): void => {
@@ -148,7 +206,7 @@ export function AskTab({ def, selectedId, accounts, steps, onChange, onOpenChat,
         {turn?.kind === "use" ? (
           <View style={s.row}>
             <Pressable accessibilityRole="button" accessibilityLabel={`Use ${turn.account.title}`} testID="ask-use" onPress={() => { if (useAccount(turn.account, turn)) say(`Linked ${turn.account.title} to the step.`); }} style={s.btn}><Text style={s.btnText}>Use {turn.account.title}</Text></Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Try this read" testID="ask-try-read" onPress={() => void tryRead({ stepKey: turn.stepKey, effect: turn.stepKey === "connector_request" ? (proposals.find((item) => item.action === turn.action)?.effect ?? null) : null, connectionId: turn.account.id, connector: turn.account.app, action: turn.action, input: {} })} style={s.btn}><Text style={s.btnText}>Try this read</Text></Pressable>
+            {readOffer({ stepKey: turn.stepKey, effect: turn.stepKey === "connector_request" ? (proposals.find((item) => item.action === turn.action)?.effect ?? null) : null, connectionId: turn.account.id, connector: turn.account.app, action: turn.action, input: {} }).kind !== "hold" ? <Pressable accessibilityRole="button" accessibilityLabel="Try this read" testID="ask-try-read" onPress={() => void tryRead({ stepKey: turn.stepKey, effect: turn.stepKey === "connector_request" ? (proposals.find((item) => item.action === turn.action)?.effect ?? null) : null, connectionId: turn.account.id, connector: turn.account.app, action: turn.action, input: {} })} style={s.btn}><Text style={s.btnText}>Try this read</Text></Pressable> : null}
           </View>
         ) : null}
         {turn?.kind === "choose" ? turn.accounts.map((account) => (
@@ -156,19 +214,26 @@ export function AskTab({ def, selectedId, accounts, steps, onChange, onOpenChat,
         )) : null}
         {turn?.kind === "sign_in" ? <Pressable accessibilityRole="button" accessibilityLabel="Sign in" testID="ask-sign-in" onPress={() => onConnect({ service: turn.service, kind: "connection" })} style={s.btn}><Text style={s.btnText}>Sign in</Text></Pressable> : null}
         {turn?.kind === "paste" ? <PasteBoxes slots={turn.slots} values={values} busy={busy} onChange={(key, value) => setValues((cur) => ({ ...cur, [key]: value }))} onSave={() => void save(turn)} /> : null}
+        {proposals.length > 1 ? <Pressable accessibilityRole="button" accessibilityLabel="Add these steps" testID="ask-add-all" onPress={addAll} style={s.btn}><Text style={s.btnText}>Add these steps</Text></Pressable> : null}
+        {hooks.map((hook) => (
+          <View key={hook.key} testID="ask-webhook">
+            <Text style={s.copy}>{hook.say}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Add webhook" testID="ask-add-webhook" onPress={() => { onChange(placeWebhook(def)); say(hook.say); }} style={s.btn}><Text style={s.btnText}>Add webhook</Text></Pressable>
+          </View>
+        ))}
         {proposals.map((proposal) => (
           <View key={proposal.action} testID={`ask-proposal-${proposal.action}`}>
             <Text style={s.copy}>{proposal.title}. {proposal.say}</Text>
             <View style={s.row}>
               <Pressable accessibilityRole="button" accessibilityLabel={`Add ${proposal.title}`} testID={`ask-add-${proposal.action}`} onPress={() => addProposal(proposal)} style={s.btn}><Text style={s.btnText}>Add {proposal.title}</Text></Pressable>
-              {proposal.check === "dry_run" ? <Pressable accessibilityRole="button" accessibilityLabel={`Try ${proposal.title}`} testID={`ask-try-${proposal.action}`} onPress={() => void tryRead({ stepKey: "connector_request", effect: "read", connectionId: accountNow()?.id ?? null, connector: accountNow()?.app ?? null, action: proposal.action, input: {} })} style={s.btn}><Text style={s.btnText}>Try this read</Text></Pressable> : null}
+              {proposal.check === "dry_run" && showTry(proposal.effect) ? <Pressable accessibilityRole="button" accessibilityLabel={`Try ${proposal.title}`} testID={`ask-try-${proposal.action}`} onPress={() => void tryRead({ stepKey: "connector_request", effect: "read", connectionId: accountNow()?.id ?? null, connector: accountNow()?.app ?? null, action: proposal.action, input: {} })} style={s.btn}><Text style={s.btnText}>Try this read</Text></Pressable> : null}
             </View>
           </View>
         ))}
       </ScrollView>
       <TextInput accessibilityLabel="What should this Automation do" testID="ask-input" value={text} onChangeText={setText} placeholder="App and what you want done" placeholderTextColor="var(--ink-4)" style={s.input} />
       <View style={s.row}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Ask" testID="ask-send" onPress={() => { if (text.trim()) ask(text.trim()); }} style={s.btn}><Text style={s.btnText}>Ask</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Ask" testID="ask-send" onPress={() => { if (text.trim()) void submit(); }} style={s.btn}><Text style={s.btnText}>Ask</Text></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Open in Chats" testID="ask-open-chat" onPress={openChat} style={s.btn}><Text style={s.btnText}>Open in Chats</Text></Pressable>
       </View>
       <Text style={s.hint}>OpenAPI document you already have. A web address is not opened.</Text>

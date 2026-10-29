@@ -555,7 +555,7 @@
     {
       "deferred": false,
       "name": "automations_draft_connector",
-      "summary": "Draft actions from an OpenAPI document already in memory. A docs URL is stored on the draft and is not fetched or promoted.",
+      "summary": "Draft actions from an OpenAPI document already in memory, or from one allowlisted app. A docs URL is stored on the draft and is not fetched. Nothing is promoted.",
       "toolset": "automations"
     },
     {

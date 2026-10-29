@@ -29922,8 +29922,10 @@
       "examples": [
         {
           "input": {
+            "app": "example",
             "docsUrl": "example",
-            "document": {}
+            "document": {},
+            "intent": "example"
           },
           "name": "example",
           "output": {
@@ -30052,19 +30054,24 @@
       "idempotency": "natural",
       "input": {
         "properties": {
+          "app": {
+            "description": "Selects one allowlisted official document. A web address is not opened.",
+            "type": "string"
+          },
           "docsUrl": {
             "description": "Stored on the draft only. Not fetched and not a server.",
             "type": "string"
           },
           "document": {
             "additionalProperties": true,
-            "description": "An OpenAPI 3 document already in memory. Nothing is fetched.",
+            "description": "An OpenAPI 3 document already in memory. Omit it to load one allowlisted app. A web address is not opened.",
             "type": "object"
+          },
+          "intent": {
+            "description": "Keeps matching paths from that document. It is not a URL.",
+            "type": "string"
           }
         },
-        "required": [
-          "document"
-        ],
         "type": "object"
       },
       "level": "view",
@@ -30585,7 +30592,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "Draft actions from an OpenAPI document already in memory. A docs URL is stored on the draft and is not fetched or promoted.",
+      "summary": "Draft actions from an OpenAPI document already in memory, or from one allowlisted app. A docs URL is stored on the draft and is not fetched. Nothing is promoted.",
       "surfaces": {
         "http": "auto",
         "mcp": {

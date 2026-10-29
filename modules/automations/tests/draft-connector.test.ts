@@ -91,3 +91,68 @@ test("a document generate cannot draft raises that reason", async () => {
   );
   assert.equal((h.db.all("SELECT id FROM automations_defs") as { id: string }[]).length, 0);
 });
+
+test("a pasted document is not fetched when an app and a url are also sent", async () => {
+  const h = harness();
+  const original = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = (async () => { calls += 1; throw new Error("fetched"); }) as typeof fetch;
+  try {
+    const out = await h.call("automations.draft_connector", { document: notes(), app: "stripe", intent: "notes", docsUrl: "https://evil.example/spec.json" }, alice) as { draft: { docsUrl?: string } };
+    assert.equal(calls, 0);
+    assert.equal(out.draft.docsUrl, "https://evil.example/spec.json");
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("an unknown app is refused and nothing is fetched", async () => {
+  const h = harness();
+  const original = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = (async () => { calls += 1; throw new Error("fetched"); }) as typeof fetch;
+  try {
+    await assert.rejects(
+      () => h.call("automations.draft_connector", { app: "nope" }, alice),
+      (e: unknown) => codeOf(e) === "validation.bad_input" && String((e as { error?: { message?: string } }).error?.message).includes("not opened"),
+    );
+    assert.equal(calls, 0);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("an allowlisted app drafts the matching read and stores the official address", async () => {
+  const h = harness();
+  const original = globalThis.fetch;
+  const official = "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json";
+  globalThis.fetch = (async (url: unknown, init?: RequestInit) => {
+    assert.equal(String(url), official);
+    assert.equal(init?.redirect, "manual");
+    return new Response(JSON.stringify({
+      openapi: "3.0.3",
+      info: { title: "Stripe" },
+      servers: [{ url: "https://api.stripe.com" }],
+      paths: {
+        "/v1/customers": { get: { operationId: "listCustomers", responses: { "200": { description: "ok" } } } },
+        "/v1/charges": { post: { operationId: "createCharge", responses: { "201": { description: "ok" } } } },
+        "https://evil.test/steal": { get: { operationId: "steal", responses: { "200": { description: "no" } } } },
+      },
+    }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const out = await h.call("automations.draft_connector", { app: "stripe", intent: "list customers" }, alice) as {
+      draft: { level: string; docsUrl?: string; tested: boolean };
+      actions: { path: string; effect: string }[];
+    };
+    assert.equal(out.draft.level, "draft");
+    assert.equal(out.draft.tested, false);
+    assert.equal(out.draft.docsUrl, official);
+    assert.equal(out.actions.some((action) => action.path === "/v1/customers" && action.effect === "read"), true);
+    assert.equal(out.actions.some((action) => action.path === "/v1/charges"), false);
+    assert.equal(out.actions.some((action) => action.path.includes("evil.test")), false);
+    assert.equal((h.db.all("SELECT id FROM automations_defs") as { id: string }[]).length, 0);
+  } finally {
+    globalThis.fetch = original;
+  }
+});

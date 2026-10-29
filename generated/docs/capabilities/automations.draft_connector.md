@@ -1,6 +1,6 @@
 # automations.draft_connector
 
-Draft actions from an OpenAPI document already in memory. A docs URL is stored on the draft and is not fetched or promoted.
+Draft actions from an OpenAPI document already in memory, or from one allowlisted app. A docs URL is stored on the draft and is not fetched. Nothing is promoted.
 
 | | |
 |---|---|
@@ -25,8 +25,10 @@ Draft actions from an OpenAPI document already in memory. A docs URL is stored o
 
 ```ts
 type In = {
-  document: Record<string, unknown>;
+  document?: Record<string, unknown>;
   docsUrl?: string;
+  app?: string;
+  intent?: string;
 };
 ```
 
@@ -137,8 +139,10 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "app": "example",
     "docsUrl": "example",
-    "document": {}
+    "document": {},
+    "intent": "example"
   },
   "output": {
     "actions": [

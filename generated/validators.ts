@@ -17196,7 +17196,6 @@ const g999 = typeOf(x999);
 const b999: string[] = []; lf(x999, p, b999, L0); if (b999.length) e.push(...b999);
 if (g999 === "object") {
 if (g999 === 'object') { const o999 = x999 as Record<string, unknown>;
-if (!("document" in o999)) e.push(p + "/document" + ': required');
 if ("document" in o999) {
 {
 const x1000 = o999["document"];
@@ -17209,6 +17208,8 @@ if (g1000 === 'object') { const o1000 = x1000 as Record<string, unknown>;
 }
 }
 if ("docsUrl" in o999) lf(o999["docsUrl"], p + "/docsUrl", e, L2);
+if ("app" in o999) lf(o999["app"], p + "/app", e, L2);
+if ("intent" in o999) lf(o999["intent"], p + "/intent", e, L2);
 }
 }
 }

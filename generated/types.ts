@@ -2088,8 +2088,10 @@ export type AutomationsDeleteOut = {
   deleted: boolean;
 };
 export type AutomationsDraftConnectorIn = {
-  document: Record<string, unknown>;
+  document?: Record<string, unknown>;
   docsUrl?: string;
+  app?: string;
+  intent?: string;
 };
 export type AutomationsDraftConnectorOut = {
   draft: {
