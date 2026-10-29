@@ -94,6 +94,7 @@ import {createRecoveryCommit} from "../seams/recovery.ts";
 import type { GithubOAuth } from "../seams/people.ts";
 import { createSpaceAdmin } from "../seams/spaceadmin.ts";
 import { preAuthSession } from "./preauth.ts";
+import { createFiller } from "../seams/filler.ts";
 import { createProviderProbe, createVaultService, refuseModelAddress, resolveVaultItem } from "../seams/vault.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, wireSeams } from "../seams/index.ts";
@@ -219,6 +220,8 @@ export interface DaemonOptions {
     /** where a vault value may be filled, by kind (git_credential, container_env, env...): each receives the value for one call and must not keep or log it */
     vaultSinks?: Record<string, (f: { value: string; ref: string; handle: string; field: string; itemId: string }) => Promise<void> | void>;
   } & Partial<Omit<SeamDeps, "vault" | "drivers" | "owners">>;
+  /** Tests: extra environment for every git command the git module runs (GIT_CONFIG_COUNT entries that point a remote address at a local repository). */
+  gitEnv?: Record<string, string>;
   /** The address an agent computer reaches this daemon at (its container is not on localhost). Default http://host.docker.internal:<port>. */
   computersBaseUrl?: string;
   /** How often an agent computer mirrors its home with Files while it runs (tests set it long and trigger passes by waking and sleeping). Default 3 s. */
@@ -297,6 +300,9 @@ const loopback = (address: string | undefined): boolean => address === "127.0.0.
 export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const cfg = o.config;
   const now = o.now ?? Date.now;
+  // What holds a GitHub installation token for one use: the token is delivered once, to the git module's credential slot (a ref), and read back by the git host. It is no Vault item and is never stored.
+  const gitCredentials = new Map<string, string>();
+  const filler = o.seams?.filler ?? createFiller({ git_credential: (ref, value) => { gitCredentials.set(ref, value); } }, now);
   const codeRoot = o.codeRoot ?? CODE_ROOT;
   const platform = o.platform ?? nodePlatform();
   const hasSpace = cfg.roles.includes("space");
@@ -677,7 +683,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         })()),
         services: hostServices({
           base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)), seal, queue: scheduleQueue, blobs,
-          vault: (seed) => createVaultService((c, i, sd) => invokeRef(c, i, sd), spaceId, seed),
+          vault: (seed) => createVaultService((c, i, sd) => invokeRef(c, i, sd), spaceId, seed, { fill: (h, into, at) => filler.fill(h, into, at), now }),
         }),
         idem, rate: createRateLimiter(), now, log: sinkLog,
         ...(gate ? { gate } : {}),
@@ -918,7 +924,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           post: { allow: o.seams?.webhookAllow ?? (() => []), now, ...(o.seams?.postFetch ? { fetch: o.seams.postFetch } : {}) },
         }),
         // the git module: working trees under the data directory; a GitHub token arrives only through ctx.vault.fill (git_credential), which waits on the Vault module (w12a, P-L7_LIVE)
-        setGitHost: () => ({ treesDir: path.join(paths.root, "trees"), takeCredential: () => undefined }),
+        setGitHost: () => ({ treesDir: path.join(paths.root, "trees"), ...(o.gitEnv ? { env: o.gitEnv } : {}), takeCredential: (ref: string) => { const v = gitCredentials.get(ref); gitCredentials.delete(ref); return v; } }),
         ...spaceStoreDrivers(spaceStore),
         configureSpaceAdmin: () => createSpaceAdmin({ access: () => access.snap, owner: () => access.owner() ?? cfg.owner ?? "usr_owner", space: spaceId, db: db!, system, headSeq: () => headSeq,
           address: () => {
@@ -956,7 +962,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           blobs: o.seams?.blobs ?? { put: none("The blob store") },
           members: o.seams?.members ?? { emails: none("The member list") },
           ...(o.seams?.fetch ? { fetch: o.seams.fetch } : {}),
-          ...(o.seams?.filler ? { filler: o.seams.filler } : {}),
+          filler,
           // where Mailgun posts inbound mail: the address people reach this Space at, else the local URL (read at call time, the port is known only after listen)
           publicUrl: o.seams?.publicUrl ?? (async () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }),
           drivers: hostDrivers, owners: loaded.seamOwners,

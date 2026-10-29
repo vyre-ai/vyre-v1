@@ -172,6 +172,9 @@ function insertItem(ctx: Ctx, mountId: string, n: NewItem): Row {
     deleted: 0,
     conflict: 0,
   };
+  // the host may have seen the file or folder appear before this row was written and queued it as a new local item: this row replaces that echo
+  if (n.fileId) ctx.db.run("DELETE FROM mounts_item WHERE mount_id = ? AND file_id = ? AND remote_id IS NULL", mountId, n.fileId);
+  if (n.folderId) ctx.db.run("DELETE FROM mounts_item WHERE mount_id = ? AND folder_id = ? AND remote_id IS NULL", mountId, n.folderId);
   const cols = Object.keys(row);
   ctx.db.run(`INSERT INTO mounts_item (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`, ...cols.map((c) => row[c]));
   return row;
