@@ -784,6 +784,8 @@ export function stubs(ctx: CallCtx) {
       ask_cancel: call("forms.ask_cancel"),
       ask_diff: call("forms.ask_diff"),
       attribution_get: call("forms.attribution_get"),
+      choices_candidates: call("forms.choices_candidates"),
+      choices_set: call("forms.choices_set"),
       create: call("forms.create"),
       delete: call("forms.delete"),
       design_set: call("forms.design_set"),

@@ -9952,6 +9952,32 @@ export type FormsAttributionGetOut = {
     consent: boolean;
   };
 };
+export type FormsChoicesCandidatesIn = {
+  formId: string;
+  field: string;
+  q?: string;
+};
+export type FormsChoicesCandidatesOut = {
+  candidates: Array<{
+      refId: string;
+      label: string;
+    }>;
+};
+export type FormsChoicesSetIn = {
+  formId: string;
+  field: string;
+  choices: Array<{
+      refId: string;
+    }>;
+};
+export type FormsChoicesSetOut = {
+  choices: Array<{
+      key: string;
+      refId: string;
+      kind: "record" | "person";
+      label: string;
+    }>;
+};
 export type FormsCreateIn = {
   name: string;
   recordType: string;
@@ -10035,6 +10061,7 @@ export type FormsGetOut = {
   js?: string;
   theme?: Record<string, unknown>;
   logic?: unknown;
+  choices?: Record<string, unknown>;
 };
 export type FormsLinkCreateIn = {
   formId: string;
@@ -27336,6 +27363,8 @@ export interface CapMap {
   "forms.ask_cancel": { in: FormsAskCancelIn; out: FormsAskCancelOut };
   "forms.ask_diff": { in: FormsAskDiffIn; out: FormsAskDiffOut };
   "forms.attribution_get": { in: FormsAttributionGetIn; out: FormsAttributionGetOut };
+  "forms.choices_candidates": { in: FormsChoicesCandidatesIn; out: FormsChoicesCandidatesOut };
+  "forms.choices_set": { in: FormsChoicesSetIn; out: FormsChoicesSetOut };
   "forms.create": { in: FormsCreateIn; out: FormsCreateOut };
   "forms.delete": { in: FormsDeleteIn; out: FormsDeleteOut };
   "forms.design_set": { in: FormsDesignSetIn; out: FormsDesignSetOut };
@@ -29331,6 +29360,11 @@ export type FollowRemovedPayload = {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
+};
+export type FormChoicesChangedPayload = {
+  formId: string;
+  field: string;
+  count: number;
 };
 export type FormCreatedPayload = {
   formId: string;
@@ -31867,6 +31901,7 @@ export interface EventMap {
   "folder.shared": FolderSharedPayload;
   "follow.added": FollowAddedPayload;
   "follow.removed": FollowRemovedPayload;
+  "form.choices_changed": FormChoicesChangedPayload;
   "form.created": FormCreatedPayload;
   "form.link_created": FormLinkCreatedPayload;
   "form.published": FormPublishedPayload;

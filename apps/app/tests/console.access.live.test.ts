@@ -1,0 +1,158 @@
+// Console Access and Agents in Chromium against the production export and a fresh claimed daemon: every flow is driven through the real UI and read back from the server. Screenshots (desktop and phone,
+// light "paper" and "graphite" skins) go to VYRE_CONSOLE_ACCESS_SHOTS for review.
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import type { Page } from "playwright-core";
+import { bootFreshSpace, claimOnEdge, edge } from "./real-app-harness.test.ts";
+
+const KEYS = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] };
+const PASSWORD = "fixture password 123";
+const MATRIX = [["paper", "desktop", 1280, 900], ["graphite", "desktop", 1280, 900], ["paper", "phone", 390, 844], ["graphite", "phone", 390, 844]] as const;
+
+test("production Console Access: People directory, person object, groups, devices and bulk actions", async (t) => {
+  const dist = process.env["VYRE_APP_DIST"];
+  if (!dist) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required"); t.skip("VYRE_APP_DIST required for production browser evidence"); return; }
+  const { chromium } = await import("playwright-core");
+  const exe = process.env["CHROME_BIN"] || chromium.executablePath();
+  assert.ok(fs.existsSync(exe), `Chromium is required at ${exe}`);
+  const space = await bootFreshSpace();
+  const web = await edge(dist, space.url);
+  const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const page = await context.newPage();
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const shots = process.env["VYRE_CONSOLE_ACCESS_SHOTS"] ?? "/tmp/vyre-console-access-shots"; fs.mkdirSync(shots, { recursive: true });
+  try {
+    await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
+    await page.getByTestId("claim-name").fill("Olivia Owner"); await page.getByTestId("claim-username").fill("olivia");
+    await page.getByTestId("claim-password").fill(PASSWORD); await page.getByTestId("claim-confirm").fill(PASSWORD);
+    await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click();
+    await page.getByTestId("shell").waitFor({ timeout: 30_000 });
+    const token = await page.evaluate(() => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].token as string);
+    const call = async (cap: string, data: unknown, bearer = token): Promise<{ status: number; data: any }> => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      const r = await context.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${bearer}` }, data });
+      return { status: r.status(), data: (await r.json()).data };
+    };
+    const api = async (cap: string, data: unknown): Promise<any> => { const r = await call(cap, data); assert.equal(r.status, 200, `${cap}: ${JSON.stringify(r.data)}`); return r.data; }; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const roles = (await api("access.roles.list", {})).roles as { id: string; name: string }[];
+    const roleId = (name: string): string => roles.find((r) => r.name === name)!.id;
+    const join = async (username: string, displayName: string, role = "Member"): Promise<{ personId: string; token: string }> => {
+      const inv = await api("members.invites.create", { role: roleId(role), idempotencyKey: `inv-${username}` });
+      const code = decodeURIComponent(new URL(inv.link).pathname.split("/").pop()!);
+      const r = await context.request.post(`${web.origin}/v1/members/accept`, { data: { code, username, displayName, password: PASSWORD, deviceName: `${displayName.split(" ")[0]}'s laptop`, deviceClass: "desktop", keys: KEYS } });
+      assert.equal(r.status(), 200, await r.text()); return (await r.json()).data;
+    };
+    const maya = await join("maya", "Maya Lin"), noah = await join("noah", "Noah Park", "Developer"), priya = await join("priya", "Priya Rao");
+    const sales = (await api("access.groups.create", { name: "Sales", idempotencyKey: "grp-sales" })).group.id as string;
+    const support = (await api("access.groups.create", { name: "Support", idempotencyKey: "grp-support" })).group.id as string;
+    await api("access.groups.add_member", { groupId: sales, member: { kind: "person", id: maya.personId } });
+    const groupOf = async (id: string): Promise<string[]> => ((await api("access.groups.get", { groupId: id })).group.members as { id: string }[]).map((m) => m.id);
+    const rolesOf = async (personId: string): Promise<string[]> => (await api("access.principals.get", { principal: { kind: "person", id: personId } })).principal.roles as string[];
+
+    const goPeople = async (p: Page = page): Promise<void> => {
+      await p.goto(`${web.origin}/console`, { waitUntil: "load" }); await p.getByTestId("console").waitFor({ timeout: 30_000 });
+      const group = p.getByTestId("navgroup-Access"); if ((await group.getAttribute("aria-expanded")) !== "true") await group.click();
+      await p.getByTestId("row-nav-people").click(); await p.getByTestId("console-people").waitFor();
+    };
+    const rowOf = (id: string) => page.getByTestId(`row-object-row-console-person-${id}`);
+    const pickRow = async (id: string): Promise<void> => { await rowOf(id).click({ button: "right" }); await page.getByRole("menuitem", { name: /^Select$/ }).click(); };
+    const matrix = async (name: string, navigate: (p: Page) => Promise<void>): Promise<void> => {
+      for (const [skin, size, w, h] of MATRIX) {
+        const view = await context.newPage(); await view.setViewportSize({ width: w, height: h });
+        await view.goto(`${web.origin}/console?skin=${skin}`, { waitUntil: "load" }); await view.getByTestId("console").waitFor({ timeout: 30_000 });
+        await navigate(view); await view.waitForTimeout(250);
+        await view.screenshot({ path: path.join(shots, `${name}-${size}-${skin === "paper" ? "light" : "graphite"}.png`), animations: "disabled" }); await view.close();
+      }
+    };
+    /** Phone width has no side navigation: the search button opens the "Go to" list. */
+    const goTo = async (p: Page, testId: string, title: string, group: string): Promise<void> => {
+      if (p.viewportSize()!.width < 720) { await p.getByTestId("console-search").click(); await p.getByRole("menuitem", { name: title, exact: true }).click(); }
+      else { const g = p.getByTestId(`navgroup-${group}`); if ((await g.getAttribute("aria-expanded")) !== "true") await g.click(); await p.getByTestId(`row-nav-${testId}`).click(); }
+    };
+    const toPeople = async (p: Page): Promise<void> => { await goTo(p, "people", "People", "Access"); await p.getByTestId("console-people").waitFor(); };
+
+    await t.test("the directory lists everyone and narrows by search and by status, role and group together", async () => {
+      await goPeople();
+      for (const id of [maya.personId, noah.personId, priya.personId]) await rowOf(id).waitFor();
+      assert.match(await rowOf(maya.personId).innerText(), /Maya Lin[\s\S]*active · Member · \d+ groups?/);
+      await page.getByTestId("object-list-filter").click(); await page.getByTestId("menu").getByText("Role: Member", { exact: true }).click();
+      await rowOf(noah.personId).waitFor({ state: "detached" });
+      assert.equal(await rowOf(maya.personId).count() + await rowOf(priya.personId).count(), 2);
+      await page.getByTestId("object-list-filter").click(); await page.getByTestId("menu").getByText("Group: Sales", { exact: true }).click();
+      await rowOf(priya.personId).waitFor({ state: "detached" });
+      assert.equal(await rowOf(maya.personId).count(), 1, "role and group filters narrow together");
+      await page.getByTestId("object-list-filter").click(); await page.getByTestId("menu").getByText("Group: Sales", { exact: true }).click();
+      await page.getByTestId("object-list-filter").click(); await page.getByTestId("menu").getByText("Role: Member", { exact: true }).click();
+      await page.getByTestId("object-list-search").fill("pri"); await rowOf(maya.personId).waitFor({ state: "detached" }); assert.equal(await rowOf(priya.personId).count(), 1);
+      await page.getByTestId("object-list-search").fill("");
+      await matrix("people-directory", toPeople);
+    });
+
+    await t.test("bulk: add several people to a group and assign a role, each applied and read back", async () => {
+      await goPeople();
+      await pickRow(maya.personId); await pickRow(priya.personId);
+      await page.getByRole("button", { name: "Add to group…", exact: true }).click();
+      await page.getByRole("button", { name: "Group", exact: true }).click(); await page.getByRole("menuitem", { name: "Support", exact: true }).click();
+      await page.getByTestId("people-bulk-confirm").click();
+      await page.getByText(/2 changed/).waitFor();
+      assert.deepEqual((await groupOf(support)).sort(), [maya.personId, priya.personId].sort());
+      await pickRow(maya.personId); await pickRow(priya.personId);
+      await page.getByRole("button", { name: "Assign role…", exact: true }).click();
+      await page.getByRole("button", { name: "Role", exact: true }).click(); await page.getByRole("menuitem", { name: "Developer", exact: true }).click();
+      await page.getByTestId("people-bulk-confirm").click(); await page.getByText(/2 changed/).waitFor();
+      assert.ok((await rolesOf(maya.personId)).includes(roleId("Developer")) && (await rolesOf(priya.personId)).includes(roleId("Developer")));
+      await pickRow(maya.personId); await pickRow(priya.personId);
+      await page.getByRole("button", { name: "Assign role…", exact: true }).click();
+      await page.getByRole("button", { name: "Role", exact: true }).click(); await page.getByRole("menuitem", { name: "Developer", exact: true }).click();
+      await page.getByTestId("people-bulk-confirm").click();
+      await page.getByText(/0 changed, 2 skipped/).waitFor();
+    });
+
+    await t.test("bulk suspend skips the owner, suspends the rest, and ends their sessions", async () => {
+      await goPeople();
+      await pickRow(noah.personId); await pickRow((await api("identity.whoami", {})).principal.id);
+      await page.getByRole("button", { name: "Suspend…", exact: true }).click();
+      await page.getByTestId("people-bulk-reason").fill("Contract ended");
+      await page.getByTestId("people-bulk-confirm").click();
+      await page.getByText(/1 changed, 1 skipped/).waitFor();
+      assert.equal((await api("access.principals.get", { principal: { kind: "person", id: noah.personId } })).principal.status, "suspended");
+      assert.equal((await call("identity.whoami", {}, noah.token)).status, 401);
+      await page.getByTestId("object-list-filter").click(); await page.getByTestId("menu").getByText("Status: Suspended", { exact: true }).click();
+      await rowOf(maya.personId).waitFor({ state: "detached" }); assert.equal(await rowOf(noah.personId).count(), 1);
+      await api("members.reactivate", { personId: noah.personId });
+    });
+
+    await t.test("a person object shows effective access, groups and devices, and changes them", async () => {
+      await goPeople(); await rowOf(maya.personId).click();
+      await page.getByTestId("person-overview").waitFor();
+      await page.getByRole("tab", { name: /^Access/ }).click();
+      await page.getByTestId("person-effective").waitFor();
+      const effective = await page.getByTestId("person-effective").innerText();
+      assert.match(effective, /Roles[\s\S]*Member/); assert.match(effective, /Permissions/);
+      await page.getByRole("tab", { name: /^Groups/ }).click(); await page.getByTestId("person-groups").waitFor();
+      await page.getByTestId("row-person-group-" + sales).waitFor();
+      await page.getByTestId("row-person-group-" + sales).getByRole("button", { name: "Remove" }).click();
+      await page.getByText("Removed from group").waitFor();
+      assert.ok(!(await groupOf(sales)).includes(maya.personId));
+      await page.getByRole("button", { name: "Add to a group", exact: true }).click(); await page.getByRole("menuitem", { name: "Sales", exact: true }).click();
+      await page.getByTestId("person-group-add").click(); await page.getByText("Added to group").waitFor();
+      assert.ok((await groupOf(sales)).includes(maya.personId));
+      await page.getByRole("tab", { name: /^Devices/ }).click(); await page.getByTestId("person-devices").waitFor();
+      assert.match(await page.getByTestId("person-devices").innerText(), /Maya's laptop/);
+      assert.equal((await call("identity.whoami", {}, maya.token)).status, 200);
+      const device = (await api("devices.list", { person: maya.personId })).devices[0].id as string;
+      await page.getByTestId("row-person-device-" + device).getByRole("button", { name: "Revoke…" }).click();
+      await page.getByTestId("person-device-revoke-confirm-" + device).click(); await page.getByText("Device revoked").waitFor();
+      assert.equal((await call("identity.whoami", {}, maya.token)).status, 401, "the revoked device's token stops working");
+      await matrix("person-object-access", async (p) => { await toPeople(p); await p.getByTestId(`row-object-row-console-person-${priya.personId}`).click(); await p.getByRole("tab", { name: /^Access/ }).click(); await p.getByTestId("person-effective").waitFor(); });
+    });
+    assert.deepEqual(errors, []);
+  } catch (error) {
+    await page.screenshot({ path: path.join(shots, "failure.png") }).catch(() => undefined);
+    fs.writeFileSync(path.join(shots, "failure.txt"), `${String(error)}\n${await page.locator("body").innerText().catch(() => "")}`);
+    throw error;
+  } finally { await context.close(); await browser.close(); web.close(); await space.stop(); fs.rmSync(space.dir, { recursive: true, force: true }); }
+});

@@ -1,3 +1,4 @@
+import { createChoiceSource } from "./forms-choices.ts";
 import {syncEndpointOrigin} from "./sync-endpoint.ts";
 import {collectSpaceExport,SpaceExportError} from '../seams/space-export.ts';
 import {createOwnerArchives} from './owner-archives.ts';
@@ -792,7 +793,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           },
         }),
         // forms and campaigns build their public links from the address people reach this Space at; unset, the links stay relative
-        setFormsHost: () => ({ ...(cfg.address ? { publicBase: /^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}` } : {}), schemaFields: async (type: string) => { const out = await system("schema.types.get", { type }) as { type: { fields: readonly unknown[] } }; return out.type.fields; }, canUpload: (publisherId: string, formId: string, folderId: string) => {
+        setFormsHost: () => ({ choiceSource: createChoiceSource({
+          as: (person, cap, input) => invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "forms-public" }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)))),
+          people: () => [...access.snap.allPrincipals()].filter((p) => p.kind === "person" && p.status === "active").map((p) => ({ id: p.id, name: p.name ?? p.id })),
+        }), ...(cfg.address ? { publicBase: /^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}` } : {}), schemaFields: async (type: string) => { const out = await system("schema.types.get", { type }) as { type: { fields: readonly unknown[] } }; return out.type.fields; }, canUpload: (publisherId: string, formId: string, folderId: string) => {
           return formUploadAllowed(access.snap,{publisherId,formId,folderId,stale:staleFor(publisherId),liveLocalFolder:!!db!.all("SELECT id FROM files_folder WHERE id = ? AND deleted_at IS NULL",folderId)[0],now:now()});
         } }),
         setCampaignsHost: () => (cfg.address ? { publicBase: /^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}` } : {}),

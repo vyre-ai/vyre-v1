@@ -328,12 +328,12 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         const lifecycle=await anonymous("members.accept",{code:lifecycleCode,username:"console.lifecycle",displayName:"Lifecycle Person",password:"lifecycle old password 9",keys:lifecycleKeys,deviceName:"Lifecycle client",deviceClass:"web"}) as {personId:string;token:string};
         let lifecycleApi=createCapCaller({baseUrl:web.origin,token:()=>lifecycle.token,routes:async()=>routes});
         const ownedProject=await lifecycleApi("projects.create",{type:"project",title:"Lifecycle handoff project",idempotencyKey:"lifecycle-owned-project"}) as {projectId:string;folderId:string};
-        await page.getByTestId(`row-console-person-${lifecycle.personId}`).click();
+        await page.getByTestId(`row-object-row-console-person-${lifecycle.personId}`).click();
         await page.getByRole("button",{name:"Suspend…",exact:true}).click();await page.getByTestId("person-suspend-confirm").click();
         await page.getByText("Person suspended",{exact:true}).waitFor();
         await assert.rejects(lifecycleApi("identity.whoami",{}));
         assert.equal((await api("access.principals.get",{principal:{kind:"person",id:lifecycle.personId}}) as {principal:{status:string}}).principal.status,"suspended");
-        await page.reload();await page.getByTestId(`row-console-person-${lifecycle.personId}`).click();
+        await page.reload();await page.getByTestId(`row-object-row-console-person-${lifecycle.personId}`).click();
         await page.getByTestId("person-reactivate").click();await page.getByText("Person reactivated",{exact:true}).waitFor();
         const restored=await anonymous("identity.sign_in",{username:"console.lifecycle",password:"lifecycle old password 9",deviceName:"Lifecycle restored",deviceClass:"web"}) as {session:{token:string}};
         lifecycleApi=createCapCaller({baseUrl:web.origin,token:()=>restored.session.token,routes:async()=>routes});await lifecycleApi("identity.whoami",{});
@@ -357,7 +357,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await assert.rejects(lifecycleApi("identity.whoami",{}));
         assert.equal((await api("access.principals.get",{principal:{kind:"person",id:lifecycle.personId}}) as {principal:{status:string}}).principal.status,"removed");
         const handed=await api("projects.get",{projectId:ownedProject.projectId}) as {project:{lead?:string}};assert.equal(handed.project.lead,(await api("identity.whoami",{}) as {principal:{id:string}}).principal.id,"project lead follows the reviewed handoff");
-        await page.reload();await page.getByTestId(`row-console-person-${lifecycle.personId}`).click();await page.getByText("This person was removed. Invite them again to rejoin; reactivation does not restore a removed account.",{exact:true}).waitFor();
+        await page.reload();await page.getByTestId(`row-object-row-console-person-${lifecycle.personId}`).click();await page.getByText("This person was removed. Invite them again to rejoin; reactivation does not restore a removed account.",{exact:true}).waitFor();
         await page.screenshot({path:"shots-evidence/console/person-removed.png"});
         await openConsole("access.roles");
         await page.getByTestId("permission-matrix").waitFor();
