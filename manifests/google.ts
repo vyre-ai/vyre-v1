@@ -43,7 +43,7 @@ const capabilities = [
   // ---- delegation setup (Console > Integrations)
   read('google.dwd.status', 'State of domain-wide delegation: key stored, scopes, last probe, mapped members', {
     in: {}, out: {
-      configured: t.bool(), adminEmail: t.opt(email), domain: t.opt(t.str()), lastProbeAt: t.opt(t.ts()), lastProbeOk: t.opt(t.bool()), autoConnect: t.bool(), mappedMembers: t.int(), excluded: t.arr(email),
+      configured: t.bool(), adminEmail: t.opt(email), domain: t.opt(t.str()), lastProbeAt: t.opt(t.ts()), lastProbeOk: t.opt(t.bool()), autoConnect: t.bool(), mappedMembers: t.int(), excluded: t.arr(email), pushToken: t.opt(t.str()),
     },
     perm: 'connectors.manage', tool: 'engineer',
   }),
