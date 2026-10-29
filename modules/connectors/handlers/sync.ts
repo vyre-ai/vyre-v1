@@ -7,6 +7,7 @@
 // The engine's tables (sy_log, sy_outbox, sy_conflicts, sy_state) are read here and the outbox and conflict status flips below are the only writes to them.
 // @reads /modules/connectors/migrations/0001_connectors.sql
 // @reads /modules/sources/migrations/0001_sources.sql
+import { DEFAULT_POLLING, conflictDefault, noteUse } from "./cadence.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { ensureTables, mintShort, nowOf, PAGE, refuse, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
@@ -103,7 +104,7 @@ interface OutboxDb {
 interface ConflictDb { conflict_id: string; sync_type: string; status: string }
 interface LogDb { at: number; kind: LogRow["kind"]; summary: string; run_id: string | null; trace_id: string | null }
 
-export const DEFAULT_POLLING: PollingRow = { activeSec: 60, idleSec: 300, dormantSec: 3600 };
+export { DEFAULT_POLLING };   // 2 min active, 15 min idle, 1 h dormant: defined with the cadence rules in cadence.ts
 const FIELD_KEY = /^[a-z][a-z0-9_]*$/;
 const DIRS: readonly Dir[] = ["pull", "push", "both", "off"];
 const DELETES: readonly DeleteMode[] = ["off", "soft", "travel"];
@@ -261,7 +262,11 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       return { syncedTypes: rows.slice(start, start + limit).map(rowOf), ...(start + limit < rows.length ? { next: String(start + limit) } : {}), total: rows.length };
     },
 
-    "sync_types.get": async (ctx, input) => ({ syncedType: rowOf(dbByType(ctx, input.type)) }),
+    "sync_types.get": async (ctx, input) => {
+      const r = dbByType(ctx, input.type);
+      noteUse(tx, r.type, nowOf(deps));   // a person looking at a type is what puts it on the 2 minute tier
+      return { syncedType: rowOf(r) };
+    },
 
     "sync_types.discover": async (ctx, input) => {
       prep();
@@ -303,7 +308,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       const id = mintShort("syt", now);
       tx.run(
         "INSERT INTO cn_synced_types (sync_type_id, type, connector, connection_id, remote, fields, match, create_at_source, deletes, conflict, polling, nightly, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        id, input.type, conn.connector, conn.connection_id, input.remote, JSON.stringify(input.fields), JSON.stringify(input.match), input.createAtSource ? 1 : 0, input.deletes ?? "off", input.conflict ?? "newest",
+        id, input.type, conn.connector, conn.connection_id, input.remote, JSON.stringify(input.fields), JSON.stringify(input.match), input.createAtSource ? 1 : 0, input.deletes ?? "off", conflictDefault(input.fields, input.conflict),
         JSON.stringify(input.polling ?? DEFAULT_POLLING), input.nightlyReconcile === false ? 0 : 1, actorOf(ctx), now, now,
       );
       ctx.emit("sync.type_bound", `entity/${id}`, { syncTypeId: id, type: input.type, connector: conn.connector });
@@ -357,6 +362,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
 
     "sync_types.log": async (ctx, input) => {
       const r = dbByType(ctx, input.type);
+      noteUse(tx, r.type, nowOf(deps));
       if (!has("sy_log")) return { entries: [], total: 0 };
       const total = count("SELECT count(*) AS n FROM sy_log WHERE sync_type = ?", r.sync_type_id);
       const { start, limit } = PAGE(input);
