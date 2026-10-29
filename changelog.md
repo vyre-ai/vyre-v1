@@ -1,5 +1,6 @@
 # Changelog
 
+- Raise the slow-test list cap from 40 to 48 so the booted live release-evidence tests each keep their own slow job; every entry still needs an owner, a reason and a 120 s cap.
 - Restore the layer boundaries gate: the daemon hashes the registry through the kernel helper instead of importing node:crypto, and three test-only interop proofs are listed as known exceptions with their reasons.
 - Checkpoint the saved-code recovery client and approved onboarding form: preserve existing identity/Space keys, answer the sealed challenge locally, verify the replacement session and wipe temporary key buffers. Crypto interoperability and orchestration tests pass; full production-browser recovery acceptance remains pending.
 - Verify that the internal identity recovery-noise seed never enters a shared Space archive, including decompressed ZIP contents.
