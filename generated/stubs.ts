@@ -687,6 +687,7 @@ export function stubs(ctx: CallCtx) {
         raise: call("engine.spend.raise"),
         resume_all: call("engine.spend.resume_all"),
       },
+      step_turn: call("engine.step_turn"),
       stop: call("engine.stop"),
       stop_all: call("engine.stop_all"),
       subscription_share: {
@@ -1826,6 +1827,7 @@ export function stubs(ctx: CallCtx) {
       toggle: call("stars.toggle"),
     },
     steps: {
+      support: call("steps.support"),
       test: call("steps.test"),
     },
     stripe: {

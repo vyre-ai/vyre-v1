@@ -1,9 +1,11 @@
 // steps-core (lane L6): the StepDefs every Automation, Journey and Campaign can use (spec 2.12, 2.16): plain data steps, send, AI, task, Journey,
 // wait, control (if, paths, parallel, loop, stop, approval), spreadsheet, sign and code. Other modules add a step only for a capability they own.
 // Spreadsheets (spec 2.16) are table files owned by module files: the sheet steps wrap files' sheets.* capabilities and row events, no sheets.* is declared here.
+// DECISION: the AI step is one engine turn (engine.step_turn) with no tools: a Personal automation runs on its owner's own account, a Space automation on a Space-shared key named in the step. outputSchema is checked here.
 // DECISION: control steps (if, paths, parallel, loop, stop) have no capability; the Run engine evaluates them. approval creates an Approve task and waits.
 // DECISION: Update rows and Delete rows call sheets.update_row and sheets.delete_row for one row (by row id or key column); many rows are Find rows plus Loop.
 //   Each write is a file version labelled with the automation and run, which is what lets "Undo this run" and the row trigger work.
+// DECISION: code runs in the engine's bubblewrap sandbox with a network wall (no network unless hosts names it), never in node:vm; steps.support says whether this server has it.
 // DECISION: http_request is one step with two capabilities. GET and HEAD are reads (automations.http_read, they also run in a sandbox test); every other method is outward (automations.http_send, Gate act send, recorded in a sandbox test).
 // NOT EXPRESSIBLE: step input mapping and templating ({{ }} expressions over earlier outputs) are plain strings here; the schema cannot say "string or typed value".
 import { defineManifest, read, step, t } from '../packages/contracts/src/index.ts';
@@ -30,6 +32,9 @@ export default defineManifest({
     read('steps.test', 'Run one step in test mode with sample data: reads run for real, writes and sends are stubbed', {
       in: { key: t.str({ examples: ['records.update'] }), input: t.rec(), sample: t.opt(t.rec()) },
       out: { output: t.json(), stubbed: t.bool(), error: t.opt(t.obj({ code: t.str(), message: t.str() })) }, tool: 'automations',
+    }),
+    read('steps.support', 'Which live steps this server can run (Run code needs a sandbox; the AI step needs the agent runtime), with the reason when one cannot', {
+      out: { code: t.obj({ available: t.bool(), reason: t.opt(t.str()) }), ai: t.obj({ available: t.bool(), reason: t.opt(t.str()) }) },
     }),
   ],
   steps: [
@@ -81,9 +86,10 @@ export default defineManifest({
     // ai
     step('ai', 'AI step', 'ai', 'ai', {
       effects: 'write', idempotency: 'key', retry: { max: 2, backoff: 'exp', baseMs: 2000 },
-      errors: ['validation.bad_input', 'internal.unexpected', 'provider.rate_limited', 'provider.auth_failed', 'provider.overloaded', 'provider.context_too_long', 'provider.content_filtered', 'permission.limit', 'timeout.deadline'],
+      errors: ['validation.bad_input', 'internal.unexpected', 'provider.rate_limited', 'provider.auth_failed', 'provider.overloaded', 'provider.context_too_long', 'provider.content_filtered', 'provider.unavailable', 'permission.limit', 'timeout.deadline', 'validation.too_large', 'internal.unavailable'],
       in: { prompt: tpl('What the agent should do'), ...aiKeys, outputSchema: t.opt(t.json()), inputs: t.opt(t.rec()) },
-      out: { text: t.str(), data: t.opt(t.json()), runThreadId: id.thread, keyUsed: t.str(), modelUsed: t.str() },
+      out: { text: t.str(), data: t.opt(t.json()), keyUsed: t.str(), modelUsed: t.str() },
+      sample: { text: 'A sample answer.', keyUsed: 'sample', modelUsed: 'sample' },
     }),
     // journey
     step('start_journey', 'Start a Journey', 'journey', 'capability', {
@@ -195,8 +201,13 @@ export default defineManifest({
     }),
     // code
     step('code', 'Run code', 'code', 'code', {
-      effects: 'read', retry: { max: 1, backoff: 'none', baseMs: 0 }, errors: ['validation.bad_input', 'internal.unexpected', 'timeout.deadline'],
-      in: { language: t.enm('javascript'), source: t.str({ description: 'Function body; receives input and returns a JSON value. No network, no files; 10 second limit' }), input: t.opt(t.rec()) },
+      effects: 'read', retry: { max: 1, backoff: 'none', baseMs: 0 }, errors: ['validation.bad_input', 'validation.too_large', 'internal.unexpected', 'timeout.deadline'],
+      in: {
+        language: t.opt(t.enm('javascript')),
+        source: t.str({ description: 'Async function body; receives input and log, awaits freely and returns a JSON value. Runs in the sandbox: no files, no Vault, no network unless hosts names it. 10 seconds of processor time, 96 MB heap, 1 MB out' }),
+        input: t.opt(t.rec()),
+        hosts: t.opt(t.arr(t.str({ examples: ['api.example.com'] }), { maxItems: 10, description: 'Hosts the code may reach with fetch, by name (api.example.com or *.example.com). Empty or absent: no network' })),
+      },
       out: { result: t.json(), logs: t.arr(t.str()) },
     }),
   ],

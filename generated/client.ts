@@ -687,6 +687,7 @@ export function createClient(transport: Transport) {
         raise: call("engine.spend.raise", 1),
         resume_all: call("engine.spend.resume_all", 1),
       },
+      step_turn: call("engine.step_turn", 1),
       stop: call("engine.stop", 1),
       stop_all: call("engine.stop_all", 1),
       subscription_share: {
@@ -1826,6 +1827,7 @@ export function createClient(transport: Transport) {
       toggle: call("stars.toggle", 1),
     },
     steps: {
+      support: call("steps.support", 1),
       test: call("steps.test", 1),
     },
     stripe: {

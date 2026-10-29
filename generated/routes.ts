@@ -8941,6 +8941,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/engine/step_turn",
+    "cap": "engine.step_turn",
+    "v": 1,
+    "module": "engine",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/engine/stop",
     "cap": "engine.stop",
     "v": 1,
@@ -24281,6 +24299,24 @@ export const routes: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/steps/support",
+    "cap": "steps.support",
+    "v": 1,
+    "module": "steps-core",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
     "teamOnly": false,
     "gate": null
   },

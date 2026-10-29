@@ -40,6 +40,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.spend.pause_all": Handler<"engine.spend.pause_all", X>;
   "engine.spend.raise": Handler<"engine.spend.raise", X>;
   "engine.spend.resume_all": Handler<"engine.spend.resume_all", X>;
+  "engine.step_turn": Handler<"engine.step_turn", X>;
   "engine.stop": Handler<"engine.stop", X>;
   "engine.stop_all": Handler<"engine.stop_all", X>;
   "engine.subscription_share.set": Handler<"engine.subscription_share.set", X>;

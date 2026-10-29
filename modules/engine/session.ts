@@ -72,6 +72,10 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     // Behind the wall the engine cannot reach the daemon's loopback: its MCP config starts a stdio shim that talks to a unix socket in the person's scratch folder (ruling 61).
     ...(dataDir ? { mcpBridge: (m: { url: string; token: string }, spec: { asker: string }) => openMcpBridge(m, { scratch: scratchFolder(dataDir, spec.asker) }) } : {}),
     ...(dataDir ? { cli: { workFolder: (spec) => workFolder(dataDir, spec.asker, spec.threadId) } } : {}),
-    apiContext: h.apiTools ? h.apiTools.context : async (spec) => ({ system: await system(spec), tools: [] }),
+    // A session with tools "none" (an automation's AI step) gets no tools and no agent role: its prompt carries everything it needs.
+    apiContext: async (spec, input) => {
+      if (spec.tools === "none") return { system: [{ text: "You are completing one step of an automation. Answer with the result only.", stable: true }], tools: [] };
+      return h.apiTools ? h.apiTools.context(spec, input) : { system: await system(spec), tools: [] };
+    },
   });
 }

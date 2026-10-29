@@ -30,6 +30,8 @@ export interface CliSessionDeps {
   /** Extra environment from the sandbox (proxy variables). */
   env: Readonly<Record<string, string>>;
   planMode?: () => boolean;
+  /** No Vyre tools and none of the CLI's own (SessionSpec.tools "none"). */
+  noTools?: boolean;
   prompt?: (input: TurnInput, ctx: { fresh: boolean }) => string;
   /** No output for this long ends the turn. Default 10 minutes. */
   idleMs?: number;
@@ -93,7 +95,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
 
   async function start(): Promise<Run> {
     const argv = a.command({
-      model: deps.model, resume: sessionId, mcpUrl: deps.endpoint.url, ...(deps.endpoint.stdio ? { mcpStdio: deps.endpoint.stdio } : {}), planMode: deps.planMode?.() ?? false,
+      model: deps.model, resume: sessionId, mcpUrl: deps.endpoint.url, ...(deps.endpoint.stdio ? { mcpStdio: deps.endpoint.stdio } : {}), planMode: deps.planMode?.() ?? false, ...(deps.noTools ? { noTools: true } : {}),
       workFolder: deps.workFolder, system: a.systemFlag ? deps.system : null,
     });
     const proc = await deps.launcher.spawn({

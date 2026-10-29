@@ -8587,6 +8587,24 @@ export type EngineSpendResumeAllIn = Record<string, unknown>;
 export type EngineSpendResumeAllOut = {
   paused: boolean;
 };
+export type EngineStepTurnIn = {
+  prompt: string;
+  agentId?: string;
+  keyId?: string;
+  backupKeyId?: string;
+  timeoutMinutes?: number;
+  runId: string;
+  stepId: string;
+  idempotencyKey: string;
+};
+export type EngineStepTurnOut = {
+  text: string;
+  keyUsed: string;
+  modelUsed: string;
+  tokensIn: number;
+  tokensOut: number;
+  agentName?: string;
+};
 export type EngineStopIn = {
   threadId: string;
   agentId?: string;
@@ -22098,6 +22116,17 @@ export type StarsToggleOut = {
   starred: boolean;
   following: boolean;
 };
+export type StepsSupportIn = Record<string, unknown>;
+export type StepsSupportOut = {
+  code: {
+    available: boolean;
+    reason?: string;
+  };
+  ai: {
+    available: boolean;
+    reason?: string;
+  };
+};
 export type StepsTestIn = {
   key: string;
   input: Record<string, unknown>;
@@ -27872,6 +27901,7 @@ export interface CapMap {
   "engine.spend.pause_all": { in: EngineSpendPauseAllIn; out: EngineSpendPauseAllOut };
   "engine.spend.raise": { in: EngineSpendRaiseIn; out: EngineSpendRaiseOut };
   "engine.spend.resume_all": { in: EngineSpendResumeAllIn; out: EngineSpendResumeAllOut };
+  "engine.step_turn": { in: EngineStepTurnIn; out: EngineStepTurnOut };
   "engine.stop": { in: EngineStopIn; out: EngineStopOut };
   "engine.stop_all": { in: EngineStopAllIn; out: EngineStopAllOut };
   "engine.subscription_share.set": { in: EngineSubscriptionShareSetIn; out: EngineSubscriptionShareSetOut };
@@ -28709,6 +28739,7 @@ export interface CapMap {
   "spaces.update": { in: SpacesUpdateIn; out: SpacesUpdateOut };
   "stars.list": { in: StarsListIn; out: StarsListOut };
   "stars.toggle": { in: StarsToggleIn; out: StarsToggleOut };
+  "steps.support": { in: StepsSupportIn; out: StepsSupportOut };
   "steps.test": { in: StepsTestIn; out: StepsTestOut };
   "stripe.checkout.create_session": { in: StripeCheckoutCreateSessionIn; out: StripeCheckoutCreateSessionOut };
   "stripe.customer.create": { in: StripeCustomerCreateIn; out: StripeCustomerCreateOut };

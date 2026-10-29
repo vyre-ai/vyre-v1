@@ -275,3 +275,25 @@ export async function recordUsage(
   });
   return { overLimit: hit.limit };
 }
+
+// ---- an automation's AI step turn: it has no turn row, so the pre-check and the usage row are written here
+
+/** The first limit already reached for this agent, person or the Space, before an automation step asks a model anything. */
+export function limitReached(ctx: EngineCtx, who: { agentId: string; asker: string }, at: number): { scope: Scope; limit: LimitKind } | null {
+  ensure(ctx.db);
+  const hit = firstHit(ctx, { id: "trn_precheck", agentId: who.agentId, asker: who.asker, startedAt: at }, at);
+  return hit ? { scope: hit.scope, limit: hit.limit } : null;
+}
+
+/** Count a step turn against the same meters as a chat turn: usage by day, person, agent, model and the Vault item it ran on. */
+export function recordStepUsage(
+  ctx: EngineCtx,
+  u: { turnId: string; agentId: string; asker: string; model: string; tokensIn: number; tokensOut: number; itemId?: string },
+): void {
+  ensure(ctx.db);
+  ctx.db.run(
+    "INSERT OR IGNORE INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)",
+    u.turnId, null, u.agentId, u.asker, u.model, ctx.now(), u.tokensIn, u.tokensOut,
+  );
+  if (u.itemId !== undefined) ctx.db.run("INSERT OR IGNORE INTO engine_usage_item (turn_id, item_id) VALUES (?, ?)", u.turnId, u.itemId);
+}

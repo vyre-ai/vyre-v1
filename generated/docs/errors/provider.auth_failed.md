@@ -9,6 +9,7 @@ HTTP 502. Retryable: no.
 - connections.complete_auth
 - connectors.push
 - engine.probe_account
+- engine.step_turn
 - engine.switch
 - git.pull
 - git.push
@@ -30,4 +31,3 @@ HTTP 502. Retryable: no.
 - mounts.browse
 - ms.consent.setup
 - ms.consent.verify
-- ms.mail.send_message

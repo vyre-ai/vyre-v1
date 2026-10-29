@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (52)
+## Capabilities (53)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status
@@ -41,6 +41,7 @@ Requires: nothing.
 - [engine.spend.pause_all](../capabilities/engine.spend.pause_all.md): Pause all AI spend in the Space
 - [engine.spend.raise](../capabilities/engine.spend.raise.md): Raise a limit once or for good (the Needs you card "Raise once or Stop"); an agent asking passes the Gate
 - [engine.spend.resume_all](../capabilities/engine.spend.resume_all.md): Resume AI spend after a pause
+- [engine.step_turn](../capabilities/engine.step_turn.md): Run one AI turn for an automation step: on the owner's own account (Personal) or a Space-shared key (Space), optionally as an agent, with no tools. A repeat of the same key returns the first answer.
 - [engine.stop](../capabilities/engine.stop.md): Stop one agent working in a thread (per-agent Stop)
 - [engine.stop_all](../capabilities/engine.stop_all.md): Stop every agent working in a thread (Stop all in the conversation header)
 - [engine.subscription_share.set](../capabilities/engine.subscription_share.set.md): Let the Space run work on my subscription (server runs for my chats, routines and personal automations); off kills my sandbox

@@ -39,6 +39,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.spend.pause_all": async () => ({"paused":true} as unknown) as never,
   "engine.spend.raise": async () => ({"raised":true} as unknown) as never,
   "engine.spend.resume_all": async () => ({"paused":true} as unknown) as never,
+  "engine.step_turn": async () => ({"agentName":"example","keyUsed":"#Team_Anthropic_Key","modelUsed":"example","text":"example","tokensIn":1,"tokensOut":1} as unknown) as never,
   "engine.stop": async () => ({"stopped":1} as unknown) as never,
   "engine.stop_all": async () => ({"stopped":1} as unknown) as never,
   "engine.subscription_share.set": async () => ({"enabled":true,"sandboxStopped":true} as unknown) as never,

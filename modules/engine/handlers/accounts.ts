@@ -27,7 +27,7 @@ function driverOf(p: ProviderRow): string {
   return DRIVERS.has(p.providerKey) ? p.providerKey : "openrouter";
 }
 
-async function load(ctx: Ctx): Promise<{ rows: AccountRow[]; idByRef: Map<string, string>; itemByRef: Map<string, string> }> {
+export async function load(ctx: Ctx): Promise<{ rows: AccountRow[]; idByRef: Map<string, string>; itemByRef: Map<string, string> }> {
   const me = ctx.actingFor ?? ctx.principal.id;
   const out = (await ctx.call("providers.list", {})) as { providers: ProviderRow[] };
   const rows: AccountRow[] = [];
