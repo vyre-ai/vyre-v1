@@ -97,6 +97,7 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
           <Lab>Provider keys</Lab>
           <View testID="provider-keys">
             {data.keysStatus === "loading" ? <Text style={t.para}>Loading keys</Text> : null}
+            {/* ui-rows-lint: not a list (provider key names, values stay in Vault) */}
             {data.keysStatus === "ready" ? data.keys.map((key) => <Text key={key.id} style={t.para}>{key.name}</Text>) : null}
             {data.keysStatus === "empty" || data.keysStatus === "unavailable" ? (
               <>

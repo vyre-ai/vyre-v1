@@ -249,6 +249,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
         <Text testID="plain-language" style={i.hint}>{subtitleOf(node, { key: (id) => keys.find((k) => k.id === id)?.name ?? id })}</Text>
         {headerMode ? null : (
           <View accessibilityLabel="Builder mode" testID="inspector-mode" style={i.seg}>
+            {/* ui-rows-lint: not a list (Basic and Advanced toggle) */}
             {BUILDER_MODES.map((label) => {
               const on = (label === "Advanced") === advanced;
               return (

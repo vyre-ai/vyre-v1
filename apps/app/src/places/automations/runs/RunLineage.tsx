@@ -16,6 +16,7 @@ export function RunLineage({ parentRun, steps = [], children = [], testID = "run
     <View testID={testID} style={s.wrap}>
       {lines.parent ? <Text style={s.line}>{lines.parent}</Text> : null}
       {lines.attempt ? <Text style={s.line}>{lines.attempt}</Text> : null}
+      {/* ui-rows-lint: not a list (one sentence per child run) */}
       {lines.children.map((child) => <Text key={child.id} testID={`lineage-child-${child.id}`} style={s.line}>{child.text}</Text>)}
     </View>
   );

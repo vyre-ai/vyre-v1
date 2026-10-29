@@ -462,6 +462,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
         {needs ? (<><View style={s.sep} /><View style={s.needs}><Dot tone="warn" size={6} /><Text numberOfLines={1} style={s.needsText}>{needs.replace(/^needs/i, "Needs")}</Text></View></>) : null}
         <View style={{ flex: 1 }} />
         <View accessibilityLabel="Builder mode" testID="builder-mode" style={s.seg}>
+          {/* ui-rows-lint: not a list (Basic and Advanced toggle) */}
           {BUILDER_MODES.map((label) => {
             const on = (label === "Advanced") === (mode === "advanced");
             return (
@@ -536,6 +537,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
             {stack && inspectorPane ? (
               <View testID="inspector-stack" accessibilityLabel={COMPACT_REGIONS.slice(1).join(", ")} style={s.inspectorStack}>
                 <View accessibilityRole="tablist" accessibilityLabel="Open steps" style={s.compactTabs}>
+                  {/* ui-rows-lint: not a list (open step tabs) */}
                   {stepTabs.map((item) => {
                     const on = item.key === activeStep;
                     return (
@@ -695,12 +697,15 @@ function RunsList({ automationId, nodes, onLight, onAsk }: {
         <View testID="run-detail" style={s.runDetail}>
           <Text style={s.kindText}>{selected.summary ?? selected.id}</Text>
           {selected.parentRun ? <Text style={s.dim}>{`Parent ${selected.parentRun}`}</Text> : null}
+          {/* ui-rows-lint: not a list (one attempt sentence per step) */}
           {steps?.map((step, index) => (
             <View key={`${step.step}-${index}`}>
               <Text testID={`run-attempt-${step.step}`} style={s.dim}>{attemptLine(step)}</Text>
+              {/* ui-rows-lint: not a list (one sentence per child run) */}
               {container === step.step ? children.map((child) => <Text key={child.id} testID={`run-child-${child.id}`} style={s.dim}>{childRunLine({ runId: child.id })}</Text>) : null}
             </View>
           ))}
+          {/* ui-rows-lint: not a list (one sentence per child run) */}
           {container === null ? children.map((child) => <Text key={child.id} testID={`run-child-${child.id}`} style={s.dim}>{childRunLine({ runId: child.id })}</Text>) : null}
           {selected.status === "failed" ? <AskVyre bundle={{ resource: automationId, message: selected.summary ?? "This run failed" }} onOpen={() => onAsk(selected.summary ?? "This run failed")} /> : null}
           <TextButton label="Show on the canvas" testID="show-on-canvas" disabled={!steps} onPress={() => { if (steps) onLight({ id: selected.id, label: selected.summary ?? "run", states: statesFromSteps(steps) }); }} />

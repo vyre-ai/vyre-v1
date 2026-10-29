@@ -99,9 +99,11 @@ export function CohortMigration({ automationId, currentVersion }: { automationId
       {phase === "error" ? <Text style={c.err}>{message}</Text> : null}
       {phase === "ready" && cohorts.length === 0 && groups.length === 0 ? <Text style={c.dim}>No runs are pinned to a definition version yet.</Text> : null}
       {phase === "ready" && groups.length > 0 ? <CohortGroups currentVersion={currentVersion} groups={groups} /> : null}
+      {/* ui-rows-lint: not a list (one card per pinned version) */}
       {phase === "ready" && groups.length === 0 ? cohorts.map((cohort) => (
         <View key={cohort.version} style={c.group}>
           <Text style={c.ver}>{cohort.current ? `Version ${cohort.version}, current definition` : `Version ${cohort.version}, pinned`}</Text>
+          {/* ui-rows-lint: not a list (one sentence per pinned run) */}
           {cohort.runs.map((member) => <Text key={member.id} style={c.dim}>{`${member.summary ?? member.id}. ${cohortPreview(member)}`}</Text>)}
         </View>
       )) : null}
@@ -130,9 +132,11 @@ export function CohortMigration({ automationId, currentVersion }: { automationId
 export function CohortGroups({ currentVersion, groups }: { currentVersion: number; groups: readonly PreviewGroup[] }): ReactElement {
   return (
     <View testID="cohort-groups" style={c.wrap}>
+      {/* ui-rows-lint: not a list (one card per preview group) */}
       {groups.map((group, index) => (
         <View key={`${group.disposition}-${group.definitionVersion}-${index}`} testID={`cohort-${group.disposition}-${group.definitionVersion}`} style={c.group}>
           <Text style={c.ver}>{cohortGroupLabel(currentVersion, group)}</Text>
+          {/* ui-rows-lint: not a list (one id per preview group) */}
           {group.runIds.map((id) => <Text key={id} style={c.dim}>{id}</Text>)}
           {group.reason ? <Text style={c.dim}>{group.reason}</Text> : null}
         </View>

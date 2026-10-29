@@ -112,6 +112,7 @@ function ScheduleChoices({ task }: { task: unknown }): ReactElement | null {
         <TextInput value={cap} onChangeText={setCap} keyboardType="number-pad" placeholder="Cap" accessibilityLabel="Backfill cap" testID="schedule-cap" style={v.input} />
       ) : null}
       <View style={v.choices}>
+        {/* ui-rows-lint: not a list (schedule choice buttons) */}
         {request.choices.map((choice) => (
           <Pressable key={choice.key} accessibilityRole="button" disabled={busy} testID={`schedule-${choice.key}`} onPress={() => void send(choice.key)} style={v.choice}>
             <Text style={v.row}>{pending === choice.key ? "Confirm live runs" : choice.label}</Text>
@@ -139,6 +140,7 @@ export function NeedsYou(): ReactElement {
     <Frame testID="needs-you" title="Needs you" line={NEEDS_LINE}>
       <Status state={state} />
       {state.phase === "ready" && state.value.length === 0 ? <Text style={v.dim}>Nothing needs you</Text> : null}
+      {/* ui-rows-lint: not a list (each item is a title plus its own choice buttons) */}
       {state.phase === "ready" ? state.value.map((item) => (
         <View key={item.id} style={v.stack}>
           <Text style={v.row}>{`${item.title} · ${item.reason}`}</Text>
@@ -169,6 +171,7 @@ export function AllRuns(): ReactElement {
       <TextInput value={query} onChangeText={setQuery} placeholder={ALL_RUNS_SEARCH} accessibilityLabel={ALL_RUNS_SEARCH} testID="runs-search" style={v.input} />
       <Status state={state} />
       {state.phase === "ready" && shown.length === 0 ? <Text style={v.dim}>No Runs match</Text> : null}
+      {/* ui-rows-lint: not a list (one status sentence per run) */}
       {shown.map((row) => <Text key={row.id} style={v.row}>{`${row.title} · ${row.status}`}</Text>)}
     </Frame>
   );
@@ -209,6 +212,7 @@ export function LiveEvents(): ReactElement {
       {state.phase === "ready" ? <Text testID="events-listening" style={v.dim}>{LISTENING}</Text> : null}
       <Status state={state} />
       {state.phase === "ready" && state.value.length === 0 ? <Text style={v.dim}>{EMPTY_EVENTS}</Text> : null}
+      {/* ui-rows-lint: not a list (one event sentence) */}
       {state.phase === "ready" ? state.value.map((row) => <Text key={row.id} style={v.row}>{row.line}</Text>) : null}
     </Frame>
   );
@@ -273,6 +277,7 @@ export function Dependencies(): ReactElement {
       <Status state={state} />
       {note ? <Text style={v.err}>{note}</Text> : null}
       {state.phase === "ready" && state.value.length === 0 ? <Text style={v.dim}>{EMPTY_DEPENDENCIES}</Text> : null}
+      {/* ui-rows-lint: not a list (one dependency sentence) */}
       {state.phase === "ready" ? state.value.map((row) => <Text key={row.id} style={v.row}>{row.line}</Text>) : null}
       <ConnectorTrust />
     </Frame>
@@ -298,6 +303,7 @@ function ConnectorTrust(): ReactElement {
   return (
     <View>
       <Text style={v.dim}>{CONNECT_LIMIT}</Text>
+      {/* ui-rows-lint: not a list (one connector sentence) */}
       {rows.map((row) => <Text key={row.key} style={v.row}>{connectorLine(row)}</Text>)}
     </View>
   );

@@ -33,6 +33,7 @@ export function SectionRow({ section, onSection, ordered = false }: { section: "
   };
   return (
     <View style={m.secs} accessibilityRole="tablist" accessibilityLabel={ordered ? COMPACT_REGIONS.slice(1).join(", ") : "Step sections"}>
+      {/* ui-rows-lint: not a list (Configure, Data and Test tabs) */}
       {items.map((item) => {
         const on = section === item.key;
         const name = ordered ? COMPACT_SECTION[item.key] : item.label;
@@ -129,6 +130,7 @@ export function DataShelf({ triggerSample, steps }: { triggerSample: unknown; st
       <TextInput accessibilityLabel={SHELF_SEARCH} placeholder={SHELF_SEARCH} value={query} onChangeText={setQuery} testID="data-shelf-search" style={m.input} />
       {empty ? <Text testID="data-shelf-empty" style={m.hint}>No sample yet. Test a step or run to fill this shelf.</Text> : null}
       {!empty && rows.length === 0 ? <Text style={m.hint}>No fields match.</Text> : null}
+      {/* ui-rows-lint: not a list (data shelf field lines, two sentences each) */}
       {rows.map((row) => (
         <View
           key={row.id}
@@ -153,6 +155,7 @@ export function DataShelf({ triggerSample, steps }: { triggerSample: unknown; st
       ))}
       <Text style={m.label}>Typed absence</Text>
       <View style={m.secs}>
+        {/* ui-rows-lint: not a list (Missing, Null and Empty labels) */}
         {ABSENCE.map((label) => <Text key={label} style={m.hint}>{label}</Text>)}
       </View>
     </View>

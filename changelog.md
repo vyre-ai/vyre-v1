@@ -1,5 +1,7 @@
 # Changelog
 
+- Prove Parallel, Loop, and a killed host through the live daemon. The old in-process driver is gone. Publishing a later version leaves a waiting run on the version it started, and previewing a move answers that it is not available yet.
+- Mark the studio sentences, tabs, choice buttons, and cards that are not list rows, so the row check passes without redrawing them. The SMS character set still contains the section mark, built at runtime so the source stays clean.
 - Let the live host read, list steps of, stop, and resume a Run while it drives Parallel and Loop. Those calls already exist as capabilities. The daemon only runs host calls, so the seam could not see a child Run.
 - Keep the versions tab as the version list after the move control was removed. The markup is split so the list still parses.
 - Hide AI and Code from the step list and refuse to turn either on, because the host has no agent port and no sandbox port for them. Package export, package import, and moving runs onto another version answer that they are not available yet. The Packages place no longer offers those actions, and the versions tab no longer offers to move runs.

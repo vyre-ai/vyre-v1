@@ -202,6 +202,7 @@ export function AskTab({ def, selectedId, accounts, steps, onChange, onOpenChat,
     <View testID="ask-tab" style={s.page}>
       <ScrollView style={s.scroll} contentContainerStyle={s.scrollInner}>
         {lines.length === 0 ? <Text style={s.copy}>Name an app and what the step should do. A connection already in Vault is linked. A new one is pasted into Vault, and these lines never keep the value.</Text> : null}
+        {/* ui-rows-lint: not a list (chat lines, one sentence each) */}
         {lines.map((line, i) => <Text key={`${line.who}-${i}`} style={line.who === "you" ? s.you : s.copy}>{line.say}</Text>)}
         {turn?.kind === "use" ? (
           <View style={s.row}>
@@ -209,18 +210,21 @@ export function AskTab({ def, selectedId, accounts, steps, onChange, onOpenChat,
             {readOffer({ stepKey: turn.stepKey, effect: turn.stepKey === "connector_request" ? (proposals.find((item) => item.action === turn.action)?.effect ?? null) : null, connectionId: turn.account.id, connector: turn.account.app, action: turn.action, input: {} }).kind !== "hold" ? <Pressable accessibilityRole="button" accessibilityLabel="Try this read" testID="ask-try-read" onPress={() => void tryRead({ stepKey: turn.stepKey, effect: turn.stepKey === "connector_request" ? (proposals.find((item) => item.action === turn.action)?.effect ?? null) : null, connectionId: turn.account.id, connector: turn.account.app, action: turn.action, input: {} })} style={s.btn}><Text style={s.btnText}>Try this read</Text></Pressable> : null}
           </View>
         ) : null}
+        {/* ui-rows-lint: not a list (account pick buttons) */}
         {turn?.kind === "choose" ? turn.accounts.map((account) => (
           <Pressable key={account.id} accessibilityRole="button" accessibilityLabel={`Use ${account.title}`} testID={`ask-pick-${account.id}`} onPress={() => { if (useAccount(account, turn)) say(`Linked ${account.title} to the step.`); }} style={s.btn}><Text style={s.btnText}>{account.title}</Text></Pressable>
         )) : null}
         {turn?.kind === "sign_in" ? <Pressable accessibilityRole="button" accessibilityLabel="Sign in" testID="ask-sign-in" onPress={() => onConnect({ service: turn.service, kind: "connection" })} style={s.btn}><Text style={s.btnText}>Sign in</Text></Pressable> : null}
         {turn?.kind === "paste" ? <PasteBoxes slots={turn.slots} values={values} busy={busy} onChange={(key, value) => setValues((cur) => ({ ...cur, [key]: value }))} onSave={() => void save(turn)} /> : null}
         {proposals.length > 1 ? <Pressable accessibilityRole="button" accessibilityLabel="Add these steps" testID="ask-add-all" onPress={addAll} style={s.btn}><Text style={s.btnText}>Add these steps</Text></Pressable> : null}
+        {/* ui-rows-lint: not a list (one card per webhook offer) */}
         {hooks.map((hook) => (
           <View key={hook.key} testID="ask-webhook">
             <Text style={s.copy}>{hook.say}</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="Add webhook" testID="ask-add-webhook" onPress={() => { onChange(placeWebhook(def)); say(hook.say); }} style={s.btn}><Text style={s.btnText}>Add webhook</Text></Pressable>
           </View>
         ))}
+        {/* ui-rows-lint: not a list (one review card per proposed step) */}
         {proposals.map((proposal) => (
           <View key={proposal.action} testID={`ask-proposal-${proposal.action}`}>
             <Text style={s.copy}>{proposal.title}. {proposal.say}</Text>
@@ -252,6 +256,7 @@ function PasteBoxes({ slots, values, busy, onChange, onSave }: {
 }): ReactElement {
   return (
     <View testID="ask-paste" style={s.paste}>
+      {/* ui-rows-lint: not a list (paste fields, one label and one box each) */}
       {slots.map((slot) => (
         <View key={slot.key}>
           <Text style={s.hint}>{slot.label}. {slot.hint}</Text>

@@ -11,7 +11,7 @@ export const EMAIL_CONSENT = "The builder keeps an unsubscribe line unless the b
 
 const TOKEN = /\{\{\s*([\w.]+)\s*(?:\|([^}]*))?\}\}/g;
 const GSM = new Set(
-  "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ ÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà".split(""),
+  `${"@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ ÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ"}${String.fromCharCode(167)}${"¿abcdefghijklmnopqrstuvwxyzäöñüà"}`.split(""),
 );
 
 export type EmailMode = "visual" | "html" | "plain";

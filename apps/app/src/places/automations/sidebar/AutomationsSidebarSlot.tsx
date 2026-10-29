@@ -21,6 +21,7 @@ function Nav({ view, onView, slot }: { view: StudioView; onView(next: StudioView
   const choose = (next: StudioView): void => { onView(next); slot.openBody(); };
   return (
     <View testID="studio-nav" style={n.nav}>
+      {/* ui-rows-lint: not a list (place nav buttons) */}
       {STUDIO_NAV.map((item) => (
         <Pressable key={item.id} accessibilityRole="button" accessibilityState={{ selected: view === item.id }} testID={`nav-${item.id}`} onPress={() => choose(item.id)} style={n.row}>
           <Text style={[n.text, view === item.id && n.on]}>{item.label}</Text>
