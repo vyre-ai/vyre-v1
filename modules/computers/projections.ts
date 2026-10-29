@@ -1,4 +1,5 @@
 // @reads /modules/computers/migrations/0001_init.sql
+// @reads /modules/computers/migrations/0002_nodes.sql
 // Durable rows of the computers module (agent computers, recordings, tickets, timeline steps, signed-in sessions), the port to the machine that runs the containers, and the helpers
 // every computers handler shares. Every statement names a computers_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
 import { readFileSync } from "node:fs";
@@ -57,8 +58,8 @@ export interface ComputerHost {
   create(a: { computerId: string; agentId: string; tabLimit: number; idleSleepMinutes: number }): Promise<{ diskBytes?: number }>;
   /** Unseal the profile disk and start the container; resolves when agentd answers. */
   start(a: { computerId: string; tabLimit: number; agentId?: string }): Promise<void>;
-  /** Seal the profile disk and stop the container. Returns the signed-in sites it saw, for the list that must be there while the computer sleeps. */
-  stop(a: { computerId: string; reason: "idle" | "requested" | "remove"; agentId?: string }): Promise<{ sessions?: SessionInfo[]; diskBytes?: number }>;
+  /** Seal the profile disk and stop the container. Returns the signed-in sites it saw, for the list that must be there while the computer sleeps, and whether the last home sync finished (a machine that keeps a working copy wipes it only then). */
+  stop(a: { computerId: string; reason: "idle" | "requested" | "remove"; agentId?: string }): Promise<{ sessions?: SessionInfo[]; diskBytes?: number; homeSynced?: boolean }>;
   /** Remove the container and its profile disk. */
   remove(computerId: string): Promise<void>;
   probe(computerId: string): Promise<Probe>;
@@ -92,10 +93,33 @@ const fillGrants = new Map<string, { revoke(): void }>();
 export function holdFill(computerId: string, g: { revoke(): void }): void { fillGrants.get(computerId)?.revoke(); fillGrants.set(computerId, g); }
 export function dropFill(computerId: string): void { fillGrants.get(computerId)?.revoke(); fillGrants.delete(computerId); }
 
+/** Builds the host for a computer that lives on a node (remote.ts registers it when it loads). */
+type RemoteFactory = (db: Db, now: () => number, nodeId: string) => ComputerHost;
+let remoteFactory: RemoteFactory | null = null;
+export function bindRemote(f: RemoteFactory | null): void { remoteFactory = f; }
+/** The node a computer lives on, or null for the Space's own server. */
+export function nodeOf(db: Db, computerId: string): string | null {
+  const r = rowsOf(db, "SELECT node_id FROM computers_computers WHERE computer_id = ?", computerId)[0];
+  return r && r["node_id"] !== null && r["node_id"] !== undefined ? String(r["node_id"]) : null;
+}
+/** The machine that runs this computer: its node's, or the Space's own. Unbound answers null. */
+export function hostFor(ctx: Pick<CompCtx, "db" | "now">, computerId: string): ComputerHost | null {
+  const node = nodeOf(ctx.db, computerId);
+  if (node !== null) return remoteFactory ? remoteFactory(ctx.db, ctx.now, node) : null;
+  return hostPort;
+}
+
 let hostPort: ComputerHost | null = null;
 export function bindHost(h: ComputerHost | null): void { hostPort = h; }
 export const boundHost = (): ComputerHost | null => hostPort;
-export function hostOf(ctx: Pick<CompCtx, "trace">): ComputerHost {
+export function hostOf(ctx: Pick<CompCtx, "trace"> & Partial<Pick<CompCtx, "db" | "now">>, computerId?: string): ComputerHost {
+  if (computerId !== undefined && ctx.db && ctx.now) {
+    const node = nodeOf(ctx.db, computerId);
+    if (node !== null) {
+      if (!remoteFactory) raise(ctx, "provider.unavailable", "Agent computers on a joined computer are not available on this host.");
+      return remoteFactory(ctx.db, ctx.now, node);
+    }
+  }
   if (!hostPort) raise(ctx, "provider.unavailable", "Agent computers are not running on this host.");
   return hostPort;
 }
@@ -109,7 +133,7 @@ export function needTeam(ctx: Pick<CompCtx, "space" | "trace">): void {
 
 // ---- schema --------------------------------------------------------------------------------------------------------------------------------------------
 
-const SCHEMA = readFileSync(new URL("./migrations/0001_init.sql", import.meta.url), "utf8")
+const SCHEMA = ["0001_init.sql", "0002_nodes.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
@@ -139,7 +163,7 @@ export async function sha256(text: string): Promise<string> {
 // ---- computers ---------------------------------------------------------------------------------------------------------------------------------------
 
 export interface ComputerRow {
-  computerId: string; agentId: string; state: CompState; caption?: string; tabs: number; tabLimit: number; idleSleepMinutes: number; host: HostKind; diskBytes?: number;
+  nodeId?: string; computerId: string; agentId: string; state: CompState; caption?: string; tabs: number; tabLimit: number; idleSleepMinutes: number; host: HostKind; diskBytes?: number;
   lastFrameAt?: number; lastFrameFile?: string; lastActiveAt?: number; takeoverBy?: string; takeoverStep?: string; takeoverAt?: number; recordingId?: string; error?: string; createdAt: number;
 }
 
@@ -148,6 +172,7 @@ export function computerOf(r: Row): ComputerRow {
     computerId: str(r["computer_id"]), agentId: str(r["agent_id"]), state: str(r["state"]) as CompState, tabs: num(r["tabs"]), tabLimit: num(r["tab_limit"]),
     idleSleepMinutes: num(r["idle_sleep_minutes"]), host: str(r["host"]) as HostKind, createdAt: num(r["created_at"]),
   };
+  const node = opt(r["node_id"]); if (node !== undefined) out.nodeId = node;
   const caption = opt(r["caption"]); if (caption !== undefined) out.caption = caption;
   const disk = optNum(r["disk_bytes"]); if (disk !== undefined) out.diskBytes = disk;
   const frame = optNum(r["last_frame_at"]); if (frame !== undefined) out.lastFrameAt = frame;
@@ -169,7 +194,7 @@ export function computerBy(db: Db, computerId: string): ComputerRow | null {
 /** The contract's computer row. */
 export function computerOut(c: ComputerRow) {
   return {
-    computerId: c.computerId, agentId: c.agentId, state: c.state, ...(c.caption !== undefined ? { caption: c.caption } : {}), tabs: c.tabs, tabLimit: c.tabLimit, host: c.host,
+    computerId: c.computerId, agentId: c.agentId, state: c.state, ...(c.nodeId !== undefined ? { nodeId: c.nodeId } : {}), ...(c.caption !== undefined ? { caption: c.caption } : {}), tabs: c.tabs, tabLimit: c.tabLimit, host: c.host,
     ...(c.diskBytes !== undefined ? { diskBytes: c.diskBytes } : {}), ...(c.lastFrameAt !== undefined ? { lastFrameAt: c.lastFrameAt } : {}),
     ...(c.lastActiveAt !== undefined ? { lastActiveAt: c.lastActiveAt } : {}), ...(c.takeoverBy !== undefined ? { takeoverBy: c.takeoverBy } : {}), recording: c.recordingId !== undefined,
   };
