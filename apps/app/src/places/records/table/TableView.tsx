@@ -19,7 +19,7 @@ import { Scroller } from "./Scroller.tsx";
 import type { ScrollHandle } from "./Scroller.tsx";
 import {
   FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, groupable, hasOptions,
-  FaceLru, faceClassOf, faceRule, hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, scrollBlockTop, setSort, sortable, toSaved, toggleHidden, totalWidth, safeBitmapUrl,
+  FaceLru, faceClassOf, faceRule, flingWindow, hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, scrollBlockTop, setSort, sortable, toSaved, toggleHidden, totalWidth, safeBitmapUrl,
 } from "./model.ts";
 import { allIds, eachId, recordsWord } from "./bulk.ts";
 import { filterMenuEntries } from "./filtermenu.ts";
@@ -192,7 +192,8 @@ function ensureRowCss(): void {
     + ".vrt-b{box-sizing:border-box;display:flex;align-items:center;flex:none;height:100%;padding:0 10px;min-width:0}.vrt-e{justify-content:flex-end}"
     + ".vrt-chip{box-sizing:border-box;display:inline-block;height:20px;line-height:20px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap}"
     + ".vrt-p{display:flex;align-items:center;gap:7px;min-width:0;font-size:13px;color:var(--ink);white-space:nowrap}.vrt-st{font-size:12px;color:var(--warn);letter-spacing:1px;white-space:nowrap}.vrt-so{color:var(--ink-4)}"
-    + ".vrt-chip::before{content:\"\";display:inline-block;width:6px;height:6px;border-radius:3px;margin-right:5px;vertical-align:middle;position:relative;top:-1px;background:hsl(var(--h) 65% 52%)}"
+    // the dot sits 1 px above the middle by its bottom margin, not by position: relative, which made every chip dot (three a row) a paint layer of its own
+    + ".vrt-chip::before{content:\"\";display:inline-block;width:6px;height:6px;border-radius:3px;margin-right:5px;margin-bottom:2px;vertical-align:middle;background:hsl(var(--h) 65% 52%)}"
     + ".vrt-n{font-variant-numeric:tabular-nums;text-align:right}.vrt-s{color:var(--ink-3);letter-spacing:1px}"
     + ".vrt-g{width:" + GUTTER + "px;height:100%;display:flex;align-items:center;box-sizing:border-box;padding-left:10px;flex:none;font-size:11.5px;color:var(--ink-4);font-variant-numeric:tabular-nums}";
   d.head.appendChild(el);
@@ -363,10 +364,14 @@ interface BodyProps {
 /** The rows the scroll meets: on the web each row is its frozen piece (number and title, in the one sticky layer) and its scrolling body; elsewhere one TableRow. */
 function Body(p: BodyProps): ReactElement {
   const { items, loaded, total, width, cols, colWin, selected, sel, hot, colourField, names, onTap, onOpen, onHot, onMenu } = p;
-  const [top, setTop] = useState(p.top);
+  // the top and the way the scroll last moved, which decides the side the drawn rows reach out to
+  const [pos, setPos] = useState<{ top: number; dir: 1 | -1 }>({ top: p.top, dir: 1 });
   const { setTop: register } = p;
-  useEffect(() => { register.current = setTop; return () => { register.current = null; }; }, [register]);
-  const win = rowWindow(top, p.viewH, total, FLING_OVERSCAN);
+  useEffect(() => {
+    register.current = (t) => setPos((cur) => (t === cur.top ? cur : { top: t, dir: t > cur.top ? 1 : -1 }));
+    return () => { register.current = null; };
+  }, [register]);
+  const win = flingWindow(pos.top, p.viewH, total, pos.dir);
   const rowAt = (i: number): RecordRow | null => (loaded ? loaded.rows[i - loaded.offset] ?? null : null);
   const rows: ReactElement[] = [];
   const frozen: ReactElement[] = [];

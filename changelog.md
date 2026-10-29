@@ -1,5 +1,6 @@
 # Changelog
 
+- Records 100k scroll: a moving scroll keeps FLING_OVERSCAN rows ahead but only a few behind (it carried twelve rows it had left), and the chip dot sits by its bottom margin instead of position: relative, which made every dot a paint layer; pixels unchanged.
 - Phone cold start: the service worker registers once the app marks itself usable (or 5 s after load), not at the load event, which fires while React is still hydrating; its install fetched every place and cached the scripts alongside startup.
 - Phone cold start: expo-router's start-up react-native-screens flag write on the web resolves to the flags module alone instead of the whole screens index.
 - Records 100k scroll: a vertical scroll re-renders only the rows. The table body owns the scroll top, and the grid with its header, foot and toolbar re-renders only when the column window or the 100-row query window moves; the frozen and scrolling row pieces also get their missing right-click menu handler.
