@@ -1,6 +1,7 @@
 {
   "module": "agents",
   "capabilities": {
+    "agents.builtin_skill.get@1": "de9bb1bd075309115c15b2ad3bda15b6a7ebb9c89418be4a3663c401aa7950ab",
     "agents.builtin_skills.list@1": "fada42b5765e04fac26dccec17664c551dd93a16b0f8aaf8db5f898607f8201f",
     "agents.config.get@1": "655b9f721b63a24e8f232e33c8b6ec7f9fbb4b758b35daa96b34e8a5bd2cff7c",
     "agents.config.validate@1": "60557ddf901d19480e0b7aae9e468dbf4e98ffd796f3641b158efcda5f8cc396",

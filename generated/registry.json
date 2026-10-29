@@ -11204,6 +11204,33 @@
       ],
       "type": "object"
     },
+    "s_95b73dc67d": {
+      "items": {
+        "properties": {
+          "id": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "record"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
     "s_9746c1f86e": {
       "properties": {
         "thread": {
@@ -11765,6 +11792,28 @@
         "projectId",
         "fromTaskId",
         "toTaskId"
+      ],
+      "type": "object"
+    },
+    "s_a02beb108e": {
+      "properties": {
+        "messageId": {
+          "examples": [
+            "msg_a1b2c3"
+          ],
+          "pattern": "^msg_[a-z0-9]+$",
+          "type": "string"
+        },
+        "threadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId"
       ],
       "type": "object"
     },
@@ -14470,6 +14519,66 @@
         "$ref": "#/$defs/s_4cc31eb5fb"
       },
       "type": "array"
+    },
+    "s_c1faba3335": {
+      "properties": {
+        "actions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "filters": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "focus": {
+          "description": "Name of the focus skill the place asks for",
+          "type": "string"
+        },
+        "open": {
+          "$ref": "#/$defs/s_95b73dc67d"
+        },
+        "place": {
+          "description": "home, chats, inbox, records, files, apps, automations, vault, console, projects, agents, tasks, calendar",
+          "examples": [
+            "records"
+          ],
+          "type": "string"
+        },
+        "rows": {
+          "properties": {
+            "sample": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "shown": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "total": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "shown"
+          ],
+          "type": "object"
+        },
+        "selection": {
+          "$ref": "#/$defs/s_95b73dc67d"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "place"
+      ],
+      "type": "object"
     },
     "s_c29a5a4deb": {
       "properties": {
@@ -25454,6 +25563,82 @@
         }
       },
       "teamOnly": true,
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "name": "focus-records"
+          },
+          "name": "example",
+          "output": {
+            "body": "example",
+            "description": "example",
+            "name": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "name": {
+            "examples": [
+              "focus-records"
+            ],
+            "pattern": "^[a-z][a-z0-9-]{0,63}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "agents.builtin_skill.get",
+      "output": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "body"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "agents"
+        }
+      },
       "v": 1
     },
     {
@@ -43650,6 +43835,36 @@
               }
             ],
             "replyTo": "msg_a1b2c3",
+            "screen": {
+              "actions": [
+                "example"
+              ],
+              "filters": {},
+              "focus": "example",
+              "open": [
+                {
+                  "id": "rec_a1b2c3",
+                  "title": "example",
+                  "type": "record"
+                }
+              ],
+              "place": "records",
+              "rows": {
+                "sample": [
+                  "example"
+                ],
+                "shown": 1,
+                "total": 1
+              },
+              "selection": [
+                {
+                  "id": "rec_a1b2c3",
+                  "title": "example",
+                  "type": "record"
+                }
+              ],
+              "title": "example"
+            },
             "threadId": "thr_a1b2c3",
             "via": {
               "routineOwner": "usr_a1b2c3"
@@ -43763,6 +43978,9 @@
             ],
             "pattern": "^msg_[a-z0-9]+$",
             "type": "string"
+          },
+          "screen": {
+            "$ref": "#/$defs/s_c1faba3335"
           },
           "threadId": {
             "examples": [
@@ -44162,6 +44380,107 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "messageId": "msg_a1b2c3",
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "messageId": "msg_a1b2c3",
+            "screen": {
+              "actions": [
+                "example"
+              ],
+              "filters": {},
+              "focus": "example",
+              "open": [
+                {
+                  "id": "rec_a1b2c3",
+                  "title": "example",
+                  "type": "record"
+                }
+              ],
+              "place": "records",
+              "rows": {
+                "sample": [
+                  "example"
+                ],
+                "shown": 1,
+                "total": 1
+              },
+              "selection": [
+                {
+                  "id": "rec_a1b2c3",
+                  "title": "example",
+                  "type": "record"
+                }
+              ],
+              "title": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_a02beb108e"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "chat",
+      "name": "chat.screen.get",
+      "output": {
+        "properties": {
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "screen": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/s_c1faba3335"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "screen"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -62206,26 +62525,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "properties": {
-          "messageId": {
-            "examples": [
-              "msg_a1b2c3"
-            ],
-            "pattern": "^msg_[a-z0-9]+$",
-            "type": "string"
-          },
-          "threadId": {
-            "examples": [
-              "thr_a1b2c3"
-            ],
-            "pattern": "^thr_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "threadId"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_a02beb108e"
       },
       "level": "use",
       "module": "engine",

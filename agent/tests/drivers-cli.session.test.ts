@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { CLI_ADAPTERS, LaunchError, createCliDriver } from "../src/drivers/cli/index.ts";
 import type { CliDriverDeps } from "../src/drivers/cli/index.ts";
 import { createPool, poolOpenSession } from "../src/pool/index.ts";
+import type { TurnContext } from "../src/turn-engine/context.ts";
 import {
   alive, collect, driverDeps, kinds, message, newSpy, sleep, specOf, texts, turnOf, until,
 } from "../fixtures/golden-streams/rig.ts";
@@ -42,6 +43,23 @@ test("the user's words go to the process as one JSON message per turn; the engin
   assert.equal(spy.writes.length, 2);
   for (const w of spy.writes) assert.equal(JSON.parse(w).message.content[0].text, "text");
   await session.close();
+});
+
+test("the turn context goes in front of the first message once; a later turn is sent only what changed and what is volatile", async () => {
+  const spy = newSpy();
+  const session = await claude(spy).open(specOf());
+  try {
+    const context = (can: string, now: string): TurnContext => ({
+      names: {}, sections: [{ id: "identity", stable: true, text: "You are Intake." }, { id: "can", stable: true, text: can }, { id: "now", stable: false, text: now }],
+    });
+    await collect(session.send({ ...turnOf("text"), context: context("Tools: all.", "It is Monday.") }));
+    await collect(session.send({ ...turnOf("text"), context: context("Tools: all.", "It is Tuesday.") }));
+    await collect(session.send({ ...turnOf("text"), context: context("Tools: all. One routine.", "It is Tuesday.") }));
+    const sent = spy.writes.map((w) => String(JSON.parse(w).message.content[0].text));
+    assert.equal(sent[0], "<vyre-context>\nYou are Intake.\n\nWhat you can do here:\nTools: all.\n\nIt is Monday.\n</vyre-context>\n\ntext");
+    assert.equal(sent[1], "<vyre-context>\nIt is Tuesday.\n</vyre-context>\n\ntext", "the stable sections the engine already holds are not sent again");
+    assert.equal(sent[2], "<vyre-context>\nWhat you can do here:\nTools: all. One routine.\n\nIt is Tuesday.\n</vyre-context>\n\ntext", "a stable section that changed is sent again");
+  } finally { await session.close(); }
 });
 
 test("a process that died between turns is replaced by one started with --resume <the engine's session id>", async () => {

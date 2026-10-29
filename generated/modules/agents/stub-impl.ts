@@ -4,6 +4,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
+  "agents.builtin_skill.get": async () => ({"body":"example","description":"example","name":"example"} as unknown) as never,
   "agents.builtin_skills.list": async () => ({"skills":[{"key":"working_in_vyre","summary":"example","title":"example","version":"1.0.0"}]} as unknown) as never,
   "agents.config.get": async () => ({"effective":{},"error":{"line":1,"message":"example"},"lastGoodVersionId":"ver_a1b2c3","lines":{"agentMd":1,"vyreMd":1}} as unknown) as never,
   "agents.config.validate": async () => ({"errors":[{"line":1,"message":"example"}],"ok":true,"widens":["example"]} as unknown) as never,
