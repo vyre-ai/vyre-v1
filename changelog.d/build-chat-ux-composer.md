@@ -4,3 +4,4 @@
 - Fork a chat at any message: a new private chat with a copy up to there, the same agents, and a first line that links back. New capability `chat.fork`.
 - Export a chat as Markdown or JSON from the chat menu or `/export`. Make a task from any message (hover bar or right-click), linked back to the message.
 - A person or agent the page has no name for is called "Someone" or "An agent", never by its id.
+- A copy of a chat that had other people in it stays private to whoever copied it and cannot become a channel with anyone. The search page only marks results "similar" when meaning search is actually on.

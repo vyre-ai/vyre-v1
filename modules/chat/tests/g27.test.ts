@@ -143,3 +143,24 @@ test("a bound meaning index adds hits that share no words, is cut to the chats t
     assert.ok(failed.hits.some((h: any) => h.messageId === exact));
   } finally { setMeaningIndex(null); }
 });
+
+test("a fork of a chat that had other people in it stays private to the forker: it cannot become a channel with anyone, so their words go nowhere new", async () => {
+  const hn = harness();
+  const room = (await base["channels.create"]!(hn.ctx, { name: "intake", visibility: "invite", memberIds: [MAYA], agentIds: [INTAKE], idempotencyKey: key() })).channel;
+  await say(hn.person(MAYA), room.mainThreadId, "Maya's words, not for outsiders");
+  const out = await run(hn, "chat.fork", hn.ctx, { threadId: room.mainThreadId, idempotencyKey: key() });
+  const forked = out.thread.threadId as string;
+  assert.deepEqual(out.thread.members.map((m: any) => m.id), [DANA]);
+  await assert.rejects(base["threads.members.add"]!(hn.ctx, { threadId: forked, personId: "usr_leo" }), (e: any) => /never gains people/.test(JSON.stringify(e)));
+  await assert.rejects(base["threads.make_channel"]!(hn.ctx, { threadId: forked, personId: "usr_leo" }), (e: any) => /private_fork|stays private/.test(JSON.stringify(e)));
+  assert.equal(hn.rows("SELECT COUNT(*) AS n FROM chat_channel")[0]?.n, 1, "no channel was made from the copy");
+});
+
+test("a fork of a chat with only the forker in it may still become a channel, as any private chat may", async () => {
+  const hn = harness();
+  const t = await chat(hn);
+  await say(hn.ctx, t, "just me");
+  const out = await run(hn, "chat.fork", hn.ctx, { threadId: t, idempotencyKey: key() });
+  const made = await base["threads.make_channel"]!(hn.ctx, { threadId: out.thread.threadId, personId: MAYA, idempotencyKey: key() });
+  assert.ok(made.channel.channelId);
+});

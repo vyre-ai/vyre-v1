@@ -8,9 +8,25 @@ import {
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
 import { canSpeak } from "./post.ts";
 import { sealedThread } from "./g26.ts";
+import { readFileSync } from "node:fs";
 import { ensurePrivate } from "./private.ts";
 
 type Row = Record<string, unknown>;
+
+const FORK_SCHEMA = readFileSync(new URL("../migrations/0003_fork.sql", import.meta.url), "utf8")
+  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n").split(";").map((x) => x.trim()).filter((x) => x.length > 0);
+const forkReady = new WeakSet<object>();
+export function ensureFork(db: ChatCtx["db"]): void {
+  if (forkReady.has(db)) return;
+  try { db.all("SELECT thread FROM chat_fork WHERE thread = ?", "probe"); } catch { for (const stmt of FORK_SCHEMA) db.run(stmt); }
+  forkReady.add(db);
+}
+
+/** True when this chat is a copy of one that had other people in it: it stays private to whoever forked it. */
+export function privateFork(db: ChatCtx["db"], threadId: string): boolean {
+  ensureFork(db);
+  return (db.all("SELECT 1 AS x FROM chat_fork WHERE thread = ? AND withOthers = 1", threadId) as Row[]).length > 0;
+}
 
 /** How many messages one fork copies. A longer chat is forked from an earlier message. */
 export const MAX_FORK = 5000;
@@ -33,6 +49,7 @@ export async function fork(ctx: ChatCtx, input: { threadId: string; messageId?: 
     raise(ctx, "validation.precondition_failed", "This chat is end-to-end encrypted, so the server cannot copy it. Fork it from a device that holds the key.", { reason: "sealed_thread" });
   }
   const asker = askerOf(ctx);
+  ensureFork(ctx.db);
   let upTo: MessageRec | null;
   if (input.messageId !== undefined) {
     upTo = messageBy(ctx.db, input.messageId);
@@ -50,6 +67,8 @@ export async function fork(ctx: ChatCtx, input: { threadId: string; messageId?: 
     ...(src.folderId !== undefined ? { folderId: src.folderId } : {}), ...(src.recordId !== undefined ? { recordId: src.recordId } : {}),
   });
   addMember(ctx, t.id, asker, "owner");
+  const others = src.kind === "channel" || src.channelId !== undefined || membersOf(ctx.db, src.id).some((p) => p.startsWith("usr_") && p !== asker);
+  ctx.db.run("INSERT OR REPLACE INTO chat_fork (thread, source, withOthers, at) VALUES (?, ?, ?, ?)", t.id, src.id, others ? 1 : 0, ctx.now());
   for (const a of agentsOf(ctx.db, src.id)) addAgent(ctx, t.id, { agentId: a.agentId, mode: a.mode, model: a.model, provider: a.provider, effort: a.effort, accountRef: a.accountRef, addedBy: asker });
 
   // The first line says where the chat came from and links back; the copies follow, in order, under new ids with the same authors, words, blocks and files.
