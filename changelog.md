@@ -1,6 +1,8 @@
 # Changelog
 
 
+- Let the Computer lifecycle test wait up to 40 s for the Vyre for Chrome service worker to start before asserting it runs (it starts a moment after the browser, later on a loaded host); the assertion is unchanged.
+
 - Run the release browser evidence two files at a time instead of four: each file starts a daemon and a Chrome, and four at once beside the other runners on a host pushed the load past 12 on eight cores, so unrelated files (email Ask cancel, auth entry, Comms paging, Speed) hit their 120 s caps with no assertion failing. The same files pass in 14 to 22 s on an idle machine.
 
 - Fix the template install confirmation closing itself: Apps reads refresh on every live change, each read hands back a new object, and the card reset on that, so Confirm install detached while being clicked. It now resets only when another template is opened. Make the release real-app Computer health check expect the state the runner really has (ready with Docker, unavailable without) instead of always unavailable.
