@@ -59,14 +59,14 @@ export function People({ initialPersonId }: { initialPersonId?: string } = {}): 
   if (selected) return <PersonById key={selected} id={selected} roles={roles.data.roles} groups={groups.data.groups} onBack={() => { setSelected(null); refreshAll(); }} refresh={refreshAll} />;
   const rows: ObjectListRow<Person>[] = everyone.map((person) => ({
     id: `console-person-${person.id}`, title: person.name === person.id ? "Person profile unavailable" : person.name,
-    note: `${person.status} · ${person.roles.map(roleName).join(", ") || "No role"}${person.groups.length ? ` · ${person.groups.length} ${person.groups.length === 1 ? "group" : "groups"}` : ""}`,
+    note: `${person.status[0]!.toUpperCase()}${person.status.slice(1)} · ${person.roles.map(roleName).join(", ") || "No role"}${person.groups.length ? ` · ${person.groups.length} ${person.groups.length === 1 ? "group" : "groups"}` : ""}`,
     search: `${person.title ?? ""}`, filters: personRowFilters(person), value: person,
     actions: [{ label: "Open", onSelect: () => setSelected(person.id) }],
   }));
   const pickedPeople = everyone.filter((p) => picked.has(`console-person-${p.id}`));
   const protectedIds = new Set([consoleData.me.id, ...everyone.filter((p) => p.roles.some((id) => id === "rol_owner" || id === "owner")).map((p) => p.id)]);
   const inviteRoles = roles.data.roles.filter((r) => r.id !== "rol_owner" && r.id !== "owner" && r.name.toLowerCase() !== "owner");
-  const roleRows: ReactElement[] = inviteRoles.map((item) => <Row key={item.id} id={`invite-role-${item.id}`} title={item.name} selected={role === item.id} onPress={() => setRole(item.id)} />);
+  const chosenRole = role || inviteRoles.find((r) => r.name === "Member")?.id || inviteRoles[0]?.id || "";
   const startBulk = (kind: "role" | "group" | "suspend"): void => { setReport(""); setBulk({ kind, value: kind === "role" ? inviteRoles[0]?.id ?? "" : kind === "group" ? groups.data!.groups[0]?.id ?? "" : "" }); };
   const applyBulk = async (): Promise<void> => {
     if (!bulk) return;
@@ -100,7 +100,7 @@ export function People({ initialPersonId }: { initialPersonId?: string } = {}): 
       </Group>
     </Section> : null}
     {report ? <Note>{report}</Note> : null}
-    <Section title="Invite a person"><Group><Field label="Email (optional)" testID="console-invite-email" value={email} onChange={setEmail} />{roleRows}<Button label="Create invite" testID="console-invite-create" disabled={!role || action.busy} onPress={() => void action.run<CapMap["members.invites.create"]["out"]>("members.invites.create", { role, ...(email.trim() ? { email: email.trim() } : {}), idempotencyKey: attempt() }, "Invite created").then((out) => { if (out) setLink(out.link); })} />{link ? <><Note>Copy this one-time invite link:</Note><Text selectable testID="console-invite-link">{link}</Text></> : null}</Group></Section>
+    <Section title="Invite a person"><Group><Field label="Email (optional)" testID="console-invite-email" value={email} onChange={setEmail} /><Select label="Role" value={chosenRole} options={inviteRoles.map((r) => ({ key: r.id, title: r.name }))} onChange={setRole} /><Button label="Create invite" testID="console-invite-create" disabled={!chosenRole || action.busy} onPress={() => void action.run<CapMap["members.invites.create"]["out"]>("members.invites.create", { role: chosenRole, ...(email.trim() ? { email: email.trim() } : {}), idempotencyKey: attempt() }, "Invite created").then((out) => { if (out) setLink(out.link); })} />{link ? <><Note>Copy this one-time invite link:</Note><Text selectable testID="console-invite-link">{link}</Text></> : null}</Group></Section>
     {action.note && !report ? <Note>{action.note}</Note> : null}
   </View>;
 }

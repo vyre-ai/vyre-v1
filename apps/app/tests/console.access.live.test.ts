@@ -77,7 +77,7 @@ test("production Console Access: People directory, person object, groups, device
     await t.test("the directory lists everyone and narrows by search and by status, role and group together", async () => {
       await goPeople();
       for (const id of [maya.personId, noah.personId, priya.personId]) await rowOf(id).waitFor();
-      assert.match(await rowOf(maya.personId).innerText(), /Maya Lin[\s\S]*active · Member · \d+ groups?/);
+      assert.match(await rowOf(maya.personId).innerText(), /Maya Lin[\s\S]*Active · Member · \d+ groups?/);
       await page.getByTestId("object-list-filter").click(); await page.getByTestId("menu").getByText("Role: Member", { exact: true }).click();
       await rowOf(noah.personId).waitFor({ state: "detached" });
       assert.equal(await rowOf(maya.personId).count() + await rowOf(priya.personId).count(), 2);
@@ -91,22 +91,33 @@ test("production Console Access: People directory, person object, groups, device
       await matrix("people-directory", toPeople);
     });
 
+    await t.test("the invite form names the Role, defaults to Member, and Create invite makes a real one-time link", async () => {
+      await goPeople();
+      assert.equal(await page.getByRole("button", { name: "Role", exact: true }).innerText(), "Member");
+      await page.getByRole("button", { name: "Role", exact: true }).click();
+      assert.ok(await page.getByRole("menuitem", { name: "Guest", exact: true }).count());
+      await page.getByRole("menuitem", { name: "Guest", exact: true }).click();
+      assert.equal(await page.getByRole("button", { name: "Role", exact: true }).innerText(), "Guest");
+      await page.getByTestId("console-invite-create").click(); await page.getByTestId("console-invite-link").waitFor();
+      assert.match(await page.getByTestId("console-invite-link").innerText(), /^https?:\/\//);
+    });
+
     await t.test("bulk: add several people to a group and assign a role, each applied and read back", async () => {
       await goPeople();
       await pickRow(maya.personId); await pickRow(priya.personId);
       await page.getByRole("button", { name: "Add to group…", exact: true }).click();
-      await page.getByRole("button", { name: "Group", exact: true }).click(); await page.getByRole("menuitem", { name: "Support", exact: true }).click();
+      await page.getByTestId("people-bulk").getByRole("button", { name: "Group", exact: true }).click(); await page.getByRole("menuitem", { name: "Support", exact: true }).click();
       await page.getByTestId("people-bulk-confirm").click();
       await page.getByText(/2 changed/).waitFor();
       assert.deepEqual((await groupOf(support)).sort(), [maya.personId, priya.personId].sort());
       await pickRow(maya.personId); await pickRow(priya.personId);
       await page.getByRole("button", { name: "Assign role…", exact: true }).click();
-      await page.getByRole("button", { name: "Role", exact: true }).click(); await page.getByRole("menuitem", { name: "Developer", exact: true }).click();
+      await page.getByTestId("people-bulk").getByRole("button", { name: "Role", exact: true }).click(); await page.getByRole("menuitem", { name: "Developer", exact: true }).click();
       await page.getByTestId("people-bulk-confirm").click(); await page.getByText(/2 changed/).waitFor();
       assert.ok((await rolesOf(maya.personId)).includes(roleId("Developer")) && (await rolesOf(priya.personId)).includes(roleId("Developer")));
       await pickRow(maya.personId); await pickRow(priya.personId);
       await page.getByRole("button", { name: "Assign role…", exact: true }).click();
-      await page.getByRole("button", { name: "Role", exact: true }).click(); await page.getByRole("menuitem", { name: "Developer", exact: true }).click();
+      await page.getByTestId("people-bulk").getByRole("button", { name: "Role", exact: true }).click(); await page.getByRole("menuitem", { name: "Developer", exact: true }).click();
       await page.getByTestId("people-bulk-confirm").click();
       await page.getByText(/0 changed, 2 skipped/).waitFor();
     });
