@@ -54,7 +54,7 @@ test("each proposed change is reviewed on its own: diff, Accept and Reject; a de
   assert.ok(open.includes("apps-ask-diff") && open.includes("HTML") && open.includes("CSS"));
   assert.ok(open.includes("+ &lt;h1&gt;Hi&lt;/h1&gt;") || open.includes("+ <h1>Hi</h1>"));
   const decided = render({ proposals: [change, { path: "/css", before: "", after: ".a{}" }], decided: { "/html": "accepted", "/css": "rejected" } });
-  assert.ok(decided.includes("apps-ask-accepted-html") && decided.includes("Save the form to keep it") && decided.includes("apps-ask-rejected-css"));
+  assert.ok(decided.includes("apps-ask-accepted-html") && decided.includes("accepted, save to keep") && decided.includes("apps-ask-rejected-css"));
   assert.ok(!decided.includes("apps-ask-accept-html") && !decided.includes("apps-ask-reject-css"));
   assert.ok(render({ error: "The provider rejected the key or sign-in for this agent. Open Settings and reconnect it." }).includes("reconnect it"));
 });

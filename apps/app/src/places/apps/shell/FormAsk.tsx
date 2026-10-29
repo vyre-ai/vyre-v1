@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 import { Text, View } from "react-native";
 import { Button, Field, Select, s } from "./editor-ui.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
-import { diffText, summaryOf } from "./form-ask.ts";
+import { FIELD_TITLE, diffText, summaryOf } from "./form-ask.ts";
 import type { SourceChange } from "./form-ask.ts";
 
 export interface FormAskProps {
@@ -36,7 +36,7 @@ export function FormAsk(p: FormAskProps): ReactElement {
     {p.proposals.map((c) => {
       const state = p.decided[c.path];
       const id = c.path.slice(1);
-      return <Row key={c.path} id={`ask-${id}`} title={summaryOf(c)} note={state === "accepted" ? "Accepted. Save the form to keep it." : state === "rejected" ? "Rejected" : "Proposed"}
+      return <Row key={c.path} id={`ask-${id}`} title={`${FIELD_TITLE[c.path] ?? c.path} change`} note={`${summaryOf(c).replace(/^[^:]*: /, "")} · ${state === "accepted" ? "accepted, save to keep" : state === "rejected" ? "rejected" : "proposed"}`}
         trailing={state ? <Text testID={`apps-ask-${state}-${id}`} style={s.text}>{state === "accepted" ? "Accepted" : "Rejected"}</Text>
           : <View style={{ flexDirection: "row", gap: 6 }}><Button title="Reject" testID={`apps-ask-reject-${id}`} onPress={() => p.onReject(c.path)} /><Button title="Accept" primary testID={`apps-ask-accept-${id}`} onPress={() => p.onAccept(c.path)} /></View>} />;
     })}
