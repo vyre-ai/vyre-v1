@@ -19150,6 +19150,7 @@
               "pay",
               "delete",
               "transfer",
+              "enroll_node",
               "push_protected",
               "campaign_launch",
               "secret_export",
@@ -19236,6 +19237,7 @@
               "pay",
               "delete",
               "transfer",
+              "enroll_node",
               "push_protected",
               "campaign_launch",
               "secret_export",
@@ -19326,6 +19328,7 @@
               "pay",
               "delete",
               "transfer",
+              "enroll_node",
               "push_protected",
               "campaign_launch",
               "secret_export",
@@ -32627,6 +32630,84 @@
     },
     {
       "blocks": [],
+      "cap": "network.my_computer_approve",
+      "deferred": false,
+      "description": "Admit your own waiting computer",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "serverId": {
+            "examples": [
+              "srv_a1b2c3"
+            ],
+            "pattern": "^srv_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId"
+        ],
+        "type": "object"
+      },
+      "name": "network_my_computer_approve",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.my_computer_code",
+      "deferred": false,
+      "description": "Make a join code for your own computer (a Mac, PC or Linux box): it will run only your own agents",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "network_my_computer_code",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.my_computer_decline",
+      "deferred": false,
+      "description": "Turn your own waiting computer away",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "serverId": {
+            "examples": [
+              "srv_a1b2c3"
+            ],
+            "pattern": "^srv_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId"
+        ],
+        "type": "object"
+      },
+      "name": "network_my_computer_decline",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "network.public_hostnames",
       "deferred": false,
       "description": "Public hostnames and /hooks endpoints served by this Space",
@@ -32662,6 +32743,58 @@
         "type": "object"
       },
       "name": "network_relay_set",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.server_approve",
+      "deferred": false,
+      "description": "Admit a waiting computer to the Space: a person looks at its name, what it runs on and its fingerprint and approves once",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "serverId": {
+            "examples": [
+              "srv_a1b2c3"
+            ],
+            "pattern": "^srv_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId"
+        ],
+        "type": "object"
+      },
+      "name": "network_server_approve",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.server_decline",
+      "deferred": false,
+      "description": "Turn a waiting computer away",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "serverId": {
+            "examples": [
+              "srv_a1b2c3"
+            ],
+            "pattern": "^srv_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId"
+        ],
+        "type": "object"
+      },
+      "name": "network_server_decline",
       "planMode": "blocked",
       "toolset": "engineer",
       "v": 1
@@ -32748,7 +32881,7 @@
       "blocks": [],
       "cap": "network.servers",
       "deferred": false,
-      "description": "Servers in the Space: grey rows when offline, with Reconnect and Remove",
+      "description": "Computers in the Space (the Space server and the computers that joined for compute, waiting ones included): grey rows when offline, with Reconnect and Remove",
       "effects": "read",
       "inputSchema": {
         "properties": {},

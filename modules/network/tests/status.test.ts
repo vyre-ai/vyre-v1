@@ -161,7 +161,7 @@ test("join codes look like VYRE-XXXX-XXXX, expire in ten minutes and differ", as
   assert.deepEqual(h.raw.rows("network_join").map((r) => r["by_principal"]), ["usr_admin", "usr_admin"]);
 });
 
-test("reconnect asks the host and never reports a green row it has not seen; remove retains the row until the host confirms", async () => {
+test("reconnect asks the host and never reports a green row it has not seen; removing a computer ends it at once", async () => {
   const h = harness();
   server(h, "srv_main", "Northwind server", "space", "healthy", NOW);
   server(h, "srv_box", "Cloud box", "compute", "healthy", NOW - HEARTBEAT_DOWN_MS - 1);
@@ -171,10 +171,10 @@ test("reconnect asks the host and never reports a green row it has not seen; rem
   await assert.rejects(() => serverReconnect(h.ctx, { serverId: "srv_none" }), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.not_found");
 
   await assert.rejects(() => serverRemove(h.ctx, { serverId: "srv_main" }), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.precondition_failed");
-  assert.deepEqual(await serverRemove(h.ctx, { serverId: "srv_box" }), { removed: false });
-  assert.deepEqual(await serverRemove(h.ctx, { serverId: "srv_box" }), { removed: false });
-  assert.deepEqual((await serverList(h.ctx, {})).servers.map((s) => s.serverId), ["srv_box", "srv_main"]);
-  assert.deepEqual(h.events, [], "removal is observed only after the driver succeeds");
+  assert.deepEqual(await serverRemove(h.ctx, { serverId: "srv_box" }), { removed: true });
+  assert.deepEqual(await serverRemove(h.ctx, { serverId: "srv_box" }), { removed: false }, "a computer that is already out is not removed twice");
+  assert.deepEqual((await serverList(h.ctx, {})).servers.map((s) => s.serverId), ["srv_main"]);
+  assert.deepEqual(h.events.map((e) => e.name), ["network.server_removed"], "the removal is announced once");
 });
 
 test("the health probe combines certificate expiry and relay reachability", async () => {
@@ -200,6 +200,6 @@ test("seed rows fit the migration and impl exposes every handler", async () => {
   for (const r of seed.rows) h.raw.run("INSERT INTO network_server (server_id, name, role, state, heartbeat_at) VALUES (?, ?, ?, ?, ?)", r.server_id, r.name, r.role, r.state, r.heartbeat_at);
   assert.equal((await serverList(h.ctx, {})).servers.length, 1);
   assert.equal(impl.handlers, handlers);
-  assert.equal(Object.keys(impl.handlers).length, 12);
+  assert.equal(Object.keys(impl.handlers).length, 19);
   assert.deepEqual([impl.projections, impl.consumers, impl.inline, impl.codecs], [[], {}, {}, {}]);
 });

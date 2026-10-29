@@ -3742,22 +3742,6 @@
       ],
       "type": "object"
     },
-    "s_3171ba2f8d": {
-      "enum": [
-        "send",
-        "post",
-        "pay",
-        "delete",
-        "transfer",
-        "push_protected",
-        "campaign_launch",
-        "secret_export",
-        "site_promote",
-        "signature_send",
-        "spend_raise"
-      ],
-      "type": "string"
-    },
     "s_323acdeb06": {
       "properties": {
         "address": {
@@ -4885,87 +4869,6 @@
       "minItems": 1,
       "type": "array"
     },
-    "s_3dc8e97e60": {
-      "properties": {
-        "act": {
-          "$ref": "#/$defs/s_3171ba2f8d"
-        },
-        "afterHours": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "agentOkFor": {
-          "enum": [
-            "low",
-            "medium",
-            "high"
-          ],
-          "type": "string"
-        },
-        "approvers": {
-          "description": "role:<name>, owner or asker",
-          "examples": [
-            "role:admin"
-          ],
-          "type": "string"
-        },
-        "emailBackstopHours": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "escalateTo": {
-          "enum": [
-            "delegate",
-            "role"
-          ],
-          "type": "string"
-        },
-        "mode": {
-          "enum": [
-            "hold",
-            "allow"
-          ],
-          "type": "string"
-        },
-        "onTimeout": {
-          "enum": [
-            "drop",
-            "escalate"
-          ],
-          "type": "string"
-        },
-        "peopleOnly": {
-          "type": "boolean"
-        },
-        "scope": {
-          "enum": [
-            "space",
-            "floor",
-            "agent"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "act",
-        "mode",
-        "approvers",
-        "peopleOnly",
-        "afterHours",
-        "onTimeout",
-        "escalateTo",
-        "emailBackstopHours",
-        "scope"
-      ],
-      "type": "object"
-    },
     "s_3e81e0d4aa": {
       "items": {
         "properties": {
@@ -5350,6 +5253,87 @@
       },
       "required": [
         "unsure"
+      ],
+      "type": "object"
+    },
+    "s_475c563580": {
+      "properties": {
+        "act": {
+          "$ref": "#/$defs/s_75dff07a61"
+        },
+        "afterHours": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "agentOkFor": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "type": "string"
+        },
+        "approvers": {
+          "description": "role:<name>, owner or asker",
+          "examples": [
+            "role:admin"
+          ],
+          "type": "string"
+        },
+        "emailBackstopHours": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "escalateTo": {
+          "enum": [
+            "delegate",
+            "role"
+          ],
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "hold",
+            "allow"
+          ],
+          "type": "string"
+        },
+        "onTimeout": {
+          "enum": [
+            "drop",
+            "escalate"
+          ],
+          "type": "string"
+        },
+        "peopleOnly": {
+          "type": "boolean"
+        },
+        "scope": {
+          "enum": [
+            "space",
+            "floor",
+            "agent"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "act",
+        "mode",
+        "approvers",
+        "peopleOnly",
+        "afterHours",
+        "onTimeout",
+        "escalateTo",
+        "emailBackstopHours",
+        "scope"
       ],
       "type": "object"
     },
@@ -8398,6 +8382,29 @@
       ],
       "type": "object"
     },
+    "s_67b8a2e15c": {
+      "properties": {
+        "code": {
+          "examples": [
+            "VYRE-1234-ABCD"
+          ],
+          "type": "string"
+        },
+        "expiresAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "code",
+        "expiresAt"
+      ],
+      "type": "object"
+    },
     "s_685b085375": {
       "properties": {
         "alerts": {
@@ -9034,6 +9041,23 @@
         "costMicros"
       ],
       "type": "object"
+    },
+    "s_75dff07a61": {
+      "enum": [
+        "send",
+        "post",
+        "pay",
+        "delete",
+        "transfer",
+        "enroll_node",
+        "push_protected",
+        "campaign_launch",
+        "secret_export",
+        "site_promote",
+        "signature_send",
+        "spend_raise"
+      ],
+      "type": "string"
     },
     "s_7636d4fac9": {
       "properties": {
@@ -12135,6 +12159,86 @@
       },
       "type": "array"
     },
+    "s_a7a9bf3d71": {
+      "properties": {
+        "act": {
+          "$ref": "#/$defs/s_75dff07a61"
+        },
+        "actingFor": {
+          "type": "string"
+        },
+        "capName": {
+          "examples": [
+            "mail.send"
+          ],
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expiresAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "hld_a1b2c3"
+          ],
+          "pattern": "^hld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "payloadHash": {
+          "type": "string"
+        },
+        "principal": {
+          "$ref": "#/$defs/s_6c1eb10d98"
+        },
+        "runId": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "held",
+            "approved",
+            "denied",
+            "expired"
+          ],
+          "type": "string"
+        },
+        "taskId": {
+          "examples": [
+            "tsk_a1b2c3"
+          ],
+          "pattern": "^tsk_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "act",
+        "capName",
+        "taskId",
+        "principal",
+        "state",
+        "payloadHash",
+        "createdAt",
+        "expiresAt"
+      ],
+      "type": "object"
+    },
     "s_a803997f5b": {
       "properties": {
         "count": {
@@ -12389,86 +12493,6 @@
       },
       "required": [
         "event"
-      ],
-      "type": "object"
-    },
-    "s_ab64720dbb": {
-      "properties": {
-        "act": {
-          "$ref": "#/$defs/s_3171ba2f8d"
-        },
-        "actingFor": {
-          "type": "string"
-        },
-        "capName": {
-          "examples": [
-            "mail.send"
-          ],
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "expiresAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "hld_a1b2c3"
-          ],
-          "pattern": "^hld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "payloadHash": {
-          "type": "string"
-        },
-        "principal": {
-          "$ref": "#/$defs/s_6c1eb10d98"
-        },
-        "runId": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "state": {
-          "enum": [
-            "held",
-            "approved",
-            "denied",
-            "expired"
-          ],
-          "type": "string"
-        },
-        "taskId": {
-          "examples": [
-            "tsk_a1b2c3"
-          ],
-          "pattern": "^tsk_[a-z0-9]+$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "act",
-        "capName",
-        "taskId",
-        "principal",
-        "state",
-        "payloadHash",
-        "createdAt",
-        "expiresAt"
       ],
       "type": "object"
     },
@@ -74695,7 +74719,7 @@
                   "type": "boolean"
                 },
                 "key": {
-                  "$ref": "#/$defs/s_3171ba2f8d"
+                  "$ref": "#/$defs/s_75dff07a61"
                 },
                 "peopleOnly": {
                   "type": "boolean"
@@ -74871,7 +74895,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_3171ba2f8d"
+            "$ref": "#/$defs/s_75dff07a61"
           },
           "principal": {
             "$ref": "#/$defs/s_6c1eb10d98"
@@ -75102,7 +75126,7 @@
       "output": {
         "properties": {
           "hold": {
-            "$ref": "#/$defs/s_ab64720dbb"
+            "$ref": "#/$defs/s_a7a9bf3d71"
           }
         },
         "required": [
@@ -75174,7 +75198,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_3171ba2f8d"
+            "$ref": "#/$defs/s_75dff07a61"
           },
           "cursor": {
             "type": "string"
@@ -75214,7 +75238,7 @@
         "properties": {
           "holds": {
             "items": {
-              "$ref": "#/$defs/s_ab64720dbb"
+              "$ref": "#/$defs/s_a7a9bf3d71"
             },
             "type": "array"
           },
@@ -75288,7 +75312,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_3171ba2f8d"
+            "$ref": "#/$defs/s_75dff07a61"
           },
           "actingFor": {
             "type": "string"
@@ -75541,7 +75565,7 @@
         "properties": {
           "rules": {
             "items": {
-              "$ref": "#/$defs/s_3dc8e97e60"
+              "$ref": "#/$defs/s_475c563580"
             },
             "type": "array"
           }
@@ -75615,7 +75639,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_3171ba2f8d"
+            "$ref": "#/$defs/s_75dff07a61"
           },
           "afterHours": {
             "minimum": 1,
@@ -75686,7 +75710,7 @@
       "output": {
         "properties": {
           "rule": {
-            "$ref": "#/$defs/s_3dc8e97e60"
+            "$ref": "#/$defs/s_475c563580"
           }
         },
         "required": [
@@ -117773,6 +117797,222 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "caller": "anonymous",
+      "effects": "write",
+      "emits": [
+        "network.server_requested"
+      ],
+      "errors": [
+        "auth.invalid_code",
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "code": "example",
+            "facts": {
+              "arch": "example",
+              "docker": true,
+              "os": "example",
+              "version": "example"
+            },
+            "name": "example",
+            "publicKey": "example"
+          },
+          "name": "example",
+          "output": {
+            "fingerprint": "K7QD-4M2X",
+            "serverId": "srv_a1b2c3",
+            "state": "pending"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "facts": {
+            "properties": {
+              "arch": {
+                "type": "string"
+              },
+              "docker": {
+                "type": "boolean"
+              },
+              "os": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "publicKey": {
+            "description": "Ed25519 public key, base64",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "publicKey",
+          "name"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "network",
+      "name": "network.enroll",
+      "output": {
+        "properties": {
+          "fingerprint": {
+            "examples": [
+              "K7QD-4M2X"
+            ],
+            "type": "string"
+          },
+          "serverId": {
+            "examples": [
+              "srv_a1b2c3"
+            ],
+            "pattern": "^srv_[a-z0-9]+$",
+            "type": "string"
+          },
+          "state": {
+            "const": "pending",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId",
+          "fingerprint",
+          "state"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "rate": {
+        "n": 20,
+        "perSeconds": 60,
+        "scope": "space"
+      },
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "A computer asks to join the Space with a join code and its own public key; it waits for approval (called by the computer, no sign-in)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "caller": "anonymous",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "auth.invalid_code",
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "at": 1,
+            "serverId": "srv_a1b2c3",
+            "signature": "example"
+          },
+          "name": "example",
+          "output": {
+            "credential": "example",
+            "fingerprint": "example",
+            "state": "pending"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "at": {
+            "type": "integer"
+          },
+          "serverId": {
+            "examples": [
+              "srv_a1b2c3"
+            ],
+            "pattern": "^srv_[a-z0-9]+$",
+            "type": "string"
+          },
+          "signature": {
+            "description": "Ed25519 signature of vyre-enroll:<serverId>:<at>, base64",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId",
+          "at",
+          "signature"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "network",
+      "name": "network.enroll_status",
+      "output": {
+        "properties": {
+          "credential": {
+            "description": "Shown once; stored only as a hash",
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "approved",
+              "declined",
+              "revoked"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "fingerprint"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "rate": {
+        "n": 120,
+        "perSeconds": 60,
+        "scope": "space"
+      },
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "A waiting computer asks whether it was approved by signing a fresh timestamp with its key; approved, it receives its credential once (called by the computer, no sign-in)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -117887,6 +118127,205 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "Check whether forms and webhooks can reach this Space from outside",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "network.server_added"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "serverId": "srv_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "state": "approved"
+          }
+        }
+      ],
+      "gate": {
+        "act": "enroll_node",
+        "when": "actor.kind != 'person'"
+      },
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "serverId": {
+            "examples": [
+              "srv_a1b2c3"
+            ],
+            "pattern": "^srv_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "network",
+      "name": "network.my_computer_approve",
+      "output": {
+        "properties": {
+          "state": {
+            "const": "approved",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Admit your own waiting computer",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1"
+          },
+          "name": "example",
+          "output": {
+            "code": "VYRE-1234-ABCD",
+            "expiresAt": 1760000000000
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "network",
+      "name": "network.my_computer_code",
+      "output": {
+        "$ref": "#/$defs/s_67b8a2e15c"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Make a join code for your own computer (a Mac, PC or Linux box): it will run only your own agents",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "serverId": "srv_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "state": "declined"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "serverId": {
+            "examples": [
+              "srv_a1b2c3"
+            ],
+            "pattern": "^srv_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "network",
+      "name": "network.my_computer_decline",
+      "output": {
+        "properties": {
+          "state": {
+            "const": "declined",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Turn your own waiting computer away",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -118058,6 +118497,152 @@
     {
       "audit": "always",
       "effects": "write",
+      "emits": [
+        "network.server_added"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.needs_team",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "serverId": "srv_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "state": "approved"
+          }
+        }
+      ],
+      "gate": {
+        "act": "enroll_node",
+        "when": "actor.kind != 'person'"
+      },
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "serverId": {
+            "examples": [
+              "srv_a1b2c3"
+            ],
+            "pattern": "^srv_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "network",
+      "name": "network.server_approve",
+      "output": {
+        "properties": {
+          "state": {
+            "const": "approved",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "permission": "server.network",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Admit a waiting computer to the Space: a person looks at its name, what it runs on and its fingerprint and approves once",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "teamOnly": true,
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.needs_team",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "serverId": "srv_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "state": "declined"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "serverId": {
+            "examples": [
+              "srv_a1b2c3"
+            ],
+            "pattern": "^srv_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "network",
+      "name": "network.server_decline",
+      "output": {
+        "properties": {
+          "state": {
+            "const": "declined",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "permission": "server.network",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Turn a waiting computer away",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "teamOnly": true,
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
       "emits": [],
       "errors": [
         "internal.unexpected",
@@ -118099,27 +118684,7 @@
       "module": "network",
       "name": "network.server_join_code",
       "output": {
-        "properties": {
-          "code": {
-            "examples": [
-              "VYRE-1234-ABCD"
-            ],
-            "type": "string"
-          },
-          "expiresAt": {
-            "description": "Milliseconds since the Unix epoch",
-            "examples": [
-              1760000000000
-            ],
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "code",
-          "expiresAt"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_67b8a2e15c"
       },
       "permission": "server.network",
       "resource": {
@@ -118297,8 +118862,18 @@
           "output": {
             "servers": [
               {
+                "enrollment": "pending",
+                "facts": {
+                  "arch": "example",
+                  "docker": true,
+                  "os": "example",
+                  "version": "example"
+                },
+                "fingerprint": "example",
                 "lastSeenAt": 1760000000000,
                 "name": "example",
+                "owner": "example",
+                "requestedAt": 1760000000000,
                 "role": "space",
                 "serverId": "srv_a1b2c3",
                 "state": "healthy"
@@ -118320,6 +118895,39 @@
           "servers": {
             "items": {
               "properties": {
+                "enrollment": {
+                  "enum": [
+                    "pending",
+                    "approved"
+                  ],
+                  "type": "string"
+                },
+                "facts": {
+                  "properties": {
+                    "arch": {
+                      "type": "string"
+                    },
+                    "docker": {
+                      "type": "boolean"
+                    },
+                    "os": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "os",
+                    "arch",
+                    "docker",
+                    "version"
+                  ],
+                  "type": "object"
+                },
+                "fingerprint": {
+                  "type": "string"
+                },
                 "lastSeenAt": {
                   "description": "Milliseconds since the Unix epoch",
                   "examples": [
@@ -118330,6 +118938,17 @@
                 },
                 "name": {
                   "type": "string"
+                },
+                "owner": {
+                  "type": "string"
+                },
+                "requestedAt": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
                 },
                 "role": {
                   "enum": [
@@ -118376,7 +118995,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "Servers in the Space: grey rows when offline, with Reconnect and Remove",
+      "summary": "Computers in the Space (the Space server and the computers that joined for compute, waiting ones included): grey rows when offline, with Reconnect and Remove",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -179478,7 +180097,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_3171ba2f8d"
+            "$ref": "#/$defs/s_75dff07a61"
           },
           "by": {
             "type": "string"
@@ -179526,7 +180145,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_3171ba2f8d"
+            "$ref": "#/$defs/s_75dff07a61"
           },
           "by": {
             "type": "string"
@@ -179582,7 +180201,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_3171ba2f8d"
+            "$ref": "#/$defs/s_75dff07a61"
           },
           "escalatedTo": {
             "type": "string"
@@ -179640,7 +180259,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_3171ba2f8d"
+            "$ref": "#/$defs/s_75dff07a61"
           },
           "actingFor": {
             "type": "string"
@@ -179707,7 +180326,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_3171ba2f8d"
+            "$ref": "#/$defs/s_75dff07a61"
           },
           "agentId": {
             "examples": [
@@ -184826,6 +185445,41 @@
         "type": "entity"
       },
       "summary": "A server was removed",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "network",
+      "name": "network.server_requested",
+      "payload": {
+        "properties": {
+          "fingerprint": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "serverId": {
+            "examples": [
+              "srv_a1b2c3"
+            ],
+            "pattern": "^srv_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId",
+          "name",
+          "fingerprint"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/serverId",
+        "type": "entity"
+      },
+      "summary": "A computer asked to join the Space and waits for a person to approve it",
       "sv": 1,
       "vis": "space"
     },
@@ -196338,6 +196992,39 @@
         "onTimeout": "escalate"
       },
       "title": "Delete"
+    },
+    {
+      "appliesTo": {
+        "actors": [
+          "agent",
+          "automation",
+          "campaign"
+        ],
+        "humanToo": false
+      },
+      "approvers": {
+        "default": "asker",
+        "peopleOnly": true
+      },
+      "key": "enroll_node",
+      "module": "gate",
+      "preview": {
+        "blocks": [
+          {
+            "from": "$input",
+            "type": "record_card"
+          }
+        ]
+      },
+      "risk": "high",
+      "sendsOnApprove": "gate.release",
+      "timeout": {
+        "afterHours": 24,
+        "emailBackstopHours": 4,
+        "escalateTo": "delegate",
+        "onTimeout": "escalate"
+      },
+      "title": "Admit a computer to the Space"
     },
     {
       "appliesTo": {

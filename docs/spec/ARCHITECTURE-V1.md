@@ -612,7 +612,7 @@ export interface HealthCheckDef {
 
 export interface GateActKindDef {
   key: string;                         // 'send', 'post', 'pay', 'delete', 'push_protected', 'campaign_launch', 'secret_export',
-                                       // 'site_promote', 'signature_send', 'spend_raise', 'transfer'
+                                       // 'site_promote', 'signature_send', 'spend_raise', 'transfer', 'enroll_node'
   title: string; risk: Risk;
   preview: { blocks: { type: string; from: string /* template over input */ }[] };    // exact preview
   approvers: { default: string /* 'role:admin' | 'owner' | 'asker' */; peopleOnly: boolean; agentOkFor?: Risk };

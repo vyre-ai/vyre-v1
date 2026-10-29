@@ -52,11 +52,14 @@ function populated(): Harness {
 const spacesFor = (cap: string): Harness[] => (cap === "network.certificate_renew" || cap === "network.relay_set" || cap === "network.server_reconnect" ? [populated()] : [harness(), populated()]);
 
 test("a real handler exists for exactly the capabilities the registry declares for network", () => {
-  assert.equal(caps.length, 12);
+  assert.equal(caps.length, 19);
   assert.deepEqual(Object.keys(handlers).sort(), caps.map((c) => c.name).sort());
 });
 
-for (const cap of caps) {
+/** These need a real join code, a real key and a signature: a generated sample cannot reach them, so enroll.test.ts runs them through a whole enrolment and checks every answer against the same schemas. */
+export const ENROLMENT = new Set(["network.enroll", "network.enroll_status", "network.server_approve", "network.server_decline", "network.my_computer_approve", "network.my_computer_decline"]);
+
+for (const cap of caps.filter((c) => !ENROLMENT.has(c.name))) {
   const name = `${cap.name}@${cap.v}`;
 
   test(`${name}: real handler answers the example input with a valid output`, async () => {
