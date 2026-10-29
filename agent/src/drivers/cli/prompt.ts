@@ -1,5 +1,6 @@
 // What a CLI engine is sent for one turn. A resumed engine session already holds what it said and was told, so it gets only what happened in the thread since its own last reply;
 // a fresh one (no session to resume, or a switch from another engine) gets the recent thread. The canonical transcript (agent/src/transcript) decides when to roll a session over.
+import { recallText } from "../../turn-engine/recall.ts";
 import type { StoredMessage, TurnInput } from "../../turn-engine/types.ts";
 
 const MAX_MESSAGES = 40;
@@ -22,6 +23,8 @@ export function defaultPrompt(input: TurnInput, fresh: boolean, steered: readonl
     parts.push(`(${r.toolName} was ${r.approved ? "approved" : "declined"}.)`);
   }
   for (const m of steered) parts.push(say(m));
+  const recalled = input.recall ? recallText(input.recall) : "";
+  if (recalled !== "") parts.push(recalled);
   if (trigger && trigger.body.trim() !== "") parts.push(trigger.author.id === input.asker && trigger.author.kind === "person" ? trigger.body : say(trigger));
   return parts.length > 0 ? parts.join("\n\n") : "(continue)";
 }

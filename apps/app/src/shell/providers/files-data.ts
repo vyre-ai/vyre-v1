@@ -32,8 +32,12 @@ export function foldersQuery(rt: ShellRuntime): LiveQuery<readonly FolderNode[]>
   };
 }
 
-export function filesData(rt: ShellRuntime): FilesData {
+/** The Knowledge screens the body can show instead of the list. The place holds which one; the data carries it so the sidebar marks the row. */
+export interface MemoryView { view: "proposed" | "graph" | null; open(v: "proposed" | "graph" | null): void }
+
+export function filesData(rt: ShellRuntime, memory?: MemoryView): FilesData {
   return {
+    ...(memory ? { memoryView: memory.view } : {}),
     screens: rt.screens,
     live: (cap, input) => capLive(rt, cap, input as Record<string, unknown>),
     folders: foldersQuery(rt),
@@ -46,8 +50,9 @@ export function filesData(rt: ShellRuntime): FilesData {
       shareFolder: (folderId) => rt.open({ screen: "spaces.switcher", args: { share: folderId } }),
       renameEntry: (kind, id, current) => rt.open({ screen: "files.list", args: { rename: id, kind, current } }),
       newFolder: (scope, parentId) => rt.open({ screen: "files.list", args: { newFolder: scope, ...(parentId ? { parentId } : {}) } }),
-      openMemory: () => rt.open({ screen: "files.memory-proposed" }),
-      openGraph: () => rt.open({ screen: "files.memory-graph" }),
+      openMemory: () => (memory ? memory.open("proposed") : rt.open({ screen: "files.memory-proposed" })),
+      openGraph: () => (memory ? memory.open("graph") : rt.open({ screen: "files.memory-graph" })),
+      ...(memory ? { leaveMemory: () => memory.open(null) } : {}),
       resolveConflict: (fileId) => rt.open({ screen: "shell.conflicts-tab", args: { entity: "file", recordId: fileId } }),
     },
   };
