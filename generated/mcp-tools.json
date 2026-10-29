@@ -18433,6 +18433,69 @@
     },
     {
       "blocks": [],
+      "cap": "forms.ask_cancel",
+      "deferred": false,
+      "description": "Stop my Ask Vyre request on a form that is still waiting for the agent",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "formId": {
+            "examples": [
+              "frm_a1b2c3"
+            ],
+            "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "formId"
+        ],
+        "type": "object"
+      },
+      "name": "forms_ask_cancel",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "forms.ask_diff",
+      "deferred": false,
+      "description": "Ask Vyre edit of a form's source: an agent proposes changes to the HTML, CSS or JavaScript, returned as a per-field diff the author accepts or rejects one by one; nothing is saved",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "formId": {
+            "examples": [
+              "frm_a1b2c3"
+            ],
+            "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          },
+          "instruction": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "formId",
+          "instruction"
+        ],
+        "type": "object"
+      },
+      "name": "forms_ask_diff",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "forms.attribution_get",
       "deferred": false,
       "description": "First source and Latest source of a record",
@@ -18535,7 +18598,7 @@
       "blocks": [],
       "cap": "forms.design_set",
       "deferred": false,
-      "description": "Set layout, theme, fonts, custom CSS, cover image, conditional logic and thank-you page or redirect",
+      "description": "Set layout, theme, fonts, the form source (custom HTML template, CSS and JavaScript), cover image, conditional logic and thank-you page or redirect",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -18547,6 +18610,12 @@
               "frm_a1b2c3"
             ],
             "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          },
+          "js": {
             "type": "string"
           },
           "logic": {

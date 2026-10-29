@@ -20,7 +20,7 @@ test("the OAuth callback page finishes a connection as its owner and tells every
   assert.ok(fs.existsSync(exe), `Chromium is required at ${exe}`);
   // the daemon (with a disposable OAuth provider behind its connector network seam) runs as its own process; this test only talks to it
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-oauth-callback-"));
-  const child: ChildProcess = spawn(process.execPath, ["host/tests/fixtures/oauth-daemon.ts", dir], { cwd: fileURLToPath(new URL("../../..", import.meta.url)), stdio: ["ignore", "pipe", "inherit"] });
+  const child: ChildProcess = spawn(process.execPath, ["host/tests/oauth-daemon.launcher.test.ts", dir], { cwd: fileURLToPath(new URL("../../..", import.meta.url)), stdio: ["ignore", "pipe", "inherit"] });
   const ready = await new Promise<{ url: string; control: string }>((resolve, reject) => {
     let out = "";
     const timer = setTimeout(() => reject(new Error(`the daemon did not start: ${out}`)), 60_000);

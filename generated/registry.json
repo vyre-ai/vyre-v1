@@ -72599,6 +72599,181 @@
       "v": 1
     },
     {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "formId": "frm_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "cancelled": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "formId": {
+            "examples": [
+              "frm_a1b2c3"
+            ],
+            "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "formId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "forms",
+      "name": "forms.ask_cancel",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "cancelled": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cancelled"
+        ],
+        "type": "object"
+      },
+      "permission": "forms.publish",
+      "resource": {
+        "id": "/formId",
+        "type": "form"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Stop my Ask Vyre request on a form that is still waiting for the agent",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "formId": "frm_a1b2c3",
+            "instruction": "example"
+          },
+          "name": "example",
+          "output": {
+            "changes": [
+              {
+                "after": "example",
+                "before": "example",
+                "path": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "formId": {
+            "examples": [
+              "frm_a1b2c3"
+            ],
+            "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          },
+          "instruction": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "formId",
+          "instruction"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "forms",
+      "name": "forms.ask_diff",
+      "output": {
+        "properties": {
+          "changes": {
+            "items": {
+              "properties": {
+                "after": {
+                  "type": "string"
+                },
+                "before": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "before",
+                "after"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "changes"
+        ],
+        "type": "object"
+      },
+      "permission": "forms.publish",
+      "resource": {
+        "id": "/formId",
+        "type": "form"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Ask Vyre edit of a form's source: an agent proposes changes to the HTML, CSS or JavaScript, returned as a per-field diff the author accepts or rejects one by one; nothing is saved",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -72869,6 +73044,8 @@
           "input": {
             "css": "example",
             "formId": "frm_a1b2c3",
+            "html": "example",
+            "js": "example",
             "logic": {},
             "thankYou": {
               "redirect": "example",
@@ -72893,6 +73070,12 @@
               "frm_a1b2c3"
             ],
             "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          },
+          "js": {
             "type": "string"
           },
           "logic": {
@@ -72940,7 +73123,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Set layout, theme, fonts, custom CSS, cover image, conditional logic and thank-you page or redirect",
+      "summary": "Set layout, theme, fonts, the form source (custom HTML template, CSS and JavaScript), cover image, conditional logic and thank-you page or redirect",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -73064,6 +73247,8 @@
               "state": "draft",
               "submissions": 1
             },
+            "html": "example",
+            "js": "example",
             "logic": {},
             "settings": {
               "captcha": true,
@@ -73107,6 +73292,12 @@
           },
           "form": {
             "$ref": "#/$defs/s_193ebba03a"
+          },
+          "html": {
+            "type": "string"
+          },
+          "js": {
+            "type": "string"
           },
           "logic": {
             "description": "Any JSON value"
