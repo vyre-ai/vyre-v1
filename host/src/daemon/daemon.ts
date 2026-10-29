@@ -321,7 +321,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const u = new URL(url, "http://vyred");
     const m = /^\/spaces\/([^/]+)\/blobs\/(blb_[a-f0-9]{32})$/.exec(u.pathname);
     const slot = u.searchParams.get("token");
-    if (!m || !slot || decodeURIComponent(m[1] as string) !== spaceId) throw new Error("that is not an upload slot of this Space");
+    if (!m || !slot || decodeURIComponent(m[1] as string) !== space) throw new Error("that is not an upload slot of this Space");
     await hooks!.call("files.put_upload", { blobId: m[2], token: slot, base64: Buffer.from(bytes).toString("base64") });
   };
   let projections: ProjectionRunner | null = null;
