@@ -10,7 +10,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
 import { Glyph } from "./parts.tsx";
 import type { GlyphName } from "./parts.tsx";
-import { PENDING_FILE } from "./model.ts";
+import { PENDING_FILE, collect } from "./model.ts";
 import type { Message } from "./model.ts";
 
 type FileRow = CapMap["files.get"]["out"]["file"];
@@ -37,7 +37,7 @@ export const AttachmentChips = memo(function AttachmentChips({ ids, data, menu }
   if (ids.length === 0) return null;
   return (
     <View testID="attachments" style={st.row}>
-      {ids.map((id) => <Chip key={id} id={id} data={data} menu={menu} />)}
+      {collect(ids, (id) => <Chip key={id} id={id} data={data} menu={menu} />)}
     </View>
   );
 });
@@ -132,7 +132,7 @@ export const LinkedText = memo(function LinkedText({ body, refs, data, textStyle
   const pieces = splitLinks(body);
   return (
     <Text selectable style={textStyle}>
-      {pieces.map((p, i) => {
+      {collect(pieces, (p, i) => {
         const ref = p.link ? refs.find((r) => r.title === p.link) : undefined;
         if (!ref) return p.link ? p.link : p.text;
         return <LinkPiece key={`${i}:${ref.id}`} r={ref} data={data} />;
