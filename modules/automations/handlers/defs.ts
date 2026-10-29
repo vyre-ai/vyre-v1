@@ -660,7 +660,12 @@ export async function webhookRotate(ctx: AutoCtx, input: In): Promise<unknown> {
 /** The webhook receiver asks this: does the secret in the URL belong to this Automation. */
 export function webhookSecretMatches(ctx: AutoCtx, automationId: string, secret: string): boolean {
   const have = (ctx.db.all("SELECT secret FROM automations_webhooks WHERE automation_id = ?", automationId) as { secret: string }[])[0];
-  return !!have && have.secret === secret;
+  if (!have) return false;
+  // Every character is compared whatever the first mismatch, so the time taken does not say how much of a guess was right.
+  const a = have.secret, b = secret;
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  return diff === 0;
 }
 
 // ---- Promote and the Personal copy ----

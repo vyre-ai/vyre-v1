@@ -345,11 +345,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let pullVaultExport: (exportId: string, token: string) => string = () => { throw new Error("the Vault is not live on this server"); };
   const exportRoute = createVaultExportRoute({ pull: (id, t) => pullVaultExport(id, t) });
   // POST /hooks/<connector> (P-L5_17): a provider's signed webhook; the connector module's host call `<connector>.accept_webhook` verifies the signature and records the event once
-  let webhooks: { has(c: string): boolean; accept(c: string, a: WebhookAccept): Promise<unknown> } = { has: () => false, accept: () => Promise.reject(new Error("webhooks are not ready")) };
+  let webhooks: { has(c: string): boolean; accept(c: string, a: WebhookAccept): Promise<unknown>; automation(a: { automationId: string; secret: string; payload: unknown; idempotencyKey?: string }): Promise<unknown> } = { has: () => false, accept: () => Promise.reject(new Error("webhooks are not ready")), automation: () => Promise.resolve(null) };
   // POST /compute/poll: a computer that joined the Space reports in with its credential; the network module's host call decides (it knows only the credential's hash)
   let computePoll: (credential: string, report: { docker?: boolean; version?: string }) => Promise<{ serverId: string; owner?: string } | null> = () => Promise.resolve(null);
   const computeRoute = createComputeRoute({ poll: (c, r) => computePoll(c, r) });
-  const webhookRoute = createWebhookRoute({ has: (c) => webhooks.has(c), accept: (c, a) => webhooks.accept(c, a), publicBase: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; } });
+  const webhookRoute = createWebhookRoute({ has: (c) => webhooks.has(c), accept: (c, a) => webhooks.accept(c, a), automation: (a) => webhooks.automation(a), publicBase: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; } });
   // Ruling 62: the person's own key, handed over by their client on their own node (POST /local/vault/key/unlock, loopback only), held in memory only. A device-role daemon is the computer of whoever signs in on it;
   // a Space server holds the key of its owner alone.
   let ownerOfSpace: () => string | null = () => cfg.owner;
@@ -497,7 +497,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const runsHost = createRunsHost({ call: (n, i, as) => hookRunner.call(n, i, as), log: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "runs", attrs }) });
       closers.push(() => runsHost.settle(5_000));
       const acceptors = new Set([...loaded.moduleExports].flatMap(([id, ns]) => (ns["hostCalls"] && typeof ns["hostCalls"] === "object" && `${id}.accept_webhook` in (ns["hostCalls"] as object) ? [id] : [])));
-      webhooks = { has: (c) => acceptors.has(c), accept: (c, a) => hookRunner.call(`${c}.accept_webhook`, a) };
+      webhooks = { has: (c) => acceptors.has(c), accept: (c, a) => hookRunner.call(`${c}.accept_webhook`, a), automation: (a) => hookRunner.call("automations.accept_hook", a) };
       computePoll = (credential, report) => hookRunner.call("network.node_poll", { credential, report }) as Promise<{ serverId: string; owner?: string } | null>;
       // the async projections the live modules export (P-H_07): the events module's webhooks_out turns subscribed events into signed deliveries
       // crash recovery: a webhook delivery row inserted but never dispatched (the daemon died between the two) is sent again; the send is idempotent per attempt

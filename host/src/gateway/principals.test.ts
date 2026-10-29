@@ -108,3 +108,13 @@ test("legacy principal reconciliation fills only missing parts and waits until a
   const restored = missingAgentPrincipalEvents({ space: "spc_core", levelOf: () => "edit", events: [birth, { type: "agent.deleted", payload: { agentId: "agt_legacy2" } }, { type: "agent.restored", payload: { agentId: "agt_legacy2" } }] });
   assert.equal(restored[0]!.type, "principal.created");
 });
+
+test("a deleted Space automation suspends its service and a restore reactivates it; an automation with no service is left alone", () => {
+  const r = reg("edit", ["svc_abc1"]);
+  const ev = (type: string, automationId: string) => ({ type, payload: { automationId } });
+  assert.deepEqual(r.register({ events: [ev("automation.deleted", "aut_abc1"), ev("automation.deleted", "aut_abc1")], space: "s", maker: "usr_a" }),
+    [{ type: "principal.suspended", entity: "principal", id: "svc_abc1", payload: { principalId: "svc_abc1" } }]);
+  assert.deepEqual(r.register({ events: [ev("automation.restored", "aut_abc1")], space: "s", maker: "usr_a" }),
+    [{ type: "principal.reactivated", entity: "principal", id: "svc_abc1", payload: { principalId: "svc_abc1" } }]);
+  assert.deepEqual(r.register({ events: [ev("automation.deleted", "aut_other"), ev("automation.deleted", "not-an-id")], space: "s", maker: "usr_a" }), []);
+});
