@@ -2,9 +2,9 @@
 // Also here: what the module reads from the event log. `consumers` lists, by name, the events each one reads and what it does with one; the host runs them after commit, at least once, so each is safe to repeat.
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { onFileVersion, onTurn, restoreAgentFiles } from "./handlers/crud.ts";
+import { onFileVersion, onPersonCreated, onTurn, restoreAgentFiles } from "./handlers/crud.ts";
 import { onMessageReceived } from "./handlers/routines.ts";
-import type { FileVersionEvent, TurnEvent } from "./handlers/crud.ts";
+import type { FileVersionEvent, PrincipalEvent, TurnEvent } from "./handlers/crud.ts";
 import type { AgentsCtx } from "./projections.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 
@@ -18,6 +18,11 @@ export const periodic = {
 export { restoreAgentFiles };
 
 export const consumers = {
+  /** A person's account exists (claim or join): they get their private assistant, with or without an AI account. */
+  "agents.ensure_assistant": {
+    on: ["principal.created"],
+    run: (ctx: AgentsCtx, event: PrincipalEvent): Promise<string[]> => onPersonCreated(ctx, event),
+  },
   /** A person saved agent.toml or AGENT.md in Files: a text that passes becomes what the next run uses, one that does not raises agent.config_error and the last good version keeps running. */
   "agents.config_watch": {
     on: ["file.version_added"],
