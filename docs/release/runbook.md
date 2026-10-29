@@ -8,12 +8,12 @@ The `release` Environment is configured for vyre-ai/vyre-v1: it requires reviewe
 
 1. Before a real tag, verify that the Environment still requires `irfad7`, permits only `main` and `v*`, and retains `VYRE_SIGNING_KEY` without revealing its value.
 2. Rotate `VYRE_SIGNING_KEY` only when needed. Two choices, the owner's:
-   - Reuse the 0.6 key (backup in the owner's password manager). Its public half is already pinned in `scripts/install/linux/install.sh` and `scripts/install/linux/vyre-server` (`MCowBQYDK2VwAyEAKXSdujH7tO/gscXCJZmYCjB+Cv1sVlOfdgLNedMR7FU=`). Its raw 32-byte form, for the updates module, is `29749dba31fbb4efe0b1c5c22599980a307e0afd6c56539f7602cd79d311ec55`.
+   - Reuse the 0.6 key (backup in the owner's password manager). Its public half is already pinned in `scripts/install/linux/install.sh`, `scripts/install/macos/install.sh` and `scripts/install/linux/vyre-server` (`MCowBQYDK2VwAyEAKXSdujH7tO/gscXCJZmYCjB+Cv1sVlOfdgLNedMR7FU=`). Its raw 32-byte form, for the updates module, is `29749dba31fbb4efe0b1c5c22599980a307e0afd6c56539f7602cd79d311ec55`.
    - Make a new key (`openssl genpkey -algorithm ed25519`) inside the Environment's first run, never on a laptop.
 3. In a job that runs in the `release` Environment, run `node scripts/release/cli.ts pubkey release-key.json`. It prints the public half (hex) and a key id from `VYRE_SIGNING_KEY`, and writes `{publicKey, keyId}`. This is the only thing that leaves the Environment.
 4. Keep ONE self-hosted runner with the labels `self-hosted, linux, release-sign` and nothing else, on a host that runs nothing else (not a CI host: no other runner, no PR code ever runs there), with Docker, because the `sign` job runs in a container that is removed when it ends. No other workflow may name `release-sign`; `scripts/release/runner-label.test.ts` fails the build if one does. If that runner is unavailable, `sign` waits and nothing can be signed.
 5. In Settings, Actions, General, set "Fork pull request workflows from outside collaborators" to "Require approval for all outside collaborators", and confirm it (the repo is public: a PR from outside must never run on a self-hosted runner without a person approving it).
-6. Compile the public key in (a PR, reviewed): `RELEASE_PUBLIC_KEY_HEX` in `host/src/seams/updates.ts`; `RELEASE_KEY_PEM` in `scripts/install/linux/install.sh` and `scripts/install/linux/vyre-server`; the key in `scripts/install/windows/install.ps1`. Until step 6, a build refuses every feed (it fails closed), so nothing can install.
+6. Compile the public key in (a PR, reviewed): `RELEASE_PUBLIC_KEY_HEX` in `host/src/seams/updates.ts`; `RELEASE_KEY_PEM` in `scripts/install/linux/install.sh`, `scripts/install/macos/install.sh` and `scripts/install/linux/vyre-server`; the key in `scripts/install/windows/install.ps1`. Until step 6, a build refuses every feed (it fails closed), so nothing can install.
 
 ## Before a release
 
