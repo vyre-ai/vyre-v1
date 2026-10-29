@@ -6526,6 +6526,7 @@ export type ConnectorsGetOut = {
         update?: string;
         delete?: string;
       }>;
+    sourceFolderId?: string;
   };
 };
 export type ConnectorsHealthIn = Record<string, unknown>;
@@ -6576,6 +6577,7 @@ export type ConnectorsListOut = {
           update?: string;
           delete?: string;
         }>;
+      sourceFolderId?: string;
     }>;
   next?: string;
   total?: number;

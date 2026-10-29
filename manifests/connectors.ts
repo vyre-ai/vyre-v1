@@ -29,6 +29,7 @@ const connectorRow = t.obj({
   state: t.enm('live', 'draft', 'failing_tests'), domains: t.arr(t.str()), secrets: t.arr(t.obj({ name: t.str(), description: t.str() })),
   connections: t.int({ minimum: 0 }), syncedTypes: t.arr(t.str()), actions: t.arr(t.str()), sources: t.arr(t.str()),
   objects: t.opt(t.rec(objectActions)),
+  sourceFolderId: t.opt(id.folder),
 });
 
 const connectionRow = t.obj({
