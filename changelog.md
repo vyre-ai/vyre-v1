@@ -1,9 +1,16 @@
 # Changelog
 
 
+- Scope the Computer lifecycle job cleanup to computers older than two hours so concurrent jobs on one CI host do not delete each other's containers.
+
 - Make the title-bar connection chip truthful: it reads "Connected" when the app reaches the Space and no longer says "Synced", since the production daemon has no live sync hub yet.
 
 - Make the agent Computer lifecycle a required release gate: host/tests/computers.live.test.ts now runs on real Docker in every check (job computer-lifecycle, part of the check aggregate) and in the release heavy stage, fails on any skip, and asserts that remove deletes the container.
+- Raise the slow-test list cap from 40 to 48 so the booted live release-evidence tests each keep their own slow job; every entry still needs an owner, a reason and a 120 s cap.
+- Add the Space switcher, sync endpoint and saved-code recovery browser tests to the release-evidence command with required-success assertions: under VYRE_REQUIRE_CHROME=1 a missing production artifact fails each test instead of skipping, and the step refuses any skip report.
+- Tell saved-code recovery failures apart in the existing auth error line: rate limit, Space outage, unreachable Space, expired request and a wrong username or code each get a bounded honest message, and a wrong username and a wrong code still read the same so the form never reveals which accounts exist. A live test drives the unreachable and real rate-limit lines at phone width.
+- Prove saved-code account recovery in production Chromium against a fresh claimed daemon: wrong code fails without a server commit, the saved code and a new password recover the Owner with identical public, private, recovery and Space-key wraps, a private Mine Vault item still decrypts, the old password and old session are refused, the proof is single use, and no code, proof or password reaches storage, URLs, console or the Space data directory.
+- Move golden flow 10 to the sealed one-use recovery challenge: Kay joins with real client-made keys, fetches the recovery-only bundle, opens her key with the saved code, unseals the nonce and replaces only the password wrap; the step asserts identical identity, private, recovery and Space-key wraps, a revoked old password and a working new one.
 - Restore the layer boundaries gate: the daemon hashes the registry through the kernel helper instead of importing node:crypto, and three test-only interop proofs are listed as known exceptions with their reasons.
 - Checkpoint the saved-code recovery client and approved onboarding form: preserve existing identity/Space keys, answer the sealed challenge locally, verify the replacement session and wipe temporary key buffers. Crypto interoperability and orchestration tests pass; full production-browser recovery acceptance remains pending.
 - Verify that the internal identity recovery-noise seed never enters a shared Space archive, including decompressed ZIP contents.
@@ -140,15 +147,12 @@
 
 - Enforce the current Space sign-in policy at authentication and session issuance through a typed read-only host port. Only advertise implemented methods; reject password lockout, unsupported SSO and required MFA without actual Owner enrollment and a supported new-member enrollment path. Reject unavailable invite sign-up before accepting the invite or creating an account. Added real HTTP authentication/readback and policy Activity regressions.
 
-- Added typed Console Policies objects, reviewed public-link and sign-in editors, prerequisite-backed authenticator setup, indexed Activity and links to the owning AI/Data controls. Production browser proves public-link save/readback/reload plus dark/fresh-phone rendering; required MFA remains unavailable until the server supports invited-member enrollment. Fixed direct-read enable transitions.
 
-- Enforce the current Space sign-in policy at authentication and session issuance through a typed read-only host port. Only advertise implemented methods; reject password lockout, unsupported SSO and required MFA without actual Owner enrollment and a supported new-member enrollment path. Reject unavailable invite sign-up before accepting the invite or creating an account. Added real HTTP authentication/readback and policy Activity regressions.
 
 - Authorization tests: keep the unchanged 200-world SQL/predicate property and its coverage floors, retain legacy Owner-group worlds, and add valid direct Admin diversity. Add a deterministic SQLite regression proving Owner-group denial while ordinary group/Admin grants survive.
 
 - Console Access Reviews: add the shared review list/object, real start/keep/remove/close actions, reviewed grant removal, indexed Activity, and a tasks.get-backed review-task sheet. Expose existing reviewer/task links in the typed review response; preserve external Home task routing as a separate open gap.
 
-- Console Access Reviews: add the shared review list/object, real start/keep/remove/close actions, reviewed grant removal, indexed Activity, and a tasks.get-backed review-task sheet. Expose existing reviewer/task links in the typed review response; preserve external Home task routing as a separate open gap.
 
 - Outside actors: reject canonical Owner through create/update before mutating actor state, strip legacy non-person Owner authority, and preserve provider changes on validation failure. Update obsolete Owner fixtures while retaining agent/provider authorization coverage; use shared rows for actor roles and computer-agent choices.
 
@@ -201,9 +205,6 @@
 - Console AI policy: derive provider and model modes from the latest policy until editing begins, verify saved policy readback before clearing the draft, and retain restrictive empty per-label rules without allowing empty global selections to broaden access.
 - Console AI spend: add Space/person/agent caps, reviewed limit edits, usage breakdowns, impact-confirmed global pause/resume, and one-time or permanent limit raises through the live engine contracts.
 - Console AI policy: add typed provider, model, account and sensitivity-label controls with restrictive selected-only validation, reviewed policy application, and direct navigation to Vault for provider credentials.
-- Console object lists: pass row context-menu and keyboard-menu handlers through the supported web DOM seam so right-click and Menu-key actions work on shared rows.
-- Console objects: wait for real asynchronous mutations before showing completion or Undo, preserve failed/held actions as visible errors, guard duplicate action submits, and synchronize externally changed tabs and quick-edit sheets.
-- Console: add a shared searchable, filterable and keyboard-selectable object-list framework with checked filter counts, bulk selection, pagination and real row context actions; it composes with the existing standard object header, tabs and quick-edit sheet.
 - Console access checks render decision steps with the shared row component and named pass/fail indicators.
 - Web startup: keep optional phone data, Console conversations, Plan views, telephony controls, and rich composers behind their owning lazy place chunks. Places still load required controls before the app marks them usable, while the signed-out first load falls from 1.71 MB to 1.36 MB raw without changing the 1.5-second phone budget.
 - Local session import: converge concurrent confirmations on one immutable source archive instead of failing a unique-key insert after project creation.

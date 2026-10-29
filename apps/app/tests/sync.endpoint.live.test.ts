@@ -3,7 +3,7 @@ import test from 'node:test';import assert from 'node:assert/strict';import fs f
 import {registryHash} from '../../../scripts/lib/registry-hash.mjs';
 import {bootFreshSpace,edge,claimOnEdge} from './real-app-harness.test.ts';
 test('configured loopback address advertises its real WebSocket origin and answers authenticated hello',async t=>{
- const dist=process.env['VYRE_APP_DIST'];if(!dist){t.skip('production artifact required');return;}
+ const dist=process.env['VYRE_APP_DIST'];if(!dist){if(process.env['VYRE_REQUIRE_CHROME']==='1')assert.fail('production artifact required');t.skip('production artifact required');return;}
  const{chromium}=await import('playwright-core');const space=await bootFreshSpace('personal',true),web=await edge(dist,space.url),browser=await chromium.launch({executablePath:process.env['CHROME_BIN']||chromium.executablePath()});
  try{
  const page=await browser.newPage();await page.goto(claimOnEdge(space.claim!,web.origin));for(const[id,value]of[['claim-name','Endpoint fixture'],['claim-username','endpointfixture'],['claim-password','fixture endpoint password123'],['claim-confirm','fixture endpoint password123']])await page.getByTestId(id!).fill(value!);await page.getByTestId('claim-next').click();await page.getByTestId('claim-saved').click();await page.getByTestId('claim-create').click();await page.getByTestId('shell').waitFor({timeout:30000});const session=await page.evaluate(()=>JSON.parse(localStorage.getItem('vyre.session.v1')!).sessions[location.origin]);
