@@ -2,6 +2,12 @@
 
 - Keep two tests in step with the integration: the slow-list cap test reads the cap instead of a fixed 40, and the identity handler count includes identity.recovery_fetch.
 - Stop the recovery 5xx, unreachable and fallback lines from claiming nothing was changed, since a failure can follow a committed recovery; they now tell the person to sign in with the new password if it already works. The expired-request line keeps the claim because it fails before anything is sent.
+
+- Scope the Computer lifecycle job cleanup to computers older than two hours so concurrent jobs on one CI host do not delete each other's containers.
+
+- Make the title-bar connection chip truthful: it reads "Connected" when the app reaches the Space and no longer says "Synced", since the production daemon has no live sync hub yet.
+
+- Make the agent Computer lifecycle a required release gate: host/tests/computers.live.test.ts now runs on real Docker in every check (job computer-lifecycle, part of the check aggregate) and in the release heavy stage, fails on any skip, and asserts that remove deletes the container.
 - Raise the slow-test list cap from 40 to 48 so the booted live release-evidence tests each keep their own slow job; every entry still needs an owner, a reason and a 120 s cap.
 - Add the Space switcher, sync endpoint and saved-code recovery browser tests to the release-evidence command with required-success assertions: under VYRE_REQUIRE_CHROME=1 a missing production artifact fails each test instead of skipping, and the step refuses any skip report.
 - Tell saved-code recovery failures apart in the existing auth error line: rate limit, Space outage, unreachable Space, expired request and a wrong username or code each get a bounded honest message, and a wrong username and a wrong code still read the same so the form never reveals which accounts exist. A live test drives the unreachable and real rate-limit lines at phone width.
