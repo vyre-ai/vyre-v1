@@ -1282,9 +1282,11 @@ export function createClient(transport: Transport) {
     },
     memory: {
       archive_sweep: call("memory.archive_sweep", 1),
+      backlinks: call("memory.backlinks", 1),
       capture: call("memory.capture", 1),
       counts: call("memory.counts", 1),
       erase: call("memory.erase", 1),
+      export_markdown: call("memory.export_markdown", 1),
       fact: {
         accept: call("memory.fact.accept", 1),
         correct: call("memory.fact.correct", 1),
@@ -1319,6 +1321,14 @@ export function createClient(transport: Transport) {
       notes: {
         erase: call("memory.notes.erase", 1),
         list: call("memory.notes.list", 1),
+      },
+      page: {
+        delete: call("memory.page.delete", 1),
+        get: call("memory.page.get", 1),
+        list: call("memory.page.list", 1),
+        put: call("memory.page.put", 1),
+        restore_version: call("memory.page.restore_version", 1),
+        versions: call("memory.page.versions", 1),
       },
       pointer: call("memory.pointer", 1),
       promote: call("memory.promote", 1),

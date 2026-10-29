@@ -15858,6 +15858,24 @@ export type MemoryArchiveSweepOut = {
   archived: number;
   days: number;
 };
+export type MemoryBacklinksIn = {
+  pageId: string;
+  cursor?: string;
+  limit?: number;
+};
+export type MemoryBacklinksOut = {
+  backlinks: Array<{
+      kind: "page" | "chat" | "run" | "record";
+      ref: string;
+      title: string;
+      quote: string;
+      link?: string;
+      at: number;
+      label?: string;
+    }>;
+  next?: string;
+  total?: number;
+};
 export type MemoryCaptureIn = {
   threadId: string;
   reason: "closed" | "idle";
@@ -15877,6 +15895,7 @@ export type MemoryCountsOut = {
 };
 export type MemoryEraseIn = {
   factIds?: Array<string>;
+  pageIds?: Array<string>;
   scope?: {
     layer: "person" | "agent" | "project" | "space";
     agentId?: string;
@@ -15887,6 +15906,15 @@ export type MemoryEraseIn = {
 };
 export type MemoryEraseOut = {
   erased: number;
+};
+export type MemoryExportMarkdownIn = {
+  includePersonal?: boolean;
+};
+export type MemoryExportMarkdownOut = {
+  markdown: string;
+  pages: number;
+  facts: number;
+  bytes: number;
 };
 export type MemoryFactAcceptIn = {
   factId: string;
@@ -16149,11 +16177,14 @@ export type MemoryGraphIn = {
   agentId?: string;
   asOf?: number;
   kinds?: Array<string>;
+  layers?: Array<"person" | "agent" | "project" | "space">;
+  focus?: string;
+  hops?: number;
 };
 export type MemoryGraphOut = {
   nodes: Array<{
       nodeId: string;
-      kind: "note" | "person" | "client" | "project" | "site" | "decision" | "record" | "chat";
+      kind: "note" | "person" | "client" | "project" | "site" | "decision" | "record" | "chat" | "agent" | "topic";
       title: string;
       layer?: "person" | "agent" | "project" | "space";
       cluster?: string;
@@ -16164,7 +16195,10 @@ export type MemoryGraphOut = {
   edges: Array<{
       from: string;
       to: string;
-      kind: "link" | "relation" | "came_from";
+      kind: "link" | "relation" | "came_from" | "mention";
+      label?: string;
+      evidence?: string;
+      at?: number;
     }>;
   clusters: Array<{
       name: string;
@@ -16178,7 +16212,7 @@ export type MemoryGraphEverythingIn = {
 export type MemoryGraphEverythingOut = {
   nodes: Array<{
       nodeId: string;
-      kind: "note" | "person" | "client" | "project" | "site" | "decision" | "record" | "chat";
+      kind: "note" | "person" | "client" | "project" | "site" | "decision" | "record" | "chat" | "agent" | "topic";
       title: string;
       layer?: "person" | "agent" | "project" | "space";
       cluster?: string;
@@ -16189,7 +16223,10 @@ export type MemoryGraphEverythingOut = {
   edges: Array<{
       from: string;
       to: string;
-      kind: "link" | "relation" | "came_from";
+      kind: "link" | "relation" | "came_from" | "mention";
+      label?: string;
+      evidence?: string;
+      at?: number;
     }>;
   clusters: Array<{
       name: string;
@@ -16202,6 +16239,9 @@ export type MemoryGraphExportIn = {
   agentId?: string;
   asOf?: number;
   kinds?: Array<string>;
+  layers?: Array<"person" | "agent" | "project" | "space">;
+  focus?: string;
+  hops?: number;
 };
 export type MemoryGraphExportOut = {
   fileId: string;
@@ -16356,6 +16396,181 @@ export type MemoryNotesListOut = {
     }>;
   next?: string;
   total?: number;
+};
+export type MemoryPageDeleteIn = {
+  pageId: string;
+};
+export type MemoryPageDeleteOut = {
+  page: {
+    pageId: string;
+    title: string;
+    kind: "person" | "client" | "project" | "agent" | "record" | "topic" | "decision" | "site";
+    layer: "person" | "agent" | "project" | "space";
+    ownerRef: string;
+    agentId?: string;
+    projectId?: string;
+    subjectRef?: string;
+    version: number;
+    createdAt: number;
+    updatedAt: number;
+    trashedAt?: number;
+    archivedAt?: number;
+  };
+  trashed: boolean;
+};
+export type MemoryPageGetIn = {
+  pageId?: string;
+  title?: string;
+  layer?: "person" | "agent" | "project" | "space";
+  agentId?: string;
+  projectId?: string;
+};
+export type MemoryPageGetOut = {
+  page: {
+    pageId: string;
+    title: string;
+    kind: "person" | "client" | "project" | "agent" | "record" | "topic" | "decision" | "site";
+    layer: "person" | "agent" | "project" | "space";
+    ownerRef: string;
+    agentId?: string;
+    projectId?: string;
+    subjectRef?: string;
+    version: number;
+    createdAt: number;
+    updatedAt: number;
+    trashedAt?: number;
+    archivedAt?: number;
+  };
+  notes: string;
+  facts: Array<{
+      factId: string;
+      layer: "person" | "agent" | "project" | "space";
+      ownerRef: string;
+      agentId?: string;
+      noteId?: string;
+      text: string;
+      validFrom: number;
+      validTo?: number;
+      learnedAt: number;
+      closedAt?: number;
+      sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+      sourceRef: string;
+      sourceLink?: string;
+      status: "proposed" | "current" | "closed" | "removed";
+      lowRisk?: boolean;
+      trashedAt?: number;
+      trashReason?: string;
+      archivedAt?: number;
+    }>;
+  links: Array<{
+      label: string;
+      title: string;
+      pageId?: string;
+      evidence: string;
+    }>;
+  backlinks: Array<{
+      kind: "page" | "chat" | "run" | "record";
+      ref: string;
+      title: string;
+      quote: string;
+      link?: string;
+      at: number;
+      label?: string;
+    }>;
+  versions: number;
+};
+export type MemoryPageListIn = {
+  q?: string;
+  layer?: "person" | "agent" | "project" | "space";
+  kind?: "person" | "client" | "project" | "agent" | "record" | "topic" | "decision" | "site";
+  agentId?: string;
+  projectId?: string;
+  cursor?: string;
+  limit?: number;
+};
+export type MemoryPageListOut = {
+  pages: Array<{
+      pageId: string;
+      title: string;
+      kind: "person" | "client" | "project" | "agent" | "record" | "topic" | "decision" | "site";
+      layer: "person" | "agent" | "project" | "space";
+      ownerRef: string;
+      agentId?: string;
+      projectId?: string;
+      subjectRef?: string;
+      version: number;
+      createdAt: number;
+      updatedAt: number;
+      trashedAt?: number;
+      archivedAt?: number;
+    }>;
+  next?: string;
+  total?: number;
+};
+export type MemoryPagePutIn = {
+  pageId?: string;
+  title?: string;
+  kind?: "person" | "client" | "project" | "agent" | "record" | "topic" | "decision" | "site";
+  layer?: "person" | "agent" | "project" | "space";
+  agentId?: string;
+  projectId?: string;
+  subjectRef?: string;
+  notes: string;
+  baseVersion?: number;
+  reason?: string;
+};
+export type MemoryPagePutOut = {
+  page: {
+    pageId: string;
+    title: string;
+    kind: "person" | "client" | "project" | "agent" | "record" | "topic" | "decision" | "site";
+    layer: "person" | "agent" | "project" | "space";
+    ownerRef: string;
+    agentId?: string;
+    projectId?: string;
+    subjectRef?: string;
+    version: number;
+    createdAt: number;
+    updatedAt: number;
+    trashedAt?: number;
+    archivedAt?: number;
+  };
+  created: boolean;
+  links: number;
+};
+export type MemoryPageRestoreVersionIn = {
+  pageId: string;
+  version: number;
+};
+export type MemoryPageRestoreVersionOut = {
+  page: {
+    pageId: string;
+    title: string;
+    kind: "person" | "client" | "project" | "agent" | "record" | "topic" | "decision" | "site";
+    layer: "person" | "agent" | "project" | "space";
+    ownerRef: string;
+    agentId?: string;
+    projectId?: string;
+    subjectRef?: string;
+    version: number;
+    createdAt: number;
+    updatedAt: number;
+    trashedAt?: number;
+    archivedAt?: number;
+  };
+};
+export type MemoryPageVersionsIn = {
+  pageId: string;
+};
+export type MemoryPageVersionsOut = {
+  versions: Array<{
+      version: number;
+      by: string;
+      actorKind: "person" | "agent" | "upkeep" | "system";
+      at: number;
+      reason?: string;
+      notes: string;
+    }>;
 };
 export type MemoryPointerIn = {
   threadId: string;
@@ -16523,10 +16738,11 @@ export type MemoryReadNoteOut = {
   markdown: string;
 };
 export type MemoryRestoreIn = {
-  factId: string;
+  factId?: string;
+  pageId?: string;
 };
 export type MemoryRestoreOut = {
-  fact: {
+  fact?: {
     factId: string;
     layer: "person" | "agent" | "project" | "space";
     ownerRef: string;
@@ -16544,6 +16760,21 @@ export type MemoryRestoreOut = {
     lowRisk?: boolean;
     trashedAt?: number;
     trashReason?: string;
+    archivedAt?: number;
+  };
+  page?: {
+    pageId: string;
+    title: string;
+    kind: "person" | "client" | "project" | "agent" | "record" | "topic" | "decision" | "site";
+    layer: "person" | "agent" | "project" | "space";
+    ownerRef: string;
+    agentId?: string;
+    projectId?: string;
+    subjectRef?: string;
+    version: number;
+    createdAt: number;
+    updatedAt: number;
+    trashedAt?: number;
     archivedAt?: number;
   };
   restoredFrom: "trash" | "archive";
@@ -16572,9 +16803,10 @@ export type MemorySearchIn = {
 };
 export type MemorySearchOut = {
   hits: Array<{
-      kind: "note" | "fact";
+      kind: "note" | "fact" | "page";
       noteId?: string;
       factId?: string;
+      pageId?: string;
       title: string;
       text: string;
       path?: string;
@@ -16646,6 +16878,21 @@ export type MemoryTrashSearchOut = {
       lowRisk?: boolean;
       trashedAt?: number;
       trashReason?: string;
+      archivedAt?: number;
+    }>;
+  pages?: Array<{
+      pageId: string;
+      title: string;
+      kind: "person" | "client" | "project" | "agent" | "record" | "topic" | "decision" | "site";
+      layer: "person" | "agent" | "project" | "space";
+      ownerRef: string;
+      agentId?: string;
+      projectId?: string;
+      subjectRef?: string;
+      version: number;
+      createdAt: number;
+      updatedAt: number;
+      trashedAt?: number;
       archivedAt?: number;
     }>;
   next?: string;
@@ -28160,9 +28407,11 @@ export interface CapMap {
   "members.sso.test": { in: MembersSsoTestIn; out: MembersSsoTestOut };
   "members.suspend": { in: MembersSuspendIn; out: MembersSuspendOut };
   "memory.archive_sweep": { in: MemoryArchiveSweepIn; out: MemoryArchiveSweepOut };
+  "memory.backlinks": { in: MemoryBacklinksIn; out: MemoryBacklinksOut };
   "memory.capture": { in: MemoryCaptureIn; out: MemoryCaptureOut };
   "memory.counts": { in: MemoryCountsIn; out: MemoryCountsOut };
   "memory.erase": { in: MemoryEraseIn; out: MemoryEraseOut };
+  "memory.export_markdown": { in: MemoryExportMarkdownIn; out: MemoryExportMarkdownOut };
   "memory.fact.accept": { in: MemoryFactAcceptIn; out: MemoryFactAcceptOut };
   "memory.fact.correct": { in: MemoryFactCorrectIn; out: MemoryFactCorrectOut };
   "memory.fact.get": { in: MemoryFactGetIn; out: MemoryFactGetOut };
@@ -28184,6 +28433,12 @@ export interface CapMap {
   "memory.meaning.status": { in: MemoryMeaningStatusIn; out: MemoryMeaningStatusOut };
   "memory.notes.erase": { in: MemoryNotesEraseIn; out: MemoryNotesEraseOut };
   "memory.notes.list": { in: MemoryNotesListIn; out: MemoryNotesListOut };
+  "memory.page.delete": { in: MemoryPageDeleteIn; out: MemoryPageDeleteOut };
+  "memory.page.get": { in: MemoryPageGetIn; out: MemoryPageGetOut };
+  "memory.page.list": { in: MemoryPageListIn; out: MemoryPageListOut };
+  "memory.page.put": { in: MemoryPagePutIn; out: MemoryPagePutOut };
+  "memory.page.restore_version": { in: MemoryPageRestoreVersionIn; out: MemoryPageRestoreVersionOut };
+  "memory.page.versions": { in: MemoryPageVersionsIn; out: MemoryPageVersionsOut };
   "memory.pointer": { in: MemoryPointerIn; out: MemoryPointerOut };
   "memory.promote": { in: MemoryPromoteIn; out: MemoryPromoteOut };
   "memory.promotion.approve": { in: MemoryPromotionApproveIn; out: MemoryPromotionApproveOut };
@@ -30436,6 +30691,11 @@ export type MemoryNoteRestoredPayload = {
   versionId: string;
   by: string;
 };
+export type MemoryPageRestoredPayload = {
+  pageId: string;
+  from: string;
+  by: string;
+};
 export type MemoryPromotedPayload = {
   promotionId: string;
   factId: string;
@@ -32508,6 +32768,7 @@ export interface EventMap {
   "memory.learned": MemoryLearnedPayload;
   "memory.map_rewritten": MemoryMapRewrittenPayload;
   "memory.note_restored": MemoryNoteRestoredPayload;
+  "memory.page_restored": MemoryPageRestoredPayload;
   "memory.promoted": MemoryPromotedPayload;
   "memory.promotion_rejected": MemoryPromotionRejectedPayload;
   "memory.promotion_requested": MemoryPromotionRequestedPayload;

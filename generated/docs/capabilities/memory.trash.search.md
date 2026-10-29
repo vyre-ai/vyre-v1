@@ -59,6 +59,21 @@ type Out = {
       trashReason?: string;
       archivedAt?: number;
     }>;
+  pages?: Array<{
+      pageId: string;
+      title: string;
+      kind: "person" | "client" | "project" | "agent" | "record" | "topic" | "decision" | "site";
+      layer: "person" | "agent" | "project" | "space";
+      ownerRef: string;
+      agentId?: string;
+      projectId?: string;
+      subjectRef?: string;
+      version: number;
+      createdAt: number;
+      updatedAt: number;
+      trashedAt?: number;
+      archivedAt?: number;
+    }>;
   next?: string;
   total?: number;
 };
@@ -110,6 +125,23 @@ type Out = {
       }
     ],
     "next": "example",
+    "pages": [
+      {
+        "agentId": "agt_a1b2c3",
+        "archivedAt": 1760000000000,
+        "createdAt": 1760000000000,
+        "kind": "person",
+        "layer": "person",
+        "ownerRef": "example",
+        "pageId": "example",
+        "projectId": "prj_a1b2c3",
+        "subjectRef": "example",
+        "title": "example",
+        "trashedAt": 1760000000000,
+        "updatedAt": 1760000000000,
+        "version": 1
+      }
+    ],
     "total": 1
   }
 }

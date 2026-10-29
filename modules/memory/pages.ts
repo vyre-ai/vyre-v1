@@ -20,16 +20,23 @@ export const subjectKey = (title: string): string => title.toLowerCase().replace
 const KINDS: readonly PageKind[] = ["person", "client", "project", "agent", "record", "topic", "decision", "site"];
 export const pageKind = (v: unknown): PageKind => (KINDS.includes(v as PageKind) ? (v as PageKind) : "topic");
 
+/** A personal page keeps its title and Notes together in `sealed`; its `subject` column is only a placeholder, so the title is in no plain column. */
 export function readPage(ctx: Pick<MemCtx, "seal" | "principal" | "actingFor">, r: Row): Page {
   const layer = str(r["layer"]) as Layer;
   const owner = str(r["owner_ref"]);
   let notes = str(r["notes"]);
+  let title = str(r["title"]);
+  let subject = str(r["subject"]);
   const sealed = orNull(r["sealed"]);
   if (num(r["enc"]) === 2 && sealed !== null) {
-    if (owner === actorOf(ctx)) { try { notes = openText(ctx, sealed); } catch { notes = ""; } } else notes = "";
+    title = "";
+    subject = "";
+    if (owner === actorOf(ctx)) {
+      try { const o = JSON.parse(openText(ctx, sealed)) as { t?: string; n?: string }; notes = o.n ?? ""; title = o.t ?? ""; subject = subjectKey(title); } catch { notes = ""; }
+    } else notes = "";
   }
   return {
-    id: str(r["page_id"]), subject: str(r["subject"]), title: str(r["title"]), kind: pageKind(r["kind"]), layer, ownerRef: owner, agentId: orNull(r["agent_id"]), projectId: orNull(r["project_id"]),
+    id: str(r["page_id"]), subject, title, kind: pageKind(r["kind"]), layer, ownerRef: owner, agentId: orNull(r["agent_id"]), projectId: orNull(r["project_id"]),
     subjectRef: orNull(r["subject_ref"]), notes, enc: num(r["enc"]), version: num(r["version"]), createdAt: num(r["created_at"]), updatedAt: num(r["updated_at"]),
     trashedAt: r["trashed_at"] === null || r["trashed_at"] === undefined ? null : num(r["trashed_at"]), trashReason: orNull(r["trash_reason"]),
     archivedAt: r["archived_at"] === null || r["archived_at"] === undefined ? null : num(r["archived_at"]),
@@ -42,9 +49,18 @@ export function loadPage(ctx: MemCtx, id: string): Page | null {
 }
 
 export function findPage(ctx: MemCtx, layer: Layer, owner: string, subject: string): Page | null {
+  if (layer === "person") {
+    // titles of personal pages are sealed, so the owner's pages are opened and compared
+    if (owner !== actorOf(ctx)) return null;
+    for (const r of rowsOf(ctx.db, "SELECT * FROM memory_pages WHERE layer = 'person' AND owner_ref = ?", owner)) { const p = readPage(ctx, r); if (p.subject === subject) return p; }
+    return null;
+  }
   const r = rowsOf(ctx.db, "SELECT * FROM memory_pages WHERE layer = ? AND owner_ref = ? AND subject = ?", layer, owner, subject)[0];
   return r ? readPage(ctx, r) : null;
 }
+
+/** The sealed JSON of a personal page: its title and Notes. */
+const sealPage = (ctx: MemCtx, owner: string, title: string, notes: string): string => sealText(ctx, owner, JSON.stringify({ t: title, n: notes }));
 
 // ---- links in the Notes
 
@@ -78,6 +94,13 @@ export function parseLinks(notes: string): ParsedLink[] {
 /** The pages a title can mean: a page in the same place first, then any shared page, then (for a person's page) one of theirs. Never another person's personal page. */
 function resolveTarget(ctx: MemCtx, from: Page, target: string): string | null {
   const key = subjectKey(target);
+  if (from.layer === "person") {
+    // a personal page may link to another of the owner's pages (opened to compare titles) or to a shared page
+    for (const r of rowsOf(ctx.db, "SELECT * FROM memory_pages WHERE layer = 'person' AND owner_ref = ? AND trashed_at IS NULL", from.ownerRef)) {
+      const p = readPage(ctx, r);
+      if (p.id !== from.id && p.subject === key) return p.id;
+    }
+  }
   const rows = rowsOf(ctx.db, "SELECT page_id, layer, owner_ref FROM memory_pages WHERE subject = ? AND trashed_at IS NULL", key);
   const pick = (f: (r: Row) => boolean): string | null => {
     const r = rows.find(f);
@@ -96,13 +119,14 @@ export function indexLinks(ctx: MemCtx, p: Page, notes: string): number {
   const now = ctx.now();
   let n = 0;
   for (const l of parseLinks(notes)) {
-    const to = resolveTarget(ctx, p, l.target) ?? unresolved(l.target);
+    // a personal page that links to nothing yet keeps no name in a plain column
+    const to = resolveTarget(ctx, p, l.target) ?? (p.layer === "person" ? "~" : unresolved(l.target));
     const sealed = p.layer === "person" ? sealText(ctx, p.ownerRef, JSON.stringify({ label: l.label, evidence: l.evidence, target: l.target })) : null;
     // label is part of the key; a personal page keys on a hash of nothing readable so two labels to one page stay two rows
     const label = p.layer === "person" ? `#${n}` : l.label;
     ctx.db.run(
-      "INSERT OR REPLACE INTO memory_page_links (from_page, to_page, label, evidence, sealed, at) VALUES (?, ?, ?, ?, ?, ?)",
-      p.id, to, label, p.layer === "person" ? "" : l.evidence, sealed, now,
+      "INSERT OR REPLACE INTO memory_page_links (from_page, to_page, label, target, evidence, sealed, at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      p.id, to, label, p.layer === "person" ? "" : l.target, p.layer === "person" ? "" : l.evidence, sealed, now,
     );
     n++;
   }
@@ -149,9 +173,10 @@ export function createPage(ctx: MemCtx, n: NewPage, o: PageSave = {}): Page {
   const sealed = n.layer === "person";
   const notes = n.notes ?? "";
   const who = o.who ?? whoIs(ctx);
+  const title = n.title.trim();
   ctx.db.run(
     "INSERT INTO memory_pages (page_id, subject, title, kind, layer, owner_ref, agent_id, project_id, subject_ref, notes, sealed, enc, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
-    id, subjectKey(n.title), n.title.trim(), n.kind, n.layer, n.ownerRef, n.agentId, n.projectId, n.subjectRef ?? null, sealed ? "" : notes, sealed ? sealText(ctx, n.ownerRef, notes) : null, sealed ? 2 : 0, now, now,
+    id, sealed ? `~${id}` : subjectKey(title), sealed ? "" : title, n.kind, n.layer, n.ownerRef, n.agentId, n.projectId, sealed ? null : n.subjectRef ?? null, sealed ? "" : notes, sealed ? sealPage(ctx, n.ownerRef, title, notes) : null, sealed ? 2 : 0, now, now,
   );
   ctx.db.run(
     "INSERT INTO memory_page_versions (page_id, version, notes, sealed, enc, by_actor, actor_kind, at, reason) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?)",
@@ -159,6 +184,8 @@ export function createPage(ctx: MemCtx, n: NewPage, o: PageSave = {}): Page {
   );
   const page = loadPage(ctx, id) as Page;
   page.notes = notes;
+  page.title = title;
+  page.subject = subjectKey(title);
   resolvePending(ctx, page);
   indexLinks(ctx, page, notes);
   graphNode(ctx, page);
@@ -175,7 +202,7 @@ export function saveNotes(ctx: MemCtx, p: Page, notes: string, o: PageSave = {})
   const sealed = p.layer === "person";
   ctx.db.run(
     "UPDATE memory_pages SET notes = ?, sealed = ?, enc = ?, version = ?, updated_at = ?, touched_at = NULL WHERE page_id = ?",
-    sealed ? "" : notes, sealed ? sealText(ctx, p.ownerRef, notes) : null, sealed ? 2 : 0, version, now, p.id,
+    sealed ? "" : notes, sealed ? sealPage(ctx, p.ownerRef, p.title, notes) : null, sealed ? 2 : 0, version, now, p.id,
   );
   ctx.db.run(
     "INSERT INTO memory_page_versions (page_id, version, notes, sealed, enc, by_actor, actor_kind, at, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -207,3 +234,10 @@ export function untrashPage(ctx: MemCtx, p: Page, from: "trash" | "archive", o: 
   trail(ctx, { action: "restore", pageId: p.id, layer: p.layer, ownerRef: p.ownerRef, agentId: p.agentId, projectId: p.projectId, ...(o.who ? { who: o.who } : {}), reason: from === "archive" ? "restored from Archive" : "restored from Trash", detail: { from } });
   return next;
 }
+
+/** The contract's page row. */
+export const pageRowOut = (p: Page) => ({
+  pageId: p.id, title: p.title, kind: p.kind, layer: p.layer, ownerRef: p.ownerRef, ...(p.agentId ? { agentId: p.agentId } : {}), ...(p.projectId ? { projectId: p.projectId } : {}),
+  ...(p.subjectRef ? { subjectRef: p.subjectRef } : {}), version: p.version, createdAt: p.createdAt, updatedAt: p.updatedAt, ...(p.trashedAt !== null ? { trashedAt: p.trashedAt } : {}),
+  ...(p.archivedAt !== null ? { archivedAt: p.archivedAt } : {}),
+});

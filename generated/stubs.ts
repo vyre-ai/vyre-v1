@@ -1282,9 +1282,11 @@ export function stubs(ctx: CallCtx) {
     },
     memory: {
       archive_sweep: call("memory.archive_sweep"),
+      backlinks: call("memory.backlinks"),
       capture: call("memory.capture"),
       counts: call("memory.counts"),
       erase: call("memory.erase"),
+      export_markdown: call("memory.export_markdown"),
       fact: {
         accept: call("memory.fact.accept"),
         correct: call("memory.fact.correct"),
@@ -1319,6 +1321,14 @@ export function stubs(ctx: CallCtx) {
       notes: {
         erase: call("memory.notes.erase"),
         list: call("memory.notes.list"),
+      },
+      page: {
+        delete: call("memory.page.delete"),
+        get: call("memory.page.get"),
+        list: call("memory.page.list"),
+        put: call("memory.page.put"),
+        restore_version: call("memory.page.restore_version"),
+        versions: call("memory.page.versions"),
       },
       pointer: call("memory.pointer"),
       promote: call("memory.promote"),

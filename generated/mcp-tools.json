@@ -29705,6 +29705,36 @@
     },
     {
       "blocks": [],
+      "cap": "memory.backlinks",
+      "deferred": false,
+      "description": "Where a page is linked from: other pages, chats, runs and records, each with the line that names it; only places the reader can open",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "pageId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pageId"
+        ],
+        "type": "object"
+      },
+      "name": "memory_backlinks",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.counts",
       "deferred": false,
       "description": "Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own",
@@ -29747,6 +29777,12 @@
             },
             "type": "array"
           },
+          "pageIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "reason": {
             "type": "string"
           },
@@ -29785,6 +29821,25 @@
       },
       "name": "memory_erase",
       "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.export_markdown",
+      "deferred": false,
+      "description": "The whole brain the reader can see as one Markdown document: pages with their facts, Notes and links, then the facts no page names; personal memory only when asked, and only the reader's own",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "includePersonal": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_export_markdown",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -30045,8 +30100,31 @@
             "minimum": 0,
             "type": "integer"
           },
+          "focus": {
+            "description": "A node id: draw only it and the nodes near it",
+            "type": "string"
+          },
+          "hops": {
+            "description": "How far from the focus, two by default",
+            "maximum": 6,
+            "minimum": 1,
+            "type": "integer"
+          },
           "kinds": {
             "items": {
+              "description": "Node types to show",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "layers": {
+            "items": {
+              "enum": [
+                "person",
+                "agent",
+                "project",
+                "space"
+              ],
               "type": "string"
             },
             "type": "array"
@@ -30116,8 +30194,31 @@
             "minimum": 0,
             "type": "integer"
           },
+          "focus": {
+            "description": "A node id: draw only it and the nodes near it",
+            "type": "string"
+          },
+          "hops": {
+            "description": "How far from the focus, two by default",
+            "maximum": 6,
+            "minimum": 1,
+            "type": "integer"
+          },
           "kinds": {
             "items": {
+              "description": "Node types to show",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "layers": {
+            "items": {
+              "enum": [
+                "person",
+                "agent",
+                "project",
+                "space"
+              ],
               "type": "string"
             },
             "type": "array"
@@ -30403,6 +30504,185 @@
         "type": "object"
       },
       "name": "memory_notes_list",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.page.get",
+      "deferred": false,
+      "description": "Open a page by id or title: its facts, its Notes, the [[links]] it makes and the chats, runs, records and pages that link to it",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "pageId": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_open_page",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.page.delete",
+      "deferred": false,
+      "description": "Move a page to Trash; memory.restore brings it back",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "pageId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pageId"
+        ],
+        "type": "object"
+      },
+      "name": "memory_page_delete",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.page.list",
+      "deferred": false,
+      "description": "List the pages the reader can see, by words in the title or Notes, layer, kind, agent or project",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "person",
+              "client",
+              "project",
+              "agent",
+              "record",
+              "topic",
+              "decision",
+              "site"
+            ],
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "q": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_page_list",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.page.restore_version",
+      "deferred": false,
+      "description": "Write an earlier version of the Notes back as a new version (the versions in between stay)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "pageId": {
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pageId",
+          "version"
+        ],
+        "type": "object"
+      },
+      "name": "memory_page_restore_version",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.page.versions",
+      "deferred": false,
+      "description": "Every version of the Notes of a page, newest first, with who wrote it and when",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "pageId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pageId"
+        ],
+        "type": "object"
+      },
+      "name": "memory_page_versions",
       "planMode": "allowed",
       "toolset": "memory",
       "v": 1
@@ -30743,11 +31023,11 @@
             ],
             "pattern": "^fct_[a-z0-9]+$",
             "type": "string"
+          },
+          "pageId": {
+            "type": "string"
           }
         },
-        "required": [
-          "factId"
-        ],
         "type": "object"
       },
       "name": "memory_restore",
@@ -31025,6 +31305,81 @@
       },
       "name": "memory_versions",
       "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.page.put",
+      "deferred": false,
+      "description": "Write the Notes of a page as a new version (making the page when it is new); [[links]] in the Notes become labelled edges, each with the line it was written in",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "baseVersion": {
+            "description": "The version the writer started from; a different current version refuses the write",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "person",
+              "client",
+              "project",
+              "agent",
+              "record",
+              "topic",
+              "decision",
+              "site"
+            ],
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "pageId": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "subjectRef": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "notes"
+        ],
+        "type": "object"
+      },
+      "name": "memory_write_page",
+      "planMode": "blocked",
       "toolset": "memory",
       "v": 1
     },

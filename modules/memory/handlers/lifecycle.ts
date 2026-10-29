@@ -3,6 +3,7 @@
 // for the Space's number of days (30 to 90, default 60) moves to Archive: out of all search, restorable by an admin. Only memory.erase removes content, and it leaves a contentless trail line.
 // Reading a trashed fact, finding it in Trash search or restoring it counts as touching it, which starts its days again.
 import { trashDays } from "../policy.ts";
+import { loadPage, pageRowOut, readPage, untrashPage } from "../pages.ts";
 import { trail, whoIs } from "../trail.ts";
 import type { Who } from "../trail.ts";
 import { actorOf, bm25, ensure, factOut, loadFact, makeAccess, num, orNull, pageOf, raise, readFact, rowsOf, sourceLinkOf, str, trigramSim } from "../projections.ts";
@@ -55,11 +56,24 @@ function untrash(ctx: MemCtx, f: Fact, from: "trash" | "archive", who: Who, sour
 
 // ---- restore
 
-export async function restore(ctx: MemCtx, input: { factId: string }) {
+export async function restore(ctx: MemCtx, input: { factId?: string; pageId?: string }) {
   ensure(ctx.db);
-  const f = loadFact(ctx, input.factId);
-  if (!f) raise(ctx, "validation.not_found", "There is no such fact.", { factId: input.factId });
   const access = makeAccess(ctx);
+  if ((input.factId === undefined) === (input.pageId === undefined)) raise(ctx, "validation.bad_input", "Name one fact or one page to restore.");
+  if (input.pageId !== undefined) {
+    const p = loadPage(ctx, input.pageId);
+    if (!p) raise(ctx, "validation.not_found", "There is no such page.", { pageId: input.pageId });
+    if (p.trashedAt === null) raise(ctx, "validation.precondition_failed", "This page is not in Trash.");
+    const archived = p.archivedAt !== null;
+    const mine = p.layer === "person" && p.ownerRef === actorOf(ctx);
+    if (archived) { if (!mine && !access.isAdmin()) raise(ctx, "permission.role_lacks_permission", "An admin restores a page from Archive."); }
+    else if (!(p.layer === "person" ? mine : await access.can(p.layer, p.ownerRef, p.agentId, p.projectId, "view"))) raise(ctx, "validation.not_found", "There is no such page.", { pageId: input.pageId });
+    const back = untrashPage(ctx, p, archived ? "archive" : "trash", { who: whoIs(ctx) });
+    ctx.emit("memory.page_restored", p.id, { pageId: p.id, from: archived ? "archive" : "trash", by: actorOf(ctx) });
+    return { page: pageRowOut(back), restoredFrom: archived ? ("archive" as const) : ("trash" as const) };
+  }
+  const f = loadFact(ctx, input.factId as string);
+  if (!f) raise(ctx, "validation.not_found", "There is no such fact.", { factId: input.factId });
   const archived = f.archivedAt !== null;
   if (f.trashedAt === null) raise(ctx, "validation.precondition_failed", "This fact is not in Trash.", { status: f.status });
   if (archived) {
@@ -110,7 +124,23 @@ export async function trashSearch(ctx: MemCtx, input: Page & { q?: string; area?
     const now = ctx.now();
     for (const f of p.page) ctx.db.run("UPDATE memory_facts SET touched_at = ? WHERE id = ?", now, f.id);
   }
-  return { facts: p.page.map(factOut), ...(p.next ? { next: p.next } : {}), total: p.total };
+  // Pages in Trash (or Archive) are found the same way, by their title and, for a shared page, their Notes.
+  const pages = [];
+  {
+    const pargs: unknown[] = [];
+    let psql = `SELECT * FROM memory_pages WHERE trashed_at IS NOT NULL AND archived_at IS ${area === "archive" ? "NOT NULL" : "NULL"}`;
+    if (input.layer) { psql += " AND layer = ?"; pargs.push(input.layer); }
+    if (input.agentId) { psql += " AND agent_id = ?"; pargs.push(input.agentId); }
+    if (input.projectId) { psql += " AND project_id = ?"; pargs.push(input.projectId); }
+    psql += " ORDER BY trashed_at DESC, page_id";
+    for (const r of rowsOf(ctx.db, psql, ...pargs)) {
+      const pg = readPage(ctx, r);
+      if (pg.layer === "person" ? pg.ownerRef !== actorOf(ctx) : area === "trash" && !(await access.can(pg.layer, pg.ownerRef, pg.agentId, pg.projectId, "view"))) continue;
+      if (q !== "" && !pg.subject.includes(q.toLowerCase()) && !pg.notes.toLowerCase().includes(q.toLowerCase())) continue;
+      pages.push(pageRowOut(pg));
+    }
+  }
+  return { facts: p.page.map(factOut), pages, ...(p.next ? { next: p.next } : {}), total: p.total };
 }
 
 /** Reading one trashed fact counts as touching it (memory.fact.get calls this). */
@@ -137,8 +167,18 @@ export async function archiveSweep(ctx: MemCtx): Promise<{ archived: number; day
       who: { actor: "upkeep", kind: "upkeep" }, reason: `untouched in Trash for ${days} days`, detail: { days },
     });
   }
-  if (due.length > 0) ctx.emit("memory.archived", ctx.space, { count: due.length, days });
-  return { archived: due.length, days };
+  const duePages = rowsOf(ctx.db, "SELECT * FROM memory_pages WHERE trashed_at IS NOT NULL AND archived_at IS NULL AND COALESCE(touched_at, trashed_at) <= ? ORDER BY trashed_at, page_id", now - days * DAY);
+  for (const r of duePages) {
+    const id = str(r["page_id"]);
+    ctx.db.run("UPDATE memory_pages SET archived_at = ? WHERE page_id = ?", now, id);
+    trail(ctx, {
+      action: "archive", pageId: id, layer: str(r["layer"]) as Layer, ownerRef: str(r["owner_ref"]), agentId: orNull(r["agent_id"]), projectId: orNull(r["project_id"]),
+      who: { actor: "upkeep", kind: "upkeep" }, reason: `untouched in Trash for ${days} days`, detail: { days },
+    });
+  }
+  const total = due.length + duePages.length;
+  if (total > 0) ctx.emit("memory.archived", ctx.space, { count: total, days });
+  return { archived: total, days };
 }
 
 // ---- the Learned feed and Undo

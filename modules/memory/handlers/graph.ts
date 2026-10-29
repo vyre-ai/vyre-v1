@@ -5,15 +5,16 @@
 // DECISION: a note's layer comes from its folder path (Agents/<agent>/memory, Projects/<project>/memory, People/<person>/memory/<agent>, Knowledge/Memory); the agent or project id is found by name.
 // DECISION: graph_export writes its JSON into the agent's folder, or the first Space root for a Space graph, because the contract takes no folder.
 import { headings, frontmatter, links as mdLinks } from "../../../lib/md.ts";
-import { actorOf, ensure, mintId, num, orNull, raise, rowsOf, sealText, str } from "../projections.ts";
+import { parseLinks, subjectKey } from "../pages.ts";
+import { actorOf, ensure, makeAccess, mintId, num, orNull, raise, rowsOf, sealText, str } from "../projections.ts";
 import type { Layer, MemCtx, Row } from "../projections.ts";
 
-type NodeKind = "note" | "person" | "client" | "project" | "site" | "decision" | "record" | "chat";
+type NodeKind = "note" | "person" | "client" | "project" | "site" | "decision" | "record" | "chat" | "agent" | "topic";
 
 interface GNode {
   nodeId: string; kind: NodeKind; title: string; layer: Layer | null; agentId: string | null; projectId: string | null; resType: string; resId: string; link: string | null; createdAt: number;
 }
-interface GEdge { from: string; to: string; kind: "link" | "relation" | "came_from" }
+interface GEdge { from: string; to: string; kind: "link" | "relation" | "came_from" | "mention"; label?: string; evidence?: string; at?: number }
 
 const KIND_OF_TYPE: Readonly<Record<string, NodeKind>> = {
   person: "person", contact: "person", client: "client", company: "client", account: "client", project: "project", site: "site", decision: "decision",
@@ -147,6 +148,7 @@ async function indexRecord(ctx: MemCtx, type: string, id: string): Promise<{ nod
     if (rec.deletedAt !== undefined) throw new Error("deleted");
   } catch {
     removeNode(ctx, nodeId);
+    ctx.db.run("DELETE FROM memory_mentions WHERE source_kind = 'record' AND source_ref = ?", id);
     return { nodes: 0, edges: 0 };
   }
   const f = rec.fields;
@@ -156,27 +158,64 @@ async function indexRecord(ctx: MemCtx, type: string, id: string): Promise<{ nod
   });
   ctx.db.run("DELETE FROM memory_graph_edges WHERE from_id = ? AND kind = 'relation'", nodeId);
   let edges = 0;
+  const written: Array<{ target: string; quote: string; at: number }> = [];
   for (const v of Object.values(f)) {
     for (const x of Array.isArray(v) ? v : [v]) {
+      if (typeof x === "string" && x.includes("[[")) for (const l of parseLinks(x)) written.push({ target: l.target, quote: l.evidence, at: rec.createdAt });
       if (typeof x === "string" && /^rec_[a-z0-9]+$/.test(x) && x !== id) {
         ctx.db.run("INSERT OR IGNORE INTO memory_graph_edges (from_id, to_id, kind) VALUES (?, ?, 'relation')", nodeId, `record:${x}`);
         edges++;
       }
     }
   }
+  replaceMentions(ctx, "record", id, "record", id, written);
   return { nodes: 1, edges };
 }
 
 async function indexChat(ctx: MemCtx, threadId: string): Promise<{ nodes: number; edges: number }> {
   const nodeId = `chat:${threadId}`;
   try {
-    const t = ((await ctx.call("threads.get", { threadId })) as { thread: { title?: string; createdAt: number } }).thread;
+    const t = ((await ctx.call("threads.get", { threadId })) as { thread: { title?: string; createdAt: number; kind?: string } }).thread;
     putNode(ctx, { nodeId, kind: "chat", title: t.title ?? "Chat", layer: null, agentId: null, projectId: null, resType: "thread", resId: threadId, link: `/chats/${threadId}`, createdAt: t.createdAt });
-    return { nodes: 1, edges: 0 };
+    // [[links]] written in the chat make it a backlink of the page they name. A body that is still sealed cannot be read and is skipped.
+    let edges = 0;
+    try {
+      const page = (await ctx.call("chat.messages.list", { threadId, limit: 200 })) as { messages: Array<{ body?: string; enc?: unknown; createdAt?: number; at?: number }> };
+      const found: Array<{ target: string; quote: string; at: number }> = [];
+      for (const m of page.messages) {
+        if (typeof m.body !== "string" || (m.enc && /^enc2\.\d+\./.test(m.body))) continue;
+        for (const l of parseLinks(m.body)) found.push({ target: l.target, quote: l.evidence, at: m.createdAt ?? m.at ?? ctx.now() });
+      }
+      edges = replaceMentions(ctx, t.kind === "run" ? "run" : "chat", threadId, "thread", threadId, found);
+    } catch { /* no messages to read: the node stays */ }
+    return { nodes: 1, edges };
   } catch {
     removeNode(ctx, nodeId);
+    ctx.db.run("DELETE FROM memory_mentions WHERE source_ref = ? AND source_kind IN ('chat', 'run')", threadId);
     return { nodes: 0, edges: 0 };
   }
+}
+
+/** The page a [[link]] names: a page in a shared layer by title (a personal page is never linked to from a chat or record), or the pending key until it exists. */
+function pageKeyFor(ctx: MemCtx, target: string): string {
+  const key = subjectKey(target);
+  const hit = rowsOf(ctx.db, "SELECT page_id FROM memory_pages WHERE subject = ? AND layer != 'person' AND trashed_at IS NULL ORDER BY CASE layer WHEN 'space' THEN 0 WHEN 'project' THEN 1 ELSE 2 END, created_at LIMIT 1", key)[0];
+  return hit ? str(hit["page_id"]) : `~${key}`;
+}
+
+/** Make the mentions of one source (a chat, a run, a record) match what it holds now. */
+function replaceMentions(ctx: MemCtx, kind: "chat" | "run" | "record", ref: string, resType: string, resId: string, found: Array<{ target: string; quote: string; at: number }>): number {
+  ctx.db.run("DELETE FROM memory_mentions WHERE source_kind = ? AND source_ref = ?", kind, ref);
+  let n = 0;
+  for (const f of found) {
+    const page = pageKeyFor(ctx, f.target);
+    ctx.db.run(
+      "INSERT OR IGNORE INTO memory_mentions (page_id, source_kind, source_ref, res_type, res_id, quote, at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      page, kind, ref, resType, resId, f.quote.length > 240 ? `${f.quote.slice(0, 237)}...` : f.quote, f.at,
+    );
+    n++;
+  }
+  return n;
 }
 
 // ---- build the graph
@@ -216,12 +255,53 @@ function layout(groups: GNode[][], hubs: string[]): Map<string, { x: number; y: 
   return out;
 }
 
-interface BuildOpts { scope: "agent" | "space"; agentId?: string | undefined; asOf?: number | undefined; kinds?: string[] | undefined; forViewer: boolean }
+interface BuildOpts {
+  scope: "agent" | "space"; agentId?: string | undefined; asOf?: number | undefined; kinds?: string[] | undefined; layers?: Layer[] | undefined; focus?: string | undefined; hops?: number | undefined; forViewer: boolean;
+}
+
+/**
+ * The links between pages, with each one's label and the line it was written in. With a date, the links are read back from the page versions that were the latest on that day, so the graph shows what
+ * was written then, not what stands now.
+ */
+function pageLinkEdges(ctx: MemCtx, asOf: number | undefined): GEdge[] {
+  const out: GEdge[] = [];
+  if (asOf === undefined) {
+    for (const r of rowsOf(ctx.db, "SELECT l.from_page, l.to_page, l.label, l.evidence, l.at FROM memory_page_links l JOIN memory_pages a ON a.page_id = l.from_page JOIN memory_pages b ON b.page_id = l.to_page WHERE a.layer != 'person' AND b.layer != 'person' AND a.trashed_at IS NULL AND b.trashed_at IS NULL")) {
+      out.push({ from: `page:${str(r["from_page"])}`, to: `page:${str(r["to_page"])}`, kind: "link", ...(str(r["label"]) ? { label: str(r["label"]) } : {}), ...(str(r["evidence"]) ? { evidence: str(r["evidence"]) } : {}), at: num(r["at"]) });
+    }
+    return out;
+  }
+  const pages = rowsOf(ctx.db, "SELECT page_id, subject, layer, owner_ref FROM memory_pages WHERE layer != 'person' AND created_at <= ?", asOf);
+  const bySubject = new Map<string, Row[]>();
+  for (const p of pages) bySubject.set(str(p["subject"]), [...(bySubject.get(str(p["subject"])) ?? []), p]);
+  for (const p of pages) {
+    const v = rowsOf(ctx.db, "SELECT notes, at FROM memory_page_versions WHERE page_id = ? AND at <= ? ORDER BY version DESC LIMIT 1", str(p["page_id"]), asOf)[0];
+    if (!v) continue;
+    for (const l of parseLinks(str(v["notes"]))) {
+      const cands = bySubject.get(subjectKey(l.target)) ?? [];
+      const dest = cands.find((c) => str(c["layer"]) === str(p["layer"]) && str(c["owner_ref"]) === str(p["owner_ref"]) && str(c["page_id"]) !== str(p["page_id"])) ?? cands.find((c) => str(c["page_id"]) !== str(p["page_id"]));
+      if (dest) out.push({ from: `page:${str(p["page_id"])}`, to: `page:${str(dest["page_id"])}`, kind: "link", ...(l.label ? { label: l.label } : {}), evidence: l.evidence, at: num(v["at"]) });
+    }
+  }
+  return out;
+}
+
+/** Places that name a page in a [[link]]: chats, runs and records point at it. */
+function mentionEdges(ctx: MemCtx, asOf: number | undefined): GEdge[] {
+  const out: GEdge[] = [];
+  for (const r of rowsOf(ctx.db, `SELECT page_id, source_kind, source_ref, quote, at FROM memory_mentions WHERE page_id NOT LIKE '~%'${asOf !== undefined ? " AND at <= ?" : ""}`, ...(asOf !== undefined ? [asOf] : []))) {
+    const kind = str(r["source_kind"]);
+    out.push({ from: `${kind === "run" ? "chat" : kind}:${str(r["source_ref"])}`, to: `page:${str(r["page_id"])}`, kind: "mention", ...(str(r["quote"]) ? { evidence: str(r["quote"]) } : {}), at: num(r["at"]) });
+  }
+  return out;
+}
 
 async function build(ctx: MemCtx, o: BuildOpts): Promise<Built> {
+  const access = makeAccess(ctx);
   const all = rowsOf(ctx.db, "SELECT * FROM memory_graph_nodes WHERE layer IS NULL OR layer != 'person'").map(nodeOf);
   const byId = new Map(all.map((n) => [n.nodeId, n] as const));
   const stored = rowsOf(ctx.db, "SELECT from_id, to_id, kind FROM memory_graph_edges").map((r) => ({ from: str(r["from_id"]), to: str(r["to_id"]), kind: str(r["kind"]) as GEdge["kind"] }));
+  const written: GEdge[] = [...pageLinkEdges(ctx, o.asOf), ...mentionEdges(ctx, o.asOf)];
 
   // "Came from": a note that holds a fact which came from a chat or a record.
   const came: GEdge[] = [];
@@ -237,42 +317,67 @@ async function build(ctx: MemCtx, o: BuildOpts): Promise<Built> {
   let seed = all;
   if (o.scope === "agent") {
     if (!o.agentId) raise(ctx, "validation.bad_input", "Name the agent whose graph this is.");
-    const keep = new Set(all.filter((n) => n.kind === "note" && (n.layer === "space" || n.layer === "project" || (n.layer === "agent" && n.agentId === o.agentId))).map((n) => n.nodeId));
+    const keep = new Set(all.filter((n) => (n.kind === "note" || n.resType === "memory_page") && (n.layer === "space" || n.layer === "project" || (n.layer === "agent" && n.agentId === o.agentId))).map((n) => n.nodeId));
     const near = new Set(keep);
-    for (const e of [...stored, ...came]) {
+    for (const e of [...stored, ...came, ...written]) {
       if (keep.has(e.from) && byId.has(e.to)) near.add(e.to);
       if (keep.has(e.to) && byId.has(e.from)) near.add(e.from);
     }
     seed = all.filter((n) => near.has(n.nodeId));
   }
   const kinds = o.kinds && o.kinds.length > 0 ? new Set(o.kinds) : null;
+  const layers = o.layers && o.layers.length > 0 ? new Set<Layer>(o.layers) : null;
   const memo = new Map<string, boolean>();
-  const visible: GNode[] = [];
+  let visible: GNode[] = [];
   for (const n of seed) {
     if (o.asOf !== undefined && n.createdAt > o.asOf) continue;
     if (kinds && !kinds.has(n.kind)) continue;
+    if (layers && n.layer && !layers.has(n.layer)) continue;
     if (o.forViewer) {
       const key = `${n.resType}:${n.resId}`;
       let ok = memo.get(key);
       if (ok === undefined) {
-        ok = ctx.authorize({ perm: null, level: "view" }, { type: n.resType, id: n.resId }).effect === "allow";
+        // a page is shown by the access on the place it lives in (Space, project or agent); anything else by the reader's access to the thing itself
+        ok = n.resType === "memory_page" && n.layer
+          ? await access.can(n.layer, n.layer === "agent" ? n.agentId ?? "" : n.layer === "project" ? n.projectId ?? "" : ctx.space, n.agentId, n.projectId, "view")
+          : ctx.authorize({ perm: null, level: "view" }, { type: n.resType, id: n.resId }).effect === "allow";
         memo.set(key, ok);
       }
       if (!ok) continue;
     }
     visible.push(n);
   }
-  const ids = new Set(visible.map((n) => n.nodeId));
+  let ids = new Set(visible.map((n) => n.nodeId));
   const seen = new Set<string>();
-  const edges: GEdge[] = [];
-  for (const e of [...stored, ...came]) {
+  let edges: GEdge[] = [];
+  for (const e of [...stored, ...came, ...written]) {
     if (!ids.has(e.from) || !ids.has(e.to) || e.from === e.to) continue;
-    const k = `${e.from}|${e.to}|${e.kind}`;
+    const k = `${e.from}|${e.to}|${e.kind}|${e.label ?? ""}`;
     if (seen.has(k)) continue;
     seen.add(k);
     edges.push(e);
   }
-  edges.sort((a, b) => (a.from + a.to + a.kind).localeCompare(b.from + b.to + b.kind));
+  edges.sort((a, b) => (a.from + a.to + a.kind + (a.label ?? "")).localeCompare(b.from + b.to + b.kind + (b.label ?? "")));
+
+  // A local graph: the subject and the nodes within `hops` links of it (two by default), whatever the direction of the link.
+  if (o.focus !== undefined) {
+    const near = new Set<string>();
+    if (ids.has(o.focus)) {
+      near.add(o.focus);
+      let frontier = [o.focus];
+      for (let h = 0; h < Math.max(1, Math.min(6, o.hops ?? 2)); h++) {
+        const next: string[] = [];
+        for (const e of edges) {
+          if (frontier.includes(e.from) && !near.has(e.to)) { near.add(e.to); next.push(e.to); }
+          if (frontier.includes(e.to) && !near.has(e.from)) { near.add(e.from); next.push(e.from); }
+        }
+        frontier = next;
+      }
+    }
+    visible = visible.filter((n) => near.has(n.nodeId));
+    ids = new Set(visible.map((n) => n.nodeId));
+    edges = edges.filter((e) => ids.has(e.from) && ids.has(e.to));
+  }
 
   // Clusters: connected groups of two or more, named after the node with the most edges.
   const parent = new Map<string, string>(visible.map((n) => [n.nodeId, n.nodeId] as const));
@@ -321,9 +426,9 @@ function withSaved(ctx: MemCtx, g: Built, key: string): Built {
   return { ...g, nodes: g.nodes.map((n) => { const p = saved.get(n.nodeId); return p ? { ...n, x: p.x, y: p.y } : n; }) };
 }
 
-export async function graph(ctx: MemCtx, input: { scope: "agent" | "space"; agentId?: string; asOf?: number; kinds?: string[] }) {
+export async function graph(ctx: MemCtx, input: { scope: "agent" | "space"; agentId?: string; asOf?: number; kinds?: string[]; layers?: Layer[]; focus?: string; hops?: number }) {
   ensure(ctx.db);
-  const g = await build(ctx, { scope: input.scope, agentId: input.agentId, asOf: input.asOf, kinds: input.kinds, forViewer: true });
+  const g = await build(ctx, { scope: input.scope, agentId: input.agentId, asOf: input.asOf, kinds: input.kinds, layers: input.layers, focus: input.focus, hops: input.hops, forViewer: true });
   return withSaved(ctx, g, scopeKey(input.scope, input.agentId));
 }
 
@@ -335,9 +440,9 @@ export async function graphEverything(ctx: MemCtx, input: { asOf?: number }) {
   return build(ctx, { scope: "space", asOf: input.asOf, forViewer: false });
 }
 
-export async function graphExport(ctx: MemCtx, input: { scope: "agent" | "space"; agentId?: string; asOf?: number; kinds?: string[] }) {
+export async function graphExport(ctx: MemCtx, input: { scope: "agent" | "space"; agentId?: string; asOf?: number; kinds?: string[]; layers?: Layer[]; focus?: string; hops?: number }) {
   ensure(ctx.db);
-  const g = withSaved(ctx, await build(ctx, { scope: input.scope, agentId: input.agentId, asOf: input.asOf, kinds: input.kinds, forViewer: true }), scopeKey(input.scope, input.agentId));
+  const g = withSaved(ctx, await build(ctx, { scope: input.scope, agentId: input.agentId, asOf: input.asOf, kinds: input.kinds, layers: input.layers, focus: input.focus, hops: input.hops, forViewer: true }), scopeKey(input.scope, input.agentId));
   let folderId: string | undefined;
   if (input.scope === "agent" && input.agentId) {
     folderId = str(((await ctx.call("agents.get", { agentId: input.agentId })) as { agent?: { folderId?: string } }).agent?.folderId) || undefined;

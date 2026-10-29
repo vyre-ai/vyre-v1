@@ -16953,6 +16953,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/memory/backlinks",
+    "cap": "memory.backlinks",
+    "v": 1,
+    "module": "memory",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/memory/capture",
     "cap": "memory.capture",
     "v": 1,
@@ -17004,6 +17022,24 @@ export const routes: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "delete"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/export_markdown",
+    "cap": "memory.export_markdown",
+    "v": 1,
+    "module": "memory",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
   },
   {
     "method": "POST",
@@ -17369,6 +17405,114 @@ export const routes: Route[] = [
     "method": "POST",
     "path": "/v1/memory/notes/list",
     "cap": "memory.notes.list",
+    "v": 1,
+    "module": "memory",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/page/delete",
+    "cap": "memory.page.delete",
+    "v": 1,
+    "module": "memory",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/page/get",
+    "cap": "memory.page.get",
+    "v": 1,
+    "module": "memory",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/page/list",
+    "cap": "memory.page.list",
+    "v": 1,
+    "module": "memory",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/page/put",
+    "cap": "memory.page.put",
+    "v": 1,
+    "module": "memory",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/page/restore_version",
+    "cap": "memory.page.restore_version",
+    "v": 1,
+    "module": "memory",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/page/versions",
+    "cap": "memory.page.versions",
     "v": 1,
     "module": "memory",
     "effects": "read",

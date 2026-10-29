@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS memory_page_links (
   from_page TEXT NOT NULL,
   to_page TEXT NOT NULL,
   label TEXT NOT NULL DEFAULT '',
+  target TEXT NOT NULL DEFAULT '',
   evidence TEXT NOT NULL DEFAULT '',
   sealed TEXT,
   at INTEGER NOT NULL,

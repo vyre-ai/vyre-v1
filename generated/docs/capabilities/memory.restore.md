@@ -19,13 +19,14 @@ Restore a fact from Trash, or from Archive for an admin; open to any person or a
 | HTTP | POST /v1/memory/restore |
 | MCP tool | memory_restore (memory) |
 | CLI | none |
-| Emits | memory.restored |
+| Emits | memory.restored, memory.page_restored |
 
 ## Input
 
 ```ts
 type In = {
-  factId: string;
+  factId?: string;
+  pageId?: string;
 };
 ```
 
@@ -33,7 +34,7 @@ type In = {
 
 ```ts
 type Out = {
-  fact: {
+  fact?: {
     factId: string;
     layer: "person" | "agent" | "project" | "space";
     ownerRef: string;
@@ -51,6 +52,21 @@ type Out = {
     lowRisk?: boolean;
     trashedAt?: number;
     trashReason?: string;
+    archivedAt?: number;
+  };
+  page?: {
+    pageId: string;
+    title: string;
+    kind: "person" | "client" | "project" | "agent" | "record" | "topic" | "decision" | "site";
+    layer: "person" | "agent" | "project" | "space";
+    ownerRef: string;
+    agentId?: string;
+    projectId?: string;
+    subjectRef?: string;
+    version: number;
+    createdAt: number;
+    updatedAt: number;
+    trashedAt?: number;
     archivedAt?: number;
   };
   restoredFrom: "trash" | "archive";
@@ -73,7 +89,8 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "factId": "fct_a1b2c3"
+    "factId": "fct_a1b2c3",
+    "pageId": "example"
   },
   "output": {
     "fact": {
@@ -95,6 +112,21 @@ type Out = {
       "trashedAt": 1760000000000,
       "validFrom": 1760000000000,
       "validTo": 1760000000000
+    },
+    "page": {
+      "agentId": "agt_a1b2c3",
+      "archivedAt": 1760000000000,
+      "createdAt": 1760000000000,
+      "kind": "person",
+      "layer": "person",
+      "ownerRef": "example",
+      "pageId": "example",
+      "projectId": "prj_a1b2c3",
+      "subjectRef": "example",
+      "title": "example",
+      "trashedAt": 1760000000000,
+      "updatedAt": 1760000000000,
+      "version": 1
     },
     "restoredFrom": "trash"
   }

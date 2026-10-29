@@ -291,8 +291,8 @@
     },
     {
       "name": "onnxruntime-node",
-      "reason": "the host embeds with the native runtime, all-MiniLM-L6-v2 quantized ONNX, rulings 47 and 54, S13",
-      "dev": true
+      "reason": "the native runtime behind memory's meaning search: all-MiniLM-L6-v2 quantized ONNX run from Node (modules/memory/local-embedder.ts), rulings 47 and 54, S13",
+      "dev": false
     },
     {
       "name": "onnxruntime-web",

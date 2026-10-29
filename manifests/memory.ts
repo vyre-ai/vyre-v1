@@ -26,6 +26,13 @@ const learnedRow = t.obj({
 const meaningInfo = t.obj({
   state: t.enm('on', 'loading', 'not_set_up', 'degraded', 'off'), model: t.opt(t.str()), hint: t.opt(t.str({ description: 'Why search is keyword-only right now, in plain words' })),
 }, { description: 'How meaning search ran for this question. Anything but on means keyword search answered; not_set_up is healthy.' });
+const pageKind = t.enm('person', 'client', 'project', 'agent', 'record', 'topic', 'decision', 'site');
+const pageRow = t.obj({
+  pageId: t.str(), title: t.str(), kind: pageKind, layer, ownerRef: t.str(), agentId: t.opt(id.agent), projectId: t.opt(id.project), subjectRef: t.opt(t.str({ description: 'The record or person this page stands for' })),
+  version: t.int({ minimum: 1 }), createdAt: t.ts(), updatedAt: t.ts(), trashedAt: t.opt(t.ts()), archivedAt: t.opt(t.ts()),
+});
+const pageLink = t.obj({ label: t.str(), title: t.str(), pageId: t.opt(t.str()), evidence: t.str() });
+const backlink = t.obj({ kind: t.enm('page', 'chat', 'run', 'record'), ref: t.str(), title: t.str(), quote: t.str(), link: t.opt(t.str()), at: t.ts(), label: t.opt(t.str()) });
 const upkeepRun = t.obj({
   runId: t.str(), startedAt: t.ts(), finishedAt: t.opt(t.ts()), modelUsed: t.bool(), merged: t.int(), flagged: t.int(), stale: t.int(), created: t.int(), corrected: t.int(), deleted: t.int(), tidied: t.int(),
   tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), stopped: t.opt(t.enm('cap', 'no_key')),
@@ -39,14 +46,20 @@ const trailRow = t.obj({
   runId: t.opt(t.str()), detail: t.opt(t.rec(t.any())),
 });
 const noteRow = t.obj({ noteId: id.note, path: t.str({ examples: ['Agents/Intake/memory/notes/clients.md'] }), title: t.str(), layer, agentId: t.opt(id.agent), updatedAt: t.ts() });
-const hit = t.obj({ kind: t.enm('note', 'fact'), noteId: t.opt(id.note), factId: t.opt(id.fact), title: t.str(), text: t.str(), path: t.opt(t.str()), trueSince: t.opt(t.ts()), layer, sourceLink: t.opt(t.str()), score: t.num() });
+const hit = t.obj({ kind: t.enm('note', 'fact', 'page'), noteId: t.opt(id.note), factId: t.opt(id.fact), pageId: t.opt(t.str()), title: t.str(), text: t.str(), path: t.opt(t.str()), trueSince: t.opt(t.ts()), layer, sourceLink: t.opt(t.str()), score: t.num() });
 const node = t.obj({
-  nodeId: t.str(), kind: t.enm('note', 'person', 'client', 'project', 'site', 'decision', 'record', 'chat'), title: t.str(), layer: t.opt(layer), cluster: t.opt(t.str({ description: 'Cluster named after its hub' })),
+  nodeId: t.str(), kind: t.enm('note', 'person', 'client', 'project', 'site', 'decision', 'record', 'chat', 'agent', 'topic'), title: t.str(), layer: t.opt(layer), cluster: t.opt(t.str({ description: 'Cluster named after its hub' })),
   x: t.opt(t.num()), y: t.opt(t.num()), link: t.opt(t.str()),
 });
-const edge = t.obj({ from: t.str(), to: t.str(), kind: t.enm('link', 'relation', 'came_from') });
+const edge = t.obj({
+  from: t.str(), to: t.str(), kind: t.enm('link', 'relation', 'came_from', 'mention'), label: t.opt(t.str({ description: 'What the link says, written before it as "works with:: [[Page]]"' })),
+  evidence: t.opt(t.str({ description: 'The line the link was written in, or the quote from the chat or record that names the page' })), at: t.opt(t.ts()),
+});
 const graphScope = t.enm('agent', 'space');
-const graphIn = { scope: graphScope, agentId: t.opt(id.agent), asOf: t.opt(t.ts()), kinds: t.opt(t.arr(t.str())) };
+const graphIn = {
+  scope: graphScope, agentId: t.opt(id.agent), asOf: t.opt(t.ts({ description: 'What was known on this date' })), kinds: t.opt(t.arr(t.str({ description: 'Node types to show' }))), layers: t.opt(t.arr(layer)),
+  focus: t.opt(t.str({ description: 'A node id: draw only it and the nodes near it' })), hops: t.opt(t.int({ minimum: 1, maximum: 6, description: 'How far from the focus, two by default' })),
+};
 const graphOut = { nodes: t.arr(node), edges: t.arr(edge), clusters: t.arr(t.obj({ name: t.str(), hub: t.str(), size: t.int() })) };
 const factT = { factId: id.fact };
 const promotionId = t.id('prm');
@@ -124,7 +137,7 @@ export default defineManifest({
       out: { removed: t.int() }, emits: ['memory.removed'], tool: 'memory', audit: 'sensitive', risk: 'medium',
     }),
     write('memory.erase', 'Erase completely: delete facts from history; open to the source person or an admin; the audit entry records who and when, never what', {
-      in: { factIds: t.opt(t.arr(id.fact)), scope: t.opt(t.obj({ layer, agentId: t.opt(id.agent), sourceRef: t.opt(t.str()), subject: t.opt(t.str()) })), reason: t.opt(t.str()) },
+      in: { factIds: t.opt(t.arr(id.fact)), pageIds: t.opt(t.arr(t.str())), scope: t.opt(t.obj({ layer, agentId: t.opt(id.agent), sourceRef: t.opt(t.str()), subject: t.opt(t.str()) })), reason: t.opt(t.str()) },
       out: { erased: t.int() }, perm: null, level: 'manage', emits: ['memory.erased'], gate: { act: 'delete', when: "actor.kind != 'person'" },
       tool: 'memory', audit: 'always', risk: 'high', errors: ['permission.on_hold'],
     }),
@@ -194,11 +207,11 @@ export default defineManifest({
       in: factT, out: { fact: factRow, trashed: t.bool() }, emits: ['memory.removed'], tool: 'memory', offline: 'queue', errors: ['validation.not_found', 'validation.precondition_failed'],
     }),
     write('memory.restore', 'Restore a fact from Trash, or from Archive for an admin; open to any person or agent who can see the fact', {
-      in: factT, out: { fact: factRow, restoredFrom: t.enm('trash', 'archive') }, emits: ['memory.restored'], tool: 'memory', mcpName: 'memory_restore', agent: { planMode: 'blocked' },
+      in: { factId: t.opt(id.fact), pageId: t.opt(t.str()) }, out: { fact: t.opt(factRow), page: t.opt(pageRow), restoredFrom: t.enm('trash', 'archive') }, emits: ['memory.restored', 'memory.page_restored'], tool: 'memory', mcpName: 'memory_restore', agent: { planMode: 'blocked' },
       errors: ['validation.not_found', 'validation.precondition_failed', 'permission.role_lacks_permission'],
     }),
     read('memory.trash.search', 'Search Trash (or Archive, for an admin): deleted and merged-away facts, which normal search and recall never show', {
-      in: { q: t.opt(t.str()), area: t.opt(t.enm('trash', 'archive')), layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), ...pageIn }, out: { facts: t.arr(factRow), ...pageOut },
+      in: { q: t.opt(t.str()), area: t.opt(t.enm('trash', 'archive')), layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), ...pageIn }, out: { facts: t.arr(factRow), pages: t.opt(t.arr(pageRow)), ...pageOut },
       label: 'filter', tool: 'memory', mcpName: 'memory_search_trash', errors: ['permission.role_lacks_permission'],
     }),
     write('memory.archive_sweep', 'Daily job: move facts untouched in Trash for the Space setting (30 to 90 days, default 60) to Archive', {
@@ -227,6 +240,39 @@ export default defineManifest({
     write('memory.question.resolve', 'Answer an upkeep question with one click: keep one of two facts (the other goes to Trash), keep both, confirm an old fact, or drop it', {
       in: { questionId: t.str(), resolution: t.enm('keep_a', 'keep_b', 'keep_both', 'drop') }, out: { ok: t.bool(), resolution: t.str() }, tool: 'memory', offline: 'queue',
       errors: ['validation.not_found', 'validation.precondition_failed', 'permission.no_grant'],
+    }),
+    // ---- living pages: facts on top, Notes below, [[links]] into one graph (owner design 30 Oct 2026, ruling 4)
+    read('memory.page.get', 'Open a page by id or title: its facts, its Notes, the [[links]] it makes and the chats, runs, records and pages that link to it', {
+      in: { pageId: t.opt(t.str()), title: t.opt(t.str()), layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project) },
+      out: { page: pageRow, notes: t.str(), facts: t.arr(factRow), links: t.arr(pageLink), backlinks: t.arr(backlink), versions: t.int({ minimum: 1 }) },
+      label: 'check', tool: 'memory', mcpName: 'memory_open_page', agent: { planMode: 'allowed' }, errors: ['validation.not_found'],
+    }),
+    write('memory.page.put', 'Write the Notes of a page as a new version (making the page when it is new); [[links]] in the Notes become labelled edges, each with the line it was written in', {
+      in: {
+        pageId: t.opt(t.str()), title: t.opt(t.str()), kind: t.opt(pageKind), layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), subjectRef: t.opt(t.str()), notes: t.str(),
+        baseVersion: t.opt(t.int({ minimum: 1, description: 'The version the writer started from; a different current version refuses the write' })), reason: t.opt(t.str()),
+      },
+      out: { page: pageRow, created: t.bool(), links: t.int({ minimum: 0 }) }, tool: 'memory', mcpName: 'memory_write_page', agent: { planMode: 'blocked' }, offline: 'queue',
+      errors: ['validation.not_found', 'validation.precondition_failed', 'permission.no_grant'],
+    }),
+    read('memory.page.list', 'List the pages the reader can see, by words in the title or Notes, layer, kind, agent or project', {
+      in: { q: t.opt(t.str()), layer: t.opt(layer), kind: t.opt(pageKind), agentId: t.opt(id.agent), projectId: t.opt(id.project), ...pageIn }, out: { pages: t.arr(pageRow), ...pageOut }, label: 'filter', tool: 'memory',
+    }),
+    read('memory.page.versions', 'Every version of the Notes of a page, newest first, with who wrote it and when', {
+      in: { pageId: t.str() }, out: { versions: t.arr(t.obj({ version: t.int({ minimum: 1 }), by: t.str(), actorKind: t.enm('person', 'agent', 'upkeep', 'system'), at: t.ts(), reason: t.opt(t.str()), notes: t.str() })) },
+      label: 'check', tool: 'memory', errors: ['validation.not_found'],
+    }),
+    write('memory.page.restore_version', 'Write an earlier version of the Notes back as a new version (the versions in between stay)', {
+      in: { pageId: t.str(), version: t.int({ minimum: 1 }) }, out: { page: pageRow }, tool: 'memory', offline: 'queue', errors: ['validation.not_found', 'validation.precondition_failed', 'permission.no_grant'],
+    }),
+    write('memory.page.delete', 'Move a page to Trash; memory.restore brings it back', {
+      in: { pageId: t.str() }, out: { page: pageRow, trashed: t.bool() }, emits: ['memory.removed'], tool: 'memory', offline: 'queue', errors: ['validation.not_found', 'permission.no_grant'],
+    }),
+    read('memory.backlinks', 'Where a page is linked from: other pages, chats, runs and records, each with the line that names it; only places the reader can open', {
+      in: { pageId: t.str(), ...pageIn }, out: { backlinks: t.arr(backlink), ...pageOut }, label: 'filter', tool: 'memory', mcpName: 'memory_backlinks', agent: { planMode: 'allowed' }, errors: ['validation.not_found'],
+    }),
+    read('memory.export_markdown', 'The whole brain the reader can see as one Markdown document: pages with their facts, Notes and links, then the facts no page names; personal memory only when asked, and only the reader\'s own', {
+      in: { includePersonal: t.opt(t.bool()) }, out: { markdown: t.str(), pages: t.int({ minimum: 0 }), facts: t.int({ minimum: 0 }), bytes: t.int({ minimum: 0 }) }, label: 'filter', tool: 'memory',
     }),
   ],
   events: [
@@ -258,6 +304,7 @@ export default defineManifest({
       subject: ['entity', '/factId'], vis: 'participants', label: 'subject', retention: 'memory',
     }),
     ev('memory.restored', 'A fact came back from Trash or Archive', { p: { factId: id.fact, from: t.str(), by: t.str() }, subject: ['entity', '/factId'], vis: 'participants', retention: 'memory' }),
+    ev('memory.page_restored', 'A page came back from Trash or Archive', { p: { pageId: t.str(), from: t.str(), by: t.str() }, subject: ['entity', '/pageId'], vis: 'participants', retention: 'memory' }),
     ev('memory.archived', 'Facts untouched in Trash moved to Archive', { p: { count: t.int(), days: t.int() }, subject: ['entity', '/count'], retention: 'memory' }),
     ev('memory.upkeep_ran', 'An upkeep run finished (counts and cost only)', {
       p: { runId: t.str(), merged: t.int(), flagged: t.int(), stale: t.int(), created: t.int(), corrected: t.int(), deleted: t.int(), tidied: t.int(), modelUsed: t.bool(), costMicros: t.int(), stopped: t.opt(t.str()) },

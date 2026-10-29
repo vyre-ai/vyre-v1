@@ -4412,6 +4412,12 @@
     },
     {
       "deferred": false,
+      "name": "memory_backlinks",
+      "summary": "Where a page is linked from: other pages, chats, runs and records, each with the line that names it; only places the reader can open",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_counts",
       "summary": "Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own",
       "toolset": "memory"
@@ -4420,6 +4426,12 @@
       "deferred": false,
       "name": "memory_erase",
       "summary": "Erase completely: delete facts from history; open to the source person or an admin; the audit entry records who and when, never what",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_export_markdown",
+      "summary": "The whole brain the reader can see as one Markdown document: pages with their facts, Notes and links, then the facts no page names; personal memory only when asked, and only the reader's own",
       "toolset": "memory"
     },
     {
@@ -4520,6 +4532,36 @@
     },
     {
       "deferred": false,
+      "name": "memory_open_page",
+      "summary": "Open a page by id or title: its facts, its Notes, the [[links]] it makes and the chats, runs, records and pages that link to it",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_page_delete",
+      "summary": "Move a page to Trash; memory.restore brings it back",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_page_list",
+      "summary": "List the pages the reader can see, by words in the title or Notes, layer, kind, agent or project",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_page_restore_version",
+      "summary": "Write an earlier version of the Notes back as a new version (the versions in between stay)",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_page_versions",
+      "summary": "Every version of the Notes of a page, newest first, with who wrote it and when",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_promote",
       "summary": "Promote a fact to the agent, a project or the Space layer; a task for the right approver carries the name and time, no admin needed when the person can edit the target",
       "toolset": "memory"
@@ -4606,6 +4648,12 @@
       "deferred": false,
       "name": "memory_versions",
       "summary": "List versions of a shared memory note (One History)",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_write_page",
+      "summary": "Write the Notes of a page as a new version (making the page when it is new); [[links]] in the Notes become labelled edges, each with the line it was written in",
       "toolset": "memory"
     },
     {

@@ -39,9 +39,10 @@ type In = {
 ```ts
 type Out = {
   hits: Array<{
-      kind: "note" | "fact";
+      kind: "note" | "fact" | "page";
       noteId?: string;
       factId?: string;
+      pageId?: string;
       title: string;
       text: string;
       path?: string;
@@ -88,6 +89,7 @@ type Out = {
         "kind": "note",
         "layer": "person",
         "noteId": "not_a1b2c3",
+        "pageId": "example",
         "path": "example",
         "score": 1,
         "sourceLink": "example",

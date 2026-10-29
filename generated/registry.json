@@ -1602,6 +1602,65 @@
       ],
       "type": "string"
     },
+    "s_16f85f944f": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "asOf": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "focus": {
+          "description": "A node id: draw only it and the nodes near it",
+          "type": "string"
+        },
+        "hops": {
+          "description": "How far from the focus, two by default",
+          "maximum": 6,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "kinds": {
+          "items": {
+            "description": "Node types to show",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "layers": {
+          "items": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "scope": {
+          "enum": [
+            "agent",
+            "space"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope"
+      ],
+      "type": "object"
+    },
     "s_18a5df4b3d": {
       "items": {
         "properties": {
@@ -2431,6 +2490,138 @@
       },
       "required": [
         "event"
+      ],
+      "type": "object"
+    },
+    "s_1f1167b82f": {
+      "properties": {
+        "clusters": {
+          "items": {
+            "properties": {
+              "hub": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "size": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "name",
+              "hub",
+              "size"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "edges": {
+          "items": {
+            "properties": {
+              "at": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              "evidence": {
+                "description": "The line the link was written in, or the quote from the chat or record that names the page",
+                "type": "string"
+              },
+              "from": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "link",
+                  "relation",
+                  "came_from",
+                  "mention"
+                ],
+                "type": "string"
+              },
+              "label": {
+                "description": "What the link says, written before it as \"works with:: [[Page]]\"",
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "kind"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "nodes": {
+          "items": {
+            "properties": {
+              "cluster": {
+                "description": "Cluster named after its hub",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "note",
+                  "person",
+                  "client",
+                  "project",
+                  "site",
+                  "decision",
+                  "record",
+                  "chat",
+                  "agent",
+                  "topic"
+                ],
+                "type": "string"
+              },
+              "layer": {
+                "enum": [
+                  "person",
+                  "agent",
+                  "project",
+                  "space"
+                ],
+                "type": "string"
+              },
+              "link": {
+                "type": "string"
+              },
+              "nodeId": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "nodeId",
+              "kind",
+              "title"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "nodes",
+        "edges",
+        "clusters"
       ],
       "type": "object"
     },
@@ -4603,6 +4794,106 @@
         "roles",
         "status",
         "engineerMcp"
+      ],
+      "type": "object"
+    },
+    "s_3cec8a4074": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "archivedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "person",
+            "client",
+            "project",
+            "agent",
+            "record",
+            "topic",
+            "decision",
+            "site"
+          ],
+          "type": "string"
+        },
+        "layer": {
+          "enum": [
+            "person",
+            "agent",
+            "project",
+            "space"
+          ],
+          "type": "string"
+        },
+        "ownerRef": {
+          "type": "string"
+        },
+        "pageId": {
+          "type": "string"
+        },
+        "projectId": {
+          "examples": [
+            "prj_a1b2c3"
+          ],
+          "pattern": "^prj_[a-z0-9]+$",
+          "type": "string"
+        },
+        "subjectRef": {
+          "description": "The record or person this page stands for",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "trashedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "version": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pageId",
+        "title",
+        "kind",
+        "layer",
+        "ownerRef",
+        "version",
+        "createdAt",
+        "updatedAt"
       ],
       "type": "object"
     },
@@ -13157,42 +13448,6 @@
       ],
       "type": "object"
     },
-    "s_b543221aaa": {
-      "properties": {
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "asOf": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "kinds": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "scope": {
-          "enum": [
-            "agent",
-            "space"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "scope"
-      ],
-      "type": "object"
-    },
     "s_b549e9e216": {
       "properties": {
         "id": {
@@ -16313,6 +16568,53 @@
       ],
       "type": "object"
     },
+    "s_e2700acfad": {
+      "items": {
+        "properties": {
+          "at": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "page",
+              "chat",
+              "run",
+              "record"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "link": {
+            "type": "string"
+          },
+          "quote": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "ref",
+          "title",
+          "quote",
+          "at"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
     "s_e272d7475d": {
       "properties": {
         "agentId": {
@@ -18203,118 +18505,11 @@
       ],
       "type": "object"
     },
-    "s_ff7ef596c9": {
-      "properties": {
-        "clusters": {
-          "items": {
-            "properties": {
-              "hub": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "size": {
-                "type": "integer"
-              }
-            },
-            "required": [
-              "name",
-              "hub",
-              "size"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "edges": {
-          "items": {
-            "properties": {
-              "from": {
-                "type": "string"
-              },
-              "kind": {
-                "enum": [
-                  "link",
-                  "relation",
-                  "came_from"
-                ],
-                "type": "string"
-              },
-              "to": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "from",
-              "to",
-              "kind"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "nodes": {
-          "items": {
-            "properties": {
-              "cluster": {
-                "description": "Cluster named after its hub",
-                "type": "string"
-              },
-              "kind": {
-                "enum": [
-                  "note",
-                  "person",
-                  "client",
-                  "project",
-                  "site",
-                  "decision",
-                  "record",
-                  "chat"
-                ],
-                "type": "string"
-              },
-              "layer": {
-                "enum": [
-                  "person",
-                  "agent",
-                  "project",
-                  "space"
-                ],
-                "type": "string"
-              },
-              "link": {
-                "type": "string"
-              },
-              "nodeId": {
-                "type": "string"
-              },
-              "title": {
-                "type": "string"
-              },
-              "x": {
-                "type": "number"
-              },
-              "y": {
-                "type": "number"
-              }
-            },
-            "required": [
-              "nodeId",
-              "kind",
-              "title"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        }
+    "s_ff83ab9a9d": {
+      "items": {
+        "$ref": "#/$defs/s_3cec8a4074"
       },
-      "required": [
-        "nodes",
-        "edges",
-        "clusters"
-      ],
-      "type": "object"
+      "type": "array"
     }
   },
   "agentTools": [
@@ -108988,6 +109183,102 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "cursor": "example",
+            "limit": 1,
+            "pageId": "example"
+          },
+          "name": "example",
+          "output": {
+            "backlinks": [
+              {
+                "at": 1760000000000,
+                "kind": "page",
+                "label": "example",
+                "link": "example",
+                "quote": "example",
+                "ref": "example",
+                "title": "example"
+              }
+            ],
+            "next": "example",
+            "total": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "pageId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pageId"
+        ],
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.backlinks",
+      "output": {
+        "properties": {
+          "backlinks": {
+            "$ref": "#/$defs/s_e2700acfad"
+          },
+          "next": {
+            "description": "Cursor for the next page; absent on the last page",
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "backlinks"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Where a page is linked from: other pages, chats, runs and records, each with the line that names it; only places the reader can open",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "memory_backlinks",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [
         "memory.captured",
@@ -109170,6 +109461,9 @@
             "factIds": [
               "fct_a1b2c3"
             ],
+            "pageIds": [
+              "example"
+            ],
             "reason": "example",
             "scope": {
               "agentId": "agt_a1b2c3",
@@ -109197,6 +109491,12 @@
                 "fct_a1b2c3"
               ],
               "pattern": "^fct_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "pageIds": {
+            "items": {
               "type": "string"
             },
             "type": "array"
@@ -109258,6 +109558,83 @@
       "risk": "high",
       "since": "1.0.0",
       "summary": "Erase completely: delete facts from history; open to the source person or an admin; the audit entry records who and when, never what",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "includePersonal": true
+          },
+          "name": "example",
+          "output": {
+            "bytes": 1,
+            "facts": 1,
+            "markdown": "example",
+            "pages": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "includePersonal": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.export_markdown",
+      "output": {
+        "properties": {
+          "bytes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "facts": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "markdown": {
+            "type": "string"
+          },
+          "pages": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "markdown",
+          "pages",
+          "facts",
+          "bytes"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The whole brain the reader can see as one Markdown document: pages with their facts, Notes and links, then the facts no page names; personal memory only when asked, and only the reader's own",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -110141,8 +110518,13 @@
           "input": {
             "agentId": "agt_a1b2c3",
             "asOf": 1760000000000,
+            "focus": "example",
+            "hops": 1,
             "kinds": [
               "example"
+            ],
+            "layers": [
+              "person"
             ],
             "scope": "agent"
           },
@@ -110157,8 +110539,11 @@
             ],
             "edges": [
               {
+                "at": 1760000000000,
+                "evidence": "example",
                 "from": "example",
                 "kind": "link",
+                "label": "example",
                 "to": "example"
               }
             ],
@@ -110179,14 +110564,14 @@
       ],
       "idempotency": "natural",
       "input": {
-        "$ref": "#/$defs/s_b543221aaa"
+        "$ref": "#/$defs/s_16f85f944f"
       },
       "label": "filter",
       "level": "view",
       "module": "memory",
       "name": "memory.graph",
       "output": {
-        "$ref": "#/$defs/s_ff7ef596c9"
+        "$ref": "#/$defs/s_1f1167b82f"
       },
       "permission": null,
       "resource": {
@@ -110233,8 +110618,11 @@
             ],
             "edges": [
               {
+                "at": 1760000000000,
+                "evidence": "example",
                 "from": "example",
                 "kind": "link",
+                "label": "example",
                 "to": "example"
               }
             ],
@@ -110272,7 +110660,7 @@
       "module": "memory",
       "name": "memory.graph_everything",
       "output": {
-        "$ref": "#/$defs/s_ff7ef596c9"
+        "$ref": "#/$defs/s_1f1167b82f"
       },
       "permission": "memory.admin",
       "resource": {
@@ -110304,8 +110692,13 @@
           "input": {
             "agentId": "agt_a1b2c3",
             "asOf": 1760000000000,
+            "focus": "example",
+            "hops": 1,
             "kinds": [
               "example"
+            ],
+            "layers": [
+              "person"
             ],
             "scope": "agent"
           },
@@ -110317,7 +110710,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "$ref": "#/$defs/s_b543221aaa"
+        "$ref": "#/$defs/s_16f85f944f"
       },
       "level": "edit",
       "module": "memory",
@@ -111430,6 +111823,771 @@
       "v": 1
     },
     {
+      "effects": "write",
+      "emits": [
+        "memory.removed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "pageId": "example"
+          },
+          "name": "example",
+          "output": {
+            "page": {
+              "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "createdAt": 1760000000000,
+              "kind": "person",
+              "layer": "person",
+              "ownerRef": "example",
+              "pageId": "example",
+              "projectId": "prj_a1b2c3",
+              "subjectRef": "example",
+              "title": "example",
+              "trashedAt": 1760000000000,
+              "updatedAt": 1760000000000,
+              "version": 1
+            },
+            "trashed": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "pageId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pageId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "memory",
+      "name": "memory.page.delete",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "page": {
+            "$ref": "#/$defs/s_3cec8a4074"
+          },
+          "trashed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "page",
+          "trashed"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Move a page to Trash; memory.restore brings it back",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "layer": "person",
+            "pageId": "example",
+            "projectId": "prj_a1b2c3",
+            "title": "example"
+          },
+          "name": "example",
+          "output": {
+            "backlinks": [
+              {
+                "at": 1760000000000,
+                "kind": "page",
+                "label": "example",
+                "link": "example",
+                "quote": "example",
+                "ref": "example",
+                "title": "example"
+              }
+            ],
+            "facts": [
+              {
+                "agentId": "agt_a1b2c3",
+                "archivedAt": 1760000000000,
+                "closedAt": 1760000000000,
+                "factId": "fct_a1b2c3",
+                "layer": "person",
+                "learnedAt": 1760000000000,
+                "lowRisk": true,
+                "noteId": "not_a1b2c3",
+                "ownerRef": "agt_a1b2c3",
+                "sourceKind": "chat",
+                "sourceLink": "example",
+                "sourceRef": "example",
+                "status": "proposed",
+                "text": "example",
+                "trashReason": "example",
+                "trashedAt": 1760000000000,
+                "validFrom": 1760000000000,
+                "validTo": 1760000000000
+              }
+            ],
+            "links": [
+              {
+                "evidence": "example",
+                "label": "example",
+                "pageId": "example",
+                "title": "example"
+              }
+            ],
+            "notes": "example",
+            "page": {
+              "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "createdAt": 1760000000000,
+              "kind": "person",
+              "layer": "person",
+              "ownerRef": "example",
+              "pageId": "example",
+              "projectId": "prj_a1b2c3",
+              "subjectRef": "example",
+              "title": "example",
+              "trashedAt": 1760000000000,
+              "updatedAt": 1760000000000,
+              "version": 1
+            },
+            "versions": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "pageId": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.page.get",
+      "output": {
+        "properties": {
+          "backlinks": {
+            "$ref": "#/$defs/s_e2700acfad"
+          },
+          "facts": {
+            "$ref": "#/$defs/s_245e72f271"
+          },
+          "links": {
+            "items": {
+              "properties": {
+                "evidence": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "pageId": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "title",
+                "evidence"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "page": {
+            "$ref": "#/$defs/s_3cec8a4074"
+          },
+          "versions": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "page",
+          "notes",
+          "facts",
+          "links",
+          "backlinks",
+          "versions"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Open a page by id or title: its facts, its Notes, the [[links]] it makes and the chats, runs, records and pages that link to it",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "memory_open_page",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "cursor": "example",
+            "kind": "person",
+            "layer": "person",
+            "limit": 1,
+            "projectId": "prj_a1b2c3",
+            "q": "example"
+          },
+          "name": "example",
+          "output": {
+            "next": "example",
+            "pages": [
+              {
+                "agentId": "agt_a1b2c3",
+                "archivedAt": 1760000000000,
+                "createdAt": 1760000000000,
+                "kind": "person",
+                "layer": "person",
+                "ownerRef": "example",
+                "pageId": "example",
+                "projectId": "prj_a1b2c3",
+                "subjectRef": "example",
+                "title": "example",
+                "trashedAt": 1760000000000,
+                "updatedAt": 1760000000000,
+                "version": 1
+              }
+            ],
+            "total": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "person",
+              "client",
+              "project",
+              "agent",
+              "record",
+              "topic",
+              "decision",
+              "site"
+            ],
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "q": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.page.list",
+      "output": {
+        "properties": {
+          "next": {
+            "description": "Cursor for the next page; absent on the last page",
+            "type": "string"
+          },
+          "pages": {
+            "$ref": "#/$defs/s_ff83ab9a9d"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pages"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "List the pages the reader can see, by words in the title or Notes, layer, kind, agent or project",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "baseVersion": 1,
+            "kind": "person",
+            "layer": "person",
+            "notes": "example",
+            "pageId": "example",
+            "projectId": "prj_a1b2c3",
+            "reason": "example",
+            "subjectRef": "example",
+            "title": "example"
+          },
+          "name": "example",
+          "output": {
+            "created": true,
+            "links": 1,
+            "page": {
+              "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "createdAt": 1760000000000,
+              "kind": "person",
+              "layer": "person",
+              "ownerRef": "example",
+              "pageId": "example",
+              "projectId": "prj_a1b2c3",
+              "subjectRef": "example",
+              "title": "example",
+              "trashedAt": 1760000000000,
+              "updatedAt": 1760000000000,
+              "version": 1
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "baseVersion": {
+            "description": "The version the writer started from; a different current version refuses the write",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "person",
+              "client",
+              "project",
+              "agent",
+              "record",
+              "topic",
+              "decision",
+              "site"
+            ],
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "pageId": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "subjectRef": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "notes"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "memory",
+      "name": "memory.page.put",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "created": {
+            "type": "boolean"
+          },
+          "links": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "page": {
+            "$ref": "#/$defs/s_3cec8a4074"
+          }
+        },
+        "required": [
+          "page",
+          "created",
+          "links"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Write the Notes of a page as a new version (making the page when it is new); [[links]] in the Notes become labelled edges, each with the line it was written in",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "memory_write_page",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "pageId": "example",
+            "version": 1
+          },
+          "name": "example",
+          "output": {
+            "page": {
+              "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "createdAt": 1760000000000,
+              "kind": "person",
+              "layer": "person",
+              "ownerRef": "example",
+              "pageId": "example",
+              "projectId": "prj_a1b2c3",
+              "subjectRef": "example",
+              "title": "example",
+              "trashedAt": 1760000000000,
+              "updatedAt": 1760000000000,
+              "version": 1
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "pageId": {
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pageId",
+          "version"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "memory",
+      "name": "memory.page.restore_version",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "page": {
+            "$ref": "#/$defs/s_3cec8a4074"
+          }
+        },
+        "required": [
+          "page"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Write an earlier version of the Notes back as a new version (the versions in between stay)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "pageId": "example"
+          },
+          "name": "example",
+          "output": {
+            "versions": [
+              {
+                "actorKind": "person",
+                "at": 1760000000000,
+                "by": "example",
+                "notes": "example",
+                "reason": "example",
+                "version": 1
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "pageId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pageId"
+        ],
+        "type": "object"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.page.versions",
+      "output": {
+        "properties": {
+          "versions": {
+            "items": {
+              "properties": {
+                "actorKind": {
+                  "enum": [
+                    "person",
+                    "agent",
+                    "upkeep",
+                    "system"
+                  ],
+                  "type": "string"
+                },
+                "at": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "by": {
+                  "type": "string"
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "version": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "version",
+                "by",
+                "actorKind",
+                "at",
+                "notes"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "versions"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Every version of the Notes of a page, newest first, with who wrote it and when",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -112447,7 +113605,8 @@
     {
       "effects": "write",
       "emits": [
-        "memory.restored"
+        "memory.restored",
+        "memory.page_restored"
       ],
       "errors": [
         "internal.unexpected",
@@ -112461,7 +113620,8 @@
       "examples": [
         {
           "input": {
-            "factId": "fct_a1b2c3"
+            "factId": "fct_a1b2c3",
+            "pageId": "example"
           },
           "name": "example",
           "output": {
@@ -112485,6 +113645,21 @@
               "validFrom": 1760000000000,
               "validTo": 1760000000000
             },
+            "page": {
+              "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "createdAt": 1760000000000,
+              "kind": "person",
+              "layer": "person",
+              "ownerRef": "example",
+              "pageId": "example",
+              "projectId": "prj_a1b2c3",
+              "subjectRef": "example",
+              "title": "example",
+              "trashedAt": 1760000000000,
+              "updatedAt": 1760000000000,
+              "version": 1
+            },
             "restoredFrom": "trash"
           }
         }
@@ -112498,11 +113673,11 @@
             ],
             "pattern": "^fct_[a-z0-9]+$",
             "type": "string"
+          },
+          "pageId": {
+            "type": "string"
           }
         },
-        "required": [
-          "factId"
-        ],
         "type": "object"
       },
       "level": "edit",
@@ -112513,6 +113688,9 @@
           "fact": {
             "$ref": "#/$defs/s_b47bc60198"
           },
+          "page": {
+            "$ref": "#/$defs/s_3cec8a4074"
+          },
           "restoredFrom": {
             "enum": [
               "trash",
@@ -112522,7 +113700,6 @@
           }
         },
         "required": [
-          "fact",
           "restoredFrom"
         ],
         "type": "object"
@@ -112663,6 +113840,7 @@
                 "kind": "note",
                 "layer": "person",
                 "noteId": "not_a1b2c3",
+                "pageId": "example",
                 "path": "example",
                 "score": 1,
                 "sourceLink": "example",
@@ -112750,7 +113928,8 @@
                 "kind": {
                   "enum": [
                     "note",
-                    "fact"
+                    "fact",
+                    "page"
                   ],
                   "type": "string"
                 },
@@ -112768,6 +113947,9 @@
                     "not_a1b2c3"
                   ],
                   "pattern": "^not_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "pageId": {
                   "type": "string"
                 },
                 "path": {
@@ -113121,6 +114303,23 @@
               }
             ],
             "next": "example",
+            "pages": [
+              {
+                "agentId": "agt_a1b2c3",
+                "archivedAt": 1760000000000,
+                "createdAt": 1760000000000,
+                "kind": "person",
+                "layer": "person",
+                "ownerRef": "example",
+                "pageId": "example",
+                "projectId": "prj_a1b2c3",
+                "subjectRef": "example",
+                "title": "example",
+                "trashedAt": 1760000000000,
+                "updatedAt": 1760000000000,
+                "version": 1
+              }
+            ],
             "total": 1
           }
         }
@@ -113177,7 +114376,25 @@
       "module": "memory",
       "name": "memory.trash.search",
       "output": {
-        "$ref": "#/$defs/s_8087960aa3"
+        "properties": {
+          "facts": {
+            "$ref": "#/$defs/s_245e72f271"
+          },
+          "next": {
+            "description": "Cursor for the next page; absent on the last page",
+            "type": "string"
+          },
+          "pages": {
+            "$ref": "#/$defs/s_ff83ab9a9d"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "facts"
+        ],
+        "type": "object"
       },
       "permission": null,
       "resource": {
@@ -185851,6 +187068,38 @@
       "summary": "A shared memory note was restored to an earlier version",
       "sv": 1,
       "vis": "space"
+    },
+    {
+      "module": "memory",
+      "name": "memory.page_restored",
+      "payload": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "pageId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pageId",
+          "from",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "memory",
+      "subject": {
+        "id": "/pageId",
+        "type": "entity"
+      },
+      "summary": "A page came back from Trash or Archive",
+      "sv": 1,
+      "vis": "participants"
     },
     {
       "module": "memory",

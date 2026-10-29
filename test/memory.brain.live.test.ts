@@ -117,3 +117,61 @@ test("memory core live: meaning search finds the Chase feed for a bank reconcili
     assert.deepEqual((await hits("bank reconciliation")).hits, []);
   } finally { setEmbedder("local", null); await d.stop(); }
 });
+
+test("memory core live: pages keep versioned Notes, [[links]] become labelled edges with evidence and a chat links back, the graph answers for a date, and the export holds the brain", async () => {
+  const d = await boot(seededDir());
+  try {
+    await connect(d);
+    assert.equal((await call(d, "engine.pool.status", {})).status, 200);
+    const keeper = await newAgent(d, "Keeper");
+    const putPage = async (title: string, notes: string, extra: Record<string, unknown> = {}): Promise<{ pageId: string; version: number }> => {
+      const r = await call(d, "memory.page.put", { title, notes, layer: "space", ...extra });
+      assert.equal(r.status, 200, JSON.stringify(r.data));
+      return r.data.page;
+    };
+    const t0 = clock.t;
+    const firm = await putPage("Harlow Dental", "A dental practice.", { kind: "client" });
+    const dr = await putPage("Dr Harlow", "Owns the practice.\nemployer:: [[Harlow Dental]]", { kind: "person" });
+    clock.t = t0 + 3 * DAY;
+    const edit = await call(d, "memory.page.put", { pageId: dr.pageId, notes: "Owns the practice.\nretired from:: [[Harlow Dental]]", baseVersion: 1 });
+    assert.equal(edit.data.page.version, 2, JSON.stringify(edit.data));
+    const stale = await call(d, "memory.page.put", { pageId: dr.pageId, notes: "late", baseVersion: 1 });
+    assert.equal(stale.status, 422, JSON.stringify(stale.data));
+    assert.equal(stale.data.error.code, "validation.precondition_failed", "a writer who started from version 1 is refused");
+
+    // a chat names the page; the graph consumer turns it into a backlink with the line as its quote
+    const chat = await say(d, keeper.id, "Please call [[Harlow Dental]] about the retainer.", "pg1");
+    assert.equal((await call(d, "memory.index_graph", { entity: "chat", id: chat.threadId, seq: 1 })).status, 200);
+    const got = (await call(d, "memory.page.get", { pageId: firm.pageId })).data;
+    assert.deepEqual(got.backlinks.map((b: { kind: string; title: string; label?: string }) => [b.kind, b.label ?? ""]).sort(), [["chat", ""], ["page", "retired from"]]);
+    const fromChat = got.backlinks.find((b: { kind: string }) => b.kind === "chat");
+    assert.match(fromChat.quote, /call \[\[Harlow Dental\]\] about the retainer/);
+
+    // the graph now, and as it stood on day one
+    const now = (await call(d, "memory.graph", { scope: "space" })).data;
+    const edge = now.edges.find((e: { kind: string; from: string }) => e.kind === "link" && e.from === `page:${dr.pageId}`);
+    assert.deepEqual([edge.label, edge.evidence, edge.to], ["retired from", "retired from:: [[Harlow Dental]]", `page:${firm.pageId}`]);
+    assert.ok(now.edges.some((e: { kind: string; to: string; evidence?: string }) => e.kind === "mention" && e.to === `page:${firm.pageId}` && /retainer/.test(e.evidence ?? "")), JSON.stringify(now.edges));
+    assert.ok(now.nodes.some((n: { nodeId: string; kind: string }) => n.nodeId === `chat:${chat.threadId}` && n.kind === "chat"), "chats are nodes");
+    const then = (await call(d, "memory.graph", { scope: "space", asOf: t0 + DAY })).data;
+    const old = then.edges.find((e: { kind: string; from: string }) => e.kind === "link" && e.from === `page:${dr.pageId}`);
+    assert.deepEqual([old.label, old.evidence], ["employer", "employer:: [[Harlow Dental]]"], "on day one the link said employer");
+    assert.equal(then.nodes.some((n: { kind: string }) => n.kind === "chat"), false, "the chat did not exist yet");
+    const local = (await call(d, "memory.graph", { scope: "space", focus: `page:${dr.pageId}`, hops: 1 })).data;
+    assert.deepEqual(local.nodes.map((n: { nodeId: string }) => n.nodeId).sort(), [`page:${dr.pageId}`, `page:${firm.pageId}`].sort());
+
+    // facts that name a subject sit on its page, and the export carries pages, facts and Notes
+    assert.equal((await call(d, "memory.propose_fact", { idempotencyKey: "pg-f", layer: "space", text: "Harlow Dental pays by wire transfer.", kind: "preference", sourceKind: "manual", sourceRef: "live" })).status, 200);
+    assert.equal((await call(d, "memory.page.get", { pageId: firm.pageId })).data.facts.length, 1);
+    const exported = (await call(d, "memory.export_markdown", {})).data;
+    assert.ok(exported.markdown.includes("### Harlow Dental") && exported.markdown.includes("Harlow Dental pays by wire transfer.") && exported.markdown.includes("retired from: [[Harlow Dental]]"), exported.markdown);
+    assert.deepEqual([exported.pages, exported.facts >= 1], [2, true]);
+
+    // a page deleted is in Trash and restored; the versions are kept
+    assert.equal((await call(d, "memory.page.delete", { pageId: dr.pageId })).data.trashed, true);
+    assert.equal((await call(d, "memory.page.list", {})).data.total, 1);
+    const back = await call(d, "memory.restore", { pageId: dr.pageId, idempotencyKey: "pg-restore" });
+    assert.equal(back.data.restoredFrom, "trash", JSON.stringify(back.data));
+    assert.equal((await call(d, "memory.page.versions", { pageId: dr.pageId })).data.versions.length, 2);
+  } finally { await d.stop(); }
+});

@@ -9,7 +9,9 @@ import { reviewRequired } from "../policy.ts";
 import { trail, whoIs } from "../trail.ts";
 import type { Who } from "../trail.ts";
 import { emitAccepted, emitLearned, emitProposed, insertFact, normal } from "../factcore.ts";
+import { loadPage, readPage } from "../pages.ts";
 import { touchIfTrashed, trashFact } from "./lifecycle.ts";
+import { erasePage } from "./pages.ts";
 import {
   actorOf, autoMergeKinds, bm25, ensure, factOut, liveNow, loadFact, makeAccess, mintId, num, orNull, ownerOfLayer, pageOf, raise, readFact, recencyBoost, rowsOf, sealText, snippet, sourceLinkOf,
   str, tokens, trigramSim,
@@ -186,10 +188,23 @@ export async function factsRemove(ctx: MemCtx, input: { factIds?: string[]; scop
   return { removed: removed.length };
 }
 
-export async function erase(ctx: MemCtx, input: { factIds?: string[]; scope?: { layer: Layer; agentId?: string; sourceRef?: string; subject?: string }; reason?: string }) {
+export async function erase(ctx: MemCtx, input: { factIds?: string[]; pageIds?: string[]; scope?: { layer: Layer; agentId?: string; sourceRef?: string; subject?: string }; reason?: string }) {
   ensure(ctx.db);
   const me = actorOf(ctx);
   const access = makeAccess(ctx);
+  // Pages named here are erased with their versions, links and mentions; open to a personal page's owner or an admin. Their trail line holds no words.
+  let pagesErased = 0;
+  for (const id of input.pageIds ?? []) {
+    const page = loadPage(ctx, id);
+    if (!page) continue;
+    if (!(access.isAdmin() || (page.layer === "person" && page.ownerRef === me))) raise(ctx, "permission.no_grant", "Only an admin, or the owner of a personal page, can erase it.");
+    erasePage(ctx, page, input.reason);
+    pagesErased++;
+  }
+  if (pagesErased > 0 && !(input.factIds && input.factIds.length > 0) && !input.scope) {
+    ctx.emit("memory.erased", me, { count: pagesErased, by: me, scope: "page" });
+    return { erased: pagesErased };
+  }
   let rows: Row[] = [];
   if (input.factIds && input.factIds.length > 0) {
     for (const id of input.factIds) rows.push(...rowsOf(ctx.db, "SELECT * FROM memory_facts WHERE id = ?", id));
@@ -233,8 +248,8 @@ export async function erase(ctx: MemCtx, input: { factIds?: string[]; scope?: { 
     ctx.db.run("DELETE FROM memory_questions WHERE fact_a = ? OR fact_b = ?", id, id);
     ctx.db.run("DELETE FROM memory_facts WHERE id = ?", id);
   }
-  ctx.emit("memory.erased", me, { count: all.size, by: me, ...(input.scope ? { scope: input.scope.layer } : {}) });
-  return { erased: all.size };
+  ctx.emit("memory.erased", me, { count: all.size + pagesErased, by: me, ...(input.scope ? { scope: input.scope.layer } : {}) });
+  return { erased: all.size + pagesErased };
 }
 
 // ---- reads
@@ -348,7 +363,7 @@ export async function mapGet(ctx: MemCtx, input: { agentId: string }) {
 
 // ---- search
 
-interface Doc { kind: "fact" | "note"; id: string; title: string; text: string; layer: Layer; path: string | null; since: number | null; link: string | null; learnedAt: number; shared: boolean }
+interface Doc { kind: "fact" | "note" | "page"; id: string; title: string; text: string; layer: Layer; path: string | null; since: number | null; link: string | null; learnedAt: number; shared: boolean }
 
 /** The notes the caller may read, as documents. Person-layer notes are indexed by sealed title only. */
 async function noteDocs(ctx: MemCtx, access: Access, agentId: string | undefined, projectId: string | undefined): Promise<Array<Doc & { noteId: string }>> {
@@ -376,6 +391,26 @@ async function noteDocs(ctx: MemCtx, access: Access, agentId: string | undefined
 
 function readTitle(ctx: MemCtx, sealed: string): string {
   return readFact(ctx, { layer: "person", owner_ref: actorOf(ctx), enc: 2, sealed, text: "" }).text;
+}
+
+/** The pages the caller may read, as documents: the title and the Notes. A personal page is the owner's alone and is indexed by its opened Notes only for them. */
+async function pageDocs(ctx: MemCtx, access: Access, agentId: string | undefined, projectId: string | undefined): Promise<Doc[]> {
+  const me = actorOf(ctx);
+  const args: unknown[] = [me];
+  let sql = "SELECT * FROM memory_pages WHERE trashed_at IS NULL AND (layer != 'person' OR owner_ref = ?)";
+  if (agentId) { sql += " AND (agent_id = ? OR layer IN ('project', 'space'))"; args.push(agentId); }
+  if (projectId) { sql += " AND (project_id = ? OR layer != 'project')"; args.push(projectId); }
+  const out: Doc[] = [];
+  const memo = new Map<string, boolean>();
+  for (const r of rowsOf(ctx.db, sql, ...args)) {
+    const p = readPage(ctx, r);
+    const key = `${p.layer}|${p.ownerRef}|${p.agentId ?? ""}|${p.projectId ?? ""}`;
+    let ok = memo.get(key);
+    if (ok === undefined) { ok = p.layer === "person" ? p.ownerRef === me : await access.can(p.layer, p.ownerRef, p.agentId, p.projectId, "view"); memo.set(key, ok); }
+    if (!ok) continue;
+    out.push({ kind: "page", id: p.id, title: p.title, text: p.notes, layer: p.layer, path: null, since: null, link: `/memory/pages/${p.id}`, learnedAt: p.updatedAt, shared: p.layer !== "person" });
+  }
+  return out;
 }
 
 async function factDocs(ctx: MemCtx, access: Access, agentId: string | undefined, projectId: string | undefined): Promise<Doc[]> {
@@ -428,7 +463,7 @@ export async function search(
   if (q === "") raise(ctx, "validation.bad_input", "Ask for something to look up.");
   const access = makeAccess(ctx);
   const layers = new Set<Layer>(input.layers && input.layers.length > 0 ? input.layers : LAYERS);
-  const docs = [...(await factDocs(ctx, access, input.agentId, input.projectId)), ...(await noteDocs(ctx, access, input.agentId, input.projectId))].filter((d) => layers.has(d.layer));
+  const docs = [...(await factDocs(ctx, access, input.agentId, input.projectId)), ...(await noteDocs(ctx, access, input.agentId, input.projectId)), ...(await pageDocs(ctx, access, input.agentId, input.projectId))].filter((d) => layers.has(d.layer));
   const mode = input.mode ?? "hybrid";
   const ranked = bm25(docs, q);
   const top = Math.max(0, ...ranked.map((r) => r.score));
@@ -456,7 +491,7 @@ export async function search(
   return {
     hits: hits.slice(0, limit).map(({ doc, score }) => ({
       kind: doc.kind,
-      ...(doc.kind === "fact" ? { factId: doc.id } : { noteId: doc.id }),
+      ...(doc.kind === "fact" ? { factId: doc.id } : doc.kind === "page" ? { pageId: doc.id } : { noteId: doc.id }),
       title: doc.title, text: snippet(doc.text || doc.title, q), ...(doc.path ? { path: doc.path } : {}), ...(doc.since !== null ? { trueSince: doc.since } : {}), layer: doc.layer,
       ...(doc.link ? { sourceLink: doc.link } : {}), score: Math.round(score * 10_000) / 10_000,
     })),

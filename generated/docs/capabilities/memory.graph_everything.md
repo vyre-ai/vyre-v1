@@ -35,7 +35,7 @@ type In = {
 type Out = {
   nodes: Array<{
       nodeId: string;
-      kind: "note" | "person" | "client" | "project" | "site" | "decision" | "record" | "chat";
+      kind: "note" | "person" | "client" | "project" | "site" | "decision" | "record" | "chat" | "agent" | "topic";
       title: string;
       layer?: "person" | "agent" | "project" | "space";
       cluster?: string;
@@ -46,7 +46,10 @@ type Out = {
   edges: Array<{
       from: string;
       to: string;
-      kind: "link" | "relation" | "came_from";
+      kind: "link" | "relation" | "came_from" | "mention";
+      label?: string;
+      evidence?: string;
+      at?: number;
     }>;
   clusters: Array<{
       name: string;
@@ -82,8 +85,11 @@ type Out = {
     ],
     "edges": [
       {
+        "at": 1760000000000,
+        "evidence": "example",
         "from": "example",
         "kind": "link",
+        "label": "example",
         "to": "example"
       }
     ],
