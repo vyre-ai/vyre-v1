@@ -59,7 +59,7 @@ export function boundEngine(ctx: Pick<EngineCtx, "trace">): TurnEngine {
   return bound;
 }
 
-const SCHEMA = ["0001_init.sql", "0002_usage_item.sql", "0003_unblock.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
+const SCHEMA = ["0001_init.sql", "0002_usage_item.sql", "0003_unblock.sql", "0004_capture_state.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 
@@ -72,6 +72,7 @@ export function ensure(db: Db): void {
     db.all("SELECT note_text FROM engine_incident_notes WHERE incident_id = ?", "probe");
     db.all("SELECT item_id FROM engine_usage_item WHERE turn_id = ?", "probe");
     db.all("SELECT task_id FROM engine_unblock WHERE task_id = ?", "probe");
+    db.all("SELECT person FROM engine_capture_state WHERE thread_id = ?", "probe");
   } catch {
     for (const stmt of SCHEMA) db.run(stmt);
   }

@@ -88,6 +88,7 @@ import { createLocalKeyRoute } from "../routes/local-key.ts";
 import { createMcpRoute } from "../routes/mcp.ts";
 import type { McpRuntime } from "../routes/mcp.ts";
 import { createKeyring } from "../seams/keyring.ts";
+import { createGithubSignInRoute } from "../routes/github-signin.ts";
 import { createPeopleExtras, githubOAuthFromEnv } from "../seams/people.ts";
 import {createRecoveryCommit} from "../seams/recovery.ts";
 import type { GithubOAuth } from "../seams/people.ts";
@@ -230,6 +231,8 @@ export interface DaemonOptions {
   engineSandbox?: unknown;
   /** Tests: swap a CLI engine's program for a command, and expose extra read-only folders in its sandbox (modules/engine runtime `cli`). */
   engineCli?: unknown;
+  /** Tests: a scripted session opener in place of the real one (the engine runtime's `openSession`), for proofs of what the engine puts in front of a model without running one. */
+  engineOpenSession?: unknown;
   /** replace the consumers and periodic jobs read from the live modules' exports (tests) */
   hooks?: ModuleHooks[];
   /** The key behind ctx.seal. Omitted: a random 32-byte key kept in <data dir>/seal.key (0600). */
@@ -371,6 +374,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const keyring = createKeyring({ allowed: ownNode, live: (id) => (db ? sessionLive(db, id) : false) });
   closers.push(() => keyring.clearAll());
   const fillRoute = createFillRoute();
+  const githubSignInRoute = createGithubSignInRoute({ oauth: () => (o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env)) });
   const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: ownNode });
   let headSeq = 0;
   let sawSpace = false, hostMadeSpace = false;
@@ -883,7 +887,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           log: (u) => sink.log({ space: spaceId, level: 30, msg: "computers.fill", place: "computers", attrs: { ...u } }),
         }) : null,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
-        setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
+        setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
         // Ask Vyre in the email builder is one real agent turn in a private Ask pane, run as the asker: their agent, model, account, spend limits and access (host/src/seams/email-ask.ts)
         configureEmailBuilder: () => ({
           ask: createEmailAskDriver({
@@ -1307,7 +1311,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         res.once("finish", () => { setImmediate(requestStop); });
         return;
       }
-      if (mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
+      if (mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {
