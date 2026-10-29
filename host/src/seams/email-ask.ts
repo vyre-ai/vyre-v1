@@ -5,10 +5,13 @@
 
 type Json = Record<string, unknown>;
 
-/** Run one capability as a person (the asker); the daemon builds it over the invoke pipeline. */
-export type AskCall = (cap: string, input: unknown, as: string) => Promise<unknown>;
+/** Who a call runs as: exactly the principal that asked (never rewritten to a person) and, for an agent, the person it acts for. */
+export interface AskWho { principal: { kind: "person" | "agent" | "service"; id: string }; actingFor?: string | undefined }
 
-export interface EmailAskRequest { instruction: string; agentId: string | null; doc: { emailId: string } & Json; asker: string; signal?: AbortSignal | undefined }
+/** Run one capability as the asker; the daemon builds it over the invoke pipeline. */
+export type AskCall = (cap: string, input: unknown, as: AskWho) => Promise<unknown>;
+
+export interface EmailAskRequest { instruction: string; agentId: string | null; doc: { emailId: string } & Json; principal: AskWho["principal"]; actingFor?: string | undefined; signal?: AbortSignal | undefined }
 
 /** An answer the driver could not turn into a proposal. `code` is an error code of the catalogue; the module raises it as it is. */
 export class AskDriverError extends Error {
@@ -73,24 +76,29 @@ function errorOf(e: unknown): AskDriverError {
   return new AskDriverError("internal.unexpected", e instanceof Error ? e.message : "The agent could not answer.");
 }
 
+/** The person a turn is for: the person who asked, or the person an agent acts for. Anyone else has no account to pay with, so an Ask refuses. */
+export function personOf(r: { principal: AskWho["principal"]; actingFor?: string | undefined }): string {
+  return r.actingFor ?? (r.principal.kind === "person" ? r.principal.id : "");
+}
+
 export function createEmailAskDriver(d: EmailAskDeps): { propose(req: EmailAskRequest): Promise<Json>; cancel(asker: string, emailId: string): number } {
   const now = d.now ?? Date.now;
   const sleep = d.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const timeoutMs = d.timeoutMs ?? 120_000, pollMs = d.pollMs ?? 250;
 
-  async function pickAgent(req: EmailAskRequest): Promise<string> {
+  async function pickAgent(req: EmailAskRequest, who: AskWho): Promise<string> {
     if (req.agentId) return req.agentId;
     try {
-      const s = (await d.call("chat.ask_suggest", { scopeType: "email", scopeId: req.doc.emailId }, req.asker)) as { agentId?: string | null };
+      const s = (await d.call("chat.ask_suggest", { scopeType: "email", scopeId: req.doc.emailId }, who)) as { agentId?: string | null };
       if (s.agentId) return s.agentId;
     } catch { /* no suggestion: take the first awake agent the person can use */ }
-    const list = (await d.call("agents.list", {}, req.asker)) as { agents?: { agentId: string; status?: string }[] };
+    const list = (await d.call("agents.list", {}, who)) as { agents?: { agentId: string; status?: string }[] };
     const agent = (list.agents ?? []).find((a) => a.status === undefined || a.status === "awake");
     if (!agent) throw new AskDriverError("validation.precondition_failed", NO_AGENT);
     return agent.agentId;
   }
 
-  async function stop(threadId: string, agentId: string, asker: string): Promise<void> {
+  async function stop(threadId: string, agentId: string, asker: AskWho): Promise<void> {
     try { await d.call("engine.stop", { threadId, agentId }, asker); } catch (e) { d.log?.("email ask: could not stop the turn", { threadId, error: errorOf(e).message }); }
   }
 
@@ -105,38 +113,41 @@ export function createEmailAskDriver(d: EmailAskDeps): { propose(req: EmailAskRe
       return set?.size ?? 0;
     },
     async propose(req0) {
-      const own = new AbortController(), key0 = `${req0.asker}:${req0.doc.emailId}`;
+      const own = new AbortController(), key0 = `${personOf(req0)}:${req0.doc.emailId}`;
       req0.signal?.addEventListener("abort", () => own.abort(), { once: true });
       if (req0.signal?.aborted) own.abort();
       const req = { ...req0, signal: own.signal };
+      const who: AskWho = { principal: req0.principal, ...(req0.actingFor ? { actingFor: req0.actingFor } : {}) };
+      const person = personOf(req0);
       let set = running.get(key0);
       if (!set) running.set(key0, (set = new Set()));
       set.add(own);
       try {
-        const agentId = await pickAgent(req);
+        if (person === "") throw new AskDriverError("permission.no_grant", "An Ask runs for a person and on their account. This caller is not acting for anyone.");
+        const agentId = await pickAgent(req, who);
         // the first engine call builds the runtime; a message written before it exists is never handed to an engine
-        await d.call("engine.pool.status", {}, req.asker);
+        await d.call("engine.pool.status", {}, who);
         const key = `email-ask-${req.doc.emailId}-${now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const started = (await d.call("chat.start", { kind: "ask", agentIds: [agentId], scopeType: "email", scopeId: req.doc.emailId, title: "Email design", idempotencyKey: key }, req.asker)) as { thread: { threadId: string } };
+        const started = (await d.call("chat.start", { kind: "ask", agentIds: [agentId], scopeType: "email", scopeId: req.doc.emailId, title: "Email design", idempotencyKey: key }, who)) as { thread: { threadId: string } };
         const threadId = started.thread.threadId;
         // an Ask with nobody to pay for it fails here, in words, instead of waiting for a turn that never starts
-        const resolved = (await d.call("engine.account.resolve", { threadId, agentId, askerId: req.asker }, req.asker)) as { allowed?: boolean; accountRef?: string | null };
+        const resolved = (await d.call("engine.account.resolve", { threadId, agentId, askerId: person }, who)) as { allowed?: boolean; accountRef?: string | null };
         if (!resolved.allowed || !resolved.accountRef) throw new AskDriverError("validation.precondition_failed", NO_MODEL);
-        const posted = (await d.call("chat.post", { threadId, body: askPrompt(req.instruction, req.doc), mentions: [{ kind: "agent", id: agentId }], idempotencyKey: `${key}-post` }, req.asker)) as { message?: { messageId?: string; threadSeq?: number } };
+        const posted = (await d.call("chat.post", { threadId, body: askPrompt(req.instruction, req.doc), mentions: [{ kind: "agent", id: agentId }], idempotencyKey: `${key}-post` }, who)) as { message?: { messageId?: string; threadSeq?: number } };
         const after = posted.message?.threadSeq ?? 0;
         const deadline = now() + timeoutMs;
         // the engine ends a turn by speaking: the agent's reply is posted once, whole, when the turn completes, and a failed, stopped or parked turn posts a turn_status block instead
         for (;;) {
-          if (req.signal?.aborted) { await stop(threadId, agentId, req.asker); throw new AskDriverError("validation.precondition_failed", "The Ask was cancelled."); }
-          const listed = (await d.call("chat.messages.list", { threadId, after }, req.asker)) as { messages?: MessageRow[] };
+          if (req.signal?.aborted) { await stop(threadId, agentId, who); throw new AskDriverError("validation.precondition_failed", "The Ask was cancelled."); }
+          const listed = (await d.call("chat.messages.list", { threadId, after }, who)) as { messages?: MessageRow[] };
           const fromAgent = (listed.messages ?? []).filter((m) => m.author?.kind === "agent");
           const status = fromAgent.flatMap((m) => m.blocks ?? []).find((b) => b.type === "turn_status")?.data as { state?: string; code?: string } | undefined;
           if (status?.state === "failed") throw new AskDriverError(status.code && status.code.includes(".") ? status.code : "internal.unexpected", FAILED[status.code ?? ""] ?? "The agent could not finish. Try again.");
           if (status?.state === "cancelled") throw new AskDriverError("validation.precondition_failed", "The agent was stopped before it answered.");
-          if (status?.state === "waiting") { await stop(threadId, agentId, req.asker); throw new AskDriverError("validation.precondition_failed", "The agent needs an approval to go on, which an Ask cannot ask for. Say what to change in a chat with the agent instead."); }
+          if (status?.state === "waiting") { await stop(threadId, agentId, who); throw new AskDriverError("validation.precondition_failed", "The agent needs an approval to go on, which an Ask cannot ask for. Say what to change in a chat with the agent instead."); }
           const answer = fromAgent.filter((m) => typeof m.body === "string" && m.body.trim() !== "").pop();
           if (answer?.body) return parseProposal(answer.body);
-          if (now() > deadline) { d.log?.("email ask: the agent did not answer in time", { threadId }); await stop(threadId, agentId, req.asker); throw new AskDriverError("provider.network", "The agent did not answer in time. Try again."); }
+          if (now() > deadline) { d.log?.("email ask: the agent did not answer in time", { threadId }); await stop(threadId, agentId, who); throw new AskDriverError("provider.network", "The agent did not answer in time. Try again."); }
           await sleep(pollMs);
         }
       } catch (e) { throw errorOf(e); }

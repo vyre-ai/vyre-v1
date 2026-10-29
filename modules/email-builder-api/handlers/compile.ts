@@ -45,7 +45,7 @@ export interface Change { path: string; before: unknown; after: unknown }
 
 /** What an agent proposes for an instruction: the design after the edit. The engine lane supplies the driver; tests script it. */
 export interface AskDriver {
-  propose(req: { instruction: string; agentId: string | null; doc: EmailDoc; asker: string; signal?: AbortSignal }): Promise<Partial<EmailDoc> & { blocks?: Block[] }>;
+  propose(req: { instruction: string; agentId: string | null; doc: EmailDoc; principal: { kind: "person" | "agent" | "service"; id: string }; actingFor?: string; signal?: AbortSignal }): Promise<Partial<EmailDoc> & { blocks?: Block[] }>;
   /** Stops the Asks this person has running on this design; how many were asked to stop. */
   cancel?(asker: string, emailId: string): number;
 }
@@ -755,7 +755,7 @@ async function askDiff(ctx: Ctx, input: unknown): Promise<{ changes: Change[] }>
   if (!askDriver) fail(ctx, "validation.precondition_failed", "No agent is connected to answer. Open Settings and add a model.");
   const agentId = optStr(ctx, o, "agentId") ?? null;
   let proposal: Partial<EmailDoc> & { blocks?: Block[] };
-  try { proposal = await askDriver.propose({ instruction, agentId, doc: JSON.parse(JSON.stringify(doc)) as EmailDoc, asker: ctx.principal.id }); }
+  try { proposal = await askDriver.propose({ instruction, agentId, doc: JSON.parse(JSON.stringify(doc)) as EmailDoc, principal: { kind: ctx.principal.kind, id: ctx.principal.id }, ...(ctx.actingFor ? { actingFor: ctx.actingFor } : {}) }); }
   catch (e) {
     // the driver says why in an error code of the catalogue; anything else is told plainly, never as a stack
     const code = (e as { code?: unknown } | null)?.code;
@@ -772,7 +772,7 @@ async function askCancel(ctx: Ctx, input: unknown): Promise<{ cancelled: number 
   const emailId = reqStr(ctx, o, "emailId");
   mustEmail(ctx, emailId);
   // only the caller's own Asks: the driver keys them by person and design
-  return { cancelled: askDriver?.cancel?.(ctx.principal.id, emailId) ?? 0 };
+  return { cancelled: askDriver?.cancel?.(ctx.actingFor ?? ctx.principal.id, emailId) ?? 0 };
 }
 
 async function sendTest(ctx: Ctx, input: unknown): Promise<{ sent: boolean }> {

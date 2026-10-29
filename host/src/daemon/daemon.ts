@@ -843,8 +843,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         configureEmailBuilder: () => ({
           ask: createEmailAskDriver({
             now, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "email-builder", ...(attrs ? { attrs } : {}) }),
-            call: async (cap, input, person) => {
-              const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "email-ask" });
+            call: async (cap, input, who) => {
+              // exactly the principal that asked, and whom it acts for: an agent is never turned into a person
+              const r = await invoke(cap, input, { space: spaceId, principal: who.principal, ...(who.actingFor ? { actingFor: who.actingFor } : {}), origin: "email-ask" });
               if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
               return r.output;
             },

@@ -29,3 +29,7 @@ The editor preview remains isolated with no scripts or submission. HTTPS images 
 ## Evidence
 
 Production Chromium runs against a freshly claimed daemon and a real production web export. The Apps flow creates a permission-scoped company fixture, checks its relation label and actual choice options, tests conditional Email visibility with local Name answers, saves theme/CSS and checks their readback after reload, then creates a phone form and checks the rendered Name question. It also creates a campaign, saves/installs a draft template and stops at sending-domain review. No real messages, provider-domain changes or paid services are triggered.
+
+## Backlog: engine_turns is not written by the in-process engine
+
+`engine.turns.list` and `engine_turns` stay empty for a live in-process turn (the turn engine uses `engine_thread_queue`; only the worker capabilities `engine.turn.*` write turn rows). The Email Ask driver therefore reads completion from the thread (the agent reply, or a `turn_status` block). Fix later by having the in-process engine record turns, then read state from `engine.turns.list`.
