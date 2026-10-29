@@ -26,7 +26,7 @@ export function parseDuration(ctx: RunsCtx, s: string | undefined): number {
   return Number(m[1]) * UNIT[m[2]!]!;
 }
 
-/** Runs of these kinds are sandboxes: outward steps are recorded, never executed (test mode and replay, ARCH b9). */
+/** Runs of these kinds are sandboxes: write and outward steps are recorded, never executed (test mode and replay, ARCH b9). Reads still run. */
 const isSandbox = (k: RunKind): boolean => k === "automation_test" || k === "replay";
 
 function describeOn(on: unknown): string | undefined {
@@ -451,7 +451,7 @@ export interface PlanStep {
   input?: unknown;
   retry?: RetryPolicy;
   effects?: "read" | "write" | "outward";
-  /** output a sandbox records instead of running an outward step (StepDef.sample) */
+  /** output a sandbox records instead of running a write or outward step (StepDef.sample) */
   sample?: unknown;
   /** next step when this one is skipped and does not run; null ends the run */
   next?: string | null;
@@ -568,7 +568,7 @@ function recordedOutputs(db: Db, runId: string): Record<string, unknown> {
  * - Every attempt is a row in the step log, written running before the executor is called and succeeded or failed after it.
  * - Resume: succeeded and skipped steps are walked past using their stored results and their stored `next`; the first other step runs. A step found `running` (a crash)
  *   runs again as the same attempt with the same key; a `failed` step with a retry time runs as the next attempt once the time has come; a `waiting` step continues as the same attempt.
- * - Sandboxes (test mode, replay) record outward steps (and, in replay, writes) from the recorded or sample output instead of running them.
+ * - Sandboxes (test mode, replay) record write and outward steps from the recorded or sample output instead of running them. Reads still run.
  * - Stop is read before every step: a stopped Run does not start another.
  */
 export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep[], exec: Executor, opts: DriveOptions = {}): Promise<DriveResult> {
@@ -653,7 +653,7 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
 
     let result: StepResult;
     try {
-      const stubbed = sandbox && (step.effects === "outward" || (replaying && step.effects === "write"));
+      const stubbed = sandbox && (step.effects === "write" || step.effects === "outward");
       if (stubbed) result = { output: step.id in recorded ? recorded[step.id] : step.sample };
       else result = await exec(step, { attempt, key, input: step.input, outputs: { ...outputs }, sandbox, resumed, startedAt, ...(priorAt !== undefined ? { priorAt } : {}) });
     } catch (e) {
