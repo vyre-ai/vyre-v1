@@ -18,7 +18,7 @@ export async function completeRecovery(deps:Deps,input:{username:string;code:str
 export function recoveryFailureLine(error:unknown):string{
  if(error instanceof CapError){
   if(error.status===429||error.code.startsWith('rate_limit.'))return 'Too many recovery attempts. Wait a minute, then try again.';
-  if(error.status>=500)return 'The Space had a problem on its side. Nothing was changed. Try again in a moment.';
+  if(error.status>=500)return 'The Space had a problem on its side. Try again in a moment; if your new password already works, sign in with it.';
   if(error.status===404||error.code==='validation.unknown_capability')return 'This Space does not support recovery with a saved code. Ask an administrator for a reset code.';
   return 'Couldn’t recover this account. Check the username and saved code, then try again.';
  }
@@ -27,6 +27,6 @@ export function recoveryFailureLine(error:unknown):string{
   if(code==='bad_blob')return 'This recovery request expired. Nothing was changed. Try again.';
   return 'Couldn’t recover this account. Check the username and saved code, then try again.';
  }
- if(error instanceof TypeError||error instanceof DOMException)return 'Couldn’t reach the Space. Check the connection and try again. Nothing was changed.';
- return 'Couldn’t finish recovery. Nothing was changed. Try again.';
+ if(error instanceof TypeError||error instanceof DOMException)return 'Couldn’t reach the Space. Check the connection and try again; if your new password already works, sign in with it.';
+ return 'Couldn’t finish recovery. Try again; if your new password already works, sign in with it.';
 }
