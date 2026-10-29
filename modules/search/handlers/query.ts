@@ -9,6 +9,8 @@ export interface Hit {
   kind: Kind;
   id: string;
   title: string;
+  /** For a record: the record type it belongs to, so a caller can read that type's schema. */
+  recordType?: string;
   snippet?: string;
   path?: string;
   link: string;
@@ -55,7 +57,7 @@ export function snippetOf(d: Pick<DocRow, "title" | "body">, words: readonly str
 function hitOf(d: DocRow, score: number, words: readonly string[]): Hit {
   const snip = snippetOf(d, words);
   return {
-    kind: d.kind, id: d.id, title: d.title, ...(snip ? { snippet: snip } : {}), ...(d.path ? { path: d.path } : {}), link: d.link, label: LABELS[Math.max(0, Math.min(3, d.label))]!,
+    kind: d.kind, id: d.id, title: d.title, ...(snip ? { snippet: snip } : {}), ...(d.path ? { path: d.path } : {}), ...(d.kind === "record" && d.recordType ? { recordType: d.recordType } : {}), link: d.link, label: LABELS[Math.max(0, Math.min(3, d.label))]!,
     score, ...(d.updatedAt !== null ? { updatedAt: d.updatedAt } : {}),
   };
 }
@@ -164,6 +166,17 @@ export async function recentList(ctx: SearchCtx, input: { types?: readonly Kind[
     if (hits.length === limit) break;
   }
   return { hits };
+}
+
+// ---- Resolve
+
+/** One indexed item by kind and id, as the asker may see it (a record's hit names its record type). Absent when it is not indexed or not visible. */
+export async function resolveItem(ctx: SearchCtx, input: { kind: Kind; itemId: string }): Promise<{ hit?: Hit }> {
+  ensure(ctx.db);
+  const row = rowsOf(ctx.db, "SELECT * FROM search_docs WHERE kind = ? AND id = ?", input.kind, input.itemId)[0];
+  if (!row) return {};
+  const doc = docOf(row);
+  return visible(ctx, doc) ? { hit: hitOf(doc, 1, []) } : {};
 }
 
 // ---- Related

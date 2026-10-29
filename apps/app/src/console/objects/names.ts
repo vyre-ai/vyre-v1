@@ -16,8 +16,8 @@ export function useIdentityName(ref:{kind:string;id:string}):string{
 export function useResourceName(ref:{type:string;id:string}):string{
  const data=useConsoleData();
  const adapters:Record<string,{cap:string;input:string;field:string;label:string}>={record_type:{cap:"schema.types.get",input:"type",field:"type",label:"title"},folder:{cap:"files.folder.get",input:"folderId",field:"folder",label:"name"},file:{cap:"files.get",input:"fileId",field:"file",label:"name"},project:{cap:"projects.get",input:"projectId",field:"project",label:"title"},agent:{cap:"agents.get",input:"agentId",field:"agent",label:"name"},channel:{cap:"channels.get",input:"channelId",field:"channel",label:"name"}};
- const adapter=adapters[ref.type];
- const read=useRead<Record<string,unknown>>(adapter?.cap??"access.lists",adapter?{[adapter.input]:ref.id}:{type:ref.type,limit:100},{enabled:!!adapter});
+ const request=resourceNameRequest(ref);const adapter=request?{cap:request.cap,field:request.field,label:request.label}:undefined;
+ const read=useRead<Record<string,unknown>>(request?.cap??"access.lists",(request?.input??{type:ref.type,limit:100}) as Record<string,unknown>,{enabled:!!request});
  const name=adapter?object(read.data?.[adapter.field])[adapter.label]:undefined;
  if(ref.type==="space"&&ref.id===data.space.id)return data.space.name;
  const known=data.name(ref.id);
@@ -37,5 +37,5 @@ export function useObjectNames(refs:{identities:readonly {kind:string;id:string}
  return {identity:(ref:{kind:string;id:string})=>ref.id===data.me.id?data.me.name:labels[`i:${ref.kind}:${ref.id}`]??known(ref.id,ref.kind),resource:(ref:{type:string;id:string})=>ref.type==="space"&&ref.id===data.space.id?data.space.name:labels[`r:${ref.type}:${ref.id}`]??known(ref.id,ref.type)};
 }
 export function resourceNameRequest(ref:{type:string;id:string}):{cap:string;input:unknown;field:string;label:string}|null{
- const adapters:Record<string,{cap:string;input:string;field:string;label:string}>={record_type:{cap:"schema.types.get",input:"type",field:"type",label:"title"},folder:{cap:"files.folder.get",input:"folderId",field:"folder",label:"name"},file:{cap:"files.get",input:"fileId",field:"file",label:"name"},project:{cap:"projects.get",input:"projectId",field:"project",label:"title"},agent:{cap:"agents.get",input:"agentId",field:"agent",label:"name"},channel:{cap:"channels.get",input:"channelId",field:"channel",label:"name"},task:{cap:"tasks.get",input:"taskId",field:"task",label:"title"}};const adapter=adapters[ref.type];return adapter?{cap:adapter.cap,input:{[adapter.input]:ref.id},field:adapter.field,label:adapter.label}:null;
+ const adapters:Record<string,{cap:string;input:string;field:string;label:string}>={record_type:{cap:"schema.types.get",input:"type",field:"type",label:"title"},folder:{cap:"files.folder.get",input:"folderId",field:"folder",label:"name"},file:{cap:"files.get",input:"fileId",field:"file",label:"name"},project:{cap:"projects.get",input:"projectId",field:"project",label:"title"},agent:{cap:"agents.get",input:"agentId",field:"agent",label:"name"},channel:{cap:"channels.get",input:"channelId",field:"channel",label:"name"},task:{cap:"tasks.get",input:"taskId",field:"task",label:"title"}};if(ref.type==="record")return {cap:"search.resolve",input:{kind:"record",itemId:ref.id},field:"hit",label:"title"};const adapter=adapters[ref.type];return adapter?{cap:adapter.cap,input:{[adapter.input]:ref.id},field:adapter.field,label:adapter.label}:null;
 }

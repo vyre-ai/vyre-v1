@@ -207,6 +207,14 @@ function withRoleGrants(snap: AccessSnapshot, store: AccessStore, space: string)
 }
 
 export const hostCalls = {
+  /** Who an outside tool is when it presents its long-lived credential: the active actor holding it, or none. Host only; the credential is compared by hash and never stored in clear. */
+  "access.actor_by_credential": async (ctx: Ctx, input: { credential: string }): Promise<{ actorId: string } | null> => {
+    const store = storeOf(ctx as unknown as AccessCtx);
+    const bytes = new TextEncoder().encode(input.credential);
+    const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((x) => x.toString(16).padStart(2, "0")).join("");
+    const actor = [...store.actors.values()].find((a) => a.credHash === digest && a.status === "active");
+    return actor ? { actorId: actor.id } : null;
+  },
   /** Fold events the store has not seen and answer the authorize snapshot, in one call so a commit pays for one pass over the tables. */
   "access.sync": (ctx: Ctx, input: { events: LogEvent[] }): AccessSnapshot => {
     const actx = ctx as unknown as AccessCtx;

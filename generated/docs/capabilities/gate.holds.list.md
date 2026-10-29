@@ -26,7 +26,7 @@ List holds with their state, act and task
 ```ts
 type In = {
   states?: Array<"held" | "approved" | "denied" | "expired">;
-  act?: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act?: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   runId?: string;
   cursor?: string;
   limit?: number;
@@ -39,7 +39,7 @@ type In = {
 type Out = {
   holds: Array<{
       id: string;
-      act: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
       capName: string;
       taskId: string;
       runId?: string;

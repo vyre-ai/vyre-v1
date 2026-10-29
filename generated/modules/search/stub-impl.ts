@@ -10,8 +10,9 @@ export const handlers: Handlers<HandlerCtx> = {
   "search.index.apply": async () => ({"indexed":true} as unknown) as never,
   "search.index.rebuild": async () => ({"runId":"run_a1b2c3"} as unknown) as never,
   "search.index.stats": async () => ({"documents":1,"ftsLagSeq":1,"lastRebuildAt":1760000000000,"vectorBacklog":1,"vectors":1} as unknown) as never,
-  "search.query": async () => ({"hits":[{"id":"rec_a1b2c3","kind":"person","label":"public","link":"vyre://record/rec_a1b2c3","path":"example","score":1,"snippet":"example","title":"example","updatedAt":1760000000000}],"next":"example","tookMs":1,"total":1} as unknown) as never,
-  "search.recent.list": async () => ({"hits":[{"id":"rec_a1b2c3","kind":"person","label":"public","link":"vyre://record/rec_a1b2c3","path":"example","score":1,"snippet":"example","title":"example","updatedAt":1760000000000}]} as unknown) as never,
+  "search.query": async () => ({"hits":[{"id":"rec_a1b2c3","kind":"person","label":"public","link":"vyre://record/rec_a1b2c3","path":"example","recordType":"example","score":1,"snippet":"example","title":"example","updatedAt":1760000000000}],"next":"example","tookMs":1,"total":1} as unknown) as never,
+  "search.recent.list": async () => ({"hits":[{"id":"rec_a1b2c3","kind":"person","label":"public","link":"vyre://record/rec_a1b2c3","path":"example","recordType":"example","score":1,"snippet":"example","title":"example","updatedAt":1760000000000}]} as unknown) as never,
   "search.recent.record": async () => ({"ok":true} as unknown) as never,
-  "search.related": async () => ({"hits":[{"id":"rec_a1b2c3","kind":"person","label":"public","link":"vyre://record/rec_a1b2c3","path":"example","score":1,"snippet":"example","title":"example","updatedAt":1760000000000}]} as unknown) as never,
+  "search.related": async () => ({"hits":[{"id":"rec_a1b2c3","kind":"person","label":"public","link":"vyre://record/rec_a1b2c3","path":"example","recordType":"example","score":1,"snippet":"example","title":"example","updatedAt":1760000000000}]} as unknown) as never,
+  "search.resolve": async () => ({"hit":{"id":"rec_a1b2c3","kind":"person","label":"public","link":"vyre://record/rec_a1b2c3","path":"example","recordType":"example","score":1,"snippet":"example","title":"example","updatedAt":1760000000000}} as unknown) as never,
 };
