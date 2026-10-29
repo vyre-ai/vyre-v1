@@ -100,7 +100,7 @@ test("Rust crates stay on the audited MIT/Apache allowlist, and the package is M
   const cargo = read("Cargo.toml");
   const deps = cargo.split("[dependencies]")[1]?.split("[profile")[0] ?? "";
   const names = [...deps.matchAll(/^([a-z0-9_-]+)\s*=/gm)].map((m) => m[1]).sort();
-  assert.deepEqual(names, ["flate2", "rusqlite", "serde", "serde_json", "tauri", "tauri-plugin-deep-link", "tauri-plugin-dialog", "tauri-plugin-global-shortcut", "tauri-plugin-notification", "tauri-plugin-shell", "tauri-plugin-single-instance", "uuid"]);
+  assert.deepEqual(names, ["flate2", "rusqlite", "serde", "serde_json", "tauri", "tauri-plugin-deep-link", "tauri-plugin-dialog", "tauri-plugin-global-shortcut", "tauri-plugin-notification", "tauri-plugin-shell", "tauri-plugin-single-instance", "tauri-plugin-updater", "uuid"]);
   assert.match(cargo, /license = "MIT"/);
   const allow = read("deny.toml");
   assert.doesNotMatch(allow, /GPL|AGPL|SSPL/);

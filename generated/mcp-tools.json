@@ -4105,6 +4105,21 @@
     },
     {
       "blocks": [],
+      "cap": "automations.account_picks",
+      "deferred": false,
+      "description": "The last account this person picked for each app",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "automations_account_picks",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.alerts.get",
       "deferred": false,
       "description": "Read error alerts: who, when and where, and the escalation chain",
@@ -4279,6 +4294,129 @@
         "type": "object"
       },
       "name": "automations_alerts_set",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.connector_offer.accept",
+      "deferred": false,
+      "description": "Accept a connector setup offer. Accepting is final for that Vault item.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_connector_offer_accept",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.connector_offer.decline",
+      "deferred": false,
+      "description": "Decline a connector setup offer. Declining is final for that Vault item.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_connector_offer_decline",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.connector_offers",
+      "deferred": false,
+      "description": "Open connector setup offers. Each one names an app. A Vault value is not included.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "automations_connector_offers",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.connector_share",
+      "deferred": false,
+      "description": "Offer tested connector actions to another Space as a draft. The reply is the app name and the action names. A key is not stored.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "actions": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "appName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "appName",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "name": "automations_connector_share",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.connector_shares",
+      "deferred": false,
+      "description": "List connector actions another Space can start from. A key is not included.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "automations_connector_shares",
       "planMode": "blocked",
       "toolset": "automations",
       "v": 1
@@ -4471,6 +4609,12 @@
                     },
                     "onError": {
                       "properties": {
+                        "codes": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
                         "max": {
                           "maximum": 10,
                           "minimum": 1,
@@ -4481,9 +4625,14 @@
                             "fail",
                             "continue",
                             "retry",
-                            "route"
+                            "route",
+                            "skip",
+                            "substitute"
                           ],
                           "type": "string"
+                        },
+                        "output": {
+                          "description": "Any JSON value"
                         },
                         "route": {
                           "type": "string"
@@ -4608,6 +4757,39 @@
       },
       "name": "automations_delete",
       "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.draft_connector",
+      "deferred": false,
+      "description": "Draft actions from an OpenAPI document already in memory, or from the official OpenAPI directory for a named app. A docs URL the person supplies is stored and is not fetched. Nothing is promoted.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "app": {
+            "description": "Selects one official document from the directory. A web address is not opened.",
+            "type": "string"
+          },
+          "docsUrl": {
+            "description": "Stored on the draft only. Not fetched and not a server.",
+            "type": "string"
+          },
+          "document": {
+            "additionalProperties": true,
+            "description": "An OpenAPI 3 document already in memory. Omit it to load one allowlisted app. A web address is not opened.",
+            "type": "object"
+          },
+          "intent": {
+            "description": "Keeps matching paths from that document. It is not a URL.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "automations_draft_connector",
+      "planMode": "allowed",
       "toolset": "automations",
       "v": 1
     },
@@ -4903,6 +5085,80 @@
     },
     {
       "blocks": [],
+      "cap": "automations.migrate_runs",
+      "deferred": false,
+      "description": "Move selected active runs onto a definition version without replaying finished steps",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "runIds": {
+            "items": {
+              "examples": [
+                "run_a1b2c3"
+              ],
+              "pattern": "^run_[a-z0-9]+$",
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "toVersion": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "automationId",
+          "toVersion",
+          "runIds"
+        ],
+        "type": "object"
+      },
+      "name": "automations_migrate_runs",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.migration_preview",
+      "deferred": false,
+      "description": "Group active runs by the step they are on before moving them to a definition version",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "toVersion": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "automationId",
+          "toVersion"
+        ],
+        "type": "object"
+      },
+      "name": "automations_migration_preview",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.move",
       "deferred": false,
       "description": "Move an Automation into a Group, or out with null",
@@ -4939,6 +5195,126 @@
       },
       "name": "automations_move",
       "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.open_document",
+      "deferred": false,
+      "description": "Open one public https document. A private, loopback, link-local, or metadata address is refused. The page text is not returned.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      },
+      "name": "automations_open_document",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.open_mcp",
+      "deferred": false,
+      "description": "Read a public MCP server address and draft one action per tool name. The document text is not returned.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "app": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "app",
+          "url"
+        ],
+        "type": "object"
+      },
+      "name": "automations_open_mcp",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.packages.export",
+      "deferred": false,
+      "description": "Save a portable copy of an Automation definition",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "automationId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_packages_export",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.packages.import",
+      "deferred": false,
+      "description": "Create a draft Automation from a package this person exported",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "packageId": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "packageId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_packages_import",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.packages.list",
+      "deferred": false,
+      "description": "List portable Automation packages this person has exported",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "automations_packages_list",
+      "planMode": "allowed",
       "toolset": "automations",
       "v": 1
     },
@@ -5025,7 +5401,7 @@
       "blocks": [],
       "cap": "automations.replay",
       "deferred": false,
-      "description": "Run a past run again on the same definition version or the current one",
+      "description": "Live rerun of a past run on the same definition version or the current one, not a sandbox replay",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -5035,6 +5411,10 @@
             ],
             "pattern": "^aut_[a-z0-9]+$",
             "type": "string"
+          },
+          "confirm": {
+            "const": true,
+            "type": "boolean"
           },
           "runId": {
             "examples": [
@@ -5054,7 +5434,8 @@
         "required": [
           "automationId",
           "runId",
-          "version"
+          "version",
+          "confirm"
         ],
         "type": "object"
       },
@@ -5171,6 +5552,80 @@
         "type": "object"
       },
       "name": "automations_run",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.schedule_choose",
+      "deferred": false,
+      "description": "Apply one recovery choice to a schedule whose backlog is over its cap",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "choice": {
+            "enum": [
+              "run_first_n",
+              "run_latest_n",
+              "skip_backlog_and_resume",
+              "change_limits",
+              "keep_paused"
+            ],
+            "type": "string"
+          },
+          "limits": {
+            "properties": {
+              "cap": {
+                "maximum": 500,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "concurrency": {
+                "maximum": 20,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "lookbackMs": {
+                "maximum": 2592000000,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "overlap": {
+                "enum": [
+                  "queue",
+                  "skip_while_active",
+                  "bounded_concurrency"
+                ],
+                "type": "string"
+              },
+              "spacingMs": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          },
+          "n": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "automationId",
+          "choice"
+        ],
+        "type": "object"
+      },
+      "name": "automations_schedule_choose",
       "planMode": "blocked",
       "toolset": "automations",
       "v": 1
@@ -5319,6 +5774,49 @@
       },
       "name": "automations_triggers_list",
       "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.try_read",
+      "deferred": false,
+      "description": "Try one read on a documented host. The Vault fills the key when the host sends it. The reply is only the level.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "actionKey": {
+            "type": "string"
+          },
+          "domains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "markedSafe": {
+            "type": "boolean"
+          },
+          "method": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "vaultItemId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "path",
+          "domains",
+          "vaultItemId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_try_read",
+      "planMode": "blocked",
       "toolset": "automations",
       "v": 1
     },
@@ -5543,6 +6041,12 @@
                     },
                     "onError": {
                       "properties": {
+                        "codes": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
                         "max": {
                           "maximum": 10,
                           "minimum": 1,
@@ -5553,9 +6057,14 @@
                             "fail",
                             "continue",
                             "retry",
-                            "route"
+                            "route",
+                            "skip",
+                            "substitute"
                           ],
                           "type": "string"
+                        },
+                        "output": {
+                          "description": "Any JSON value"
                         },
                         "route": {
                           "type": "string"
@@ -5825,6 +6334,12 @@
                     },
                     "onError": {
                       "properties": {
+                        "codes": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
                         "max": {
                           "maximum": 10,
                           "minimum": 1,
@@ -5835,9 +6350,14 @@
                             "fail",
                             "continue",
                             "retry",
-                            "route"
+                            "route",
+                            "skip",
+                            "substitute"
                           ],
                           "type": "string"
+                        },
+                        "output": {
+                          "description": "Any JSON value"
                         },
                         "route": {
                           "type": "string"

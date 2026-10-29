@@ -1011,8 +1011,10 @@ export const screens: ScreenIndexEntry[] = [
         "input": {
           "automationId": "/route/automationId",
           "runId": "/state/runId",
-          "version": "/state/version"
-        }
+          "version": "/state/version",
+          "confirm": "/state/confirm"
+        },
+        "confirm": "Running this live can repeat outward steps. Sandbox replay does not."
       }
     },
     "needs": [],

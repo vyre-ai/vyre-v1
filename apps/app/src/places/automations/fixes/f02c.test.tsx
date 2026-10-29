@@ -41,7 +41,8 @@ test("the Runs tab shows the step graph column beside the run list, and no graph
 
 test("the failed run's error row has Retry step, Skip step and Stop, and under it the trace id, Copy trace id, Edit step and Replay", () => {
   const out = page(createSampleRuns(northwind), <RunChat runId="rl1" />);
-  const ids = ["retry-step", "skip-step", "stop-failed", "copy-trace", "edit-step", "replay"];
+  const ids = ["retry-step", "skip-step", "copy-trace", "edit-step", "replay"];
+  assert.ok(!has(out, 'data-testid="stop-failed"'), "a failed run has no Stop");
   for (const id of ids) assert.ok(has(out, `data-testid="${id}"`), id);
   const pos = ids.map((id) => at(out, `data-testid="${id}"`));
   assert.deepEqual([...pos].sort((a, b) => a - b), pos, "in the prototype's order");
@@ -50,7 +51,8 @@ test("the failed run's error row has Retry step, Skip step and Stop, and under i
 
 test("the Needs attention row carries Retry step, Copy trace id, Skip step and Stop", () => {
   const out = page(createSampleRuns(northwind), <RunHistory subject={{ type: "automation", id: "aut_lead" }} currentVersion={5} />);
-  for (const id of ["retry-step-rl1", "copy-trace-rl1", "skip-step-rl1", "stop-rl1"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  for (const id of ["retry-step-rl1", "copy-trace-rl1", "skip-step-rl1"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  assert.ok(!has(out, 'data-testid="stop-rl1"'), "a failed run has no Stop");
 });
 
 test("Retry from the start is in the run's menu while a failed run is still open", () => {
