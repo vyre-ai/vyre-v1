@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -7,6 +7,9 @@ import { choicesOf, rulesOf } from "./form-design.ts";
 import type { Choice } from "./form-design.ts";
 import { FormWorkspace } from "./FormWorkspace.tsx";
 import { codeProblem } from "./FormCode.tsx";
+import { FormAsk } from "./FormAsk.tsx";
+import { applyChange } from "./form-ask.ts";
+import type { SourceChange } from "./form-ask.ts";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useAppsData } from "./data.tsx";
 import { actionKey, errorMessage, mutate } from "./mutations.ts";
@@ -27,6 +30,13 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
   const [captcha, setCaptcha] = useState("keep");
   const [thankYou, setThankYou] = useState("");
   const [css, setCss] = useState(""), [html, setHtml] = useState(""), [js, setJs] = useState("");
+  // Ask Vyre on the source, inline: the person's agents, the Ask in flight (stopped on the server too), and the proposed changes accepted or rejected one by one
+  const agentList = useRead<CapMap["agents.list"]["out"]>("agents.list", {});
+  const agents = (agentList.data?.agents ?? []).map((a) => ({ id: a.agentId, name: a.name }));
+  const [agentId, setAgentId] = useState(""), [instruction, setInstruction] = useState("");
+  const [asking, setAsking] = useState<string | null>(null), [askError, setAskError] = useState("");
+  const [proposals, setProposals] = useState<SourceChange[]>([]), [decided, setDecided] = useState<Record<string, "accepted" | "rejected">>({});
+  const askCancelled = useRef(false);
   const [theme, setTheme] = useState<Record<string, unknown>>({}), [logic, setLogic] = useState<unknown>(null);
   const [answers, setAnswers] = useState<Record<string,unknown>>({});
   const [relations, setRelations] = useState<Record<string,Choice[]>>({});
@@ -66,6 +76,27 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
     await mutate(d, "forms.fields_set", { formId: route.id, fields }, key);
     await mutate(d, "forms.design_set", { formId: route.id, thankYou: { text: thankYou }, css, html, js, theme, logic }, key);
     setDirty(false); setNotice("Saved the form."); form.refresh();
+  };
+  const chosenAgent = agents.find((a) => a.id === agentId) ?? agents[0];
+  const askAgent = async (): Promise<void> => {
+    if (!route.id || !chosenAgent) return;
+    askCancelled.current = false; setAskError(""); setProposals([]); setDecided({}); setAsking(chosenAgent.name);
+    try {
+      const out = await d.call("forms.ask_diff", { formId: route.id, instruction: instruction.trim(), agentId: chosenAgent.id }) as { changes: SourceChange[] };
+      if (askCancelled.current) return;
+      setProposals(out.changes);
+      if (out.changes.length === 0) setAskError("The agent had nothing to change.");
+    } catch (e) { if (!askCancelled.current) setAskError(errorMessage(e)); }
+    finally { setAsking(null); }
+  };
+  const cancelAsk = (): void => { askCancelled.current = true; setAsking(null); setAskError("Cancelled. Nothing was changed."); if (route.id) void d.call("forms.ask_cancel", { formId: route.id }).catch(() => undefined); };
+  const decide = (path: string, how: "accepted" | "rejected"): void => {
+    const proposal = proposals.find((c) => c.path === path); if (!proposal) return;
+    if (how === "accepted") {
+      const next = applyChange({ html, css, js }, proposal); if (!next) { setAskError("This change is not part of the form's source."); return; }
+      if (proposal.path === "/html") change(setHtml, next.html); else if (proposal.path === "/css") change(setCss, next.css); else change(setJs, next.js);
+    }
+    setDecided({ ...decided, [path]: how });
   };
   const selected=schema.data?.type.fields.find((field)=>field.key===selectedField);
   const selectedOptions=selected ? selected.type==='relation' ? relations[selected.key]??[] : ['bool','boolean','checkbox'].includes(selected.type) ? [{key:'true',title:'Yes'},{key:'false',title:'No'}] : choicesOf(selected) : [];
@@ -116,5 +147,5 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
     {published ? <Card title="Published form"><Text selectable style={s.text}>{published.url}</Text><Text selectable style={s.text}>{published.embed}</Text></Card> : null}
   </>;
   const frame = { title: route.id ? name || "Form" : "New form", back, offline: !online, error: error ?? form.error ?? types.error ?? schema.error, loading: form.loading && form.data === null, retry: form.refresh };
-  return route.id ? <FormWorkspace {...frame} fields={schema.data?.type.fields ?? []} modes={fields} previewOptions={{theme,logic,answers,relations,...(previewStep==='all'?{}:{step:Number(previewStep)})}} consent={consent} ask={d.assistantId ? () => void perform(async () => { const out = await d.call("chat.start", { kind: "ask", agentIds: [d.assistantId], scopeType: "form", scopeId: route.id, title: name, idempotencyKey: key }) as { thread: { id: string; threadId?: string } }; d.nav.openThread(out.thread.threadId ?? out.thread.id); }) : undefined} css={css} onCss={(v) => change(setCss, v)} html={html} onHtml={(v) => change(setHtml, v)} js={js} onJs={(v) => change(setJs, v)} rail={questions} actions={controls}>{content}</FormWorkspace> : <Frame {...frame} testID="apps-create-form">{content}</Frame>;
+  return route.id ? <FormWorkspace {...frame} fields={schema.data?.type.fields ?? []} modes={fields} previewOptions={{theme,logic,answers,relations,...(previewStep==='all'?{}:{step:Number(previewStep)})}} consent={consent} askPanel={<FormAsk agents={agents} agentId={chosenAgent?.id ?? ""} onAgent={setAgentId} instruction={instruction} onInstruction={setInstruction} onAsk={() => void askAgent()} {...(asking ? { asking: { agent: asking, onCancel: cancelAsk } } : {})} error={askError} dirty={dirty} proposals={proposals} decided={decided} onAccept={(p) => decide(p, "accepted")} onReject={(p) => decide(p, "rejected")} />} css={css} onCss={(v) => change(setCss, v)} html={html} onHtml={(v) => change(setHtml, v)} js={js} onJs={(v) => change(setJs, v)} rail={questions} actions={controls}>{content}</FormWorkspace> : <Frame {...frame} testID="apps-create-form">{content}</Frame>;
 }
