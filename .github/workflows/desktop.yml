@@ -7,6 +7,8 @@ on:
     paths:
       - "apps/desktop/**"
       - "apps/app/**"
+      - "scripts/install/macos/**"
+      - "scripts/install/linux/**"
       - ".github/workflows/desktop.yml"
       - "package-lock.json"
   push:
@@ -14,6 +16,8 @@ on:
     paths:
       - "apps/desktop/**"
       - "apps/app/**"
+      - "scripts/install/macos/**"
+      - "scripts/install/linux/**"
       - ".github/workflows/desktop.yml"
       - "package-lock.json"
 
@@ -160,3 +164,21 @@ jobs:
             apps/desktop/src-tauri/target/release/bundle/dmg
             apps/desktop/src-tauri/target/release/bundle/nsis
           if-no-files-found: warn
+  # The Mac server installer on a real macOS runner: BSD tar, shasum, diskutil, plutil and the system LibreSSL beside Homebrew's OpenSSL 3. No Docker and no launchd changes.
+  # Its unit tests (scripts/install/macos/install.test.ts) also run on the Linux runners with the main suite. There is no self-hosted macOS runner. A tag run skips it:
+  # the release already ran it on the commit that was merged.
+  installer-macos:
+    if: github.ref_type != 'tag'
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: The unit tests, on a real Mac as well
+        run: node --test scripts/install/macos/install.test.ts scripts/install/linux/install.test.ts
+      - name: The installer's steps on this Mac's own tools
+        run: sh scripts/install/macos/install.real.test.sh

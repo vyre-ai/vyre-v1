@@ -1,0 +1,1 @@
+- Fix two tests red on main: the daemon table drift test compares the daemon's copy after the module migrations run over it (compute enrollment ALTERs network_server), still column for column; docs/deferred.md no longer lists reports.health, which is a real handler.

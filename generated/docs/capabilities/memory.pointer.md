@@ -41,6 +41,7 @@ type Out = {
       fact?: string;
       trueSince?: number;
       path: string;
+      sourceLink?: string;
     }>;
   tokens: number;
   skipped?: "short_ack" | "mid_tool_loop" | "no_match" | "duplicate";
@@ -70,6 +71,7 @@ type Out = {
       {
         "fact": "example",
         "path": "example",
+        "sourceLink": "example",
         "title": "example",
         "trueSince": 1760000000000
       }
