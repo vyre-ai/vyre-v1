@@ -28,5 +28,9 @@ test("Metro loads its config (.cjs in a type: module package) and sends whole-mo
   assert.equal(config.resolver.resolveRequest({ originModulePath: "/a.js", resolveRequest: up }, "react-native-web/dist/exports/View", "web"), "upstream react-native-web/dist/exports/View");
   assert.equal(config.resolver.resolveRequest({ originModulePath: "/a.js", resolveRequest: up }, "react-native", "ios"), "upstream react-native");
   assert.equal(config.resolver.resolveRequest({ originModulePath: lazy, resolveRequest: up }, "react-native-web", "web"), "upstream react-native-web");
+  const flagsUser = path.join(app, "../../node_modules/expo-router/build/screensFeatureFlags.js");
+  assert.equal(config.resolver.resolveRequest({ originModulePath: flagsUser, resolveRequest: up }, "react-native-screens", "web"), "upstream react-native-screens/lib/module/flags");
+  assert.equal(config.resolver.resolveRequest({ originModulePath: "/a.js", resolveRequest: up }, "react-native-screens", "web"), "upstream react-native-screens");
+  assert.match(fs.readFileSync(require.resolve("react-native-screens/lib/module/index.js"), "utf8"), /export \{ compatibilityFlags, featureFlags \} from '\.\/flags'/, "the index's flags are the flags module's own object");
   assert.ok(!fs.existsSync(path.join(app, "metro.config.js")), "a metro.config.js here loads as an empty ES module and Metro silently runs its defaults");
 });

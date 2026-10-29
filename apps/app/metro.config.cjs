@@ -19,9 +19,12 @@ config.transformer = {
 // Named imports already reach one module each (babel-plugin-react-native-web); a whole-module require("react-native"), as expo-router makes, arrives here as its dist/index.
 const LAZY_RN = require("node:path").join(__dirname, "react-native-lazy.js");
 const WHOLE_RN = new Set(["react-native", "react-native/index", "react-native-web", "react-native-web/dist/index"]);
+const SCREENS_FLAGS_USER = /[\\/]expo-router[\\/]build[\\/]screensFeatureFlags\.js$/;
 const upstream = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (platform === "web" && WHOLE_RN.has(moduleName) && context.originModulePath !== LAZY_RN) return { type: "sourceFile", filePath: LAZY_RN };
+  // expo-router sets three react-native-screens flags at start; on the web that import evaluated every screens component (and its styles) for the flags object alone
+  if (platform === "web" && moduleName === "react-native-screens" && SCREENS_FLAGS_USER.test(context.originModulePath)) return context.resolveRequest(context, "react-native-screens/lib/module/flags", platform);
   return (upstream ?? context.resolveRequest)(context, moduleName, platform);
 };
 
