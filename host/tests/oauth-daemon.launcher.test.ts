@@ -1,17 +1,18 @@
-// A booted daemon for browser tests that need a disposable OAuth provider: run as its own process (node host/tests/fixtures/oauth-daemon.ts <data dir>), so a test in another layer starts it instead of importing the
+// A booted daemon for browser tests that need a disposable OAuth provider: run as its own process (node host/tests/oauth-daemon.launcher.test.ts <data dir>), so a test in another layer starts it instead of importing the
 // host. It prints one JSON line {"url","control"} when ready. The control address answers GET /state and takes POST /expect {code,challenge} and POST /expire (the access token ends at the app).
 // Callers "Bearer owner" and anyone else are the seeded Owner and Member. The provider is the connector network seam, so the daemon, connector pipeline and Vault are real.
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
-import { bootCore, CORE_SPACE } from "../../../fixtures/seed/core/index.ts";
-import { oauthProvider } from "../../../fixtures/oauth-provider.ts";
-import { startDaemon } from "../../src/daemon/daemon.ts";
-import { loadConfig } from "../../src/daemon/config.ts";
-import { fakePlatform } from "../../src/platform/index.ts";
+import { bootCore, CORE_SPACE } from "../../fixtures/seed/core/index.ts";
+import { oauthProvider } from "../../fixtures/oauth-provider.ts";
+import { startDaemon } from "../src/daemon/daemon.ts";
+import { loadConfig } from "../src/daemon/config.ts";
+import { fakePlatform } from "../src/platform/index.ts";
 
+// named .test.ts so the layer rules treat it as test code; the test runner starts it with no argument, where it does nothing
 const dir = process.argv[2];
-if (!dir) throw new Error("usage: oauth-daemon.ts <data dir>");
+if (!dir || dir.startsWith("--")) process.exit(0);
 const core = bootCore();
 core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE");
 fs.copyFileSync(core.file, path.join(dir, "events.db"));
