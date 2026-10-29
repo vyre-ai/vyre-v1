@@ -185,19 +185,21 @@ test("production Console Access: People directory, person object, groups, device
       assert.deepEqual(grants.find((g) => g.subject.id === guest.personId)?.conditions.hiddenFields, ["phone"]);
       const seen = await call("records.get", { type: "contact", recordId: rec }, guest.token);
       assert.equal(seen.status, 200); assert.equal(seen.data.record.fields.name, "Zephyr Quill"); assert.equal(seen.data.record.fields.phone, undefined, "the hidden field is not returned");
-      assert.match(await page.getByTestId("console-grants").innerText(), /Gus Hale[\s\S]*Zephyr Quill/, "the grant row names the record");
+      assert.match(await page.getByTestId("console-grants").innerText(), /Gus Hale[\s\S]*view · Zephyr Quill · Phone hidden/, "the grant row names the record and what is hidden");
       await matrix("grant-on-record", async (p) => { await goTo(p, "grants", "Grants", "Access"); await p.getByTestId("console-grants").waitFor(); });
     });
     await t.test("an outside actor: create with a role, redeem the one-time token, edit its roles, revoke, and the credential stops working", async () => {
       await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
       await goTo(page, "actors", "Outside actors", "Agents and actors"); await page.getByTestId("console-outside-actors").waitFor();
       await page.getByRole("button", { name: "Name", exact: true }).count();
-      await page.getByLabel("Name", { exact: true }).fill("Claude Code"); await page.getByLabel("Provider", { exact: true }).fill("anthropic");
+      await page.getByLabel("Name", { exact: true }).fill("Claude Code");
+      await page.getByRole("button", { name: "Provider", exact: true }).click(); await page.getByRole("menuitem", { name: "Anthropic", exact: true }).click();
       await page.getByRole("button", { name: "Role", exact: true }).click(); await page.getByRole("menuitem", { name: "Developer", exact: true }).click();
       await page.getByTestId("actor-create").click(); await page.getByTestId("actor-token").waitFor();
       const oneTime = await page.getByTestId("actor-token").innerText();
       const listed = (await api("access.actors.list", {})).actors as { id: string; name: string; status: string; roles: string[] }[];
       const actor = listed.find((a) => a.name === "Claude Code")!;
+      assert.match(await page.getByTestId(`row-object-row-${actor.id}`).innerText(), /Anthropic · Pending/, "the row reads Provider · Status");
       assert.equal(actor.status, "pending"); assert.deepEqual(actor.roles, [roleId("Developer")]);
       const redeemed = await context.request.post(`${web.origin}/v1/access/actors/redeem`, { data: { token: oneTime } });
       assert.equal(redeemed.status(), 200, await redeemed.text());

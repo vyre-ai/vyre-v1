@@ -185,7 +185,9 @@ export async function actorsRedeem(ctx: AccessCtx, input: { token: string }) {
   const store = storeOf(ctx);
   const hash = await sha256(input.token);
   const actor = [...store.actors.values()].find((a) => a.tokenHash === hash);
-  if (!actor || actor.tokenUsed || actor.status === "revoked") raise(ctx.trace.traceId, "auth.invalid_code", "the token is wrong or already used");
+  const holder = actor ? store.principals.get(actor.id) : undefined;
+  // only a pending actor whose principal is still live can redeem: a suspended or removed one, or one already active, gets the same answer as a wrong token
+  if (!actor || actor.tokenUsed || actor.status !== "pending" || (holder && holder.status !== "active" && holder.status !== "invited")) raise(ctx.trace.traceId, "auth.invalid_code", "the token is wrong or already used");
   if ((actor.tokenExpires ?? 0) <= ctx.now()) raise(ctx.trace.traceId, "permission.expired", "the one-time token has expired");
   const credential = secret();
   actor.tokenUsed = true;
@@ -195,8 +197,8 @@ export async function actorsRedeem(ctx: AccessCtx, input: { token: string }) {
   const p = store.principals.get(actor.id);
   if (p) p.status = "active";
   store.bump();
-  ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what: "actor", by: actor.id });   // the snapshot learns the actor is active
   try { store.persist(ctx.db); } catch (e) { store.bump(); throw e; }
+  ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what: "actor", by: actor.id });   // the snapshot learns the actor is active, only once it is stored
   return { actorId: actor.id, credential };
 }
 

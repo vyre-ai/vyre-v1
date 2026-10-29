@@ -157,3 +157,31 @@ test('grant label ceiling survives persisted projection and reaches the kernel s
  const d=authorize(restored.snapshot(),{principal:'p_ceiling',action:{perm:'records.read',level:'view'},resource:{type:'record',id:'rec_ceiling'},now:NOW});
  assert.equal(d.effect,'deny');
 });
+
+test("a suspended actor cannot redeem its token, and stays suspended", async () => {
+  const h = harness(NOW);
+  const store = storeOf(h.ctx);
+  putPrincipal(store, { id: "usr_admin", kind: "person", name: "Admin" });
+  const made = await actorsCreate(h.ctx, { name: "Suspended tool", provider: "openai", roleIds: ["rol_member"], idempotencyKey: "actor-susp" });
+  const principal = store.principals.get(made.actor.id)!;
+  principal.status = "suspended";
+  await assert.rejects(() => actorsRedeem(h.ctx, { token: made.oneTimeToken }), (e: unknown) => codeOf(e) === "auth.invalid_code");
+  assert.equal(store.principals.get(made.actor.id)!.status, "suspended", "the refusal changes nothing");
+  assert.equal(store.actors.get(made.actor.id)!.status, "pending");
+  assert.equal(store.actors.get(made.actor.id)!.credHash, undefined, "no credential was issued");
+  principal.status = "invited";
+  assert.ok((await actorsRedeem(h.ctx, { token: made.oneTimeToken })).credential, "the same token works once the principal is live again");
+});
+
+test("a failed persist does not announce an active actor", async () => {
+  const h = harness(NOW);
+  const store = storeOf(h.ctx);
+  putPrincipal(store, { id: "usr_admin", kind: "person", name: "Admin" });
+  const made = await actorsCreate(h.ctx, { name: "Unlucky tool", provider: "openai", idempotencyKey: "actor-persist" });
+  const before = h.events.length;
+  const real = store.persist.bind(store);
+  store.persist = () => { throw new Error("disk full"); };
+  await assert.rejects(() => actorsRedeem(h.ctx, { token: made.oneTimeToken }), /disk full/);
+  store.persist = real;
+  assert.equal(h.events.slice(before).filter((e) => e.name === "access.changed").length, 0, "nothing was broadcast");
+});
