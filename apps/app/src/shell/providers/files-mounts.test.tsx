@@ -59,7 +59,7 @@ test("this computer is the device the person is on; a revoked or absent one is n
 
 test("a mounted folder's status line: source, state, last sync, what waits", () => {
   const ok = mountLine(row({ pendingChanges: 2, conflicts: 1 }), NOW);
-  assert.deepEqual([ok.source, ok.state, ok.canSync], ["GitHub acme/site", "Up to date", true]);
+  assert.deepEqual([ok.source, ok.state, ok.canSync], ["GitHub acme/site", "Needs a look", true]);
   assert.equal(ok.detail, "Synced 3 min ago · 2 changes waiting · 1 conflict");
   assert.equal(mountLine(row({ state: "paused" }), NOW).state, "Paused");
   assert.equal(mountLine(row({ state: "paused" }), NOW).canSync, false);

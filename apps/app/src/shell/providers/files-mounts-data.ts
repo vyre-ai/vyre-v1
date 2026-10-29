@@ -66,5 +66,6 @@ export function mountLine(m: MountRow, now: number): MountLine {
   if (m.state === "paused") return { ...base, state: "Paused", tone: "warn", detail: parts.join(" · ") };
   if (m.state === "syncing") return { ...base, state: "Syncing", tone: "ok", detail: parts.join(" · ") };
   if (m.state === "device_offline") return { ...base, state: "Computer offline", tone: "warn", detail: `${m.fromDevice ?? "That computer"} syncs when it is on. ${parts.join(" · ")}` };
+  if (m.conflicts > 0) return { ...base, state: "Needs a look", tone: "warn", detail: parts.join(" · ") };
   return { ...base, state: "Up to date", tone: "ok", detail: parts.join(" · ") };
 }
