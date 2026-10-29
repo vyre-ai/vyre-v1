@@ -23,7 +23,7 @@ export async function dwdStatus(ctx: GoogleCtx) {
   const cfg = config(ctx);
   const members = rowsOf(ctx.db.all(`SELECT email, mapped, excluded FROM google_member`));
   const out: {
-    configured: boolean; adminEmail?: string; domain?: string; lastProbeAt?: number; lastProbeOk?: boolean; autoConnect: boolean; mappedMembers: number; excluded: string[];
+    configured: boolean; adminEmail?: string; domain?: string; lastProbeAt?: number; lastProbeOk?: boolean; autoConnect: boolean; mappedMembers: number; excluded: string[]; pushToken?: string;
   } = {
     configured: num(cfg, "configured") === 1,
     autoConnect: cfg ? num(cfg, "autoConnect") === 1 : true,
@@ -34,6 +34,9 @@ export async function dwdStatus(ctx: GoogleCtx) {
   if (strOrNull(cfg, "domain")) out.domain = str(cfg, "domain");
   if (typeof cfg?.lastProbeAt === "number") out.lastProbeAt = cfg.lastProbeAt;
   if (typeof cfg?.lastProbeOk === "number") out.lastProbeOk = cfg.lastProbeOk === 1;
+  // The secret that goes in the Pub/Sub push address (?token=): shown to the admin who sets it up, made when delegation is set up.
+  const token = strOrNull(first(ctx.db.all(`SELECT token FROM google_push_secret WHERE id = ?`, CONFIG_ID)), "token");
+  if (token && out.configured) out.pushToken = token;
   return out;
 }
 
@@ -96,6 +99,7 @@ export async function dwdSetup(ctx: GoogleCtx, input: { vaultItem: string; admin
     );
   }
   forgetTokens();
+  pushToken(ctx);   // the secret that proves a push came from Google exists from the moment delegation does
 
   // The probe proves the key, the delegation and the scopes before anyone is connected.
   const probe = await probeProfile(ctx, connectionId, admin, "google.dwd.setup").catch((e) => {

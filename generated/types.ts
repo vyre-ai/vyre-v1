@@ -11500,6 +11500,7 @@ export type GoogleDwdStatusOut = {
   autoConnect: boolean;
   mappedMembers: number;
   excluded: Array<string>;
+  pushToken?: string;
 };
 export type GoogleGmailCreateDraftIn = {
   connectionId: string;
