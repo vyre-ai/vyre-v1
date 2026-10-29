@@ -12,6 +12,7 @@ import {
   raise, readPolicy, saveAutomation, saveVersion, touch, versionById,
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
+import { publishAllowed } from "../connector-breadth.ts";
 import { admit, contractOf } from "../val.ts";
 import { containsSecret } from "../trust.ts";
 import type { Alerts, AutoCtx, Automation, Definition, Grant, Node, Policy } from "../projections.ts";
@@ -35,6 +36,11 @@ function edges(n: Node): string[] {
   return [...(n.next ?? []), ...(n.branches ?? []).map((b) => b.to), ...(n.onError?.mode === "route" && n.onError.route ? [n.onError.route] : [])];
 }
 
+function connectorLevel(n: Node): "draft" | "tested" | undefined {
+  const level = n.input["connectorLevel"];
+  return level === "draft" || level === "tested" ? level : undefined;
+}
+
 /** The structural problems that make a definition unreadable: duplicate ids, references to nodes that do not exist, steps and triggers that are not in the catalogue. */
 export function structuralIssues(def: Definition): Issue[] {
   const out: Issue[] = [];
@@ -45,7 +51,7 @@ export function structuralIssues(def: Definition): Issue[] {
   }
   for (const t of def.triggers) if (!TRIGGERS.has(t.key)) out.push(issue("error", `There is no trigger called ${t.key}.`));
   for (const n of def.nodes) {
-    if (!STEPS.has(n.key)) out.push(issue("error", `There is no step called ${n.key}.`, n.id));
+    if (!STEPS.has(n.key) && connectorLevel(n) === undefined) out.push(issue("error", `There is no step called ${n.key}.`, n.id));
     for (const to of edges(n)) if (!ids.has(to)) out.push(issue("error", `This step points at ${to}, which does not exist.`, n.id));
   }
   for (const s of def.start ?? []) if (!ids.has(s)) out.push(issue("error", `The start step ${s} does not exist.`));
@@ -161,8 +167,19 @@ export function admissionIssues(def: Definition): Issue[] {
   return out;
 }
 
+function draftedActionIssues(def: Definition): Issue[] {
+  const out: Issue[] = [];
+  for (const n of def.nodes) {
+    const level = connectorLevel(n);
+    if (level === undefined) continue;
+    const verdict = publishAllowed(level);
+    if (!verdict.ok) out.push(issue("error", verdict.reason, n.id));
+  }
+  return out;
+}
+
 function blocksGoingLive(def: Definition, policy: Policy): Issue[] {
-  return [...validateDefinition(def, policy), ...previewLiveIssues(def), ...admissionIssues(def)];
+  return [...validateDefinition(def, policy), ...previewLiveIssues(def), ...admissionIssues(def), ...draftedActionIssues(def)];
 }
 
 // ---- reads ----
@@ -296,7 +313,8 @@ export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {
     const issues = blocksGoingLive(a.definition, readPolicy(ctx.db));
     if (hasErrors(issues)) {
       const preview = previewLiveIssues(a.definition);
-      const reason = preview.length > 0 ? "preview" : "invalid_definition";
+      const drafted = draftedActionIssues(a.definition);
+      const reason = preview.length > 0 ? "preview" : drafted.length > 0 ? "draft" : "invalid_definition";
       raise(ctx, "validation.precondition_failed", issues.find((i) => i.severity === "error")!.message, { reason, issues });
     }
     a.status = "on";

@@ -1,5 +1,6 @@
 # Changelog
 
+- Keep a drafted connector action on a draft, and refuse to turn that Automation on.
 - Open a public document through Automations and refuse a private, loopback, link-local, or metadata address. The page text is not returned.
 - Try a connector read only on the document host, and keep the key value off the test plan.
 - Read an MCP server address through the public document fetcher and turn each tool name into a drafted action.
