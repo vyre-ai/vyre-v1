@@ -313,3 +313,5 @@
 - Keep release browser proof aligned with the configured invite host and direct native account setup, retaining provider retry, key ownership and one-time acceptance assertions.
 
 - Replace API-key enum inputs with named client/channel and explicit scope controls. Audit one-time key reveal/copy, clear ephemeral display on expiry or exit, and verify registration/replay/session closure through the real gateway. Show closed and expired recent sessions using additive public timestamps without exposing token hashes.
+
+- WIP: preserve a failing HTTP regression for editable Space connector source mapping, Member write protection, and source-driven test/diff/publish. Source mapping is not implemented in this checkpoint; this test is deliberately red and must not be treated as release evidence.
