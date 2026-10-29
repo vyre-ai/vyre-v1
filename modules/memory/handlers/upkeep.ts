@@ -283,6 +283,8 @@ export async function maintain(ctx: MemCtx, input: { agentId?: string; rulesOnly
     `UPDATE memory_facts SET status = 'closed', closed_at = ? WHERE status = 'current' AND valid_to IS NOT NULL AND valid_to <= ?${only ? " AND agent_id = ?" : ""}`,
     ...(only ? [now, now, only] : [now, now]),
   ).changes;
+  // Vectors of facts that are no longer current are not needed.
+  ctx.db.run("DELETE FROM memory_vectors WHERE doc_kind = 'fact' AND doc_id NOT IN (SELECT id FROM memory_facts WHERE status = 'current')");
   // What upkeep may read: shared text, and the caller's own personal facts when a person runs it.
   const me = actorOf(ctx);
   const rows = rowsOf(

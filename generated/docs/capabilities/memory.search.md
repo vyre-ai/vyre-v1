@@ -51,6 +51,11 @@ type Out = {
       score: number;
     }>;
   tookMs: number;
+  meaning?: {
+    state: "on" | "loading" | "not_set_up" | "degraded" | "off";
+    model?: string;
+    hint?: string;
+  };
 };
 ```
 
@@ -91,6 +96,11 @@ type Out = {
         "trueSince": 1760000000000
       }
     ],
+    "meaning": {
+      "hint": "example",
+      "model": "example",
+      "state": "on"
+    },
     "tookMs": 1
   }
 }

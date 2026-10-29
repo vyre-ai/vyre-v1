@@ -1313,6 +1313,9 @@ export function stubs(ctx: CallCtx) {
       map: {
         get: call("memory.map.get"),
       },
+      meaning: {
+        status: call("memory.meaning.status"),
+      },
       notes: {
         erase: call("memory.notes.erase"),
         list: call("memory.notes.list"),

@@ -1313,6 +1313,9 @@ export function createClient(transport: Transport) {
       map: {
         get: call("memory.map.get", 1),
       },
+      meaning: {
+        status: call("memory.meaning.status", 1),
+      },
       notes: {
         erase: call("memory.notes.erase", 1),
         list: call("memory.notes.list", 1),

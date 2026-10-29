@@ -30,6 +30,7 @@ export function trashFact(ctx: MemCtx, f: Fact, o: TrashOpts): boolean {
     "UPDATE memory_facts SET status = 'removed', closed_at = ?, valid_to = COALESCE(valid_to, ?), trashed_at = ?, trash_reason = ?, trashed_by = ?, prev_status = ?, prev_valid_to = ?, merged_into = ?, touched_at = NULL, archived_at = NULL WHERE id = ?",
     now, now, now, o.reason, who.actor, f.status, f.validTo, o.mergedInto ?? null, f.id,
   );
+  ctx.db.run("DELETE FROM memory_vectors WHERE doc_kind = 'fact' AND doc_id = ?", f.id);
   trail(ctx, {
     action: o.action ?? "delete", factId: f.id, ...scopeOf(f), who, reason: o.reason, ...(o.source ? { source: o.source } : {}), ...(o.runId ? { runId: o.runId } : {}),
     detail: { from: f.status, ...(o.mergedInto ? { mergedInto: o.mergedInto } : {}) },

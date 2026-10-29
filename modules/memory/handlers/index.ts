@@ -7,6 +7,7 @@ import {
 import { graph, graphEverything, graphExport, indexGraph, layoutGet, layoutSave } from "./graph.ts";
 import { archiveSweep, learned, restore, trailRead, trashSearch, undo } from "./lifecycle.ts";
 import { noteErase } from "./purge.ts";
+import { meaningStatusRead } from "./meaning.ts";
 import { maintain, questionResolve, questionsList, upkeepStatus } from "./upkeep.ts";
 
 export const handlers = {
@@ -49,6 +50,7 @@ export const handlers = {
   "memory.archive_sweep": archiveSweep,
   "memory.trail": trailRead,
   "memory.upkeep.status": upkeepStatus,
+  "memory.meaning.status": meaningStatusRead,
   "memory.questions.list": questionsList,
   "memory.question.resolve": questionResolve,
 };

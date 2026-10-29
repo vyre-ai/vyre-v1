@@ -16322,6 +16322,14 @@ export type MemoryMapGetOut = {
     updatedAt: number;
   };
 };
+export type MemoryMeaningStatusIn = Record<string, unknown>;
+export type MemoryMeaningStatusOut = {
+  mode: "local" | "key" | "off";
+  state: "on" | "loading" | "not_set_up" | "degraded" | "off";
+  model?: string;
+  hint?: string;
+  indexed: number;
+};
 export type MemoryNotesEraseIn = {
   noteId: string;
   idempotencyKey: string;
@@ -16576,6 +16584,11 @@ export type MemorySearchOut = {
       score: number;
     }>;
   tookMs: number;
+  meaning?: {
+    state: "on" | "loading" | "not_set_up" | "degraded" | "off";
+    model?: string;
+    hint?: string;
+  };
 };
 export type MemoryTrailIn = {
   factId?: string;
@@ -28168,6 +28181,7 @@ export interface CapMap {
   "memory.learned": { in: MemoryLearnedIn; out: MemoryLearnedOut };
   "memory.maintain": { in: MemoryMaintainIn; out: MemoryMaintainOut };
   "memory.map.get": { in: MemoryMapGetIn; out: MemoryMapGetOut };
+  "memory.meaning.status": { in: MemoryMeaningStatusIn; out: MemoryMeaningStatusOut };
   "memory.notes.erase": { in: MemoryNotesEraseIn; out: MemoryNotesEraseOut };
   "memory.notes.list": { in: MemoryNotesListIn; out: MemoryNotesListOut };
   "memory.pointer": { in: MemoryPointerIn; out: MemoryPointerOut };

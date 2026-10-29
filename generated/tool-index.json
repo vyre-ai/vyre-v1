@@ -4508,6 +4508,12 @@
     },
     {
       "deferred": false,
+      "name": "memory_meaning_status",
+      "summary": "Whether meaning search is on, which model it uses, how many documents have a vector and, when it is not, a plain reason (not set up reads healthy)",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_notes_list",
       "summary": "List memory notes of an agent, project or the Space, including proposed/ and recipes/",
       "toolset": "memory"

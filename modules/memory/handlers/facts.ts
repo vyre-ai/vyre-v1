@@ -4,6 +4,7 @@
 // DECISION: where a fact lands follows "who accepts what" in spec 2.15: channel facts go straight to the project layer, run and Journey facts wait in proposed for the agent owner,
 //   everything from a chat goes to the asker's own layer and merges on its own only for a kind in the setting memory.auto_merge_kinds (default preference), or when the person typed it themselves.
 // DECISION: search is local and has no model call: BM25 over words, character trigrams for the "semantic" side, a small recency lift. The vector table of ARCH 6.10 is the same call shape and slots in later.
+import { MEANING_MIN, meaningScores } from "../meaning.ts";
 import { reviewRequired } from "../policy.ts";
 import { trail, whoIs } from "../trail.ts";
 import type { Who } from "../trail.ts";
@@ -432,14 +433,21 @@ export async function search(
   const ranked = bm25(docs, q);
   const top = Math.max(0, ...ranked.map((r) => r.score));
   const now = ctx.now();
+  // Meaning: the question against each document by a small embedding model, when one is ready. Keyword mode never asks for it.
+  const meaning = mode === "keyword" ? null : await meaningScores(ctx, docs.map((d) => ({ kind: d.kind, id: d.id, text: `${d.title} ${d.text}`, shared: d.shared })), q);
+  const cos = (d: Doc): number | undefined => meaning?.scores?.get(`${d.kind}:${d.id}`);
   const hits: Array<{ doc: Doc; score: number }> = [];
   docs.forEach((d, i) => {
     const r = ranked[i]!;
     const sim = trigramSim(q, `${d.title} ${d.text}`);
+    const mean = cos(d);
     let score = 0;
     if (mode === "keyword") score = r.matched > 0 ? r.score : 0;
-    else if (mode === "semantic") score = sim >= 0.12 ? sim : 0;
-    else if (r.matched > 0 || sim >= 0.25) score = (top > 0 ? 0.65 * (r.score / top) : 0) + 0.35 * sim;
+    else if (mode === "semantic") score = mean !== undefined ? (mean >= MEANING_MIN ? mean : 0) : sim >= 0.12 ? sim : 0;
+    else if (mean !== undefined) {
+      // blend: BM25 (words), trigrams (spelling) and meaning; a word match or a close meaning admits a document
+      if (r.matched > 0 || sim >= 0.25 || mean >= MEANING_MIN) score = (top > 0 ? 0.45 * (r.score / top) : 0) + 0.15 * sim + 0.4 * Math.max(0, mean);
+    } else if (r.matched > 0 || sim >= 0.25) score = (top > 0 ? 0.65 * (r.score / top) : 0) + 0.35 * sim;
     if (score > 0 && d.kind === "fact") score += recencyBoost(d.learnedAt, now) * (mode === "keyword" ? top / 10 : 0.1);
     if (score > 0) hits.push({ doc: d, score });
   });
@@ -453,6 +461,7 @@ export async function search(
       ...(doc.link ? { sourceLink: doc.link } : {}), score: Math.round(score * 10_000) / 10_000,
     })),
     tookMs: Math.max(0, Math.round(performance.now() - t0)),
+    ...(meaning ? { meaning: { state: meaning.status.state, ...(meaning.status.model ? { model: meaning.status.model } : {}), ...(meaning.status.hint ? { hint: meaning.status.hint } : {}) } } : {}),
   };
 }
 

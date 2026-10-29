@@ -23,6 +23,9 @@ const learnedRow = t.obj({
   fact: factRow, at: t.ts(), actor: t.str({ description: 'Who learned it: the agent or person id, or upkeep' }), actorKind: t.enm('person', 'agent', 'upkeep', 'system'), sourceKind, sourceRef: t.str(),
   sourceLink: t.opt(t.str()), from: t.opt(t.str({ description: 'The person the fact came from' })), undone: t.bool(),
 });
+const meaningInfo = t.obj({
+  state: t.enm('on', 'loading', 'not_set_up', 'degraded', 'off'), model: t.opt(t.str()), hint: t.opt(t.str({ description: 'Why search is keyword-only right now, in plain words' })),
+}, { description: 'How meaning search ran for this question. Anything but on means keyword search answered; not_set_up is healthy.' });
 const upkeepRun = t.obj({
   runId: t.str(), startedAt: t.ts(), finishedAt: t.opt(t.ts()), modelUsed: t.bool(), merged: t.int(), flagged: t.int(), stale: t.int(), created: t.int(), corrected: t.int(), deleted: t.int(), tidied: t.int(),
   tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), stopped: t.opt(t.enm('cap', 'no_key')),
@@ -64,7 +67,7 @@ export default defineManifest({
     // ---- read tools
     read('memory.search', 'Search notes and current facts the asker may read; BM25, vectors and recency; snippets carry the source link', {
       in: { q: t.str(), layers: t.opt(t.arr(layer)), agentId: t.opt(id.agent), projectId: t.opt(id.project), mode: t.opt(t.enm('keyword', 'semantic', 'hybrid')), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) },
-      out: { hits: t.arr(hit), tookMs: t.int() }, label: 'filter', tool: 'memory', mcpName: 'memory_search', agent: { planMode: 'allowed' }, cli: 'vyre memory search',
+      out: { hits: t.arr(hit), tookMs: t.int(), meaning: t.opt(meaningInfo) }, label: 'filter', tool: 'memory', mcpName: 'memory_search', agent: { planMode: 'allowed' }, cli: 'vyre memory search',
     }),
     read('memory.read_note', 'Read one memory note as Markdown', {
       in: { noteId: id.note }, out: { note: noteRow, markdown: t.str() }, on: ['note', '/noteId'], label: 'check', tool: 'memory', mcpName: 'read_note', agent: { planMode: 'allowed' },
@@ -212,6 +215,10 @@ export default defineManifest({
         runs: t.arr(upkeepRun),
       },
       perm: 'memory.admin', level: 'manage', label: 'filter', tool: 'memory', errors: ['permission.role_lacks_permission'],
+    }),
+    read('memory.meaning.status', 'Whether meaning search is on, which model it uses, how many documents have a vector and, when it is not, a plain reason (not set up reads healthy)', {
+      in: {}, out: { mode: t.enm('local', 'key', 'off'), state: t.enm('on', 'loading', 'not_set_up', 'degraded', 'off'), model: t.opt(t.str()), hint: t.opt(t.str()), indexed: t.int({ minimum: 0 }) }, label: 'filter', tool: 'memory',
+      mcpName: 'memory_meaning_status', agent: { planMode: 'allowed' },
     }),
     read('memory.questions.list', 'Questions upkeep could not settle: two values for one subject and field, or a fact that looks old', {
       in: { status: t.opt(t.enm('open', 'resolved')), kind: t.opt(t.enm('contradiction', 'stale')), layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), ...pageIn },

@@ -111148,6 +111148,94 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "hint": "example",
+            "indexed": 1,
+            "mode": "local",
+            "model": "example",
+            "state": "on"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.meaning.status",
+      "output": {
+        "properties": {
+          "hint": {
+            "type": "string"
+          },
+          "indexed": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "mode": {
+            "enum": [
+              "local",
+              "key",
+              "off"
+            ],
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "on",
+              "loading",
+              "not_set_up",
+              "degraded",
+              "off"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "state",
+          "indexed"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Whether meaning search is on, which model it uses, how many documents have a vector and, when it is not, a plain reason (not set up reads healthy)",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "memory_meaning_status",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
       "audit": "always",
       "effects": "write",
       "emits": [
@@ -112583,6 +112671,11 @@
                 "trueSince": 1760000000000
               }
             ],
+            "meaning": {
+              "hint": "example",
+              "model": "example",
+              "state": "on"
+            },
             "tookMs": 1
           }
         }
@@ -112711,6 +112804,32 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "meaning": {
+            "description": "How meaning search ran for this question. Anything but on means keyword search answered; not_set_up is healthy.",
+            "properties": {
+              "hint": {
+                "description": "Why search is keyword-only right now, in plain words",
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "on",
+                  "loading",
+                  "not_set_up",
+                  "degraded",
+                  "off"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "type": "object"
           },
           "tookMs": {
             "type": "integer"

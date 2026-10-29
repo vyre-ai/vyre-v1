@@ -30338,6 +30338,21 @@
     },
     {
       "blocks": [],
+      "cap": "memory.meaning.status",
+      "deferred": false,
+      "description": "Whether meaning search is on, which model it uses, how many documents have a vector and, when it is not, a plain reason (not set up reads healthy)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "memory_meaning_status",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.notes.list",
       "deferred": false,
       "description": "List memory notes of an agent, project or the Space, including proposed/ and recipes/",

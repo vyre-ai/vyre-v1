@@ -27,6 +27,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "memory.learned": Handler<"memory.learned", X>;
   "memory.maintain": Handler<"memory.maintain", X>;
   "memory.map.get": Handler<"memory.map.get", X>;
+  "memory.meaning.status": Handler<"memory.meaning.status", X>;
   "memory.notes.erase": Handler<"memory.notes.erase", X>;
   "memory.notes.list": Handler<"memory.notes.list", X>;
   "memory.pointer": Handler<"memory.pointer", X>;

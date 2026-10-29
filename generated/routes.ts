@@ -17331,6 +17331,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/memory/meaning/status",
+    "cap": "memory.meaning.status",
+    "v": 1,
+    "module": "memory",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/memory/notes/erase",
     "cap": "memory.notes.erase",
     "v": 1,
