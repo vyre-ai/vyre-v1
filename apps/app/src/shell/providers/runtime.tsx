@@ -36,6 +36,8 @@ export interface ShellRuntime extends Omit<HomeData, "nav"> {
   turns?: TurnStreams;
   /** Slash commands that plugins add to chat (name, one line, what to run). Absent until a plugin offers any. */
   pluginCommands?(): readonly { name: string; description: string; pluginId?: string; prompt?: string; run?(arg: string): Promise<string | void> }[];
+  /** Run a capability in another Space this device is signed in to, as the same person. Absent where there is only one Space. */
+  callIn?(spaceId: string, cap: string, input: unknown): Promise<unknown>;
   /** Put bytes at a one-time upload address from files.upload_url, signed in as the person. */
   putBlob?(path: string, bytes: Uint8Array): Promise<void>;
 }

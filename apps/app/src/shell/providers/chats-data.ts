@@ -89,7 +89,7 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     screens: rt.screens, call: rt.call, connection: rt.connection, threadId, me: { id: rt.me.id, name: rt.me.name },
     nameOf: (id) => nameOr(byId.get(id)?.name, id),
     kindOf: (id) => kindOf(byId.get(id)),
-    nav, clock: rt.clock,
+    nav, clock: rt.clock, spaceName: rt.space.name,
     lists: composerLists(principals, rt.me.id),
     directory: candidates(principals, rt.me.id),
     newKey,
@@ -97,6 +97,9 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     ...(rt.turns ? { live: { turnsOf: (t: string) => rt.turns!.turnsOf(t), subscribe: (l: () => void) => rt.turns!.subscribe(l), settle: (id: string) => rt.turns!.settle(id) } } : {}),
     copy,
     toast: () => undefined,
+    ...(rt.callIn && rt.knownSpaces && rt.knownSpaces.some((x) => x.spaceId !== rt.space.id)
+      ? { elsewhere: { spaces: rt.knownSpaces.filter((x) => x.spaceId !== rt.space.id).map((x) => ({ id: x.spaceId, name: x.name })), call: (id: string, cap: string, input: unknown) => rt.callIn!(id, cap, input) } }
+      : {}),
     ...(rt.putBlob ? { putBlob: (url: string, bytes: Uint8Array) => rt.putBlob!(url, bytes) } : {}),
     ...(canSave() ? { saveFile } : {}),
     ...(rt.pluginCommands ? { pluginCommands: () => rt.pluginCommands!() } : {}),

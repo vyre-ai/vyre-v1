@@ -62,6 +62,10 @@ export interface ConversationData {
   putBlob?(url: string, bytes: Uint8Array): Promise<void>;
   /** Hand the person a file: a download in the browser, a save sheet on a phone. Left out: the text is copied instead. */
   saveFile?(name: string, mime: string, content: string): void;
+  /** The name of the Space this chat lives in. */
+  spaceName?: string;
+  /** The other Spaces this person is in on this device, and a way to act in them. Left out when there is only this one. */
+  elsewhere?: { spaces: readonly { id: string; name: string }[]; call(spaceId: string, cap: string, input: unknown): Promise<unknown> };
   /** Slash commands that plugins add (name, one line, and what to run). Left out when no plugin offers any. */
   pluginCommands?(): readonly PluginCommand[];
   /** Replies being written in this chat, from the live socket. Left out where there is no live link: the reply then lands whole. */

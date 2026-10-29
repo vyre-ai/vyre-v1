@@ -19,6 +19,7 @@ export const CHAT_COMMANDS: readonly ChatCommandDef[] = Object.freeze([
   { id: "pin", detail: "Pin the last message" },
   { id: "fork", detail: "Branch this chat into a new one, from the last message" },
   { id: "export", detail: "Save this chat as Markdown or JSON", arg: "md or json" },
+  { id: "continue", detail: "Continue this chat in another Space you belong to", arg: "the Space's name", argRequired: true },
   { id: "task", detail: "Make a task from the last message", arg: "a title, if the message is not it" },
   { id: "remember", detail: "Keep a fact in your memory of this agent", arg: "the fact", argRequired: true },
   { id: "find", detail: "Find words in this chat" },
@@ -27,7 +28,7 @@ export const CHAT_COMMANDS: readonly ChatCommandDef[] = Object.freeze([
   { id: "stop", detail: "Stop what the agent is doing" },
 ] satisfies readonly ChatCommandDef[]);
 
-export type ChatCommandId = "plan" | "helper" | "handoff" | "pin" | "fork" | "export" | "task" | "remember" | "find" | "search" | "model" | "stop";
+export type ChatCommandId = "plan" | "helper" | "handoff" | "pin" | "fork" | "export" | "continue" | "task" | "remember" | "find" | "search" | "model" | "stop";
 
 const BY_ID = new Map(CHAT_COMMANDS.map((c) => [c.id, c] as const));
 export const chatCommand = (id: string): ChatCommandDef | undefined => BY_ID.get(id);
