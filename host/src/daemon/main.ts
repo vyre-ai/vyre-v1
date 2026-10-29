@@ -1,5 +1,6 @@
 // `vyred` entry point: node host/src/daemon/main.ts --role space --data-dir D [--space spc_x] [--port 8420] [--host 127.0.0.1]
 // The installer's launchd and systemd units, the Tauri sidecar and `vyre server start` all run this file. SIGTERM, SIGINT and Windows SIGBREAK stop it cleanly.
+import { fileURLToPath } from "node:url";
 import { loadConfig } from "./config.ts";
 import type { DaemonConfig } from "./config.ts";
 import { startDaemon } from "./daemon.ts";
@@ -9,6 +10,10 @@ const version = process.env["VYRE_VERSION"] ?? "0.0.0-dev";
 
 /** `vyred --role compute --server <address> --join <code>`: a guest computer for a Space (host/src/compute/node.ts). It holds no Space of its own. */
 async function runCompute(config: DaemonConfig): Promise<number> {
+  let host: unknown;
+  const { fileSeamImporter } = await import("../loader.ts");
+  const { createComputersHost } = await import("../seams/computers-host.ts");
+  const importSeams = (root: string): Promise<unknown> => fileSeamImporter(root)("computers");
   const { runComputeNode } = await import("../compute/node.ts");
   const os = await import("node:os");
   if (!config.server) { process.stderr.write("vyred: --role compute needs --server <the Space address>\n"); return 2; }
@@ -22,6 +27,19 @@ async function runCompute(config: DaemonConfig): Promise<number> {
       server: config.server, join: config.join, dataDir: config.dataDir, name: os.hostname(), signal: abort.signal, now: Date.now,
       fetch: (url, init) => fetch(url, init) as never,
       sleep: (ms, signal) => new Promise<void>((resolve, reject) => { const t = setTimeout(resolve, ms); signal.addEventListener("abort", () => { clearTimeout(t); reject(new Error("stopped")); }, { once: true }); }),
+      // what runs the jobs: the agent computers module's own Docker host (the same one a Space binds), reached through its host seam; its home mirror goes back to the Space on each job's token
+      makeHost: (link) => {
+        const root = fileURLToPath(new URL("../../..", import.meta.url));
+        const seams = importSeams(root);
+        return {
+          async run(kind, input) {
+            const s = (await seams) as { buildComputerHost?: (c: unknown) => unknown; nodeRun?: (h: unknown, k: string, i: unknown) => Promise<unknown> } | undefined;
+            if (!s?.buildComputerHost || !s.nodeRun) throw new Error("this computer has no agent computers module");
+            host ??= s.buildComputerHost(createComputersHost({ dataDir: config.dataDir, callAs: link.call, putBytes: link.put, homeIntervalMs: 2_000_000_000, log: (level, msg, attrs) => process.stderr.write(`vyred: ${level} ${msg} ${JSON.stringify(attrs ?? {})}\n`) }));
+            return s.nodeRun(host, kind, input);
+          },
+        };
+      },
       pollMs: Number(process.env["VYRE_POLL_MS"]) || 3_000, log: (line) => process.stdout.write(`vyred: ${line}\n`),
       facts: () => ({ os: process.platform, arch: process.arch, docker: dockerUp, version }),
     });

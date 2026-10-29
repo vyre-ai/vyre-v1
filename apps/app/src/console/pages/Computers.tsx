@@ -36,7 +36,7 @@ export function Computers({ onChanged, part }: { onChanged?: () => void; part: '
   if (!servers.data) return <ReadState error={servers.error} retry={servers.refresh} />;
   const waiting = servers.data.servers.filter((s) => s.enrollment === 'pending');
   const admitted = servers.data.servers.filter((s) => s.enrollment !== 'pending');
-  const runningOn = (serverId: string): string[] => (hosted.data?.computers ?? []).filter((c) => c.host === serverId).map((c) => c.caption ?? c.computerId);
+  const runningOn = (serverId: string): string[] => (hosted.data?.computers ?? []).filter((c) => c.nodeId === serverId).map((c) => c.caption ?? c.computerId);
   const joinCommand = code ? `vyred --role compute --server ${(globalThis as unknown as { location?: { origin: string } }).location?.origin ?? data.space.name} --join ${code.value}` : '';
   if (part === 'waiting' && !waiting.length) return null;
   return <>

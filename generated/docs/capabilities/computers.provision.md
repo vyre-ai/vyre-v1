@@ -27,6 +27,7 @@ Give an agent a computer (none unless the agent needs one)
 type In = {
   agentId: string;
   tabLimit?: number;
+  nodeId?: string;
   idempotencyKey: string;
 };
 ```
@@ -43,6 +44,7 @@ type Out = {
     tabs: number;
     tabLimit: number;
     host: "server" | "vm";
+    nodeId?: string;
     diskBytes?: number;
     lastFrameAt?: number;
     lastActiveAt?: number;
@@ -71,6 +73,7 @@ type Out = {
   "input": {
     "agentId": "agt_a1b2c3",
     "idempotencyKey": "idem_1",
+    "nodeId": "example",
     "tabLimit": 1
   },
   "output": {
@@ -82,6 +85,7 @@ type Out = {
       "host": "server",
       "lastActiveAt": 1760000000000,
       "lastFrameAt": 1760000000000,
+      "nodeId": "example",
       "recording": true,
       "state": "provisioning",
       "tabLimit": 1,
