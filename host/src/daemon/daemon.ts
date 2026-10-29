@@ -125,6 +125,8 @@ import { requestListener } from "./http.ts";
 import { desktopCors } from "./desktop-cors.ts";
 import { createChromeBridge } from "../bridge/chrome.ts";
 import type { ChromeBridge } from "../bridge/chrome.ts";
+import { createChromeLink } from "./chrome-link.ts";
+import { createLocalChromeRoute } from "../routes/local-chrome.ts";
 import { coerceQuery } from "./query.ts";
 import type { PropSchema } from "./query.ts";
 import { openDb, readLogMeta } from "./sqlite.ts";
@@ -304,8 +306,31 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const token = ensureAdminToken(paths);
   const sink = new LogSink({ path: paths.logs, now, secrets: () => [token] });
   const closers: (() => Promise<void> | void)[] = [() => sink.close()];
-  const chromeBridge = createChromeBridge({ token, onEvent: (e) => sink.log({ space: "-", level: 20, msg: "chrome.agent_event", place: "chrome-bridge", attrs: { event: e.event, agent: typeof e["agent"] === "string" ? e["agent"] : "" } }) });
+  // Vyre for Chrome on this computer: the extension acts as the person who owns the Space this daemon hosts (chrome-link.ts). The bridge and the link need each other, so each reaches the other through a function.
+  const optInFile = path.join(paths.root, "chrome-optin.json");
+  const chromeLink = createChromeLink({
+    version: cfg.version,
+    space: () => {
+      if (!hasSpace || !space) return null;
+      let name = cfg.spaceName ?? space;
+      try { const row = db?.all("SELECT name FROM identity_space WHERE id = ?", space)[0] as { name?: string } | undefined; if (row?.name) name = row.name; } catch { /* the table is not there yet */ }
+      const a = cfg.address ?? `http://${cfg.host}:${boundPort}`;
+      return { id: space, name, webUrl: /^https?:\/\//.test(a) ? a : `https://${a}` };
+    },
+    person: () => ownerOfSpace(),
+    unlocked: (person) => keyring.holds(person),
+    push: (m) => chromeBridge.push(m),
+    optedIn: {
+      read: () => { try { const v = JSON.parse(fs.readFileSync(optInFile, "utf8")) as unknown; return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []; } catch { return []; } },
+      write: (spaces) => { fs.writeFileSync(optInFile, JSON.stringify(spaces), { mode: 0o600 }); },
+    },
+    announce: (spaces) => chromeBridge.optIn(spaces, "personal"),
+    callTool: (c) => chromeBridge.callTool(c),
+  });
+  const chromeBridge = createChromeBridge({ token, invoke: chromeLink.invoke, op: chromeLink.op, onEvent: (e) => sink.log({ space: "-", level: 20, msg: "chrome.agent_event", place: "chrome-bridge", attrs: { event: e.event, agent: typeof e["agent"] === "string" ? e["agent"] : "" } }) });
   closers.push(() => { chromeBridge.failAll(); chromeBridge.closeStreams(); });
+  { const optedIn = chromeLink.optedIn(); if (optedIn.length) chromeBridge.optIn(optedIn, "personal"); }
+  const localChromeRoute = createLocalChromeRoute({ token, link: () => chromeLink });
   const fetchFn: FetchFn | null = o.fetch ?? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null);
 
   let space: string | null = cfg.space ?? (hasSpace ? readLogMeta(paths.events, "space") : null);
@@ -688,6 +713,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         ? invoke(call.cap, call.input, { space: call.space, principal: call.principal, preAuth: true, origin: "schedule", ...(call.traceId ? { trace: { traceId: call.traceId, spanId: "0".repeat(16) } } : {}) }).then(() => undefined)
         : runAsScheduled(call));
       invokeRef = invoke;
+      chromeLink.bind(invoke);
       const mcpExports = loaded.moduleExports.get("mcp");
       const makeMcp = mcpExports?.["createMcpRuntime"];
       if (typeof makeMcp === "function") {
@@ -911,7 +937,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         configureSync: () => createSyncSeam({ store: spaceStore, ...(loaded.serving.get("conflicts") === "live" ? { conflicts: { open: (c) => hookRunner.call("conflicts.park", c) as Promise<string>, history: async (e) => { await hookRunner.call("conflicts.record_history", e); } } } : {}), access: () => access.snap, space: spaceId, now, registryHash, liveHub: syncLive.seam, invoke: (c, i, seed) => invoke(c, i, seed), keyed: (c, v) => capIndex?.get(c, v)?.idempotency === "key", ...(cfg.address ? { endpoints: () => { const url=syncEndpointOrigin(cfg.address!);return url?[{kind:"direct" as const,url}]:[]; } } : {}) }),
         setVaultKeyPort: () => ({ personKey: async (personId: string) => keyring.get(personId) }),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
-        configureVault: () => ({ sinks: { ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode }), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
+        configureVault: () => ({ sinks: { browser: chromeLink.fillSink, ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode }), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
         setConnectorsHost: () => connectorPort,
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
         setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open() }, now }),
@@ -1281,7 +1307,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         res.once("finish", () => { setImmediate(requestStop); });
         return;
       }
-      if (mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
+      if (mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || localChromeRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {
