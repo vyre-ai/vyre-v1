@@ -220,6 +220,18 @@ test("the Chrome extension zip carries the extension without its tests or packag
   assert.equal(zipRead(zip, "package.json"), null);
 });
 
+test("the Chrome extension zip of a release carries that release's version in its manifest and changes nothing else in the zip", () => {
+  const root = fakeRepo(), out = fs.mkdtempSync(path.join(os.tmpdir(), "out-"));
+  const plain = packExtension({ dir: path.join(root, "apps/chrome"), outFile: path.join(out, "plain.zip") });
+  const r = packExtension({ dir: path.join(root, "apps/chrome"), outFile: path.join(out, EXTENSION_ZIP), release: "1.0.0-rc.3" });
+  assert.equal(r.version, "1.0.0.3");
+  const zip = fs.readFileSync(r.file);
+  const manifest = JSON.parse(zipRead(zip, "manifest.json")?.toString() ?? "{}") as { version: string; version_name: string };
+  assert.deepEqual([manifest.version, manifest.version_name], ["1.0.0.3", "1.0.0-rc.3"]);
+  assert.deepEqual(zipNames(zip), zipNames(fs.readFileSync(plain.file)));
+  assert.equal(zipRead(zip, "src/content/fill.js")?.toString(), "console.log('fill');\n".repeat(50));
+});
+
 test("releases.json lists only the channels whose artifact is there, each with its hash", () => {
   const root = fakeRepo(), out = fs.mkdtempSync(path.join(os.tmpdir(), "out-"));
   packServer({ root, outDir: out, version: "1.4.0", images: { VYRE_IMAGE: DIGEST } });

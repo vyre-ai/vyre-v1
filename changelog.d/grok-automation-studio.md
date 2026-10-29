@@ -1,0 +1,86 @@
+- A personal automation runs only as its owner. A space automation run is stored as that automation's service principal.
+- Prove an outward send held for approval through the live daemon. The run resumes on the same attempt and the same idempotency key. A promoted Space automation is a service principal its owner can share with, the hold names the run, and the approved result replaces the hold stored for that key.
+- Prove a failed parallel lane through the live daemon. waitFor all fails the parent and names that lane. waitFor any waits while another lane is open, then succeeds on the lane that finished, and the failed lane stays listed. A named run failure keeps its words instead of becoming a generic internal error.
+- Prove a retryable failure through the live daemon. The next attempt has its own key, and a step that already finished is not run again. The host queue drives the run again when that attempt is due.
+- Prove a live schedule tick starts one Run and does not start that fire again, and that 73 missed ticks start no Run on skip, one Run on run once, and no Run when backfill is over its cap.
+- A live rerun asks for confirmation before it starts, and the action is named as a live rerun. Sandbox replay stays a separate run and does not repeat the note.
+- A sandbox test reads for real and does not perform the write or the send. Replay still uses what the original run recorded.
+- Prove a self-trigger and chain depth on the live daemon. A fire from the automation itself is dropped, depth 8 is dropped and recorded, and the same event starts one run.
+- The loop catalogue, validation, and the runtime all stop at 1000 iterations. A loop inside a loop is refused. Moving runs onto a new version still answers that it is not available yet.
+- A revoked Google account fails the Gmail step with provider.auth_failed. The token stays out of the step, and a retry uses the same connection.
+- The host binds a public document fetch to the addresses that passed the check.
+- Fetch a documentation page only when a connector draft has no pasted document and no app name. The page is data. An OpenAPI document becomes drafted actions, and any other page becomes no actions. The page text is not returned.
+- Offer a tested connector to another Space as a draft. The copy keeps the app name and the action names, and it does not keep a key.
+- Draft actions from a pasted OpenAPI document, then mark one of them tested with a Vault read. The document text and the key stay out of the reply.
+- Try one connector read on the documented host. The host fills the Vault key onto that request and returns only whether it was tested.
+- Read a public MCP address and draft one action per tool name. The document text is not returned.
+- Refuse a document that redirects to a private, loopback, link-local, or metadata address. The host installs the fetch. The caller does not.
+- A connector action is tested only when a stored row says so. Claiming tested on the step is still a draft, and that draft cannot be turned on.
+- An agent reveal, an agent fill, and the turn that stores that reveal do not contain the Vault key.
+- Offer to set up Automations once when a Vault item is saved, and keep that decision on the item.
+- Keep a drafted connector action on a draft, and refuse to turn that Automation on.
+- Open a public document through Automations and refuse a private, loopback, link-local, or metadata address. The page text is not returned.
+- Try a connector read only on the document host, and keep the key value off the test plan.
+- Read an MCP server address through the public document fetcher and turn each tool name into a drafted action.
+- Bind a public document fetch to the addresses that passed the check when the caller supplies the connect function.
+- Open a document address only over https, and refuse a private, loopback, link-local, or metadata host, including after lookup and on every redirect. The body is text, capped, and not treated as instructions.
+- Offer to set up Automations once when a Vault item is saved. Declining or accepting is final for that item. A key in the item name is not repeated in the offer.
+- Keep connector actions inside the parsed schema. An MCP tool list becomes one drafted action per tool. A shared copy drops the vault id and the key. A drafted action cannot be published.
+- Point the app release daemon at a computer socket that is not there. This runner's Docker engine answers the default socket, so Console was saying the host was ready. A down host still cannot provision a computer.
+- Keep an open template install review when the gallery refetches the same preview. The review was closing itself, so Confirm install left the page before it could be pressed.
+- Prove Parallel, Loop, and a killed host through the live daemon. The old in-process driver is gone. Publishing a later version leaves a waiting run on the version it started, and previewing a move answers that it is not available yet.
+- Keep a held model answer silent until the socket closes, so Cancel still finds that Ask running.
+- Expect AI and Code to be unavailable in the studio checks. The sample lead follow-up names its number and mailboxes, so that text step no longer blocks going live.
+- Mark the studio sentences, tabs, choice buttons, and cards that are not list rows, so the row check passes without redrawing them. The SMS character set still contains the section mark, built at runtime so the source stays clean.
+- Let the live host read, list steps of, stop, and resume a Run while it drives Parallel and Loop. Those calls already exist as capabilities. The daemon only runs host calls, so the seam could not see a child Run.
+- Keep the versions tab as the version list after the move control was removed. The markup is split so the list still parses.
+- Hide AI and Code from the step list and refuse to turn either on, because the host has no agent port and no sandbox port for them. Package export, package import, and moving runs onto another version answer that they are not available yet. The Packages place no longer offers those actions, and the versions tab no longer offers to move runs.
+- Type the Google and Microsoft step error lists so the contract check accepts them. The sample lead follow-up names its mailbox and number, so a missing Twilio key stays a warning and the canvas can clear once the other fields are filled.
+- Automations: a SIGKILL while a Run is waiting resumes that same Run on the next daemon, and the record after the wait is written once.
+- Automations: naming an app asks the host for that provider in the official OpenAPI directory. The directory host is fixed. A web address the person types is not opened. A pasted document still wins.
+- Automations: naming Stripe asks the host for the allowlisted official document. A web address the person types is not opened. Matching paths become steps, and a webhook in that document becomes the catalog webhook trigger once. An outward call is still not sent. Other apps still need a document already in hand.
+- Automations: Ask can try a catalog read with the saved connection through steps.test. A connector read is a dry-run preview and is not sent. An outward call is not given a capability. A document already on the tab becomes one step proposal per action. Secret fields stay out of the call and the line.
+- Automations: each Automation has an Ask tab. It uses the catalog and accounts already loaded. An existing Vault connection is linked onto the step. A missing one is pasted into Vault, then saved with vault.item.put and connections.create. The lines and the Chats tab never receive the pasted values. An OpenAPI document already on the tab is read through automations.draft_connector. A web address is not opened.
+- Automations: drafting a connector also returns the Vault paste fields and an Ask Vyre bundle. The bundle has field names only. A read may be tried later. An outward call waits until the person runs it. A webhook in the document becomes a draft trigger. Nothing is fetched or promoted.
+- Automations: `automations.draft_connector` drafts actions from an OpenAPI document already in memory. A docs URL is stored and not fetched. Nothing is saved or promoted.
+- Automations: an OpenAPI document already in memory drafts typed actions at draft level. A host outside that document's servers is rejected. Secret examples are not copied. The generator does not fetch docs, call the API, or promote the draft.
+- Automations: stopping a parent stops unfinished children. A child that already finished stays finished. A pasted secret is refused on a draft, and the step log keeps the field name without the secret value.
+- Automations: a compact builder reads canvas overview, selected step, data, then test. Cards, tabs, insert controls, and mappings name the action and the state. Focus uses the existing accent line. A browser pass was not run.
+- Automations: the studio chrome follows the prototype. The nav is Automations, Needs you, All runs, Live Event Explorer, Analytics, Dependencies, and Packages. Analytics opens the Space screen. The builder has Basic and Advanced, and the inspector tabs are Configure, Data, and Test. Empty screens stay empty. A browser pass was not run.
+- Automations: a killed host process resumes a waiting Run, the same loop child, a schedule catch-up, and each inner node of one graph once. A second recovery does not send again or open a second Needs you task. A browser pass was not run.
+- Automations: tests cover a loop of zero, one, and 1000 items, an any-join that stops the unfinished lane, and a safe cohort move that does not send a finished message again. A step test result omits a secret that was only in the input. Stopping a parent does not yet stop a waiting child. A pasted secret is still stored on a draft and in the run log.
+- Automations: the seven acceptance flows run on the host databases in this process. A revoked Google account fails the step with provider.auth_failed, Ask Vyre keeps the connection id and drops the token, and a retry uses that same connection id. A new host object on the same databases resumes a waiting Run once.
+- Automations: first-party steps call handlers that already exist for records, files, calendar, forms, GitHub, Google, and Microsoft. Word, Excel, Vault reveal, and installation tokens stay off the catalogue. A Google or Microsoft step needs a connection and cannot hold a secret.
+- Automations: an authenticated request runs a named connector action on a connection. A draft connector stays with its author. The step cannot hold a secret, and it does not call an arbitrary website.
+- Automations: Send an email uses the shared email builder. Send a text uses the shared rich editor. The canvas names the message, a test fills it from fixture data, and a text shows its segment count. Links are not shortened.
+- Automations: export saves a portable copy of an Automation definition. The package list stays empty until that person exports one. Import creates a draft from a package they own.
+- Automations: the step panel lists every field the schema names, including one that is still missing. The data shelf shows type and whether a value is missing, null, or empty. A step test stores the definition version with the output.
+- Automations: turning an Automation on checks each step's capability contract. An AI step stays a preview. Every other catalogue step has a schema, an effect, documented errors, and a test mode.
+- Automations: a reviewed Apply moves only safe cohorts onto the chosen definition version. Finished steps stay finished, and ambiguous or finished runs stay pinned.
+- Automations: Live Event Explorer, Dependencies, and Analytics read the event log, named accounts, and run counts. The package list stays empty until this person exports one.
+- Automations: Transform, Collect, and Group by run as ordinary steps. A wait can move to the next open hours. Run another automation starts that automation and waits for it. Run code executes in a sandbox with no network and no files. An AI step stays a preview.
+- Automations: a step can retry, skip, substitute, stop, or route on a named error code. Skip and substitute do not run the step again. The step menu offers each of those.
+- Automations: Send an email and Send a text cannot be turned on until the step names its mailbox or number.
+- Automations: the step lists the accounts a person can use, writes a default id when the step has none, and does not pick a mailbox or number the step did not name.
+- Automations: Ask Vyre redacts bearer tokens, key literals, and JWTs inside the error text before the agent sees it.
+- Automations: a step keeps the account id it was given. A new step can start from the only account, a sibling step, or the last explicit pick, and a later edit does not switch that id to a different account.
+- Automations: Parallel lanes and Loop iterations each run as their own child Run, pinned to the parent definition version, with a durable coordinator wait and a concurrency cap for loops.
+- Automations: a Wait can use a relative milestone. A milestone that has already passed skips later outward steps and still runs record updates. An unfinished milestone recalculates when its calendar event changes, and a cancellation does not replay a step that already succeeded.
+- Automations: a person can answer one schedule backlog from Needs You. Run first N and run latest N start those live runs, skip backlog resumes without them, change limits stays paused, and keep paused stays paused. The same ticks are not started twice.
+- Automations: a schedule that is on starts its due ticks through automations.fire, once each. The first look sets the cursor to now. A backlog over the cap pauses that schedule only and opens one Needs You request, and a recovery choice can run the selected ticks without repeating them.
+- Automations: store one cron, time zone and missed policy for a schedule, with friendly presets, a plain-language summary and the next five runs.
+- Automations: backfill each missed tick under lookback, cap, spacing and overlap limits. A backlog over the cap pauses that schedule only and opens one deduplicated Needs You request.
+- Automations: load the step and trigger catalog from the runtime, mark AI and code as Preview, and keep Parallel, Loop, and On a schedule as ordinary flow steps in the menu.
+- Automations: open Promote from the canvas menu, route Connect from a structured service, and mount Settings with provider keys or an honest empty state.
+- Automations: paint a selected run from its step log, drop Stop on a finished run, and keep sandbox replay separate from a confirmed live re-run.
+- Automations: register the sidebar in the shared slot, and offer Ask Vyre a scrubbed error context that leaves out secrets.
+- Automations: add the shared VAL admission rule, Ask Vyre scrubber, cohort migration preview, connector trust ladder, and per-step failure policy. Preview capabilities cannot publish as stable. Ask Vyre context drops secrets, auth headers, and cookies. Active Runs stay pinned until a safe cohort is selected. Publishing does not move them.
+- Automations: a draft may contain an AI step or Run code, and turning that Automation on is refused until those steps run on the live host. A schedule can be turned on.
+- Ask proposals for a drafted connector are titled "App: Action name" (for example "Stripe: List customers") instead of the action key. The Ask try button stays on the dry-run preview: the proposal does not yet carry a Vault handle, so it does not call `automations.try_read`.
+- A live test proves the reply of `automations.try_read` is only the level and that the app's response never enters an agent turn transcript.
+- A retry scheduled more than about 24 days ahead no longer overflows the host timer; the run is called early, finds the retry not due and schedules again.
+- The public document fetcher and the connector HTTP step now share one address list in `lib/address-guard.ts`. It refuses 100.64.0.0/10 (where a tailnet lives), 198.18.0.0/15, 192.0.0.0/24, multicast and reserved space (224.0.0.0/3), IPv6 "::", 64:ff9b:1::/48 and IPv6 multicast, and applies the same rules to mapped, NAT64 and 6to4 forms.
+- Deleting a Space automation suspends its service principal, and restoring it reactivates the principal, so the service's grants stop with the automation. A live test proves a deleted automation's service is refused with `permission.suspended`.
+- `run.branch_failed` and `run.loop_failed` errors keep the lane or item that failed and drop the child run's reason, which can hold a provider's words. The reason stays on the child run.
+- An automation's webhook URL now starts a run: `POST /hooks/automation/<id>/<secret>` compares the secret in constant time, answers a bare 404 for unknown, turned-off or wrong-secret calls, caps the body at 1 MB, limits each automation to 60 posts a minute, uses the body as the trigger data and treats `Idempotency-Key` as one run. A rotated secret stops the old URL.
+- Two tests that already failed on main are fixed: the daemon-table drift test now compares the daemon's copy after the module migrations run over it (the network enrollment columns), and `docs/deferred.md` no longer lists `reports.health`, which is a real handler.

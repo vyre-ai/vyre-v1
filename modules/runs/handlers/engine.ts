@@ -8,7 +8,7 @@
 // DECISION: step cap lives in the engine (opts.maxSteps, default 500); runs.record_step has no cap field and only refuses a runaway log (HARD_STEP_ROWS).
 import {
   DEFAULT_WAIT_MS, HARD_STEP_ROWS, allSteps, allWaits, clean, clearWait, countRuns, countStepRows, emitRun, engineHealth, findRun, findStep, idemKeyFor, isActive,
-  isTerminalStep, latestSteps, listRuns, manageRun, newRunId, newSpanId, newThreadId, page, patchExtra, raise, readExtra, readTrigger, runOut, saveRun, saveStep, saveWait, seeRun, stepOut, touch,
+  isTerminalStep, latestSteps, listRuns, manageRun, mayManage, newRunId, newSpanId, newThreadId, page, patchExtra, raise, readExtra, readTrigger, readWait, runOut, saveRun, saveStep, saveWait, seeRun, stepOut, touch,
 } from "../projections.ts";
 import { isSystemCall, isTrustedService } from "../../../lib/trust.ts";
 import type { Db, ResourceRef, Run, RunKind, RunStatus, RunsCtx, StepRow, StepState, WaitReason, WaitRow } from "../projections.ts";
@@ -26,7 +26,7 @@ export function parseDuration(ctx: RunsCtx, s: string | undefined): number {
   return Number(m[1]) * UNIT[m[2]!]!;
 }
 
-/** Runs of these kinds are sandboxes: outward steps are recorded, never executed (test mode and replay, ARCH b9). */
+/** Runs of these kinds are sandboxes: write and outward steps are recorded, never executed (test mode and replay, ARCH b9). Reads still run. */
 const isSandbox = (k: RunKind): boolean => k === "automation_test" || k === "replay";
 
 function describeOn(on: unknown): string | undefined {
@@ -128,6 +128,19 @@ export async function resume(ctx: RunsCtx, input: In): Promise<unknown> {
   return { run: ((x) => runOut(x, readTrigger(ctx.db, x.id)))(resumeRun(ctx, seeRun(ctx, input.runId), input.reason)) };
 }
 
+/** Move an active Run onto a definition version. Finished steps stay in the log. This does not resume, retry, or start the Run. */
+export async function pinVersion(ctx: RunsCtx, input: In): Promise<unknown> {
+  const run = seeRun(ctx, input.runId);
+  if (!mayManage(ctx, run)) raise(ctx, "permission.role_lacks_permission", "Only the owner or someone who manages runs can do that.", { reason: "manage_required" });
+  const version = input.definitionVersion;
+  if (typeof version !== "number" || !Number.isInteger(version) || version < 1) raise(ctx, "validation.bad_input", "A definition version is a whole number.");
+  if (!isActive(run.status)) raise(ctx, "validation.precondition_failed", "That run has already finished.", { reason: "run_finished", status: run.status });
+  if (run.definitionVersion === version) return { run: runOut(run, readTrigger(ctx.db, run.id)) };
+  run.definitionVersion = version;
+  touch(ctx, run);
+  return { run: runOut(run, readTrigger(ctx.db, run.id)) };
+}
+
 /** How many of this owner's most recent finished Runs of the same kind and name failed in a row, this one included. */
 function consecutiveFailures(db: Db, run: Run): number {
   const rows = db.all(
@@ -168,7 +181,26 @@ export async function finishRun(ctx: RunsCtx, run: Run, status: "succeeded" | "f
     emitRun(ctx, "run.failed", run.id, { kind: run.kind, step: err.step, code: err.code, message: err.message, owner: run.owner, consecutive });
     await needsYou(ctx, run, err.message);
   }
+  noteParent(ctx, run);
   return run;
+}
+
+// A child can finish while its parent is still inside the coordinator step, before that step has parked. Remember the parent until the wait is recorded.
+const childSettled = new Set<string>();
+
+function noteParent(ctx: RunsCtx, run: Run): void {
+  const parentId = run.parentRun;
+  if (!parentId) return;
+  const parent = findRun(ctx.db, parentId);
+  if (!parent || !isActive(parent.status)) return;
+  if (parent.status === "waiting") {
+    const on = readWait(ctx.db, parent.id)?.on as { event?: string } | undefined;
+    if (on?.event === "run.child_terminal") {
+      try { resumeRun(ctx, parent, parent.waitReason); } catch { /* already resumed */ }
+    }
+    return;
+  }
+  childSettled.add(parentId);
 }
 
 /** A failed Run lands in the owner's Needs you as an Unblock task (spec 2.13). Sandbox Runs (test mode, replay) stay quiet. Best effort. */
@@ -191,11 +223,32 @@ export async function finish(ctx: RunsCtx, input: In): Promise<unknown> {
 
 // ---- stop, retry, replay ----
 
+function childIds(db: Db, parentId: string): string[] {
+  return (db.all(
+    "SELECT id FROM runs_items WHERE parent_run = ? AND deleted_at IS NULL ORDER BY started_at ASC, id ASC",
+    parentId,
+  ) as { id: string }[]).map((r) => r.id);
+}
+
+/** Stop this run, then every unfinished descendant. A run that already finished stays as it is. The parent is stopped first so a child cannot wake it. */
+async function halt(ctx: RunsCtx, run: Run, reason: string | undefined, seen: Set<string>): Promise<void> {
+  if (seen.has(run.id)) return;
+  seen.add(run.id);
+  const fresh = findRun(ctx.db, run.id);
+  if (!fresh) return;
+  if (isActive(fresh.status)) await finishRun(ctx, fresh, "stopped", { by: ctx.principal.id, reason });
+  for (const id of childIds(ctx.db, fresh.id)) {
+    const child = findRun(ctx.db, id);
+    if (child) await halt(ctx, child, reason, seen);
+  }
+}
+
 export async function stop(ctx: RunsCtx, input: In): Promise<unknown> {
   const run = manageRun(ctx, input.runId);
-  if (run.status === "stopped") return { run: runOut(run, readTrigger(ctx.db, run.id)) };
-  if (!isActive(run.status)) raise(ctx, "validation.precondition_failed", "That run has already finished.", { reason: "run_finished", status: run.status });
-  return { run: ((x) => runOut(x, readTrigger(ctx.db, x.id)))(await finishRun(ctx, run, "stopped", { by: ctx.principal.id, reason: input.reason })) };
+  if (run.status !== "stopped" && !isActive(run.status)) raise(ctx, "validation.precondition_failed", "That run has already finished.", { reason: "run_finished", status: run.status });
+  await halt(ctx, run, input.reason, new Set());
+  const done = findRun(ctx.db, run.id) ?? run;
+  return { run: runOut(done, readTrigger(ctx.db, done.id)) };
 }
 
 export async function retry(ctx: RunsCtx, input: In): Promise<unknown> {
@@ -336,6 +389,15 @@ async function endWait(ctx: RunsCtx, run: Run, summary: string, timedOut: boolea
   resumeRun(ctx, run);
 }
 
+/** A calendar delete ends only the wait that is bound to that event. cancelOn has no filter, so this is separate from it. */
+function anchorDeleted(w: WaitRow, ev: { type: string; payload?: unknown }): boolean {
+  if (ev.type !== "calendar_event.deleted") return false;
+  const on = w.on as { anchorId?: string; filter?: { eventId?: string } } | undefined;
+  const anchor = on?.anchorId ?? on?.filter?.eventId;
+  if (!anchor) return false;
+  return (ev.payload as { eventId?: unknown } | null)?.eventId === anchor;
+}
+
 /** The event consumer for waiting Runs: a matching event wakes the Run; a cancel-on event stops it. Call once per event from the trigger consumer. */
 export async function wake(ctx: RunsCtx, ev: { type: string; payload?: unknown }): Promise<string[]> {
   const woken: string[] = [];
@@ -344,7 +406,7 @@ export async function wake(ctx: RunsCtx, ev: { type: string; payload?: unknown }
     if (!run || run.status !== "waiting") continue;
     const cancel = w.cancelOn as { events?: string[] } | string[] | undefined;
     const cancelEvents = Array.isArray(cancel) ? cancel : cancel?.events;
-    if (cancelEvents?.includes(ev.type)) { await finishRun(ctx, run, "stopped", { by: "system", reason: `Canceled by ${ev.type}.` }); continue; }
+    if (cancelEvents?.includes(ev.type) || anchorDeleted(w, ev)) { await finishRun(ctx, run, "stopped", { by: "system", reason: `Canceled by ${ev.type}.` }); continue; }
     if (matches(w, { type: ev.type, payload: ev.payload })) {
       const on = w.on as { run?: string } | undefined;
       await endWait(ctx, run, on?.run ? `Run ${on.run} ${ev.type.slice("run.".length)}.` : `Matched ${ev.type}.`, false);
@@ -383,12 +445,16 @@ export function backoffMs(p: RetryPolicy, attempt: number): number {
 
 export interface PlanStep {
   id: string;
+  /** Catalogue step key when the host built the plan. An AI step waits on a lost key. A connection step does not. */
+  key?: string;
   branch?: string;
   input?: unknown;
   retry?: RetryPolicy;
   effects?: "read" | "write" | "outward";
-  /** output a sandbox records instead of running an outward step (StepDef.sample) */
+  /** output a sandbox records instead of running a write or outward step (StepDef.sample) */
   sample?: unknown;
+  /** next step when this one is skipped and does not run; null ends the run */
+  next?: string | null;
 }
 export interface StepResult {
   output?: unknown;
@@ -410,6 +476,10 @@ export interface StepWait {
   timeoutAt?: number;
   /** events that cancel the wait and stop the Run */
   cancelOn?: string[];
+  /** calendar event a milestone wait follows */
+  anchorId?: string;
+  /** another Run this wait follows; a matching run.succeeded, run.failed, or run.stopped wakes it */
+  runId?: string;
 }
 export interface StepCall {
   attempt: number;
@@ -423,6 +493,8 @@ export interface StepCall {
   resumed: boolean;
   /** when this step first started; kept across waits and crashes so a Wait can tell a time that came from a timeout */
   startedAt: number;
+  /** wake time stored on the waiting step row, so a milestone can keep it when the anchor cannot be re-read */
+  priorAt?: number;
 }
 export type Executor = (step: PlanStep, call: StepCall) => Promise<StepResult>;
 export interface DriveOptions {
@@ -436,7 +508,12 @@ export interface DriveOptions {
 }
 export interface DriveResult { status: RunStatus; retryAt?: number; failedStep?: string }
 
-const KEY_LOST = /^(provider\.auth_failed|key\.lost)$/;
+/** An AI model key can fall over to a backup key. A revoked Google or Microsoft connection is a failed step, so the same connection can be reconnected and retried. */
+function waitsForWorkingKey(step: PlanStep, code: string): boolean {
+  if (code === "key.lost") return true;
+  if (code !== "provider.auth_failed") return false;
+  return step.key === "ai" || (step.key === undefined && step.id === "ai");
+}
 interface Caught { code: string; message: string; retryable: boolean }
 function caught(e: unknown): Caught {
   const he = (e as { error?: { code?: unknown; message?: unknown; retryable?: unknown } } | null)?.error;
@@ -445,6 +522,37 @@ function caught(e: unknown): Caught {
   return { code: "step.failed", message: typeof m === "string" && m ? m : "The step failed.", retryable: true };
 }
 const parseJson = (s: string | undefined): unknown => { if (s === undefined) return undefined; try { return JSON.parse(s); } catch { return undefined; } };
+
+// Same shapes containsSecret flags. A page token is a cursor, not a secret, even though the name contains "token".
+const SECRET_KEY = /(secret|password|authorization|cookie|token|api[-_]?key|credential)/i;
+const SECRET_VALUE = /^(?:bearer\s+|sk-|key_)/i;
+
+function pageTokenField(key: string): boolean {
+  if (!/page[-_]?tokens?/i.test(key)) return false;
+  const rest = key.replace(/page[-_]?tokens?/gi, "");
+  return !SECRET_KEY.test(rest);
+}
+
+function redactString(value: string): string {
+  if (SECRET_VALUE.test(value.trim())) return "[redacted]";
+  return value.replace(/bearer\s+\S+/gi, "Bearer [redacted]").replace(/\bsk-\S+/g, "[redacted]");
+}
+
+/** Field names stay. Secret values do not. A page token value stays unless that value is itself a secret. */
+function redactForLog(value: unknown): unknown {
+  if (typeof value === "string") return redactString(value);
+  if (Array.isArray(value)) return value.map((item) => redactForLog(item));
+  if (!value || typeof value !== "object") return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    out[key] = !pageTokenField(key) && SECRET_KEY.test(key) ? "[redacted]" : redactForLog(item);
+  }
+  return out;
+}
+
+function logJson(value: unknown): string {
+  return JSON.stringify(redactForLog(value ?? null));
+}
 
 /** Recorded outputs of the Run a replay copies, by step. */
 function recordedOutputs(db: Db, runId: string): Record<string, unknown> {
@@ -460,7 +568,7 @@ function recordedOutputs(db: Db, runId: string): Record<string, unknown> {
  * - Every attempt is a row in the step log, written running before the executor is called and succeeded or failed after it.
  * - Resume: succeeded and skipped steps are walked past using their stored results and their stored `next`; the first other step runs. A step found `running` (a crash)
  *   runs again as the same attempt with the same key; a `failed` step with a retry time runs as the next attempt once the time has come; a `waiting` step continues as the same attempt.
- * - Sandboxes (test mode, replay) record outward steps (and, in replay, writes) from the recorded or sample output instead of running them.
+ * - Sandboxes (test mode, replay) record write and outward steps from the recorded or sample output instead of running them. Reads still run.
  * - Stop is read before every step: a stopped Run does not start another.
  */
 export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep[], exec: Executor, opts: DriveOptions = {}): Promise<DriveResult> {
@@ -502,6 +610,19 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
       cur = last.nextStep === undefined ? plan[idx + 1]?.id : last.nextStep ?? undefined;
       continue;
     }
+    // Skip before any running row, so a crash cannot send an outward step the milestone already passed.
+    if (!last && step.effects === "outward" && milestoneSkip(outputs)) {
+      const key = idemKeyFor(runId, cur, 1);
+      const output = { skipped: true, reason: "milestone_passed" };
+      saveStep(ctx.db, {
+        runId, step: cur, attempt: 1, state: "skipped", inputRef: `in:${key}`, inputJson: logJson(step.input),
+        outputRef: `out:${key}`, outputJson: logJson(output), idemKey: key, startedAt: ctx.now(), endedAt: ctx.now(), traceSpan: newSpanId(),
+        ...(step.next !== undefined ? { nextStep: step.next } : {}),
+      });
+      outputs[cur] = output;
+      cur = step.next !== undefined ? step.next ?? undefined : plan[idx + 1]?.id;
+      continue;
+    }
     if (executed >= maxSteps) return failRun(ctx, run, { code: "run.step_cap", message: `The run went past ${maxSteps} steps and was stopped.`, step: cur });
 
     let attempt = 1;
@@ -519,7 +640,9 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
     }
     const key = idemKeyFor(runId, cur, attempt);
     const startedAt = last?.startedAt !== undefined && resumed ? last.startedAt : ctx.now();
-    const inputJson = JSON.stringify(step.input ?? null);
+    const priorSnap = resumed ? parseJson(last?.outputJson) as { at?: unknown } | undefined : undefined;
+    const priorAt = typeof priorSnap?.at === "number" ? priorSnap.at : undefined;
+    const inputJson = logJson(step.input);
     saveStep(ctx.db, {
       runId, step: cur, attempt, state: "running", inputRef: `in:${key}`, inputJson, idemKey: key, startedAt,
       traceSpan: resumed && last?.traceSpan ? last.traceSpan : newSpanId(),
@@ -530,15 +653,15 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
 
     let result: StepResult;
     try {
-      const stubbed = sandbox && (step.effects === "outward" || (replaying && step.effects === "write"));
+      const stubbed = sandbox && (step.effects === "write" || step.effects === "outward");
       if (stubbed) result = { output: step.id in recorded ? recorded[step.id] : step.sample };
-      else result = await exec(step, { attempt, key, input: step.input, outputs: { ...outputs }, sandbox, resumed, startedAt });
+      else result = await exec(step, { attempt, key, input: step.input, outputs: { ...outputs }, sandbox, resumed, startedAt, ...(priorAt !== undefined ? { priorAt } : {}) });
     } catch (e) {
       const c = caught(e);
       const policy = step.retry ?? NO_RETRY;
       run = findRun(ctx.db, runId)!;
-      if (KEY_LOST.test(c.code) && !isSandbox(run.kind)) {
-        // a lost key falls to the backup key once, then the Run waits in Needs you; it never fails silently
+      if (waitsForWorkingKey(step, c.code) && !isSandbox(run.kind)) {
+        // a lost AI key falls to the backup key once, then the Run waits in Needs you; it never fails silently
         if (opts.backupKey && !fellBack && run.keyUsed !== opts.backupKey) {
           fellBack = true;
           applyKey(ctx, run, { step: cur, keyUsed: opts.backupKey, fellBackFrom: run.keyUsed ?? "unknown", reason: c.message });
@@ -560,11 +683,17 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
 
     run = findRun(ctx.db, runId)!;
     if (result.wait) {
-      saveStep(ctx.db, { ...rowOf(ctx.db, runId, cur, attempt), state: "waiting" });
+      const snap = result.wait.at !== undefined ? JSON.stringify({ at: result.wait.at }) : undefined;
+      saveStep(ctx.db, { ...rowOf(ctx.db, runId, cur, attempt), state: "waiting", ...(snap ? { outputJson: snap } : {}) });
       if (isActive(run.status) && run.status !== "waiting") await markWaiting(ctx, run, { reason: result.wait.reason, taskId: result.wait.taskId, on: result.wait.on, wait: waitExtras(result.wait) });
+      if (result.wait.event?.event === "run.child_terminal" && childSettled.delete(runId)) {
+        const fresh = findRun(ctx.db, runId);
+        if (fresh?.status === "waiting") resumeRun(ctx, fresh, result.wait.reason);
+        continue;
+      }
       return { status: "waiting" };
     }
-    const outputJson = result.output === undefined ? undefined : JSON.stringify(result.output);
+    const outputJson = result.output === undefined ? undefined : logJson(result.output);
     saveStep(ctx.db, {
       ...rowOf(ctx.db, runId, cur, attempt), state: "succeeded", outputRef: `out:${key}`, ...(outputJson !== undefined ? { outputJson } : {}),
       ...(result.next !== undefined ? { nextStep: result.next } : {}), endedAt: ctx.now(),
@@ -581,8 +710,20 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
 }
 
 /** The parts of a step's wait that the consumers read: what to wake on (`on`), when to give up (`untilAt`) and what cancels it. */
+/** The newest missed milestone skips outward steps until a later Wait completes in the future. */
+function milestoneSkip(outputs: Record<string, unknown>): boolean {
+  let skip = false;
+  for (const v of Object.values(outputs)) {
+    if (!v || typeof v !== "object") continue;
+    const o = v as { missed?: unknown; reason?: unknown; resumedBy?: unknown };
+    if (o.missed === true && o.reason === "milestone_passed") skip = true;
+    else if (typeof o.resumedBy === "string" && o.missed !== true) skip = false;
+  }
+  return skip;
+}
+
 function waitExtras(w: StepWait): Partial<WaitRow> {
-  const on = clean({ event: w.event?.event, filter: w.event?.filter, at: w.at });
+  const on = clean({ event: w.event?.event, filter: w.event?.filter, at: w.at, anchorId: w.anchorId, run: w.runId });
   return clean({
     ...(Object.keys(on).length ? { on } : {}), untilAt: w.timeoutAt, cancelOn: w.cancelOn && w.cancelOn.length ? w.cancelOn : undefined,
   }) as Partial<WaitRow>;

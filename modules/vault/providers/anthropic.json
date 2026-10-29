@@ -1,0 +1,10 @@
+{
+  "order": 4,
+  "key": "anthropic",
+  "name": "Anthropic",
+  "connections": [
+    "api_key"
+  ],
+  "modelsSource": "https://api.anthropic.com/v1/models",
+  "engine": "anthropic"
+}

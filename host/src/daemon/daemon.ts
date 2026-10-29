@@ -73,6 +73,8 @@ import { createEventsHost } from "../seams/events-ports.ts";
 import { applyPendingRestore, clearRestoredTombstones, createBackupHost, readRestoredTombstones } from "../seams/backup.ts";
 import { createKitsHost } from "../seams/kits.ts";
 import { createTelemetryRecorder } from "../seams/telemetry.ts";
+import { connectorReadSender } from "../seams/connector-read.ts";
+import { documentPin } from "../seams/document-pin.ts";
 import { createConnectorsHost } from "../seams/connectors.ts";
 import type { ConnectorNetwork } from "../seams/connectors.ts";
 import { createAuditRecorder } from "../seams/audit.ts";
@@ -88,12 +90,13 @@ import { createLocalKeyRoute } from "../routes/local-key.ts";
 import { createMcpRoute } from "../routes/mcp.ts";
 import type { McpRuntime } from "../routes/mcp.ts";
 import { createKeyring } from "../seams/keyring.ts";
+import { createGithubSignInRoute } from "../routes/github-signin.ts";
 import { createPeopleExtras, githubOAuthFromEnv } from "../seams/people.ts";
 import {createRecoveryCommit} from "../seams/recovery.ts";
 import type { GithubOAuth } from "../seams/people.ts";
 import { createSpaceAdmin } from "../seams/spaceadmin.ts";
 import { preAuthSession } from "./preauth.ts";
-import { createProviderProbe, createVaultService, resolveVaultItem } from "../seams/vault.ts";
+import { createProviderProbe, createVaultService, refuseModelAddress, resolveVaultItem } from "../seams/vault.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, wireSeams } from "../seams/index.ts";
 import { createPortalHost } from "../seams/comms.ts";
@@ -356,14 +359,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let pullVaultExport: (exportId: string, token: string) => string = () => { throw new Error("the Vault is not live on this server"); };
   const exportRoute = createVaultExportRoute({ pull: (id, t) => pullVaultExport(id, t) });
   // POST /hooks/<connector> (P-L5_17): a provider's signed webhook; the connector module's host call `<connector>.accept_webhook` verifies the signature and records the event once
-  let webhooks: { has(c: string): boolean; accept(c: string, a: WebhookAccept): Promise<unknown> } = { has: () => false, accept: () => Promise.reject(new Error("webhooks are not ready")) };
+  let webhooks: { has(c: string): boolean; accept(c: string, a: WebhookAccept): Promise<unknown>; automation(a: { automationId: string; secret: string; payload: unknown; idempotencyKey?: string }): Promise<unknown> } = { has: () => false, accept: () => Promise.reject(new Error("webhooks are not ready")), automation: () => Promise.resolve(null) };
   // POST /compute/poll: a computer that joined the Space reports in with its credential; the network module's host call decides (it knows only the credential's hash)
   let computePoll: (credential: string, report: { docker?: boolean; version?: string }) => Promise<{ serverId: string; owner?: string } | null> = () => Promise.resolve(null);
   let computeJobs: (nodeId: string, running: string[]) => Promise<unknown[]> = () => Promise.resolve([]);
   let computeResult: (nodeId: string, a: { jobId: string; ok: boolean; result?: unknown; error?: string }) => Promise<{ status: string }> = () => Promise.resolve({ status: "unknown" });
   let computeHome: (nodeId: string, a: { token: string; computerId: string; cap: string; input: unknown }) => Promise<{ ok: true; output: unknown } | null> = () => Promise.resolve(null);
   const computeRoute = createComputeRoute({ poll: (c, r) => computePoll(c, r), jobs: (n, r) => computeJobs(n, r), result: (n, a) => computeResult(n, a), home: (n, a) => computeHome(n, a) });
-  const webhookRoute = createWebhookRoute({ has: (c) => webhooks.has(c), accept: (c, a) => webhooks.accept(c, a), publicBase: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; } });
+  const webhookRoute = createWebhookRoute({ has: (c) => webhooks.has(c), accept: (c, a) => webhooks.accept(c, a), automation: (a) => webhooks.automation(a), publicBase: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; } });
   // Ruling 62: the person's own key, handed over by their client on their own node (POST /local/vault/key/unlock, loopback only), held in memory only. A device-role daemon is the computer of whoever signs in on it;
   // a Space server holds the key of its owner alone.
   let ownerOfSpace: () => string | null = () => cfg.owner;
@@ -373,6 +376,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const keyring = createKeyring({ allowed: ownNode, live: (id) => (db ? sessionLive(db, id) : false) });
   closers.push(() => keyring.clearAll());
   const fillRoute = createFillRoute();
+  const githubSignInRoute = createGithubSignInRoute({ oauth: () => (o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env)) });
   const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: ownNode });
   let headSeq = 0;
   let sawSpace = false, hostMadeSpace = false;
@@ -511,7 +515,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const runsHost = createRunsHost({ call: (n, i, as) => hookRunner.call(n, i, as), log: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "runs", attrs }) });
       closers.push(() => runsHost.settle(5_000));
       const acceptors = new Set([...loaded.moduleExports].flatMap(([id, ns]) => (ns["hostCalls"] && typeof ns["hostCalls"] === "object" && `${id}.accept_webhook` in (ns["hostCalls"] as object) ? [id] : [])));
-      webhooks = { has: (c) => acceptors.has(c), accept: (c, a) => hookRunner.call(`${c}.accept_webhook`, a) };
+      webhooks = { has: (c) => acceptors.has(c), accept: (c, a) => hookRunner.call(`${c}.accept_webhook`, a), automation: (a) => hookRunner.call("automations.accept_hook", a) };
       computePoll = (credential, report) => hookRunner.call("network.node_poll", { credential, report }) as Promise<{ serverId: string; owner?: string } | null>;
       // what a computer that joined is asked to do (the computers module's jobs), what it answers, and the one door it has into an agent's home: a job's token, as that agent, for the home calls only
       computeJobs = async (nodeId, running) => ((await hookRunner.call("computers.node_jobs", { nodeId, running, ...(o.computeLeaseMs !== undefined ? { leaseMs: o.computeLeaseMs } : {}) })) as { jobs?: unknown[] } | null)?.jobs ?? [];
@@ -885,7 +889,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           log: (u) => sink.log({ space: spaceId, level: 30, msg: "computers.fill", place: "computers", attrs: { ...u } }),
         }) : null,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
-        setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
+        setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
         // Ask Vyre in the email builder is one real agent turn in a private Ask pane, run as the asker: their agent, model, account, spend limits and access (host/src/seams/email-ask.ts)
         configureEmailBuilder: () => ({
           ask: createEmailAskDriver({
@@ -939,8 +943,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         configureSync: () => createSyncSeam({ store: spaceStore, ...(loaded.serving.get("conflicts") === "live" ? { conflicts: { open: (c) => hookRunner.call("conflicts.park", c) as Promise<string>, history: async (e) => { await hookRunner.call("conflicts.record_history", e); } } } : {}), access: () => access.snap, space: spaceId, now, registryHash, liveHub: syncLive.seam, invoke: (c, i, seed) => invoke(c, i, seed), keyed: (c, v) => capIndex?.get(c, v)?.idempotency === "key", ...(cfg.address ? { endpoints: () => { const url=syncEndpointOrigin(cfg.address!);return url?[{kind:"direct" as const,url}]:[]; } } : {}) }),
         setVaultKeyPort: () => ({ personKey: async (personId: string) => keyring.get(personId) }),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
-        configureVault: () => ({ sinks: { ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode }), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
+        configureVault: () => ({ sinks: { ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode }), refuse: ({ address, caller }) => refuseModelAddress(address, ownNode(caller)), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
         setConnectorsHost: () => connectorPort,
+        setDocumentNetwork: () => documentPin(),
+        setConnectorReadSender: (d) => connectorReadSender(d),
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
         setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open() }, now }),
         ...(o.seams?.drivers ?? {}),
@@ -1309,7 +1315,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         res.once("finish", () => { setImmediate(requestStop); });
         return;
       }
-      if (mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
+      if (mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {

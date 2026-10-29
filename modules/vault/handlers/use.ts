@@ -43,6 +43,8 @@ export interface VaultHost {
   origin?(): string;
   /** Reaches a provider with a key to see whether it is taken, and which models it lists (providers.test). */
   probe?: ProviderProbe;
+  /** The network guard for an address a person typed (custom endpoint, local model): a reason it may not be used from this node, or null. */
+  refuse?(p: { address: string; caller: string }): Promise<string | null>;
   /** The module hands the host its SecretPort. */
   provide?(port: SecretPort): void;
 }

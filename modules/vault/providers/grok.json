@@ -1,0 +1,14 @@
+{
+  "order": 3,
+  "key": "grok",
+  "name": "Grok",
+  "connections": [
+    "subscription"
+  ],
+  "modelsSource": "static",
+  "engine": "grok",
+  "models": [
+    "grok-4"
+  ],
+  "instruction": "On your computer sign in with the Grok command line. Vyre saves the sign-in as an AI subscription item in your Mine folder. Then press Done."
+}
