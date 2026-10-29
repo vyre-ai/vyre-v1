@@ -58,3 +58,13 @@ test("the request budget counts every request, and a minute later the source is 
   } finally { await s.close(); }
   assert.ok(DEFAULT_WEBHOOK_BUDGET.perMinute > DEFAULT_WEBHOOK_BUDGET.failuresPerMinute);
 });
+
+test("Microsoft's subscription handshake is answered with its token as plain text", async () => {
+  const s = await serve(async (_c, a) => ({ accepted: true, validationToken: new URL(a.url).searchParams.get("validationToken") }));
+  try {
+    const r = await fetch(`${s.url}/hooks/demo?validationToken=Validation%3A+abc`, { method: "POST" });
+    assert.equal(r.status, 200);
+    assert.equal(r.headers.get("content-type"), "text/plain; charset=utf-8");
+    assert.equal(await r.text(), "Validation: abc");
+  } finally { await s.close(); }
+});

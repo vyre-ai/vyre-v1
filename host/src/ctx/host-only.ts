@@ -7,3 +7,15 @@ export function hostOnly(ctx: { origin: string; depth: number; trace: { traceId:
   if (ctx.origin === "hook" && ctx.depth === 0) return;
   throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only the server records a provider's webhook, after it has checked the signature.", details: { cap } });
 }
+
+/** Origins that run a capability for the server itself: the webhook route (after its check) and a queued call the module scheduled. */
+const SERVER_ORIGINS = new Set(["hook", "schedule"]);
+
+/**
+ * A capability that records an event a provider sent (a Gmail push, a Graph notice), reached by the webhook route, by the module's own queued poll, or by another module's
+ * ctx.call (mail's manual sync). Never by a person, an agent or an API key calling it directly: nothing the provider did would back what they claim.
+ */
+export function internalOnly(ctx: { origin: string; depth: number; trace: { traceId: string } }, cap: string): void {
+  if (ctx.depth >= 1 || SERVER_ORIGINS.has(ctx.origin)) return;
+  throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only the server records a provider's notice.", details: { cap } });
+}
