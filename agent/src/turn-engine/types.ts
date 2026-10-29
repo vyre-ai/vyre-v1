@@ -169,7 +169,7 @@ export interface EngineSession {
  * `itemId` is the Vault item behind the handle, so usage can be metered against it. `payer` is the person who pays.
  */
 export interface ResolvedAccount { ref: string; driver: string; provider: string; kind: AccountKind; payer: string; reason: ResolveReason; itemId?: string }
-export interface AccountQuery { threadId: string; agentId: string; askerId: string; stepKey?: string }
+export interface AccountQuery { threadId: string; agentId: string; askerId: string; stepKey?: string; /** Accounts that already failed this turn: the answer skips them and follows the agent's order. */ unavailable?: readonly string[] }
 export interface SessionSpec { threadId: string; agent: EngineAgent; asker: string; turnId: string; traceId: string; account?: ResolvedAccount }
 export type OpenSession = (spec: SessionSpec) => Promise<EngineSession>;
 

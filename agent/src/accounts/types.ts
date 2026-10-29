@@ -27,6 +27,8 @@ export interface AgentAccountConfig {
   /** 'key': use accountKey (a shared team key, usage logged per actor). 'asker': the payer's own account. */
   accountPolicy: "asker" | "key";
   accountKey?: string;
+  /** The ordered fallback list from the agent settings: tried in this order after the chat key (or the asker's own accounts), then the Space backups. */
+  accountFallback?: readonly string[];
   /** Provider the agent's model needs, when known. Unset means any. */
   provider?: string;
 }

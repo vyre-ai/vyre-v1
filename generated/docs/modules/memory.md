@@ -2,9 +2,9 @@
 
 Lane L2. Kind module. Version 0.1.0.
 
-Requires: nothing.
+Requires: projects.
 
-## Capabilities (35)
+## Capabilities (38)
 
 - [memory.capture](../capabilities/memory.capture.md): Capture at chat end: a cheap-model pass proposes facts to the person layer; channel facts go to the project layer, Automation facts to proposed/
 - [memory.counts](../capabilities/memory.counts.md): Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own
@@ -22,6 +22,9 @@ Requires: nothing.
 - [memory.graph_everything](../capabilities/memory.graph_everything.md): The admin "everything" graph view across all agents; every open is logged
 - [memory.graph_export](../capabilities/memory.graph_export.md): Export a graph as a file; personal layers are never included
 - [memory.index_graph](../capabilities/memory.index_graph.md): Graph consumer: update graph nodes and edges for a changed note, record or chat (notes, links, relations, came-from)
+- [memory.key.resolve](../capabilities/memory.key.resolve.md): The account that pays for one scope's upkeep and where the choice came from (agent, project, Space or person); no key means rule-based upkeep
+- [memory.key.set](../capabilities/memory.key.set.md): Pick the account that pays for memory upkeep: yours for personal memory, or (admins) the Space's or a project's; null clears it and upkeep stays rule-based
+- [memory.keys.get](../capabilities/memory.keys.get.md): The account that pays for memory upkeep: yours for personal memory, and for an admin the Space's with the accounts it can be picked from and the keys picked for projects
 - [memory.layers.list](../capabilities/memory.layers.list.md): Layers the caller may read for an agent (personal layers are private to their owner)
 - [memory.layout.get](../capabilities/memory.layout.get.md): Saved node positions for a graph
 - [memory.layout.save](../capabilities/memory.layout.save.md): Save node positions for a graph

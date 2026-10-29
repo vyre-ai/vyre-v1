@@ -100,6 +100,9 @@ export function stubs(ctx: CallCtx) {
         get: call("agents.limits.get"),
       },
       list: call("agents.list"),
+      memory_key: {
+        get: call("agents.memory_key.get"),
+      },
       pause: call("agents.pause"),
       restore: call("agents.restore"),
       restore_version: call("agents.restore_version"),
@@ -1304,6 +1307,13 @@ export function stubs(ctx: CallCtx) {
       graph_everything: call("memory.graph_everything"),
       graph_export: call("memory.graph_export"),
       index_graph: call("memory.index_graph"),
+      key: {
+        resolve: call("memory.key.resolve"),
+        set: call("memory.key.set"),
+      },
+      keys: {
+        get: call("memory.keys.get"),
+      },
       layers: {
         list: call("memory.layers.list"),
       },

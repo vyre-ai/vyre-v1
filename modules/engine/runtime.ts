@@ -68,7 +68,7 @@ export function setEngineHost(h: EngineHostSeam | null): void {
 export function engineHost(): EngineHostSeam | null { return host; }
 
 async function accountFor(h: EngineHostSeam, q: AccountQuery): Promise<ResolvedAccount | null> {
-  const res = (await h.call("engine.account.resolve", { threadId: q.threadId, agentId: q.agentId, askerId: q.askerId, ...(q.stepKey ? { stepKey: q.stepKey } : {}) }, q.askerId)) as ResolveOut;
+  const res = (await h.call("engine.account.resolve", { threadId: q.threadId, agentId: q.agentId, askerId: q.askerId, ...(q.stepKey ? { stepKey: q.stepKey } : {}), ...(q.unavailable?.length ? { unavailable: [...q.unavailable] } : {}) }, q.askerId)) as ResolveOut;
   if (!res.allowed || !res.accountRef || !res.payer) {
     h.log?.("no account can pay for this turn", { threadId: q.threadId, agentId: q.agentId, asker: q.askerId, allowed: res.allowed, reason: res.reason, accountRef: res.accountRef ?? null });
     return null;
@@ -118,6 +118,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       holder: h.holder, openSession: withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
       resolveAccount: (q) => accountFor(h, q),
+      nextAccount: (q) => accountFor(h, q),
       onNoAccount: async (info) => {
         try { await unblock(h, ctx.db, info); }
         catch (e) { h.log?.("could not open the Unblock task for a turn with no account", { threadId: info.threadId, asker: info.asker, error: e instanceof Error ? e.message : String(e) }); throw e; }

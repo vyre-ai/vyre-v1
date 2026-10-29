@@ -3013,149 +3013,6 @@
       },
       "type": "array"
     },
-    "s_2819d08f97": {
-      "properties": {
-        "accountKey": {
-          "description": "Vault handle, never a value",
-          "examples": [
-            "#Team_Anthropic_Key"
-          ],
-          "type": "string"
-        },
-        "accountPolicy": {
-          "enum": [
-            "asker",
-            "key"
-          ],
-          "type": "string"
-        },
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "captureMode": {
-          "enum": [
-            "propose",
-            "auto_low_risk",
-            "off"
-          ],
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "face": {
-          "description": "DiceBear Notionists seed tinted per Space",
-          "examples": [
-            "intake"
-          ],
-          "type": "string"
-        },
-        "fallbackModel": {
-          "type": "string"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "hasComputer": {
-          "type": "boolean"
-        },
-        "lastActiveAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "limits": {
-          "$ref": "#/$defs/s_dd54f66d0c"
-        },
-        "model": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "ownerId": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "pattern": "^usr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "pausedBy": {
-          "type": "string"
-        },
-        "pausedReason": {
-          "type": "string"
-        },
-        "role": {
-          "description": "The \"use me when\" line",
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "awake",
-            "working",
-            "asleep",
-            "paused"
-          ],
-          "type": "string"
-        },
-        "templateVersion": {
-          "type": "integer"
-        },
-        "toolsAllowed": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "toolsDenied": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "vaultKeys": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "agentId",
-        "name",
-        "face",
-        "status",
-        "ownerId",
-        "folderId",
-        "accountPolicy",
-        "toolsAllowed",
-        "toolsDenied",
-        "vaultKeys",
-        "limits",
-        "captureMode",
-        "hasComputer",
-        "templateVersion",
-        "createdAt"
-      ],
-      "type": "object"
-    },
     "s_2842806102": {
       "properties": {
         "name": {
@@ -8816,6 +8673,68 @@
       },
       "type": "array"
     },
+    "s_713980f43e": {
+      "properties": {
+        "accountRef": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "choices": {
+          "items": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "subscription",
+                  "api_key",
+                  "local_model"
+                ],
+                "type": "string"
+              },
+              "mine": {
+                "type": "boolean"
+              },
+              "provider": {
+                "type": "string"
+              },
+              "ref": {
+                "description": "Vault handle",
+                "examples": [
+                  "#Team_Anthropic_Key"
+                ],
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "ref",
+              "title",
+              "provider",
+              "kind",
+              "mine",
+              "state"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "accountRef",
+        "choices"
+      ],
+      "type": "object"
+    },
     "s_720edec7c2": {
       "properties": {
         "id": {
@@ -9595,6 +9514,164 @@
       },
       "required": [
         "issue"
+      ],
+      "type": "object"
+    },
+    "s_7bd05f25f3": {
+      "properties": {
+        "accountFallback": {
+          "items": {
+            "description": "Vault handles, best first: tried in this order when the chat key fails, before the Space backups",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "accountKey": {
+          "description": "Vault handle, never a value",
+          "examples": [
+            "#Team_Anthropic_Key"
+          ],
+          "type": "string"
+        },
+        "accountPolicy": {
+          "enum": [
+            "asker",
+            "key"
+          ],
+          "type": "string"
+        },
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "captureMode": {
+          "enum": [
+            "propose",
+            "auto_low_risk",
+            "off"
+          ],
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "face": {
+          "description": "DiceBear Notionists seed tinted per Space",
+          "examples": [
+            "intake"
+          ],
+          "type": "string"
+        },
+        "fallbackModel": {
+          "type": "string"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "hasComputer": {
+          "type": "boolean"
+        },
+        "lastActiveAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "limits": {
+          "$ref": "#/$defs/s_dd54f66d0c"
+        },
+        "memoryKey": {
+          "description": "Vault handle that pays for this agent memory upkeep; never a value",
+          "examples": [
+            "#Team_Anthropic_Key"
+          ],
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ownerId": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^usr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "pausedBy": {
+          "type": "string"
+        },
+        "pausedReason": {
+          "type": "string"
+        },
+        "role": {
+          "description": "The \"use me when\" line",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "awake",
+            "working",
+            "asleep",
+            "paused"
+          ],
+          "type": "string"
+        },
+        "templateVersion": {
+          "type": "integer"
+        },
+        "toolsAllowed": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "toolsDenied": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "vaultKeys": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "agentId",
+        "name",
+        "face",
+        "status",
+        "ownerId",
+        "folderId",
+        "accountPolicy",
+        "accountFallback",
+        "toolsAllowed",
+        "toolsDenied",
+        "vaultKeys",
+        "limits",
+        "captureMode",
+        "hasComputer",
+        "templateVersion",
+        "createdAt"
       ],
       "type": "object"
     },
@@ -11333,6 +11410,17 @@
       "required": [
         "kind",
         "id"
+      ],
+      "type": "object"
+    },
+    "s_9d09c80407": {
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/s_7bd05f25f3"
+        }
+      },
+      "required": [
+        "agent"
       ],
       "type": "object"
     },
@@ -15982,17 +16070,6 @@
           "type": "integer"
         }
       },
-      "type": "object"
-    },
-    "s_dd8211e1b7": {
-      "properties": {
-        "agent": {
-          "$ref": "#/$defs/s_2819d08f97"
-        }
-      },
-      "required": [
-        "agent"
-      ],
       "type": "object"
     },
     "s_de4eba3dc2": {
@@ -25713,6 +25790,9 @@
           "name": "example",
           "output": {
             "agent": {
+              "accountFallback": [
+                "example"
+              ],
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
@@ -25731,6 +25811,7 @@
                 "tokensPerDay": 1,
                 "turnsPerDay": 1
               },
+              "memoryKey": "#Team_Anthropic_Key",
               "model": "example",
               "name": "example",
               "ownerId": "usr_a1b2c3",
@@ -25826,7 +25907,7 @@
       "name": "agents.create",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_9d09c80407"
       },
       "permission": "agents.create",
       "resource": {
@@ -25937,6 +26018,9 @@
           "name": "example",
           "output": {
             "agent": {
+              "accountFallback": [
+                "example"
+              ],
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
@@ -25955,6 +26039,7 @@
                 "tokensPerDay": 1,
                 "turnsPerDay": 1
               },
+              "memoryKey": "#Team_Anthropic_Key",
               "model": "example",
               "name": "example",
               "ownerId": "usr_a1b2c3",
@@ -25997,7 +26082,7 @@
       "module": "agents",
       "name": "agents.get",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_9d09c80407"
       },
       "permission": null,
       "resource": {
@@ -26192,6 +26277,9 @@
           "output": {
             "agents": [
               {
+                "accountFallback": [
+                  "example"
+                ],
                 "accountKey": "#Team_Anthropic_Key",
                 "accountPolicy": "asker",
                 "agentId": "agt_a1b2c3",
@@ -26210,6 +26298,7 @@
                   "tokensPerDay": 1,
                   "turnsPerDay": 1
                 },
+                "memoryKey": "#Team_Anthropic_Key",
                 "model": "example",
                 "name": "example",
                 "ownerId": "usr_a1b2c3",
@@ -26283,7 +26372,7 @@
         "properties": {
           "agents": {
             "items": {
-              "$ref": "#/$defs/s_2819d08f97"
+              "$ref": "#/$defs/s_7bd05f25f3"
             },
             "type": "array"
           },
@@ -26317,6 +26406,80 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "memoryKey": "example",
+            "ownerId": "usr_a1b2c3"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "agents",
+      "name": "agents.memory_key.get",
+      "output": {
+        "properties": {
+          "memoryKey": {
+            "description": "Vault handle, never a value",
+            "type": "string"
+          },
+          "ownerId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ownerId"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/agentId",
+        "type": "agent"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The Vault handle that pays for an agent memory upkeep, for the memory module and the nightly job (the server reads it without seeing the agent page)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [
         "agent.paused"
@@ -26337,6 +26500,9 @@
           "name": "example",
           "output": {
             "agent": {
+              "accountFallback": [
+                "example"
+              ],
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
@@ -26355,6 +26521,7 @@
                 "tokensPerDay": 1,
                 "turnsPerDay": 1
               },
+              "memoryKey": "#Team_Anthropic_Key",
               "model": "example",
               "name": "example",
               "ownerId": "usr_a1b2c3",
@@ -26399,7 +26566,7 @@
       "module": "agents",
       "name": "agents.pause",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_9d09c80407"
       },
       "permission": null,
       "resource": {
@@ -26437,6 +26604,9 @@
           "name": "example",
           "output": {
             "agent": {
+              "accountFallback": [
+                "example"
+              ],
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
@@ -26455,6 +26625,7 @@
                 "tokensPerDay": 1,
                 "turnsPerDay": 1
               },
+              "memoryKey": "#Team_Anthropic_Key",
               "model": "example",
               "name": "example",
               "ownerId": "usr_a1b2c3",
@@ -26496,7 +26667,7 @@
       "module": "agents",
       "name": "agents.restore",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_9d09c80407"
       },
       "permission": null,
       "resource": {
@@ -26536,6 +26707,9 @@
           "name": "example",
           "output": {
             "agent": {
+              "accountFallback": [
+                "example"
+              ],
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
@@ -26554,6 +26728,7 @@
                 "tokensPerDay": 1,
                 "turnsPerDay": 1
               },
+              "memoryKey": "#Team_Anthropic_Key",
               "model": "example",
               "name": "example",
               "ownerId": "usr_a1b2c3",
@@ -26610,7 +26785,7 @@
       "module": "agents",
       "name": "agents.restore_version",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_9d09c80407"
       },
       "permission": null,
       "resource": {
@@ -26651,6 +26826,9 @@
           "name": "example",
           "output": {
             "agent": {
+              "accountFallback": [
+                "example"
+              ],
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
@@ -26669,6 +26847,7 @@
                 "tokensPerDay": 1,
                 "turnsPerDay": 1
               },
+              "memoryKey": "#Team_Anthropic_Key",
               "model": "example",
               "name": "example",
               "ownerId": "usr_a1b2c3",
@@ -26710,7 +26889,7 @@
       "module": "agents",
       "name": "agents.resume",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_9d09c80407"
       },
       "permission": null,
       "resource": {
@@ -26749,6 +26928,9 @@
           "name": "example",
           "output": {
             "agent": {
+              "accountFallback": [
+                "example"
+              ],
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
@@ -26767,6 +26949,7 @@
                 "tokensPerDay": 1,
                 "turnsPerDay": 1
               },
+              "memoryKey": "#Team_Anthropic_Key",
               "model": "example",
               "name": "example",
               "ownerId": "usr_a1b2c3",
@@ -26817,7 +27000,7 @@
       "output": {
         "properties": {
           "agent": {
-            "$ref": "#/$defs/s_2819d08f97"
+            "$ref": "#/$defs/s_7bd05f25f3"
           },
           "undoVersionId": {
             "examples": [
@@ -27433,6 +27616,9 @@
           "name": "example",
           "output": {
             "agent": {
+              "accountFallback": [
+                "example"
+              ],
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
@@ -27451,6 +27637,7 @@
                 "tokensPerDay": 1,
                 "turnsPerDay": 1
               },
+              "memoryKey": "#Team_Anthropic_Key",
               "model": "example",
               "name": "example",
               "ownerId": "usr_a1b2c3",
@@ -27504,7 +27691,7 @@
       "module": "agents",
       "name": "agents.set_owner",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_9d09c80407"
       },
       "permission": null,
       "resource": {
@@ -28432,6 +28619,9 @@
           "name": "example",
           "output": {
             "agent": {
+              "accountFallback": [
+                "example"
+              ],
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
@@ -28450,6 +28640,7 @@
                 "tokensPerDay": 1,
                 "turnsPerDay": 1
               },
+              "memoryKey": "#Team_Anthropic_Key",
               "model": "example",
               "name": "example",
               "ownerId": "usr_a1b2c3",
@@ -28497,7 +28688,7 @@
       "name": "agents.update",
       "offline": "patch",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_9d09c80407"
       },
       "permission": null,
       "resource": {
@@ -61265,7 +61456,10 @@
             "agentId": "agt_a1b2c3",
             "askerId": "usr_a1b2c3",
             "stepKey": "example",
-            "threadId": "thr_a1b2c3"
+            "threadId": "thr_a1b2c3",
+            "unavailable": [
+              "example"
+            ]
           },
           "name": "example",
           "output": {
@@ -61303,6 +61497,13 @@
             ],
             "pattern": "^thr_[a-z0-9]+$",
             "type": "string"
+          },
+          "unavailable": {
+            "description": "Accounts that already failed this turn: the answer is the next one in the agent's order",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -110629,6 +110830,327 @@
       "summary": "Graph consumer: update graph nodes and edges for a changed note, record or chat (notes, links, relations, came-from)",
       "surfaces": {
         "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "layer": "person",
+            "ownerRef": "example",
+            "projectId": "prj_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "key": {
+              "accountRef": "example",
+              "kind": "example",
+              "model": "example",
+              "provider": "example",
+              "source": "agent"
+            },
+            "reason": "no_key"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "ownerRef": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "layer",
+          "ownerRef"
+        ],
+        "type": "object"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.key.resolve",
+      "output": {
+        "properties": {
+          "key": {
+            "properties": {
+              "accountRef": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "provider": {
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "agent",
+                  "project",
+                  "space",
+                  "person"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "accountRef",
+              "source"
+            ],
+            "type": "object"
+          },
+          "reason": {
+            "enum": [
+              "no_key",
+              "key_unavailable"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The account that pays for one scope's upkeep and where the choice came from (agent, project, Space or person); no key means rule-based upkeep",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "sensitive",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "accountRef": "example",
+            "layer": "space",
+            "projectId": "prj_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "accountRef": "example",
+            "layer": "space"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "accountRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "layer": {
+            "enum": [
+              "space",
+              "project",
+              "person"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "layer",
+          "accountRef"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "memory",
+      "name": "memory.key.set",
+      "output": {
+        "properties": {
+          "accountRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "layer": {
+            "enum": [
+              "space",
+              "project",
+              "person"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "layer",
+          "accountRef"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Pick the account that pays for memory upkeep: yours for personal memory, or (admins) the Space's or a project's; null clears it and upkeep stays rule-based",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "admin": true,
+            "personal": {
+              "accountRef": "example",
+              "choices": [
+                {
+                  "kind": "subscription",
+                  "mine": true,
+                  "provider": "example",
+                  "ref": "#Team_Anthropic_Key",
+                  "state": "example",
+                  "title": "example"
+                }
+              ]
+            },
+            "projectKeys": {},
+            "space": {
+              "accountRef": "example",
+              "choices": [
+                {
+                  "kind": "subscription",
+                  "mine": true,
+                  "provider": "example",
+                  "ref": "#Team_Anthropic_Key",
+                  "state": "example",
+                  "title": "example"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.keys.get",
+      "output": {
+        "properties": {
+          "admin": {
+            "type": "boolean"
+          },
+          "personal": {
+            "$ref": "#/$defs/s_713980f43e"
+          },
+          "projectKeys": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "space": {
+            "$ref": "#/$defs/s_713980f43e"
+          }
+        },
+        "required": [
+          "personal",
+          "admin"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The account that pays for memory upkeep: yours for personal memory, and for an admin the Space's with the accounts it can be picked from and the keys picked for projects",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
       },
       "v": 1
     },
@@ -199449,7 +199971,9 @@
       "id": "memory",
       "kind": "module",
       "owner": "L2",
-      "requires": [],
+      "requires": [
+        "projects"
+      ],
       "title": "Memory",
       "version": "0.1.0"
     },
@@ -204426,6 +204950,11 @@
       },
       "place": "chats",
       "queries": {
+        "accounts": {
+          "cap": "engine.accounts.list",
+          "input": {},
+          "live": true
+        },
         "agent": {
           "cap": "agents.get",
           "input": {
@@ -211471,6 +212000,48 @@
       "states": {
         "empty": {
           "line": "Nothing here yet"
+        },
+        "error": {
+          "line": "Couldn't load this",
+          "primary": "Try again"
+        },
+        "offline": {
+          "line": "Offline, showing your saved copy"
+        }
+      }
+    },
+    {
+      "actions": {
+        "set": {
+          "cap": "memory.key.set",
+          "input": {}
+        }
+      },
+      "builtin": "ui:MemoryKeys",
+      "id": "settings.memory-keys",
+      "module": "memory",
+      "perf": {
+        "completeMs": 100,
+        "firstPaintMs": 50
+      },
+      "place": "settings",
+      "queries": {
+        "keys": {
+          "cap": "memory.keys.get",
+          "input": {},
+          "live": true
+        },
+        "projects": {
+          "cap": "projects.list",
+          "input": {},
+          "live": true
+        }
+      },
+      "slot": "main",
+      "states": {
+        "empty": {
+          "line": "No AI accounts yet",
+          "primary": "Open Vault"
         },
         "error": {
           "line": "Couldn't load this",

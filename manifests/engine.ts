@@ -142,7 +142,7 @@ export default defineManifest({
       out: { placement: t.enm('host', 'device', 'wait'), reason: t.str(), wakeLine: t.opt(t.str({ examples: ['Your computer is off'] })) }, on: ['thread', '/threadId'],
     }),
     read('engine.account.resolve', 'Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock', {
-      in: { ...threadT, agentId: id.agent, askerId: t.opt(id.user), stepKey: t.opt(t.str()) },
+      in: { ...threadT, agentId: id.agent, askerId: t.opt(id.user), stepKey: t.opt(t.str()), unavailable: t.opt(t.arr(t.str(), { description: 'Accounts that already failed this turn: the answer is the next one in the agent\'s order' })) },
       out: { accountRef: t.nullable(accountRef), payer: t.nullable(id.user), reason: t.enm('starter', 'steerer', 'step_key', 'backup_key', 'none'), allowed: t.bool(), itemId: t.opt(id.vaultItem) }, on: ['thread', '/threadId'],
     }),
     // ---- accounts and models

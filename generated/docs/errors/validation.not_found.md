@@ -11,6 +11,7 @@ HTTP 404. Retryable: no.
 - agents.delete
 - agents.get
 - agents.limits.get
+- agents.memory_key.get
 - agents.pause
 - agents.restore
 - agents.restore_version
@@ -30,4 +31,3 @@ HTTP 404. Retryable: no.
 - automations.alerts.set
 - automations.delete
 - automations.fire
-- automations.followers.add

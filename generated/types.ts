@@ -1077,6 +1077,8 @@ export type AgentsCreateOut = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1119,6 +1121,8 @@ export type AgentsGetOut = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1179,6 +1183,8 @@ export type AgentsListOut = {
       fallbackModel?: string;
       accountPolicy: "asker" | "key";
       accountKey?: string;
+      accountFallback: Array<string>;
+      memoryKey?: string;
       toolsAllowed: Array<string>;
       toolsDenied: Array<string>;
       vaultKeys: Array<string>;
@@ -1199,6 +1205,13 @@ export type AgentsListOut = {
   next?: string;
   total?: number;
 };
+export type AgentsMemoryKeyGetIn = {
+  agentId: string;
+};
+export type AgentsMemoryKeyGetOut = {
+  memoryKey?: string;
+  ownerId: string;
+};
 export type AgentsPauseIn = {
   agentId: string;
   reason?: string;
@@ -1218,6 +1231,8 @@ export type AgentsPauseOut = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1254,6 +1269,8 @@ export type AgentsRestoreOut = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1292,6 +1309,8 @@ export type AgentsRestoreVersionOut = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1328,6 +1347,8 @@ export type AgentsResumeOut = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1365,6 +1386,8 @@ export type AgentsRoleLineSetOut = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1520,6 +1543,8 @@ export type AgentsSetOwnerOut = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1706,6 +1731,8 @@ export type AgentsUpdateOut = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -7764,6 +7791,7 @@ export type EngineAccountResolveIn = {
   agentId: string;
   askerId?: string;
   stepKey?: string;
+  unavailable?: Array<string>;
 };
 export type EngineAccountResolveOut = {
   accountRef: string | null;
@@ -16226,6 +16254,58 @@ export type MemoryIndexGraphIn = {
 export type MemoryIndexGraphOut = {
   nodes: number;
   edges: number;
+};
+export type MemoryKeyResolveIn = {
+  layer: "person" | "agent" | "project" | "space";
+  ownerRef: string;
+  agentId?: string;
+  projectId?: string;
+};
+export type MemoryKeyResolveOut = {
+  reason?: "no_key" | "key_unavailable";
+  key?: {
+    accountRef: string;
+    provider?: string;
+    kind?: string;
+    source: "agent" | "project" | "space" | "person";
+    model?: string;
+  };
+};
+export type MemoryKeySetIn = {
+  layer: "space" | "project" | "person";
+  projectId?: string;
+  accountRef: string | null;
+};
+export type MemoryKeySetOut = {
+  layer: "space" | "project" | "person";
+  accountRef: string | null;
+};
+export type MemoryKeysGetIn = Record<string, unknown>;
+export type MemoryKeysGetOut = {
+  personal: {
+    accountRef: string | null;
+    choices: Array<{
+        ref: string;
+        title: string;
+        provider: string;
+        kind: "subscription" | "api_key" | "local_model";
+        mine: boolean;
+        state: string;
+      }>;
+  };
+  admin: boolean;
+  space?: {
+    accountRef: string | null;
+    choices: Array<{
+        ref: string;
+        title: string;
+        provider: string;
+        kind: "subscription" | "api_key" | "local_model";
+        mine: boolean;
+        state: string;
+      }>;
+  };
+  projectKeys?: Record<string, string>;
 };
 export type MemoryLayersListIn = {
   agentId?: string;
@@ -27115,6 +27195,7 @@ export interface CapMap {
   "agents.guide.get": { in: AgentsGuideGetIn; out: AgentsGuideGetOut };
   "agents.limits.get": { in: AgentsLimitsGetIn; out: AgentsLimitsGetOut };
   "agents.list": { in: AgentsListIn; out: AgentsListOut };
+  "agents.memory_key.get": { in: AgentsMemoryKeyGetIn; out: AgentsMemoryKeyGetOut };
   "agents.pause": { in: AgentsPauseIn; out: AgentsPauseOut };
   "agents.restore": { in: AgentsRestoreIn; out: AgentsRestoreOut };
   "agents.restore_version": { in: AgentsRestoreVersionIn; out: AgentsRestoreVersionOut };
@@ -27981,6 +28062,9 @@ export interface CapMap {
   "memory.graph_everything": { in: MemoryGraphEverythingIn; out: MemoryGraphEverythingOut };
   "memory.graph_export": { in: MemoryGraphExportIn; out: MemoryGraphExportOut };
   "memory.index_graph": { in: MemoryIndexGraphIn; out: MemoryIndexGraphOut };
+  "memory.key.resolve": { in: MemoryKeyResolveIn; out: MemoryKeyResolveOut };
+  "memory.key.set": { in: MemoryKeySetIn; out: MemoryKeySetOut };
+  "memory.keys.get": { in: MemoryKeysGetIn; out: MemoryKeysGetOut };
   "memory.layers.list": { in: MemoryLayersListIn; out: MemoryLayersListOut };
   "memory.layout.get": { in: MemoryLayoutGetIn; out: MemoryLayoutGetOut };
   "memory.layout.save": { in: MemoryLayoutSaveIn; out: MemoryLayoutSaveOut };

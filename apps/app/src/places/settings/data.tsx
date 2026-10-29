@@ -67,6 +67,7 @@ export const PAGE = "settings.page";
 export const SEARCH = "settings.search";
 export const NOTIFICATIONS = "notifications.settings";
 export const MODELS = "settings.models-usage";
+export const MEMORY_KEYS = "settings.memory-keys";
 export const CONNECTIONS = "mail.connections";
 export const DEVICES = "devices.mine";
 export const SPACES = "spaces.settings_index";

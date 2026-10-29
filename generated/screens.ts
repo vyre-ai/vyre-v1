@@ -1447,6 +1447,11 @@ export const screens: ScreenIndexEntry[] = [
         "cap": "threads.list",
         "input": {},
         "live": true
+      },
+      "accounts": {
+        "cap": "engine.accounts.list",
+        "input": {},
+        "live": true
       }
     },
     "actions": {
@@ -7204,6 +7209,37 @@ export const screens: ScreenIndexEntry[] = [
           "kitId": "/selected",
           "scope": "/scope"
         }
+      }
+    },
+    "needs": [],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "settings.memory-keys",
+    "module": "memory",
+    "place": "settings",
+    "slot": "main",
+    "builtin": "ui:MemoryKeys",
+    "caller": "principal",
+    "queries": {
+      "keys": {
+        "cap": "memory.keys.get",
+        "input": {},
+        "live": true
+      },
+      "projects": {
+        "cap": "projects.list",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "set": {
+        "cap": "memory.key.set",
+        "input": {}
       }
     },
     "needs": [],

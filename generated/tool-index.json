@@ -4484,6 +4484,18 @@
     },
     {
       "deferred": false,
+      "name": "memory_key_set",
+      "summary": "Pick the account that pays for memory upkeep: yours for personal memory, or (admins) the Space's or a project's; null clears it and upkeep stays rule-based",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_keys_get",
+      "summary": "The account that pays for memory upkeep: yours for personal memory, and for an admin the Space's with the accounts it can be picked from and the keys picked for projects",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_layers_list",
       "summary": "Layers the caller may read for an agent (personal layers are private to their owner)",
       "toolset": "memory"

@@ -14,6 +14,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "agents.guide.get": async (ctx) => { throw new VyreErr(notImplemented("agents.guide.get", ctx.trace)); },
   "agents.limits.get": async (ctx) => { throw new VyreErr(notImplemented("agents.limits.get", ctx.trace)); },
   "agents.list": async (ctx) => { throw new VyreErr(notImplemented("agents.list", ctx.trace)); },
+  "agents.memory_key.get": async (ctx) => { throw new VyreErr(notImplemented("agents.memory_key.get", ctx.trace)); },
   "agents.pause": async (ctx) => { throw new VyreErr(notImplemented("agents.pause", ctx.trace)); },
   "agents.restore": async (ctx) => { throw new VyreErr(notImplemented("agents.restore", ctx.trace)); },
   "agents.restore_version": async (ctx) => { throw new VyreErr(notImplemented("agents.restore_version", ctx.trace)); },

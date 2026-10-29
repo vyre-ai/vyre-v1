@@ -66,6 +66,8 @@ type Out = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -128,6 +130,9 @@ type Out = {
   },
   "output": {
     "agent": {
+      "accountFallback": [
+        "example"
+      ],
       "accountKey": "#Team_Anthropic_Key",
       "accountPolicy": "asker",
       "agentId": "agt_a1b2c3",
@@ -146,6 +151,7 @@ type Out = {
         "tokensPerDay": 1,
         "turnsPerDay": 1
       },
+      "memoryKey": "#Team_Anthropic_Key",
       "model": "example",
       "name": "example",
       "ownerId": "usr_a1b2c3",

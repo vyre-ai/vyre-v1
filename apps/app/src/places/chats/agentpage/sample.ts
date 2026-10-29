@@ -37,6 +37,7 @@ export function createSample(variant: Variant = "owner", o: { online?: boolean }
   const current = rows<AgentRow & Row>("agents").find((a) => a.agentId === agentId)!;
   const versions: Record<string, string> = {};
   const putAgent = (p: Partial<AgentRow>): AgentRow => { const next = { ...current, ...rows<AgentRow & Row>("agents").find((a) => a.agentId === agentId)!, ...p } as AgentRow & Row; replica.put("agents", [next]); return strip(next); };
+  putAgent({ accountFallback: [] });
   putAgent(personal
     ? { model: "sonnet", captureMode: "propose" }
     : {
@@ -55,6 +56,13 @@ export function createSample(variant: Variant = "owner", o: { online?: boolean }
       watches: ["Web form inbox"],
     };
   replica.resolve("agents.summary", () => summary);
+  // The accounts this person can pick from: their own and the Space's shared providers.
+  replica.resolve("engine.accounts.list", () => ({ accounts: [
+    { ref: "#Omar_Claude", driver: "claude_code", kind: "subscription" as const, title: "Omar's Claude", mine: true, ownerId: "usr_omar", status: "ok" as const },
+    { ref: "#Team_Anthropic_Key", driver: "anthropic", kind: "api_key" as const, title: "Team Anthropic", mine: false, status: "ok" as const },
+    { ref: "#Team_OpenAI_Key", driver: "openai", kind: "api_key" as const, title: "Team OpenAI", mine: false, status: "ok" as const },
+    { ref: "#Backup_Router", driver: "openrouter", kind: "api_key" as const, title: "Backup router", mine: false, status: "expired" as const },
+  ] }));
   const config: Config = {
     effective: { model: "opus" }, lines: { agentMd: 93, vyreMd: 41 },
     ...(variant === "broken" ? { error: { line: 12, message: "unknown key limits.on_limitt" }, lastGoodVersionId: "ver_good" } : {}),
@@ -83,6 +91,11 @@ export function createSample(variant: Variant = "owner", o: { online?: boolean }
       const t = { threadId: `c_new${++seq}`, kind: "chat" as const, title: "New chat", listed: true, planMode: false, members: [{ kind: "person" as const, id: "usr_omar" }], agents: i.agentIds.map((a, n) => ({ agentId: a, mode: n === 0 ? ("lead" as const) : ("listen" as const) })), createdAt: SAMPLE_NOW };
       replica.put("threads", [{ id: t.threadId, ...t }]);
       return { thread: t };
+    },
+    "agents.update": (i: { patch: Record<string, unknown> }) => {
+      const p = { ...i.patch } as Record<string, unknown>;
+      for (const k of ["accountKey", "memoryKey"]) if (p[k] === null) { p[k] = undefined; }
+      return { agent: putAgent(p as Partial<AgentRow>) };
     },
     "agents.pause": (i: { reason?: string }) => ({ agent: putAgent({ status: "paused", pausedBy: "usr_omar", ...(i.reason ? { pausedReason: i.reason } : {}) }) }),
     "agents.resume": () => {

@@ -6,6 +6,7 @@ import {
 } from "./facts.ts";
 import { graph, graphEverything, graphExport, indexGraph, layoutGet, layoutSave } from "./graph.ts";
 import { noteErase } from "./purge.ts";
+import { keyResolve, keySet, keysGet } from "./keys.ts";
 import { quote } from "./quotes.ts";
 import { forget, remember } from "./tools.ts";
 
@@ -43,6 +44,9 @@ export const handlers = {
   "memory.find_by_subject": findBySubject,
   "memory.notes.erase": noteErase,
   "memory.quote": quote,
+  "memory.keys.get": keysGet,
+  "memory.key.set": keySet,
+  "memory.key.resolve": keyResolve,
   "memory.remember": remember,
   "memory.forget": forget,
 };

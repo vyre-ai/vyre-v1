@@ -30176,6 +30176,66 @@
     },
     {
       "blocks": [],
+      "cap": "memory.key.set",
+      "deferred": false,
+      "description": "Pick the account that pays for memory upkeep: yours for personal memory, or (admins) the Space's or a project's; null clears it and upkeep stays rule-based",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "accountRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "layer": {
+            "enum": [
+              "space",
+              "project",
+              "person"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "layer",
+          "accountRef"
+        ],
+        "type": "object"
+      },
+      "name": "memory_key_set",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.keys.get",
+      "deferred": false,
+      "description": "The account that pays for memory upkeep: yours for personal memory, and for an admin the Space's with the accounts it can be picked from and the keys picked for projects",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "memory_keys_get",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.layers.list",
       "deferred": false,
       "description": "Layers the caller may read for an agent (personal layers are private to their owner)",

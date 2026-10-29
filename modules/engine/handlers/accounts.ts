@@ -12,7 +12,7 @@ interface ProviderRow {
   engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing";
 }
 interface ThreadOut { thread: { starter: string; agents: Array<{ agentId: string; accountRef?: string; provider?: string; model?: string }> } }
-interface AgentOut { agent: { accountPolicy: "asker" | "key"; accountKey?: string; model?: string } }
+interface AgentOut { agent: { accountPolicy: "asker" | "key"; accountKey?: string; accountFallback?: string[]; model?: string } }
 interface PolicyOut { allowedAccounts: "any" | "company" }
 interface DefaultsOut { fallback: Array<{ accountRef?: string }> }
 interface PlacementOut { placement: "host" | "device" | "wait" }
@@ -55,7 +55,7 @@ export async function accountsList(ctx: Ctx, _input: Record<string, never>) {
   };
 }
 
-export async function accountResolve(ctx: Ctx, input: { threadId: string; agentId: string; askerId?: string; stepKey?: string }) {
+export async function accountResolve(ctx: Ctx, input: { threadId: string; agentId: string; askerId?: string; stepKey?: string; unavailable?: string[] }) {
   const [t, a, policy, defaults, placement, accounts] = await Promise.all([
     ctx.call("threads.get", { threadId: input.threadId }) as Promise<ThreadOut>,
     ctx.call("agents.get", { agentId: input.agentId }) as Promise<AgentOut>,
@@ -71,12 +71,13 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
     ...(input.askerId ? { steerer: input.askerId } : {}),
     trigger: input.stepKey ? "task" : "message",
     ...(member?.accountRef ? { threadAccountRef: member.accountRef } : {}),
-    agent: { accountPolicy: a.agent.accountPolicy, ...(a.agent.accountKey ? { accountKey: a.agent.accountKey } : {}), ...(provider ? { provider } : {}) },
+    agent: { accountPolicy: a.agent.accountPolicy, ...(a.agent.accountKey ? { accountKey: a.agent.accountKey } : {}), ...(a.agent.accountFallback?.length ? { accountFallback: a.agent.accountFallback } : {}), ...(provider ? { provider } : {}) },
     ...(input.stepKey ? { stepKey: input.stepKey } : {}),
     backupRefs: defaults.fallback.flatMap((f) => (f.accountRef ? [f.accountRef] : [])),
     policy: policy.allowedAccounts,
     accounts: accounts.rows,
     onServer: placement.placement !== "device",
+    ...(input.unavailable?.length ? { unavailable: input.unavailable } : {}),
   });
   // the Vault item behind the account, so the turn worker can meter usage against it (record_usage itemId)
   const itemId = res.accountRef ? accounts.itemByRef.get(res.accountRef) : undefined;

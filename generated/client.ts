@@ -100,6 +100,9 @@ export function createClient(transport: Transport) {
         get: call("agents.limits.get", 1),
       },
       list: call("agents.list", 1),
+      memory_key: {
+        get: call("agents.memory_key.get", 1),
+      },
       pause: call("agents.pause", 1),
       restore: call("agents.restore", 1),
       restore_version: call("agents.restore_version", 1),
@@ -1304,6 +1307,13 @@ export function createClient(transport: Transport) {
       graph_everything: call("memory.graph_everything", 1),
       graph_export: call("memory.graph_export", 1),
       index_graph: call("memory.index_graph", 1),
+      key: {
+        resolve: call("memory.key.resolve", 1),
+        set: call("memory.key.set", 1),
+      },
+      keys: {
+        get: call("memory.keys.get", 1),
+      },
       layers: {
         list: call("memory.layers.list", 1),
       },

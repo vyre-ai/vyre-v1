@@ -85,3 +85,19 @@ export async function copyText(d: PageDeps, text: string): Promise<boolean> {
   const nav = (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator;
   try { await nav?.clipboard?.writeText?.(text); d.note("Copied."); return true; } catch { d.note("Could not copy. Try again."); return false; }
 }
+
+/** The accounts of an agent as agents.update takes them. */
+export interface AccountPatch { accountPolicy?: "asker" | "key"; accountKey?: string | null; accountFallback?: string[]; memoryKey?: string | null }
+
+/**
+ * Save the chat key, the ordered fallback list or the memory key. The line below says what changed and offers Undo, which writes the values from before. A refusal (an account that
+ * is not a Vault name, a key policy without a key) is one quiet line and the page keeps what it showed.
+ */
+export function setAccounts(d: PageDeps, agentId: string, patch: AccountPatch, before: AccountPatch, said: string): Promise<boolean> {
+  return attempt(d, "save the accounts", async () => {
+    await d.call("agents.update", { agentId, patch, idempotencyKey: key("accounts", agentId) });
+    d.note(said, async () => {
+      try { await d.call("agents.update", { agentId, patch: before, idempotencyKey: key("accounts-undo", agentId) }); d.note("Back to what it was."); } catch { d.note("Could not undo that. Try again."); }
+    });
+  });
+}

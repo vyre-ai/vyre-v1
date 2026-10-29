@@ -1046,6 +1046,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.settings.memory-keys",
+      "place": "settings",
+      "screen": "settings.memory-keys"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.settings.models-usage",
       "place": "settings",
       "screen": "settings.models-usage"

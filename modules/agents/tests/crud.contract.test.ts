@@ -11,8 +11,8 @@ import type { Harness } from "../fixtures/harness.ts";
 const mine = registry.capabilities.filter((c) => c.module === "agents");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
-test("the handler table covers exactly the 33 capabilities of the agents manifest", () => {
-  assert.equal(mine.length, 33);
+test("the handler table covers exactly the 34 capabilities of the agents manifest", () => {
+  assert.equal(mine.length, 34);
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });
@@ -42,6 +42,8 @@ const scenarios: Scenario[] = [
   { cap: "agents.list", setup: withAgent, run: (hn) => h["agents.list"]!(hn.ctx, { section: "personal", status: ["awake"], limit: 10 }) },
   { cap: "agents.get", setup: withAgent, run: (hn, s) => h["agents.get"]!(hn.ctx, { agentId: s.id }) },
   { cap: "agents.get", run: (hn) => h["agents.get"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
+  { cap: "agents.memory_key.get", setup: withAgent, run: (hn, s) => h["agents.memory_key.get"]!(hn.ctx, { agentId: s.id }) },
+  { cap: "agents.memory_key.get", run: (hn) => h["agents.memory_key.get"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
   { cap: "agents.status", setup: withAgent, run: (hn, s) => h["agents.status"]!(hn.ctx, { agentId: s.id }) },
   { cap: "agents.status", run: (hn) => h["agents.status"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
   { cap: "agents.summary", setup: withAgent, run: (hn, s) => h["agents.summary"]!(hn.ctx, { agentId: s.id }) },

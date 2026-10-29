@@ -21,6 +21,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "memory.graph_everything": Handler<"memory.graph_everything", X>;
   "memory.graph_export": Handler<"memory.graph_export", X>;
   "memory.index_graph": Handler<"memory.index_graph", X>;
+  "memory.key.resolve": Handler<"memory.key.resolve", X>;
+  "memory.key.set": Handler<"memory.key.set", X>;
+  "memory.keys.get": Handler<"memory.keys.get", X>;
   "memory.layers.list": Handler<"memory.layers.list", X>;
   "memory.layout.get": Handler<"memory.layout.get", X>;
   "memory.layout.save": Handler<"memory.layout.save", X>;

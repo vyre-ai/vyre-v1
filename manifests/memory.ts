@@ -26,6 +26,8 @@ const quoteRow = t.obj({
   author: t.obj({ kind: t.enm('person', 'agent', 'actor', 'service'), id: t.str(), name: t.opt(t.str()) }), role: t.str(), at: t.ts(), threadId: id.thread, threadTitle: t.opt(t.str()),
   link: t.str({ description: 'Opens the chat scrolled to this line, highlighted', examples: ['vyre://thread/thr_a1b2c3?m=msg_a1b2c3'] }), score: t.num(),
 });
+const keyChoice = t.obj({ ref: t.str({ description: 'Vault handle', examples: ['#Team_Anthropic_Key'] }), title: t.str(), provider: t.str(), kind: t.enm('subscription', 'api_key', 'local_model'), mine: t.bool(), state: t.str() });
+const keyPicker = t.obj({ accountRef: t.nullable(t.str()), choices: t.arr(keyChoice) });
 const node = t.obj({
   nodeId: t.str(), kind: t.enm('note', 'person', 'client', 'project', 'site', 'decision', 'record', 'chat'), title: t.str(), layer: t.opt(layer), cluster: t.opt(t.str({ description: 'Cluster named after its hub' })),
   x: t.opt(t.num()), y: t.opt(t.num()), link: t.opt(t.str()),
@@ -61,6 +63,16 @@ export default defineManifest({
         excludeThreadId: t.opt(id.thread), limit: t.opt(t.int({ minimum: 1, maximum: 20 })), minCoverage: t.opt(t.num({ minimum: 0, maximum: 1 })),
       },
       out: { quotes: t.arr(quoteRow) }, label: 'filter', tool: 'memory', mcpName: 'memory_quote', agent: { planMode: 'allowed' }, cli: 'vyre memory quote', rate: { n: 120, perSeconds: 60, scope: 'principal' },
+    }),
+    read('memory.keys.get', 'The account that pays for memory upkeep: yours for personal memory, and for an admin the Space\'s with the accounts it can be picked from and the keys picked for projects', {
+      in: {}, out: { personal: keyPicker, admin: t.bool(), space: t.opt(keyPicker), projectKeys: t.opt(t.rec(t.str(), { description: 'Project id to the account picked for its memory' })) }, label: 'check', tool: 'memory',
+    }),
+    read('memory.key.resolve', 'The account that pays for one scope\'s upkeep and where the choice came from (agent, project, Space or person); no key means rule-based upkeep', {
+      in: { layer: layer, ownerRef: t.str(), agentId: t.opt(id.agent), projectId: t.opt(id.project) },
+      out: {
+        reason: t.opt(t.enm('no_key', 'key_unavailable')),
+        key: t.opt(t.obj({ accountRef: t.str(), provider: t.opt(t.str()), kind: t.opt(t.str()), source: t.enm('agent', 'project', 'space', 'person'), model: t.opt(t.str()) })),
+      }, label: 'check',
     }),
     read('memory.read_note', 'Read one memory note as Markdown', {
       in: { noteId: id.note }, out: { note: noteRow, markdown: t.str() }, on: ['note', '/noteId'], label: 'check', tool: 'memory', mcpName: 'read_note', agent: { planMode: 'allowed' },
@@ -114,6 +126,10 @@ export default defineManifest({
     write('memory.forget', 'Forget facts by id: they stop being recalled and stay in history', {
       in: { factIds: t.arr(id.fact, { minItems: 1 }) }, out: { removed: t.int() }, emits: ['memory.removed'], tool: 'memory', mcpName: 'memory_forget', agent: { planMode: 'blocked' }, audit: 'sensitive', risk: 'medium',
       cli: 'vyre memory forget', idem: 'natural',
+    }),
+    write('memory.key.set', 'Pick the account that pays for memory upkeep: yours for personal memory, or (admins) the Space\'s or a project\'s; null clears it and upkeep stays rule-based', {
+      in: { layer: t.enm('space', 'project', 'person'), projectId: t.opt(id.project), accountRef: t.nullable(t.str()) }, out: { layer: t.enm('space', 'project', 'person'), accountRef: t.nullable(t.str()) },
+      idem: 'natural', tool: 'memory', audit: 'sensitive', errors: ['permission.no_grant'],
     }),
     write('memory.fact.accept', 'Accept a proposed fact into current memory', {
       in: factT, out: { fact: factRow }, emits: ['memory.fact_accepted'], tool: 'memory', offline: 'queue', errors: ['validation.precondition_failed'],
@@ -234,6 +250,11 @@ export default defineManifest({
         remove: ['memory.facts.remove', {}, 'Remove from answers?'], erase: ['memory.erase', {}, 'Erase completely? This deletes it from history.'], promote: ['memory.promote', { factId: '/state/factId' }],
       },
       empty: 'Nothing remembered yet', primary: 'Ask the agent to remember something',
+    }),
+    screen('settings.memory-keys', 'settings', 'ui:MemoryKeys', {
+      q: { keys: ['memory.keys.get', {}, true], projects: ['projects.list', {}, true] },
+      a: { set: ['memory.key.set', {}] },
+      empty: 'No AI accounts yet', primary: 'Open Vault',
     }),
     screen('files.memory-graph', 'files', 'ui:MemoryGraph', {
       q: { graph: ['memory.graph', { scope: '/state/scope', agentId: '/state/agentId', asOf: '/state/asOf' }, true], layout: ['memory.layout.get', { scope: '/state/scope', agentId: '/state/agentId' }, false] },
