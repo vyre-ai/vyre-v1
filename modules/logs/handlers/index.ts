@@ -5,6 +5,8 @@
 import type { AdminLogEntry } from "../../../lib/admin-export.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { LogWriter, readSettings, runRetention, writeSettings, MAX_UPLOAD } from "./sink.ts";
+import { MAX_SAMPLES, spanOf } from "./samples.ts";
+import type { Sample } from "./samples.ts";
 import type { LevelName, Settings } from "./sink.ts";
 import { exportLines, failWith, queryLogs, spansOf, traceView } from "./search.ts";
 import type { LogFilter, Page } from "./search.ts";
@@ -91,7 +93,7 @@ export async function exportLogs(ctx: LogCtx, input: FilterIn) {
   return { fileId };
 }
 
-export async function clientUpload(ctx: LogCtx, input: { device: string; entries: UploadEntry[] }) {
+export async function clientUpload(ctx: LogCtx, input: { device: string; entries: UploadEntry[]; samples?: Sample[] }) {
   const settings = readSettings(ctx.db, ctx.space);
   const writer = new LogWriter({ db: ctx.db, space: ctx.space, now: () => ctx.now(), batchMs: 1, minLevel: settings.level });
   let accepted = 0;
@@ -105,10 +107,15 @@ export async function clientUpload(ctx: LogCtx, input: { device: string; entries
     if (e.attrs) line["attrs"] = e.attrs;
     if (writer.write(line)) accepted += 1;
   }
+  let sampled = 0;
+  for (const sample of (input.samples ?? []).slice(0, MAX_SAMPLES)) {
+    const line = spanOf(sample, input.device, ctx.now());
+    if (line && writer.span(line)) sampled += 1;
+  }
   writer.flush();
   const sizeBytes = new TextEncoder().encode(JSON.stringify(entries)).length;
   ctx.emit("client_log.uploaded", `entity/${input.device}`, { device: input.device, sizeBytes }, { vis: "owner" });
-  return { accepted };
+  return input.samples !== undefined ? { accepted, sampled } : { accepted };
 }
 
 interface Step { name: string; ok: boolean; detail?: string }

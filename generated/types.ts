@@ -14137,9 +14137,17 @@ export type LogsClientUploadIn = {
       msg: string;
       attrs?: Record<string, unknown>;
     }>;
+  samples?: Array<{
+      budgetId: string;
+      value: number;
+      at: number;
+      traceId?: string;
+      attrs?: Record<string, unknown>;
+    }>;
 };
 export type LogsClientUploadOut = {
   accepted: number;
+  sampled?: number;
 };
 export type LogsExportIn = {
   person?: string;

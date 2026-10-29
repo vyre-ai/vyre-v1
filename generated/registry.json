@@ -98590,11 +98590,21 @@
                 "msg": "example",
                 "traceId": "0123456789abcdef0123456789abcdef"
               }
+            ],
+            "samples": [
+              {
+                "at": 1760000000000,
+                "attrs": {},
+                "budgetId": "startup",
+                "traceId": "0123456789abcdef0123456789abcdef",
+                "value": 1
+              }
             ]
           },
           "name": "example",
           "output": {
-            "accepted": 1
+            "accepted": 1,
+            "sampled": 1
           }
         }
       ],
@@ -98651,6 +98661,49 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "samples": {
+            "items": {
+              "properties": {
+                "at": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "attrs": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "budgetId": {
+                  "examples": [
+                    "startup"
+                  ],
+                  "type": "string"
+                },
+                "traceId": {
+                  "examples": [
+                    "0123456789abcdef0123456789abcdef"
+                  ],
+                  "pattern": "^[0-9a-f]{32}$",
+                  "type": "string"
+                },
+                "value": {
+                  "minimum": 0,
+                  "type": "number"
+                }
+              },
+              "required": [
+                "budgetId",
+                "value",
+                "at"
+              ],
+              "type": "object"
+            },
+            "maxItems": 100,
+            "type": "array"
           }
         },
         "required": [
@@ -98667,6 +98720,9 @@
         "properties": {
           "accepted": {
             "type": "integer"
+          },
+          "sampled": {
+            "type": "integer"
           }
         },
         "required": [
@@ -98680,7 +98736,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Upload the device ring-buffer log keyed by trace id (queued while offline, sent on reconnect)",
+      "summary": "Upload the device ring-buffer log keyed by trace id, with the timing samples the device measured against the performance budgets (queued while offline, sent on reconnect)",
       "surfaces": {
         "http": "auto"
       },
