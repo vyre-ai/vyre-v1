@@ -185,6 +185,8 @@ test("production Console Access: People directory, person object, groups, device
       assert.deepEqual(grants.find((g) => g.subject.id === guest.personId)?.conditions.hiddenFields, ["phone"]);
       const seen = await call("records.get", { type: "contact", recordId: rec }, guest.token);
       assert.equal(seen.status, 200); assert.equal(seen.data.record.fields.name, "Zephyr Quill"); assert.equal(seen.data.record.fields.phone, undefined, "the hidden field is not returned");
+      // the row first shows the generic "Record" and names the record once its title has been read: wait for that, then assert the same text
+      await page.waitForFunction(() => /Gus Hale[\s\S]*view · Zephyr Quill · Phone hidden/.test(document.querySelector('[data-testid="console-grants"]')?.textContent ?? ""), undefined, { timeout: 15_000 }).catch(() => undefined);
       assert.match(await page.getByTestId("console-grants").innerText(), /Gus Hale[\s\S]*view · Zephyr Quill · Phone hidden/, "the grant row names the record and what is hidden");
       await matrix("grant-on-record", async (p) => { await goTo(p, "grants", "Grants", "Access"); await p.getByTestId("console-grants").waitFor(); });
     });
