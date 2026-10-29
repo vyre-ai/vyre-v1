@@ -5893,6 +5893,7 @@ export type ComputersHealthIn = Record<string, unknown>;
 export type ComputersHealthOut = {
   state: "healthy" | "degraded" | "down";
   detail?: string;
+  runtime?: "ready" | "missing";
   latencyMs?: number;
   awake: number;
   asleep: number;

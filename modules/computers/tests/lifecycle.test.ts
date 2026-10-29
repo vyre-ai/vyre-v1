@@ -277,9 +277,16 @@ test("health says Down without a host, Healthy with one, Degraded when a compute
   const degraded = await health(h.ctx, {});
   assert.equal(degraded.state, "degraded");
   assert.match(degraded.detail ?? "", /error state/);
+  // no container runtime: Down when a computer depends on it, only a fact when none exists
   const lost = harness();
+  await made(lost);
   bindHost(null);
   assert.equal((await health(lost.ctx, {})).state, "down");
+  const idle = harness();
+  bindHost(null);
+  const none = await health(idle.ctx, {});
+  assert.deepEqual([none.state, none.runtime], ["healthy", "missing"]);
+  assert.match(none.detail ?? "", /Install Docker/);
 });
 
 test("sessions: listed from the running computer, from the last list while it sleeps, and signed out by waking it", async () => {
