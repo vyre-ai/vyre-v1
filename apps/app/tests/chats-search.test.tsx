@@ -62,7 +62,9 @@ test("a result row names who wrote it, the chat it is in and when, marks the mat
   assert.ok(html.includes("Yesterday, 15:30"));
   assert.ok(html.includes("Rivera estate"));
   assert.ok(!/usr_|agt_/.test(html.replace(/data-testid="[^"]*"/g, "").replace(/aria-label="[^"]*"/g, "")), "no ids in what is read");
-  const similar = clean(renderToStaticMarkup(<Row h={hit({ found: "meaning" })} i={3} on={false} query="x" data={data()} onHover={() => undefined} open={() => undefined} menu={{ show: () => undefined, element: null } as never} />));
+  const off = clean(renderToStaticMarkup(<Row h={hit({ found: "meaning" })} i={3} on={false} query="x" data={data()} onHover={() => undefined} open={() => undefined} menu={{ show: () => undefined, element: null } as never} />));
+  assert.ok(!off.includes("similar-3"), "no similar tag while meaning search is off");
+  const similar = clean(renderToStaticMarkup(<Row h={hit({ found: "meaning" })} i={3} on={false} meaning query="x" data={data()} onHover={() => undefined} open={() => undefined} menu={{ show: () => undefined, element: null } as never} />));
   assert.ok(similar.includes('data-testid="similar-3"'));
 });
 

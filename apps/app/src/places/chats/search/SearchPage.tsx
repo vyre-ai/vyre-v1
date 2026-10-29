@@ -88,7 +88,7 @@ export function SearchPage({ data }: { data: SearchData }): ReactElement {
         ) : !loading && out && rows.length === 0 ? (
           <States kind="empty" icon="search" title={`No messages match "${query.trim()}"`} />
         ) : (
-          rows.map((h, i) => <Row key={h.messageId} h={h} i={i} on={i === at} query={query} data={data} onHover={() => setAt(i)} open={() => open(h)} menu={menu} />)
+          rows.map((h, i) => <Row key={h.messageId} h={h} i={i} on={i === at} meaning={out?.meaning === true} query={query} data={data} onHover={() => setAt(i)} open={() => open(h)} menu={menu} />)
         )}
       </View>
       {menu.element}
@@ -96,7 +96,7 @@ export function SearchPage({ data }: { data: SearchData }): ReactElement {
   );
 }
 
-export function Row({ h, i, on, query, data, onHover, open, menu }: { h: Hit; i: number; on: boolean; query: string; data: SearchData; onHover: () => void; open: () => void; menu: ReturnType<typeof useMenu> }): ReactElement {
+export function Row({ h, i, on, meaning = false, query, data, onHover, open, menu }: { h: Hit; i: number; on: boolean; meaning?: boolean; query: string; data: SearchData; onHover: () => void; open: () => void; menu: ReturnType<typeof useMenu> }): ReactElement {
   const who = data.nameOf(h.author.id);
   const kind = data.kindOf(h.author.id);
   const title = chatTitle(h, data.nameOf, data.me.id);
@@ -117,7 +117,7 @@ export function Row({ h, i, on, query, data, onHover, open, menu }: { h: Hit; i:
           <Text numberOfLines={1} style={st.who}>{who}</Text>
           <Text numberOfLines={1} style={st.where}>{`in ${title}`}</Text>
           <Text style={st.when}>{whenLine(h.at, data.clock())}</Text>
-          {h.found === "meaning" ? <Text testID={`similar-${i}`} style={st.similar}>similar</Text> : null}
+          {meaning && h.found === "meaning" ? <Text testID={`similar-${i}`} style={st.similar}>similar</Text> : null}
         </View>
         <Text style={st.snippet}>
           {pieces.map((p, j) => (p.mark ? <Text key={j} style={st.mark}>{p.text}</Text> : p.text))}
