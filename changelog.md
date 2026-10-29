@@ -56,6 +56,16 @@
 
 - Stopped inherited Space grants at canonical Personal Files roots while preserving deliberate folder/file shares. Repaired legacy root ancestry before the server listens, preserving owner, labels and holds, without copying Personal content into events. Added actual HTTP denial/share/Shared-root and idempotent restart regressions.
 
+- Rechecked selected connection ownership, state and slot bindings after DNS resolution, stopping credential sends when a connection pauses or changes. Preserved authorization/precondition refusals instead of reporting them as provider outages; added an actual HTTP pause-during-DNS regression.
+
+- Used the supported Web Crypto runtime for connector one-use references, keeping the host seam within its crypto boundary.
+
+- Bound live connector credentials to the selected authorized Connection and declared secret slots through canonical Vault fill with one-use, caller/delegation/execution-bound references. Added published-domain HTTPS/DNS pinning, safe redirect handling, send-time authority rechecks and output/error scrubbing proof. Denied secret templates in query strings and stopped other people consuming personal OAuth states. Configured callback origins are absolute; generic OAuth callback/token storage remains incomplete.
+
+- Wired connector initialization/export to real Files folders through the original caller’s Files capabilities. Generated sources stay under the caller’s Personal root with validated paths and bounded contents. Missing Files permission refuses initialization before connector/draft persistence; synthetic folder IDs were removed. Added actual HTTP byte-read/privacy and missing-permission regressions.
+
+- Stopped inherited Space grants at canonical Personal Files roots while preserving deliberate folder/file shares. Repaired legacy root ancestry before the server listens, preserving owner, labels and holds, without copying Personal content into events. Added actual HTTP denial/share/Shared-root and idempotent restart regressions.
+
 - Extended the shared Space archive boundary to public Network writes and active queued host network commands, which can change the observed Space profile. Empty periodic polls leave stable exports alone. Added actual HTTP regression for an already-running network command, an empty poll during collection, and cleanup after a failed command-completion write.
 
 - Keep browser failure diagnostics from masking the original Apps failure, and verify the canonical wording in exported AI policy documents.
@@ -287,3 +297,5 @@
 - Keep release browser proof aligned with the configured invite host and direct native account setup, retaining provider retry, key ownership and one-time acceptance assertions.
 
 - Replace API-key enum inputs with named client/channel and explicit scope controls. Audit one-time key reveal/copy, clear ephemeral display on expiry or exit, and verify registration/replay/session closure through the real gateway. Show closed and expired recent sessions using additive public timestamps without exposing token hashes.
+
+- WIP: preserve a failing HTTP regression for editable Space connector source mapping, Member write protection, and source-driven test/diff/publish. Source mapping is not implemented in this checkpoint; this test is deliberately red and must not be treated as release evidence.
