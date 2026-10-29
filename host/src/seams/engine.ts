@@ -32,6 +32,8 @@ export interface EngineHostSeam {
   dataDir?: string;
   /** CLI program swap and extra sandbox read folders (tests). Handed to the module as is. */
   cli?: unknown;
+  /** A scripted session opener (tests). Handed to the module as is; the real opener is not built. */
+  openSession?: unknown;
   /** The daemon's invoke pipeline and Space id, for tools on API-key chats. */
   invoke?: Invoke;
   space?: string;
@@ -49,6 +51,7 @@ export interface EngineHostDeps {
   sandbox?: unknown;
   dataDir?: string;
   cli?: unknown;
+  openSession?: unknown;
 }
 
 const SYSTEM = { kind: "service", id: "svc_host" } as const;
@@ -68,5 +71,5 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
   // An agent has no standing of its own in a Space: it speaks for the person whose turn it is, so what it may post is what that person may (the kernel answers agent_needs_actor otherwise).
   const postAs: EngineHostSeam["postAs"] = (agentId, { actingFor, ...post }) => run("chat.post", { ...post, idempotencyKey: `brg-${post.clientId}` }, { kind: "agent", id: agentId }, actingFor);
   const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space }) : undefined;
-  return { holder: `host:${d.space}`, call, postAs, ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), invoke: d.invoke, space: d.space };
+  return { holder: `host:${d.space}`, call, postAs, ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space };
 }

@@ -111008,6 +111008,7 @@
               {
                 "fact": "example",
                 "path": "example",
+                "sourceLink": "example",
                 "title": "example",
                 "trueSince": 1760000000000
               }
@@ -111061,6 +111062,10 @@
                   "type": "string"
                 },
                 "path": {
+                  "type": "string"
+                },
+                "sourceLink": {
+                  "description": "Link to the exact chat, task or record the fact came from",
                   "type": "string"
                 },
                 "title": {
