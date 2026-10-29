@@ -108,7 +108,7 @@ export function statusOf(ctx: NetworkCtx) {
   const cfg = readConfig(ctx);
   const host = cfg?.address ?? "";
   const cert = certs(ctx).find((c) => c.host === host);
-  const certificate: { host: string; expiresAt?: number; state: State } = { host, state: cert?.state ?? "degraded" };
+  const certificate: { host: string; expiresAt?: number; state: State } = { host, state: cert?.state ?? (host.startsWith("http://") ? "healthy" : "degraded") };   // a plain http address has no certificate to lack
   if (cert?.expiresAt !== undefined) certificate.expiresAt = cert.expiresAt;
   const commands = ctx.db.all("SELECT kind, target, state, detail, at FROM network_result ORDER BY at DESC, id DESC LIMIT 10").map((raw) => {
     const row = asRow(raw)!;

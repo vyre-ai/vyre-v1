@@ -183,6 +183,7 @@ test("a new Space on a plain http address reads healthy until a relay endpoint i
   const fresh = await health(h.ctx, {});
   assert.equal(fresh.state, "healthy");
   assert.match(String(fresh.detail), /plain http address/);
+  assert.equal((await status(h.ctx, {})).certificate.state, "healthy", "the status the Console reads agrees: no certificate to lack, nothing to renew");
   endpoint(h, "relay", "https://relay.vyre.run", "down", 40, NOW);
   assert.equal((await health(h.ctx, {})).state, "down", "once a relay is set up, an unreachable relay is down");
 });

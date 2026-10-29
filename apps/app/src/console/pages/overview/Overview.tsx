@@ -1,6 +1,6 @@
 // Console Overview (spec 3.10): what needs you, the server at a glance, and the last admin acts. One live query (console.overview), each tile opens its page.
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -38,6 +38,7 @@ export const ATTENTION_SENTENCE: Readonly<Record<Attention["kind"], string>> = {
 export function Overview(): ReactElement {
   const data = useConsoleData();
   const q = useScreenQuery<Out>("console.overview", "overview", {});
+  const width = useWindowDimensions().width, compact = width > 0 && width < 720;   // an unmeasured screen (a static render) keeps the desktop layout
   if (q.status !== "ready") return <Text style={s.loading} accessibilityRole="progressbar">Loading</Text>;
   const o = q.data;
   const now = data.clock().now;
@@ -59,9 +60,9 @@ export function Overview(): ReactElement {
               key={`${a.kind}-${a.ref ?? i}`}
               id={`attn-${a.kind}-${a.ref ?? i}`}
               title={a.title}
-              note={`${ATTENTION_SENTENCE[a.kind]} since ${ago(now, a.since)}`}
+              note={`${ATTENTION_SENTENCE[a.kind]} since ${ago(now, a.since)}${compact ? `. ${a.next}` : ""}`}
               leading={<Glyph name="warn" size={16} color="var(--warn)" />}
-              trailing={<LinkButton label={a.next} onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])} testID={`attn-go-${i}`} />}
+              {...(compact ? {} : { trailing: <LinkButton label={a.next} onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])} testID={`attn-go-${i}`} /> })}
               onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])}
             />
           ))}
