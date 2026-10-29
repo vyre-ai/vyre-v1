@@ -1517,6 +1517,9 @@ export function createClient(transport: Transport) {
     providers: {
       add: call("providers.add", 1),
       catalog: call("providers.catalog", 1),
+      custom_add: call("providers.custom_add", 1),
+      custom_list: call("providers.custom_list", 1),
+      custom_remove: call("providers.custom_remove", 1),
       list: call("providers.list", 1),
       remove: call("providers.remove", 1),
       set_space_use: call("providers.set_space_use", 1),

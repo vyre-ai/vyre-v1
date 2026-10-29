@@ -1,0 +1,16 @@
+{
+  "order": 1,
+  "key": "claude-code",
+  "name": "Claude Code",
+  "connections": [
+    "subscription"
+  ],
+  "modelsSource": "static",
+  "engine": "claude-code",
+  "models": [
+    "claude-opus-5-5",
+    "claude-sonnet-5-5",
+    "claude-haiku-5-5"
+  ],
+  "instruction": "On your computer run `claude setup-token`. Vyre saves the token as an AI subscription item in your Mine folder. Then press Done."
+}
