@@ -5,12 +5,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { bootCore, CORE_SPACE } from "../../../fixtures/seed/core/index.ts";
-import { startDaemon } from "../../../host/src/daemon/daemon.ts";
-import { loadConfig } from "../../../host/src/daemon/config.ts";
-import { fakePlatform } from "../../../host/src/platform/index.ts";
-import { CLIENT_SECRET, PAY_ACTION, PAY_TOML, oauthProvider } from "../../../fixtures/oauth-provider.ts";
+import { spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
+import { CLIENT_SECRET, PAY_ACTION, PAY_TOML } from "../../../fixtures/oauth-provider.ts";
 import { edge } from "./real-app-harness.test.ts";
 
 test("the OAuth callback page finishes a connection as its owner and tells every other outcome in words", async (t) => {
@@ -19,15 +18,22 @@ test("the OAuth callback page finishes a connection as its owner and tells every
   const { chromium } = await import("playwright-core");
   const exe = process.env["CHROME_BIN"] || chromium.executablePath();
   assert.ok(fs.existsSync(exe), `Chromium is required at ${exe}`);
-  const core = bootCore(), dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-oauth-callback-"));
-  core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE"); fs.copyFileSync(core.file, path.join(dir, "events.db")); core.close();
-  const provider = oauthProvider();
-  const d = await startDaemon({
-    config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "https://configured.fixture.test"], {}, "1.2.3"), platform: fakePlatform(),
-    session: (headers) => ({ space: CORE_SPACE, principal: { kind: "person", id: headers.authorization === "Bearer owner" ? "usr_olivia" : "usr_noah" }, device: "fixture" }),
-    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
-    connectorNetwork: provider.network,
+  // the daemon (with a disposable OAuth provider behind its connector network seam) runs as its own process; this test only talks to it
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-oauth-callback-"));
+  const child: ChildProcess = spawn(process.execPath, ["host/tests/fixtures/oauth-daemon.ts", dir], { cwd: fileURLToPath(new URL("../../..", import.meta.url)), stdio: ["ignore", "pipe", "inherit"] });
+  const ready = await new Promise<{ url: string; control: string }>((resolve, reject) => {
+    let out = "";
+    const timer = setTimeout(() => reject(new Error(`the daemon did not start: ${out}`)), 60_000);
+    child.stdout?.on("data", (c: Buffer) => { out += c.toString(); const line = out.split("\n").find((l) => l.startsWith("{")); if (line) { clearTimeout(timer); resolve(JSON.parse(line) as { url: string; control: string }); } });
+    child.once("exit", (code) => { clearTimeout(timer); reject(new Error(`the daemon exited with ${String(code)}: ${out}`)); });
   });
+  const d = { url: ready.url };
+  const provider = {
+    state: async (path = "/state", body?: object): Promise<{ seen: string[]; revoked: string[]; refreshes: number; issued: number; access: string; refresh: string }> =>
+      (await fetch(`${ready.control}${path}`, { method: body ? "POST" : "GET", ...(body ? { body: JSON.stringify(body) } : {}) })).json() as never,
+    expect: (code: string, challenge: string) => provider.state("/expect", { code, challenge }),
+    expire: () => provider.state("/expire", {}),
+  };
   const web = await edge(dist, d.url);
   const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
@@ -53,7 +59,7 @@ test("the OAuth callback page finishes a connection as its owner and tells every
   const startConnection = async (title: string, code: string) => {
     const made = await ok("owner", "connections.create", { connector: "livepay", title, ownerKind: "person", secrets: { Pay_Client: clientHandle }, idempotencyKey: key() });
     const url = new URL(made.authUrl);
-    provider.expect(code, url.searchParams.get("code_challenge")!);
+    await provider.expect(code, url.searchParams.get("code_challenge")!);
     return { id: made.connection.connectionId as string, state: url.searchParams.get("state")! };
   };
   let clientHandle = "";
@@ -88,11 +94,11 @@ test("the OAuth callback page finishes a connection as its owner and tells every
       await page.waitForURL(/\/console/);
       // the connection really works: the action runs with the token, and an expired token is refreshed and revoked on delete
       assert.deepEqual((await ok("owner", "connectors.run", { key: "livepay", action: "me", connectionId: c.id, input: {}, idempotencyKey: key() })).output, { name: "Dana" });
-      provider.expired.add(provider.access);
+      await provider.expire();
       assert.deepEqual((await ok("owner", "connectors.run", { key: "livepay", action: "me", connectionId: c.id, input: {}, idempotencyKey: key() })).output, { name: "Dana" });
-      assert.equal(provider.refreshes, 1);
+      assert.equal((await provider.state()).refreshes, 1);
       await ok("owner", "connections.delete", { connectionId: c.id });
-      assert.equal(provider.revoked.length, 2, "both tokens are revoked at the app");
+      assert.equal((await provider.state()).revoked.length, 2, "both tokens are revoked at the app");
     });
 
     await t.test("the same link again says it was already used", async () => {
@@ -106,12 +112,12 @@ test("the OAuth callback page finishes a connection as its owner and tells every
 
     await t.test("declining at the app sends no code, spends the state and keeps nothing", async () => {
       const c = await startConnection("Declined pay", "code-TWO");
-      const before = provider.seen.length;
+      const before = (await provider.state()).seen.length;
       await signIn("owner");
       await callback(`?state=${c.state}&error=access_denied&code=must-not-travel`);
       await page.getByText("The connection was declined").waitFor({ timeout: 20_000 });
       await shot("declined-desktop");
-      assert.equal(provider.seen.length, before, "the app was never contacted");
+      assert.equal((await provider.state()).seen.length, before, "the app was never contacted");
       assert.equal((await ok("owner", "connections.get", { connectionId: c.id })).connection.state, "pending");
       const again = await api("owner", "connections.complete_auth", { state: c.state, code: "code-TWO" });
       assert.equal(again.status, 401, "the state was spent by the decline");
@@ -141,12 +147,12 @@ test("the OAuth callback page finishes a connection as its owner and tells every
 
     await t.test("nobody signed in: the page says to sign in first and sends nothing", async () => {
       await signIn(null);
-      const before = provider.seen.length;
+      const before = (await provider.state()).seen.length;
       await callback("?state=oas_x&code=code-FIVE");
       await page.getByText("Sign in to this Space first").waitFor({ timeout: 20_000 });
       await shot("signed-out-desktop");
       assert.equal(new URL(page.url()).search, "");
-      assert.equal(provider.seen.length, before);
+      assert.equal((await provider.state()).seen.length, before);
     });
 
     await t.test("an address with no state says there is nothing to finish", async () => {
@@ -156,5 +162,5 @@ test("the OAuth callback page finishes a connection as its owner and tells every
       await page.evaluate(() => document.documentElement.setAttribute("data-mode", "dark")); await shot("no-state-dark");
     });
     assert.deepEqual(errors, []);
-  } finally { await context.close(); await browser.close(); web.close(); await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally { await context.close(); await browser.close(); web.close(); child.kill("SIGTERM"); await new Promise((r) => { child.once("exit", r); setTimeout(r, 5000); }); fs.rmSync(dir, { recursive: true, force: true }); }
 });
