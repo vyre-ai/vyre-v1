@@ -5,6 +5,8 @@ import { createSampleSettings } from "../../places/settings/sample.ts";
 import { ShellRuntimeProvider } from "./runtime.tsx";
 import { sampleRuntime } from "./misc-test-runtime.tsx";
 import SettingsShellPlace, { settingsData } from "./settings.tsx";
+import { SettingsDataProvider } from "../../places/settings/data.tsx";
+import { SettingsPlace } from "../../places/settings/SettingsPlace.tsx";
 import { loadSecurity } from "./settings-security.ts";
 import { PHOTO_MAX_BYTES, chooseProfilePhoto } from "./settings-photo.ts";
 
@@ -75,4 +77,19 @@ test("Choose a photo keeps the image in the person's own folder and answers the 
   const before = calls.length;
   await assert.rejects(chooseProfilePhoto({ call: async () => ({ folders: [{ folderId: "fld_space", scope: "space" }] }) }, async () => img), /no personal folder/);
   assert.equal(calls.length, before, "nothing was written");
+});
+
+function SettingsDataProviderFor({ rt, totp }: { rt: Parameters<typeof settingsData>[0]; totp: boolean }) {
+  const sec = { account: { passwordChanged: "3 Sep 2026", github: null }, spaces: { [rt.space.id]: { totp, passkeys: [], floor: "Not required", floorBy: "your Space's admins", sso: "", devices: 1 } } };
+  return <SettingsDataProvider value={settingsData(rt, undefined, sec)}><SettingsPlace initialPage="signin" /></SettingsDataProvider>;
+}
+
+test("the open Space's sign-in card keeps the ids the real-app flow clicks: totp-setup before an authenticator, totp-remove after, and pw-change", () => {
+  const s = createSampleSettings();
+  const rt = sampleRuntime({ screens: s.data.screens, call: s.data.call });
+  const draw = (totp: boolean): string => renderToStaticMarkup(<ShellRuntimeProvider value={rt}><SettingsDataProviderFor rt={rt} totp={totp} /></ShellRuntimeProvider>);
+  const on = draw(true), off = draw(false);
+  assert.match(off, /data-testid="totp-setup"/);
+  assert.match(on, /data-testid="totp-remove"/);
+  assert.match(on, /data-testid="pw-change"/);
 });
