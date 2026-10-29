@@ -1,6 +1,8 @@
 # Changelog
 
 
+- Run l2-heavy (the real-engine chat turn, sandbox and computers proofs) on any branch that touches the daemon, the live socket, the sync module or the chat module, not only the sandbox, terminal and computers paths, so a change like the sync hub cannot skip the proof that a chat turn still runs.
+
 - Restore one live socket per device on the sync-served WebSocket: a newer connection from a device closes the older with 4000, as before the hub, so the connection_count perf budget holds.
 
 - Extend the live-update browser proof to a real agent turn: the model vendor stand-in answers a mentioned agent through the real chat, engine and driver, and the agent's reply reaches the open conversation through the live socket with sync live.
