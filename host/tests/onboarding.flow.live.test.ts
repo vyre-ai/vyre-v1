@@ -150,6 +150,7 @@ test("a Team Space: the same AI account is copied only with a yes; a member join
     // the Console assistant finds the owner's own assistant by its role, so the old "connect an AI account first" error is gone for the right reason
     const opened = await tCall("console.assistant_open", { page: "console.home", idempotencyKey: "live-console" }).then(() => "opened", (e: Error) => e.message);
     assert.ok(!/not set up yet|Connect an AI account first/i.test(opened), opened);
+    console.log("console.assistant_open ->", opened);
 
     // a member sees only their own AI accounts; the owner's key is not theirs
     assert.equal(((await mCall("providers.list", {})) as { providers: unknown[] }).providers.length, 0, "the owner's Mine key is not visible to a member");
