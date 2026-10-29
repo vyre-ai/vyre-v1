@@ -1,6 +1,18 @@
 # Changelog
 
 - Fix an intermittent gate test (hold.test.ts "a hold whose Approve task is still being made is not listed or readable", failed once in the rc.1 release run): it waited five event-loop turns for the hold row, but the row is written after an async SHA-256 that runs on the thread pool, so on a loaded runner the check ran first (34 misses in 300 under thread-pool contention). It now waits for the task call itself, which comes after the row, and passes 300 of 300 under the same load. The assertions are unchanged; the gate code and the transfer act do not take part.
+
+- Split the perf seed script test into its own file: with the builder checks it took about 115 s of its 120 s watchdog on the shared CI hosts (10 s on an idle machine), so slow-15 failed on every run with no assertion failing. The assertions are unchanged.
+
+- Make the Console Webhooks browser test's action helper wait for an action to appear as a button or in the more menu (it chose once, right after reload, and on a slow runner waited for a menu item that had become a button); it still fails if the action never appears.
+
+- Run the release browser evidence on a GitHub-hosted VM of its own instead of a shared self-hosted v1 host: on the shared hosts it ran four to five times slower than on an idle machine (real-app 21 s vs 4.5 s for the same step) and a changing set of files hit the 120 s watchdog with no assertion failing.
+
+- Let the Computer lifecycle test wait up to 40 s for the Vyre for Chrome service worker to start before asserting it runs (it starts a moment after the browser, later on a loaded host); the assertion is unchanged.
+
+- Run the release browser evidence two files at a time instead of four: each file starts a daemon and a Chrome, and four at once beside the other runners on a host pushed the load past 12 on eight cores, so unrelated files (email Ask cancel, auth entry, Comms paging, Speed) hit their 120 s caps with no assertion failing. The same files pass in 14 to 22 s on an idle machine.
+
+- Fix the template install confirmation closing itself: Apps reads refresh on every live change, each read hands back a new object, and the card reset on that, so Confirm install detached while being clicked. It now resets only when another template is opened. Make the release real-app Computer health check expect the state the runner really has (ready with Docker, unavailable without) instead of always unavailable.
 - Make the release key-leak check exact: it searched the whole checkout for "PRIVATE KEY" and tripped on test fixtures on the first real signing run. It now searches the workspace for the signing key's own body and the signed output for any private key.
 - Make the fresh-Space proofs independent of the machine: the live test points the agent computers module at a container engine socket nothing listens on (daemon option computersSocketPath), so a runner that has Docker reads the same as one that has none; the Chromium proof inserts a computer in an error state, which is a failure whether or not Docker runs.
 - Narrow updates.health: only a missing vyre-server (ENOENT, mapped to exit 127 in the host seam) reads healthy "not installed here"; any other failure to check reads Degraded "Could not check updates: <reason>". FileVault fix line now reads "Turn on FileVault in System Settings to encrypt this computer's disk." Console Overview Recent admin activity reads plain sentences for the first acts a new owner sees ("Olivia Owner opened the audit log", "The owner claimed this Space") and "Someone" instead of a raw actor id; the Audit page keeps its generic phrases (BACKLOG).
