@@ -12,7 +12,8 @@ import type { SystemBlock } from "../../agent/src/drivers/api/types.ts";
 import { createSessionOpener } from "../../agent/src/drivers/open/index.ts";
 import type { McpPort, SessionOpener } from "../../agent/src/drivers/open/index.ts";
 import type { ValueSource, VaultRunDeps } from "../../agent/src/vault-use/index.ts";
-import type { SessionSpec } from "../../agent/src/turn-engine/types.ts";
+import { recallText } from "../../agent/src/turn-engine/recall.ts";
+import type { SessionSpec, TurnInput } from "../../agent/src/turn-engine/types.ts";
 
 /** The ports the host builds (host/src/seams/engine-session.ts), as the module sees them: structural, so neither side imports the other. */
 export interface EngineSessionPorts { source: ValueSource; reportMiss: VaultRunDeps["reportMiss"]; mcp: McpPort }
@@ -34,8 +35,14 @@ export interface OpenerHost {
   now?: () => number;
 }
 
-export function roleBlocks(call: OpenerHost["call"]): (spec: SessionSpec) => Promise<SystemBlock[]> {
-  return async (spec) => {
+const MEMORY_RULES = "You remember through Vyre memory. Facts recalled for a message come with their source: say where you know a thing from. Save what you learn with memory_propose and cite where it came from. Memory you cannot see is not yours to guess.";
+
+/**
+ * The system prompt of an API-key chat. Stable blocks come first and carry the cache marker: the role, the memory rules and the agent's MAP.md as the nightly job last wrote it (agent layer only, never
+ * a person's memory). What memory recalled for this one message follows as a volatile block, so the stable prefix is the same from turn to turn.
+ */
+export function roleBlocks(call: OpenerHost["call"]): (spec: SessionSpec, input?: TurnInput) => Promise<SystemBlock[]> {
+  return async (spec, input) => {
     let text: string;
     try {
       const out = (await call("agents.get", { agentId: spec.agent.id }, spec.asker)) as { agent?: { name?: string; role?: string } };
@@ -44,7 +51,14 @@ export function roleBlocks(call: OpenerHost["call"]): (spec: SessionSpec) => Pro
     } catch {
       text = `You are ${spec.agent.id}, an agent in Vyre.`;
     }
-    return [{ text, stable: true }];
+    const blocks: SystemBlock[] = [{ text, stable: true }, { text: MEMORY_RULES, stable: true }];
+    try {
+      const out = (await call("memory.map.get", { agentId: spec.agent.id }, spec.asker)) as { map?: { body?: string } };
+      if (out.map?.body) blocks.push({ text: `Your memory map (MAP.md):\n${out.map.body}`, stable: true });
+    } catch { /* no map yet, or this person may not read it: the turn goes on without it */ }
+    const recalled = input?.recall ? recallText(input.recall) : "";
+    if (recalled !== "") blocks.push({ text: recalled, stable: false });
+    return blocks;
   };
 }
 
@@ -74,6 +88,6 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     // Behind the wall the engine cannot reach the daemon's loopback: its MCP config starts a stdio shim that talks to a unix socket in the person's scratch folder (ruling 61).
     ...(dataDir ? { mcpBridge: (m: { url: string; token: string }, spec: { asker: string }) => openMcpBridge(m, { scratch: scratchFolder(dataDir, spec.asker) }) } : {}),
     ...(dataDir ? { cli: { workFolder: (spec) => workFolder(dataDir, spec.asker, spec.threadId) } } : {}),
-    apiContext: h.apiTools ? h.apiTools.context : async (spec) => ({ system: await system(spec), tools: [] }),
+    apiContext: h.apiTools ? h.apiTools.context : async (spec, input) => ({ system: await system(spec, input), tools: [] }),
   });
 }

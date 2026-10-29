@@ -120,6 +120,9 @@ export type DriverEvent =
 
 export interface ToolResult { ok: boolean; content: unknown }
 
+/** One line the memory module recalled for a message: a fact (or note title) with where it is kept and the link to the chat, task or record it came from. */
+export interface RecallLine { title: string; fact?: string; trueSince?: number; path: string; sourceLink?: string }
+
 export interface TurnInput {
   threadId: string;
   turnId: string;
@@ -132,6 +135,8 @@ export interface TurnInput {
   asker: string;
   /** Set on the wake that continues a turn parked on a held tool call: the answer to that call. */
   resumed?: ResumedCall;
+  /** What memory recalled for the message that caused this turn (memory.pointer, as the asker). Absent when nothing matched or memory is not available. */
+  recall?: readonly RecallLine[];
 }
 
 export interface ResumedCall { taskId: string; callId: string; toolName: string; approved: boolean; result: ToolResult }

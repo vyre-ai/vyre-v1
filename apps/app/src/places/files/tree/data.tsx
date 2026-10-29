@@ -20,8 +20,11 @@ export interface FilesNav {
   /** Rename and Move need a name or a place; the shell asks for it and calls the capability. */
   renameEntry(kind: "file" | "folder", id: string, current: string): void;
   newFolder(scope: "personal" | "space", parentId: string | null): void;
+  /** Proposed: the facts agents suggested that nobody has decided on yet. */
   openMemory(): void;
   openGraph(): void;
+  /** The person went back to the notes or a folder, so the Proposed or Graph screen gives the body back to the list. */
+  leaveMemory?(): void;
   /** Upload into a folder (null is the top of Files): the shell opens its picker and sends the bytes through files.upload_url. */
   upload?(folderId: string | null): void;
   /** Review a change set an agent staged: the shell opens its review surface. */
@@ -45,6 +48,8 @@ export interface FilesData {
   clock(): { now: number; offsetMin: number };
   nameOf(id: string): string;
   nav: FilesNav;
+  /** Which Knowledge screen has the body, when it is not the list: the sidebar marks that row. */
+  memoryView?: "proposed" | "graph" | null;
   /** The side pane's state, when the shell has one. */
   pane?: PaneControl;
 }

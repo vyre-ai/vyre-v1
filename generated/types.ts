@@ -16285,6 +16285,7 @@ export type MemoryPointerOut = {
       fact?: string;
       trueSince?: number;
       path: string;
+      sourceLink?: string;
     }>;
   tokens: number;
   skipped?: "short_ack" | "mid_tool_loop" | "no_match" | "duplicate";
