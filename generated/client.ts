@@ -1325,6 +1325,12 @@ export function createClient(transport: Transport) {
         undo: call("memory.promotion.undo", 1),
       },
       propose_fact: call("memory.propose_fact", 1),
+      question: {
+        resolve: call("memory.question.resolve", 1),
+      },
+      questions: {
+        list: call("memory.questions.list", 1),
+      },
       read_note: call("memory.read_note", 1),
       restore: call("memory.restore", 1),
       restore_version: call("memory.restore_version", 1),
@@ -1334,6 +1340,9 @@ export function createClient(transport: Transport) {
         search: call("memory.trash.search", 1),
       },
       undo: call("memory.undo", 1),
+      upkeep: {
+        status: call("memory.upkeep.status", 1),
+      },
       versions: call("memory.versions", 1),
     },
     mounts: {

@@ -4544,6 +4544,18 @@
     },
     {
       "deferred": false,
+      "name": "memory_question_resolve",
+      "summary": "Answer an upkeep question with one click: keep one of two facts (the other goes to Trash), keep both, confirm an old fact, or drop it",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_questions",
+      "summary": "Questions upkeep could not settle: two values for one subject and field, or a fact that looks old",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_restore",
       "summary": "Restore a fact from Trash, or from Archive for an admin; open to any person or agent who can see the fact",
       "toolset": "memory"
@@ -4576,6 +4588,12 @@
       "deferred": false,
       "name": "memory_undo",
       "summary": "Undo something memory learned: the fact goes to Trash with the reason undone, and a restore brings it back",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_upkeep_status",
+      "summary": "Upkeep spend: this month against the monthly cap, and the recent runs with what each did and cost",
       "toolset": "memory"
     },
     {

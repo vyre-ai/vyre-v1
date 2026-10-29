@@ -11,6 +11,8 @@ import path from "node:path";
 import { defaultPrompt } from "../agent/src/drivers/cli/prompt.ts";
 import type { DriverEvent, EngineSession, OpenSession, TurnInput } from "../agent/src/turn-engine/types.ts";
 import { bootCore } from "../fixtures/seed/core/index.ts";
+import { setUpkeepModel } from "../modules/memory/impl.ts";
+import type { UpkeepRequest } from "../modules/memory/impl.ts";
 import { fakePlatform } from "../host/src/platform/index.ts";
 import type { FetchFn } from "../host/src/platform/probes.ts";
 import { loadConfig } from "../host/src/daemon/config.ts";
@@ -237,4 +239,67 @@ test("memory core live: require review holds what an agent saves for the Space i
     const feed = (await call(d, "memory.learned", {})).data.items as Array<{ fact: Fact }>;
     assert.ok(feed.some((i) => i.fact.status === "proposed" && i.fact.text.includes("last Monday")), "a held fact is in the feed too");
   } finally { await d.stop(); }
+});
+
+test("memory core live: upkeep merges and flags by rule, a model through the vendor stand-in does the rest, and the monthly cap stops it", async () => {
+  const d = await boot(seededDir());
+  const asked: UpkeepRequest[] = [];
+  // the model vendor stand-in: it answers like a model would for a place, and reports tokens and a cost
+  setUpkeepModel(async (req) => {
+    asked.push(req);
+    const first = req.facts[0];
+    return { usage: { inTokens: 1000, outTokens: 100, costMicros: 6_000 }, actions: first ? [{ type: "create" as const, text: `Pattern noticed in ${req.scope.layer} memory`, kind: "pattern", from: [first.id] }] : [] };
+  });
+  try {
+    await connect(d);
+    assert.equal((await call(d, "engine.pool.status", {})).status, 200);
+    const keeper = await newAgent(d, "Keeper");
+    let n = 0;
+    const put = async (layer: string, text: string): Promise<void> => {
+      const r = await call(d, "memory.propose_fact", { idempotencyKey: `up-${++n}`, layer, ...(layer === "agent" ? { agentId: keeper.id } : {}), text, kind: "preference", sourceKind: "manual", sourceRef: "live" });
+      assert.equal(r.status, 200, JSON.stringify(r.data));
+      assert.equal(r.data.merged, true, `${text} is saved: ${JSON.stringify(r.data)}`);
+    };
+    await put("space", "The front desk never books before nine");
+    await put("space", "The front desk never books before nine.");
+    await put("space", "Dana's timezone is Pacific");
+    await put("space", "Dana's timezone is Eastern");
+    await put("person", "I like my coffee black");
+    await put("person", "I walk to the office");
+    await put("agent", "Keeper files the weekly update on Friday");
+    await put("agent", "Keeper sends invoices on Monday");
+
+    // rules only: the near duplicate goes to Trash, the contradiction becomes a question
+    const rules = await call(d, "memory.maintain", { rulesOnly: true });
+    assert.equal(rules.status, 200, JSON.stringify(rules.data));
+    assert.deepEqual([rules.data.merged, rules.data.flagged, rules.data.modelUsed], [1, 1, false]);
+    assert.equal(asked.length, 0, "rulesOnly never asks the model");
+    const trash = (await call(d, "memory.trash.search", { q: "front desk" })).data.facts as Array<{ trashReason?: string }>;
+    assert.equal(trash.length, 1);
+    assert.equal(trash[0]!.trashReason, "near duplicate");
+    const qs = (await call(d, "memory.questions.list", {})).data.questions as Array<{ questionId: string; kind: string; facts: unknown[] }>;
+    assert.deepEqual(qs.map((q) => [q.kind, q.facts.length]), [["contradiction", 2]]);
+    assert.equal((await call(d, "memory.question.resolve", { questionId: qs[0]!.questionId, resolution: "keep_b" })).status, 200);
+
+    // the model: the monthly cap (one cent) lets two of the three places in; the third is not asked
+    assert.equal((await call(d, "settings.set_space", { key: "memory.upkeep_monthly_cap", value: 0.01, idempotencyKey: "up-cap" })).status, 200);
+    const run = await call(d, "memory.maintain", {});
+    assert.equal(run.status, 200, JSON.stringify(run.data));
+    assert.equal(asked.length, 2, JSON.stringify(asked.map((a) => a.scope)));
+    assert.deepEqual([run.data.modelUsed, run.data.costMicros, run.data.stopped, run.data.created], [true, 12_000, "cap", 2]);
+    const status = (await call(d, "memory.upkeep.status", {})).data;
+    assert.deepEqual([status.spentMicros, status.capMicros, status.capReached], [12_000, 10_000, true]);
+    assert.deepEqual(status.runs.map((r: { costMicros: number }) => r.costMicros), [12_000, 0]);
+    const feed = (await call(d, "memory.learned", {})).data.items as Array<{ actor: string; fact: { text: string } }>;
+    assert.ok(feed.some((i) => i.actor === "upkeep" && i.fact.text.startsWith("Pattern noticed")), "what upkeep wrote is in the Learned feed, learned by upkeep");
+    const trail = (await call(d, "memory.trail", { actor: "upkeep" })).data.rows as Array<{ source?: string; runId?: string }>;
+    assert.ok(trail.some((r) => r.source === "upkeep:model" || r.runId === run.data.runId), JSON.stringify(trail.slice(0, 3)));
+    const second = await call(d, "memory.maintain", {});
+    assert.equal(asked.length, 2, "the month's spend holds the cap: no call");
+    assert.equal(second.data.stopped, "cap");
+    clock.t += 32 * DAY;
+    const next = await call(d, "memory.maintain", {});
+    assert.equal(asked.length, 4, "a new month starts clean");
+    assert.equal(next.data.stopped, "cap");
+  } finally { setUpkeepModel(null); await d.stop(); }
 });

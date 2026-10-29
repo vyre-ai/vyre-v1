@@ -35,6 +35,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "memory.promotion.reject": Handler<"memory.promotion.reject", X>;
   "memory.promotion.undo": Handler<"memory.promotion.undo", X>;
   "memory.propose_fact": Handler<"memory.propose_fact", X>;
+  "memory.question.resolve": Handler<"memory.question.resolve", X>;
+  "memory.questions.list": Handler<"memory.questions.list", X>;
   "memory.read_note": Handler<"memory.read_note", X>;
   "memory.restore": Handler<"memory.restore", X>;
   "memory.restore_version": Handler<"memory.restore_version", X>;
@@ -42,5 +44,6 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "memory.trail": Handler<"memory.trail", X>;
   "memory.trash.search": Handler<"memory.trash.search", X>;
   "memory.undo": Handler<"memory.undo", X>;
+  "memory.upkeep.status": Handler<"memory.upkeep.status", X>;
   "memory.versions": Handler<"memory.versions", X>;
 }

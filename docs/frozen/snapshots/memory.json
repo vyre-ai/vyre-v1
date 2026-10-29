@@ -21,7 +21,7 @@
     "memory.layout.get@1": "920c555e3b4e3b2404e72ccedfcae7ab2f6c2f0509ec399b7a8ebf22ec863b42",
     "memory.layout.save@1": "b106ac7e1c7852ab413ba83055ac0c72fa2c8abb340848c147179dd7e077f3a5",
     "memory.learned@1": "22cbadec5914fa8c3a041e5f352fad2df4ffea0b1e632bc255b800230c755c81",
-    "memory.maintain@1": "e2e93ca3c9abf54006eb68fb4c53b90f0274f017c5ceb5f1cb9ccce87c836e33",
+    "memory.maintain@1": "7e7332f071339e79ddab12ed51d4a410be0cd8c193f6e73fa057a0ad84d737ba",
     "memory.map.get@1": "2ec8af83998b8217f20fd68baf16eb399bb7491dc928ab73d29f1aa23ad77ec5",
     "memory.notes.erase@1": "dd81a39305008aee7f3f350162b195248c6417328481c68ec9cba911d94ef2bd",
     "memory.notes.list@1": "8812ed58623663cdc5bcc752b161d669e866f211df00a75851edc90ad3445d26",
@@ -31,6 +31,8 @@
     "memory.promotion.reject@1": "a626cb1f68eb0dbc5a625b512158a3a055f4584a4a8ac5f61b793d79b1abc77e",
     "memory.promotion.undo@1": "e2501791022d39d9e49ad927e609e6d700544ba6922c6a72a4c422c8ff3ebbec",
     "memory.propose_fact@1": "fae2bd3805198173c2e190c2a351ce80987c1a4f4ca3b933832ebd7b7b0de87d",
+    "memory.question.resolve@1": "ccb3bb8a6a1a08e780ce76cc34630fa60b942b62464f8909c3e83e2a74d0b515",
+    "memory.questions.list@1": "f1a3ba708f7329013e50f994ffd81f42151d2cba1f5f751a68f118a907d5c3f1",
     "memory.read_note@1": "5552e3f104e30add5b3f2cc28640111825816be8aac7be43a6f8ae942d4d745b",
     "memory.restore@1": "ac5073924c83fc0ee4ef4d567c204356c54cd24d7f9a2a0c0def25a4884e3ae1",
     "memory.restore_version@1": "8e397e6562644b48f17a0bbc2cf6b80381ee1610f3be54f59ccc8eaf5fb665aa",
@@ -38,6 +40,7 @@
     "memory.trail@1": "3c76d74bab76ab878d42ee22c48d0140d69b20a949b6f855b8f72c0e25bfd948",
     "memory.trash.search@1": "79ac631ba5f7e26d3ce7b5ec8f2430c3349cab38b70c2d039c2849d314fa47c2",
     "memory.undo@1": "c8021d198dd6989c25589149e4d67df06933733611974eb087e1c4038050c4b2",
+    "memory.upkeep.status@1": "29c740afab5b63f3596e7d8e95c46b6909c6e89fd66db91b6c50cee40e4d5f06",
     "memory.versions@1": "6341c924297b55b68ca8fcbf15cdecc5cac2247b6017d4fda5a5f103230b20ca"
   },
   "events": {
@@ -58,6 +61,7 @@
     "memory.promotion_undone": "a23525863cdb06b68084b8dca6f5244385012d0d21a8b3e6ee102c0141e4444b",
     "memory.removed": "b85b7023b754bf036057dce5209c91a55e84c137d0bf4b26619e9c0f735c7f51",
     "memory.restored": "8baa7249924ba042509c9e1c242743f3887c3cc3a2c20ec2c2bf9207b32cbda2",
+    "memory.upkeep_ran": "3cf1c6074247492f3c0578288bdf4b6452ce16fa8b789ef5a2b12dac1320af9f",
     "note.erased": "f8a5f40562637e84c6dcf2b8e68aaad16e67740d09a89a4060b1ac1c5e2aacc0"
   }
 }

@@ -1325,6 +1325,12 @@ export function stubs(ctx: CallCtx) {
         undo: call("memory.promotion.undo"),
       },
       propose_fact: call("memory.propose_fact"),
+      question: {
+        resolve: call("memory.question.resolve"),
+      },
+      questions: {
+        list: call("memory.questions.list"),
+      },
       read_note: call("memory.read_note"),
       restore: call("memory.restore"),
       restore_version: call("memory.restore_version"),
@@ -1334,6 +1340,9 @@ export function stubs(ctx: CallCtx) {
         search: call("memory.trash.search"),
       },
       undo: call("memory.undo"),
+      upkeep: {
+        status: call("memory.upkeep.status"),
+      },
       versions: call("memory.versions"),
     },
     mounts: {

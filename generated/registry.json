@@ -110929,7 +110929,10 @@
     {
       "effects": "write",
       "emits": [
-        "memory.map_rewritten"
+        "memory.map_rewritten",
+        "memory.upkeep_ran",
+        "memory.fact_corrected",
+        "memory.learned"
       ],
       "errors": [
         "internal.unexpected",
@@ -110940,13 +110943,26 @@
       "examples": [
         {
           "input": {
-            "agentId": "agt_a1b2c3"
+            "agentId": "agt_a1b2c3",
+            "rulesOnly": true
           },
           "name": "example",
           "output": {
             "closed": 1,
+            "corrected": 1,
+            "costMicros": 1,
+            "created": 1,
+            "deleted": 1,
+            "flagged": 1,
             "maps": 1,
-            "merged": 1
+            "merged": 1,
+            "modelUsed": true,
+            "runId": "example",
+            "stale": 1,
+            "stopped": "cap",
+            "tidied": 1,
+            "tokensIn": 1,
+            "tokensOut": 1
           }
         }
       ],
@@ -110959,6 +110975,9 @@
             ],
             "pattern": "^agt_[a-z0-9]+$",
             "type": "string"
+          },
+          "rulesOnly": {
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -110971,10 +110990,52 @@
           "closed": {
             "type": "integer"
           },
+          "corrected": {
+            "type": "integer"
+          },
+          "costMicros": {
+            "description": "Estimated cost of the run in micro-dollars",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "deleted": {
+            "type": "integer"
+          },
+          "flagged": {
+            "type": "integer"
+          },
           "maps": {
             "type": "integer"
           },
           "merged": {
+            "type": "integer"
+          },
+          "modelUsed": {
+            "type": "boolean"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "stale": {
+            "type": "integer"
+          },
+          "stopped": {
+            "enum": [
+              "cap",
+              "no_key"
+            ],
+            "type": "string"
+          },
+          "tidied": {
+            "type": "integer"
+          },
+          "tokensIn": {
+            "type": "integer"
+          },
+          "tokensOut": {
             "type": "integer"
           }
         },
@@ -110991,7 +111052,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "Nightly job: merge accepted facts, close old versions, rewrite MAP.md (under 200 lines) for each agent",
+      "summary": "Upkeep, nightly or on demand: merge duplicates into Trash, flag contradictions and old facts as questions, close expired facts, and with a memory key let a model do the rest; rewrite MAP.md for each agent",
       "surfaces": {
         "http": "auto"
       },
@@ -111931,6 +111992,287 @@
       "v": 1
     },
     {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "questionId": "example",
+            "resolution": "keep_a"
+          },
+          "name": "example",
+          "output": {
+            "ok": true,
+            "resolution": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "questionId": {
+            "type": "string"
+          },
+          "resolution": {
+            "enum": [
+              "keep_a",
+              "keep_b",
+              "keep_both",
+              "drop"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "questionId",
+          "resolution"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "memory",
+      "name": "memory.question.resolve",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "resolution": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ok",
+          "resolution"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Answer an upkeep question with one click: keep one of two facts (the other goes to Trash), keep both, confirm an old fact, or drop it",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "cursor": "example",
+            "kind": "contradiction",
+            "layer": "person",
+            "limit": 1,
+            "projectId": "prj_a1b2c3",
+            "status": "open"
+          },
+          "name": "example",
+          "output": {
+            "next": "example",
+            "questions": [
+              {
+                "createdAt": 1760000000000,
+                "facts": [
+                  {
+                    "agentId": "agt_a1b2c3",
+                    "archivedAt": 1760000000000,
+                    "closedAt": 1760000000000,
+                    "factId": "fct_a1b2c3",
+                    "layer": "person",
+                    "learnedAt": 1760000000000,
+                    "lowRisk": true,
+                    "noteId": "not_a1b2c3",
+                    "ownerRef": "agt_a1b2c3",
+                    "sourceKind": "chat",
+                    "sourceLink": "example",
+                    "sourceRef": "example",
+                    "status": "proposed",
+                    "text": "example",
+                    "trashReason": "example",
+                    "trashedAt": 1760000000000,
+                    "validFrom": 1760000000000,
+                    "validTo": 1760000000000
+                  }
+                ],
+                "kind": "contradiction",
+                "layer": "person",
+                "questionId": "example",
+                "resolution": "example",
+                "status": "open"
+              }
+            ],
+            "total": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "contradiction",
+              "stale"
+            ],
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "resolved"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.questions.list",
+      "output": {
+        "properties": {
+          "next": {
+            "description": "Cursor for the next page; absent on the last page",
+            "type": "string"
+          },
+          "questions": {
+            "items": {
+              "properties": {
+                "createdAt": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "facts": {
+                  "$ref": "#/$defs/s_245e72f271"
+                },
+                "kind": {
+                  "enum": [
+                    "contradiction",
+                    "stale"
+                  ],
+                  "type": "string"
+                },
+                "layer": {
+                  "enum": [
+                    "person",
+                    "agent",
+                    "project",
+                    "space"
+                  ],
+                  "type": "string"
+                },
+                "questionId": {
+                  "type": "string"
+                },
+                "resolution": {
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "open",
+                    "resolved"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "questionId",
+                "kind",
+                "status",
+                "createdAt",
+                "layer",
+                "facts"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "questions"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Questions upkeep could not settle: two values for one subject and field, or a fact that looks old",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "memory_questions",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -112820,6 +113162,198 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Undo something memory learned: the fact goes to Trash with the reason undone, and a restore brings it back",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "limit": 1
+          },
+          "name": "example",
+          "output": {
+            "capMicros": 1,
+            "capReached": true,
+            "modelAvailable": true,
+            "month": "example",
+            "openQuestions": 1,
+            "runs": [
+              {
+                "corrected": 1,
+                "costMicros": 1,
+                "created": 1,
+                "deleted": 1,
+                "finishedAt": 1760000000000,
+                "flagged": 1,
+                "merged": 1,
+                "modelUsed": true,
+                "runId": "example",
+                "stale": 1,
+                "startedAt": 1760000000000,
+                "stopped": "cap",
+                "tidied": 1,
+                "tokensIn": 1,
+                "tokensOut": 1
+              }
+            ],
+            "spentMicros": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "manage",
+      "module": "memory",
+      "name": "memory.upkeep.status",
+      "output": {
+        "properties": {
+          "capMicros": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "capReached": {
+            "type": "boolean"
+          },
+          "modelAvailable": {
+            "type": "boolean"
+          },
+          "month": {
+            "type": "string"
+          },
+          "openQuestions": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "runs": {
+            "items": {
+              "properties": {
+                "corrected": {
+                  "type": "integer"
+                },
+                "costMicros": {
+                  "type": "integer"
+                },
+                "created": {
+                  "type": "integer"
+                },
+                "deleted": {
+                  "type": "integer"
+                },
+                "finishedAt": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "flagged": {
+                  "type": "integer"
+                },
+                "merged": {
+                  "type": "integer"
+                },
+                "modelUsed": {
+                  "type": "boolean"
+                },
+                "runId": {
+                  "type": "string"
+                },
+                "stale": {
+                  "type": "integer"
+                },
+                "startedAt": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "stopped": {
+                  "enum": [
+                    "cap",
+                    "no_key"
+                  ],
+                  "type": "string"
+                },
+                "tidied": {
+                  "type": "integer"
+                },
+                "tokensIn": {
+                  "type": "integer"
+                },
+                "tokensOut": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "runId",
+                "startedAt",
+                "modelUsed",
+                "merged",
+                "flagged",
+                "stale",
+                "created",
+                "corrected",
+                "deleted",
+                "tidied",
+                "tokensIn",
+                "tokensOut",
+                "costMicros"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "spentMicros": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "spentMicros",
+          "capMicros",
+          "capReached",
+          "modelAvailable",
+          "openQuestions",
+          "runs"
+        ],
+        "type": "object"
+      },
+      "permission": "memory.admin",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Upkeep spend: this month against the monthly cap, and the recent runs with what each did and cost",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -185404,6 +185938,69 @@
       "summary": "A fact came back from Trash or Archive",
       "sv": 1,
       "vis": "participants"
+    },
+    {
+      "module": "memory",
+      "name": "memory.upkeep_ran",
+      "payload": {
+        "properties": {
+          "corrected": {
+            "type": "integer"
+          },
+          "costMicros": {
+            "type": "integer"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "deleted": {
+            "type": "integer"
+          },
+          "flagged": {
+            "type": "integer"
+          },
+          "merged": {
+            "type": "integer"
+          },
+          "modelUsed": {
+            "type": "boolean"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "stale": {
+            "type": "integer"
+          },
+          "stopped": {
+            "type": "string"
+          },
+          "tidied": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "runId",
+          "merged",
+          "flagged",
+          "stale",
+          "created",
+          "corrected",
+          "deleted",
+          "tidied",
+          "modelUsed",
+          "costMicros"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "memory",
+      "subject": {
+        "id": "/runId",
+        "type": "entity"
+      },
+      "summary": "An upkeep run finished (counts and cost only)",
+      "sv": 1,
+      "vis": "space"
     },
     {
       "module": "mail",

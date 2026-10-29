@@ -23,6 +23,13 @@ const learnedRow = t.obj({
   fact: factRow, at: t.ts(), actor: t.str({ description: 'Who learned it: the agent or person id, or upkeep' }), actorKind: t.enm('person', 'agent', 'upkeep', 'system'), sourceKind, sourceRef: t.str(),
   sourceLink: t.opt(t.str()), from: t.opt(t.str({ description: 'The person the fact came from' })), undone: t.bool(),
 });
+const upkeepRun = t.obj({
+  runId: t.str(), startedAt: t.ts(), finishedAt: t.opt(t.ts()), modelUsed: t.bool(), merged: t.int(), flagged: t.int(), stale: t.int(), created: t.int(), corrected: t.int(), deleted: t.int(), tidied: t.int(),
+  tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), stopped: t.opt(t.enm('cap', 'no_key')),
+});
+const questionRow = t.obj({
+  questionId: t.str(), kind: t.enm('contradiction', 'stale'), status: t.enm('open', 'resolved'), createdAt: t.ts(), layer, facts: t.arr(factRow), resolution: t.opt(t.str()),
+});
 const trailRow = t.obj({
   id: t.str(), at: t.ts(), action: t.enm('create', 'edit', 'merge', 'delete', 'restore', 'archive', 'erase', 'learn', 'undo', 'accept', 'reject', 'promote', 'flag', 'resolve'), actor: t.str(),
   actorKind: t.enm('person', 'agent', 'upkeep', 'system'), actingFor: t.opt(t.str()), factId: t.opt(id.fact), pageId: t.opt(t.str()), layer: t.opt(layer), source: t.opt(t.str()), reason: t.opt(t.str()),
@@ -136,8 +143,14 @@ export default defineManifest({
       in: { threadId: id.thread, reason: t.enm('closed', 'idle') }, out: { proposed: t.int(), merged: t.int() },
       emits: ['memory.captured', 'memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'], idem: 'natural', risk: 'low', errors: ['permission.provider_label'],
     }),
-    write('memory.maintain', 'Nightly job: merge accepted facts, close old versions, rewrite MAP.md (under 200 lines) for each agent', {
-      in: { agentId: t.opt(id.agent) }, out: { merged: t.int(), closed: t.int(), maps: t.int() }, emits: ['memory.map_rewritten'], idem: 'natural', risk: 'low',
+    write('memory.maintain', 'Upkeep, nightly or on demand: merge duplicates into Trash, flag contradictions and old facts as questions, close expired facts, and with a memory key let a model do the rest; rewrite MAP.md for each agent', {
+      in: { agentId: t.opt(id.agent), rulesOnly: t.opt(t.bool({ description: 'Skip the model even when a key is available' })) },
+      out: {
+        merged: t.int(), closed: t.int(), maps: t.int(), runId: t.opt(t.str()), flagged: t.opt(t.int()), stale: t.opt(t.int()), created: t.opt(t.int()), corrected: t.opt(t.int()), deleted: t.opt(t.int()), tidied: t.opt(t.int()),
+        modelUsed: t.opt(t.bool()), costMicros: t.opt(t.int({ minimum: 0, description: 'Estimated cost of the run in micro-dollars' })), tokensIn: t.opt(t.int()), tokensOut: t.opt(t.int()),
+        stopped: t.opt(t.enm('cap', 'no_key')),
+      },
+      emits: ['memory.map_rewritten', 'memory.upkeep_ran', 'memory.fact_corrected', 'memory.learned'], idem: 'natural', risk: 'low',
     }),
     write('memory.index_graph', 'Graph consumer: update graph nodes and edges for a changed note, record or chat (notes, links, relations, came-from)', {
       in: { entity: t.str(), id: t.str(), seq: t.int({ minimum: 0 }) }, out: { nodes: t.int(), edges: t.int() }, idem: 'natural', risk: 'low',
@@ -192,6 +205,22 @@ export default defineManifest({
       in: { factId: t.opt(id.fact), pageId: t.opt(t.str()), action: t.opt(t.str()), actor: t.opt(t.str()), since: t.opt(t.ts()), ...pageIn }, out: { rows: t.arr(trailRow), ...pageOut }, label: 'filter', tool: 'memory',
       mcpName: 'memory_trail', agent: { planMode: 'allowed' },
     }),
+    read('memory.upkeep.status', 'Upkeep spend: this month against the monthly cap, and the recent runs with what each did and cost', {
+      in: { limit: t.opt(t.int({ minimum: 1, maximum: 200 })) },
+      out: {
+        month: t.str(), spentMicros: t.int({ minimum: 0 }), capMicros: t.int({ minimum: 0 }), capReached: t.bool(), modelAvailable: t.bool(), openQuestions: t.int({ minimum: 0 }),
+        runs: t.arr(upkeepRun),
+      },
+      perm: 'memory.admin', level: 'manage', label: 'filter', tool: 'memory', errors: ['permission.role_lacks_permission'],
+    }),
+    read('memory.questions.list', 'Questions upkeep could not settle: two values for one subject and field, or a fact that looks old', {
+      in: { status: t.opt(t.enm('open', 'resolved')), kind: t.opt(t.enm('contradiction', 'stale')), layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), ...pageIn },
+      out: { questions: t.arr(questionRow), ...pageOut }, label: 'filter', tool: 'memory', mcpName: 'memory_questions',
+    }),
+    write('memory.question.resolve', 'Answer an upkeep question with one click: keep one of two facts (the other goes to Trash), keep both, confirm an old fact, or drop it', {
+      in: { questionId: t.str(), resolution: t.enm('keep_a', 'keep_b', 'keep_both', 'drop') }, out: { ok: t.bool(), resolution: t.str() }, tool: 'memory', offline: 'queue',
+      errors: ['validation.not_found', 'validation.precondition_failed', 'permission.no_grant'],
+    }),
   ],
   events: [
     // ---- erase and purge (P-CC_39): governance removes data through these; each hard-deletes inside its own store
@@ -223,6 +252,10 @@ export default defineManifest({
     }),
     ev('memory.restored', 'A fact came back from Trash or Archive', { p: { factId: id.fact, from: t.str(), by: t.str() }, subject: ['entity', '/factId'], vis: 'participants', retention: 'memory' }),
     ev('memory.archived', 'Facts untouched in Trash moved to Archive', { p: { count: t.int(), days: t.int() }, subject: ['entity', '/count'], retention: 'memory' }),
+    ev('memory.upkeep_ran', 'An upkeep run finished (counts and cost only)', {
+      p: { runId: t.str(), merged: t.int(), flagged: t.int(), stale: t.int(), created: t.int(), corrected: t.int(), deleted: t.int(), tidied: t.int(), modelUsed: t.bool(), costMicros: t.int(), stopped: t.opt(t.str()) },
+      subject: ['entity', '/runId'], retention: 'memory',
+    }),
     ev('memory.everything_viewed', 'An admin opened the everything graph view', { p: { by: t.str() }, subject: ['entity', '/by'], retention: 'audit' }),
   ],
   blocks: [

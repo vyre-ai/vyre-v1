@@ -35,6 +35,8 @@ export const handlers: Handlers<HandlerCtx> = {
   "memory.promotion.reject": async (ctx) => { throw new VyreErr(notImplemented("memory.promotion.reject", ctx.trace)); },
   "memory.promotion.undo": async (ctx) => { throw new VyreErr(notImplemented("memory.promotion.undo", ctx.trace)); },
   "memory.propose_fact": async (ctx) => { throw new VyreErr(notImplemented("memory.propose_fact", ctx.trace)); },
+  "memory.question.resolve": async (ctx) => { throw new VyreErr(notImplemented("memory.question.resolve", ctx.trace)); },
+  "memory.questions.list": async (ctx) => { throw new VyreErr(notImplemented("memory.questions.list", ctx.trace)); },
   "memory.read_note": async (ctx) => { throw new VyreErr(notImplemented("memory.read_note", ctx.trace)); },
   "memory.restore": async (ctx) => { throw new VyreErr(notImplemented("memory.restore", ctx.trace)); },
   "memory.restore_version": async (ctx) => { throw new VyreErr(notImplemented("memory.restore_version", ctx.trace)); },
@@ -42,5 +44,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "memory.trail": async (ctx) => { throw new VyreErr(notImplemented("memory.trail", ctx.trace)); },
   "memory.trash.search": async (ctx) => { throw new VyreErr(notImplemented("memory.trash.search", ctx.trace)); },
   "memory.undo": async (ctx) => { throw new VyreErr(notImplemented("memory.undo", ctx.trace)); },
+  "memory.upkeep.status": async (ctx) => { throw new VyreErr(notImplemented("memory.upkeep.status", ctx.trace)); },
   "memory.versions": async (ctx) => { throw new VyreErr(notImplemented("memory.versions", ctx.trace)); },
 };

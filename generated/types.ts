@@ -16293,11 +16293,24 @@ export type MemoryLearnedOut = {
 };
 export type MemoryMaintainIn = {
   agentId?: string;
+  rulesOnly?: boolean;
 };
 export type MemoryMaintainOut = {
   merged: number;
   closed: number;
   maps: number;
+  runId?: string;
+  flagged?: number;
+  stale?: number;
+  created?: number;
+  corrected?: number;
+  deleted?: number;
+  tidied?: number;
+  modelUsed?: boolean;
+  costMicros?: number;
+  tokensIn?: number;
+  tokensOut?: number;
+  stopped?: "cap" | "no_key";
 };
 export type MemoryMapGetIn = {
   agentId: string;
@@ -16437,6 +16450,55 @@ export type MemoryProposeFactOut = {
     archivedAt?: number;
   };
   merged: boolean;
+};
+export type MemoryQuestionResolveIn = {
+  questionId: string;
+  resolution: "keep_a" | "keep_b" | "keep_both" | "drop";
+};
+export type MemoryQuestionResolveOut = {
+  ok: boolean;
+  resolution: string;
+};
+export type MemoryQuestionsListIn = {
+  status?: "open" | "resolved";
+  kind?: "contradiction" | "stale";
+  layer?: "person" | "agent" | "project" | "space";
+  agentId?: string;
+  projectId?: string;
+  cursor?: string;
+  limit?: number;
+};
+export type MemoryQuestionsListOut = {
+  questions: Array<{
+      questionId: string;
+      kind: "contradiction" | "stale";
+      status: "open" | "resolved";
+      createdAt: number;
+      layer: "person" | "agent" | "project" | "space";
+      facts: Array<{
+          factId: string;
+          layer: "person" | "agent" | "project" | "space";
+          ownerRef: string;
+          agentId?: string;
+          noteId?: string;
+          text: string;
+          validFrom: number;
+          validTo?: number;
+          learnedAt: number;
+          closedAt?: number;
+          sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+          sourceRef: string;
+          sourceLink?: string;
+          status: "proposed" | "current" | "closed" | "removed";
+          lowRisk?: boolean;
+          trashedAt?: number;
+          trashReason?: string;
+          archivedAt?: number;
+        }>;
+      resolution?: string;
+    }>;
+  next?: string;
+  total?: number;
 };
 export type MemoryReadNoteIn = {
   noteId: string;
@@ -16601,6 +16663,34 @@ export type MemoryUndoOut = {
     archivedAt?: number;
   };
   trashed: boolean;
+};
+export type MemoryUpkeepStatusIn = {
+  limit?: number;
+};
+export type MemoryUpkeepStatusOut = {
+  month: string;
+  spentMicros: number;
+  capMicros: number;
+  capReached: boolean;
+  modelAvailable: boolean;
+  openQuestions: number;
+  runs: Array<{
+      runId: string;
+      startedAt: number;
+      finishedAt?: number;
+      modelUsed: boolean;
+      merged: number;
+      flagged: number;
+      stale: number;
+      created: number;
+      corrected: number;
+      deleted: number;
+      tidied: number;
+      tokensIn: number;
+      tokensOut: number;
+      costMicros: number;
+      stopped?: "cap" | "no_key";
+    }>;
 };
 export type MemoryVersionsIn = {
   noteId: string;
@@ -28086,6 +28176,8 @@ export interface CapMap {
   "memory.promotion.reject": { in: MemoryPromotionRejectIn; out: MemoryPromotionRejectOut };
   "memory.promotion.undo": { in: MemoryPromotionUndoIn; out: MemoryPromotionUndoOut };
   "memory.propose_fact": { in: MemoryProposeFactIn; out: MemoryProposeFactOut };
+  "memory.question.resolve": { in: MemoryQuestionResolveIn; out: MemoryQuestionResolveOut };
+  "memory.questions.list": { in: MemoryQuestionsListIn; out: MemoryQuestionsListOut };
   "memory.read_note": { in: MemoryReadNoteIn; out: MemoryReadNoteOut };
   "memory.restore": { in: MemoryRestoreIn; out: MemoryRestoreOut };
   "memory.restore_version": { in: MemoryRestoreVersionIn; out: MemoryRestoreVersionOut };
@@ -28093,6 +28185,7 @@ export interface CapMap {
   "memory.trail": { in: MemoryTrailIn; out: MemoryTrailOut };
   "memory.trash.search": { in: MemoryTrashSearchIn; out: MemoryTrashSearchOut };
   "memory.undo": { in: MemoryUndoIn; out: MemoryUndoOut };
+  "memory.upkeep.status": { in: MemoryUpkeepStatusIn; out: MemoryUpkeepStatusOut };
   "memory.versions": { in: MemoryVersionsIn; out: MemoryVersionsOut };
   "mounts.add": { in: MountsAddIn; out: MountsAddOut };
   "mounts.browse": { in: MountsBrowseIn; out: MountsBrowseOut };
@@ -30362,6 +30455,19 @@ export type MemoryRestoredPayload = {
   from: string;
   by: string;
 };
+export type MemoryUpkeepRanPayload = {
+  runId: string;
+  merged: number;
+  flagged: number;
+  stale: number;
+  created: number;
+  corrected: number;
+  deleted: number;
+  tidied: number;
+  modelUsed: boolean;
+  costMicros: number;
+  stopped?: string;
+};
 export type MessageBouncedPayload = {
   messageId: string;
   channel: "email" | "sms";
@@ -32394,6 +32500,7 @@ export interface EventMap {
   "memory.promotion_undone": MemoryPromotionUndonePayload;
   "memory.removed": MemoryRemovedPayload;
   "memory.restored": MemoryRestoredPayload;
+  "memory.upkeep_ran": MemoryUpkeepRanPayload;
   "message.bounced": MessageBouncedPayload;
   "message.clicked": MessageClickedPayload;
   "message.complained": MessageComplainedPayload;

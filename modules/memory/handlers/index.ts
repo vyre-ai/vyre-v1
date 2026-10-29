@@ -1,12 +1,13 @@
 // Handler table of the memory module: all 31 capabilities of manifests/memory.ts. The module's `status` in host/modules.json is flipped by the lane's live packet (ruling 25),
 // after the generated contract tests pass against these handlers.
 import {
-  capture, counts, erase, factAccept, factCorrect, factGet, factReject, factsAsOf, factsList, factsRemove, findBySubject, layersList, mapGet, maintain, notesList, pointer, promote,
+  capture, counts, erase, factAccept, factCorrect, factGet, factReject, factsAsOf, factsList, factsRemove, findBySubject, layersList, mapGet, notesList, pointer, promote,
   promotionApprove, promotionReject, promotionUndo, proposeFact, readNote, restoreVersion, search, versions,
 } from "./facts.ts";
 import { graph, graphEverything, graphExport, indexGraph, layoutGet, layoutSave } from "./graph.ts";
 import { archiveSweep, learned, restore, trailRead, trashSearch, undo } from "./lifecycle.ts";
 import { noteErase } from "./purge.ts";
+import { maintain, questionResolve, questionsList, upkeepStatus } from "./upkeep.ts";
 
 export const handlers = {
   "memory.search": search,
@@ -47,4 +48,7 @@ export const handlers = {
   "memory.trash.search": trashSearch,
   "memory.archive_sweep": archiveSweep,
   "memory.trail": trailRead,
+  "memory.upkeep.status": upkeepStatus,
+  "memory.questions.list": questionsList,
+  "memory.question.resolve": questionResolve,
 };

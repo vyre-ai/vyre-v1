@@ -17475,6 +17475,42 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/memory/question/resolve",
+    "cap": "memory.question.resolve",
+    "v": 1,
+    "module": "memory",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/questions/list",
+    "cap": "memory.questions.list",
+    "v": 1,
+    "module": "memory",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/memory/read_note",
     "cap": "memory.read_note",
     "v": 1,
@@ -17598,6 +17634,24 @@ export const routes: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/upkeep/status",
+    "cap": "memory.upkeep.status",
+    "v": 1,
+    "module": "memory",
+    "effects": "read",
+    "permission": "memory.admin",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
     "teamOnly": false,
     "gate": null
   },
