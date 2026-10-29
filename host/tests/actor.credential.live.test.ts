@@ -79,3 +79,31 @@ test("an outside actor's credential grants only the roles it was issued", async 
     assert.equal((await post(d, "/v1/schema/types/list", {}, cred)).status, 401);
   } finally { await d.stop(); }
 });
+
+test("an outside actor with manage access cannot hand an agent to someone: the call is held for a person", async () => {
+  const { d, owner } = await boot();
+  try {
+    const roles = (await post<{ roles: { id: string; name: string }[] }>(d, "/v1/access/roles/list", {}, owner)).data!.roles;
+    const made = await post<{ actor: { id: string }; oneTimeToken: string }>(d, "/v1/access/actors/create", { name: "Admin tool", provider: "anthropic", roleIds: [roles.find((r) => r.name === "Admin")!.id], idempotencyKey: "gate-1" }, owner);
+    const cred = (await post<{ credential: string }>(d, "/v1/access/actors/redeem", { token: made.data!.oneTimeToken }, null)).data!.credential;
+    const agent = await post<{ agent: { agentId: string; ownerId: string } }>(d, "/v1/agents/create", { name: "Handoff", idempotencyKey: "gate-agent" }, owner);
+    assert.equal(agent.status, 200, JSON.stringify(agent));
+    const me = agent.data!.agent.ownerId;
+    // the person owner may (given somebody active to hand it to)
+    const invite = await post<{ link: string }>(d, "/v1/members/invites/create", { role: roles.find((r) => r.name === "Member")!.id, idempotencyKey: "gate-inv" }, owner);
+    const code = decodeURIComponent(new URL(invite.data!.link).pathname.split("/").pop() ?? "");
+    const joined = await post<{ personId: string }>(d, "/v1/members/accept", { code, username: "heir", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop", keys: KEYS }, null);
+    const heir = joined.data!.personId;
+    let held = 0, body: unknown = null;
+    for (let i = 0; i < 25 && held === 0; i++) { const r = await post(d, "/v1/agents/set_owner", { agentId: agent.data!.agent.agentId, ownerId: heir }, cred); body = r; if (r.status !== 401) held = r.status || 1; else await new Promise((x) => setTimeout(x, 200)); }
+    const after = await post<{ agent: { ownerId: string } }>(d, "/v1/agents/get", { agentId: agent.data!.agent.agentId }, owner);
+    assert.equal(after.data!.agent.ownerId, me, `the actor's call did not move the agent: ${JSON.stringify(body)}`);
+    const byPerson = await post<{ agent: { ownerId: string } }>(d, "/v1/agents/set_owner", { agentId: agent.data!.agent.agentId, ownerId: heir }, owner);
+    assert.equal(byPerson.status, 200, JSON.stringify(byPerson));
+    assert.equal(byPerson.data!.agent.ownerId, heir, "a person hands it over without a hold");
+    const owned = (await post<{ owns: { type: string; id: string }[] }>(d, "/v1/access/principals/effective", { principal: { kind: "person", id: heir } }, owner)).data!.owns;
+    assert.ok(owned.some((o) => o.type === "agent" && o.id === agent.data!.agent.agentId) && owned.some((o) => o.type === "folder"), `the heir owns the agent and its folder: ${JSON.stringify(owned)}`);
+    const old = (await post<{ owns: { type: string; id: string }[] }>(d, "/v1/access/principals/effective", { principal: { kind: "person", id: me } }, owner)).data!.owns;
+    assert.ok(!old.some((o) => o.id === agent.data!.agent.agentId), "the previous owner keeps nothing on the agent");
+  } finally { await d.stop(); }
+});

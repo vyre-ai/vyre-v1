@@ -231,3 +231,16 @@ test("set_owner hands the agent and its folder to an active person, and refuses 
   await h["agents.set_owner"]!(hn.ctx, { agentId: a.agentId, ownerId: "usr_leo" });
   assert.equal(hn.world.calls.filter((c) => c.cap === "access.transfer_ownership").length, 0, "the same owner changes nothing");
 });
+
+test("a failed ownership move changes nothing: the owner stays, moves already made are put back, nothing is emitted", async () => {
+  const hn = harness();
+  const a = (await h["agents.create"]!(hn.ctx, { name: "Sticky", idempotencyKey: "so-2" })).agent;
+  let n = 0;
+  hn.world.handlers["access.transfer_ownership"] = (i: any) => { n++; if (n === 2) throw Object.assign(new Error("access is not live"), { error: { code: "internal.unavailable", message: "access is not live" } }); return true; };
+  hn.clear();
+  await assert.rejects(h["agents.set_owner"]!(hn.ctx, { agentId: a.agentId, ownerId: "usr_leo" }), (e: unknown) => /nothing changed/.test(String((e as Error).message)));
+  assert.equal((await h["agents.get"]!(hn.ctx, { agentId: a.agentId })).agent.ownerId, a.ownerId, "the owner is unchanged");
+  assert.equal(hn.emitted.filter((e) => e.name === "agent.owner_changed").length, 0);
+  const calls = hn.world.calls.filter((c) => c.cap === "access.transfer_ownership").map((c) => c.input as { from: string; to: string });
+  assert.deepEqual(calls.map((c) => `${c.from}>${c.to}`), [`${a.ownerId}>usr_leo`, `${a.ownerId}>usr_leo`, `usr_leo>${a.ownerId}`], "the first move was put back");
+});

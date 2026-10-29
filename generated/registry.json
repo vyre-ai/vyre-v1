@@ -2800,99 +2800,6 @@
       ],
       "type": "object"
     },
-    "s_22b226b71d": {
-      "properties": {
-        "act": {
-          "enum": [
-            "send",
-            "post",
-            "pay",
-            "delete",
-            "push_protected",
-            "campaign_launch",
-            "secret_export",
-            "site_promote",
-            "signature_send",
-            "spend_raise"
-          ],
-          "type": "string"
-        },
-        "afterHours": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "agentOkFor": {
-          "enum": [
-            "low",
-            "medium",
-            "high"
-          ],
-          "type": "string"
-        },
-        "approvers": {
-          "description": "role:<name>, owner or asker",
-          "examples": [
-            "role:admin"
-          ],
-          "type": "string"
-        },
-        "emailBackstopHours": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "escalateTo": {
-          "enum": [
-            "delegate",
-            "role"
-          ],
-          "type": "string"
-        },
-        "mode": {
-          "enum": [
-            "hold",
-            "allow"
-          ],
-          "type": "string"
-        },
-        "onTimeout": {
-          "enum": [
-            "drop",
-            "escalate"
-          ],
-          "type": "string"
-        },
-        "peopleOnly": {
-          "type": "boolean"
-        },
-        "scope": {
-          "enum": [
-            "space",
-            "floor",
-            "agent"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "act",
-        "mode",
-        "approvers",
-        "peopleOnly",
-        "afterHours",
-        "onTimeout",
-        "escalateTo",
-        "emailBackstopHours",
-        "scope"
-      ],
-      "type": "object"
-    },
     "s_22ee988823": {
       "properties": {
         "continuedThreadId": {
@@ -3834,6 +3741,22 @@
         "computer"
       ],
       "type": "object"
+    },
+    "s_3171ba2f8d": {
+      "enum": [
+        "send",
+        "post",
+        "pay",
+        "delete",
+        "transfer",
+        "push_protected",
+        "campaign_launch",
+        "secret_export",
+        "site_promote",
+        "signature_send",
+        "spend_raise"
+      ],
+      "type": "string"
     },
     "s_323acdeb06": {
       "properties": {
@@ -4961,6 +4884,87 @@
       },
       "minItems": 1,
       "type": "array"
+    },
+    "s_3dc8e97e60": {
+      "properties": {
+        "act": {
+          "$ref": "#/$defs/s_3171ba2f8d"
+        },
+        "afterHours": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "agentOkFor": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "type": "string"
+        },
+        "approvers": {
+          "description": "role:<name>, owner or asker",
+          "examples": [
+            "role:admin"
+          ],
+          "type": "string"
+        },
+        "emailBackstopHours": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "escalateTo": {
+          "enum": [
+            "delegate",
+            "role"
+          ],
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "hold",
+            "allow"
+          ],
+          "type": "string"
+        },
+        "onTimeout": {
+          "enum": [
+            "drop",
+            "escalate"
+          ],
+          "type": "string"
+        },
+        "peopleOnly": {
+          "type": "boolean"
+        },
+        "scope": {
+          "enum": [
+            "space",
+            "floor",
+            "agent"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "act",
+        "mode",
+        "approvers",
+        "peopleOnly",
+        "afterHours",
+        "onTimeout",
+        "escalateTo",
+        "emailBackstopHours",
+        "scope"
+      ],
+      "type": "object"
     },
     "s_3e81e0d4aa": {
       "items": {
@@ -12388,6 +12392,86 @@
       ],
       "type": "object"
     },
+    "s_ab64720dbb": {
+      "properties": {
+        "act": {
+          "$ref": "#/$defs/s_3171ba2f8d"
+        },
+        "actingFor": {
+          "type": "string"
+        },
+        "capName": {
+          "examples": [
+            "mail.send"
+          ],
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expiresAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "hld_a1b2c3"
+          ],
+          "pattern": "^hld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "payloadHash": {
+          "type": "string"
+        },
+        "principal": {
+          "$ref": "#/$defs/s_6c1eb10d98"
+        },
+        "runId": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "held",
+            "approved",
+            "denied",
+            "expired"
+          ],
+          "type": "string"
+        },
+        "taskId": {
+          "examples": [
+            "tsk_a1b2c3"
+          ],
+          "pattern": "^tsk_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "act",
+        "capName",
+        "taskId",
+        "principal",
+        "state",
+        "payloadHash",
+        "createdAt",
+        "expiresAt"
+      ],
+      "type": "object"
+    },
     "s_aba1e4e8d2": {
       "properties": {
         "rules": {
@@ -12761,98 +12845,6 @@
       "required": [
         "groupId",
         "name"
-      ],
-      "type": "object"
-    },
-    "s_b44f7a5998": {
-      "properties": {
-        "act": {
-          "enum": [
-            "send",
-            "post",
-            "pay",
-            "delete",
-            "push_protected",
-            "campaign_launch",
-            "secret_export",
-            "site_promote",
-            "signature_send",
-            "spend_raise"
-          ],
-          "type": "string"
-        },
-        "actingFor": {
-          "type": "string"
-        },
-        "capName": {
-          "examples": [
-            "mail.send"
-          ],
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "expiresAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "hld_a1b2c3"
-          ],
-          "pattern": "^hld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "payloadHash": {
-          "type": "string"
-        },
-        "principal": {
-          "$ref": "#/$defs/s_6c1eb10d98"
-        },
-        "runId": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "state": {
-          "enum": [
-            "held",
-            "approved",
-            "denied",
-            "expired"
-          ],
-          "type": "string"
-        },
-        "taskId": {
-          "examples": [
-            "tsk_a1b2c3"
-          ],
-          "pattern": "^tsk_[a-z0-9]+$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "act",
-        "capName",
-        "taskId",
-        "principal",
-        "state",
-        "payloadHash",
-        "createdAt",
-        "expiresAt"
       ],
       "type": "object"
     },
@@ -27437,6 +27429,10 @@
           }
         }
       ],
+      "gate": {
+        "act": "transfer",
+        "when": "actor.kind != 'person'"
+      },
       "idempotency": "natural",
       "input": {
         "properties": {
@@ -74691,19 +74687,7 @@
                   "type": "boolean"
                 },
                 "key": {
-                  "enum": [
-                    "send",
-                    "post",
-                    "pay",
-                    "delete",
-                    "push_protected",
-                    "campaign_launch",
-                    "secret_export",
-                    "site_promote",
-                    "signature_send",
-                    "spend_raise"
-                  ],
-                  "type": "string"
+                  "$ref": "#/$defs/s_3171ba2f8d"
                 },
                 "peopleOnly": {
                   "type": "boolean"
@@ -74879,19 +74863,7 @@
       "input": {
         "properties": {
           "act": {
-            "enum": [
-              "send",
-              "post",
-              "pay",
-              "delete",
-              "push_protected",
-              "campaign_launch",
-              "secret_export",
-              "site_promote",
-              "signature_send",
-              "spend_raise"
-            ],
-            "type": "string"
+            "$ref": "#/$defs/s_3171ba2f8d"
           },
           "principal": {
             "$ref": "#/$defs/s_6c1eb10d98"
@@ -75122,7 +75094,7 @@
       "output": {
         "properties": {
           "hold": {
-            "$ref": "#/$defs/s_b44f7a5998"
+            "$ref": "#/$defs/s_ab64720dbb"
           }
         },
         "required": [
@@ -75194,19 +75166,7 @@
       "input": {
         "properties": {
           "act": {
-            "enum": [
-              "send",
-              "post",
-              "pay",
-              "delete",
-              "push_protected",
-              "campaign_launch",
-              "secret_export",
-              "site_promote",
-              "signature_send",
-              "spend_raise"
-            ],
-            "type": "string"
+            "$ref": "#/$defs/s_3171ba2f8d"
           },
           "cursor": {
             "type": "string"
@@ -75246,7 +75206,7 @@
         "properties": {
           "holds": {
             "items": {
-              "$ref": "#/$defs/s_b44f7a5998"
+              "$ref": "#/$defs/s_ab64720dbb"
             },
             "type": "array"
           },
@@ -75320,19 +75280,7 @@
       "input": {
         "properties": {
           "act": {
-            "enum": [
-              "send",
-              "post",
-              "pay",
-              "delete",
-              "push_protected",
-              "campaign_launch",
-              "secret_export",
-              "site_promote",
-              "signature_send",
-              "spend_raise"
-            ],
-            "type": "string"
+            "$ref": "#/$defs/s_3171ba2f8d"
           },
           "actingFor": {
             "type": "string"
@@ -75585,7 +75533,7 @@
         "properties": {
           "rules": {
             "items": {
-              "$ref": "#/$defs/s_22b226b71d"
+              "$ref": "#/$defs/s_3dc8e97e60"
             },
             "type": "array"
           }
@@ -75659,19 +75607,7 @@
       "input": {
         "properties": {
           "act": {
-            "enum": [
-              "send",
-              "post",
-              "pay",
-              "delete",
-              "push_protected",
-              "campaign_launch",
-              "secret_export",
-              "site_promote",
-              "signature_send",
-              "spend_raise"
-            ],
-            "type": "string"
+            "$ref": "#/$defs/s_3171ba2f8d"
           },
           "afterHours": {
             "minimum": 1,
@@ -75742,7 +75678,7 @@
       "output": {
         "properties": {
           "rule": {
-            "$ref": "#/$defs/s_22b226b71d"
+            "$ref": "#/$defs/s_3dc8e97e60"
           }
         },
         "required": [
@@ -179534,19 +179470,7 @@
       "payload": {
         "properties": {
           "act": {
-            "enum": [
-              "send",
-              "post",
-              "pay",
-              "delete",
-              "push_protected",
-              "campaign_launch",
-              "secret_export",
-              "site_promote",
-              "signature_send",
-              "spend_raise"
-            ],
-            "type": "string"
+            "$ref": "#/$defs/s_3171ba2f8d"
           },
           "by": {
             "type": "string"
@@ -179594,19 +179518,7 @@
       "payload": {
         "properties": {
           "act": {
-            "enum": [
-              "send",
-              "post",
-              "pay",
-              "delete",
-              "push_protected",
-              "campaign_launch",
-              "secret_export",
-              "site_promote",
-              "signature_send",
-              "spend_raise"
-            ],
-            "type": "string"
+            "$ref": "#/$defs/s_3171ba2f8d"
           },
           "by": {
             "type": "string"
@@ -179662,19 +179574,7 @@
       "payload": {
         "properties": {
           "act": {
-            "enum": [
-              "send",
-              "post",
-              "pay",
-              "delete",
-              "push_protected",
-              "campaign_launch",
-              "secret_export",
-              "site_promote",
-              "signature_send",
-              "spend_raise"
-            ],
-            "type": "string"
+            "$ref": "#/$defs/s_3171ba2f8d"
           },
           "escalatedTo": {
             "type": "string"
@@ -179732,19 +179632,7 @@
       "payload": {
         "properties": {
           "act": {
-            "enum": [
-              "send",
-              "post",
-              "pay",
-              "delete",
-              "push_protected",
-              "campaign_launch",
-              "secret_export",
-              "site_promote",
-              "signature_send",
-              "spend_raise"
-            ],
-            "type": "string"
+            "$ref": "#/$defs/s_3171ba2f8d"
           },
           "actingFor": {
             "type": "string"
@@ -179811,19 +179699,7 @@
       "payload": {
         "properties": {
           "act": {
-            "enum": [
-              "send",
-              "post",
-              "pay",
-              "delete",
-              "push_protected",
-              "campaign_launch",
-              "secret_export",
-              "site_promote",
-              "signature_send",
-              "spend_raise"
-            ],
-            "type": "string"
+            "$ref": "#/$defs/s_3171ba2f8d"
           },
           "agentId": {
             "examples": [
@@ -196720,6 +196596,39 @@
         "onTimeout": "escalate"
       },
       "title": "Raise a spend cap"
+    },
+    {
+      "appliesTo": {
+        "actors": [
+          "agent",
+          "automation",
+          "campaign"
+        ],
+        "humanToo": false
+      },
+      "approvers": {
+        "default": "asker",
+        "peopleOnly": true
+      },
+      "key": "transfer",
+      "module": "gate",
+      "preview": {
+        "blocks": [
+          {
+            "from": "$input",
+            "type": "record_card"
+          }
+        ]
+      },
+      "risk": "high",
+      "sendsOnApprove": "gate.release",
+      "timeout": {
+        "afterHours": 24,
+        "emailBackstopHours": 4,
+        "escalateTo": "delegate",
+        "onTimeout": "escalate"
+      },
+      "title": "Hand over ownership"
     }
   ],
   "health": [

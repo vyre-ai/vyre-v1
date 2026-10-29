@@ -11,7 +11,7 @@ Hand an agent to another active person: its home folder and the agent change own
 | Grant level | manage |
 | Risk | medium |
 | Resource | agent (/agentId) |
-| Gate | none |
+| Gate | transfer when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |

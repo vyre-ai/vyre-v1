@@ -290,9 +290,17 @@ export async function setOwner(ctx: AgentsCtx, input: { agentId: string; ownerId
   const who = await tolerant<{ principal?: { status?: string; kind?: string } }>(ctx, "access.principals.get", { principal: { kind: "person", id: input.ownerId } }, {});
   if (who.principal?.kind !== "person" || who.principal.status !== "active") raise(ctx, "validation.bad_input", "The new owner has to be an active person in this Space.", { ownerId: input.ownerId });
   const from = a.ownerId, now = ctx.now();
-  ctx.db.run("UPDATE agents_agent SET ownerId = ?, updatedAt = ? WHERE id = ?", input.ownerId, now, a.id);
+  if (!ctx.call) raise(ctx, "internal.unavailable", "Ownership cannot be moved right now.");
+  // the folder and the agent change owner first, and strictly: if any move fails, the ones already made are put back and nothing changes
   const resources = [{ type: "agent", id: a.id }, ...(a.folderId !== undefined ? [{ type: "folder", id: a.folderId }] : [])];
-  for (const resource of resources) await tolerant(ctx, "access.transfer_ownership", { resource, from, to: input.ownerId }, false);
+  const moved: { type: string; id: string }[] = [];
+  try {
+    for (const resource of resources) { await ctx.call("access.transfer_ownership", { resource, from, to: input.ownerId }); moved.push(resource); }
+  } catch (e) {
+    for (const resource of moved) { try { await ctx.call("access.transfer_ownership", { resource, from: input.ownerId, to: from }); } catch { /* the original failure is the one to report */ } }
+    raise(ctx, "internal.unexpected", "The agent could not be handed over, so nothing changed. Try again.", { cause: e instanceof Error ? e.message.slice(0, 120) : "error" });
+  }
+  ctx.db.run("UPDATE agents_agent SET ownerId = ?, updatedAt = ? WHERE id = ?", input.ownerId, now, a.id);
   ctx.emit("agent.owner_changed", a.id, { agentId: a.id, from, to: input.ownerId, by: by(ctx) });
   return { agent: agentOut(agentBy(ctx.db, a.id)!, now) };
 }

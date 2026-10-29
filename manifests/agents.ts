@@ -118,7 +118,7 @@ export default defineManifest({
       in: target, out: { deleted: t.bool() }, on: ['agent', '/agentId'], level: 'manage', emits: ['agent.deleted'], gate: { act: 'delete', when: "actor.kind != 'person'" }, tool: 'agents', audit: 'sensitive', errors: ['permission.on_hold'],
     }),
     write('agents.set_owner', 'Hand an agent to another active person: its home folder and the agent change owner with it and the previous owner keeps nothing on them', {
-      in: { ...target, ownerId: id.user }, out: { agent: agentRow }, on: ['agent', '/agentId'], level: 'manage', emits: ['agent.owner_changed'], tool: 'agents', audit: 'sensitive', errors: ['validation.bad_input'],
+      in: { ...target, ownerId: id.user }, out: { agent: agentRow }, on: ['agent', '/agentId'], level: 'manage', emits: ['agent.owner_changed'], gate: { act: 'transfer', when: "actor.kind != 'person'" }, tool: 'agents', audit: 'sensitive', errors: ['validation.bad_input', 'internal.unexpected'],
     }),
     write('agents.restore', 'Restore an agent from Trash', {
       in: target, out: { agent: agentRow }, on: ['agent', '/agentId'], level: 'manage', emits: ['agent.restored'], tool: 'agents',
