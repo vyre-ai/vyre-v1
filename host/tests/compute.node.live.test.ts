@@ -90,6 +90,12 @@ test("a computer joins for compute: code, fingerprint, one approval, reports in,
     const key = fs.statSync(path.join(dir, "compute-key.json")).mode & 0o777, st = fs.statSync(path.join(dir, "compute-state.json")).mode & 0o777;
     assert.deepEqual([key, st], [0o600, 0o600]);
     assert.deepEqual(fs.readdirSync(dir).sort(), ["compute-key.json", "compute-state.json"]);
+    // once it holds a credential it reports with that and never asks enroll_status again, so it does not rotate its own credential on every poll
+    const credentialAt = (): string => (JSON.parse(fs.readFileSync(path.join(dir, "compute-state.json"), "utf8")) as { credential: string }).credential;
+    const held = credentialAt();
+    await new Promise((x) => setTimeout(x, 1500));   // several polls at 300 ms
+    assert.equal(credentialAt(), held, "the credential is the same after many polls");
+    assert.ok((await rows(d, owner)).some((r) => r.serverId === waiting!.serverId && r.state === "healthy"), "and it still reports in with it");
     // a restart needs no code and does not enroll a second time
     node.child.kill("SIGTERM"); assert.equal(await node.ended, 0);
     const again = startNode(d, dir); nodes.push(again.child);
