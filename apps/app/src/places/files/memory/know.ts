@@ -144,7 +144,7 @@ export function chipLabel(f: KFact): string {
 export function learnedLine(item: LearnedItem & { fact: KFact }, who: (id: string) => string): string {
   const agent = who(item.actor);
   if (item.actorKind === "person") return item.from && item.from !== item.actor ? `${agent} noted it from ${who(item.from)}` : `${agent === "you" ? "You" : agent} wrote it down`;
-  return item.from ? `${agent} learned it from ${item.from === "you" ? "you" : who(item.from)}` : `${agent} wrote it down`;
+  return item.from && item.from !== item.actor ? `${agent} learned it from ${item.from === "you" ? "you" : who(item.from)}` : `${agent} wrote it down`;
 }
 
 /** Plural helper: "1 fact", "2 facts". */
