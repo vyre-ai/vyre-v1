@@ -107,7 +107,11 @@ async function sendMail(prompt) {
   } finally { mcp?.close(); }
 }
 
-async function run(prompt) {
+/** The turn context an engine puts in front of the message is system context a real model reads and does not act on as a command: this fake picks its scenario from the words after it. */
+const withoutContext = (p) => p.replace(/^<vyre-context>[\s\S]*?<\/vyre-context>\s*/, "");
+
+async function run(raw) {
+  const prompt = withoutContext(raw);
   const first = prompt.trim().split(/\s+/)[0];
   switch (first) {
     case "hello": reply(["Hello", " from the fake engine."]); break;
