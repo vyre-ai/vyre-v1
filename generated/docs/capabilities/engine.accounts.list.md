@@ -33,13 +33,15 @@ type In = Record<string, unknown>;
 type Out = {
   accounts: Array<{
       ref: string;
-      driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "claude_code" | "codex" | "grok";
+      driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "custom" | "claude_code" | "codex" | "grok";
       kind: "api_key" | "subscription";
       title: string;
       mine: boolean;
       ownerId?: string;
       status: "ok" | "expired" | "failed" | "untested";
       lastProbeAt?: number;
+      base?: string;
+      keyless?: boolean;
     }>;
 };
 ```
@@ -60,7 +62,9 @@ type Out = {
   "output": {
     "accounts": [
       {
+        "base": "example",
         "driver": "anthropic",
+        "keyless": true,
         "kind": "api_key",
         "lastProbeAt": 1760000000000,
         "mine": true,
