@@ -79,7 +79,7 @@ const picks = async (d: Daemon, owner: string, formId: string) => (await post<{ 
 test("publisher-approved choices: labels only on the public page, one real relation per pick, every attack refused", async () => {
   const { d, owner } = await boot();
   try {
-    const acme = await company(d, owner, "Acme Corp"), globex = await company(d, owner, "Globex");
+    const acme = await company(d, owner, "Northwind Traders"), globex = await company(d, owner, "Contoso Supply");
     const form = await lead(d, owner, "Choices form"), other = await lead(d, owner, "Other form");
     const you = (await post<{ principals: { id: string; kind: string; name?: string }[] }>(d, "/v1/access/principals/list", { kind: "person" }, owner)).data!.principals[0]!;
 
@@ -89,7 +89,7 @@ test("publisher-approved choices: labels only on the public page, one real relat
     assert.match(JSON.stringify(blocked), /Company.*publisher-approved/);
     const cand = await post<{ candidates: { refId: string; label: string }[] }>(d, "/v1/forms/choices_candidates", { formId: form.formId, field: "company" }, owner);
     assert.equal(cand.status, 200, JSON.stringify(cand));
-    assert.deepEqual(cand.data!.candidates.map((c) => c.label).sort(), ["Acme Corp", "Globex"]);
+    assert.deepEqual(cand.data!.candidates.map((c) => c.label).sort(), ["Contoso Supply", "Northwind Traders"]);
     assert.ok(!JSON.stringify(cand.data).includes("private notes"), "candidates carry labels, never other record data");
 
     assert.equal((await post(d, "/v1/forms/choices_set", { formId: form.formId, field: "company", choices: [{ refId: acme }, { refId: globex }] }, owner)).status, 200);
@@ -100,8 +100,8 @@ test("publisher-approved choices: labels only on the public page, one real relat
 
     // the public page: labels and opaque keys only
     const html = await (await fetch(`${d.url}/f/${form.slug}`)).text();
-    assert.match(html, /<option value="chc_[A-Za-z0-9_-]+">Acme Corp<\/option>/);
-    assert.match(html, /<option value="chc_[A-Za-z0-9_-]+">Globex<\/option>/);
+    assert.match(html, /<option value="chc_[A-Za-z0-9_-]+">Northwind Traders<\/option>/);
+    assert.match(html, /<option value="chc_[A-Za-z0-9_-]+">Contoso Supply<\/option>/);
     for (const secret of [acme, globex, you.id, "private notes"]) assert.ok(!html.includes(secret), `the page leaked ${secret}`);
 
     const mine = await picks(d, owner, form.formId), theirs = await picks(d, owner, other.formId);
@@ -109,7 +109,7 @@ test("publisher-approved choices: labels only on the public page, one real relat
     const submit = (answers: Record<string, unknown>, n: string) => post<{ recordId: string }>(d, "/f/submit", { slug: form.slug, idempotencyKey: `choices-${n}`, answers: { email: `v${n}@x.example`, ...answers } }, null);
 
     // attacks: a guessed record id, a key from another form, an invented key, a list, a person id where a key belongs
-    for (const [n, bad] of [["1", acme], ["2", keyOther], ["3", "chc_notarealkey0001"], ["4", [keyAcme]], ["5", you.id], ["6", { urn: acme }]] as const) {
+    for (const [n, bad] of [["1", acme], ["2", keyOther], ["3", "chc_notarealkey0001"], ["4", [keyAcme, "chc_notarealkey0001"]], ["5", you.id], ["6", { urn: acme }]] as const) {
       const r = await submit({ company: bad }, n);
       assert.equal(r.status, 422, `${n}: ${JSON.stringify(r)}`);
     }

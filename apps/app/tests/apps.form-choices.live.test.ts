@@ -35,7 +35,7 @@ test("production Apps: Public choices guard, picking, exact public labels, and a
       assert.equal(r.status(), 200, `${cap}: ${await r.text()}`); return (await r.json()).data;
     };
     const company = async (name: string): Promise<string> => (await api("records.create", { type: "company", fields: { name }, idempotencyKey: `choices-${name}` })).record.id as string;
-    const acme = await company("Acme Law"), globex = await company("Globex Legal"), hidden = await company("Hidden Holdings");
+    const acme = await company("Northwind Traders"), globex = await company("Contoso Supply"), hidden = await company("Hidden Holdings");
 
     await page.goto(`${web.origin}/sites`, { waitUntil: "load" });
     await page.getByTestId("apps-new-group").click();
@@ -74,10 +74,10 @@ test("production Apps: Public choices guard, picking, exact public labels, and a
       await page.getByTestId("apps-choices-save-company").click();
       await page.getByText("Saved. Visitors can pick from 2 choices.", { exact: true }).waitFor();
       const saved = (await api("forms.get", { formId })).choices.company as { label: string; refId: string }[];
-      assert.deepEqual(saved.map((c) => c.label).sort(), ["Acme Law", "Globex Legal"]);
+      assert.deepEqual(saved.map((c) => c.label).sort(), ["Contoso Supply", "Northwind Traders"]);
       assert.ok(!saved.some((c) => c.refId === hidden));
-      const options = await page.frameLocator('iframe[title="Form preview"]').locator('select[data-field="company"] option').allTextContents();
-      assert.deepEqual(options, ["Choose a record", "Acme Law", "Globex Legal"], "the preview offers exactly the published labels, not the record list");
+      const options = await page.frameLocator('iframe[title="Form preview"]').locator('[data-field="company"] label').allTextContents();
+      assert.deepEqual(options, ["Northwind Traders", "Contoso Supply"], "the preview offers exactly the published labels, not the record list");
     });
 
     await t.test("the publish guard clears and the form publishes", async () => {
@@ -94,7 +94,7 @@ test("production Apps: Public choices guard, picking, exact public labels, and a
       pub.on("pageerror", (e) => errors.push(`public: ${e.message}`));
       await pub.goto(`${space.url}/f/${slug}`, { waitUntil: "load" });
       const options = pub.locator('select[data-field="company"] option');
-      assert.deepEqual(await options.allTextContents(), ["Choose an option", "Acme Law", "Globex Legal"]);
+      assert.deepEqual(await options.allTextContents(), ["Northwind Traders", "Contoso Supply"]);
       const html = await pub.content();
       for (const secret of [acme, globex, hidden, "Hidden Holdings"]) assert.ok(!html.includes(secret), `the public page leaked ${secret}`);
       const keys = await options.evaluateAll((els) => els.map((el) => (el as HTMLOptionElement).value).filter(Boolean));
@@ -102,13 +102,13 @@ test("production Apps: Public choices guard, picking, exact public labels, and a
       await shot("public-choices", pub);
       await pub.locator('input[data-field="email"]').fill("visitor@example.com");
       await pub.locator('input[data-field="name"]').fill("Visiting Vera");
-      await pub.locator('select[data-field="company"]').selectOption({ label: "Acme Law" });
+      await pub.locator('select[data-field="company"]').selectOption([{ label: "Northwind Traders" }, { label: "Contoso Supply" }]);
       await pub.locator("#vf-send").click();
       await pub.locator("#vf-thanks:not([hidden])").waitFor({ timeout: 15_000 });
       const rows = (await api("records.query", { type: "contact", limit: 50 })).rows as { fields: Record<string, unknown> }[];
       const mine = rows.find((r) => r.fields["email"] === "visitor@example.com");
       assert.ok(mine, "the answer was written");
-      assert.ok(JSON.stringify(mine!.fields["company"]).includes(acme), `the record carries the real relation: ${JSON.stringify(mine!.fields["company"])}`);
+      assert.ok(JSON.stringify(mine!.fields["company"]).includes(acme) && JSON.stringify(mine!.fields["company"]).includes(globex), `the record carries both real relations: ${JSON.stringify(mine!.fields["company"])}`);
       // a visitor who guesses the record id gets nothing written
       const guess = await visitor.request.post(`${space.url}/f/submit`, { data: { slug, answers: { email: "thief@example.com", company: hidden } } });
       assert.equal(guess.status(), 422);

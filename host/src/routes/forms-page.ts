@@ -366,7 +366,7 @@ function fieldHtml(view: PublicFormView, f: PublicFormView["fields"][number], up
   const wrap = (control: string): string => `<div class="vf-field" data-for="${name}">${label}${control}</div>`;
   if ((f.type === 'relation' || f.type === 'person') && !(f.choices?.length)) return wrap('<p role="note">This question requires publisher-approved record choices. Ask the form owner for help.</p>');
   if (f.type === 'choice' || f.type === 'status' || f.type === 'multichoice' || f.type === 'relation' || f.type === 'person') {
-    const multiple = f.type === 'multichoice';
+    const multiple = f.type === 'multichoice' || f.type === 'relation';   // a relation can relate several records: pick any of the published ones
     return wrap(`<select id="vf-${name}" data-field="${name}"${multiple ? ' multiple' : ''}${required}${prefill}>${multiple ? '' : '<option value="">Choose an option</option>'}${(f.choices ?? []).map((choice) => `<option value="${esc(choice.key)}">${esc(choice.title)}</option>`).join('')}</select>`);
   }
   if (f.type === 'boolean' || f.type === 'bool' || f.type === 'checkbox') return wrap(`<select id="vf-${name}" data-field="${name}"${required}${prefill}><option value="">Choose an answer</option><option value="true">Yes</option><option value="false">No</option></select>`);
