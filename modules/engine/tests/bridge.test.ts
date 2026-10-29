@@ -14,7 +14,7 @@ const T = "thr_estate";
 const LEAD = "agt_intake";
 const WATCHER = "agt_watch";
 
-interface ChatRow { messageId: string; threadId: string; threadSeq: number; author: { kind: string; id: string }; body: string; blocks: unknown[]; mentions: unknown[]; via?: { routineOwner: string }; depth: number }
+interface ChatRow { messageId: string; threadId: string; threadSeq: number; author: { kind: string; id: string }; body: string; blocks: unknown[]; mentions: unknown[]; via?: { routineOwner: string }; depth: number; attachments?: string[] }
 
 function setup(opts: { stream?: (e: StreamEvent) => void; agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
   const h = harness();
@@ -24,9 +24,10 @@ function setup(opts: { stream?: (e: StreamEvent) => void; agents?: Array<{ agent
   const ctx: EngineCtx = {
     ...h.ctx,
     async call(cap: string, input: unknown) {
-      const b = input as { threadId: string; messageId?: string };
+      const b = input as { threadId: string; messageId?: string; fileId?: string };
       if (cap === "threads.get") return { thread: { threadId: T, kind: "chat", starter: "usr_dana", agents } };
       if (cap === "chat.message.get") return { message: chat.find((r) => r.messageId === b.messageId) };
+      if (cap === "files.get") { if (b.fileId === "fil_gone") throw new Error("not found"); return { file: { fileId: b.fileId, name: b.fileId === "fil_1" ? "brief.docx" : "other.pdf" } }; }
       if (cap === "chat.messages.list") return { messages: chat.filter((r) => r.threadId === b.threadId), hasMore: false };
       return h.ctx.call(cap, input);
     },
@@ -44,8 +45,8 @@ function setup(opts: { stream?: (e: StreamEvent) => void; agents?: Array<{ agent
   const engine = h.runtime({ openSession: bridge.tap(provider.openSession), schedule: () => () => {} });
   bridge.attach(engine);
   /** A person writes in chat: stored there first, then the consumer runs on message.received. */
-  async function say(body: string, mentions: Array<{ kind: "agent" | "person"; id: string }> = [], id = `msg_p${chat.length + 1}`) {
-    chat.push({ messageId: id, threadId: T, threadSeq: chat.length + 1, author: { kind: "person", id: "usr_dana" }, body, blocks: [], mentions, depth: 0 });
+  async function say(body: string, mentions: Array<{ kind: "agent" | "person"; id: string }> = [], id = `msg_p${chat.length + 1}`, extra: { attachments?: string[]; blocks?: unknown[] } = {}) {
+    chat.push({ messageId: id, threadId: T, threadSeq: chat.length + 1, author: { kind: "person", id: "usr_dana" }, body, blocks: extra.blocks ?? [], mentions, depth: 0, ...(extra.attachments ? { attachments: extra.attachments } : {}) });
     const result = await bridge.onEvent(ctx, { name: "message.received", payload: { messageId: id, threadId: T, author: { kind: "person", id: "usr_dana" }, mentions, depth: 0 } });
     if (result.receivedAs) await engine.idle(T);   // a skipped message opened no thread
     await bridge.flush();
@@ -195,4 +196,19 @@ test("a failed turn ends the stream as failed and its final names the status pos
   const fin = seen[seen.length - 1] as Extract<StreamEvent, { kind: "final" }>;
   assert.equal(fin.kind, "final");
   assert.equal(fin.messageId, s.chat.find((r) => r.author.id === LEAD)?.messageId);
+});
+
+test("the agent is told which files and links came with a message, by name, and chat keeps the words as typed", async () => {
+  const s = setup({ script: reply("Read it.") });
+  const refs = { id: "blk_r", type: "refs", v: 1, state: "done", data: { refs: [{ kind: "record", id: "rec_2", title: "Rivera Holdings" }] } };
+  const { id } = await s.say("Please summarise", [], "msg_pf", { attachments: ["fil_1", "fil_gone"], blocks: [refs] });
+  const seen = s.provider.sessions[0]?.inputs[0]?.trigger?.body ?? "";
+  assert.equal(seen, "Please summarise\n\n[Attached: brief.docx (file fil_1)]\n[Attached: file fil_gone]\n[Linked: Rivera Holdings (record rec_2)]");
+  assert.equal(s.chat.find((r) => r.messageId === id)?.body, "Please summarise");
+});
+
+test("a message with nothing attached reaches the agent exactly as typed", async () => {
+  const s = setup({ script: reply("Ok.") });
+  await s.say("Just words");
+  assert.equal(s.provider.sessions[0]?.inputs[0]?.trigger?.body, "Just words");
 });

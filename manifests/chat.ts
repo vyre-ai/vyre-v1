@@ -46,6 +46,11 @@ const mention = t.obj({ kind: t.enm('person', 'agent'), id: t.str({ examples: ['
 const planStep = t.obj({ stepId: t.id('stp'), text: t.str(), state: t.enm('todo', 'doing', 'done', 'skipped'), detail: t.opt(t.str()) });
 const option = t.obj({ key: t.str(), label: t.str(), detail: t.opt(t.str()) });
 const transcriptHit = t.obj({ turnId: id.turn, threadId: id.thread, idx: t.int(), role: t.enm('user', 'assistant', 'tool', 'system'), snippet: t.str(), at: t.ts(), link: t.str() });
+const searchHit = t.obj({
+  messageId: id.message, threadId: id.thread, threadSeq: t.int({ minimum: 0 }), author: principalRef, snippet: t.str(), at: t.ts(),
+  score: t.num({ description: '0 to 1; higher is a better match' }), found: t.enm('keyword', 'meaning', 'both'),
+  thread: t.obj({ kind: threadKind, title: t.opt(t.str()), channelName: t.opt(t.str()), agentIds: t.arr(id.agent), memberIds: t.arr(t.str()) }),
+});
 const threadT = { threadId: id.thread };
 const channelT = { channelId: id.channel };
 const streamKind = t.enm('people', 'agents', 'runs');
@@ -90,6 +95,10 @@ export default defineManifest({
         folderId: t.opt(id.folder), recordId: t.opt(id.record), model: t.opt(t.str()), provider: t.opt(t.str()), effort: t.opt(effort), first: t.opt(t.str({ description: 'First message body' })),
       },
       out: { thread: threadRow }, perm: 'chats.private', emits: ['thread.started', 'agent.engaged', 'message.received', 'message.direct'], tool: 'chats', offline: 'queue', cli: 'vyre chat start',
+    }),
+    create('chat.fork', 'Branch a chat at one message: a new private chat that holds a copy of everything up to there, with the same agents and a line that links back', {
+      in: { ...threadT, messageId: t.opt(id.message), title: t.opt(t.str()) }, out: { thread: threadRow, copied: t.int({ minimum: 0 }) },
+      perm: 'chats.private', emits: ['thread.started', 'agent.engaged'], tool: 'chats', offline: 'queue', cli: 'vyre chat fork', errors: ['validation.precondition_failed'],
     }),
     write('chat.thread', 'Open or create the inline thread under a message; an @mentioned agent works inside it', {
       in: { threadId: id.thread, messageId: id.message }, out: { thread: threadRow }, on: ['thread', '/threadId'], level: 'use',
@@ -193,6 +202,11 @@ export default defineManifest({
     read('chat.composer.suggest', 'Composer symbol tables: @ people and agents, # folders, channels, records and files, / commands, skills and templates', {
       in: { symbol: t.enm('@', '#', '/'), q: t.str(), threadId: t.opt(id.thread) },
       out: { items: t.arr(t.obj({ group: t.str(), kind: t.str(), id: t.str(), title: t.str(), detail: t.opt(t.str()) })) }, tool: 'chats', label: 'filter',
+    }),
+    read('chat.search', 'Search the messages of every chat and channel you are in, by the words and by meaning; each hit names its message so a screen can jump to it', {
+      in: { q: t.str(), mode: t.opt(t.enm('keyword', 'meaning', 'hybrid')), threadId: t.opt(id.thread), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) },
+      out: { hits: t.arr(searchHit), meaning: t.bool({ description: 'Whether the answer used meaning as well as words' }), sealedChats: t.int({ minimum: 0, description: 'End-to-end chats the server cannot read, left out' }), tookMs: t.int({ minimum: 0 }) },
+      tool: 'chats', label: 'filter', mcpName: 'chat_search', agent: { planMode: 'allowed' }, rate: { n: 60, perSeconds: 60, scope: 'principal' },
     }),
     // ---- native blocks, plan mode
     write('chat.answer_block', 'Answer a question or plan block; the answer is queued as a wake so the parked turn continues', {

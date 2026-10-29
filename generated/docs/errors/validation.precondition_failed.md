@@ -21,6 +21,7 @@ HTTP 422. Retryable: no.
 - changesets.edit
 - chat.answer_block
 - chat.approve_plan
+- chat.fork
 - chat.handoff
 - computers.record_start
 - computers.sleep
@@ -30,4 +31,3 @@ HTTP 422. Retryable: no.
 - conflicts.resolve
 - conflicts.undo
 - connections.complete_auth
-- connectors.remove

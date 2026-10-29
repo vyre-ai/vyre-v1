@@ -4910,6 +4910,51 @@ export type ChatEditOut = {
     enc?: number;
   };
 };
+export type ChatForkIn = {
+  threadId: string;
+  messageId?: string;
+  title?: string;
+  idempotencyKey: string;
+};
+export type ChatForkOut = {
+  thread: {
+    threadId: string;
+    kind: "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
+    title?: string;
+    starter?: string;
+    channelId?: string;
+    parentThreadId?: string;
+    parentMessageId?: string;
+    recordId?: string;
+    folderId?: string;
+    scopeType?: string;
+    scopeId?: string;
+    listed: boolean;
+    planMode: boolean;
+    members: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    agents: Array<{
+        agentId: string;
+        mode: "lead" | "listen";
+        model?: string;
+        provider?: string;
+        effort?: "low" | "medium" | "high" | "max";
+        accountRef?: string;
+        watches?: boolean;
+      }>;
+    createdAt: number;
+    closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
+    path?: Array<{
+        title: string;
+        threadId: string;
+      }>;
+  };
+  copied: number;
+};
 export type ChatHandoffIn = {
   threadId: string;
   toAgentId: string;
@@ -5360,6 +5405,37 @@ export type ChatRecentOut = {
       preview?: string;
     }>;
   nextUnread: string | null;
+};
+export type ChatSearchIn = {
+  q: string;
+  mode?: "keyword" | "meaning" | "hybrid";
+  threadId?: string;
+  limit?: number;
+};
+export type ChatSearchOut = {
+  hits: Array<{
+      messageId: string;
+      threadId: string;
+      threadSeq: number;
+      author: {
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      };
+      snippet: string;
+      at: number;
+      score: number;
+      found: "keyword" | "meaning" | "both";
+      thread: {
+        kind: "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
+        title?: string;
+        channelName?: string;
+        agentIds: Array<string>;
+        memberIds: Array<string>;
+      };
+    }>;
+  meaning: boolean;
+  sealedChats: number;
+  tookMs: number;
 };
 export type ChatStartIn = {
   kind: "chat" | "ask";
@@ -27177,6 +27253,7 @@ export interface CapMap {
   "chat.composer.suggest": { in: ChatComposerSuggestIn; out: ChatComposerSuggestOut };
   "chat.delete_message": { in: ChatDeleteMessageIn; out: ChatDeleteMessageOut };
   "chat.edit": { in: ChatEditIn; out: ChatEditOut };
+  "chat.fork": { in: ChatForkIn; out: ChatForkOut };
   "chat.handoff": { in: ChatHandoffIn; out: ChatHandoffOut };
   "chat.helper.start": { in: ChatHelperStartIn; out: ChatHelperStartOut };
   "chat.helpers.list": { in: ChatHelpersListIn; out: ChatHelpersListOut };
@@ -27193,6 +27270,7 @@ export interface CapMap {
   "chat.question.ask": { in: ChatQuestionAskIn; out: ChatQuestionAskOut };
   "chat.react": { in: ChatReactIn; out: ChatReactOut };
   "chat.recent": { in: ChatRecentIn; out: ChatRecentOut };
+  "chat.search": { in: ChatSearchIn; out: ChatSearchOut };
   "chat.start": { in: ChatStartIn; out: ChatStartOut };
   "chat.thread": { in: ChatThreadIn; out: ChatThreadOut };
   "chat.transcript.append": { in: ChatTranscriptAppendIn; out: ChatTranscriptAppendOut };

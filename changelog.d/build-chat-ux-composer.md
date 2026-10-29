@@ -1,0 +1,6 @@
+- Chat composer: files you drop, paste or pick are stored in Files (Personal, Chat uploads) and sent with the message as chips with their real names and sizes; records and files you pick with `[[ ]]` or `#` go as the thing itself, and a `[[link]]` shows what it is on hover and opens beside the chat. The agent is told which files and links came with a message.
+- One `/` command list that runs: plan, helper, handoff, pin, fork, export, task, remember, find, search, model and stop, plus commands plugins add. The server's list is the same list.
+- Search every chat: a new page (Cmd or Ctrl+Shift+F, `/search`, the sidebar search) finds messages by their words, and by meaning once a search model is bound, across every chat and channel you are in. A result opens its chat on that message and marks it. New capability `chat.search`, also an agent tool.
+- Fork a chat at any message: a new private chat with a copy up to there, the same agents, and a first line that links back. New capability `chat.fork`.
+- Export a chat as Markdown or JSON from the chat menu or `/export`. Make a task from any message (hover bar or right-click), linked back to the message.
+- A person or agent the page has no name for is called "Someone" or "An agent", never by its id.

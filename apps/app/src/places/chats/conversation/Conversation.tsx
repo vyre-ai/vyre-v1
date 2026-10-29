@@ -18,6 +18,12 @@ import { ConversationDataProvider, useConversationData, useOnline, useOptionalCo
 import type { ConversationData, ConversationNav } from "./data.tsx";
 import * as act from "./actions.ts";
 import { MessageView } from "./MessageView.tsx";
+import { commandItems, lastActionable, runSlash } from "./commands.ts";
+import type { CommandEnv } from "./commands.ts";
+import { parseSlash } from "../../../../../../lib/chat-commands.ts";
+import { pluginNames } from "./commands.ts";
+import { useSuggest } from "./suggest.ts";
+import { windowAround } from "./focus.ts";
 import type { MessageActions } from "./MessageView.tsx";
 import { FaceButton, Glyph, IconButton, TextButton, anchorOf } from "./parts.tsx";
 import {
@@ -92,6 +98,11 @@ function ConversationView(): ReactElement {
   const [finding, setFinding] = useState(false);
   const [query, setQuery] = useState("");
   const [matchAt, setMatchAt] = useState(0);
+  const [focusId, setFocusId] = useState<string | null>(data.focus ?? null);
+  /** Messages read around a marked one that is older than the page holds: shown instead of the newest, until "Jump to latest". */
+  const [around, setAround] = useState<Message[] | null>(null);
+  useEffect(() => { setFocusId(data.focus ?? null); }, [data.focus]);
+  const suggested = useSuggest(data, typed);
   const width = useWindowDimensions().width;
   const narrow = width > 0 && width < 640;
 
@@ -112,18 +123,23 @@ function ConversationView(): ReactElement {
 
   /* ---------- sending: the message is on the page before chat.post answers ---------- */
   const run = useCallback((p: Pending) => {
-    void act.sendMessage(data, { text: p.body, mentions: p.mentions, key: p.key, kind: p.kind, working: p.working }).then(
+    void (async () => {
+      // files first: each is stored in Files under a key derived from this send, so a retry finds the same files and attaches them again
+      const attachments = p.files && p.files.length > 0 ? await act.uploadAttachments(data, p.files, `chat-attach:${p.key}`) : [];
+      return act.sendMessage(data, { text: p.body, mentions: p.mentions, key: p.key, kind: p.kind, working: p.working, ...(p.refs && p.refs.length > 0 ? { refs: p.refs } : {}), attachments });
+    })().then(
       (r) => setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, messageId: r.messageId, state: "sending" as const } : x))),
-      () => { setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "failed" as const } : x))); say("Not sent. Retry or discard it."); },
+      (e) => { setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "failed" as const } : x))); say(`Not sent.${p.files && p.files.length > 0 && e instanceof Error && e.message.length < 120 ? ` ${e.message}.` : ""} Retry or discard it.`); },
     );
   }, [data, say]);
 
   if (threadQ.status === "loading" || messagesQ.status === "loading") return <ConversationLoading />;
   const thread: Thread = threadQ.data.thread;
   const live = messagesQ.data.messages;
-  const all = mergePages(live, older);
+  const all = mergePages(around ?? live, older);
+  const liveView = around === null;
   const win = lastMessages(all, shown);
-  const ghosts = ghostMessages(liveTurns, win.rows, thread.threadId);
+  const ghosts = liveView ? ghostMessages(liveTurns, win.rows, thread.threadId) : [];
   const writing = new Set(collect([...win.rows, ...ghosts].filter((m) => { const s = data.streamOf(m.messageId); return s !== undefined && !s.getSnapshot().done; }), (m) => m.messageId));
   const working = workingAgents(win.rows, writing);
   const isWorking = working.length > 0;
@@ -131,19 +147,35 @@ function ConversationView(): ReactElement {
   const lead = leadOf(thread);
   const hasEarlier = win.hiddenLocal > 0 || (olderMore ?? messagesQ.data.hasMore);
 
+  const commandEnv = (): CommandEnv => ({
+    data, thread, rows: win.rows, say, newKey: data.newKey,
+    openFind: () => setFinding(true), openSearch: (q) => data.nav.openSearch?.(q), openModel: () => { if (lead) modelMenu(8, 120); else say("Add an agent to this chat first."); },
+    send: (text) => submit({ text, chips: [], files: [], folder: null, links: [], refs: [], mode: "queue", answers: "" }, "queue"),
+  });
+
   const submit = (payload: ComposerSend, kind: SendKind): void => {
+    // a slash command is not a message: it runs, and nothing is posted (a name that is not a command is an ordinary message)
+    if (payload.files.length === 0 && parseSlash(payload.text, pluginNames(data.pluginCommands?.())) !== null) {
+      setLine(""); setTyped("");
+      void runSlash(payload.text, commandEnv());
+      return;
+    }
     const key = data.newKey();
     const mentions = mentionsIn(payload.text, data.directory);
-    const p: Pending = { key, body: payload.text, at: data.clock().now, state: "sending", kind: sendKind(kind, isWorking), mentions, working: isWorking };
+    const refs = [...payload.refs, ...payload.chips.flatMap((c) => (c.id !== undefined ? [{ kind: c.kind.toLowerCase(), id: c.id, title: c.name }] : []))];
+    const files = payload.files.map((f) => ({ name: f.name, ...(f.file !== undefined ? { file: f.file } : {}), ...(f.size !== undefined ? { size: f.size } : {}), ...(f.mime ? { mime: f.mime } : {}) }));
+    const p: Pending = { key, body: payload.text, at: data.clock().now, state: "sending", kind: sendKind(kind, isWorking), mentions, working: isWorking, ...(files.length > 0 ? { files } : {}), ...(refs.length > 0 ? { refs } : {}) };
     setPending((cur) => [...cur, p]);
     setLine("");
     setTyped("");
     run(p);
   };
 
-  const matches = finding ? findMatches(win.rows, query) : [];
-  const activeId = matches.length > 0 ? matches[Math.min(matchAt, matches.length - 1)] : undefined;
-  const timelineMessages = [...win.rows, ...collect(stillPending(pending, win.rows), (p, i) => pendingMessage(p, data.me.id, thread.threadId, (win.rows[win.rows.length - 1]?.threadSeq ?? 0) + 1 + i)), ...ghosts];
+  const found = finding ? findMatches(win.rows, query) : [];
+  // the message a search result or a fork's link opened on is marked like the current find match, for a few seconds
+  const matches = finding ? found : focusId !== null && all.some((m) => m.messageId === focusId) ? [focusId] : [];
+  const activeId = finding ? (found.length > 0 ? found[Math.min(matchAt, found.length - 1)] : undefined) : matches[0];
+  const timelineMessages = [...win.rows, ...collect(liveView ? stillPending(pending, win.rows) : [], (p, i) => pendingMessage(p, data.me.id, thread.threadId, (win.rows[win.rows.length - 1]?.threadSeq ?? 0) + 1 + i)), ...ghosts];
   const pendingState = new Map<string, "sending" | "failed">();
   for (const p of stillPending(pending, win.rows)) pendingState.set(`pending:${p.key}`, p.state);
   const items = timeline(timelineMessages, { meId: data.me.id, nameOf, kindOf: data.kindOf, clock: data.clock() });
@@ -229,6 +261,11 @@ function ConversationView(): ReactElement {
       { label: "Plan Mode", checked: thread.planMode, onSelect: () => void act.setPlanMode(data, !thread.planMode).then(() => say(thread.planMode ? "Plan mode is off" : "Plan mode is on: the agent plans and changes nothing until you approve"), fail("Could not change plan mode.")) },
       ...(lead ? [{ label: `Open ${nameOf(lead.agentId)}'s Page`, onSelect: () => data.nav.openAgent(lead.agentId) } as MenuEntry] : []),
       ...connectEntries(thread, data.nav),
+      { separator: true } as MenuEntry,
+      ...(data.nav.openSearch ? [{ label: "Search All Chats…", onSelect: () => data.nav.openSearch!("") } as MenuEntry] : []),
+      { label: "Fork This Chat", onSelect: () => void runSlash("/fork", commandEnv()) } as MenuEntry,
+      { label: "Export as Markdown", onSelect: () => void runSlash("/export md", commandEnv()) } as MenuEntry,
+      { label: "Export as JSON", onSelect: () => void runSlash("/export json", commandEnv()) } as MenuEntry,
       ...(isWorking ? [{ separator: true } as MenuEntry, { label: "Stop All", danger: true, onSelect: () => void act.stopAll(data).then(() => say("Everything stopped. The steps so far are kept."), fail("Could not stop.")) } as MenuEntry] : []),
     ];
     menu.show(items, x, y, "other", { label: "Chat" });
@@ -256,8 +293,18 @@ function ConversationView(): ReactElement {
     retrySend: (id) => { const p = pending.find((x) => `pending:${x.key}` === id); if (p) { setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "sending" as const } : x))); setLine(""); run(p); } },
     discardSend: (id) => { setPending((cur) => cur.filter((x) => `pending:${x.key}` !== id)); setLine(""); },
     showMenu: (entries, x, y, label) => menu.show(entries, x, y, "context", { label }),
+    fork: (id) => void act.forkChat(data, id, data.newKey()).then((next) => { say("Branched into a new chat, linked back to this one"); data.nav.openThread(next); }, fail("Could not fork it.")),
+    makeTask: (id) => {
+      const m = all.find((x) => x.messageId === id);
+      if (!m) return;
+      void act.makeTask(data, thread, m, data.newKey()).then((taskId) => { say("Task made from this message"); data.nav.openBeside("task", taskId); }, fail("Could not make the task."));
+    },
+    files: data,
+    nameOf,
+    openMessage: (threadId, messageId) => data.nav.openThread(threadId, messageId),
   };
 
+  const lists = { ...data.lists, commands: commandItems(data.pluginCommands?.()), records: suggested.records, files: suggested.files, folders: suggested.folders, channels: suggested.channels };
   const personMention = thread.kind === "chat" && thread.members.filter((m) => m.kind === "person").length <= 1
     ? mentionsIn(typed, data.directory.filter((c) => c.kind === "person" && c.id !== data.me.id))[0]
     : undefined;
@@ -306,6 +353,12 @@ function ConversationView(): ReactElement {
       ) : null}
       {note ? <Text testID="conversation-note" style={st.noteLine}>{note}</Text> : null}
 
+      {liveView ? null : (
+        <View testID="viewing-earlier" accessibilityRole="alert" style={st.earlierBar}>
+          <Text style={st.earlierText}>Viewing earlier messages</Text>
+          <TextButton label="Jump to latest" testID="viewing-earlier-latest" onPress={() => { setAround(null); setOlder([]); setFocusId(null); setShown(WINDOW); setJump((n) => n + 1); setAtEnd(true); }} />
+        </View>
+      )}
       <View style={st.feedBox}>
         <Feed key={jump} followKey={timelineMessages.length} {...(lastStream ? { store: lastStream } : {})} testID="conversation-feed" contentStyle={st.feedContent} onAtEndChange={setAtEnd}>
           <View style={st.col}>
@@ -330,6 +383,7 @@ function ConversationView(): ReactElement {
         )}
       </View>
       {data.live ? <SettleTurns turns={liveTurns} rows={win.rows} settle={data.live.settle} /> : null}
+      {focusId !== null ? <FocusLoader key={focusId} id={focusId} have={all.some((m) => m.messageId === focusId)} shownHas={win.rows.some((m) => m.messageId === focusId)} onWindow={(page) => setAround(page)} onWiden={() => setShown((n) => n + WINDOW)} onDone={() => setFocusId(null)} /> : null}
       {activeId ? <ScrollToMessage key={`${activeId}:${matchAt}`} id={activeId} /> : null}
       {cursor !== null ? <OlderPage key={cursor} before={cursor} onPage={(page) => { setOlder((cur) => mergePages(cur, page.messages)); setOlderMore(page.hasMore); setShown((n) => n + WINDOW); setCursor(null); }} /> : null}
 
@@ -351,7 +405,7 @@ function ConversationView(): ReactElement {
             testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={placeholderFor(thread, nameOf, isWorking)} working={isWorking}
             {...(lead ? { whoExtra: <ModelChip label={modelLabel(lead.model ?? "")} onPress={modelMenu} />, barExtra: <IconButton icon="monitor" label={`${nameOf(lead.agentId)}'s computer`} size={26} testID="computer-button" onPress={() => data.nav.openBeside("computer", lead.agentId)} /> } : {})}
             {...(lead ? { lead: nameOf(lead.agentId) } : {})} listening={collect(thread.agents.filter((a) => a.mode === "listen"), (a) => nameOf(a.agentId))}
-            lists={data.lists} agentChat={thread.kind !== "channel"} onChange={setTyped}
+            lists={lists} agentChat={thread.kind !== "channel"} onChange={setTyped} onCommand={(name) => void runSlash(`/${name}`, commandEnv())}
             onSubmit={(p) => submit(p, "queue")} onInterrupt={(p) => submit(p, "interrupt")}
             onStop={() => void (working.length > 1 ? act.stopAll(data) : act.stopAgent(data, working[0])).then(() => say("Stopped. The steps so far are kept."), fail("Could not stop it."))}
           />
@@ -362,7 +416,29 @@ function ConversationView(): ReactElement {
   );
 }
 
-/** Brings the match the person is on into view. A web page scrolls its element; a phone's list follows its own rules. */
+/**
+ * Brings a message the page does not hold into it: reads the window around it, widens the page until the row is mounted, leaves it marked for a few seconds, then lets go.
+ * A message that cannot be read (deleted, or not the person's) ends quietly.
+ */
+function FocusLoader({ id, have, shownHas, onWindow, onWiden, onDone }: { id: string; have: boolean; shownHas: boolean; onWindow: (page: Message[]) => void; onWiden: () => void; onDone: () => void }): null {
+  const data = useConversationData();
+  const asked = useRef(false);
+  const cb = useRef({ onWindow, onWiden, onDone });
+  cb.current = { onWindow, onWiden, onDone };
+  useEffect(() => {
+    if (have || asked.current) return;
+    asked.current = true;
+    void windowAround(data, id).then((page) => { if (page === null) cb.current.onDone(); else cb.current.onWindow(page); }, () => cb.current.onDone());
+  }, [data, id, have]);
+  useEffect(() => { if (have && !shownHas) cb.current.onWiden(); }, [have, shownHas]);
+  useEffect(() => {
+    if (!have || !shownHas) return undefined;
+    const t = setTimeout(() => cb.current.onDone(), 6000);
+    return () => clearTimeout(t);
+  }, [have, shownHas]);
+  return null;
+}
+
 /** A reply whose saved message is now in the list: its row has the words, so the live stream behind it can go. */
 function SettleTurns({ turns, rows, settle }: { turns: readonly { messageId?: string | null | undefined }[]; rows: readonly Message[]; settle: (messageId: string) => void }): null {
   useEffect(() => {
@@ -372,6 +448,7 @@ function SettleTurns({ turns, rows, settle }: { turns: readonly { messageId?: st
   return null;
 }
 
+/** Brings the match the person is on into view. A web page scrolls its element; a phone's list follows its own rules. */
 function ScrollToMessage({ id }: { id: string }): null {
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -421,6 +498,8 @@ const st = StyleSheet.create({
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string },
   liveText: { fontSize: 12, color: "var(--ink-2)" as string },
   meta: { fontSize: 12, color: "var(--ink-3)" as string },
+  earlierBar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, minHeight: 34, backgroundColor: "var(--side)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  earlierText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   noteLine: { paddingHorizontal: 16, paddingTop: 6, fontSize: 12, color: "var(--ink-3)" as string },
   feedBox: { flex: 1, minHeight: 0 },
   feedContent: { alignItems: "center", paddingHorizontal: 24, paddingBottom: 18 },

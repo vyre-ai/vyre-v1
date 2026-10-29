@@ -93,7 +93,9 @@ export const isStep = (b: MessageBlock): boolean => b.type === "step";
 /** The shared error shape (V1-SPEC 4.18): what, why, next, trace id. */
 export const isErrorBlock = (b: MessageBlock): boolean => b.type === "error";
 /** Everything else is a native card: terminal, changeset, question, plan, deploy, file, and so on. */
-export const isCard = (b: MessageBlock): boolean => !isStep(b) && !isErrorBlock(b);
+/** Blocks that are data for the page, not a card: the links of a message (drawn inside its text) and the line a fork starts with (drawn as a link). */
+const QUIET_BLOCKS = new Set(["refs", "fork_origin"]);
+export const isCard = (b: MessageBlock): boolean => !isStep(b) && !isErrorBlock(b) && !QUIET_BLOCKS.has(b.type);
 
 export interface StepLine { id: string; title: string; sub: string; state: MessageBlock["state"] }
 
@@ -306,11 +308,21 @@ export interface Pending {
   mentions: { kind: "person" | "agent"; id: string }[];
   /** Whether an agent was working when it was sent: an interrupt only means something then. */
   working: boolean;
+  /** Files in the tray when it was sent; stored in Files first, then attached by id. Kept so a retry sends the same files. */
+  files?: readonly PendingFile[];
+  /** Links picked for [[ ]] or # chips, sent as the message's refs. */
+  refs?: readonly PendingRef[];
 }
+
+export interface PendingFile { name: string; file?: unknown; size?: number; mime?: string }
+export interface PendingRef { kind: string; id: string; title: string }
+
+/** A file id before the file is stored: the chip shows the name the person picked. */
+export const PENDING_FILE = "pending-file:";
 
 export function pendingMessage(p: Pending, meId: string, threadId: string, seq: number): Message {
   return {
-    messageId: `pending:${p.key}`, threadId, threadSeq: seq, author: { kind: "person", id: meId }, kind: "text", body: p.body, blocks: [], depth: 0, attachments: [], reactions: [], pinned: false, createdAt: p.at,
+    messageId: `pending:${p.key}`, threadId, threadSeq: seq, author: { kind: "person", id: meId }, kind: "text", body: p.body, blocks: p.refs && p.refs.length > 0 ? [{ id: `pending-refs:${p.key}`, type: "refs", v: 1, state: "done", data: { refs: p.refs } }] as unknown as Message["blocks"] : [], depth: 0, attachments: (p.files ?? []).map((f) => `${PENDING_FILE}${f.name}`), reactions: [], pinned: false, createdAt: p.at,
   };
 }
 

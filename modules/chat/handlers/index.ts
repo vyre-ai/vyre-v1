@@ -6,6 +6,7 @@ import { g24bHandlers } from "./g24b.ts";
 import { g24cHandlers } from "./g24c.ts";
 import { g24dHandlers } from "./g24d.ts";
 import { g26Handlers } from "./g26.ts";
+import { g27Handlers } from "./g27.ts";
 import { post } from "./post.ts";
 import { guardPrivate } from "./private.ts";
 import { channelErase, threadErase, transcriptPurge } from "./purge.ts";
@@ -37,5 +38,6 @@ export const handlers = {
   ...g24dHandlers,
   // P-L2_26 replaces the group entries that had reported limits
   ...g26Handlers,
+  ...g27Handlers,
 };
 

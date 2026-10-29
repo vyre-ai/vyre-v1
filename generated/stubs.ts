@@ -317,6 +317,7 @@ export function stubs(ctx: CallCtx) {
       },
       delete_message: call("chat.delete_message"),
       edit: call("chat.edit"),
+      fork: call("chat.fork"),
       handoff: call("chat.handoff"),
       helper: {
         start: call("chat.helper.start"),
@@ -347,6 +348,7 @@ export function stubs(ctx: CallCtx) {
       },
       react: call("chat.react"),
       recent: call("chat.recent"),
+      search: call("chat.search"),
       start: call("chat.start"),
       thread: call("chat.thread"),
       transcript: {

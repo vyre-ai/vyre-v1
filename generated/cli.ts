@@ -81,6 +81,11 @@ export const cliCommands: Array<{ command: string; cap: string; v: number }> = [
     "v": 1
   },
   {
+    "command": "vyre chat fork",
+    "cap": "chat.fork",
+    "v": 1
+  },
+  {
     "command": "vyre chat post",
     "cap": "chat.post",
     "v": 1

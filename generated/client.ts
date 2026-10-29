@@ -317,6 +317,7 @@ export function createClient(transport: Transport) {
       },
       delete_message: call("chat.delete_message", 1),
       edit: call("chat.edit", 1),
+      fork: call("chat.fork", 1),
       handoff: call("chat.handoff", 1),
       helper: {
         start: call("chat.helper.start", 1),
@@ -347,6 +348,7 @@ export function createClient(transport: Transport) {
       },
       react: call("chat.react", 1),
       recent: call("chat.recent", 1),
+      search: call("chat.search", 1),
       start: call("chat.start", 1),
       thread: call("chat.thread", 1),
       transcript: {

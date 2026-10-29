@@ -34,6 +34,10 @@ export interface ShellRuntime extends Omit<HomeData, "nav"> {
   openUrl(url: string): void;
   /** Agent replies as they are written, from the live socket. Absent where there is no live link (tests, a replica-only shell). */
   turns?: TurnStreams;
+  /** Slash commands that plugins add to chat (name, one line, what to run). Absent until a plugin offers any. */
+  pluginCommands?(): readonly { name: string; description: string; pluginId?: string; prompt?: string; run?(arg: string): Promise<string | void> }[];
+  /** Put bytes at a one-time upload address from files.upload_url, signed in as the person. */
+  putBlob?(path: string, bytes: Uint8Array): Promise<void>;
 }
 
 const Ctx = createContext<ShellRuntime | null>(null);

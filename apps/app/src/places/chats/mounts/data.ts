@@ -38,6 +38,11 @@ export const newKey = (): string => `k_${Date.now().toString(36)}_${(keySeq++).t
 /** The place's doors. Every click that opens something in the Chats place goes through one of these. */
 export interface Go {
   chat(threadId: string): void;
+  /** A chat opened on one message, which is marked. */
+  message(threadId: string, messageId: string): void;
+  /** Search every chat; the words start the box. */
+  search(query?: string): void;
+  closeSearch(): void;
   /** A thread of any kind: a helper opens as the helper chat, anything else as a chat. */
   thread(threadId: string): void;
   agent(agentId: string, tab?: TabKey): void;
@@ -185,6 +190,9 @@ export async function chatWith(rt: Pick<ShellRuntime, "call">, agentId: string):
 export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: string) => string, say: (text: string) => void): Go {
   return {
     chat: (threadId) => act({ t: "chat", threadId }),
+    message: (threadId, messageId) => act({ t: "chat", threadId, focus: messageId }),
+    search: (query) => act({ t: "search", ...(query ? { q: query } : {}) }),
+    closeSearch: () => act({ t: "search-close" }),
     thread: (threadId) => {
       if (threadId.startsWith(LOCAL_PREFIX)) return;
       void rt.call("threads.get", { threadId }).then(
@@ -236,16 +244,17 @@ export const chatsActions = (go: Go): ChatsActions => ({ openThread: go.chat, to
 /** The sidebar: its rows open in this place; Needs you and All agents are this place's own pages. */
 export function wireSidebar(rt: ShellRuntime, go: Go, toggleSidebar?: () => void): ChatsSidebarData {
   const base = sidebarData(rt, chatsActions(go));
-  return { ...base, nav: { ...base.nav, openNeedsYou: (taskId?: string) => go.needs(taskId), openAllAgents: () => go.allAgents(), ...(toggleSidebar ? { toggleSidebar } : {}) } };
+  return { ...base, nav: { ...base.nav, openNeedsYou: (taskId?: string) => go.needs(taskId), openAllAgents: () => go.allAgents(), openSearch: () => go.search(), ...(toggleSidebar ? { toggleSidebar } : {}) } };
 }
 
 /** The open chat: a face's page, a helper, the Computer chip, a channel's Connect sheet and the Waiting on line are all this place's doors. */
-export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string; list: readonly Principal[]; nameOf: (id: string) => string; leadId: string }): ConversationData {
+export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string; list: readonly Principal[]; nameOf: (id: string) => string; leadId: string; focus?: string }): ConversationData {
   const base = conversationData(rt, chatsActions(go), o.threadId, o.list);
   return {
     ...base,
+    ...(o.focus ? { focus: o.focus } : {}),
     nav: {
-      ...base.nav, openAgent: (id: string) => go.agent(id), openThread: (id: string) => go.thread(id), togglePane: () => go.togglePane(),
+      ...base.nav, openAgent: (id: string) => go.agent(id), openThread: (id: string, messageId?: string) => (messageId ? go.message(id, messageId) : go.thread(id)), openSearch: (q: string) => go.search(q), togglePane: () => go.togglePane(),
       openBeside: (kind: string, id: string) => (kind === "computer" ? go.computerOfAgent(id) : base.nav.openBeside(kind, id)),
       openConnectOutsideAgent: (channelId: string) => go.connect(channelId),
     },

@@ -15,10 +15,10 @@ import { MenuIcon, menuTrigger, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 import { Row } from "../Row/index.tsx";
 import { composerSymbols, symbolMark } from "./props.ts";
-import type { ComposerAttachment, ComposerChip, ComposerShellProps, ComposerSymbol } from "./props.ts";
+import type { ComposerAttachment, ComposerChip, ComposerRef, ComposerShellProps, ComposerSymbol } from "./props.ts";
 import { Glyph, ICON_UP, plainText } from "./shared.tsx";
 
-export type { ComposerAttachment, ComposerChip, ComposerShellProps, ComposerSymbol } from "./props.ts";
+export type { ComposerAttachment, ComposerChip, ComposerRef, ComposerShellProps, ComposerSymbol } from "./props.ts";
 export { COMPOSER_SYMBOLS, composerSymbols, symbolMark } from "./props.ts";
 export { Glyph, ICON_UP, plainText } from "./shared.tsx";
 
@@ -73,7 +73,11 @@ export function quality(query: string, p: Prepared): number {
 /* ---------- lists and triggers ---------- */
 
 /** A list entry is a name, or a name with a quiet second line and a kind. */
-export type ListItem = string | { t: string; s?: string; kind?: string; sealed?: number; body?: string };
+export type ListItem = string | { t: string; s?: string; kind?: string; sealed?: number; body?: string;
+  /** An id a pick keeps (a record, file, folder or channel), so what is sent names the thing and not only its title. */
+  ref?: string;
+  /** A command that takes words after its name: the hint for them. Picking it writes "/name " and waits instead of running. */
+  arg?: string };
 
 export interface ComposerLists {
   people?: readonly ListItem[];
@@ -129,6 +133,8 @@ export interface PopupItem {
   sealed?: number;
   /** Template and snippet text, or a command key. */
   body?: string;
+  ref?: string;
+  arg?: string;
 }
 export interface PopupHead {
   head: string;
@@ -156,7 +162,9 @@ function ranked(items: readonly ListItem[] | undefined, query: string, group: st
     const note = noteOf(x);
     const sealed = typeof x === "string" ? undefined : x.sealed;
     const body = typeof x === "string" ? undefined : x.body;
-    scored.push({ at, q, item: { group, label, kind: kindOf(x, kind), ...(note === undefined ? {} : { note }), ...(sealed === undefined ? {} : { sealed }), ...(body === undefined ? {} : { body }) } });
+    const ref = typeof x === "string" ? undefined : x.ref;
+    const arg = typeof x === "string" ? undefined : x.arg;
+    scored.push({ at, q, item: { group, label, kind: kindOf(x, kind), ...(note === undefined ? {} : { note }), ...(sealed === undefined ? {} : { sealed }), ...(body === undefined ? {} : { body }), ...(ref === undefined ? {} : { ref }), ...(arg === undefined ? {} : { arg }) } });
   });
   scored.sort((a, b) => b.q - a.q || a.at - b.at);
   return scored.slice(0, limit).map((s) => s.item);
@@ -285,6 +293,14 @@ export function answerLine(text: string, fallback: string, ctx: WhoContext | und
   return computed;
 }
 
+/** A browser File, as far as the composer reads it. */
+interface FileLike { name: string; size?: number; type?: string }
+
+/** The tray entry for a dropped, pasted or picked file: its name, and the file itself so the sender can read the bytes. */
+export function attachmentOf(f: FileLike, fallbackName = "File"): ComposerAttachment {
+  return { name: f.name || fallbackName, file: f, ...(typeof f.size === "number" ? { size: f.size } : {}), ...(f.type ? { mime: f.type } : {}) };
+}
+
 /* ---------- state ---------- */
 
 export type SendMode = "queue" | "interrupt";
@@ -294,6 +310,8 @@ export interface ComposerState {
   cursor: number;
   chips: ComposerChip[];
   files: ComposerAttachment[];
+  /** Records and other things picked for [[ ]], kept with their ids until the text no longer names them. */
+  refs?: ComposerRef[];
   folder: string | null;
   /** Index in the popup entries. */
   active: number;
@@ -313,6 +331,8 @@ export interface ComposerSend {
   folder: string | null;
   /** Records linked with [[ ]] in the text. */
   links: string[];
+  /** The links that were picked from a list, with their ids: only those the text still names. */
+  refs: ComposerRef[];
   mode: SendMode;
   answers: string;
 }
@@ -325,10 +345,23 @@ export function linksIn(text: string): string[] {
   return [...text.matchAll(/\[\[([^\]\n]+)\]\]/g)].map((m) => (m[1] ?? "").trim()).filter(Boolean);
 }
 
+/** The picked links that the text still holds as [[Title]]. */
+export function refsIn(state: Pick<ComposerState, "text" | "refs">): ComposerRef[] {
+  const named = new Set(linksIn(state.text));
+  const seen = new Set<string>();
+  const out: ComposerRef[] = [];
+  for (const r of state.refs ?? []) {
+    if (!named.has(r.title) || seen.has(r.id)) continue;
+    seen.add(r.id);
+    out.push(r);
+  }
+  return out;
+}
+
 /** The payload and the cleared state in one step: the field empties in the same call, before any server answer. */
 export function sendNow(state: ComposerState, answers: string, mode: SendMode = "queue"): { payload: ComposerSend; next: ComposerState } | null {
   if (!canSend(state)) return null;
-  const payload: ComposerSend = { text: state.text.trim(), chips: state.chips.slice(), files: state.files.slice(), folder: state.folder, links: linksIn(state.text), mode, answers };
+  const payload: ComposerSend = { text: state.text.trim(), chips: state.chips.slice(), files: state.files.slice(), folder: state.folder, links: linksIn(state.text), refs: refsIn(state), mode, answers };
   return { payload, next: { ...initialState("", state.folder), cursor: 0 } };
 }
 
@@ -345,18 +378,24 @@ export function applyPick(state: ComposerState, trigger: Trigger, item: PopupIte
   }
   if (trigger.ch === "[[") {
     const insert = `[[${item.label}]] `;
-    return { next: place(before + insert + after, before.length + insert.length), effect: { kind: "none" } };
+    const next = place(before + insert + after, before.length + insert.length);
+    return { next: item.ref === undefined ? next : { ...next, refs: [...(state.refs ?? []).filter((r) => r.id !== item.ref), { kind: item.kind, id: item.ref, title: item.label }] }, effect: { kind: "none" } };
   }
   if (trigger.ch === "/") {
     if (item.kind === "Template" || item.kind === "Snippet") {
       const insert = item.body ?? item.label;
       return { next: place(before + insert + after, before.length + insert.length), effect: { kind: "none" } };
     }
+    if (item.arg !== undefined) {
+      // a command that needs words: write its name and let the person type them; Enter then runs it
+      const insert = `/${item.body ?? item.label} `;
+      return { next: place(before + insert + after, before.length + insert.length), effect: { kind: "none" } };
+    }
     return { next: place(before + after, before.length), effect: { kind: "command", name: item.body ?? item.label } };
   }
   const cleared = place(before + after, before.length);
   if (item.kind === "Folder") return { next: { ...cleared, folder: item.label }, effect: { kind: "folder", folder: item.label } };
-  const chip: ComposerChip = { kind: item.kind, name: item.label };
+  const chip: ComposerChip = { kind: item.kind, name: item.label, ...(item.ref === undefined ? {} : { id: item.ref }) };
   if (cleared.chips.some((c) => c.kind === chip.kind && c.name === chip.name)) return { next: cleared, effect: { kind: "none" } };
   return { next: { ...cleared, chips: [...cleared.chips, chip] }, effect: { kind: "none" } };
 }
@@ -695,9 +734,9 @@ export function Composer(props: ComposerProps): ReactElement {
       {...contextProps}
       {...webProps({
         onDragOver: (e: { preventDefault: () => void }) => e.preventDefault(),
-        onDrop: (e: { preventDefault: () => void; dataTransfer?: { files?: ArrayLike<{ name: string }> } }) => {
+        onDrop: (e: { preventDefault: () => void; dataTransfer?: { files?: ArrayLike<FileLike> } }) => {
           e.preventDefault();
-          addFiles(Array.from(e.dataTransfer?.files ?? [], (f) => ({ name: f.name })));
+          addFiles(Array.from(e.dataTransfer?.files ?? [], attachmentOf));
         },
         dataSet: { composer: "true" },
       })}
@@ -726,8 +765,8 @@ export function Composer(props: ComposerProps): ReactElement {
         testID="composer-field"
         style={[styles.field, FIELD_STYLE, { height }]}
         {...webProps({
-          onPaste: (e: { clipboardData?: { files?: ArrayLike<{ name: string }> }; preventDefault: () => void }) => {
-            const files = Array.from(e.clipboardData?.files ?? [], (f) => ({ name: f.name || "Pasted image.png" }));
+          onPaste: (e: { clipboardData?: { files?: ArrayLike<FileLike> }; preventDefault: () => void }) => {
+            const files = Array.from(e.clipboardData?.files ?? [], (f) => attachmentOf(f, "Pasted image.png"));
             if (files.length > 0) {
               e.preventDefault();
               addFiles(files);
@@ -783,8 +822,8 @@ export function Composer(props: ComposerProps): ReactElement {
         "aria-hidden": true,
         tabIndex: -1,
         ref: (node: unknown) => { picker.current = node; },
-        onChange: (e: { target: { files?: ArrayLike<{ name: string }>; value?: string } }) => {
-          addFiles(Array.from(e.target.files ?? [], (f) => ({ name: f.name })));
+        onChange: (e: { target: { files?: ArrayLike<FileLike>; value?: string } }) => {
+          addFiles(Array.from(e.target.files ?? [], attachmentOf));
           e.target.value = "";
         },
       }) : null}

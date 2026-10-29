@@ -27,11 +27,14 @@ import { TerminalRules } from "../terminal/TerminalRules.tsx";
 import { TerminalTab } from "../terminal/TerminalTab.tsx";
 import { AllAgents } from "./AllAgents.tsx";
 import { ConnectOutsideAgent } from "./ConnectOutsideAgent.tsx";
-import { agentPageData, chatWith, createCapture, createGo, helperData, needsData, newKey, popupData, terminalData, wireConversation, wirePane, wireSidebar } from "./data.ts";
+import { SearchPage } from "../search/SearchPage.tsx";
+import type { SearchData } from "../search/SearchPage.tsx";
+import { copy, agentPageData, chatWith, createCapture, createGo, helperData, needsData, newKey, popupData, terminalData, wireConversation, wirePane, wireSidebar } from "./data.ts";
 import type { CaptureCounter, Go } from "./data.ts";
 import { useLive } from "./live.ts";
 import { START, fromHash, newestThread, step } from "./route.ts";
 import type { Act, Shown } from "./route.ts";
+import { nameOr } from "../names.ts";
 
 type ThreadOut = CapMap["threads.get"]["out"];
 type RecentOut = CapMap["chat.recent"]["out"];
@@ -69,7 +72,7 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const live = useSyncExternalStore(rt.principals.subscribe, rt.principals.getSnapshot, rt.principals.getSnapshot);
   const list = live.status === "ready" ? live.data : NO_PEOPLE;
   const byId = useMemo(() => new Map(list.map((p) => [p.id, p] as const)), [list]);
-  const nameOf = useCallback((id: string): string => (id === rt.assistant.id ? rt.assistant.name : byId.get(id)?.name ?? id), [byId, rt.assistant.id, rt.assistant.name]);
+  const nameOf = useCallback((id: string): string => (id === rt.assistant.id ? rt.assistant.name : nameOr(byId.get(id)?.name, id)), [byId, rt.assistant.id, rt.assistant.name]);
 
   useEffect(() => {
     if (line === null) return undefined;
@@ -80,6 +83,15 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const act = useCallback((a: Act): void => setShown((s) => step(s, a)), []);
   const go = useMemo<Go>(() => createGo(rt, act, nameOf, setLine), [rt, act, nameOf]);
   const route = shown.route;
+  // Cmd/Ctrl+Shift+F searches every chat, from anywhere in the place
+  useEffect(() => {
+    const g = globalThis as unknown as { addEventListener?: (t: string, f: (e: { key: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; preventDefault: () => void }) => void) => void; removeEventListener?: (t: string, f: unknown) => void };
+    const onKey = (e: { key: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; preventDefault: () => void }): void => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") { e.preventDefault(); go.search(); }
+    };
+    g.addEventListener?.("keydown", onKey);
+    return () => g.removeEventListener?.("keydown", onKey);
+  }, [go]);
   const width = useWindowDimensions().width;
   const narrow = width > 0 && width < WIDE;
 
@@ -97,10 +109,15 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const leadComputer = computerOf(leadId);
   const leadAgent = useMemo(() => ({ agentId: leadId, name: nameOf(leadId), ...(leadComputer ? { computerId: leadComputer } : {}) }), [leadId, nameOf, leadComputer]);
 
+  const focus = route.view === "chat" ? route.focus : undefined;
   const conv = useMemo(
-    () => (threadId === null ? null : wireConversation(rt, go, { threadId, list, nameOf, leadId })),
-    [rt, go, threadId, list, nameOf, leadId],
+    () => (threadId === null ? null : wireConversation(rt, go, { threadId, list, nameOf, leadId, ...(focus ? { focus } : {}) })),
+    [rt, go, threadId, list, nameOf, leadId, focus],
   );
+  const searchData = useMemo<SearchData>(() => ({
+    call: rt.call, me: { id: rt.me.id, name: rt.me.name }, nameOf, kindOf: (id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person"), clock: rt.clock,
+    query: route.view === "search" ? route.q : "", openMessage: go.message, openThread: go.chat, close: go.closeSearch, copy,
+  }), [rt, nameOf, byId, route, go]);
   const paneCtx = useMemo(() => (threadId === null ? null : wirePane(rt, go, threadId, leadAgent)), [rt, go, threadId, leadAgent]);
 
   /* ---------- the other pages ---------- */
@@ -119,7 +136,8 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
 
   /* ---------- the middle ---------- */
   let main: ReactElement;
-  if (route.view === "needs") main = <NeedsYou data={needs} {...(route.taskId ? { initialSelected: route.taskId } : {})} {...(window ? { window } : {})} />;
+  if (route.view === "search") main = <SearchPage key={route.q} data={searchData} />;
+  else if (route.view === "needs") main = <NeedsYou data={needs} {...(route.taskId ? { initialSelected: route.taskId } : {})} {...(window ? { window } : {})} />;
   else if (route.view === "helper") main = helperId === "" ? <HelperChatLoading /> : <HelperChat key={helperId} data={helper} />;
   else if (route.view === "agent") main = agentId === "" ? <AgentPageLoading /> : <AgentPage key={agentId} data={agentPage} initialTab={route.tab ?? "chats"} {...(window ? { window } : {})} />;
   else if (conv) main = <Conversation key={conv.threadId} data={conv} />;

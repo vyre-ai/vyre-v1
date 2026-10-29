@@ -4176,6 +4176,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/chat/fork",
+    "cap": "chat.fork",
+    "v": 1,
+    "module": "chat",
+    "effects": "write",
+    "permission": "chats.private",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/chat/handoff",
     "cap": "chat.handoff",
     "v": 1,
@@ -4463,6 +4481,24 @@ export const routes: Route[] = [
     "method": "POST",
     "path": "/v1/chat/recent",
     "cap": "chat.recent",
+    "v": 1,
+    "module": "chat",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/chat/search",
+    "cap": "chat.search",
     "v": 1,
     "module": "chat",
     "effects": "read",

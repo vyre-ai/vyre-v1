@@ -9097,6 +9097,50 @@
     },
     {
       "blocks": [],
+      "cap": "chat.fork",
+      "deferred": false,
+      "description": "Branch a chat at one message: a new private chat that holds a copy of everything up to there, with the same agents and a line that links back",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_fork",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.helpers.list",
       "deferred": false,
       "description": "Helpers running under a chat, with status",
@@ -9544,6 +9588,48 @@
         "type": "object"
       },
       "name": "chat_recent",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.search",
+      "deferred": false,
+      "description": "Search the messages of every chat and channel you are in, by the words and by meaning; each hit names its message so a screen can jump to it",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "mode": {
+            "enum": [
+              "keyword",
+              "meaning",
+              "hybrid"
+            ],
+            "type": "string"
+          },
+          "q": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "q"
+        ],
+        "type": "object"
+      },
+      "name": "chat_search",
       "planMode": "allowed",
       "toolset": "chats",
       "v": 1

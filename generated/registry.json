@@ -42181,6 +42181,146 @@
     {
       "effects": "write",
       "emits": [
+        "thread.started",
+        "agent.engaged"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "messageId": "msg_a1b2c3",
+            "threadId": "thr_a1b2c3",
+            "title": "example"
+          },
+          "name": "example",
+          "output": {
+            "copied": 1,
+            "thread": {
+              "agents": [
+                {
+                  "accountRef": "example",
+                  "agentId": "agt_a1b2c3",
+                  "effort": "low",
+                  "mode": "lead",
+                  "model": "claude-sonnet-5-5",
+                  "provider": "anthropic",
+                  "watches": true
+                }
+              ],
+              "channelId": "chn_a1b2c3",
+              "closedAt": 1760000000000,
+              "createdAt": 1760000000000,
+              "folderId": "fld_a1b2c3",
+              "kind": "chat",
+              "lastMessageAt": 1760000000000,
+              "listed": true,
+              "members": [
+                {
+                  "id": "usr_a1b2c3",
+                  "kind": "person"
+                }
+              ],
+              "parentMessageId": "msg_a1b2c3",
+              "parentThreadId": "thr_a1b2c3",
+              "path": [
+                {
+                  "threadId": "thr_a1b2c3",
+                  "title": "example"
+                }
+              ],
+              "planMode": true,
+              "recordId": "rec_a1b2c3",
+              "replyCount": 1,
+              "scopeId": "example",
+              "scopeType": "record",
+              "starter": "example",
+              "threadId": "thr_a1b2c3",
+              "title": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "chat",
+      "name": "chat.fork",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "copied": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "thread": {
+            "$ref": "#/$defs/s_b4cc02fcf3"
+          }
+        },
+        "required": [
+          "thread",
+          "copied"
+        ],
+        "type": "object"
+      },
+      "permission": "chats.private",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Branch a chat at one message: a new private chat that holds a copy of everything up to there, with the same agents and a line that links back",
+      "surfaces": {
+        "cli": "vyre chat fork",
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
         "agent.handoff",
         "thread.started",
         "message.received"
@@ -44054,6 +44194,247 @@
       "surfaces": {
         "http": "auto",
         "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "limit": 1,
+            "mode": "keyword",
+            "q": "example",
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "hits": [
+              {
+                "at": 1760000000000,
+                "author": {
+                  "id": "usr_a1b2c3",
+                  "kind": "person"
+                },
+                "found": "keyword",
+                "messageId": "msg_a1b2c3",
+                "score": 1,
+                "snippet": "example",
+                "thread": {
+                  "agentIds": [
+                    "agt_a1b2c3"
+                  ],
+                  "channelName": "example",
+                  "kind": "chat",
+                  "memberIds": [
+                    "example"
+                  ],
+                  "title": "example"
+                },
+                "threadId": "thr_a1b2c3",
+                "threadSeq": 1
+              }
+            ],
+            "meaning": true,
+            "sealedChats": 1,
+            "tookMs": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "limit": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "mode": {
+            "enum": [
+              "keyword",
+              "meaning",
+              "hybrid"
+            ],
+            "type": "string"
+          },
+          "q": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "q"
+        ],
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "chat",
+      "name": "chat.search",
+      "output": {
+        "properties": {
+          "hits": {
+            "items": {
+              "properties": {
+                "at": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "author": {
+                  "$ref": "#/$defs/s_6c1eb10d98"
+                },
+                "found": {
+                  "enum": [
+                    "keyword",
+                    "meaning",
+                    "both"
+                  ],
+                  "type": "string"
+                },
+                "messageId": {
+                  "examples": [
+                    "msg_a1b2c3"
+                  ],
+                  "pattern": "^msg_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "score": {
+                  "description": "0 to 1; higher is a better match",
+                  "type": "number"
+                },
+                "snippet": {
+                  "type": "string"
+                },
+                "thread": {
+                  "properties": {
+                    "agentIds": {
+                      "items": {
+                        "examples": [
+                          "agt_a1b2c3"
+                        ],
+                        "pattern": "^agt_[a-z0-9]+$",
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "channelName": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "chat",
+                        "channel",
+                        "thread",
+                        "ask",
+                        "run",
+                        "helper",
+                        "console"
+                      ],
+                      "type": "string"
+                    },
+                    "memberIds": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "agentIds",
+                    "memberIds"
+                  ],
+                  "type": "object"
+                },
+                "threadId": {
+                  "examples": [
+                    "thr_a1b2c3"
+                  ],
+                  "pattern": "^thr_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "threadSeq": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "messageId",
+                "threadId",
+                "threadSeq",
+                "author",
+                "snippet",
+                "at",
+                "score",
+                "found",
+                "thread"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "meaning": {
+            "type": "boolean"
+          },
+          "sealedChats": {
+            "description": "End-to-end chats the server cannot read, left out",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "tookMs": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hits",
+          "meaning",
+          "sealedChats",
+          "tookMs"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "rate": {
+        "n": 60,
+        "perSeconds": 60,
+        "scope": "principal"
+      },
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Search the messages of every chat and channel you are in, by the words and by meaning; each hit names its message so a screen can jump to it",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "chat_search",
           "toolset": "chats"
         }
       },

@@ -4,6 +4,7 @@
 //   chat.open_tab         respects the person's tab setting (chat.agent_tabs) and answers no_device when none of their devices is online.
 //   question, plan, helper and handoff messages in a thread that is already sealed: refused, because the server writes them in plain text and a sealed thread takes only envelopes of its own key.
 // index.ts spreads g26Handlers after the groups, so these replace the group's entries of the same name.
+import { CHAT_COMMANDS } from "../../../lib/chat-commands.ts";
 import { askerOf, ensure, raise, threadBy } from "../projections.ts";
 import type { ChatCtx } from "../projections.ts";
 import { composerSuggest, openTab, recent } from "./g24c.ts";
@@ -39,13 +40,8 @@ export async function recentWithUnread(ctx: ChatCtx, input: { filter?: "all" | "
 
 // ---- composer ---------------------------------------------------------------------------------------------------------------------------------------
 
-/** The commands chat runs itself, each one a capability of this module. Skills and templates belong to other modules and are not listed here. */
-const COMMANDS: ReadonlyArray<{ id: string; title: string; detail: string }> = [
-  { id: "plan", title: "/plan", detail: "Turn plan mode on or off for this chat" },
-  { id: "helper", title: "/helper", detail: "Start a helper chat for a side task" },
-  { id: "handoff", title: "/handoff", detail: "Hand the work to another agent" },
-  { id: "pin", title: "/pin", detail: "Pin the last message" },
-];
+/** The commands the composer offers: the one list in lib/chat-commands.ts, which the app runs. Skills and plugin commands belong to other modules and are added by the app. */
+const COMMANDS: ReadonlyArray<{ id: string; title: string; detail: string }> = CHAT_COMMANDS.map((c) => ({ id: c.id, title: `/${c.id}`, detail: c.detail }));
 
 export async function composerWithCommands(ctx: ChatCtx, input: { symbol: "@" | "#" | "/"; q: string; threadId?: string }) {
   if (input.symbol !== "/") return composerSuggest(ctx, input);

@@ -254,6 +254,14 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     screens: hooks,
     turns,
     call: (cap, input) => call(cap, input),
+    putBlob: async (path, bytes) => {
+      // the upload address files.upload_url hands out: the bytes go there with the person's own token, one time
+      if (token === null) throw new CapError({ code: "auth.unauthenticated", message: "You are signed out.", traceId: "", status: 401 });
+      const send = o.fetch ?? (globalThis as { fetch?: typeof fetch }).fetch;
+      if (!send) throw new Error("This device cannot upload");
+      const r = await send(new URL(path, o.baseUrl).toString(), { method: "PUT", headers: { authorization: `Bearer ${token}`, "content-type": "application/octet-stream" }, body: bytes as unknown as BodyInit });
+      if (!r.ok) throw new Error(r.status === 413 ? "The file is over the size limit" : "The upload did not go through");
+    },
     connection: {
       get: () => (reachable && !(everLive && live === "offline") ? "online" : "offline"),
       subscribe: (l) => { listeners.add(l); return () => { listeners.delete(l); }; },
