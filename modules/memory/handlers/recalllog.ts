@@ -49,7 +49,8 @@ export async function used(ctx: MemCtx, input: { threadId: string; messageId: st
   const me = actorOf(ctx);
   const rows = rowsOf(ctx.db, "SELECT kind, ref, agent_id, at FROM memory_recall_log WHERE thread_id = ? AND message_id = ? AND asker = ? ORDER BY rowid", input.threadId, t.id, me);
   const access = makeAccess(ctx);
-  const facts: Array<ReturnType<typeof factOut> & { agentId?: string }> = [];
+  const facts: Array<ReturnType<typeof factOut> & { agentId?: string; sourceTitle?: string }> = [];
+  const titles = new Map<string, string | undefined>();
   const quotes: Awaited<ReturnType<typeof findQuotes>> = [];
   for (const r of rows) {
     if (str(r["kind"]) === "fact") {
@@ -59,7 +60,12 @@ export async function used(ctx: MemCtx, input: { threadId: string; messageId: st
       if (f.layer === "person" && f.ownerRef !== me) continue;
       if (!(await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view"))) continue;
       const a = orNull(r["agent_id"]);
-      facts.push({ ...factOut(f), ...(a ? { agentId: a } : {}) });
+      let title: string | undefined;
+      if ((f.sourceKind === "chat" || f.sourceKind === "channel") && f.sourceRef) {
+        if (!titles.has(f.sourceRef)) { try { titles.set(f.sourceRef, ((await ctx.call("threads.get", { threadId: f.sourceRef })) as { thread?: { title?: string } }).thread?.title); } catch { titles.set(f.sourceRef, undefined); } }
+        title = titles.get(f.sourceRef);
+      }
+      facts.push({ ...factOut(f), ...(a ? { agentId: a } : {}), ...(title ? { sourceTitle: title } : {}) });
     } else {
       quotes.push(...(await findQuotes(ctx, { ref: str(r["ref"]) })));
     }

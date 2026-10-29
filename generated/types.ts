@@ -16614,17 +16614,18 @@ export type MemoryUsedOut = {
       layer: "person" | "agent" | "project" | "space";
       ownerRef: string;
       agentId?: string;
-      noteId?: string;
+      noteId: string;
       text: string;
       validFrom: number;
-      validTo?: number;
+      validTo: number;
       learnedAt: number;
-      closedAt?: number;
+      closedAt: number;
       sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
       sourceRef: string;
-      sourceLink?: string;
+      sourceLink: string;
       status: "proposed" | "current" | "closed" | "removed";
-      lowRisk?: boolean;
+      lowRisk: boolean;
+      sourceTitle?: string;
     }>;
   quotes: Array<{
       ref: string;

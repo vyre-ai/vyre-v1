@@ -113288,6 +113288,7 @@
                 "sourceKind": "chat",
                 "sourceLink": "example",
                 "sourceRef": "example",
+                "sourceTitle": "example",
                 "status": "proposed",
                 "text": "example",
                 "validFrom": 1760000000000,
@@ -113336,7 +113337,135 @@
             "type": "integer"
           },
           "facts": {
-            "$ref": "#/$defs/s_6ddc87dad0"
+            "items": {
+              "properties": {
+                "agentId": {
+                  "examples": [
+                    "agt_a1b2c3"
+                  ],
+                  "pattern": "^agt_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "closedAt": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "factId": {
+                  "examples": [
+                    "fct_a1b2c3"
+                  ],
+                  "pattern": "^fct_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "layer": {
+                  "enum": [
+                    "person",
+                    "agent",
+                    "project",
+                    "space"
+                  ],
+                  "type": "string"
+                },
+                "learnedAt": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "lowRisk": {
+                  "type": "boolean"
+                },
+                "noteId": {
+                  "examples": [
+                    "not_a1b2c3"
+                  ],
+                  "pattern": "^not_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "ownerRef": {
+                  "description": "Person, agent, project or Space the fact belongs to",
+                  "examples": [
+                    "agt_a1b2c3"
+                  ],
+                  "type": "string"
+                },
+                "sourceKind": {
+                  "enum": [
+                    "chat",
+                    "channel",
+                    "task",
+                    "record",
+                    "run",
+                    "journey",
+                    "manual"
+                  ],
+                  "type": "string"
+                },
+                "sourceLink": {
+                  "description": "Link to the exact chat, task or record",
+                  "type": "string"
+                },
+                "sourceRef": {
+                  "type": "string"
+                },
+                "sourceTitle": {
+                  "description": "The chat the fact came from, by its title, when the reader may open it",
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "proposed",
+                    "current",
+                    "closed",
+                    "removed"
+                  ],
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "validFrom": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "validTo": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "factId",
+                "layer",
+                "ownerRef",
+                "noteId",
+                "text",
+                "validFrom",
+                "validTo",
+                "learnedAt",
+                "closedAt",
+                "sourceKind",
+                "sourceRef",
+                "sourceLink",
+                "status",
+                "lowRisk"
+              ],
+              "type": "object"
+            },
+            "type": "array"
           },
           "messageId": {
             "examples": [

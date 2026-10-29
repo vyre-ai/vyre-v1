@@ -75,7 +75,7 @@ export default defineManifest({
       }, label: 'check',
     }),
     read('memory.used', 'What recall put in front of the agent for one message: the facts and the exact quotes, each read again now under your access (a fact since deleted, or a chat closed to you, is not shown); for the "Used N memories" line and "Show what the agent knew here"', {
-      in: { threadId: id.thread, messageId: id.message }, out: { messageId: id.message, at: t.opt(t.ts()), facts: t.arr(factRow), quotes: t.arr(quoteRow) }, label: 'filter', tool: 'memory', agent: { planMode: 'allowed' },
+      in: { threadId: id.thread, messageId: id.message }, out: { messageId: id.message, at: t.opt(t.ts()), facts: t.arr(t.obj({ ...factRow.properties, agentId: t.opt(id.agent), sourceTitle: t.opt(t.str({ description: 'The chat the fact came from, by its title, when the reader may open it' })) })), quotes: t.arr(quoteRow) }, label: 'filter', tool: 'memory', agent: { planMode: 'allowed' },
     }),
     read('memory.read_note', 'Read one memory note as Markdown', {
       in: { noteId: id.note }, out: { note: noteRow, markdown: t.str() }, on: ['note', '/noteId'], label: 'check', tool: 'memory', mcpName: 'read_note', agent: { planMode: 'allowed' },
