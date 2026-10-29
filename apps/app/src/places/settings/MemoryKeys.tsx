@@ -34,6 +34,18 @@ export function MemoryKeys(): ReactElement | null {
     );
   };
   const personalNone = "None (rules only)";
+  const projectRows: ReactElement[] = [];
+  if (k.space && projects.status === "ready") {
+    projects.data.projects.forEach((p, i) => {
+      const cur = k.projectKeys?.[p.projectId] ?? null;
+      projectRows.push(
+        <SettingsRow
+          key={p.projectId} id={`memory.key.project.${p.projectId}`} label={p.title} first={i === 0} sub={cur === null ? "The Space's account" : "Its own account"}
+          control={<Choice value={cur ?? NONE} options={optionsOf(k.space as Picker, "The Space's account")} label={`${p.title} memory account`} testID={`ctl-memory-key-project-${p.projectId}`} onChange={(v) => set("project", v === NONE ? null : v, cur, p.projectId)} />}
+        />,
+      );
+    });
+  }
   return (
     <>
       <Section title="Who pays for memory" note="Memory upkeep merges duplicates, dates facts and tidies pages. With no account it follows rules only; nothing is sent to a model.">
@@ -50,15 +62,7 @@ export function MemoryKeys(): ReactElement | null {
       </Section>
       {k.space && projects.status === "ready" && projects.data.projects.length > 0 ? (
         <Section title="Project memory" note="A project without its own account uses the Space's.">
-          {projects.data.projects.map((p, i) => {
-            const cur = k.projectKeys?.[p.projectId] ?? null;
-            return (
-              <SettingsRow
-                key={p.projectId} id={`memory.key.project.${p.projectId}`} label={p.title} first={i === 0} sub={cur === null ? "The Space's account" : "Its own account"}
-                control={<Choice value={cur ?? NONE} options={optionsOf(k.space as Picker, "The Space's account")} label={`${p.title} memory account`} testID={`ctl-memory-key-project-${p.projectId}`} onChange={(v) => set("project", v === NONE ? null : v, cur, p.projectId)} />}
-              />
-            );
-          })}
+          {projectRows}
         </Section>
       ) : null}
     </>
