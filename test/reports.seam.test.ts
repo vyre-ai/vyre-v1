@@ -102,3 +102,12 @@ test("a log row that held message text never reaches the bundle: only action nam
   assert.ok(!out.includes("the secret chat text") && !out.includes("tok_abc"), out);
   assert.ok(out.includes("chat.post") && out.includes("validation.bad_input"));
 });
+
+test("health says nothing is wrong before the first report (no probe, no network), and probes the service after one", async () => {
+  let calls = 0;
+  const host = createReportsHost({ space: "spc_alpha1", now: () => NOW, fetch: async () => { calls++; return { status: 503, headers: { get: () => null }, text: async () => "" }; }, logs: logs(), sealKey: SEAL, address: "https://alpha.test", versions: { server: "1", device: "d" } });
+  assert.deepEqual(await host.service.ping(), { keyRegistered: true });
+  assert.equal(calls, 0);
+  await host.service.post({ reportId: "rpt_aaaaaaaa1", space: "spc_alpha1", reporter: "usr_omar", title: "t", bundle: { context: { place: "files" }, traceIds: [], events: [], versions: { app: "1", server: "1", device: "d" } } }).catch(() => undefined);
+  await assert.rejects(host.service.ping(), (e: { code?: string }) => e.code === "unavailable", "after a report was tried the service is probed");
+});

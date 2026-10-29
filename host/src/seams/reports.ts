@@ -65,6 +65,7 @@ export function createReportsHost(d: ReportsHostDeps) {
   const person = (c: Ctx): string => c.actingFor ?? c.principal.id;
   const key = deriveReportsKey(d.sealKey);
   let registered = false;
+  let used = false;   // the key registers at the first report, so before one there is nothing to be unhealthy about
   const fail = (code: string, message: string): never => { throw Object.assign(new Error(message), { code }); };
 
   const sources = {
@@ -105,6 +106,7 @@ export function createReportsHost(d: ReportsHostDeps) {
 
   const service = {
     async post(req: { reportId: string; space: string; reporter: string; title: string; bundle: Bundle }): Promise<{ issueNumber?: number; stored: boolean }> {
+      used = true;
       await register();
       const { screenshotFileId: _shot, clientLogFileId: _log, ...bundle } = req.bundle;
       const res = await signedFetch("/v1/reports", JSON.stringify({ reportId: req.reportId, bundle }), reportMessage, { "x-vyre-space": d.space });
@@ -117,6 +119,7 @@ export function createReportsHost(d: ReportsHostDeps) {
       return { ...(typeof data.issueNumber === "number" ? { issueNumber: data.issueNumber } : {}), stored: data.stored !== false };
     },
     async ping(): Promise<{ keyRegistered: boolean }> {
+      if (!used) return { keyRegistered: true };
       const res = await d.fetch(`${base}/healthz`, { method: "GET" });
       await res.text();
       if (res.status !== 200) return fail("unavailable", `the service answered ${res.status}`);
