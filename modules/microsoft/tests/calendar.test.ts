@@ -53,13 +53,32 @@ function notified(excluded = false): Harness {
   return h;
 }
 
-test("a notice also asks Calendar to sync that member's calendar, and an excluded member's is never synced", async () => {
+test("a notice also asks Calendar to sync that member's calendar, never connects one, and an excluded member's is never synced", async () => {
   const h = notified();
+  h.ctx.db.run(`INSERT INTO microsoft_calendar (email, "calendarId") VALUES (?, ?)`, MAYA, "cld_maya0001");
   await receiveNotification(h.ctx, { notificationId: "n1", subscriptionId: "sub1", resource: `users/${MAYA}/messages/A`, changeType: "created", clientStateOk: true });
-  assert.equal(h.calls("calendar.sync_now").length, 1);
+  assert.deepEqual(h.calls("calendar.sync_now").map((c) => c.input), [{ calendarId: "cld_maya0001" }]);
+  assert.equal(h.calls("calendar.connect_provider").length, 0, "connecting takes an admin, so a notice never does it");
   const x = notified(true);
+  x.ctx.db.run(`INSERT INTO microsoft_calendar (email, "calendarId") VALUES (?, ?)`, MAYA, "cld_maya0001");
   await receiveNotification(x.ctx, { notificationId: "n2", subscriptionId: "sub1", resource: `users/${MAYA}/messages/A`, changeType: "created", clientStateOk: true });
   assert.equal(x.calls("calendar.sync_now").length, 0);
+});
+
+test("a member who has no calendar connected (they came after consent) has nothing to sync", async () => {
+  const h = notified();
+  await receiveNotification(h.ctx, { notificationId: "n9", subscriptionId: "sub1", resource: `users/${MAYA}/messages/A`, changeType: "created", clientStateOk: true });
+  assert.equal(h.calls("calendar.sync_now").length, 0);
+});
+
+test("consent setup remembers which Calendar calendar each member's is, and excluding a member forgets theirs", async () => {
+  const h = admin();
+  await consentSetup(h.ctx, setup);
+  assert.deepEqual(h.rows(`SELECT email FROM microsoft_calendar`).map((r) => String(r.email)).sort(), ["kim@vyre.test", MAYA, SAM]);
+  await consentExclude(h.ctx, { email: MAYA, excluded: true });
+  assert.deepEqual(h.rows(`SELECT email FROM microsoft_calendar`).map((r) => String(r.email)).sort(), ["kim@vyre.test", SAM]);
+  await consentExclude(h.ctx, { email: MAYA, excluded: false });
+  assert.deepEqual(h.rows(`SELECT email FROM microsoft_calendar`).map((r) => String(r.email)).sort(), ["kim@vyre.test", MAYA, SAM]);
 });
 
 test("a Calendar failure never fails the setup or the notice", async () => {

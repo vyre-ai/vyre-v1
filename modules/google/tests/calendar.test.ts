@@ -43,17 +43,39 @@ test("excluding a member removes their calendar; including them again connects a
   assert.equal(h.calls("calendar.connect_provider").length, n);
 });
 
-test("a Gmail push also asks Calendar to sync that member's calendar, and an excluded member's is never synced", async () => {
+test("a Gmail push also asks Calendar to sync that member's calendar, never connects one, and an excluded member's is never synced", async () => {
   const h = harness({ admin: true });
   ensure(h.ctx);
   seedDelegation(h, { members: [{ email: MAYA, userId: "usr_maya01" }, { email: SAM, userId: "usr_sam01", excluded: true }] });
   for (const e of [MAYA, SAM]) h.ctx.db.run(`INSERT INTO google_mailbox (email, "connectionId", "historyId", "lastPolledAt", "lastActivityAt", "watchExpiresAt", "pubsubTopic", "nextPollAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, e, CONN, "1000", null, null, null, null, null);
+  h.ctx.db.run(`INSERT INTO google_calendar (email, "calendarId") VALUES (?, ?)`, MAYA, "cld_maya0001");
+  h.ctx.db.run(`INSERT INTO google_calendar (email, "calendarId") VALUES (?, ?)`, SAM, "cld_sam00001");
   h.on("GET", "https://gmail.googleapis.com/gmail/v1/users/me/history", { body: { history: [], historyId: "1001" } });
   await receivePush(h.ctx, { kind: "gmail", messageId: "p1", mailbox: MAYA, historyId: "1500" });
-  assert.equal(h.calls("calendar.sync_now").length, 1);
-  assert.equal(h.calls("calendar.connect_provider")[0]!.input.account, MAYA);
+  assert.deepEqual(h.calls("calendar.sync_now").map((c) => c.input), [{ calendarId: "cld_maya0001" }]);
+  assert.equal(h.calls("calendar.connect_provider").length, 0, "connecting takes an admin, so a mailbox pass never does it");
   await receivePush(h.ctx, { kind: "gmail", messageId: "p2", mailbox: SAM, historyId: "1500" });
   assert.equal(h.calls("calendar.sync_now").length, 1);
+});
+
+test("a member who has no calendar connected (they came after setup) has nothing to sync", async () => {
+  const h = harness({ admin: true });
+  ensure(h.ctx);
+  seedDelegation(h);
+  h.ctx.db.run(`INSERT INTO google_mailbox (email, "connectionId", "historyId", "lastPolledAt", "lastActivityAt", "watchExpiresAt", "pubsubTopic", "nextPollAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, MAYA, CONN, "1000", null, null, null, null, null);
+  h.on("GET", "https://gmail.googleapis.com/gmail/v1/users/me/history", { body: { history: [], historyId: "1001" } });
+  await receivePush(h.ctx, { kind: "gmail", messageId: "p9", mailbox: MAYA, historyId: "1" });
+  assert.equal(h.calls("calendar.sync_now").length, 0);
+});
+
+test("setup remembers which Calendar calendar each member's is, and excluding a member forgets theirs", async () => {
+  const h = admin();
+  await dwdSetup(h.ctx, { vaultItem: "#Google_DWD", adminEmail: "admin@vyre.test", idempotencyKey: "s1" });
+  assert.deepEqual(h.rows(`SELECT email FROM google_calendar`).map((r) => String(r.email)).sort(), ["kim@vyre.test", MAYA, SAM]);
+  await dwdSetExcluded(h.ctx, { email: MAYA, excluded: true });
+  assert.deepEqual(h.rows(`SELECT email FROM google_calendar`).map((r) => String(r.email)).sort(), ["kim@vyre.test", SAM]);
+  await dwdSetExcluded(h.ctx, { email: MAYA, excluded: false });
+  assert.deepEqual(h.rows(`SELECT email FROM google_calendar`).map((r) => String(r.email)).sort(), ["kim@vyre.test", MAYA, SAM]);
 });
 
 test("a Calendar failure never fails the setup or the mailbox pass", async () => {
