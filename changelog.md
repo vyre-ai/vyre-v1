@@ -1,5 +1,6 @@
 # Changelog
 
+- Read an MCP server address through the public document fetcher and turn each tool name into a drafted action.
 - Open a document address only over https, and refuse a private, loopback, link-local, or metadata host, including after lookup and on every redirect. The body is text, capped, and not treated as instructions.
 - Offer to set up Automations once when a Vault item is saved. Declining or accepting is final for that item. A key in the item name is not repeated in the offer.
 - Keep connector actions inside the parsed schema. An MCP tool list becomes one drafted action per tool. A shared copy drops the vault id and the key. A drafted action cannot be published.
