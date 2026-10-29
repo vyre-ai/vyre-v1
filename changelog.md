@@ -1,5 +1,6 @@
 # Changelog
 
+- Stop a Space that has no agent computer from showing server health Down because Docker is not installed: computers.health now reports healthy with runtime missing and says to install Docker when no computer exists (it stays Down once a computer depends on the runtime), and the Agent computers page reads "No container runtime".
 - Make the parity proof assert the Console health dot tells the truth: on every page and rendering it must read the server's own overall health (health.status). A freshly claimed Space legitimately turns amber or red after its first health cycle (no backup target, no audit checkpoint, and no container runtime on a machine without Docker).
 - Console polish: every Console menu picker shows the shared chevron so it no longer reads like a text field, and an access review is titled by day ("Access review, 29 Oct") instead of the raw locale timestamp.
 - Prove every Console page draws on a real Space at desktop and phone, light and graphite (apps/app/tests/console.pages-parity.live.test.ts, 44 pages by 4 renderings): reached through the real navigation, no crash card, nothing stuck loading, no sideways overflow, no page error; the 176 screenshots go to /tmp/vyre-console-parity-shots.
