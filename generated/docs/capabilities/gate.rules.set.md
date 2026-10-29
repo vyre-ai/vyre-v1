@@ -25,7 +25,7 @@ Set a Gate rule for an act at the Space, owner floor or agent level; a rule can 
 
 ```ts
 type In = {
-  act: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   mode: "hold" | "allow";
@@ -42,7 +42,7 @@ type In = {
 ```ts
 type Out = {
   rule: {
-    act: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
     mode: "hold" | "allow";
     approvers: string;
     peopleOnly: boolean;

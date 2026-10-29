@@ -177,6 +177,17 @@ test("reconnect asks the host and never reports a green row it has not seen; rem
   assert.deepEqual(h.events, [], "removal is observed only after the driver succeeds");
 });
 
+test("a new Space on a only reachable from this computer reads healthy until a relay endpoint is reported, and then follows it", async () => {
+  const h = harness();
+  config(h, { mode: "relay", address: "http://127.0.0.1:4000" });
+  const fresh = await health(h.ctx, {});
+  assert.equal(fresh.state, "healthy");
+  assert.match(String(fresh.detail), /only reachable from this computer/);
+  assert.equal((await status(h.ctx, {})).certificate.state, "healthy", "the status the Console reads agrees: no certificate to lack, nothing to renew");
+  endpoint(h, "relay", "https://relay.vyre.run", "down", 40, NOW);
+  assert.equal((await health(h.ctx, {})).state, "down", "once a relay is set up, an unreachable relay is down");
+});
+
 test("the health probe combines certificate expiry and relay reachability", async () => {
   const h = harness();
   assert.deepEqual(await health(h.ctx, {}), { state: "degraded", detail: "The host has not reported its address yet." });

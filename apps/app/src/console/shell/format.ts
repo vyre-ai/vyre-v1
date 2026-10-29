@@ -23,3 +23,17 @@ export function money(micros: number): string {
 export function actionPhrase(action: string): string {
   return action.replace(/[._]/g, " ");
 }
+
+/** Plain sentences for the acts a new owner sees first; anything else keeps the generic phrase. An actor the Space has no name for reads as "The owner" only for a claim, else "Someone". */
+const SENTENCES: Readonly<Record<string, string>> = { "audit.viewed": "opened the audit log", "identity.claim_owner": "claimed this Space" };
+export function activityTitle(who: string, action: string, resource: string | undefined): string {
+  const unnamed = /^(act|usr|agt)_/.test(who);
+  const sentence = SENTENCES[action];
+  if (sentence) return `${unnamed ? (action === "identity.claim_owner" ? "The owner" : "Someone") : who} ${sentence}`;
+  return `${unnamed ? "Someone" : who} ${actionPhrase(action)}${resource ? ` ${resource}` : ""}`;
+}
+
+/** "1 holder", "2 holders": the count with its noun in the right number. */
+export const count = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
+/** A section label as a person reads it: "space" is "Space". */
+export const capital = (text: string): string => `${text[0]?.toUpperCase() ?? ""}${text.slice(1)}`;

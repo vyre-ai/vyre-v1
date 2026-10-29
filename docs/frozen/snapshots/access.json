@@ -3,7 +3,7 @@
   "capabilities": {
     "access.actors.create@1": "43e2b4aea54864f8e1d95f46d6f71822d4ca1b6a7241c49bab2b45cdca1c9817",
     "access.actors.list@1": "2b0f559247b1244bc45e562c9cc0635706b4dbd8060469d4c86075e187a38c65",
-    "access.actors.redeem@1": "6d51c19d019d819d49617c17849d6915410a7a9df4c46fbc1a31320236d6d186",
+    "access.actors.redeem@1": "0f9d06c3ae7e648b35f2d9f340c197f2f239c8f483ed6c9135fdac033e266eac",
     "access.actors.revoke@1": "3b9d8dc2453f92807c81927d81e2494d49427f4040a8717a2a2291ba8dd957f4",
     "access.actors.set_engineer_mcp@1": "f1f8191a554b450576a98dc11739d047dde22d2416b8f3467cb37360d89f0a58",
     "access.actors.update@1": "1f0abfbc22bb77fcf7e659712dab0c67f95f5d3692bf4436e9725e850911e013",

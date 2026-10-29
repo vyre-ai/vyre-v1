@@ -118,7 +118,7 @@ export default defineManifest({
       in: { ...comp, site: t.str() }, out: { ok: t.bool() }, on: ['computer', '/computerId'], perm: 'computers.take_over', team: true, emits: ['computer.session_signed_out', 'computer.started'], tool: 'computer', audit: 'sensitive',
     }),
     read('computers.health', 'Health of the container runtime and agentd on the host', {
-      out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()), awake: t.int(), asleep: t.int() }, team: true,
+      out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), runtime: t.opt(t.enm('ready', 'missing')), latencyMs: t.opt(t.int()), awake: t.int(), asleep: t.int() }, team: true,
     }),
 
     // ---- Chrome tools (Vyre for Chrome signed in as the agent)

@@ -220,6 +220,8 @@ export interface DaemonOptions {
   computersBaseUrl?: string;
   /** How often an agent computer mirrors its home with Files while it runs (tests set it long and trigger passes by waking and sleeping). Default 3 s. */
   computersHomeIntervalMs?: number;
+  /** The container engine socket the agent computers module talks to (default: the system one); tests point it somewhere nothing listens. */
+  computersSocketPath?: string;
   /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan). Omitted: a CLI engine refuses to start. */
   engineSandbox?: unknown;
   /** Tests: swap a CLI engine's program for a command, and expose extra read-only folders in its sandbox (modules/engine runtime `cli`). */
@@ -622,6 +624,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           if (h && mod === "identity") return ((ctx, input) => h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown, opts?: unknown) => (name === "devices.register" ? system(name, callInput, ctx.trace) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
           // accepting an invite: the person proved the code, and the invite's role, groups and starting places were the inviter's to give. Those join effects run as the host, not as the signed-out caller.
           if (h && cap === "members.accept") return ((ctx, input) => h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown) => system(name, callInput, ctx.trace) } as typeof ctx, input)) as Handler;
+          // handing an agent to another person: ownership of the agent and its folder moves with the host's authority (ruling 88). The call itself was authorized (manage on the agent, and the Gate for a non-person);
+          // only this one call from this one capability is widened, and it is the host-only access.transfer_ownership
+          if (h && cap === "agents.set_owner") return ((ctx, input) => h({ ...ctx, call: (name: string, callInput: unknown, opts?: unknown) => (name === "access.transfer_ownership" ? hookRunner.call(name, callInput) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
           if (h && peopleExtras?.(mod, {})) return ((ctx, input) => h({ ...ctx, ...peopleExtras!(mod, ctx) } as typeof ctx, input)) as Handler;
           if (!h || !cap.startsWith("devices.")) return h;
           const wrapped: Handler = (ctx, input) => h({ ...ctx, call: (name, callInput, opts) => (name === "sync.epoch.bump" ? system(name, callInput, ctx.trace) : ctx.call(name, callInput, opts)) } as typeof ctx, input);
@@ -823,6 +828,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }),
         setComputerHost: () => createComputersHost({
           dataDir: paths.root,
+          ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : {}),
           // the home mirror runs as the agent: the same pipeline as any call, so access, review rules and the scrubber apply
           callAs: createAgentHomeCaller({ db: db!, spaceId, invoke }),
           // large files go to the Files module in process: the slot's one-time token from files.upload_url is the only authority, and no session or bearer is involved
@@ -1004,7 +1010,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const session: GatewayDeps["session"] = o.session ?? ((headers) => {
         const token = bearer(headers["authorization"]);
         if (token?.startsWith("vas_")) { const preview = previews?.resolve(token); return preview ? { space: preview.space, principal: { kind: "person", id: preview.requester }, actingFor: preview.target, device: preview.device, sessionId: preview.sessionId, previewToken: token } : null; }
-        return identify(token);
+        const known = identify(token);
+        if (known || !token) return known;
+        // an outside tool's long-lived credential (issued by access.actors.redeem): the active actor holding it, only while the access snapshot still has that actor active
+        return (async (): Promise<(SessionInfo & { device: string }) | null> => {
+          const found = (await hookRunner.call("access.actor_by_credential", { credential: token }).catch(() => null)) as { actorId: string } | null;
+          if (!found || access.snap.principal(found.actorId)?.status !== "active") return null;
+          return { space: spaceId, principal: { kind: "actor", id: found.actorId }, device: "outside-actor" };
+        })();
       });
       ownerOfSpace = () => access.owner() ?? cfg.owner ?? null;
       callerOf = async (h) => {
@@ -1118,13 +1131,20 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     chainBroken = true;
     return probes.eventsDb({ ok: false, seq: verified.seq, why: `${v.why} at event ${v.at}`, latencyMs: now() - t0 });
   };
+  // Docker and Caddy matter once an agent computer exists. Before that, a Space without them has nothing waiting on them, so a miss is a hint, not a failure.
+  const unusedRuntime = (r: ProbeResult): ProbeResult => {
+    if (r.state !== "down") return r;
+    let used = true;
+    try { used = Number((db?.all("SELECT COUNT(*) AS n FROM computers_computers") as { n?: unknown }[] | undefined)?.[0]?.n ?? 0) > 0; } catch { used = false; }
+    return used ? r : { ...r, state: "healthy", detail: `${r.detail ?? "Not running."} Agent computers need it; none exist yet.` };
+  };
   const probeFns: Record<ProbeName, () => Promise<ProbeResult> | ProbeResult> = {
     disk_encrypted: () => (o.probes?.diskEncrypted ? o.probes.diskEncrypted() : probes.diskEncrypted(platform, paths.root)),
     events_db: events,
     index_db: () => probes.indexLag(o.probes?.indexLag ? o.probes.indexLag() : null),
     scheduler: () => probes.schedulerTick(scheduler.lastTickAt, now()),
-    docker: () => probes.docker(platform),
-    caddy: () => (fetchFn ? probes.caddy(fetchFn, cfg.caddyAdmin, now) : { state: "down", detail: "No HTTP client to reach the Caddy admin API." }),
+    docker: async () => unusedRuntime(await probes.docker(platform)),
+    caddy: async () => unusedRuntime(fetchFn ? await probes.caddy(fetchFn, cfg.caddyAdmin, now) : { state: "down", detail: "No HTTP client to reach the Caddy admin API." }),
     disk_space: () => probes.diskSpace(platform, paths.root),
     time_skew: () => probes.timeSkew(fetchFn, cfg.relayUrl, now),
   };

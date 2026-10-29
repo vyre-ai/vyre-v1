@@ -289,7 +289,7 @@ test("a Pub/Sub watch turns the poll into an hourly backstop", async () => {
 
 test("health is healthy with a latency, degraded when Google struggles, down when the delegation is refused or not set up", async () => {
   const off = harness();
-  assert.deepEqual(await health(off.ctx, {}), { state: "down", detail: "Google delegation is not set up." });
+  assert.deepEqual(await health(off.ctx, {}), { state: "healthy", detail: "Google delegation is not set up yet." });
   const h = harness();
   seedDelegation(h);
   h.on("GET", PROFILE, { body: { emailAddress: "admin@vyre.test", historyId: "1" } });

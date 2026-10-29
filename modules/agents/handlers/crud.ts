@@ -282,6 +282,32 @@ export async function remove(ctx: AgentsCtx, input: { agentId: string }) {
   return { deleted: true };
 }
 
+/** Hand an agent to another person. Whoever manages the agent (its owner, or an admin) may; the new owner must be an active person. The agent's folder and the agent itself change owner with it (ruling 88), and the previous owner keeps nothing on them. */
+export async function setOwner(ctx: AgentsCtx, input: { agentId: string; ownerId: string }) {
+  const a = visible(ctx, input.agentId);
+  if (!input.ownerId.startsWith("usr_")) raise(ctx, "validation.bad_input", "An agent's owner is a person.", { ownerId: input.ownerId });
+  if (input.ownerId === a.ownerId) return { agent: agentOut(a, ctx.now()) };
+  const who = await tolerant<{ principal?: { status?: string; kind?: string } }>(ctx, "access.principals.get", { principal: { kind: "person", id: input.ownerId } }, {});
+  if (who.principal?.kind !== "person" || who.principal.status !== "active") raise(ctx, "validation.bad_input", "The new owner has to be an active person in this Space.", { ownerId: input.ownerId });
+  const from = a.ownerId, now = ctx.now();
+  if (!ctx.call) raise(ctx, "internal.unavailable", "Ownership cannot be moved right now.");
+  // the folder and the agent change owner first, and strictly: if any move fails, the ones already made are put back and nothing changes
+  const resources = [{ type: "agent", id: a.id }, ...(a.folderId !== undefined ? [{ type: "folder", id: a.folderId }] : [])];
+  const moved: { type: string; id: string }[] = [];
+  try {
+    for (const resource of resources) { await ctx.call("access.transfer_ownership", { resource, from, to: input.ownerId }); moved.push(resource); }
+  } catch (e) {
+    for (const resource of moved) {
+      try { await ctx.call("access.transfer_ownership", { resource, from: input.ownerId, to: from }); }
+      catch (back) { ctx.log.error("agents: could not put an ownership move back, the agent is half handed over", { agentId: a.id, resource, from: input.ownerId, to: from, error: back instanceof Error ? back.message.slice(0, 200) : "error" }); }   // the original failure is still the one raised
+    }
+    raise(ctx, "internal.unexpected", "The agent could not be handed over, so nothing changed. Try again.", { cause: e instanceof Error ? e.message.slice(0, 120) : "error" });
+  }
+  ctx.db.run("UPDATE agents_agent SET ownerId = ?, updatedAt = ? WHERE id = ?", input.ownerId, now, a.id);
+  ctx.emit("agent.owner_changed", a.id, { agentId: a.id, from, to: input.ownerId, by: by(ctx) });
+  return { agent: agentOut(agentBy(ctx.db, a.id)!, now) };
+}
+
 export async function restore(ctx: AgentsCtx, input: { agentId: string }) {
   ensure(ctx.db);
   const a = agentBy(ctx.db, input.agentId, true);

@@ -278,8 +278,8 @@ export async function health(ctx: TwilioCtx): Promise<{ state: "healthy" | "degr
     if (status === "suspended" || status === "closed") return { state: "down", detail: `The Twilio account is ${status}.`, latencyMs };
     return { state: "healthy", latencyMs };
   } catch (e) {
-    if (e instanceof HostError && e.error.code === "internal.unavailable") return { state: "down", detail: "Twilio is not set up on this server." };
-    if (e instanceof HostError && e.error.code === "provider.auth_failed") return { state: "down", detail: "Twilio credentials are missing. Add Twilio_Account and Twilio_Auth to the Vault." };
+    if (e instanceof HostError && e.error.code === "internal.unavailable") return { state: "healthy", detail: "Twilio is not set up yet." };
+    if (e instanceof HostError && e.error.code === "provider.auth_failed") return { state: "healthy", detail: "Twilio has no credentials yet. Add Twilio_Account and Twilio_Auth to the Vault." };
     if (e instanceof HostError && e.error.code === "provider.network") return { state: "down", detail: "Twilio could not be reached." };
     throw e;
   }

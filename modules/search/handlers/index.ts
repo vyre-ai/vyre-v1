@@ -3,7 +3,7 @@
 // End-to-end content never reaches the index: a source answers `e2e` for a private chat, a Restricted row or an encrypted message, and apply then removes whatever was there.
 import { askerOf, embed, ensure, mintId, num, putDoc, removeDoc, rowsOf, str, vectorsOf, writeVector, sourceFor } from "../projections.ts";
 import type { IndexDoc, Resolved, SearchCtx, Source } from "../projections.ts";
-import { actionsList, query, recentList, related } from "./query.ts";
+import { actionsList, query, recentList, related, resolveItem } from "./query.ts";
 
 const NOT_FOUND = new Set(["validation.not_found", "permission.not_found"]);
 const codeOf = (e: unknown): string => (e as { error?: { code?: string }; code?: string } | null)?.error?.code ?? (e as { code?: string } | null)?.code ?? "";
@@ -337,6 +337,7 @@ export async function recentRecord(ctx: SearchCtx, input: { kind: string; itemId
 
 export const handlers = {
   "search.query": query,
+  "search.resolve": resolveItem,
   "search.recent.list": recentList,
   "search.recent.record": recentRecord,
   "search.actions.list": actionsList,

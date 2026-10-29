@@ -6,7 +6,7 @@
 // DECISION: Zoom's times are ISO strings; the contract's are epoch milliseconds. A meeting with no start time (an instant or recurring-with-no-fixed-time meeting) has none in the answer.
 // DECISION: transcripts are the recording file of type TRANSCRIPT (WebVTT); a meeting without one is validation.not_found, which meetings.attach_recording treats as "no words yet".
 import { fail } from "../../../host/src/routes/errors.ts";
-import { api, accessToken, bad, codeOf, ensure, first, intOrUndef, list, meetingIdOf, needHost, obj, strOrUndef, text } from "../projections.ts";
+import { api, accessToken, bad, codeOf, ensure, first, HANDLE, intOrUndef, list, meetingIdOf, needHost, obj, strOrUndef, text } from "../projections.ts";
 import type { Json, ZoomCtx } from "../projections.ts";
 
 const EMAIL = /^[^\s@]+@[^\s@]+$/;
@@ -200,6 +200,9 @@ export async function usersMe(ctx: ZoomCtx) {
 export async function health(ctx: ZoomCtx) {
   ensure(ctx);
   const started = Date.now();
+  try { await needHost(ctx).secret(ctx, HANDLE.account); } catch (e) {
+    if (codeOf(e) === "provider.auth_failed") return { state: "healthy" as const, detail: "Zoom is not set up yet. Add the Zoom_S2S item to the Vault.", latencyMs: Date.now() - started };
+  }
   try {
     await usersMe(ctx);
   } catch (e) {

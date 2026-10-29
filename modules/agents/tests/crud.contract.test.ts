@@ -11,8 +11,8 @@ import type { Harness } from "../fixtures/harness.ts";
 const mine = registry.capabilities.filter((c) => c.module === "agents");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
-test("the handler table covers exactly the 32 capabilities of the agents manifest", () => {
-  assert.equal(mine.length, 32);
+test("the handler table covers exactly the 33 capabilities of the agents manifest", () => {
+  assert.equal(mine.length, 33);
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });
@@ -59,6 +59,8 @@ const scenarios: Scenario[] = [
   { cap: "agents.resume", run: (hn) => h["agents.resume"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
   { cap: "agents.delete", setup: withAgent, run: (hn, s) => h["agents.delete"]!(hn.ctx, { agentId: s.id }) },
   { cap: "agents.delete", run: (hn) => h["agents.delete"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
+  { cap: "agents.set_owner", setup: withAgent, run: (hn, s) => h["agents.set_owner"]!(hn.ctx, { agentId: s.id, ownerId: "usr_leo" }) },
+  { cap: "agents.set_owner", run: (hn) => h["agents.set_owner"]!(hn.ctx, { agentId: "agt_none", ownerId: "usr_leo" }), expect: "validation.not_found" },
   { cap: "agents.restore", setup: async (hn) => { const s = await withAgent(hn); await h["agents.delete"]!(hn.ctx, { agentId: s.id }); return s; }, run: (hn, s) => h["agents.restore"]!(hn.ctx, { agentId: s.id }) },
   { cap: "agents.restore", run: (hn) => h["agents.restore"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
   { cap: "agents.visibility.set", run: (hn) => h["agents.visibility.set"]!(hn.ctx, { all: true }) },
