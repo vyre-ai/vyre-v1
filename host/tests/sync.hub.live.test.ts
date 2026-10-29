@@ -170,3 +170,35 @@ test("raising a field's classification while a device is connected purges it bef
     assert.ok(!olivia.text().includes("after-raise-value"), "nothing committed after the raise reached the device that cached the old classification");
   } finally { await w.d.stop(); }
 });
+
+test("a device that drops and reconnects with its cursor is sent exactly what it missed: no loss, no row applied twice", async () => {
+  const w = await world();
+  const open: Array<{ close(): void }> = [];
+  try {
+    await seeded(w);
+    const name = (i: { fields: Record<string, any> }): string => String((i.fields["name"] as { v: unknown }).v);   // eslint-disable-line @typescript-eslint/no-explicit-any
+    assert.equal((await create(w, "rc-a", "Alpha")).status, 200);
+    const first = await socket(w.d, w.owner, w.ownerDevice); open.push(first);
+    await first.until("Alpha", () => first.items().some((i) => name(i) === "Alpha"));
+    assert.equal((await create(w, "rc-b", "Bravo")).status, 200);
+    await first.until("Bravo", () => first.items().some((i) => name(i) === "Bravo"));
+    const cursor = Math.max(...first.frames.filter((f) => f["t"] === "ev").flatMap((f) => (f["items"] as { seq: number }[]).map((i) => i.seq)));
+    const epoch = first.hello()!.epoch;
+
+    // the network drops: the socket goes, and two rows are committed while the device is away
+    first.close();
+    await first.until("closed", () => first.isClosed());
+    assert.equal((await create(w, "rc-c", "Charlie")).status, 200);
+    assert.equal((await create(w, "rc-d", "Delta")).status, 200);
+
+    const back = await socket(w.d, w.owner, w.ownerDevice, REGISTRY_HASH, cursor, epoch); open.push(back);
+    await back.until("hello_ok", () => back.hello() !== undefined);
+    assert.equal(back.hello()!.mode, "live");
+    await back.until("the missed rows", () => ["Charlie", "Delta"].every((n) => back.items().some((i) => name(i) === n)));
+    assert.deepEqual(back.items().map(name).sort(), ["Charlie", "Delta"], "exactly the missed rows: nothing lost, nothing sent again");
+
+    assert.equal((await create(w, "rc-e", "Echo")).status, 200);
+    await back.until("Echo", () => back.items().some((i) => name(i) === "Echo"));
+    assert.deepEqual(back.items().map(name).sort(), ["Charlie", "Delta", "Echo"], "and one live row, once");
+  } finally { for (const s of open) s.close(); await w.d.stop(); }
+});

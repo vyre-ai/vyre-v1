@@ -113,6 +113,24 @@ test("raising a field's classification after a device cached it makes that devic
   } finally { s.host.close(); }
 });
 
+test("the purge is the person's: a second device of the same person also starts over, cleanly, and the new copies never carry the field", async () => {
+  const { s } = await seeded();
+  try {
+    const laptop = await pull(s, OWNER, "laptop", 0, 0);
+    const tablet = await pull(s, OWNER, "tablet", 0, 0);
+    await s.store.define({ change_types: [RAISED] });
+    assert.equal((await pull(s, OWNER, "laptop", laptop.next, laptop.epoch)).reset, "purge");
+    const next = (await pull(s, OWNER, "tablet", tablet.next, tablet.epoch));
+    assert.equal(next.reset, "purge", "the tablet cached the field too");
+    for (const device of ["laptop", "tablet"]) {
+      const fresh = await pull(s, OWNER, device, 0, next.epoch);
+      assert.equal(fresh.reset, undefined, `${device} resyncs without a second purge`);
+      assert.ok(!JSON.stringify(fresh).includes("salary-fixture-value"));
+      assert.equal((await pull(s, OWNER, device, fresh.next, fresh.epoch)).reset, undefined);
+    }
+  } finally { s.host.close(); }
+});
+
 test("a classification raise purges only people who cached the field; a device that never held the type is untouched", async () => {
   const { s } = await seeded();
   try {

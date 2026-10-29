@@ -1,6 +1,8 @@
 # Changelog
 
 
+- Test that a classification purge also resyncs a second device of the same person (the purge is the person's, stated in the code), and that a device reconnecting after a drop with its cursor gets exactly the rows it missed, none lost and none twice.
+
 - Serve the production daemon's live socket from the sync module's own hub: the module registers a lazy hub factory through its seam (the hub opens the Space store only when a device connects), the daemon hands it every authenticated socket, closes it on shutdown, and a failing factory refuses connections instead of falling back. Sockets get the modern hello_ok envelope and filtered row batches, never raw events. Grants on a record type or an ancestor now hide their fields from the person's rows too (before, only type-wide grants did, so a hidden field reached a Guest's replica) and row filters on such grants are read from the row's own values. Proved on a booted, claimed daemon with a real Owner and Guest over real WebSockets: live rows with no polling, Restricted and hidden fields never sent, unknown build hash resync, revoked device purged and closed, classification raised while connected purges.
 
 - Guard Kit undo steps: an install records which record types it actually created, and the stored undo never drops one the Kit did not create (seeded by a manifest or already in the Space), so rolling back or removing the Default Kit leaves note_board alone.
