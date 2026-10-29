@@ -13,6 +13,7 @@ mod links;
 mod native;
 mod sidecar;
 mod personal;
+mod macserver;
 
 use commands::AppState;
 use std::sync::{Arc, Mutex};
@@ -85,6 +86,8 @@ pub fn run() {
     let exit_handle = shared.clone();
     let personal = Arc::new(sidecar::Sidecar::personal());
     let personal_exit = personal.clone();
+    let server = Arc::new(sidecar::Sidecar::server());
+    let server_exit = server.clone();
 
     let app = tauri::Builder::default()
         // Must be first so a second launch is caught before anything else starts.
@@ -121,10 +124,11 @@ pub fn run() {
                 native::on_focus(window.app_handle());
             }
         })
-        .manage(AppState { sidecar: shared.clone(), personal: personal.clone(), links: Mutex::new(commands::LinkHandoff::default()), native: native::NativeState::default() })
+        .manage(AppState { sidecar: shared.clone(), personal: personal.clone(), server: server.clone(), links: Mutex::new(commands::LinkHandoff::default()), native: native::NativeState::default() })
         .invoke_handler(tauri::generate_handler![
             commands::desktop_info,
             commands::ensure_personal_space,
+            commands::ensure_mac_server,
             commands::take_pending_link,
             commands::page_report,
             native::notify,
@@ -180,6 +184,7 @@ pub fn run() {
             }
             sidecar::start(&handle, &state.sidecar, 0);
             if personal::profile_exists(&handle) { sidecar::start(&handle, &state.personal, 0); }
+            if macserver::profile_exists(&handle) { sidecar::start(&handle, &state.server, 0); }
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -189,6 +194,7 @@ pub fn run() {
         if let RunEvent::Exit = event {
             sidecar::stop(&exit_handle);
             sidecar::stop(&personal_exit);
+            sidecar::stop(&server_exit);
         }
     });
 }

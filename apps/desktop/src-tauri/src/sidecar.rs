@@ -16,6 +16,11 @@ use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
 pub const EVENT: &str = "vyre://sidecar";
+const SERVER_EVENT: &str = "vyre://server-sidecar";
+/// The Team Space the app hosts when a Mac is run as the Space server (macserver.rs): a fixed loopback port so the address the person signs in to survives a restart.
+pub const MAC_SERVER_PORT: u16 = 8425;
+/// People reach that Space through Vyre's relay, as with `install.sh --relay`; no port on the Mac is opened to the internet.
+pub const MAC_SERVER_RELAY: &str = "https://relay.vyre.run";
 const MAX_RESTARTS_PER_MINUTE: usize = 5;
 const HEALTH_WAIT: Duration = Duration::from_secs(20);
 
@@ -48,6 +53,7 @@ impl Status {
 pub struct Sidecar {
     pub status: Mutex<Option<Status>>,
     pub personal: bool,
+    pub server: bool,
     pub ensure: Mutex<()>,
     generation: AtomicU64,
     child: Mutex<Option<CommandChild>>,
@@ -56,7 +62,11 @@ pub struct Sidecar {
     starts: Mutex<Vec<Instant>>,
 }
 
-impl Sidecar { pub fn personal() -> Self { Self { personal: true, ..Default::default() } } }
+impl Sidecar {
+    pub fn personal() -> Self { Self { personal: true, ..Default::default() } }
+    /// The Mac Space server: a team Space with a relay, not the device daemon and not the Personal Space.
+    pub fn server() -> Self { Self { server: true, ..Default::default() } }
+}
 
 pub type Shared = Arc<Sidecar>;
 
@@ -143,11 +153,28 @@ pub(crate) fn launch_args(entry: PathBuf, data: &std::path::Path, personal: bool
  if personal {args.extend(["--space-kind".into(),"personal".into(),"--space-name".into(),"Personal".into(),"--space".into(),crate::personal::profile_space_id(data)?]);}Ok(args)
 }
 
+/// `vyred` arguments for the Mac Space server: a team Space (role space and device) on a fixed loopback port, linked outward to the relay. The page chooses none of it.
+pub(crate) fn server_launch_args(entry: PathBuf, data: &std::path::Path) -> Result<Vec<String>, String> {
+    let space = crate::personal::profile_space_id_in(data, "server-profile.json")?;
+    Ok(vec![
+        entry.to_string_lossy().to_string(),
+        "--role".into(), "space,device".into(),
+        "--data-dir".into(), data.to_string_lossy().to_string(),
+        "--host".into(), "127.0.0.1".into(),
+        "--port".into(), MAC_SERVER_PORT.to_string(),
+        "--space-kind".into(), "team".into(),
+        "--space-name".into(), "Team Space".into(),
+        "--space".into(), space,
+        "--relay".into(), MAC_SERVER_RELAY.into(),
+    ])
+}
+
 fn set(app: &AppHandle, shared: &Shared, status: Status) {
     if let Ok(mut s) = shared.status.lock() {
         *s = Some(status.clone());
     }
-    let _ = app.emit(if shared.personal { "vyre://personal-sidecar" } else { EVENT }, status);
+    let event = if shared.server { SERVER_EVENT } else if shared.personal { "vyre://personal-sidecar" } else { EVENT };
+    let _ = app.emit(event, status);
 }
 
 fn may_start(shared: &Shared) -> bool {
@@ -180,7 +207,7 @@ pub fn start(app: &AppHandle, shared: &Shared, restarts: usize) {
     set(app, shared, st);
 
     let data = match app.path().app_data_dir() {
-        Ok(dir) => dir.join(if shared.personal { "personal" } else { "vyred" }),
+        Ok(dir) => dir.join(if shared.server { "server" } else if shared.personal { "personal" } else { "vyred" }),
         Err(e) => {
             let mut st = Status::new(Phase::Failed);
             st.restarts = restarts;
@@ -193,7 +220,7 @@ pub fn start(app: &AppHandle, shared: &Shared, restarts: usize) {
         let runtime = runtime_dir(app)?;
         let entry = runtime.join("host").join("src").join("daemon").join("main.ts");
         std::fs::create_dir_all(&data).map_err(|e| e.to_string())?;
-        let args = launch_args(entry, &data, shared.personal)?;
+        let args = if shared.server { server_launch_args(entry, &data)? } else { launch_args(entry, &data, shared.personal)? };
         let cmd = app.shell().sidecar("vyred").map_err(|e| e.to_string())?.args(args).current_dir(runtime);
         cmd.spawn().map_err(|e| e.to_string())
     })();
@@ -331,6 +358,25 @@ mod tests {
     #[test]
     fn nothing_listening_is_not_healthy() {
         assert!(!healthy("http://127.0.0.1:1"));
+    }
+
+    #[test]
+    fn the_mac_server_is_a_team_space_on_a_fixed_loopback_port_linked_to_the_relay() {
+        let dir = std::env::temp_dir().join(format!("vyre-server-args-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let args = server_launch_args(PathBuf::from("main.ts"), &dir).unwrap();
+        let after = |flag: &str| args.iter().position(|a| a == flag).and_then(|i| args.get(i + 1)).cloned();
+        assert_eq!(after("--role").as_deref(), Some("space,device"));
+        assert_eq!(after("--space-kind").as_deref(), Some("team"));
+        assert_eq!(after("--host").as_deref(), Some("127.0.0.1"));
+        assert_eq!(after("--port"), Some(MAC_SERVER_PORT.to_string()));
+        assert_eq!(after("--relay").as_deref(), Some(MAC_SERVER_RELAY));
+        assert!(after("--space").unwrap().starts_with("spc_"));
+        // the Space keeps its id across restarts, and the data folder is the one given
+        assert_eq!(server_launch_args(PathBuf::from("main.ts"), &dir).unwrap(), args);
+        assert_eq!(after("--data-dir").as_deref(), Some(dir.to_str().unwrap()));
+        assert!(dir.join("server-profile.json").is_file());
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]
