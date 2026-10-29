@@ -1004,7 +1004,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const session: GatewayDeps["session"] = o.session ?? ((headers) => {
         const token = bearer(headers["authorization"]);
         if (token?.startsWith("vas_")) { const preview = previews?.resolve(token); return preview ? { space: preview.space, principal: { kind: "person", id: preview.requester }, actingFor: preview.target, device: preview.device, sessionId: preview.sessionId, previewToken: token } : null; }
-        return identify(token);
+        const known = identify(token);
+        if (known || !token) return known;
+        // an outside tool's long-lived credential (issued by access.actors.redeem): the active actor holding it, only while the access snapshot still has that actor active
+        return (async (): Promise<(SessionInfo & { device: string }) | null> => {
+          const found = (await hookRunner.call("access.actor_by_credential", { credential: token }).catch(() => null)) as { actorId: string } | null;
+          if (!found || access.snap.principal(found.actorId)?.status !== "active") return null;
+          return { space: spaceId, principal: { kind: "actor", id: found.actorId }, device: "outside-actor" };
+        })();
       });
       ownerOfSpace = () => access.owner() ?? cfg.owner ?? null;
       callerOf = async (h) => {

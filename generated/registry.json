@@ -20694,8 +20694,11 @@
     },
     {
       "audit": "always",
+      "caller": "anonymous",
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "access.changed"
+      ],
       "errors": [
         "auth.invalid_code",
         "internal.unexpected",
@@ -20753,6 +20756,11 @@
         "type": "object"
       },
       "permission": null,
+      "rate": {
+        "n": 20,
+        "perSeconds": 60,
+        "scope": "space"
+      },
       "resource": {
         "type": "space"
       },

@@ -195,6 +195,7 @@ export async function actorsRedeem(ctx: AccessCtx, input: { token: string }) {
   const p = store.principals.get(actor.id);
   if (p) p.status = "active";
   store.bump();
+  ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what: "actor", by: actor.id });   // the snapshot learns the actor is active
   try { store.persist(ctx.db); } catch (e) { store.bump(); throw e; }
   return { actorId: actor.id, credential };
 }

@@ -188,6 +188,38 @@ test("production Console Access: People directory, person object, groups, device
       assert.match(await page.getByTestId("console-grants").innerText(), /Gus Hale[\s\S]*Zephyr Quill/, "the grant row names the record");
       await matrix("grant-on-record", async (p) => { await goTo(p, "grants", "Grants", "Access"); await p.getByTestId("console-grants").waitFor(); });
     });
+    await t.test("an outside actor: create with a role, redeem the one-time token, edit its roles, revoke, and the credential stops working", async () => {
+      await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
+      await goTo(page, "actors", "Outside actors", "Agents and actors"); await page.getByTestId("console-outside-actors").waitFor();
+      await page.getByRole("button", { name: "Name", exact: true }).count();
+      await page.getByLabel("Name", { exact: true }).fill("Claude Code"); await page.getByLabel("Provider", { exact: true }).fill("anthropic");
+      await page.getByRole("button", { name: "Role", exact: true }).click(); await page.getByRole("menuitem", { name: "Developer", exact: true }).click();
+      await page.getByTestId("actor-create").click(); await page.getByTestId("actor-token").waitFor();
+      const oneTime = await page.getByTestId("actor-token").innerText();
+      const listed = (await api("access.actors.list", {})).actors as { id: string; name: string; status: string; roles: string[] }[];
+      const actor = listed.find((a) => a.name === "Claude Code")!;
+      assert.equal(actor.status, "pending"); assert.deepEqual(actor.roles, [roleId("Developer")]);
+      const redeemed = await context.request.post(`${web.origin}/v1/access/actors/redeem`, { data: { token: oneTime } });
+      assert.equal(redeemed.status(), 200, await redeemed.text());
+      const credential = (await redeemed.json()).data.credential as string;
+      let worked = 0; for (let i = 0; i < 25 && worked !== 200; i++) { worked = (await call("schema.types.list", {}, credential)).status; if (worked !== 200) await new Promise((r) => setTimeout(r, 200)); }
+      assert.equal(worked, 200, "the credential signs the tool in as its actor, with the role it was issued");
+      assert.equal((await context.request.post(`${web.origin}/v1/access/actors/redeem`, { data: { token: oneTime } })).status() >= 400, true, "the token works once");
+      await page.reload({ waitUntil: "load" }); await goTo(page, "actors", "Outside actors", "Agents and actors");
+      await page.getByTestId(`row-object-row-${actor.id}`).click();
+      await page.getByRole("button", { name: "Edit actor", exact: true }).click();
+      await page.getByTestId(`row-actor-role-choice-${roleId("Developer")}`).getByRole("button", { name: "Deselect" }).click();
+      await page.getByTestId(`row-actor-role-choice-${roleId("Member")}`).getByRole("button", { name: "Select" }).click();
+      await page.getByRole("button", { name: "Save actor", exact: true }).click(); await page.getByText("Actor updated").first().waitFor();
+      assert.deepEqual(((await api("access.actors.list", {})).actors as { id: string; roles: string[] }[]).find((a) => a.id === actor.id)!.roles, [roleId("Member")]);
+      await page.getByRole("tab", { name: /^Access/ }).click(); await page.getByText("Effective access").first().waitFor();
+      await matrix("outside-actor", async (p) => { await goTo(p, "actors", "Outside actors", "Agents and actors"); await p.getByTestId("console-outside-actors").waitFor(); });
+      await page.getByTestId("object-more").click(); await page.getByRole("menuitem", { name: "Revoke", exact: true }).click();
+      await page.getByTestId("object-confirm-go").click();
+      await page.getByText("Actor revoked").first().waitFor();
+      assert.equal(((await api("access.actors.list", {})).actors as { id: string; status: string }[]).find((a) => a.id === actor.id)!.status, "revoked");
+      assert.equal((await call("schema.types.list", {}, credential)).status, 401, "the revoked credential stops working");
+    });
     assert.deepEqual(errors, []);
   } catch (error) {
     await page.screenshot({ path: path.join(shots, "failure.png") }).catch(() => undefined);
