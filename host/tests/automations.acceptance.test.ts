@@ -167,7 +167,7 @@ test("the same idempotency key returns one run and writes the note once", async 
   } finally { await d.stop(); }
 });
 
-test("a draft may save an AI step, and turning it on is rejected as a preview", async () => {
+test("a draft may save an AI step, and turning it on is refused until the person has an AI account that works on the server", async () => {
   const d = await boot(seededDir());
   try {
     const made = await ok(d, "/v1/automations/create", { idempotencyKey: "accept-ai", name: "ai-draft" });
@@ -182,8 +182,8 @@ test("a draft may save an AI step, and turning it on is rejected as a preview", 
     assert.equal(refused.status, 422, refused.text);
     const error = refused.json["error"] as { code?: string; message?: string; details?: { reason?: string } } | undefined;
     assert.equal(error?.code, "validation.precondition_failed", refused.text);
-    assert.equal(error?.details?.reason, "preview", refused.text);
-    assert.match(error?.message ?? "", /preview/, refused.text);
+    assert.equal(error?.details?.reason, "live_step", refused.text);
+    assert.match(error?.message ?? "", /AI account/, refused.text);
     assert.notEqual((await ok(d, "/v1/automations/get", { automationId: id }) as { automation?: { status?: string } })["automation"]?.status, "on");
   } finally { await d.stop(); }
 });

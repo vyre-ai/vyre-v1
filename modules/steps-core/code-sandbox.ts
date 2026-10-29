@@ -11,7 +11,7 @@ import path from "node:path";
 import { startNetWall, bwrapWallCommand, validHostPattern } from "../../sandbox/src/index.ts";
 import type { NetWall, NetWallOptions, Roots, SandboxSpec } from "../../sandbox/src/index.ts";
 import dns from "node:dns/promises";
-import { refusesAddress } from "../../lib/net-guard.ts";
+import { refusesAddress } from "../../lib/address-guard.ts";
 import { stepError } from "./projections.ts";
 
 /** What the host gives the module: where to make run folders, and how to find bwrap and Node. Tests override the limits. */
@@ -44,7 +44,7 @@ let running = 0;
 const waiting: Array<() => void> = [];
 
 /**
- * The name lookup the egress proxy uses. The proxy already refuses the addresses of its own list; this adds lib/net-guard.ts, the one list the public fetcher uses (tailnet 100.64/10, 198.18/15,
+ * The name lookup the egress proxy uses. The proxy already refuses the addresses of its own list; this adds lib/address-guard.ts, the one list the public fetcher uses (tailnet 100.64/10, 198.18/15,
  * multicast and reserved, "::", NAT64 and the rest), and answers no address at all when any address of a name is on it, so a name that points inside is refused whole.
  */
 export function guardedLookup(base?: (host: string) => Promise<readonly string[]>): (host: string) => Promise<readonly string[]> {
