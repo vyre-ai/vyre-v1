@@ -1,4 +1,5 @@
 [
+  {"file":"apps/app/tests/apps.email-ask.live.test.ts","capSec":120,"owner":"L9","reason":"fresh daemon and actual Chromium run Ask Vyre in the campaign email editor against a local model vendor: proposal, reject, accept, failure and cancel","heavy":true},
   {"file":"apps/app/tests/recovery.account.live.test.ts","capSec":120,"owner":"L9","reason":"fresh daemon and actual Chromium claim an owner, keep a private Mine Vault item, then recover with the saved code and verify keys, old credentials, new session and secret absence","heavy":true},
   {"file":"apps/app/tests/sync.endpoint.live.test.ts","capSec":120,"owner":"L9","reason":"fresh production owner claim verifies the advertised loopback socket origin, real authenticated hello and actual socket route","heavy":true},
   {"file":"apps/app/tests/spaces.switch.live.test.ts","capSec":120,"owner":"L9","reason":"two fresh daemon owner sessions verify production multi-Space runtime isolation, restored desktop/phone tabs, actual socket closure, scoped signout and global lock","heavy":true},

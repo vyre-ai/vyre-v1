@@ -7,9 +7,9 @@ import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { bootFreshSpace, claimOnEdge, edge } from "./real-app-harness.test.ts";
-import { vendor } from "../../../host/tests/fixtures/model-vendor.ts";
+import { vendor } from "../../../fixtures/model-vendor.ts";
 
-const PRELOAD = fileURLToPath(new URL("../../../host/tests/fixtures/vendor-preload.mjs", import.meta.url));
+const PRELOAD = fileURLToPath(new URL("../../../fixtures/model-vendor-preload.mjs", import.meta.url));
 const KEY = "sk-test-fixture-0123456789abcdef"; // secret-scan: fake
 
 test("production Apps: Ask Vyre in the campaign email editor proposes per-change diffs, fails in words and cancels", async (t) => {

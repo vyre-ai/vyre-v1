@@ -15,7 +15,7 @@ import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { CODE_ROOT, startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
-import { vendor } from "./fixtures/model-vendor.ts";
+import { vendor } from "../../fixtures/model-vendor.ts";
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 const KEY = "sk-test-fixture-0123456789abcdef"; // secret-scan: fake
