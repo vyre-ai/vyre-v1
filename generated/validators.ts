@@ -47012,6 +47012,7 @@ if ("title" in o2967) lf(o2967["title"], p + "/lines" + '/' + i2966 + "/title", 
 if ("fact" in o2967) lf(o2967["fact"], p + "/lines" + '/' + i2966 + "/fact", e, L2);
 if ("trueSince" in o2967) lf(o2967["trueSince"], p + "/lines" + '/' + i2966 + "/trueSince", e, L17);
 if ("path" in o2967) lf(o2967["path"], p + "/lines" + '/' + i2966 + "/path", e, L2);
+if ("sourceLink" in o2967) lf(o2967["sourceLink"], p + "/lines" + '/' + i2966 + "/sourceLink", e, L2);
 }
 }
 }
