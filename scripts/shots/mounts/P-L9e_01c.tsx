@@ -24,7 +24,7 @@ interface RootLike {
 function whereOf(v: string | null): Where {
   if (v === "root") return { kind: "folder", id: null };
   if (v === "recent" || v === "starred" || v === "shared" || v === "trash" || v === "knowledge") return { kind: v };
-  return { kind: "folder", id: v ? (v.startsWith("fld_") ? v : `fld_${v}`) : "fld_pj_rivera" };
+  return { kind: "folder", id: v ? (v.startsWith("fld_") ? v : `fld_${v}`) : "fld_pjrivera" };
 }
 
 function FilesBody({ initial }: { initial: Partial<FilesState> }): ReactNode {

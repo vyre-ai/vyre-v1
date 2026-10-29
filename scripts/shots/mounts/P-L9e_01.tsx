@@ -25,7 +25,7 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
   const sample = useMemo(() => createSampleFiles(space, { bulk }), [space, bulk]);
   const initial = useMemo<Partial<FilesState>>(() => {
     const sort = SORTS.find((x) => x === q.get("sort"));
-    const where: Where = space === harbor && !q.get("where") ? { kind: "folder", id: "fld_h_clients" } : whereOf(q.get("where"));
+    const where: Where = space === harbor && !q.get("where") ? { kind: "folder", id: "fld_hclients" } : whereOf(q.get("where"));
     const first = q.get("quicklook") === "1" ? "file:fil_deck" : null;
     return {
       where, ...(sort ? { sort, dir: sort === "updated" ? "desc" as const : "asc" as const } : {}),

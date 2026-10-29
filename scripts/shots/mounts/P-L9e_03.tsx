@@ -62,7 +62,7 @@ function Body({ q }: { q: URLSearchParams }): ReactNode {
   }
   return (
     <FilesDataProvider value={files.data}>
-      <FilesStateProvider initial={{ where: { kind: "folder", id: harborSpace ? "fld_h_clients" : "fld_pj_rivera" } }}>
+      <FilesStateProvider initial={{ where: { kind: "folder", id: harborSpace ? "fld_hclients" : "fld_pjrivera" } }}>
         <View testID="files-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
           <SidebarContent title="Files" searchPlaceholder="Search files">{(query, slot) => <FilesTree query={query} slot={slot} />}</SidebarContent>
           <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
