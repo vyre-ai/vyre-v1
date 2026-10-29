@@ -80,7 +80,9 @@ jobs:
           APP_DIST: apps/app/dist
         run: node scripts/release/cli.ts pack dist "$VERSION"
       - name: The installers go with the release unchanged
-        run: cp scripts/install/linux/install.sh scripts/install/windows/install.ps1 dist/
+        run: |
+          cp scripts/install/linux/install.sh scripts/install/windows/install.ps1 dist/
+          cp scripts/install/macos/install.sh dist/install-mac.sh
       - uses: actions/upload-artifact@v4
         with: { name: release-files, path: dist, if-no-files-found: error, retention-days: 7 }
   select:
