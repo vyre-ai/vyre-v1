@@ -1,5 +1,7 @@
 # Changelog
 
+
+- Guard Kit undo steps: an install records which record types it actually created, and the stored undo never drops one the Kit did not create (seeded by a manifest or already in the Space), so rolling back or removing the Default Kit leaves note_board alone.
 - Keep two tests in step with the integration: the slow-list cap test reads the cap instead of a fixed 40, and the identity handler count includes identity.recovery_fetch.
 - Stop the recovery 5xx, unreachable and fallback lines from claiming nothing was changed, since a failure can follow a committed recovery; they now tell the person to sign in with the new password if it already works. The expired-request line keeps the claim because it fails before anything is sent.
 
