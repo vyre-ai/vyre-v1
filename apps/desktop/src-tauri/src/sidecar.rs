@@ -130,7 +130,7 @@ pub(crate) fn graceful_stop(url: &str, token: &str) -> bool {
 }
 
 /// Where the daemon's program lives: VYRE_RUNTIME_DIR (dev), else the bundled `runtime` resource.
-fn runtime_dir(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn runtime_dir(app: &AppHandle) -> Result<PathBuf, String> {
     if let Ok(dir) = std::env::var("VYRE_RUNTIME_DIR") {
         return Ok(PathBuf::from(dir));
     }

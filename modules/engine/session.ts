@@ -33,6 +33,7 @@ export interface OpenerHost {
   cliCommand?: Readonly<Record<string, readonly string[]>>;
   /** Tools for API-key chats (modules/engine/api-tools.ts). Without them an API chat answers in words only. */
   apiTools?: ApiTools;
+  own?: (person: string) => boolean;
   now?: () => number;
 }
 
@@ -87,6 +88,7 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     source: h.session.source,
     reportMiss: h.session.reportMiss,
     mcp: h.session.mcp,
+    ...(h.own ? { own: h.own } : {}),
     launcher: {
       spawn: async (spec) => {
         const swap = spec.argv[0] !== undefined ? h.cliCommand?.[spec.argv[0]] : undefined;
