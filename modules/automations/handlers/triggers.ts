@@ -6,9 +6,9 @@
 // DECISION: `automations.stop` without a run id stops every active Run of the Automation and pauses it; with `pause: false` it only stops the Runs.
 import { isTrustedService } from "../../../lib/trust.ts";
 import { registry } from "../../../generated/registry.ts";
-import { validateDefinition } from "./defs.ts";
+import { validateDefinition, webhookSecretMatches } from "./defs.ts";
 import {
-  allAutomations, clean, emitAuto, findRunLink, getAutomation, isOwner, listChildLinks, me, principalFor, raise, readPolicy, saveRunLink, serviceFor, touch, vaultAllowlist, versionDefinition,
+  allAutomations, clean, emitAuto, findAutomation, findRunLink, getAutomation, isOwner, listChildLinks, me, principalFor, raise, readPolicy, saveRunLink, serviceFor, touch, vaultAllowlist, versionDefinition,
 } from "../projections.ts";
 import type { AutoCtx, Automation, Definition, Policy, RunLink, RunScope, TriggerRef } from "../projections.ts";
 
@@ -231,6 +231,28 @@ export async function fireOne(ctx: AutoCtx, a: Automation, f: Firing): Promise<{
   if (why) return dropped(ctx, a, why, f.eventId);
   const runId = await startRun(ctx, a, { trigger: f.trigger, payload: f.payload, test: false, depth: f.depth, origin: f.origin, eventId: f.eventId, key: f.key });
   return { runId };
+}
+
+/**
+ * The inbound webhook (POST /hooks/automation/<id>/<secret>): the host route has read the body and rate-limited the source, and asks here.
+ * Answers null for every refusal (unknown, deleted, turned off, no webhook trigger, a Personal Space, a wrong or rotated secret) so a caller learns nothing about which it was.
+ * The body is the trigger data. The same Idempotency-Key starts one Run.
+ */
+export async function acceptHook(ctx: AutoCtx, input: { automationId?: unknown; secret?: unknown; payload?: unknown; idempotencyKey?: unknown }): Promise<{ accepted: true; runId?: string } | null> {
+  const id = typeof input.automationId === "string" ? input.automationId : "";
+  const secret = typeof input.secret === "string" ? input.secret : "";
+  if (!/^aut_[a-z0-9]+$/.test(id) || secret === "") return null;
+  const found = findAutomation(ctx.db, id);
+  if (!found) return null;
+  const match = webhookSecretMatches(ctx, id, secret);
+  if (!match) return null;
+  if (found.status !== "on" || !found.definition.triggers.some((t) => t.key === "webhook") || readPolicy(ctx.db).personalSpace) return null;
+  const given = typeof input.idempotencyKey === "string" && input.idempotencyKey !== "" && input.idempotencyKey.length <= 200 ? input.idempotencyKey : "";
+  const fired = await fireOne(ctx, found, {
+    trigger: "webhook", payload: input.payload ?? null, depth: 0, eventId: given ? `hook:${given}` : undefined,
+    key: `hook:${id}:${given || `${ctx.now()}-${rand()}${rand()}`}`,
+  });
+  return "runId" in fired ? { accepted: true, runId: fired.runId } : { accepted: true };
 }
 
 export async function fire(ctx: AutoCtx, input: In): Promise<unknown> {

@@ -39,6 +39,8 @@ const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> 
   fetch: caddyFetch,
   session: (h) => {
     const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+    const service = /^tok-(svc_[a-z0-9]+)$/.exec(t ?? "")?.[1];
+    if (service) return { space: "spc_core", principal: { kind: "service", id: service }, device: "owner-live" };
     const who = t === OWNER ? "usr_olivia" : t === NOAH ? "usr_noah" : null;
     return who === null ? null : { space: "spc_core", principal: { kind: "person", id: who }, device: "owner-live" };
   },
@@ -122,5 +124,30 @@ test("a space automation run is linked to its service principal", async () => {
     assert.match(runId, /^run_/);
     const serviceId = `svc_${id.replace(/^aut_/, "")}`;
     assert.deepEqual(runPrincipal(d.paths.modules, runId), { kind: "service", id: serviceId });
+  } finally { await d.stop(); }
+});
+
+test("deleting a Space automation stops its service, and restoring it starts the service again", async () => {
+  const d = await boot(seededDir());
+  try {
+    const id = idOf(await ok(d, "/v1/automations/create", {
+      idempotencyKey: "svc-life", name: "svc-note",
+      definition: { triggers: [{ key: "manual" }], nodes: [note("Service note")] },
+    }));
+    await ok(d, "/v1/automations/promote", { automationId: id, confirm: true });
+    const service = `tok-svc_${id.replace(/^aut_/, "")}`;
+    // Give the service a real grant, so that what stops it is its status and not an empty role.
+    await ok(d, "/v1/access/share", { resource: { type: "space", id: "spc_core" }, subject: { kind: "service", id: service.slice(4) }, level: "edit", idempotencyKey: "svc-share" });
+    const probe = (key: string) => call(d, "/v1/automations/list", { idempotencyKey: key }, service);
+    const before = await probe("svc-before");
+    assert.equal(before.status, 200, before.text);
+    await ok(d, "/v1/automations/delete", { automationId: id, idempotencyKey: "svc-delete" });
+    const after = await probe("svc-after");
+    assert.equal(after.status, 403, `a deleted automation's service still acts: ${after.text}`);
+    assert.match(after.text, /permission\.suspended/, after.text);
+    assert.equal(after.text.includes(id), false, after.text);
+    await ok(d, "/v1/automations/undelete", { automationId: id, idempotencyKey: "svc-restore" });
+    const back = await probe("svc-back");
+    assert.equal(back.status, 200, back.text);
   } finally { await d.stop(); }
 });

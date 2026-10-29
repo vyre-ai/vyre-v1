@@ -6,7 +6,7 @@
 // The agent is never above the person who made it: its role is Member only when its maker may edit the Space, else Guest, and its Space grant is the maker's own level (edit, view, or none).
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
 
-export interface PrincipalEvent { type: "principal.created" | "principal.role_set" | "grant.created"; entity: string; id: string; payload: Record<string, unknown> }
+export interface PrincipalEvent { type: "principal.created" | "principal.role_set" | "grant.created" | "principal.suspended" | "principal.reactivated"; entity: string; id: string; payload: Record<string, unknown> }
 export interface PrincipalRegistrar {
   /** The access events to add to this commit for the agents the handler's events brought into being. `maker` is the person the call acts for. */
   register(a: { events: readonly Pick<EventEnvelope, "type" | "payload">[]; space: string; maker: string }): PrincipalEvent[];
@@ -125,6 +125,18 @@ export function createPrincipalRegistrar(deps: { exists(id: string): boolean; /*
           if (seen.has(serviceId) || deps.exists(serviceId)) continue;
           seen.add(serviceId);
           out.push({ type: "principal.created", entity: "principal", id: serviceId, payload: { id: serviceId, kind: "service", owner: ownerId, status: "active", name: serviceId } });
+          continue;
+        }
+        // Deleting a Space automation stops its service, so every grant it holds stops with it. Restoring the automation starts the service again.
+        if (ev.type === "automation.deleted" || ev.type === "automation.restored") {
+          const gone = ev.payload as { automationId?: unknown } | null;
+          const automationId = typeof gone?.automationId === "string" ? gone.automationId : "";
+          if (!/^aut_[a-z0-9]+$/.test(automationId)) continue;
+          const serviceId = `svc_${automationId.slice(4)}`;
+          const type = ev.type === "automation.deleted" ? "principal.suspended" : "principal.reactivated";
+          if (!deps.exists(serviceId) || seen.has(`${type}:${serviceId}`)) continue;
+          seen.add(`${type}:${serviceId}`);
+          out.push({ type, entity: "principal", id: serviceId, payload: { principalId: serviceId } });
           continue;
         }
         if (ev.type !== "agent.created") continue;
