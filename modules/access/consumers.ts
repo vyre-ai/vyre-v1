@@ -10,7 +10,9 @@ import { fail } from "../../host/src/routes/errors.ts";
 import { AccessStore, EVERYONE, changed, labelOf, storeOf } from "./projections.ts";
 import type { AccessCtx, Cond, GrantRec, Label, Level, PKind, Ref, Status, SubjectKind } from "./projections.ts";
 
-export interface LogEvent { seq: number; type: string; payload: unknown }
+/** `actor` is the log's actor of the event: the seed writes as SEED_ACTOR, and only its events carry the kernel's bare role names. */
+export interface LogEvent { seq: number; type: string; payload: unknown; actor?: string }
+export const SEED_ACTOR = "svc_seed";
 
 /** fieldLabels key without a dot: the snapshot skips it, so it carries the cursor without becoming a field label */
 const CURSOR = "seed_cursor";
@@ -59,13 +61,22 @@ function seededGrant(store: AccessStore, p: Record<string, unknown>, at: number)
   };
 }
 
+/** The kernel's role names the seed uses, as the ids real joins and the built-in roles carry (rol_*). Anything else gets the prefix. */
+const SEED_ROLE: Readonly<Record<string, string>> = { owner: "rol_owner", admin: "rol_admin", member: "rol_member", temp: "rol_guest", guest: "rol_guest", developer: "rol_developer" };
+const roleIdOf = (role: string): string => (role.startsWith("rol_") ? role : SEED_ROLE[role] ?? `rol_${role}`);
+/** The role id an event names: a seed event's kernel name becomes the id a real join stores; an event from anyone else is taken as written, so a bare "owner" from a runtime path never becomes rol_owner. */
+export const roleOf = (e: LogEvent, role: string): string => (e.actor === SEED_ACTOR ? roleIdOf(role) : role);
+
 /** Move the store by one event. True when something changed. */
 export function applyEvent(store: AccessStore, e: LogEvent, at: number): boolean {
   const p = rec(e.payload);
   switch (e.type) {
     case "role.defined": {
-      const id = str(p["id"]);
+      // a Space seeded with the kernel's role names gets the same ids a real join does; a built-in role the store already holds is not defined a second time
+      const given = str(p["id"]);
+      const id = given ? roleOf(e, given) : undefined;
       if (!id) return false;
+      if (store.roles.get(id)?.builtIn) return false;
       const perms = Array.isArray(p["perms"]) ? p["perms"].filter((x): x is string => typeof x === "string") : [];
       store.roles.set(id, { id, name: str(p["name"]) ?? id, builtIn: false, clearance: labelOf(Number(p["clearance"]) || 0), assignableToAgents: true, permissions: perms });
       return true;
@@ -89,8 +100,9 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number): boolean
       return true;
     }
     case "principal.role_set": {
-      const holder = str(p["holder"]), role = str(p["role"]);
-      if (!holder || !role) return false;
+      const holder = str(p["holder"]), given = str(p["role"]);
+      if (!holder || !given) return false;
+      const role = roleOf(e, given);
       const have = store.assignments.get(holder) ?? [];
       if (have.includes(role)) return false;
       store.assignments.set(holder, [...have, role]);
