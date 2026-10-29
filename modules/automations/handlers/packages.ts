@@ -125,8 +125,8 @@ export async function exportPackage(ctx: AutoCtx, input: In): Promise<unknown> {
 
 async function visibleConnections(ctx: AutoCtx): Promise<Set<string>> {
   if (!ctx.call) raise(ctx, "internal.unavailable", "Connections are not available right now.");
-  const got = await ctx.call("connections.list", { whose: "all", limit: 500 }) as { connections?: { id?: unknown }[] };
-  return new Set((got?.connections ?? []).map((c) => c.id).filter((id): id is string => typeof id === "string"));
+  const got = await ctx.call("connections.list", { whose: "all", limit: 500 }) as { connections?: { connectionId?: unknown }[] };
+  return new Set((got?.connections ?? []).map((c) => c.connectionId).filter((id): id is string => typeof id === "string"));
 }
 
 export async function importPackage(ctx: AutoCtx, input: In): Promise<unknown> {

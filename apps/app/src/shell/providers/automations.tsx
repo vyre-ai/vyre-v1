@@ -13,7 +13,8 @@ import { AutomationCanvas } from "../../places/automations/canvas/AutomationCanv
 import { accountsFromVault, picksByApp } from "../../places/automations/connect/accounts.ts";
 import type { AccountOption } from "../../places/automations/connect/accounts.ts";
 import { connectionRoute } from "../../places/automations/connect/route.ts";
-import { AllRuns, Dependencies, LiveEvents, NeedsYou, Packages, SpaceAnalytics } from "../../places/automations/operations/StudioViews.tsx";
+import { AllRuns, Dependencies, LiveEvents, NeedsYou, Packages, SpaceAnalytics, TemplateGallery } from "../../places/automations/operations/StudioViews.tsx";
+import { Empty } from "../../places/automations/operations/parts.tsx";
 import { AutomationsSidebarSlot } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
 import type { StudioView } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
 import { keysFromProviders } from "../../places/automations/values/typed.ts";
@@ -79,6 +80,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     openAutomation: (id) => { setView("automations"); setOpenId(id); opened({ subject: { type: "automation", id } }); },
     openJourney: (id) => rt.open({ screen: "automations.sidebar", args: { journeyId: id } }),
     openFailedRuns: () => rt.open({ screen: "runs.failed" }),
+    openTemplates: () => setView("templates"),
     openRun: (runId) => rt.open({ subject: { type: "run", id: runId } }),
     ask: (id, context) => {
       const bundle = scrubAskContext({ ...(context ?? {}), resource: context?.resource ?? id });
@@ -96,9 +98,10 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     : view === "analytics" ? <SpaceAnalytics />
     : view === "dependencies" ? <Dependencies />
     : view === "packages" ? <Packages />
+    : view === "templates" ? <TemplateGallery />
     : openId && missing ? <NotFound what="automation" />
     : openId ? <AutomationCanvas key={openId} automationId={openId} />
-    : <Text style={s.hint}>Pick an Automation to see its steps.</Text>;
+    : <View style={s.hintWrap}><Empty testID="automations-start" title="Pick an automation" next="Choose one from the list to see its steps. To make a new one, use the plus beside Personal, or start from a working template." action="Start from a template" onAction={() => setView("templates")} /></View>;
   return (
     <AutomationsDataProvider value={data}>
       <View style={s.page} testID="automations-place">
@@ -117,5 +120,5 @@ export default function AutomationsPlace(_props: { place: string }): ReactElemen
 const s = StyleSheet.create({
   page: { flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string },
   main: { flex: 1, minWidth: 0 },
-  hint: { padding: 24, fontSize: 13.5, color: "var(--ink-3)" as string },
+  hintWrap: { padding: 24 },
 });

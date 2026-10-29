@@ -56,7 +56,7 @@ test("analytics for an automation the caller cannot see is not found", async () 
 });
 
 test("dependencies list what definitions name, who uses it, and what is missing or off", async () => {
-  const h = harness({ calls: { "connections.list": () => ({ connections: [{ id: "con_live1" }] }) } });
+  const h = harness({ calls: { "connections.list": () => ({ connections: [{ connectionId: "con_live1" }] }) } });
   const target = (await h.call("automations.create", { name: "Target", definition: { triggers: [{ key: "manual" }], nodes: [note] } }, alice)).automation.id as string;
   await h.call("automations.create", {
     name: "Caller",

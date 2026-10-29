@@ -1,67 +1,22 @@
-// Place views that are not the builder. Each one is a real call or an honest empty screen. No invented rows.
-import { useEffect, useState } from "react";
-import type { ReactElement, ReactNode } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { AskVyre } from "../ask/AskVyre.tsx";
-import { CONFIG, useAutomationsData, useScreenQuery } from "../canvas/data.tsx";
-import type { CapMap } from "../../../../../../generated/types.ts";
-import { CONNECT_LIMIT, connectorLine, shownConnectors } from "../connect/trust-view.ts";
-import type { ConnectorSource, ShownConnector } from "../connect/trust-view.ts";
-import {
-  ALL_RUNS_LINE, ALL_RUNS_SEARCH, ANALYTICS_LINE, DEPS_LINE, EMPTY_COMPLETED, EMPTY_DEPENDENCIES, EMPTY_EVENTS, EVENTS_LINE, LISTENING, NEEDS_LINE, PACKAGES_LINE, SPACE_ANALYTICS_LINE, SPACE_ANALYTICS_TITLE,
-} from "../chrome.ts";
-import { countRuns, dependenciesFrom, eventRows } from "./read.ts";
-import type { DependencyNode } from "./read.ts";
+// Place views that are not the builder. Each one is a real call or a plain empty state that says what to do next. No invented rows.
+import { useState } from "react";
+import type { ReactElement } from "react";
+import { Pressable, Text, TextInput, View } from "react-native";
+import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
+import { useAutomationsData } from "../canvas/data.tsx";
+import { TextButton } from "../canvas/parts.tsx";
+import { ALL_RUNS_LINE, ALL_RUNS_SEARCH, EMPTY_NEEDS_NEXT, NEEDS_LINE } from "../chrome.ts";
 import { choiceStartsRuns, readChoiceResult, scheduleRequestFromTask } from "./recovery.ts";
 import type { ScheduleChoiceKey } from "./recovery.ts";
+import { countBy } from "./read.ts";
+import { filterLabel, filterMenu } from "./menus.ts";
+import { Empty, Frame, ListRow, MenuButton, Status, useCall, v } from "./parts.tsx";
 
-type RunsOut = CapMap["runs.list"]["out"];
-
-type Phase<T> = { phase: "loading" } | { phase: "error"; message: string } | { phase: "ready"; value: T };
-
-function useCall<T>(cap: string, input: unknown, parse: (out: unknown) => T | null): Phase<T> {
-  const data = useAutomationsData();
-  const [state, setState] = useState<Phase<T>>({ phase: "loading" });
-  const key = JSON.stringify(input);
-  useEffect(() => {
-    let live = true;
-    setState({ phase: "loading" });
-    void data.call(cap, JSON.parse(key) as unknown).then((out) => {
-      if (!live) return;
-      const value = parse(out);
-      if (value === null) setState({ phase: "error", message: "That list did not return rows." });
-      else setState({ phase: "ready", value });
-    }).catch((e: unknown) => {
-      if (!live) return;
-      setState({ phase: "error", message: e instanceof Error ? e.message : "That did not load." });
-    });
-    return () => { live = false; };
-  }, [data, cap, key]);
-  return state;
-}
-
-function Frame({ testID, title, line, children }: { testID: string; title: string; line?: string; children: ReactNode }): ReactElement {
-  return (
-    <View testID={testID} style={v.page}>
-      <Text accessibilityRole="header" style={v.title}>{title}</Text>
-      {line ? <Text style={v.dim}>{line}</Text> : null}
-      {children}
-    </View>
-  );
-}
-
-function Status({ state }: { state: Phase<unknown> }): ReactElement | null {
-  if (state.phase === "loading") return <Text style={v.dim}>Loading</Text>;
-  if (state.phase === "error") {
-    return (
-      <View style={v.stack}>
-        <Text style={v.err}>{state.message}</Text>
-        <AskVyre bundle={{ resource: "automation", message: state.message }} />
-      </View>
-    );
-  }
-  return null;
-}
+export { SpaceAnalytics, AnalyticsPanel } from "./AnalyticsView.tsx";
+export { Dependencies } from "./DependenciesView.tsx";
+export { LiveEvents } from "./EventsView.tsx";
+export { Packages } from "./PackagesView.tsx";
+export { TemplateGallery } from "./TemplateGallery.tsx";
 
 interface NeedsRow { id: string; title: string; reason: string; task: unknown }
 
@@ -139,7 +94,7 @@ export function NeedsYou(): ReactElement {
   return (
     <Frame testID="needs-you" title="Needs you" line={NEEDS_LINE}>
       <Status state={state} />
-      {state.phase === "ready" && state.value.length === 0 ? <Text style={v.dim}>Nothing needs you</Text> : null}
+      {state.phase === "ready" && state.value.length === 0 ? <Empty testID="needs-empty" title="Nothing needs you" next={EMPTY_NEEDS_NEXT} /> : null}
       {/* ui-rows-lint: not a list (each item is a title plus its own choice buttons) */}
       {state.phase === "ready" ? state.value.map((item) => (
         <View key={item.id} style={v.stack}>
@@ -151,180 +106,69 @@ export function NeedsYou(): ReactElement {
   );
 }
 
-export function AllRuns(): ReactElement {
-  const [query, setQuery] = useState("");
-  const state = useCall("runs.list", { scope: "all", limit: 50 }, (out) => {
-    if (!out || typeof out !== "object" || !Array.isArray((out as { runs?: unknown }).runs)) return null;
-    const rows: { id: string; title: string; status: string }[] = [];
-    for (const row of (out as { runs: unknown[] }).runs) {
-      if (!row || typeof row !== "object") continue;
-      const rec = row as { id?: unknown; status?: unknown; summary?: unknown; name?: unknown };
-      if (typeof rec.id !== "string" || typeof rec.status !== "string") continue;
-      rows.push({ id: rec.id, status: rec.status, title: typeof rec.summary === "string" ? rec.summary : typeof rec.name === "string" ? rec.name : rec.id });
-    }
-    return rows;
-  });
+export interface RunLine { id: string; title: string; status: string; startedAt: number; automationId: string | null }
+
+export function runLines(out: unknown): RunLine[] | null {
+  if (!out || typeof out !== "object" || !Array.isArray((out as { runs?: unknown }).runs)) return null;
+  const rows: RunLine[] = [];
+  for (const row of (out as { runs: unknown[] }).runs) {
+    if (!row || typeof row !== "object") continue;
+    const rec = row as { id?: unknown; status?: unknown; summary?: unknown; name?: unknown; startedAt?: unknown; subject?: { type?: unknown; id?: unknown } };
+    if (typeof rec.id !== "string" || typeof rec.status !== "string") continue;
+    rows.push({
+      id: rec.id, status: rec.status, startedAt: typeof rec.startedAt === "number" ? rec.startedAt : 0,
+      title: typeof rec.name === "string" ? rec.name : typeof rec.summary === "string" ? rec.summary : rec.id,
+      automationId: rec.subject?.type === "automation" && typeof rec.subject.id === "string" ? rec.subject.id : null,
+    });
+  }
+  return rows;
+}
+
+const ACTIVE = new Set(["queued", "running", "waiting"]);
+export const statusWord = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** Runs that match the search words and the chosen statuses. */
+export function shownRuns(rows: readonly RunLine[], query: string, statuses: ReadonlySet<string>): RunLine[] {
   const needle = query.trim().toLowerCase();
-  const shown = state.phase === "ready" ? state.value.filter((row) => needle === "" || `${row.title} ${row.status} ${row.id}`.toLowerCase().includes(needle)) : [];
+  return rows.filter((r) => (statuses.size === 0 || statuses.has(r.status)) && (needle === "" || `${r.title} ${r.status} ${r.id}`.toLowerCase().includes(needle)));
+}
+
+export function AllRuns(): ReactElement {
+  const data = useAutomationsData();
+  const [query, setQuery] = useState("");
+  const [statuses, setStatuses] = useState<ReadonlySet<string>>(new Set());
+  const [again, setAgain] = useState(0);
+  const [note, setNote] = useState<string | null>(null);
+  const state = useCall("runs.list", { scope: "all", limit: 100 }, runLines, again);
+  const rows = state.phase === "ready" ? state.value : [];
+  const shown = shownRuns(rows, query, statuses);
+  const toggle = (s: string): void => setStatuses((cur) => { const n = new Set(cur); if (n.has(s)) n.delete(s); else n.add(s); return n; });
+  const act = async (cap: "runs.stop" | "runs.retry", r: RunLine, done: string): Promise<void> => {
+    try { await data.call(cap, { runId: r.id }); setNote(done); setAgain((n) => n + 1); } catch (e) { setNote(e instanceof Error ? e.message : "That did not work."); }
+  };
+  const rowMenu = (r: RunLine): MenuEntry[] => [
+    { label: "Open the run", onSelect: () => data.nav.openRun(r.id) },
+    ...(r.automationId ? [{ label: "Open the automation", onSelect: () => data.nav.openAutomation(r.automationId!) } as MenuEntry] : []),
+    ...(ACTIVE.has(r.status) ? [{ separator: true } as MenuEntry, { label: "Stop this run", danger: true, onSelect: () => void act("runs.stop", r, "The run was told to stop.") } as MenuEntry] : []),
+    ...(r.status === "failed" || r.status === "stopped" ? [{ separator: true } as MenuEntry, { label: "Run it again", onSelect: () => void act("runs.retry", r, "A new run started.") } as MenuEntry] : []),
+  ];
   return (
-    <Frame testID="all-runs" title="All runs" line={ALL_RUNS_LINE}>
+    <Frame testID="all-runs" title="All runs" line={ALL_RUNS_LINE}
+      actions={<><MenuButton testID="runs-status" label={filterLabel("Status", statuses, statusWord)} entries={filterMenu("All statuses", countBy(rows, (r) => r.status).map((c) => ({ value: c.value, label: statusWord(c.value), count: c.count })), statuses, toggle, () => setStatuses(new Set()))} /><TextButton label="Refresh" icon="loop" onPress={() => setAgain((n) => n + 1)} testID="runs-refresh" /></>}>
       <TextInput value={query} onChangeText={setQuery} placeholder={ALL_RUNS_SEARCH} accessibilityLabel={ALL_RUNS_SEARCH} testID="runs-search" style={v.input} />
       <Status state={state} />
-      {state.phase === "ready" && shown.length === 0 ? <Text style={v.dim}>No Runs match</Text> : null}
-      {/* ui-rows-lint: not a list (one status sentence per run) */}
-      {shown.map((row) => <Text key={row.id} style={v.row}>{`${row.title} · ${row.status}`}</Text>)}
+      {note ? <Text style={v.dim} accessibilityLiveRegion="polite">{note}</Text> : null}
+      {state.phase === "ready" && rows.length === 0 ? <Empty testID="runs-empty" title="No runs yet" next="Open an automation and choose Run, or turn one on. Its runs list here." /> : null}
+      {state.phase === "ready" && rows.length > 0 && shown.length === 0 ? <Text style={v.dim}>No runs match. Clear the search or the status filter.</Text> : null}
+      <View style={v.list}>
+        {/* ui-rows-lint: ListRow is the row */}
+        {shown.map((r) => (
+          <ListRow key={r.id} testID={`run-${r.id}`} label={`${r.title}, ${r.status}. Open the run`} onPress={() => data.nav.openRun(r.id)} menu={() => rowMenu(r)}>
+            <View style={v.lineMain}><Text style={v.row} numberOfLines={1}>{r.title}</Text></View>
+            <Text style={r.status === "failed" ? v.tag : v.right}>{statusWord(r.status)}</Text>
+          </ListRow>
+        ))}
+      </View>
     </Frame>
   );
 }
-
-export function AnalyticsPanel({ automationId }: { automationId: string }): ReactElement {
-  const q = useScreenQuery<RunsOut>(CONFIG, "runs", { subject: { type: "automation", id: automationId }, scope: "subject" });
-  if (q.status !== "ready") return <Frame testID="analytics" title="Analytics" line={ANALYTICS_LINE}><Text style={v.dim}>{q.error?.message ?? "Loading"}</Text></Frame>;
-  const counted = countRuns(q.data.runs);
-  return (
-    <Frame testID="analytics" title="Analytics" line={ANALYTICS_LINE}>
-      {q.data.runs.length === 0 || !counted ? <Text style={v.dim}>{EMPTY_COMPLETED}</Text> : <Text style={v.dim}>{counted.text}</Text>}
-    </Frame>
-  );
-}
-
-/** Space home. The shell view "analytics" renders this. That switch lives outside this folder. */
-export function SpaceAnalytics(): ReactElement {
-  const state = useCall("runs.list", { scope: "all", limit: 50 }, (out) => {
-    if (!out || typeof out !== "object" || !Array.isArray((out as { runs?: unknown }).runs)) return null;
-    return (out as { runs: { status?: unknown; costMicros?: unknown }[] }).runs;
-  });
-  const counted = state.phase === "ready" ? countRuns(state.value) : null;
-  const empty = state.phase === "ready" && (state.value.length === 0 || !counted);
-  return (
-    <Frame testID="space-analytics" title={SPACE_ANALYTICS_TITLE} line={SPACE_ANALYTICS_LINE}>
-      <Status state={state} />
-      {empty ? <Text style={v.dim}>{EMPTY_COMPLETED}</Text> : null}
-      {state.phase === "ready" && counted && state.value.length > 0 ? <Text style={v.dim}>{counted.text}</Text> : null}
-    </Frame>
-  );
-}
-
-export function LiveEvents(): ReactElement {
-  const state = useCall("events.list", { limit: 50 }, eventRows);
-  return (
-    <Frame testID="live-events" title="Live Event Explorer" line={EVENTS_LINE}>
-      {state.phase === "ready" ? <Text testID="events-listening" style={v.dim}>{LISTENING}</Text> : null}
-      <Status state={state} />
-      {state.phase === "ready" && state.value.length === 0 ? <Text style={v.dim}>{EMPTY_EVENTS}</Text> : null}
-      {/* ui-rows-lint: not a list (one event sentence) */}
-      {state.phase === "ready" ? state.value.map((row) => <Text key={row.id} style={v.row}>{row.line}</Text>) : null}
-    </Frame>
-  );
-}
-
-function nodesOf(out: unknown): DependencyNode[] | null {
-  if (!out || typeof out !== "object") return null;
-  const automation = (out as { automation?: { definition?: { nodes?: unknown } } }).automation;
-  const nodes = automation?.definition?.nodes;
-  if (!Array.isArray(nodes)) return null;
-  const parsed: DependencyNode[] = [];
-  for (const node of nodes) {
-    if (!node || typeof node !== "object") continue;
-    const row = node as { key?: unknown; input?: unknown };
-    if (typeof row.key !== "string") continue;
-    const input = row.input && typeof row.input === "object" && !Array.isArray(row.input) ? row.input as Record<string, unknown> : {};
-    parsed.push({ key: row.key, input });
-  }
-  return parsed;
-}
-
-export function Dependencies(): ReactElement {
-  const data = useAutomationsData();
-  const [state, setState] = useState<Phase<{ id: string; line: string }[]>>({ phase: "loading" });
-  const [note, setNote] = useState<string | null>(null);
-  useEffect(() => {
-    let live = true;
-    setState({ phase: "loading" });
-    setNote(null);
-    void (async () => {
-      try {
-        const listed = await data.call("automations.list", { limit: 50 });
-        if (!listed || typeof listed !== "object" || !Array.isArray((listed as { automations?: unknown }).automations)) {
-          if (live) setState({ phase: "error", message: "That list did not return rows." });
-          return;
-        }
-        const page: { id: string; name: string; nodes: DependencyNode[] }[] = [];
-        let failed: string | null = null;
-        for (const row of (listed as { automations: unknown[] }).automations) {
-          if (!row || typeof row !== "object") continue;
-          const rec = row as { id?: unknown; name?: unknown };
-          if (typeof rec.id !== "string" || typeof rec.name !== "string") continue;
-          try {
-            const nodes = nodesOf(await data.call("automations.get", { automationId: rec.id }));
-            if (nodes) page.push({ id: rec.id, name: rec.name, nodes });
-          } catch (e) {
-            failed = e instanceof Error ? e.message : "One automation did not load.";
-          }
-        }
-        if (!live) return;
-        setNote(failed);
-        setState({ phase: "ready", value: dependenciesFrom(page) });
-      } catch (e) {
-        if (!live) return;
-        setState({ phase: "error", message: e instanceof Error ? e.message : "That did not load." });
-      }
-    })();
-    return () => { live = false; };
-  }, [data]);
-  return (
-    <Frame testID="dependencies" title="Dependencies" line={DEPS_LINE}>
-      <Status state={state} />
-      {note ? <Text style={v.err}>{note}</Text> : null}
-      {state.phase === "ready" && state.value.length === 0 ? <Text style={v.dim}>{EMPTY_DEPENDENCIES}</Text> : null}
-      {/* ui-rows-lint: not a list (one dependency sentence) */}
-      {state.phase === "ready" ? state.value.map((row) => <Text key={row.id} style={v.row}>{row.line}</Text>) : null}
-      <ConnectorTrust />
-    </Frame>
-  );
-}
-
-function ConnectorTrust(): ReactElement {
-  const data = useAutomationsData();
-  const [rows, setRows] = useState<ShownConnector[] | "loading" | "unavailable">("loading");
-  useEffect(() => {
-    let live = true;
-    void data.call("connectors.list", { limit: 50 }).then((out) => {
-      if (!live) return;
-      const list = out && typeof out === "object" && Array.isArray((out as { connectors?: unknown }).connectors)
-        ? (out as { connectors: ConnectorSource[] }).connectors
-        : [];
-      setRows(shownConnectors(list, "author"));
-    }).catch(() => { if (live) setRows("unavailable"); });
-    return () => { live = false; };
-  }, [data]);
-  if (rows === "loading") return null;
-  if (rows === "unavailable") return <Text style={v.dim}>Connector list is not available from this sign-in.</Text>;
-  return (
-    <View>
-      <Text style={v.dim}>{CONNECT_LIMIT}</Text>
-      {/* ui-rows-lint: not a list (one connector sentence) */}
-      {rows.map((row) => <Text key={row.key} style={v.row}>{connectorLine(row)}</Text>)}
-    </View>
-  );
-}
-
-export function Packages(): ReactElement {
-  return (
-    <Frame testID="packages" title="Packages" line={PACKAGES_LINE}>
-      <Text style={v.dim}>Package export and import are not available yet.</Text>
-    </Frame>
-  );
-}
-
-const v = StyleSheet.create({
-  page: { flex: 1, padding: 24, gap: 10, backgroundColor: "var(--win)" as string },
-  title: { fontSize: 16, fontWeight: "600", color: "var(--ink)" as string },
-  dim: { fontSize: 13, lineHeight: 18, color: "var(--ink-3)" as string },
-  err: { fontSize: 13, lineHeight: 18, color: "var(--danger)" as string },
-  row: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string },
-  stack: { gap: 8 },
-  choices: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  choice: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "var(--surface-2)" as string },
-  input: { fontSize: 13, color: "var(--ink)" as string, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 8, padding: 8, maxWidth: 160 },
-});

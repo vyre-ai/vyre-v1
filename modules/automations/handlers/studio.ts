@@ -192,8 +192,8 @@ export async function dependencies(ctx: AutoCtx): Promise<unknown> {
   // a named automation may be gone or off; a named connection may be gone
   let connections: Set<string> | null = null;
   try {
-    const got = await ctx.call?.("connections.list", { whose: "all", limit: 500 }) as { connections?: { id?: unknown }[] } | undefined;
-    if (got && Array.isArray(got.connections)) connections = new Set(got.connections.map((c) => c.id).filter((id): id is string => typeof id === "string"));
+    const got = await ctx.call?.("connections.list", { whose: "all", limit: 500 }) as { connections?: { connectionId?: unknown }[] } | undefined;
+    if (got && Array.isArray(got.connections)) connections = new Set(got.connections.map((c) => c.connectionId).filter((id): id is string => typeof id === "string"));
   } catch { connections = null; }
   const items = [...index.values()].map((item) => {
     let problem: "missing" | "off" | null = null;

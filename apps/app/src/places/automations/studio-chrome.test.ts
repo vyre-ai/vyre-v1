@@ -17,7 +17,7 @@ const source = (path: string): string => readFileSync(new URL(path, import.meta.
 
 test("place nav follows the prototype order", () => {
   assert.deepEqual(STUDIO_NAV.map((item) => item.label), [
-    "Automations", "Needs you", "All runs", "Live Event Explorer", "Analytics", "Dependencies", "Packages",
+    "Automations", "Templates", "Needs you", "All runs", "Live Event Explorer", "Analytics", "Dependencies", "Packages",
   ]);
   const slot = source("./sidebar/AutomationsSidebarSlot.tsx");
   assert.match(slot, /STUDIO_NAV/);
@@ -134,7 +134,7 @@ test("operations copy stays empty instead of demonstration rows", () => {
   assert.equal(SPACE_ANALYTICS_TITLE, "Automation analytics");
   assert.match(SPACE_ANALYTICS_LINE, /every Automation in this Space/);
   assert.equal(EMPTY_COMPLETED, "No completed Runs yet");
-  assert.match(EMPTY_DEPENDENCIES, /None are recorded yet/);
+  assert.match(EMPTY_DEPENDENCIES, /Nothing is named yet/);
   assert.match(EMPTY_PACKAGES, /No packages/);
   assert.match(DEPS_LINE, /connection/);
   assert.match(PACKAGES_LINE, /without secrets/);

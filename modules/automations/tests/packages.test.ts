@@ -14,7 +14,7 @@ const definition = {
 };
 
 async function exported() {
-  const h = harness({ calls: { "connections.list": () => ({ connections: [{ id: "con_mine1" }, { id: "con_mine2" }] }) } });
+  const h = harness({ calls: { "connections.list": () => ({ connections: [{ connectionId: "con_mine1" }, { connectionId: "con_mine2" }] }) } });
   const made = await h.call("automations.create", { name: "Welcome", definition }, alice);
   const out = await h.call("automations.packages.export", { automationId: made.automation.id, name: "Welcome pack" }, alice);
   return { h, id: made.automation.id as string, pkg: out.package };

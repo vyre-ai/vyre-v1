@@ -2,6 +2,7 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useOptionalAutomationsData } from "../canvas/data.tsx";
 import { scrubAskContext } from "./bundle.ts";
 import type { AskBundle } from "./bundle.ts";
 
@@ -13,7 +14,10 @@ export function AskVyre({ bundle, onOpen, showShare = false, testID = "ask-vyre"
   testID?: string;
 }): ReactElement {
   const [open, setOpen] = useState(showShare);
+  const data = useOptionalAutomationsData();
   const safe = scrubAskContext({ ...bundle });
+  // inside the place, Ask Vyre opens the assistant conversation about this resource
+  const opener = onOpen ?? (data ? (b: AskBundle): void => data.nav.ask(b.resource ?? "automation", b) : undefined);
   return (
     <View testID={testID} style={s.wrap}>
       <Pressable accessibilityRole="button" accessibilityLabel="Ask Vyre" testID="ask-vyre-share" onPress={() => setOpen(true)} style={s.btn}>
@@ -23,11 +27,11 @@ export function AskVyre({ bundle, onOpen, showShare = false, testID = "ask-vyre"
         <View testID="ask-vyre-bundle" style={s.share}>
           <Text style={s.copy}>This is what will be shared. Secrets, authorization headers, cookies and request bodies stay out. Ask Vyre can explain and propose. It will not publish, re-run live, or change permissions.</Text>
           <Text testID="ask-vyre-json" style={s.json}>{JSON.stringify(safe)}</Text>
-          {onOpen ? (
-            <Pressable accessibilityRole="button" accessibilityLabel="Open Ask Vyre" testID="ask-vyre-open" onPress={() => onOpen(safe)} style={s.btn}>
+          {opener ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Open Ask Vyre" testID="ask-vyre-open" onPress={() => opener(safe)} style={s.btn}>
               <Text style={s.btnText}>Open Ask Vyre</Text>
             </Pressable>
-          ) : <Text style={s.copy}>Ask Vyre is not available from this screen.</Text>}
+          ) : <Text style={s.copy}>Copy the line above and paste it into a chat with Vyre.</Text>}
         </View>
       ) : null}
     </View>
