@@ -4,7 +4,7 @@ Lane L8. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (25)
+## Capabilities (27)
 
 - [bookings.availability](../capabilities/bookings.availability.md): Open slots in the visitor time zone from connected calendars; unavailable when the host is disconnected
 - [bookings.book](../capabilities/bookings.book.md): Public: make a booking; creates or updates a record and a meeting
@@ -14,6 +14,8 @@ Requires: nothing.
 - [forms.ask_cancel](../capabilities/forms.ask_cancel.md): Stop my Ask Vyre request on a form that is still waiting for the agent
 - [forms.ask_diff](../capabilities/forms.ask_diff.md): Ask Vyre edit of a form's source: an agent proposes changes to the HTML, CSS or JavaScript, returned as a per-field diff the author accepts or rejects one by one; nothing is saved
 - [forms.attribution_get](../capabilities/forms.attribution_get.md): First source and Latest source of a record
+- [forms.choices_candidates](../capabilities/forms.choices_candidates.md): The records the publisher can see, or the people in the Space, that a relation or person question could offer; display labels only
+- [forms.choices_set](../capabilities/forms.choices_set.md): Publish the records or people a public relation or person question may offer: a bounded list the visitor can only pick from; a visitor sees each one's display label only
 - [forms.create](../capabilities/forms.create.md): Create a form on a record type; every input maps to a field
 - [forms.delete](../capabilities/forms.delete.md): Delete a form
 - [forms.design_set](../capabilities/forms.design_set.md): Set layout, theme, fonts, the form source (custom HTML template, CSS and JavaScript), cover image, conditional logic and thank-you page or redirect
@@ -32,10 +34,11 @@ Requires: nothing.
 - [source_rules.list](../capabilities/source_rules.list.md): List Source rules that map clicks to channels
 - [source_rules.set](../capabilities/source_rules.set.md): Replace the Source rules
 
-## Events (6)
+## Events (7)
 
 - [booking.cancelled](../events/booking.cancelled.md): A booking was cancelled
 - [booking.created](../events/booking.created.md): A booking was made; a record and a meeting were created or updated
+- [form.choices_changed](../events/form.choices_changed.md): The records or people a public question offers were changed by its publisher
 - [form.created](../events/form.created.md): A form was created as a draft
 - [form.link_created](../events/form.link_created.md): A one-use or signed record link was made
 - [form.published](../events/form.published.md): A form went live

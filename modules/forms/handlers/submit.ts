@@ -5,6 +5,7 @@
 // A single-use link is consumed before the write and released if the write fails, so one link can never make two records.
 // @reads ../migrations/0001_forms.sql ../migrations/0002_forms_uploads.sql ../migrations/0003_forms_source.sql
 
+import { choiceByKey, choicesOf } from "./choices.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { Attribution, FormKind, Row } from "../projections.ts";
 import {
@@ -24,7 +25,7 @@ export function formPrincipal(formId: string): string {
   return `svc_form_${formId.replace(/^frm_/, "")}`;
 }
 
-type Answer = string | number | boolean | null | string[] | { fileId: string };
+type Answer = string | number | boolean | null | string[] | { fileId: string } | { __relate: string };
 
 function cleanAnswer(ctx: Ctx, key: string, v: unknown): Answer {
   const bad = (): never => fail(ctx, "validation.bad_input", "That answer is not valid.", { field: `answers.${key}` });
@@ -161,7 +162,16 @@ export async function typedAnswers(ctx: Ctx, form: Row, answers: Record<string, 
     if(isEmptyAnswer(value)){if(field.required||state.required.has(key))fail(ctx,'validation.bad_input','This question needs an answer.',{field:`answers.${key}`});delete out[key];continue;}
     const bad=(message:string):never=>fail(ctx,'validation.bad_input',message,{field:`answers.${key}`});
     if((field.type==='files'||field.type==='file')&&(!value||typeof value!=='object'||Array.isArray(value)||!('fileId' in value)))bad('Choose a file uploaded through this form.');
-    if(field.type==='relation'||field.type==='person')bad('This question requires publisher-approved record choices. Ask the form owner for help.');
+    if(field.type==='relation'||field.type==='person'){
+      // only a choice the publisher published for this question: an opaque key, looked up here and checked again as the publisher who set it
+      const source=formsConfig().choiceSource,choice=typeof value==='string'?choiceByKey(ctx,str(form.id),key,value):null;
+      if(!source)bad('This question requires publisher-approved record choices. Ask the form owner for help.');
+      if(!choice)bad('Choose one of the listed options.');
+      const info=await source!.describe(choice!.setBy,field,choice!.refId);
+      if(!info.ok)bad('That choice is no longer available.');
+      out[key]=field.type==='person'?choice!.refId:{[RELATE]:choice!.refId};
+      continue;
+    }
     if(['number','integer','currency','percent','rating'].includes(field.type)){
       const n=typeof value==='number'?value:typeof value==='string'&&value.trim()?Number(value):NaN;
       if(!Number.isFinite(n)||field.type==='integer'&&!Number.isInteger(n))bad('Enter a valid number.');
@@ -169,7 +179,8 @@ export async function typedAnswers(ctx: Ctx, form: Row, answers: Record<string, 
     }else if(['boolean','bool','checkbox'].includes(field.type)){
       if(value===true||value==='true'||value==='on')out[key]=true;else if(value===false||value==='false')out[key]=false;else bad('Choose yes or no.');
     }else if(field.type==='choice'||field.type==='status'||field.type==='multichoice'){
-      const raw=field.options?.[field.type==='status'?'stages':'choices'];const choices=new Set(Array.isArray(raw)?raw.flatMap((item)=>typeof item==='string'?[item]:isRec(item)&&typeof item.key==='string'?[item.key]:[]):[]);
+      const published=field.type==='relation'||field.type==='person'?choicesOf(ctx,str(form.id),field.key).map((c)=>({key:c.key,title:c.label})):[];
+    const raw=field.options?.[field.type==='status'?'stages':'choices'];const choices=new Set(Array.isArray(raw)?raw.flatMap((item)=>typeof item==='string'?[item]:isRec(item)&&typeof item.key==='string'?[item.key]:[]):[]);
       if(field.type==='multichoice'){if(!Array.isArray(value)||value.some((item)=>typeof item!=='string'||!choices.has(item)))bad('Choose only the listed options.');}
       else if(typeof value!=='string'||!choices.has(value))bad('Choose one of the listed options.');
     }else if(field.type==='date'){
@@ -244,7 +255,7 @@ export function checkUploads(ctx: Ctx, form: Row, answers: Record<string, Answer
   const out: Record<string, Answer> = { ...answers };
   const used: string[] = [];
   for (const [key, a] of Object.entries(answers)) {
-    if (a === null || typeof a !== "object" || Array.isArray(a)) continue;
+    if (a === null || typeof a !== "object" || Array.isArray(a) || RELATE in a) continue;   // a relation pick is not a file: it was made from a published choice and carries no upload id
     const field = `answers.${key}`;
     const bad = (): never => fail(ctx, "validation.bad_input", "That file could not be found. Choose it again.", { field });
     if(policy?.folderId&&formsConfig().canUpload?.(str(form.created_by),str(form.id),policy.folderId)===false)fail(ctx,'permission.no_grant','The form owner no longer has access to its upload folder. Ask the form owner for help.',{field});
@@ -290,6 +301,19 @@ async function digestOf(form: Row, link: Row | null, answers: Record<string, Ans
   return sha256hex(JSON.stringify([form.id, link ? link.id : null, keys.map((k) => [k, answers[k]])]));
 }
 
+/** A relation answer on its way to the write: the record to link, applied with records.relate after the record exists (it keeps both ends of a relation right, whatever the field's shape). */
+const RELATE = "__relate" as const;
+const relationPick = (v: unknown): string | null => (isRec(v) && typeof v[RELATE] === "string" ? (v[RELATE] as string) : null);
+/** A survey keeps what the visitor answered: a relation pick is stored as the label they saw, not the record id behind it, so results read naturally and carry no id. */
+function surveyAnswers(ctx: Ctx, formId: string, answers: Record<string, Answer>): Record<string, Answer> {
+  const out: Record<string, Answer> = {};
+  for (const [k, v] of Object.entries(answers)) {
+    const id = relationPick(v);
+    out[k] = id === null ? v : choicesOf(ctx, formId, k).find((c) => c.refId === id)?.label ?? "";
+  }
+  return out;
+}
+
 export interface WriteResult {
   recordId: string;
   created: boolean;
@@ -305,8 +329,22 @@ const unwrapId = (v: unknown): string => {
  * Write answers to a record as the form's service principal. With a link the link's record is updated. Without one the match rule decides:
  * no match creates, one match updates, several matches create a record and put the doubt in Needs you (nothing is merged by guess).
  */
-export async function writeAnswers(ctx: Ctx, form: Row, answers: Record<string, Answer>, link: Row | null, key: string): Promise<WriteResult> {
+export async function writeAnswers(ctx: Ctx, form: Row, picked: Record<string, Answer>, link: Row | null, key: string): Promise<WriteResult> {
   const type = str(form.record_type);
+  const answers: Record<string, Answer> = {}, relations: [string, string][] = [];
+  for (const [k, v] of Object.entries(picked)) { const id = relationPick(v); if (id) relations.push([k, id]); else answers[k] = v; }
+  // the link goes in with the create, so a required relation is satisfied; relate then fills the other end of a two-way relation
+  const schema = relations.length > 0 ? await formsConfig().schemaFields?.(type) : undefined;
+  for (const [field, toId] of relations) {
+    const target = schema?.find((f) => f.key === field)?.options?.["target"];
+    if (typeof target === "string") (answers as Record<string, unknown>)[field] = [{ urn: `vyre://${ctx.space}/${target}/${toId}` }];
+  }
+  const written = await writeFields(ctx, form, type, answers, link, key);
+  for (const [field, toId] of relations) await ctx.call("records.relate", { type, recordId: written.recordId, field, toId });
+  return written;
+}
+
+async function writeFields(ctx: Ctx, form: Row, type: string, answers: Record<string, Answer>, link: Row | null, key: string): Promise<WriteResult> {
   if (link) {
     const recordId = str(link.record_id);
     if (Object.keys(answers).length > 0) await ctx.call("records.update", { type, recordId, patch: answers });
@@ -418,7 +456,7 @@ async function submit(ctx: Ctx, input: unknown): Promise<{ recordId: string; tha
   ctx.db.run(
     "INSERT INTO forms_submission (id, form_id, record_id, at, matched, principal, link_id, consent, digest, answers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     nid(ctx, "sub"), formId, written.recordId, now, written.matched ? 1 : 0, formPrincipal(formId), link ? str(link.id) : null, consent ? 1 : 0, digest,
-    form.kind === "survey" ? JSON.stringify(answers) : null,
+    form.kind === "survey" ? JSON.stringify(surveyAnswers(ctx, formId, answers)) : null,
   );
   if (attribution) recordAttribution(ctx, written.recordId, attribution, written.created);
   if (link) ctx.db.run("UPDATE forms_link SET partial = ?, partial_step = ?, partial_expires_at = ? WHERE id = ?", null, null, null, str(link.id));
@@ -521,7 +559,9 @@ export async function publicFormViewTyped(ctx: Ctx, slug: string, page: "form"|"
   view.fields=view.fields.flatMap((item)=>{const field=known.get(item.field);if(!field)return [];
     const raw=field.options?.[field.type==='status'?'stages':'choices'];
     const choices=Array.isArray(raw)?raw.slice(0,200).flatMap((choice)=>typeof choice==='string'?[{key:choice,title:choice}]:isRec(choice)&&typeof choice.key==='string'?[{key:choice.key,title:typeof choice.title==='string'?choice.title:choice.key}]:[]):[];
-    return [{...item,title:field.title,type:field.type,...(field.required?{required:true}:{}),...(choices.length?{choices}: {})}];});
+    const published=field.type==='relation'||field.type==='person'?choicesOf(ctx,str(form.id),field.key).map((c)=>({key:c.key,title:c.label})):[];
+    const offered=published.length?published:choices;
+    return [{...item,title:field.title,type:field.type,...(field.required?{required:true}:{}),...(offered.length?{choices:offered}: {})}];});
   return view;
 }
 

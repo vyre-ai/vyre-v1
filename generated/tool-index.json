@@ -2756,6 +2756,18 @@
     },
     {
       "deferred": false,
+      "name": "forms_choices_candidates",
+      "summary": "The records the publisher can see, or the people in the Space, that a relation or person question could offer; display labels only",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "forms_choices_set",
+      "summary": "Publish the records or people a public relation or person question may offer: a bounded list the visitor can only pick from; a visitor sees each one's display label only",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "forms_create",
       "summary": "Create a form on a record type; every input maps to a field",
       "toolset": "automations"

@@ -10249,6 +10249,44 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/forms/choices_candidates",
+    "cap": "forms.choices_candidates",
+    "v": 1,
+    "module": "forms",
+    "effects": "read",
+    "permission": "forms.publish",
+    "level": "view",
+    "resource": {
+      "type": "form",
+      "id": "/formId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/forms/choices_set",
+    "cap": "forms.choices_set",
+    "v": 1,
+    "module": "forms",
+    "effects": "write",
+    "permission": "forms.publish",
+    "level": "edit",
+    "resource": {
+      "type": "form",
+      "id": "/formId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/forms/create",
     "cap": "forms.create",
     "v": 1,
