@@ -136,6 +136,21 @@ test("a Team Space: the same AI account is copied only with a yes; a member join
     const theirs = await untilAssistant(mCall, member);
     assert.equal(theirs.ownerId, member, "the member's assistant is their own");
 
+    // the owner's assistant is private to the owner: another member cannot see it, @mention it or open a chat with it
+    const ownerAssistant = await untilAssistant(tCall, owner);
+    for (const section of ["personal", "shared", "space"]) {
+      const seen = ((await mCall("agents.list", { section, limit: 100 })) as { agents: { agentId: string }[] }).agents;
+      assert.ok(!seen.some((a) => a.agentId === ownerAssistant.agentId), `the owner's assistant is not in the member's ${section} list`);
+    }
+    await assert.rejects(() => mCall("agents.get", { agentId: ownerAssistant.agentId }), (e: { code?: string }) => e.code === "validation.not_found");
+    await assert.rejects(() => mCall("chat.start", { kind: "chat", agentIds: [ownerAssistant.agentId], idempotencyKey: "live-m-chat-owner" }), "the member cannot open a chat with the owner's assistant");
+    const own = await mCall("chat.start", { kind: "chat", agentIds: [theirs.agentId], idempotencyKey: "live-m-chat-own" }) as { threadId: string };
+    await assert.rejects(() => mCall("chat.post", { threadId: own.threadId, body: "hello", mentions: [{ kind: "agent", id: ownerAssistant.agentId }], idempotencyKey: "live-m-mention" }), "the member cannot @mention the owner's assistant");
+
+    // the Console assistant finds the owner's own assistant by its role, so the old "connect an AI account first" error is gone for the right reason
+    const opened = await tCall("console.assistant_open", { page: "console.home", idempotencyKey: "live-console" }).then(() => "opened", (e: Error) => e.message);
+    assert.ok(!/not set up yet|Connect an AI account first/i.test(opened), opened);
+
     // a member sees only their own AI accounts; the owner's key is not theirs
     assert.equal(((await mCall("providers.list", {})) as { providers: unknown[] }).providers.length, 0, "the owner's Mine key is not visible to a member");
     // the member's own onboarding has its own flow and progress
