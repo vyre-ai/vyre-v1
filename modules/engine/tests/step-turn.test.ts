@@ -71,6 +71,14 @@ test("a step key picks the account, and the backup covers a key that is not ther
   await assert.rejects(run(h, { keyId: "#Missing", idempotencyKey: "k4" }), (e) => codeOf(e) === "provider.auth_failed");
 });
 
+test("a key named by provider id, Vault item id or name is the account with that handle", async () => {
+  const { h } = scene({ providers: [key({ id: "prv_other", handle: "#Other", itemId: "vit_other", name: "Other key" }), key()] });
+  assert.equal((await run(h, { keyId: "prv_other", idempotencyKey: "p1" })).keyUsed, "#Other");
+  assert.equal((await run(h, { keyId: "vit_other", idempotencyKey: "p2" })).keyUsed, "#Other");
+  assert.equal((await run(h, { keyId: "Other key", idempotencyKey: "p3" })).keyUsed, "#Other");
+  assert.equal((await run(h, { keyId: "prv_nope", backupKeyId: "prv_1", idempotencyKey: "p4" })).keyUsed, "#Mine_Anthropic");
+});
+
 test("a Space automation runs as its service on a Space-shared key only", async () => {
   const svc = { kind: "service" as const, id: "svc_abc" };
   const ok = scene({ principal: svc, providers: [team(), key()] });

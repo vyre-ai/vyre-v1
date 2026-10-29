@@ -236,7 +236,6 @@ test("section 17 controls render in light, dark, desktop, and compact", () => {
       assert.match(compactRow.css, /\.r-minHeight-[^{]+\{min-height:26px;\}/);
       assert.match(tag(out, "line-found"), new RegExp(compactRow.className));
       assert.ok(has(out, "Found the person"));
-      assert.equal(has(out, 'data-testid="preview-ai"'), false);
       assert.equal(has(out, String.fromCharCode(0x2014)), false);
     }
   }

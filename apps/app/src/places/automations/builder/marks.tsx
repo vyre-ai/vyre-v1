@@ -1,25 +1,16 @@
-// Preview is a product mark, not a catalog flag. AI and code stay visibly unfinished.
+// Marks of the step panel: its Configure, Data and Test tabs, the data shelf, and the typed edits a field makes.
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { filterShelf, shelfRows } from "./fields.ts";
 import { keyNeighbour, mappingLabel, tabLabel } from "../a11y.ts";
 import { ABSENCE, DATA_SHELF_NAME, INSPECTOR_TABS, SHELF_SEARCH } from "../chrome.ts";
-import { PREVIEW_NOTE } from "../catalog/model.ts";
 import { COMPACT_REGIONS, COMPACT_SECTION } from "../canvas/frame.ts";
 import { webOnly } from "../canvas/parts.tsx";
 import type { KeyEventLike } from "../canvas/parts.tsx";
 import { literalFromEditor, mappingIssues, presenceOf, refValue, typeOf } from "../values/typed.ts";
 import type { Presence, TypeRef } from "../values/typed.ts";
 import type { Definition } from "../canvas/model.ts";
-
-export function PreviewMark({ testID }: { testID: string }): ReactElement {
-  return (
-    <View testID={testID} accessibilityLabel={PREVIEW_NOTE} style={m.badge}>
-      <Text style={m.badgeText}>Preview</Text>
-    </View>
-  );
-}
 
 export function SectionRow({ section, onSection, ordered = false }: { section: "configure" | "data" | "test"; onSection(next: "configure" | "data" | "test"): void; ordered?: boolean }): ReactElement {
   const items = INSPECTOR_TABS.map((label) => ({ key: label.toLowerCase() as "configure" | "data" | "test", label }));

@@ -9,7 +9,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { startNetWall, bwrapWallCommand, validHostPattern } from "../../sandbox/src/index.ts";
-import type { NetWall, Roots, SandboxSpec } from "../../sandbox/src/index.ts";
+import type { NetWall, NetWallOptions, Roots, SandboxSpec } from "../../sandbox/src/index.ts";
 import { stepError } from "./projections.ts";
 
 /** What the host gives the module: where to make run folders, and how to find bwrap and Node. Tests override the limits. */
@@ -25,6 +25,8 @@ export interface CodeHost {
   cpuSeconds?: number;
   wallMs?: number;
   heapMb?: number;
+  /** Tests: how the egress proxy resolves a name and dials an address (a stand-in for the internet). Default: the system's. */
+  egress?: NetWallOptions["egress"];
 }
 
 export const LIMITS = Object.freeze({ cpuSeconds: 10, wallMs: 30_000, heapMb: 96, outputBytes: 1_000_000, sourceChars: 20_000, hosts: 10 });
@@ -119,7 +121,7 @@ export async function runInSandbox(source: unknown, input: unknown, hostsRaw?: u
     fs.writeFileSync(path.join(dir, "code.js"), source, { mode: 0o644 });
     fs.writeFileSync(path.join(dir, "input.json"), inputText, { mode: 0o644 });
     // one proxy for this run: it allows the named hosts and is closed when the run ends
-    net = await startNetWall({ allow: hosts });
+    net = await startNetWall({ allow: hosts, ...(h.egress ? { egress: h.egress } : {}) });
     const node = h.node ?? process.execPath;
     const heap = h.heapMb ?? LIMITS.heapMb;
     const cpu = h.cpuSeconds ?? LIMITS.cpuSeconds;

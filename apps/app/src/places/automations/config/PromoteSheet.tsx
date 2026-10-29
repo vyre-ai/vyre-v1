@@ -56,14 +56,14 @@ export function PromoteSheet({ automation, onClose, onPromoted, preview: given }
   );
 }
 
-function PromoteBody({ automation, preview, onClose, onPromoted, call, keys, me, name }: { automation: Automation; preview: PromoteDiff; onClose(): void; onPromoted?: (a: Automation) => void; call(cap: string, input: unknown): Promise<unknown>; keys: readonly { id: string; name: string; kind: "subscription" | "api" }[]; me: string; name(id: string): string }): ReactElement {
+function PromoteBody({ automation, preview, onClose, onPromoted, call, keys, me, name }: { automation: Automation; preview: PromoteDiff; onClose(): void; onPromoted?: (a: Automation) => void; call(cap: string, input: unknown): Promise<unknown>; keys: readonly { id: string; name: string; kind: "subscription" | "api"; shared?: boolean }[]; me: string; name(id: string): string }): ReactElement {
   const { element, show } = useMenu();
   const [choices, setChoices] = useState<Choice[]>(() => initialChoices(preview.diff, keys));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const d = preview.diff;
   const ok = canPromote(preview, choices, keys) && !busy;
-  const apiKeys = keys.filter((k) => k.kind === "api");
+  const apiKeys = keys.filter((k) => k.kind === "api" && k.shared !== false);
   const nodeTitle = (stepId: string): string => automation.definition.nodes.find((n) => n.id === stepId)?.title ?? stepId;
   const nodeAgent = (stepId: string): string => { const id = automation.definition.nodes.find((n) => n.id === stepId)?.ai?.agentId; return id ? name(id) : "An agent"; };
 

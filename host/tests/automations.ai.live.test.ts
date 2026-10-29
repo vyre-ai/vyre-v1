@@ -187,7 +187,7 @@ test("a Space AI step runs as its service on a Space-shared key, and refuses a k
     await unlock(w.d);
     const folder = await ok(w.d, "vault.folders.create", { name: "AI keys", scope: "shared", idempotencyKey: "ai-folder" });
     const team = await ok(w.d, "providers.add", { idempotencyKey: "ai-team", providerKey: "openai", connection: "api_key", apiKey: KEY, scope: "shared", name: "Team OpenAI", folderId: folder.folder.id });
-    const handle = String(team.provider.handle);
+    const handle = String(team.provider.id);   // the place names a key by its provider id
     const mine = await ok(w.d, "providers.add", { idempotencyKey: "ai-own", providerKey: "openai", connection: "api_key", apiKey: `${KEY}-own`, scope: "mine", name: "My OpenAI" });
     const made = await ok(w.d, "automations.create", { idempotencyKey: "ai-space", name: "Team answer" });
     const id = String(made.automation.id);
@@ -207,7 +207,7 @@ test("a Space AI step runs as its service on a Space-shared key, and refuses a k
     noKey(await everything(w.d, runId, id), "the Space run");
     // a key that belongs to one person cannot be the Space automation's
     await ok(w.d, "automations.set_enabled", { automationId: id, enabled: false });
-    await ok(w.d, "automations.update", { automationId: id, definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { prompt: "Say hi" }, ai: { keyId: String(mine.provider.handle) } }] } });
+    await ok(w.d, "automations.update", { automationId: id, definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { prompt: "Say hi" }, ai: { keyId: String(mine.provider.id) } }] } });
     const refused = await call(w.d, "automations.set_enabled", { automationId: id, enabled: true });
     assert.equal(refused.status, 422, JSON.stringify(refused.data));
     assert.match(JSON.stringify(refused.data), /belongs to one person/);

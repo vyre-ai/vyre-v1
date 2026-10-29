@@ -5,10 +5,9 @@ import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AskVyre } from "./ask/AskVyre.tsx";
 import { scrubAskContext } from "./ask/bundle.ts";
-import { PreviewMark } from "./builder/marks.tsx";
 import { AutomationCanvas } from "./canvas/AutomationCanvas.tsx";
 import { AutomationsDataProvider } from "./canvas/data.tsx";
-import { availabilityFor } from "./catalog/model.ts";
+import { availabilityFor, menuGroups, stepsFromRuntime } from "./catalog/model.ts";
 import { SAMPLE_CATALOG } from "./catalog/sample.ts";
 import { connectionRoute, setupFromIssue } from "./connect/route.ts";
 import { RunsDataProvider } from "./runs/data.tsx";
@@ -47,21 +46,15 @@ test("a failed run has no Stop, and replay and live re-run are different labels"
   assert.equal(canStopRun("running"), true);
 });
 
-test("AI and Code are unavailable, and a schedule, Parallel, and Loop stay available", () => {
-  assert.equal(availabilityFor("ai", "step"), "unavailable");
-  assert.equal(availabilityFor("code", "step"), "unavailable");
+test("AI and Code are live steps: every step and trigger is available, and the catalog lists what the server sends", () => {
+  for (const key of ["ai", "code", "http_request", "parallel", "loop", "wait"]) assert.equal(availabilityFor(key, "step"), "available", key);
   assert.equal(availabilityFor("schedule", "trigger"), "available");
-  assert.equal(availabilityFor("parallel", "step"), "available");
-  assert.equal(availabilityFor("loop", "step"), "available");
-  assert.equal(availabilityFor("wait", "step"), "available");
-  const out = renderToStaticMarkup(
-    <>
-      <PreviewMark testID="preview-ai" />
-      <PreviewMark testID="preview-code" />
-      <PreviewMark testID="preview-schedule" />
-    </>,
-  );
-  for (const id of ["preview-ai", "preview-code", "preview-schedule"]) assert.ok(has(out, `data-testid="${id}"`) && has(out, "Preview"), id);
+  const kept = stepsFromRuntime({ steps: [
+    { key: "ai", title: "AI step", category: "ai" }, { key: "code", title: "Run code", category: "code" }, { key: "http_request", title: "HTTP request", category: "data" }, { key: "records.find", title: "Find records", category: "data" },
+  ] })!;
+  assert.deepEqual(kept.map((s) => [s.key, s.group, s.availability]), [["ai", "AI and code", "available"], ["code", "AI and code", "available"], ["http_request", "Connected apps", "available"], ["records.find", "Data & transforms", "available"]]);
+  assert.deepEqual(menuGroups(kept).map((g) => g.head), ["Connected apps", "AI and code", "Data & transforms"]);
+  assert.ok(kept.every((s) => s.note === undefined), "no step carries a preview note");
 });
 
 test("Ask Vyre context omits a field named secret, authorization, or cookie", () => {

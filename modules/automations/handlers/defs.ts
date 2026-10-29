@@ -696,6 +696,15 @@ export async function accessDiff(ctx: AutoCtx, a: Automation): Promise<Diff> {
       if (type) { const k = `${type}/${s}`; need.set(k, Math.max(need.get(k) ?? 0, lvl)); }
     });
   }
+  // the AI step's key is named by provider id; the Vault item behind it is what the Space automation must be allowed to use
+  const providers = await providersOf(ctx);
+  for (const n of a.definition.nodes) {
+    if (n.key !== "ai") continue;
+    for (const k of [n.ai?.keyId, n.ai?.backupKeyId]) {
+      const p = k ? providers?.find((x) => refOf(x).includes(k)) : undefined;
+      if (p?.handle) vault.add(p.handle);
+    }
+  }
   const grants: Grant[] = [...need.entries()].sort(([x], [y]) => (x < y ? -1 : 1)).map(([resource, l]) => {
     const level = LEVELS[l]!;
     const [type, id] = resource.split("/") as [string, string];

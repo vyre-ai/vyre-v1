@@ -1,10 +1,8 @@
 // Catalog availability for the builder. The product list comes from automations.steps.list and automations.triggers.list.
-// AI and Code are hidden. The host has no agent port and no sandbox port. Parallel, Loop, and a schedule stay.
+// AI and Code are live steps. A server that cannot run one does not list it (Run code needs the sandbox), so the menu shows what this server can do and nothing else.
 import type { IconKey } from "../canvas/model.ts";
 
 export type Availability = "available" | "needs_setup" | "preview" | "unavailable";
-
-export const PREVIEW_NOTE = "Preview. Visible for design. It will not run live in this release.";
 
 export interface CatalogStep {
   key: string;
@@ -29,13 +27,8 @@ export interface CatalogTrigger {
 
 const LOGIC = new Set(["paths", "if", "parallel", "loop", "wait", "wait_stage", "stop"]);
 
-export function availabilityFor(key: string, kind: "step" | "trigger"): Availability {
-  if (kind === "step" && (key === "ai" || key === "code")) return "unavailable";
+export function availabilityFor(_key: string, _kind: "step" | "trigger"): Availability {
   return "available";
-}
-
-export function isPreviewKey(key: string | undefined, kind: "step" | "trigger" = "step"): boolean {
-  return key !== undefined && availabilityFor(key, kind) === "preview";
 }
 
 const CONNECTED = /^(google\.|ms\.|github\.|sheet\.)/;
@@ -48,14 +41,15 @@ const CONNECTED_ORDER = [
   "ms.mail.list_messages", "ms.mail.send_message", "ms.calendar.list_events", "ms.calendar.create_event", "ms.drive.list_items", "ms.drive.create_folder",
   "github.repos.list", "github.pull_request.get", "github.issue.create", "github.issue.comment", "github.issue.assign_agent",
   "sheet.find_rows", "sheet.add_rows", "sheet.update_rows", "sheet.create", "sheet.read_all", "sheet.delete_rows",
-  "send_email", "send_sms", "post_message", "connector_request",
+  "send_email", "send_sms", "post_message", "connector_request", "http_request",
 ];
 
 export function groupFor(step: { key: string; category?: string }): string {
   if (availabilityFor(step.key, "step") === "preview") return "Preview";
   if (LOGIC.has(step.key)) return "Logic";
   if (step.key === "approval") return "Human input";
-  if (CONNECTED.test(step.key) || step.key === "connector_request" || step.key === "send_email" || step.key === "send_sms" || step.key === "post_message") return "Connected apps";
+  if (step.key === "ai" || step.key === "code") return "AI and code";
+  if (CONNECTED.test(step.key) || step.key === "connector_request" || step.key === "http_request" || step.key === "send_email" || step.key === "send_sms" || step.key === "post_message") return "Connected apps";
   if (VYRE_PRODUCT.test(step.key) || step.key === "sign" || step.key === "create_task") return "Vyre";
   switch (step.category) {
     case "data": return "Data & transforms";
@@ -75,7 +69,7 @@ function rankOf(item: { key?: string }): number {
   return at === -1 ? 700 : at;
 }
 
-const GROUP_ORDER = ["Suggested", "Vyre", "Connected apps", "Logic", "Data & transforms", "Human input", "Sub-Automations", "Preview"];
+const GROUP_ORDER = ["Suggested", "Vyre", "Connected apps", "AI and code", "Logic", "Data & transforms", "Human input", "Sub-Automations", "Preview"];
 
 export function menuGroups<T extends { group: string }>(items: readonly T[]): { head: string; items: T[] }[] {
   const buckets = new Map<string, T[]>();
@@ -122,7 +116,6 @@ export function stepsFromRuntime(out: unknown): CatalogStep[] | null {
       ...(rec["input"] !== undefined ? { input: rec["input"] } : {}),
       ...(rec["output"] !== undefined ? { output: rec["output"] } : {}),
       ...(typeof rec["effects"] === "string" ? { effects: rec["effects"] } : {}),
-      ...(availability === "preview" ? { note: PREVIEW_NOTE } : {}),
     });
   }
   return steps;
@@ -142,7 +135,6 @@ export function triggersFromRuntime(out: unknown): CatalogTrigger[] | null {
       availability,
       ...(rec["sample"] !== undefined ? { sample: rec["sample"] } : {}),
       ...(typeof rec["personalOk"] === "boolean" ? { personalOk: rec["personalOk"] } : {}),
-      ...(availability === "preview" ? { note: PREVIEW_NOTE } : {}),
     });
   }
   return triggers;
@@ -173,7 +165,7 @@ const STEP_ICON: Readonly<Record<string, IconKey>> = {
   send_email: "send", send_sms: "phone", post_message: "chat", ai: "ai", approval: "shield",
   paths: "branch", parallel: "parallel", loop: "loop", wait: "hourglass", stop: "stop",
   start_journey: "journey", wait_stage: "hourglass", "sheet.add_rows": "sheet", "sheet.find_rows": "search",
-  "sheet.update_rows": "edit", sign: "sign", code: "code",
+  "sheet.update_rows": "edit", sign: "sign", code: "code", http_request: "hook",
 };
 
 const TRIGGER_ICON: Readonly<Record<string, IconKey>> = {

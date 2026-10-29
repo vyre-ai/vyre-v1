@@ -232,7 +232,8 @@
       "from": [
         "modules/computers",
         "modules/terminal",
-        "modules/engine"
+        "modules/engine",
+        "modules/steps-core"
       ],
       "to": [
         "sandbox"

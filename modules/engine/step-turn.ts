@@ -73,16 +73,26 @@ async function agentContext(ctx: EngineCtx, agentId: string): Promise<{ agent: A
 
 /** The account that pays, by the same rules as a chat (agent/src/accounts/resolve.ts), narrowed for a Space automation to the keys the Space shares. */
 async function accountFor(ctx: EngineCtx, i: StepTurnIn, asker: string, service: boolean, agent: AgentOut["agent"] | undefined): Promise<{ row: AccountRow; itemId?: string; payer: string }> {
-  const { rows, itemByRef } = await load(ctx as never);
+  const { rows, itemByRef, idByRef } = await load(ctx as never);
+  // The step names its key the way the place shows it: the provider id, the Vault item id, the handle or the name. The accounts are matched by handle, so the name is turned into the handle first.
+  const refFor = (key: string | undefined): string | undefined => {
+    if (key === undefined) return undefined;
+    if (rows.some((r) => r.ref === key)) return key;
+    for (const [ref, providerId] of idByRef) if (providerId === key) return ref;
+    for (const [ref, itemId] of itemByRef) if (itemId === key) return ref;
+    return rows.find((r) => r.title === key)?.ref ?? key;
+  };
+  const keyRef = refFor(i.keyId);
+  const backupRef = refFor(i.backupKeyId);
   const policy = (await ctx.call("engine.policy.get", {})) as PolicyOut;
   const usable = service ? rows.filter((r) => !r.mine) : rows;
   const provider = agent?.model ? providerOfModel(agent.model) : undefined;
   const res = resolveAccount({
     starter: asker,
-    trigger: i.keyId ? "task" : "message",
-    ...(i.keyId ? { stepKey: i.keyId } : {}),
+    trigger: keyRef ? "task" : "message",
+    ...(keyRef ? { stepKey: keyRef } : {}),
     agent: { accountPolicy: agent?.accountPolicy ?? "asker", ...(agent?.accountKey ? { accountKey: agent.accountKey } : {}), ...(provider ? { provider } : {}) },
-    backupRefs: i.backupKeyId ? [i.backupKeyId] : [],
+    backupRefs: backupRef ? [backupRef] : [],
     policy: policy.allowedAccounts,
     accounts: usable,
     onServer: true,

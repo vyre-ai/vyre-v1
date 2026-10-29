@@ -97,6 +97,8 @@ export interface ProviderKey {
   id: string;
   name: string;
   kind: "subscription" | "api";
+  /** Shared with the Space (true) or one person's own (false); absent when the list did not say. A Space automation can run only on a shared key. */
+  shared?: boolean;
 }
 
 /** Provider rows become key choices. Handles and secret material are not copied. */
@@ -108,7 +110,7 @@ export function keysFromProviders(out: unknown): ProviderKey[] | null {
     const rec = row as Record<string, unknown>;
     if (typeof rec["id"] !== "string") continue;
     const kind = rec["connection"] === "api_key" ? "api" : "subscription";
-    keys.push({ id: rec["id"], name: typeof rec["name"] === "string" ? rec["name"] : rec["id"], kind });
+    keys.push({ id: rec["id"], name: typeof rec["name"] === "string" ? rec["name"] : rec["id"], kind, ...(typeof rec["scope"] === "string" ? { shared: rec["scope"] === "shared" } : {}) });
   }
   return keys;
 }
