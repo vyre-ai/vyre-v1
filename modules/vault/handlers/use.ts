@@ -61,8 +61,9 @@ export function secretPort(db: VaultDb): SecretPort {
     const m = HANDLE.exec(handle.startsWith("#") ? handle : `#${handle}`);
     if (!m) throw new Error("A handle looks like #Name or #Name.field.");
     const named = rowsOf(db.all(`SELECT * FROM vault_meta`)).filter((r) => r["deleted_at"] == null && str(r, "handle").toLowerCase() === `#${m[1]!}`.toLowerCase());
-    // a Shared item by handle; else the asker's own Mine item (the caller has already passed vault.use, and a Mine item opens only for its owner with the key they unlocked on this node)
-    const meta = named.find((r) => str(r, "scope") === "shared") ?? (asker ? named.find((r) => str(r, "scope") === "mine" && str(r, "owner") === asker) : undefined);
+    // the asker's own Mine item wins: a Shared item that takes the same handle must never shadow it (that would send the person's turns to whoever made the Shared item). Shared only when they have no Mine item of that name.
+    // The caller has already passed vault.use, and a Mine item opens only for its owner with the key they unlocked on this node.
+    const meta = (asker ? named.find((r) => str(r, "scope") === "mine" && str(r, "owner") === asker) : undefined) ?? named.find((r) => str(r, "scope") === "shared");
     if (!meta) throw new Error(`The Vault has no shared item ${handle}.`);
     const row = first(db.all(`SELECT * FROM vault_secret WHERE "itemId" = ?`, str(meta, "id")));
     if (!row) throw new Error("The vault service is not running.");
