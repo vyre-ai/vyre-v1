@@ -1,24 +1,39 @@
-// A package is a copy of a definition. The list is empty until someone exports one.
+// Package export stays off until a later review. The handlers and the table remain.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { harness } from "../fixtures/db.ts";
-import { alice, bob, create } from "../fixtures/seed.ts";
+import { codeOf, harness } from "../fixtures/db.ts";
+import { alice, create } from "../fixtures/seed.ts";
 
-test("export stores a package, import makes a draft, and another person sees neither", async () => {
+test("package export and import are not available yet", async () => {
   const h = harness();
   const made = await h.call("automations.create", create({ name: "Welcome" }), alice);
   const id = made.automation.id as string;
-  const empty = await h.call("automations.packages.list", {}, alice);
-  assert.deepEqual(empty.packages, []);
-  const saved = await h.call("automations.packages.export", { automationId: id, name: "Welcome pack" }, alice);
-  assert.equal(saved.package.name, "Welcome pack");
-  assert.equal(saved.package.sourceAutomationId, id);
-  const listed = await h.call("automations.packages.list", {}, alice);
-  assert.equal(listed.packages.length, 1);
-  const imported = await h.call("automations.packages.import", { packageId: saved.package.id }, alice);
-  assert.equal(imported.automation.name, "Welcome pack");
-  assert.equal(imported.automation.status, "draft");
-  assert.notEqual(imported.automation.id, id);
-  const hidden = await h.call("automations.packages.list", {}, bob);
-  assert.deepEqual(hidden.packages, []);
+  const calls = [
+    h.call("automations.packages.list", {}, alice),
+    h.call("automations.packages.export", { automationId: id, name: "Welcome pack" }, alice),
+    h.call("automations.packages.import", { packageId: "pkg_missing" }, alice),
+  ];
+  for (const call of calls) {
+    await assert.rejects(call, (e: unknown) => {
+      assert.equal(codeOf(e), "internal.unavailable");
+      assert.match(String((e as { error?: { message?: string } }).error?.message ?? ""), /not available yet/);
+      return true;
+    });
+  }
+});
+
+test("moving runs onto a new version is not available yet", async () => {
+  const h = harness();
+  const id = (await h.call("automations.create", create({ name: "Welcome" }), alice)).automation.id as string;
+  const calls = [
+    h.call("automations.migration_preview", { automationId: id, toVersion: 1 }, alice),
+    h.call("automations.migrate_runs", { automationId: id, toVersion: 1, runIds: ["run_a1b2c3"] }, alice),
+  ];
+  for (const call of calls) {
+    await assert.rejects(call, (e: unknown) => {
+      assert.equal(codeOf(e), "internal.unavailable");
+      assert.match(String((e as { error?: { message?: string } }).error?.message ?? ""), /not available yet/);
+      return true;
+    });
+  }
 });

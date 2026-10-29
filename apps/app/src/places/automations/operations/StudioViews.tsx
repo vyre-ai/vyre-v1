@@ -8,10 +8,9 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { CONNECT_LIMIT, connectorLine, shownConnectors } from "../connect/trust-view.ts";
 import type { ConnectorSource, ShownConnector } from "../connect/trust-view.ts";
 import {
-  ALL_RUNS_LINE, ALL_RUNS_SEARCH, ANALYTICS_LINE, DEPS_LINE, EMPTY_COMPLETED, EMPTY_DEPENDENCIES, EMPTY_EVENTS, EMPTY_PACKAGES, EVENTS_LINE, LISTENING, NEEDS_LINE, PACKAGES_LINE, SPACE_ANALYTICS_LINE, SPACE_ANALYTICS_TITLE,
+  ALL_RUNS_LINE, ALL_RUNS_SEARCH, ANALYTICS_LINE, DEPS_LINE, EMPTY_COMPLETED, EMPTY_DEPENDENCIES, EMPTY_EVENTS, EVENTS_LINE, LISTENING, NEEDS_LINE, PACKAGES_LINE, SPACE_ANALYTICS_LINE, SPACE_ANALYTICS_TITLE,
 } from "../chrome.ts";
-import { countRuns, dependenciesFrom, eventRows, exportChoices, packageRows } from "./read.ts";
-import type { NamedRow } from "./read.ts";
+import { countRuns, dependenciesFrom, eventRows } from "./read.ts";
 import type { DependencyNode } from "./read.ts";
 import { choiceStartsRuns, readChoiceResult, scheduleRequestFromTask } from "./recovery.ts";
 import type { ScheduleChoiceKey } from "./recovery.ts";
@@ -305,72 +304,9 @@ function ConnectorTrust(): ReactElement {
 }
 
 export function Packages(): ReactElement {
-  const data = useAutomationsData();
-  const [reload, setReload] = useState(0);
-  const [packages, setPackages] = useState<Phase<NamedRow[]>>({ phase: "loading" });
-  const [sources, setSources] = useState<NamedRow[]>([]);
-  const [note, setNote] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    let live = true;
-    void (async () => {
-      try {
-        const listed = packageRows(await data.call("automations.packages.list", {}));
-        if (!listed) throw new Error("The package list did not return rows.");
-        const choices = exportChoices(await data.call("automations.list", { limit: 20 })) ?? [];
-        if (!live) return;
-        setPackages({ phase: "ready", value: listed });
-        setSources(choices);
-      } catch (e) {
-        if (!live) return;
-        setPackages({ phase: "error", message: e instanceof Error ? e.message : "Packages did not load." });
-      }
-    })();
-    return () => { live = false; };
-  }, [data, reload]);
-  async function exp(id: string): Promise<void> {
-    if (busy) return;
-    setBusy(true);
-    setNote(null);
-    try {
-      await data.call("automations.packages.export", { automationId: id });
-      setReload((n) => n + 1);
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : "That automation was not exported.");
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function imp(id: string, name: string): Promise<void> {
-    if (busy) return;
-    setBusy(true);
-    setNote(null);
-    try {
-      await data.call("automations.packages.import", { packageId: id });
-      setNote(`Draft ${name} is in your automations.`);
-      setReload((n) => n + 1);
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : "That package was not imported.");
-    } finally {
-      setBusy(false);
-    }
-  }
   return (
     <Frame testID="packages" title="Packages" line={PACKAGES_LINE}>
-      <Status state={packages} />
-      {packages.phase === "ready" && packages.value.length === 0 ? <Text style={v.dim}>{EMPTY_PACKAGES}</Text> : null}
-      {packages.phase === "ready" ? packages.value.map((row) => (
-        <Pressable key={row.id} accessibilityRole="button" disabled={busy} testID={`import-${row.id}`} onPress={() => { void imp(row.id, row.name); }} style={v.choice}>
-          <Text style={v.row}>{`Import ${row.name} as a draft`}</Text>
-        </Pressable>
-      )) : null}
-      {packages.phase === "ready" && sources.length > 0 ? <Text style={v.dim}>Export an Automation</Text> : null}
-      {packages.phase === "ready" ? sources.map((row) => (
-        <Pressable key={row.id} accessibilityRole="button" disabled={busy} testID={`export-${row.id}`} onPress={() => { void exp(row.id); }} style={v.choice}>
-          <Text style={v.row}>{`Export ${row.name}`}</Text>
-        </Pressable>
-      )) : null}
-      {note ? <Text style={v.dim}>{note}</Text> : null}
+      <Text style={v.dim}>Package export and import are not available yet.</Text>
     </Frame>
   );
 }

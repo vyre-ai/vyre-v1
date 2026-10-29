@@ -116,7 +116,12 @@ function cohortsFor(ctx: AutoCtx, a: Automation, runs: readonly MigrationRun[], 
   return cohorts;
 }
 
+function cohortsOpen(): boolean {
+  return false;
+}
+
 export async function migrationPreview(ctx: AutoCtx, input: In): Promise<unknown> {
+  if (!cohortsOpen()) raise(ctx, "internal.unavailable", "Moving runs onto a new version is not available yet.");
   const a = getAutomation(ctx, input.automationId);
   if (!canView(ctx, a)) raise(ctx, "permission.not_found", "That automation is not available.");
   const toVersion = input.toVersion;
@@ -125,6 +130,7 @@ export async function migrationPreview(ctx: AutoCtx, input: In): Promise<unknown
 }
 
 export async function migrateRuns(ctx: AutoCtx, input: In): Promise<unknown> {
+  if (!cohortsOpen()) raise(ctx, "internal.unavailable", "Moving runs onto a new version is not available yet.");
   const a = editable(ctx, getAutomation(ctx, input.automationId));
   const toVersion = input.toVersion;
   if (typeof toVersion !== "number" || !Number.isInteger(toVersion) || toVersion < 1) raise(ctx, "validation.bad_input", "A definition version is a whole number.");

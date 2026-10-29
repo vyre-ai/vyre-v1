@@ -1,5 +1,5 @@
 // Catalog availability for the builder. The product list comes from automations.steps.list and automations.triggers.list.
-// ai stays Preview. code runs in the step sandbox. Parallel, Loop, and a schedule are ordinary flow steps.
+// AI and Code are hidden. The host has no agent port and no sandbox port. Parallel, Loop, and a schedule stay.
 import type { IconKey } from "../canvas/model.ts";
 
 export type Availability = "available" | "needs_setup" | "preview" | "unavailable";
@@ -30,7 +30,7 @@ export interface CatalogTrigger {
 const LOGIC = new Set(["paths", "if", "parallel", "loop", "wait", "wait_stage", "stop"]);
 
 export function availabilityFor(key: string, kind: "step" | "trigger"): Availability {
-  if (kind === "step" && key === "ai") return "preview";
+  if (kind === "step" && (key === "ai" || key === "code")) return "unavailable";
   return "available";
 }
 
@@ -111,6 +111,7 @@ export function stepsFromRuntime(out: unknown): CatalogStep[] | null {
     if (!base) return null;
     const rec = row as Record<string, unknown>;
     const availability = availabilityFor(base.key, "step");
+    if (availability === "unavailable") continue;
     const category = typeof rec["category"] === "string" ? rec["category"] : "";
     steps.push({
       key: base.key,

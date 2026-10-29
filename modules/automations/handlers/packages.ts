@@ -23,7 +23,12 @@ function owned(ctx: AutoCtx, id: string): PackageRow | undefined {
   return rows[0];
 }
 
+function packagesOpen(): boolean {
+  return false;
+}
+
 export async function packagesList(ctx: AutoCtx): Promise<unknown> {
+  if (!packagesOpen()) raise(ctx, "internal.unavailable", "Package export and import are not available yet.");
   const rows = ctx.db.all(
     "SELECT id, name, source_automation_id, created_at FROM automations_packages WHERE owner_id = ? ORDER BY created_at DESC, id DESC",
     me(ctx),
@@ -39,6 +44,7 @@ export async function packagesList(ctx: AutoCtx): Promise<unknown> {
 }
 
 export async function exportPackage(ctx: AutoCtx, input: In): Promise<unknown> {
+  if (!packagesOpen()) raise(ctx, "internal.unavailable", "Package export and import are not available yet.");
   const automationId = typeof input.automationId === "string" ? input.automationId : "";
   if (!automationId) raise(ctx, "validation.bad_input", "Export needs an automation.");
   const automation = getAutomation(ctx, automationId);
@@ -54,6 +60,7 @@ export async function exportPackage(ctx: AutoCtx, input: In): Promise<unknown> {
 }
 
 export async function importPackage(ctx: AutoCtx, input: In): Promise<unknown> {
+  if (!packagesOpen()) raise(ctx, "internal.unavailable", "Package export and import are not available yet.");
   const packageId = typeof input.packageId === "string" ? input.packageId : "";
   const row = packageId ? owned(ctx, packageId) : undefined;
   if (!row) raise(ctx, "validation.not_found", "That package is not available.");

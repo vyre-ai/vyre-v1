@@ -131,14 +131,19 @@ function refuseSecret(ctx: AutoCtx, def: Definition): void {
 }
 const hasErrors = (issues: readonly Issue[]): boolean => issues.some((i) => i.severity === "error");
 
-// AI stays a preview. Run code executes in the step sandbox and can be turned on.
-// A draft may contain an AI step. Turning the Automation on may not. A schedule can be turned on.
-const PREVIEW_STEPS = new Set(["ai"]);
+// AI and Code stay off the live path. The host has no agent port and no sandbox port for them.
+// A draft may contain either step. Turning the Automation on may not. A schedule can be turned on.
+const PREVIEW_STEPS = new Set(["ai", "code"]);
+const HIDDEN_STEPS = new Set(["ai", "code"]);
+function previewMessage(key: string): string {
+  if (key === "code") return "Code steps run in the sandbox, which is not connected here.";
+  return "AI step is a preview and cannot be turned on.";
+}
 export function previewLiveIssues(def: Definition): Issue[] {
   const out: Issue[] = [];
   for (const n of def.nodes) {
     if (!PREVIEW_STEPS.has(n.key)) continue;
-    out.push(issue("error", "AI step is a preview and cannot be turned on.", n.id));
+    out.push(issue("error", previewMessage(n.key), n.id));
   }
   return out;
 }
@@ -217,7 +222,7 @@ export async function triggersList(): Promise<unknown> {
   return { triggers: registry.triggers.map((t) => ({ key: t.key, title: t.title, payload: t.payload, sample: t.sample, personalOk: t.personalOk, allowSelfTrigger: t.allowSelfTrigger })) };
 }
 export async function stepsList(_ctx: AutoCtx, input: In): Promise<unknown> {
-  const steps = registry.steps.filter((s) => !input.category || s.category === input.category);
+  const steps = registry.steps.filter((s) => !HIDDEN_STEPS.has(s.key) && (!input.category || s.category === input.category));
   return { steps: steps.map((s) => clean({ key: s.key, title: s.title, category: s.category, kind: s.kind, input: s.input, output: s.output, effects: s.effects, gateAct: s.gateAct })) };
 }
 

@@ -116,6 +116,14 @@ test("a preview step can be saved and cannot be turned on", async () => {
   await refused(h.call("automations.set_enabled", { automationId: id, enabled: true }, alice), "validation.precondition_failed", "preview");
 });
 
+test("a code step can be saved and cannot be turned on", async () => {
+  const h = harness();
+  const id = (await h.call("automations.create", create({ definition: { triggers: trig, nodes: [node("a", "code", { source: "return 1" })] } }), alice)).automation.id as string;
+  const saved = await h.call("automations.get", { automationId: id }, alice);
+  assert.equal(saved.automation.definition.nodes[0].key, "code");
+  await refused(h.call("automations.set_enabled", { automationId: id, enabled: true }, alice), "validation.precondition_failed", "preview");
+});
+
 test("a schedule can be turned on", async () => {
   const h = harness();
   const id = (await h.call("automations.create", create({

@@ -11,7 +11,7 @@ test("first-party steps land in Vyre or Connected apps, with common operations b
   assert.equal(groupFor({ key: "calendar.create_event", category: "send" }), "Vyre");
   assert.equal(groupFor({ key: "forms.publish", category: "send" }), "Vyre");
   assert.equal(groupFor({ key: "records.find", category: "data" }), "Data & transforms");
-  assert.equal(groupFor({ key: "ai", category: "ai" }), "Preview");
+  assert.equal(groupFor({ key: "parallel", category: "control" }), "Logic");
   const menu = menuGroups([
     { key: "connector_request", group: "Connected apps", title: "Authenticated request" },
     { key: "google.gmail.send_message", group: "Connected apps", title: "Google · Send a Gmail message" },

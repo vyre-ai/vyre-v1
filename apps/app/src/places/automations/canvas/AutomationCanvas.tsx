@@ -29,7 +29,6 @@ import { statesFromSteps, stepsFromCall } from "../runs/ledger.ts";
 import type { StepRowLite } from "../runs/ledger.ts";
 import { attemptLine, childRunLine, containerForChildren } from "../runs/lineage.ts";
 import { definitionLabel } from "../versions/cohorts.ts";
-import { CohortMigration } from "../versions/CohortMigration.tsx";
 import { AddDot, StepCard, TriggerCard } from "./Cards.tsx";
 import type { CardHandlers } from "./Cards.tsx";
 import { canvasScale, COMPACT_REGIONS, compactRegionLabel, frameFor, layoutForWidth } from "./frame.ts";
@@ -575,7 +574,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
         ) : <View style={s.pageBody}><RunsList automationId={a.id} nodes={def.nodes} onLight={(r) => { setLitRun(r); setTab("steps"); }} onAsk={(message) => data.nav.ask(a.id, { resource: a.id, message })} /></View>
       ) : null}
       {tab === "analytics" ? <AnalyticsPanel automationId={a.id} /> : null}
-      {tab === "versions" ? <View style={s.pageBody}>{tabBodies.versions ?? <VersionsList versions={versions} current={a.version} onRestore={(id) => void data.call("automations.restore_version", { automationId: a.id, versionId: id }).then(() => flash("Restored as a new version")).catch((x: unknown) => flash(x instanceof Error ? x.message : "That did not restore"))} />}<CohortMigration automationId={a.id} currentVersion={a.version} /></View> : null}
+      {tab === "versions" ? <View style={s.pageBody}>{tabBodies.versions ?? <VersionsList versions={versions} current={a.version} onRestore={(id) => void data.call("automations.restore_version", { automationId: a.id, versionId: id }).then(() => flash("Restored as a new version")).catch((x: unknown) => flash(x instanceof Error ? x.message : "That did not restore"))} /></View> : null}
       {tab === "settings" ? <View style={s.pageBody}>{tabBodies.settings ?? <AutomationConfig automationId={a.id} />}</View> : null}
       {tab === "ask" ? (
         <AskTab
