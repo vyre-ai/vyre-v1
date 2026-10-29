@@ -76,3 +76,6 @@
 - Automations: register the sidebar in the shared slot, and offer Ask Vyre a scrubbed error context that leaves out secrets.
 - Automations: add the shared VAL admission rule, Ask Vyre scrubber, cohort migration preview, connector trust ladder, and per-step failure policy. Preview capabilities cannot publish as stable. Ask Vyre context drops secrets, auth headers, and cookies. Active Runs stay pinned until a safe cohort is selected. Publishing does not move them.
 - Automations: a draft may contain an AI step or Run code, and turning that Automation on is refused until those steps run on the live host. A schedule can be turned on.
+- Ask proposals for a drafted connector are titled "App: Action name" (for example "Stripe: List customers") instead of the action key. The Ask try button stays on the dry-run preview: the proposal does not yet carry a Vault handle, so it does not call `automations.try_read`.
+- A live test proves the reply of `automations.try_read` is only the level and that the app's response never enters an agent turn transcript.
+- A retry scheduled more than about 24 days ahead no longer overflows the host timer; the run is called early, finds the retry not due and schedules again.

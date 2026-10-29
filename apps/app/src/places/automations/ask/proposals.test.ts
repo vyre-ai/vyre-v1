@@ -1,7 +1,7 @@
 // Draft actions become step proposals. A copied value and a url never leave the result.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { actionsFrom, proposalsFrom } from "./proposals.ts";
+import { actionsFrom, appFrom, proposalsFrom } from "./proposals.ts";
 
 const secret = "sk-live-do-not-keep";
 const url = "https://secret.example/notes";
@@ -45,21 +45,21 @@ test("a draft result keeps two actions and drops a copied value and a url", () =
 test("proposals map a read to dry_run and an outward call to hold", () => {
   const proposals = proposalsFrom([
     { key: "listNotes", effect: "read", method: "GET", path: "/notes/sk-live-do-not-keep" },
-    { key: "createNote", effect: "outward", method: "POST", path: url },
-  ]);
+    { key: "create_note", effect: "outward", method: "POST", path: url },
+  ], appFrom({ draft: { key: "notes" } }));
   assert.deepEqual(proposals, [
     {
       action: "listNotes",
       effect: "read",
       check: "dry_run",
-      title: "listNotes",
+      title: "Notes: List notes",
       say: "A read can be tried with the saved connection.",
     },
     {
-      action: "createNote",
+      action: "create_note",
       effect: "outward",
       check: "hold",
-      title: "createNote",
+      title: "Notes: Create note",
       say: "An outward call waits until you run it.",
     },
   ]);
@@ -95,4 +95,13 @@ test("an action missing effect is skipped", () => {
   });
   assert.deepEqual(actions, [{ key: "createNote", effect: "outward", method: "POST" }]);
   assert.equal(JSON.stringify(actions).includes("sk-live"), false);
+});
+
+test("a title reads App: Action name, from a camel or snake key", () => {
+  const app = appFrom({ draft: { key: "stripe" } });
+  assert.equal(app, "Stripe");
+  const titles = proposalsFrom([{ key: "list_customers", effect: "read" }, { key: "createCustomer", effect: "outward" }], app).map((p) => p.title);
+  assert.deepEqual(titles, ["Stripe: List customers", "Stripe: Create customer"]);
+  assert.equal(proposalsFrom([{ key: "list_customers", effect: "read" }], appFrom({ draft: { key: "api" } }))[0]!.title, "List customers");
+  assert.equal(appFrom(null), "");
 });

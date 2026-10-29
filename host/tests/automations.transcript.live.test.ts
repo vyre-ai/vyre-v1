@@ -7,6 +7,7 @@ import path from "node:path";
 import { bootCore } from "../../fixtures/seed/core/index.ts";
 import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
+import type { SeamFetch } from "../src/seams/ports.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon, DaemonOptions } from "../src/daemon/daemon.ts";
@@ -25,7 +26,7 @@ function seededDir(): string {
   return dir;
 }
 
-const boot = (dir: string): Promise<Daemon> => startDaemon({
+const boot = (dir: string, seamFetch?: SeamFetch): Promise<Daemon> => startDaemon({
   config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
   platform: fakePlatform({
     os: "linux", hostname: "exec-live", free: 80e9,
@@ -36,7 +37,7 @@ const boot = (dir: string): Promise<Daemon> => startDaemon({
     },
   }),
   fetch: caddyFetch,
-  seams: { vaultSinks: { env: () => undefined } },
+  seams: { vaultSinks: { env: () => undefined }, ...(seamFetch ? { fetch: seamFetch } : {}) },
   session: (h) => {
     const token = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
     if (token === OWNER) return { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "exec-live" };
@@ -119,6 +120,61 @@ test("an agent that reads a Vault item never receives the key, and the turn tran
     const got = await post(daemon, AGENT, "/v1/engine/turn/get", { turnId });
     assert.equal(got.status, 200, got.text);
     noSecret(got.text, "turn get");
+  } finally {
+    await daemon.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a try_read response from the app never enters an agent turn transcript", async () => {
+  const BODY = "customer_body_MARK_7731";
+  const sent: string[] = [];
+  const seamFetch: SeamFetch = async (url) => {
+    sent.push(url);
+    return { status: 200, text: async () => BODY, arrayBuffer: async () => new TextEncoder().encode(BODY).buffer as ArrayBuffer };
+  };
+  const dir = seededDir();
+  const daemon = await boot(dir, seamFetch);
+  try {
+    const folder = await post(daemon, OWNER, "/v1/vault/folders/create", { name: "Keys", scope: "shared", idempotencyKey: "tr-read-folder" });
+    const folderId = String((folder.data["folder"] as { id?: string } | undefined)?.id ?? "");
+    const put = await post(daemon, OWNER, "/v1/vault/item/put", {
+      folderId, name: "Stripe", kind: "api_key", fields: [{ key: "api_key", value: SECRET }], idempotencyKey: "tr-read-stripe",
+    });
+    const handle = String((put.data["item"] as { handle?: string } | undefined)?.handle ?? "");
+    assert.match(handle, /^#/);
+
+    const read = await post(daemon, OWNER, "/v1/automations/try_read", {
+      method: "GET", path: "/v1/customers", domains: ["api.stripe.com"], vaultItemId: `${handle}.api_key`, actionKey: "list_customers",
+    });
+    assert.equal(read.status, 200, read.text);
+    assert.equal(read.data["level"], "tested", read.text);
+    assert.equal(sent.length, 1, "the host made the one read");
+    assert.deepEqual(Object.keys(read.data).sort(), ["level"], "the reply is the level only");
+    noSecret(read.text, "try_read reply");
+    assert.equal(read.text.includes(BODY), false, `the app's response reached the reply: ${read.text}`);
+
+    const started = await post(daemon, OWNER, "/v1/chat/start", { kind: "chat", agentIds: ["agt_scout"], idempotencyKey: "tr-read-chat" });
+    const threadId = String((started.data["thread"] as { threadId?: string } | undefined)?.threadId ?? "");
+    const enqueued = await post(daemon, AGENT, "/v1/engine/turn/enqueue", { threadId, agentId: "agt_scout", kind: "wake", from: "usr_olivia" });
+    const running = await post(daemon, AGENT, "/v1/engine/turn/start", { threadId, agentId: "agt_scout", qseq: enqueued.data["qseq"], placement: "host", engine: "anthropic", model: "claude" });
+    const turnId = String((running.data["turn"] as { turnId?: string } | undefined)?.turnId ?? "");
+    assert.match(turnId, /^trn_/);
+    // The agent asks for the same read and the whole reply goes into the turn, as an engine does with a tool result.
+    const asAgent = await post(daemon, AGENT, "/v1/automations/try_read", {
+      method: "GET", path: "/v1/customers", domains: ["api.stripe.com"], vaultItemId: `${handle}.api_key`, actionKey: "list_customers",
+    });
+    assert.equal(asAgent.status, 200, asAgent.text);
+    noSecret(asAgent.text, "agent try_read reply");
+    assert.equal(asAgent.text.includes(BODY), false, asAgent.text);
+    let toolResult: unknown = asAgent.text;
+    try { toolResult = JSON.parse(asAgent.text); } catch { /* the raw body is appended when it is not JSON */ }
+    const appended = await post(daemon, AGENT, "/v1/engine/turn/append", { turnId, kind: "tool_result", data: toolResult });
+    assert.equal(appended.status, 200, appended.text);
+    const got = await post(daemon, AGENT, "/v1/engine/turn/get", { turnId });
+    assert.equal(got.status, 200, got.text);
+    noSecret(got.text, "turn get");
+    assert.equal(got.text.includes(BODY), false, `the app's response is in the transcript: ${got.text}`);
   } finally {
     await daemon.stop();
     fs.rmSync(dir, { recursive: true, force: true });

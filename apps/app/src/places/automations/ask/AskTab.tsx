@@ -13,7 +13,7 @@ import type { AskLine, AskStep, AskTurn, PasteSlot } from "./plan.ts";
 import { shouldHunt } from "./hunt.ts";
 import { placeSteps, placeWebhook, showTry, triggersFrom } from "./place.ts";
 import type { TriggerOffer } from "./place.ts";
-import { actionsFrom, proposalsFrom } from "./proposals.ts";
+import { actionsFrom, appFrom, proposalsFrom } from "./proposals.ts";
 import type { StepProposal } from "./proposals.ts";
 import { publicResult, readOffer } from "./read.ts";
 import type { ReadRequest } from "./read.ts";
@@ -104,7 +104,7 @@ export function AskTab({ def, selectedId, accounts, steps, onChange, onOpenChat,
     try {
       const out = await call("automations.draft_connector", { document: parsed });
       const shape = setupShape(out);
-      setProposals(proposalsFrom(actionsFrom(out)));
+      setProposals(proposalsFrom(actionsFrom(out), appFrom(out)));
       setHooks(triggersFrom(out));
       const raw = text.trim() || "use this document";
       if (shape.fields.length === 0 && shape.actions.length === 0) say("This document does not say how to sign in.");
@@ -146,7 +146,7 @@ export function AskTab({ def, selectedId, accounts, steps, onChange, onOpenChat,
     try {
       const out = await call("automations.draft_connector", { app: planned.app, intent: raw });
       const shape = setupShape(out);
-      const nextProposals = proposalsFrom(actionsFrom(out));
+      const nextProposals = proposalsFrom(actionsFrom(out), appFrom(out));
       const offers = triggersFrom(out);
       setProposals(nextProposals);
       setHooks(offers);
