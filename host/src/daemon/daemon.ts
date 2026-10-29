@@ -8,7 +8,6 @@ import {createOwnerArchives} from './owner-archives.ts';
 //           the Chrome bridge register as supervised services (`options.services`) when their lanes land.
 // Nothing here knows a module's internals: module code only ever sees the ctx the loader builds.
 import fs from "node:fs";
-import {createHash} from "node:crypto";
 import { formUploadAllowed } from "./forms-authority.ts";
 import { createOwnedExports } from "./owned-exports.ts";
 import type http from "node:http";
@@ -17,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { authorize } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { LogClient } from "../../../kernel/src/log/index.ts";
+import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 import { registry } from "../../../generated/registry.ts";
 import { routes } from "../../../generated/routes.ts";
 import { validateEvent, validateInput } from "../../../generated/validators.ts";
@@ -130,7 +130,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The repo (or install) root that holds generated/, modules/ and host/modules.json. */
 export const CODE_ROOT = path.resolve(HERE, "../../..");
 /** What a device compares its registry with at hello (sync): the hash of registry.json, which the generated module no longer exports (ci: no global hash). */
-const registryHash = createHash("sha256").update(fs.readFileSync(new URL("../../../generated/registry.json", import.meta.url))).digest("hex");
+const registryHash = sha256Hex(fs.readFileSync(new URL("../../../generated/registry.json", import.meta.url)));
 const ZERO_TRACE = "0".repeat(32);
 const RING = 5000;
 
