@@ -226,6 +226,29 @@ test("a node's door into an agent's home is its job token: another computer's ho
     const token = tokens.get(ids[0]!)!;
     assert.ok(token.startsWith("vcj_"), "the node was handed a token with the job");
     assert.equal(await home(token, ids[0]!, "files.list"), 200, "its own computer's home, a home call");
+    // the agent can reach more than its home (a shared client folder here); a token reaches only the home
+    const agentsFolder = (d.db!.all("SELECT parent_id FROM files_folder WHERE id = ?", a.folderId)[0] as { parent_id: string }).parent_id;
+    const shared = (await post(d, "/v1/files/folder/create", { parentId: agentsFolder, name: "Client files", idempotencyKey: "cf-1" }, owner)).json.data.folder.folderId as string;
+    const secret = (await post(d, "/v1/files/create", { folderId: shared, name: "retainer.txt", content: { text: "client confidential" }, idempotencyKey: "cf-2" }, owner)).json.data.file.fileId as string;
+    assert.equal((await post(d, "/v1/files/read", { fileId: secret, as: "text" }, owner)).status, 200, "the owner, and so the agent acting for them, can reach it");
+    assert.equal(await home(token, ids[0]!, "files.list", { folder: shared }), 403, "listing a folder outside the home is refused");
+    assert.equal(await home(token, ids[0]!, "files.read", { fileId: secret, as: "text" }), 403, "reading a file outside the home is refused");
+    assert.equal(await home(token, ids[0]!, "files.write", { fileId: secret, content: { text: "x" }, baseVersion: 1 }), 403, "writing a file outside the home is refused");
+    assert.equal(await home(token, ids[0]!, "files.delete", { fileId: secret }), 403, "deleting a file outside the home is refused");
+    assert.equal(await home(token, ids[0]!, "files.create", { folderId: shared, name: "planted.txt", content: { text: "x" }, idempotencyKey: "pl-1" }), 403, "creating outside the home is refused");
+    assert.equal(await home(token, ids[0]!, "files.folder.create", { parentId: agentsFolder, name: "Elsewhere", idempotencyKey: "pl-2" }), 403, "a folder next to the home is refused");
+    assert.equal(await home(token, ids[0]!, "files.read", { fileId: "fil_nope", as: "text" }), 403, "an unknown file is refused, not guessed");
+    assert.equal(await home(token, ids[0]!, "agents.get", { agentId: b.agentId }), 403, "another agent's record is refused");
+    assert.equal(await home(token, ids[0]!, "tasks.create", { title: "x", kind: "todo", assigned: { kind: "person", id: "usr_someone_else" }, fileIds: [] }), 403, "a task for anyone but the agent's owner is refused");
+    assert.equal(await home(token, ids[0]!, "tasks.create", { title: "x", kind: "todo", assigned: { kind: "person", id: (d.db!.all("SELECT ownerId FROM agents_agent WHERE id = ?", a.agentId)[0] as { ownerId: string }).ownerId }, fileIds: [secret] }), 403, "a task that names a file outside the home is refused");
+    // inside the home: read and write work
+    const made = await fetch(`${d.url}/compute/home`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${credential}` }, body: JSON.stringify({ token, computerId: ids[0], cap: "files.create", input: { folderId: a.folderId, name: "notes.txt", content: { text: "inside" }, idempotencyKey: "in-1" } }) });
+    assert.equal(made.status, 200, "creating inside the home works");
+    const inside = ((await made.json()) as { data?: { output: { file: { fileId: string } } }; output?: { file: { fileId: string } } });
+    const insideId = (inside.data?.output ?? inside.output)!.file.fileId;
+    assert.equal(await home(token, ids[0]!, "files.read", { fileId: insideId, as: "text" }), 200, "reading inside the home works");
+    assert.equal(await home(token, ids[0]!, "files.write", { fileId: insideId, content: { text: "inside, edited" }, baseVersion: 1 }), 200, "writing inside the home works");
+    assert.equal((await post(d, "/v1/files/read", { fileId: secret, as: "text" }, owner)).json.data.text, "client confidential", "the file outside the home is untouched");
     assert.equal(await home(token, ids[1]!, "files.list"), 403, "the same token for another computer is refused");
     assert.equal(await home(token, ids[0]!, "secrets.reveal", {}), 403, "a call that is not a home call is refused");
     assert.equal(await home("vcj_00ff", ids[0]!, "files.list"), 403, "a guessed token opens nothing");

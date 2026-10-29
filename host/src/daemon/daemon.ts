@@ -65,6 +65,7 @@ import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts"
 import { createGateHook, moduleWhens } from "./gate-hook.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { createComputersFillHost, createFillRoute } from "../seams/computers.ts";
+import { homeCallAllowed, homeScopeOf } from "./home-confine.ts";
 import { createComputersHost } from "../seams/computers-host.ts";
 import { createEngineHost } from "../seams/engine.ts";
 import { createEmailAskDriver, createFormAskDriver } from "../seams/email-ask.ts";
@@ -514,6 +515,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       computeHome = async (nodeId, a) => {
         const check = (await hookRunner.call("computers.node_home_check", { nodeId, token: a.token, computerId: a.computerId, cap: a.cap })) as { agentId: string } | null;
         if (!check) return null;
+        // a computer that joined is less trusted than this server: whatever it names must be the agent's own home folder or inside it, checked here against the Files tables
+        if (a.cap !== "put_upload") {
+          const scope = homeScopeOf(db!, check.agentId);
+          if (!scope || !homeCallAllowed(db!, scope, a.cap, a.input)) return null;
+        }
         if (a.cap === "put_upload") {
           const put = (a.input ?? {}) as { url?: unknown; base64?: unknown };
           await putToSlot(String(put.url ?? ""), Buffer.from(String(put.base64 ?? ""), "base64"));
