@@ -1,4 +1,5 @@
 // @heavy docker
+// P-GF_07b: on a failure the no-hold message carries the thread; the fake CLI times its MCP calls out at 20 s, so a hang reads as "mcp error" in the thread.
 // P-L11_08: golden flow 7 on the real engine: an agent's send is held by the Gate, a person approves it, and a second send expires untouched. Runs only with VYRE_HEAVY_DOCKER=1 (the l2-heavy job).
 // It runs the harness entry of the flow (07-gate-approval-expiry.ts), so the flow's own event list is checked by the same path golden/ uses.
 import test from "node:test";
