@@ -51,7 +51,7 @@ test("seatbelt: the command is sandbox-exec behind env(1), with the proxy variab
   const at = argv.indexOf("/usr/bin/sandbox-exec");
   assert.ok(at > 0);
   assert.ok(argv[at + 2]!.includes(cwd), "the profile names the work folder");
-  assert.ok(argv[at + 2]!.includes('(allow file-read-data (literal "/"))'), "node reads the root directory itself; without this it aborts on start");
+  assert.ok(argv[at + 2]!.includes('(allow file-read* (literal "/"))'), "node reads the root directory itself; without this it aborts on start");
   // the CLI's own state is in the person's scratch folder, never the real home
   const scratch = path.join(data, "scratch", "usr_dana");
   assert.ok(argv.includes(`HOME=${path.join(scratch, "home")}`));

@@ -65,7 +65,8 @@ export function sandboxWrap(plan: SandboxPlan): NonNullable<LocalLauncherOptions
     if (rel.length !== 2 || rel.some((x) => x === "" || x === "..")) throw new SandboxError("sandbox.policy", "the work folder is not one of the Space's person-and-thread folders");
     const person = rel[0] as string;
     const scratch = scratchFolder(plan.dataDir, person);
-    const roots: Roots = { work: [path.join(plan.dataDir, "work")], scratch: [path.join(plan.dataDir, "scratch")] };
+    // The roots are the real paths of the folders: a data folder reached through a symlink (/var is /private/var on a Mac) must name the same folders the work and scratch helpers returned.
+    const roots: Roots = { work: [workRoot], scratch: [fs.realpathSync(path.join(plan.dataDir, "scratch"))] };
     const spec: SandboxSpec = {
       id: sandboxId(person), person, kind: s.kind, scratch,
       mounts: [{ host: start.cwd, mode: "rw" }],
