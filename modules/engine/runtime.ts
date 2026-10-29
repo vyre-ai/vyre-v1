@@ -12,6 +12,7 @@ import { buildOpener, roleBlocks } from "./session.ts";
 import { withRecall } from "./recall.ts";
 import { createContextBuilder, diskSkills, takeHandoff, withTurnContext } from "./context.ts";
 import { withTranscript } from "./transcript.ts";
+import { reviewAfter } from "./handlers/reviewer.ts";
 import { defaultSandbox } from "./sandbox-default.ts";
 import type { DefaultSandbox } from "./sandbox-default.ts";
 import type { SandboxPlan } from "./sandbox.ts";
@@ -111,7 +112,7 @@ export async function closeDefaultSandbox(): Promise<void> { const d = defaultBu
 export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | null> {
   if (!host || (!host.openSession && !host.session)) return Promise.resolve(null);   // no way to open a session: the control handlers keep answering internal.unavailable
   const h = host;
-  const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, system: roleBlocks(h.call) }) : undefined;
+  const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, system: roleBlocks(h.call), call: h.call }) : undefined;
   const opener = host.openSession ? null : buildOpener({ ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, host.cli?.programRead) } : {}) });
   const openSession = host.openSession ?? (opener as NonNullable<typeof opener>).openSession;
   closeOpener = opener ? () => opener.close() : null;
@@ -136,6 +137,11 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       ...(apiTools ? { callTool: apiTools.runner } : {}),
     });
     live = engine;
+    // The reviewer seat: after a lead turn completes, the chat's reviewer is asked to check it.
+    engine.subscribe((ev) => {
+      if (ev.type !== "turn.completed") return;
+      void reviewAfter({ call: h.call, ...(h.postAs ? { postAs: h.postAs } : {}) }, ctx.db, engine, ev, () => mintEngineId("msg", now())).catch((err) => h.log?.("the reviewer could not be asked", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
+    });
     bridge?.attach(engine);
     h.extend?.(engine);
     bindEngine(engine);

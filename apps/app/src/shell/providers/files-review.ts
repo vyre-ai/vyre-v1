@@ -2,6 +2,7 @@
 // and where a click goes (the shell opens the diff and history screens as tabs).
 import type { ReviewData } from "../../places/files/review/index.ts";
 import { capLive, nameLookup } from "./records-live.ts";
+import { openAsk } from "./ask.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 let counter = 0;
@@ -25,6 +26,7 @@ export function reviewData(rt: ShellRuntime): ReviewData {
       openCommit: (folder, sha) => rt.open({ screen: "files.commit-diff", args: { folder, sha } }),
       settled: () => undefined,
       openHistory: (fileId) => rt.open({ screen: "files.history", args: { fileId } }),
+      ask: (agentId, _mode, about) => openAsk(rt, agentId, about),
     },
   };
 }

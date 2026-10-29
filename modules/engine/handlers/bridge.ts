@@ -159,11 +159,16 @@ export function createBridge(o: BridgeOptions): Bridge {
   type Row = { messageId: string; threadSeq?: number; author: { kind: string; id: string }; body: string; depth?: number };
 
   /** A read of the chat for this message: as its person author when the host gave us a way to, else with the consumer's own ctx. */
-  const reader = (ctx: EngineCtx, authorId: string): ((cap: string, input: unknown) => Promise<unknown>) =>
-    o.callAs && authorId.startsWith("usr_") ? (cap, input) => o.callAs!(cap, input, authorId) : (cap, input) => ctx.call(cap, input);
+  const reader = (ctx: EngineCtx, authorId: string, threadId?: string): ((cap: string, input: unknown) => Promise<unknown>) => {
+    if (!o.callAs) return (cap, input) => ctx.call(cap, input);
+    if (authorId.startsWith("usr_")) return (cap, input) => o.callAs!(cap, input, authorId);
+    // An agent speaks for the person it works for, and a private chat opens only to its people: read as the last person who spoke in the thread (an agent that mentions another agent, a reviewer asked).
+    const person = threadId === undefined ? undefined : (ctx.db.all("SELECT author_id FROM engine_messages WHERE thread_id = ? AND author_kind = 'person' ORDER BY thread_seq DESC LIMIT 1", threadId)[0] as { author_id?: string } | undefined)?.author_id;
+    return person ? (cap, input) => o.callAs!(cap, input, person) : (cap, input) => ctx.call(cap, input);
+  };
 
   async function open(ctx: EngineCtx, threadId: string, skipId: string, authorId: string): Promise<boolean> {
-    const read = reader(ctx, authorId);
+    const read = reader(ctx, authorId, threadId);
     if (!engine) return false;
     if (opened.has(threadId)) return true;
     let got: ThreadGet;
@@ -204,7 +209,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     const a = (p["author"] ?? {}) as { kind?: string; id?: string };
     if (!(await open(ctx, threadId, messageId, str(a.id)))) return { skipped: "no_agents" };
     if (store.get(messageId)) return { skipped: "known" };
-    const got = (await reader(ctx, str(a.id))("chat.message.get", { threadId, messageId })) as { message: Row };
+    const got = (await reader(ctx, str(a.id), threadId)("chat.message.get", { threadId, messageId })) as { message: Row };
     const authorId = str(a.id) || got.message.author.id;
     const mentions = ((p["mentions"] ?? []) as RouteMention[]).map((m) => ({ kind: m.kind, id: m.id }));
     const eng = engine;

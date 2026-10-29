@@ -25,6 +25,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "channels.update": Handler<"channels.update", X>;
   "chat.answer_block": Handler<"chat.answer_block", X>;
   "chat.approve_plan": Handler<"chat.approve_plan", X>;
+  "chat.ask_level": Handler<"chat.ask_level", X>;
   "chat.ask_suggest": Handler<"chat.ask_suggest", X>;
   "chat.asks_of": Handler<"chat.asks_of", X>;
   "chat.composer.suggest": Handler<"chat.composer.suggest", X>;

@@ -31,6 +31,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.queue.peek": Handler<"engine.queue.peek", X>;
   "engine.review.list": Handler<"engine.review.list", X>;
   "engine.review.mark": Handler<"engine.review.mark", X>;
+  "engine.reviewer.get": Handler<"engine.reviewer.get", X>;
+  "engine.reviewer.set": Handler<"engine.reviewer.set", X>;
   "engine.route.preview": Handler<"engine.route.preview", X>;
   "engine.runtime.opt_in": Handler<"engine.runtime.opt_in", X>;
   "engine.set_mode": Handler<"engine.set_mode", X>;

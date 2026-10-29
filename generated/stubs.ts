@@ -313,6 +313,7 @@ export function stubs(ctx: CallCtx) {
     chat: {
       answer_block: call("chat.answer_block"),
       approve_plan: call("chat.approve_plan"),
+      ask_level: call("chat.ask_level"),
       ask_suggest: call("chat.ask_suggest"),
       asks_of: call("chat.asks_of"),
       composer: {
@@ -653,6 +654,10 @@ export function stubs(ctx: CallCtx) {
       review: {
         list: call("engine.review.list"),
         mark: call("engine.review.mark"),
+      },
+      reviewer: {
+        get: call("engine.reviewer.get"),
+        set: call("engine.reviewer.set"),
       },
       route: {
         preview: call("engine.route.preview"),

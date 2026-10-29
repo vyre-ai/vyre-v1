@@ -25,6 +25,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "channels.update": async (ctx) => { throw new VyreErr(notImplemented("channels.update", ctx.trace)); },
   "chat.answer_block": async (ctx) => { throw new VyreErr(notImplemented("chat.answer_block", ctx.trace)); },
   "chat.approve_plan": async (ctx) => { throw new VyreErr(notImplemented("chat.approve_plan", ctx.trace)); },
+  "chat.ask_level": async (ctx) => { throw new VyreErr(notImplemented("chat.ask_level", ctx.trace)); },
   "chat.ask_suggest": async (ctx) => { throw new VyreErr(notImplemented("chat.ask_suggest", ctx.trace)); },
   "chat.asks_of": async (ctx) => { throw new VyreErr(notImplemented("chat.asks_of", ctx.trace)); },
   "chat.composer.suggest": async (ctx) => { throw new VyreErr(notImplemented("chat.composer.suggest", ctx.trace)); },

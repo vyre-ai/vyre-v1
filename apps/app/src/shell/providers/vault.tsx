@@ -7,6 +7,7 @@ import type { VaultData, VaultRoute } from "../../places/vault/layout/index.tsx"
 import { usePlaceHash } from "../hash/context.tsx";
 import type { HashTarget } from "../hash/hash.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
+import { openAsk } from "./ask.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export function vaultRoute(target: HashTarget): VaultRoute {
@@ -30,6 +31,7 @@ export function vaultData(rt: ShellRuntime): VaultData {
       openOutsideActors: () => rt.open({ screen: "console.outside-actors" }),
       openRequests: () => rt.open({ screen: "vault_requests.list" }),
       openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
+      ask: (agentId, _mode, about) => openAsk(rt, agentId, about),
     },
     clock: () => ({ now: rt.clock().now }),
   };

@@ -181,6 +181,38 @@ export async function chatWith(rt: Pick<ShellRuntime, "call">, agentId: string):
   }
 }
 
+/**
+ * The Ask thread to open for an agent about an object (Ask Vyre): the person's newest Ask thread on it with that agent, else a new one. "Bring this conversation": a new one starts with the person's own
+ * first message carrying a summary of the chat they were in, so switching agent does not start from nothing. Null when neither could be had.
+ */
+export async function askWith(rt: Pick<ShellRuntime, "call">, agentId: string, scopeType: string, scopeId: string, bringFrom: string | null): Promise<string | null> {
+  try {
+    const out = (await rt.call("chat.asks_of", { resourceType: scopeType, resourceId: scopeId, limit: 20 })) as CapMap["chat.asks_of"]["out"];
+    const mine = out.threads.filter((t) => t.closedAt === undefined && t.agents.some((a) => a.agentId === agentId))[0];
+    if (mine) return mine.threadId;
+  } catch {
+    // no history to read, or the object is not visible: a start below says why
+  }
+  const first = bringFrom ? await broughtSummary(rt, bringFrom) : null;
+  try {
+    const out = (await rt.call("chat.start", { kind: "ask", agentIds: [agentId], scopeType, scopeId, ...(first ? { first } : {}), idempotencyKey: newKey() })) as { thread?: { threadId?: string } } | null;
+    return out?.thread?.threadId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** What the person brings into an Ask from the chat they were in: its rolling summary and its last few messages, as one message. Null when there is nothing to bring. */
+export async function broughtSummary(rt: Pick<ShellRuntime, "call">, threadId: string): Promise<string | null> {
+  try {
+    const sum = (await rt.call("chat.transcript.summary", { threadId })) as { summary?: string };
+    const msgs = (await rt.call("chat.messages.list", { threadId })) as { messages?: Array<{ body: string; author: { kind: string } }> };
+    const last = (msgs.messages ?? []).filter((m) => m.body.trim() !== "").slice(-6).map((m) => `${m.author.kind === "agent" ? "Agent" : "Me"}: ${m.body.replace(/\s+/g, " ").slice(0, 400)}`);
+    const parts = [sum.summary?.trim() ? `Summary so far:\n${sum.summary.trim()}` : "", last.length > 0 ? `The last messages:\n${last.join("\n")}` : ""].filter((x) => x !== "");
+    return parts.length === 0 ? null : `I am bringing this conversation with me, so you can carry on from it.\n\n${parts.join("\n\n")}`;
+  } catch { return null; }
+}
+
 /** The place's doors over `act`. A thread that is a helper opens as the helper chat; a computer is found from its agent; a terminal on a computer is the open one or a new one. */
 export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: string) => string, say: (text: string) => void): Go {
   return {

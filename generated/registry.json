@@ -4773,6 +4773,40 @@
       "minItems": 1,
       "type": "array"
     },
+    "s_3d8cb64d6b": {
+      "properties": {
+        "reviewer": {
+          "anyOf": [
+            {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "agent",
+                    "person"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "reviewer"
+      ],
+      "type": "object"
+    },
     "s_3e81e0d4aa": {
       "items": {
         "properties": {
@@ -41874,6 +41908,87 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "level": "view"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "chat",
+      "name": "chat.ask_level",
+      "output": {
+        "properties": {
+          "level": {
+            "anyOf": [
+              {
+                "enum": [
+                  "view",
+                  "use",
+                  "edit",
+                  "manage"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "level"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The level the caller has on the object an Ask pane is about (view, use, edit or manage), null when none: the Ask pane's tools never go past it",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
         "validation.bad_input"
       ],
       "examples": [
@@ -63801,6 +63916,168 @@
         "http": "auto",
         "mcp": {
           "toolset": "meta"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "reviewer": {
+              "id": "example",
+              "kind": "agent"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "engine",
+      "name": "engine.reviewer.get",
+      "output": {
+        "$ref": "#/$defs/s_3d8cb64d6b"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The reviewer of a chat, if one is set",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "thread.reviewer_changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "reviewer": {
+              "id": "agt_a1b2c3",
+              "kind": "agent"
+            },
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "reviewer": {
+              "id": "example",
+              "kind": "agent"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "reviewer": {
+            "anyOf": [
+              {
+                "properties": {
+                  "id": {
+                    "examples": [
+                      "agt_a1b2c3"
+                    ],
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "agent",
+                      "person"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "reviewer"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "engine",
+      "name": "engine.reviewer.set",
+      "offline": "online",
+      "output": {
+        "$ref": "#/$defs/s_3d8cb64d6b"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn (\"Asking Reviewer to check this\"), a person gets a Review task",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
         }
       },
       "v": 1
@@ -193722,6 +193999,64 @@
       "summary": "A reply landed in a thread someone follows",
       "sv": 1,
       "vis": "participants"
+    },
+    {
+      "module": "engine",
+      "name": "thread.reviewer_changed",
+      "payload": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "reviewer": {
+            "anyOf": [
+              {
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "agent",
+                      "person"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "reviewer",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "summary": "A chat got a reviewer, or lost it",
+      "sv": 1,
+      "vis": "space"
     },
     {
       "label": "subject",

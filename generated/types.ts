@@ -4803,6 +4803,12 @@ export type ChatApprovePlanOut = {
       }>;
   };
 };
+export type ChatAskLevelIn = {
+  threadId: string;
+};
+export type ChatAskLevelOut = {
+  level: ("view" | "use" | "edit" | "manage") | null;
+};
 export type ChatAskSuggestIn = {
   scopeType: string;
   scopeId: string;
@@ -8143,6 +8149,28 @@ export type EngineReviewMarkIn = {
 };
 export type EngineReviewMarkOut = {
   incidentId?: string;
+};
+export type EngineReviewerGetIn = {
+  threadId: string;
+};
+export type EngineReviewerGetOut = {
+  reviewer: ({
+    kind: "agent" | "person";
+    id: string;
+  }) | null;
+};
+export type EngineReviewerSetIn = {
+  threadId: string;
+  reviewer: ({
+    kind: "agent" | "person";
+    id: string;
+  }) | null;
+};
+export type EngineReviewerSetOut = {
+  reviewer: ({
+    kind: "agent" | "person";
+    id: string;
+  }) | null;
 };
 export type EngineRoutePreviewIn = {
   threadId: string;
@@ -27233,6 +27261,7 @@ export interface CapMap {
   "channels.update": { in: ChannelsUpdateIn; out: ChannelsUpdateOut };
   "chat.answer_block": { in: ChatAnswerBlockIn; out: ChatAnswerBlockOut };
   "chat.approve_plan": { in: ChatApprovePlanIn; out: ChatApprovePlanOut };
+  "chat.ask_level": { in: ChatAskLevelIn; out: ChatAskLevelOut };
   "chat.ask_suggest": { in: ChatAskSuggestIn; out: ChatAskSuggestOut };
   "chat.asks_of": { in: ChatAsksOfIn; out: ChatAsksOfOut };
   "chat.composer.suggest": { in: ChatComposerSuggestIn; out: ChatComposerSuggestOut };
@@ -27470,6 +27499,8 @@ export interface CapMap {
   "engine.queue.peek": { in: EngineQueuePeekIn; out: EngineQueuePeekOut };
   "engine.review.list": { in: EngineReviewListIn; out: EngineReviewListOut };
   "engine.review.mark": { in: EngineReviewMarkIn; out: EngineReviewMarkOut };
+  "engine.reviewer.get": { in: EngineReviewerGetIn; out: EngineReviewerGetOut };
+  "engine.reviewer.set": { in: EngineReviewerSetIn; out: EngineReviewerSetOut };
   "engine.route.preview": { in: EngineRoutePreviewIn; out: EngineRoutePreviewOut };
   "engine.runtime.opt_in": { in: EngineRuntimeOptInIn; out: EngineRuntimeOptInOut };
   "engine.set_mode": { in: EngineSetModeIn; out: EngineSetModeOut };
@@ -31583,6 +31614,14 @@ export type ThreadRepliedPayload = {
   messageId: string;
   personId: string;
 };
+export type ThreadReviewerChangedPayload = {
+  threadId: string;
+  reviewer: ({
+    kind: "agent" | "person";
+    id: string;
+  }) | null;
+  by: string;
+};
 export type ThreadStartedPayload = {
   threadId: string;
   kind: "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
@@ -32489,6 +32528,7 @@ export interface EventMap {
   "thread.promoted": ThreadPromotedPayload;
   "thread.reopened": ThreadReopenedPayload;
   "thread.replied": ThreadRepliedPayload;
+  "thread.reviewer_changed": ThreadReviewerChangedPayload;
   "thread.started": ThreadStartedPayload;
   "thread.updated": ThreadUpdatedPayload;
   "token.issued": TokenIssuedPayload;

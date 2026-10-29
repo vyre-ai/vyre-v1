@@ -12,6 +12,7 @@ import { AutomationCanvas } from "../../places/automations/canvas/AutomationCanv
 import { AutomationsSidebar } from "../../places/automations/sidebar/AutomationsSidebar.tsx";
 import { nameOf } from "./misc-common.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
+import { openAsk } from "./ask.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export function automationsData(rt: ShellRuntime, nav: AutomationsData["nav"]): AutomationsData {
@@ -33,7 +34,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     openJourney: (id) => rt.open({ screen: "automations.sidebar", args: { journeyId: id } }),
     openFailedRuns: () => rt.open({ screen: "runs.failed" }),
     openRun: (runId) => rt.open({ subject: { type: "run", id: runId } }),
-    ask: (id) => rt.open({ screen: "chats.conversation", args: { with: "assistant", about: id } }),
+    ask: (id) => openAsk(rt, "assistant", { kind: "automation", id }),
     connect: (service) => rt.open({ screen: "mail.connections", args: { service } }),
   }), [rt, opened]);
   return (

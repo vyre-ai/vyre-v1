@@ -7,6 +7,7 @@ import { FileViewer } from "../../places/files/viewer/FileViewer.tsx";
 import { FilesViewerDataProvider } from "../../places/files/viewer/data.tsx";
 import type { FilesViewerData } from "../../places/files/viewer/data.tsx";
 import { nameLookup } from "./records-live.ts";
+import { openAsk } from "./ask.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export function FileDetail({ rt, fileId }: { rt: ShellRuntime; fileId: string }): ReactElement {
@@ -15,11 +16,7 @@ export function FileDetail({ rt, fileId }: { rt: ShellRuntime; fileId: string })
     call: rt.call, name: nameLookup(rt), clock: rt.clock,
     agents: [{ ...rt.assistant, assistant: true }],
     openFile: (id) => rt.open({ subject: { type: "file", id } }),
-    ask: (agentId, _mode, about) => {
-      void rt.call("chat.start", { kind: "ask", idempotencyKey: attemptKey(), agentIds: [agentId], scopeType: "file", scopeId: about.id, title: about.title })
-        .then((out: unknown) => rt.open({ subject: { type: "thread", id: (out as { thread: { threadId: string } }).thread.threadId } }))
-        .catch(() => setError("Couldn’t open a chat about this file. Try again."));
-    },
+    ask: (agentId, _mode, about) => openAsk(rt, agentId, about),
   }), [rt]);
   if (error) return <States kind="error" message={error} retryable onRetry={() => setError("")} />;
   return <FilesViewerDataProvider value={data}><FileViewer key={fileId} fileId={fileId} /></FilesViewerDataProvider>;
