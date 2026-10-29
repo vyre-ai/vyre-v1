@@ -9,10 +9,11 @@ import { AnalyticsReport, Bars, busyMenu, RANGES } from "./AnalyticsView.tsx";
 import { DependencyList, depMenu, shownItems } from "./DependenciesView.tsx";
 import { EventList, eventMenu, payloadText, shownEvents } from "./EventsView.tsx";
 import { PackageDetail, exportPackageNow, importInput, importPackageNow, needsLines } from "./PackagesView.tsx";
-import { TemplateCard, startFromTemplate } from "./TemplateGallery.tsx";
+import { TemplateList, startFromTemplate, templateMenu } from "./TemplateGallery.tsx";
 import { choiceMenu, filterLabel, filterMenu } from "./menus.ts";
 import { analyticsOf, countBy, depsOf, durationWords, eventItems, packageItems, rateWords, templatesOf } from "./read.ts";
 import { runLines, shownRuns } from "./StudioViews.tsx";
+import { CohortView } from "../versions/CohortMigration.tsx";
 
 const items = (m: readonly MenuEntry[]): MenuItem[] => m.filter((e): e is MenuItem => "label" in e);
 const pick = (m: readonly MenuEntry[], label: string): MenuItem => items(m).find((e) => e.label === label) ?? assert.fail(`no menu item ${label}`);
@@ -164,12 +165,17 @@ const templates = templatesOf({
   templates: [{ key: "weekly_digest", title: "Weekly digest", summary: "Count what came in.", starts: "Every Monday at 9:00", setUp: ["Choose the mailbox"], steps: [{ id: "recent", key: "records.find", title: "Find recent records" }, { id: "send", key: "send_email", title: "Send the digest" }] }],
 })!;
 
-test("templates: a card says what starts it, lists its steps when opened and what to set up first", () => {
+test("templates: a row says what starts it, lists its steps when opened and what to set up first", () => {
   assert.equal(templatesOf({ templates: 1 }), null);
-  const closed = text(renderToStaticMarkup(<TemplateCard t={templates[0]!} open={false} busy={false} onToggle={() => undefined} onUse={() => undefined} />));
-  assert.ok(closed.includes("Weekly digest") && closed.includes("Every Monday at 9:00") && !closed.includes("Use template"));
-  const open = text(renderToStaticMarkup(<TemplateCard t={templates[0]!} open busy={false} onToggle={() => undefined} onUse={() => undefined} />));
+  const closed = text(renderToStaticMarkup(<TemplateList templates={templates} open={null} busy={false} onToggle={() => undefined} onUse={() => undefined} />));
+  assert.ok(closed.includes("Weekly digest") && closed.includes("Every Monday at 9:00") && closed.includes("Count what came in.") && !closed.includes("Use template"));
+  const open = text(renderToStaticMarkup(<TemplateList templates={templates} open="weekly_digest" busy={false} onToggle={() => undefined} onUse={() => undefined} />));
   assert.ok(open.includes("1. Find recent records") && open.includes("2. Send the digest") && open.includes("Choose the mailbox") && open.includes("Use template"));
+  const log: string[] = [];
+  const menu = templateMenu(true, { toggle: () => log.push("toggle"), use: () => log.push("use") });
+  assert.deepEqual(items(menu).map((e) => e.label), ["Use template", "Hide the steps"]);
+  for (const e of items(menu)) e.onSelect?.();
+  assert.deepEqual(log, ["use", "toggle"]);
 });
 
 test("templates: Use template makes the draft and opens it", async () => {
@@ -215,6 +221,24 @@ test("packages: export and import make the calls and report what is left", async
   assert.equal(note.open, "aut_copy1");
   assert.deepEqual(note.left, ["Connection 1: choose one of your connections"]);
   assert.deepEqual(log, ['automations.packages.export {"automationId":"aut_a1"}', 'automations.packages.import {"packageId":"pkg_1"}']);
+});
+
+// ---- moving runs onto a new version ----
+
+test("versions: Apply is off with no safe group, asks once before it moves, and names what stays put", () => {
+  const groups = [
+    { disposition: "safe" as const, definitionVersion: 2, runIds: ["run_a1", "run_a2"], reason: "The same step still exists." },
+    { disposition: "ambiguous" as const, definitionVersion: 1, runIds: ["run_b1"], reason: "The current step is gone." },
+  ];
+  const draw = (over: Partial<Parameters<typeof CohortView>[0]>): string => text(renderToStaticMarkup(
+    <CohortView currentVersion={3} phase="ready" cohorts={[]} groups={groups} safeCount={2} confirming={false} busy={false} onApply={() => undefined} onCancel={() => undefined} {...over} />));
+  const first = draw({});
+  assert.ok(first.includes("Safe group, version 2, pinned") && first.includes("Ambiguous group, version 1, pinned") && first.includes("Apply safe groups") && !first.includes("migration-confirm"));
+  const asking = draw({ confirming: true });
+  assert.ok(asking.includes("Move 2 runs to version 3.") && asking.includes("a step that is running is never moved") && asking.includes("Cancel") && asking.includes(">Apply<"));
+  const none = draw({ safeCount: 0, groups: [groups[1]!] });
+  assert.ok(none.includes('aria-disabled="true"') && none.includes("No safe group to move"));
+  assert.ok(draw({ applyError: "1 run was held back because a step started. Try again when it finishes." }).includes("held back"));
 });
 
 // ---- the rules for every Studio screen ----

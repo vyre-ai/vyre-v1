@@ -11,7 +11,7 @@ import { ConnectorTrust } from "./ConnectorTrust.tsx";
 import { depsOf, countBy } from "./read.ts";
 import type { DepItem } from "./read.ts";
 import { filterLabel, filterMenu } from "./menus.ts";
-import { Empty, Frame, ListRow, MenuButton, Status, useCall, v } from "./parts.tsx";
+import { Empty, Frame, MenuButton, Row, Status, useCall, useRowMenu, v } from "./parts.tsx";
 
 const KIND_WORD: Record<string, string> = {
   automation: "Automations", journey: "Journeys", connection: "Connections", mailbox: "Mailboxes", number: "Numbers", form: "Forms", channel: "Channels", record: "Records",
@@ -40,6 +40,7 @@ export function DependencyList({ items, onOpen, copy, initialPicked = null }: { 
   const [kinds, setKinds] = useState<ReadonlySet<string>>(new Set());
   const [onlyProblems, setOnlyProblems] = useState(false);
   const [picked, setPicked] = useState<string | null>(initialPicked);
+  const rm = useRowMenu();
   const toggle = (k: string): void => setKinds((cur) => { const n = new Set(cur); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   const problems = items.filter((i) => i.problem !== null).length;
   const shown = shownItems(items, kinds, onlyProblems);
@@ -50,47 +51,42 @@ export function DependencyList({ items, onOpen, copy, initialPicked = null }: { 
   ];
   return (
     <View testID="dependency-list" style={v.stack}>
+      {rm.element}
       <View style={v.actions}>
         <MenuButton testID="deps-kind" label={filterLabel("Kind", kinds, kindWord)} entries={kindEntries} />
         <MenuButton testID="deps-show" label={onlyProblems ? "Only missing or off" : "Everything"} entries={showEntries} />
       </View>
       {shown.length === 0 ? <Text style={v.dim}>{onlyProblems ? "Nothing is missing or off." : "Nothing of that kind."}</Text> : null}
       <View style={v.list}>
-        {/* ui-rows-lint: ListRow is the row */}
-        {shown.map((item) => {
+        {shown.flatMap((item) => {
           const open = picked === item.ref;
           const bad = problemWords(item.problem);
-          return (
-            <View key={`${item.kind}:${item.ref}`}>
-              <ListRow testID={`dep-${item.ref}`} selected={open} label={`${kindWord(item.kind)} ${item.ref}, used by ${item.usedBy.length}${bad ? `, ${bad.toLowerCase()}` : ""}`}
-                onPress={() => setPicked(open ? null : item.ref)} menu={() => depMenu(item, { show: setPicked, open: onOpen, copy, onlyKind: (k) => setKinds(new Set([k])) })}>
-                <Dot tone={item.problem === "missing" ? "danger" : item.problem === "off" ? "warn" : "ok"} />
-                <View style={v.lineMain}>
-                  <Text style={v.row} numberOfLines={1}>{item.ref}</Text>
-                  <Text style={v.dim}>{item.kind}</Text>
-                </View>
-                {bad ? <Text style={item.problem === "missing" ? v.tag : v.tagWarn}>{bad}</Text> : null}
-                <Text style={v.right}>{`${item.usedBy.length} ${item.usedBy.length === 1 ? "use" : "uses"}`}</Text>
-              </ListRow>
-              {open ? (
-                <View testID={`dep-used-${item.ref}`} style={[v.detail, { marginLeft: 28 }]}>
-                  <Text style={v.section}>Used by</Text>
-                  {/* ui-rows-lint: ListRow is the row */}
-                  {item.usedBy.map((u) => (
-                    <ListRow key={u.automationId} testID={`dep-user-${u.automationId}`} label={`Open ${u.name}`} onPress={() => onOpen(u.automationId)}>
-                      <View style={v.lineMain}>
-                        <Text style={v.row} numberOfLines={1}>{u.name}</Text>
-                        <Text style={v.dim}>{u.stepIds.length > 0 ? `Step ${u.stepIds.join(", ")}` : "Its trigger"}</Text>
-                      </View>
-                      <Text style={v.right}>{u.status}</Text>
-                    </ListRow>
-                  ))}
-                  {item.problem === "missing" ? <Text style={v.dim}>This is not there any more. Open the automations listed above and choose another one in the step.</Text> : null}
-                  {item.problem === "off" ? <Text style={v.dim}>This automation is not on, so anything that calls it waits or fails.</Text> : null}
-                </View>
-              ) : null}
-            </View>
+          const row = (
+            <Row
+              key={`${item.kind}:${item.ref}`} id={`dep-${item.ref}`} title={item.ref} note={item.kind} selected={open}
+              leading={<View style={{ marginRight: 6 }}><Dot tone={item.problem === "missing" ? "danger" : item.problem === "off" ? "warn" : "ok"} /></View>}
+              trailing={<View style={v.actions}>{bad ? <Text style={item.problem === "missing" ? v.tag : v.tagWarn}>{bad}</Text> : null}<Text style={v.right}>{`${item.usedBy.length} ${item.usedBy.length === 1 ? "use" : "uses"}`}</Text></View>}
+              onPress={() => setPicked(open ? null : item.ref)}
+              domProps={{
+                "aria-label": `${kindWord(item.kind)} ${item.ref}, used by ${item.usedBy.length}${bad ? `, ${bad.toLowerCase()}` : ""}`,
+                ...rm.rowDom(item.ref, () => depMenu(item, { show: setPicked, open: onOpen, copy, onlyKind: (k) => setKinds(new Set([k])) })),
+              }}
+            />
           );
+          if (!open) return [row];
+          return [row, (
+            <View key={`used-${item.ref}`} testID={`dep-used-${item.ref}`} style={[v.detail, { marginLeft: 28 }]}>
+              <Text style={v.section}>Used by</Text>
+              {item.usedBy.map((u) => (
+                <Row
+                  key={u.automationId} id={`dep-user-${u.automationId}`} title={u.name} note={u.stepIds.length > 0 ? `Step ${u.stepIds.join(", ")}` : "Its trigger"}
+                  trailing={<Text style={v.right}>{u.status}</Text>} onPress={() => onOpen(u.automationId)} domProps={{ "aria-label": `Open ${u.name}` }}
+                />
+              ))}
+              {item.problem === "missing" ? <Text style={v.dim}>This is not there any more. Open the automations listed above and choose another one in the step.</Text> : null}
+              {item.problem === "off" ? <Text style={v.dim}>This automation is not on, so anything that calls it waits or fails.</Text> : null}
+            </View>
+          )];
         })}
       </View>
     </View>

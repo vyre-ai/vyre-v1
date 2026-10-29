@@ -10,7 +10,7 @@ import { TextButton } from "../canvas/parts.tsx";
 import { analyticsOf, durationWords, rateWords } from "./read.ts";
 import type { Analytics } from "./read.ts";
 import { choiceMenu } from "./menus.ts";
-import { Empty, Frame, ListRow, MenuButton, Status, Tile, useCall, v } from "./parts.tsx";
+import { Empty, Frame, MenuButton, Row, Status, Tile, useCall, useRowMenu, v } from "./parts.tsx";
 
 export const RANGES = [{ value: 7, label: "Last 7 days" }, { value: 30, label: "Last 30 days" }, { value: 90, label: "Last 90 days" }] as const;
 
@@ -22,6 +22,7 @@ export function Bars({ daily }: { daily: Analytics["daily"] }): ReactElement {
   const total = daily.reduce((n, d) => n + d.succeeded + d.failed + d.other, 0);
   return (
     <View testID="analytics-bars" accessible accessibilityRole="image" accessibilityLabel={`Runs per day. ${total} runs in ${daily.length} days.`} style={v.bars}>
+      {/* ui-rows-lint: not a list (one bar per day of a chart) */}
       {daily.map((d) => {
         const all = d.succeeded + d.failed + d.other;
         const high = (n: number): number => Math.round((n / top) * 80);
@@ -54,9 +55,11 @@ export function AnalyticsReport({ report, scope, onOpen, onFailed, onAsk }: {
   report: Analytics; scope: "space" | "automation"; onOpen(id: string): void; onFailed(): void; onAsk(id: string, message: string): void;
 }): ReactElement {
   const t = report.totals;
+  const rm = useRowMenu();
   const names = new Map(report.automations.map((a) => [a.automationId, a.name]));
   return (
     <View testID="analytics-report" style={v.stack}>
+      {rm.element}
       <View style={v.tiles}>
         <Tile testID="tile-runs" label="Runs" value={String(t.runs)} note={t.active > 0 ? `${t.active} still going` : undefined} />
         <Tile testID="tile-succeeded" label="Succeeded" value={String(t.succeeded)} />
@@ -71,13 +74,12 @@ export function AnalyticsReport({ report, scope, onOpen, onFailed, onAsk }: {
         <>
           <Text style={v.section}>Busiest automations</Text>
           <View style={v.list}>
-            {/* ui-rows-lint: ListRow is the row */}
             {report.automations.map((a) => (
-              <ListRow key={a.automationId} testID={`busy-${a.automationId}`} label={`${a.name}, ${a.runs} runs, ${a.failed} failed. Open`} onPress={() => onOpen(a.automationId)} menu={() => busyMenu(a.automationId, a.name, a.failed, { onOpen, onFailed, onAsk })}>
-                <View style={v.lineMain}><Text style={v.row} numberOfLines={1}>{a.name}</Text></View>
-                {a.failed > 0 ? <Text style={v.tag}>{`${a.failed} failed`}</Text> : null}
-                <Text style={v.right}>{`${a.runs} runs`}</Text>
-              </ListRow>
+              <Row
+                key={a.automationId} id={`busy-${a.automationId}`} title={a.name} onPress={() => onOpen(a.automationId)}
+                trailing={<View style={v.actions}>{a.failed > 0 ? <Text style={v.tag}>{`${a.failed} failed`}</Text> : null}<Text style={v.right}>{`${a.runs} runs`}</Text></View>}
+                domProps={{ "aria-label": `${a.name}, ${a.runs} runs, ${a.failed} failed. Open`, ...rm.rowDom(a.name, () => busyMenu(a.automationId, a.name, a.failed, { onOpen, onFailed, onAsk })) }}
+              />
             ))}
           </View>
         </>
@@ -85,15 +87,15 @@ export function AnalyticsReport({ report, scope, onOpen, onFailed, onAsk }: {
       <Text style={v.section}>Where failures stop</Text>
       {report.failures.length === 0 ? <Text style={v.dim}>{t.failed === 0 ? "No run failed in this period." : "The failed runs have no step log to read."}</Text> : (
         <View style={v.list}>
-          {/* ui-rows-lint: ListRow is the row */}
           {report.failures.map((f) => {
             const owner = f.automationId ? names.get(f.automationId) ?? f.automationId : null;
             return (
-              <ListRow key={`${f.automationId}-${f.step}-${f.code}`} testID={`stop-${f.step}`} label={`Step ${f.step} failed ${f.count} times with ${f.code}${owner ? ` in ${owner}` : ""}`}
-                {...(f.automationId ? { onPress: () => onOpen(f.automationId!) } : {})}>
-                <View style={v.lineMain}><Text style={v.row} numberOfLines={1}>{`Step ${f.step}${owner ? ` in ${owner}` : ""}`}</Text><Text style={v.dim}>{f.code}</Text></View>
-                <Text style={v.right}>{`${f.count}×`}</Text>
-              </ListRow>
+              <Row
+                key={`${f.automationId}-${f.step}-${f.code}`} id={`stop-${f.step}`} title={`Step ${f.step}${owner ? ` in ${owner}` : ""}`} note={f.code}
+                trailing={<Text style={v.right}>{`${f.count}×`}</Text>}
+                {...(f.automationId ? { onPress: () => onOpen(f.automationId!) } : {})}
+                domProps={{ "aria-label": `Step ${f.step} failed ${f.count} times with ${f.code}${owner ? ` in ${owner}` : ""}` }}
+              />
             );
           })}
         </View>

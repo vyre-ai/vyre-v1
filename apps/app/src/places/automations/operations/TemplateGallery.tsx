@@ -9,7 +9,7 @@ import { pointer } from "../canvas/parts.tsx";
 import { TEMPLATES_LINE } from "../chrome.ts";
 import { templatesOf } from "./read.ts";
 import type { TemplateItem } from "./read.ts";
-import { Frame, ListRow, Status, useCall, v } from "./parts.tsx";
+import { Frame, Row, Status, useCall, useRowMenu, v } from "./parts.tsx";
 
 /** Make the draft from a template and open it. Returns the new automation's id. */
 export async function startFromTemplate(data: Pick<AutomationsData, "call" | "nav">, key: string): Promise<string | null> {
@@ -19,31 +19,41 @@ export async function startFromTemplate(data: Pick<AutomationsData, "call" | "na
   return id;
 }
 
-export function TemplateCard({ t, open, busy, onToggle, onUse }: { t: TemplateItem; open: boolean; busy: boolean; onToggle(): void; onUse(): void }): ReactElement {
-  const menu = (): MenuEntry[] => [
-    { label: "Use template", onSelect: onUse },
-    { label: open ? "Hide the steps" : "Show the steps", onSelect: onToggle },
-  ];
+export function templateMenu(open: boolean, on: { toggle(): void; use(): void }): MenuEntry[] {
+  return [{ label: "Use template", onSelect: on.use }, { label: open ? "Hide the steps" : "Show the steps", onSelect: on.toggle }];
+}
+
+/** The gallery rows. Pressing a row shows its steps and what to set up; Use template makes the draft. */
+export function TemplateList({ templates, open, busy, onToggle, onUse }: {
+  templates: readonly TemplateItem[]; open: string | null; busy: boolean; onToggle(key: string): void; onUse(t: TemplateItem): void;
+}): ReactElement {
+  const rm = useRowMenu();
   return (
-    <View testID={`template-${t.key}`} style={v.stack}>
-      <ListRow testID={`template-row-${t.key}`} selected={open} label={`${t.title}. ${t.summary} ${open ? "Hide" : "Show"} the steps`} onPress={onToggle} menu={menu}>
-        <View style={v.lineMain}>
-          <Text style={v.strong} numberOfLines={1}>{t.title}</Text>
-          <Text style={v.dim}>{t.summary}</Text>
-        </View>
-        <Text style={v.right}>{t.starts}</Text>
-      </ListRow>
-      {open ? (
-        <View testID={`template-detail-${t.key}`} style={[v.detail, { marginLeft: 12 }]}>
-          <Text style={v.section}>Steps</Text>
-          {t.steps.map((s, i) => <Text key={s.id} style={v.row}>{`${i + 1}. ${s.title}`}</Text>)}
-          <Text style={v.section}>Before you turn it on</Text>
-          {t.setUp.map((line) => <Text key={line} style={v.dim}>{line}</Text>)}
-          <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} testID={`use-${t.key}`} onPress={onUse} style={[v.btnPrimary, pointer]}>
-            <Text style={v.btnPrimaryText}>Use template</Text>
-          </Pressable>
-        </View>
-      ) : null}
+    <View testID="template-list" style={v.list}>
+      {rm.element}
+      {templates.flatMap((t) => {
+        const isOpen = open === t.key;
+        const row = (
+          <Row
+            key={t.key} id={`template-${t.key}`} title={t.title} note={t.summary} selected={isOpen} trailing={<Text style={v.right}>{t.starts}</Text>} onPress={() => onToggle(t.key)}
+            domProps={{ "aria-label": `${t.title}. ${t.summary} ${isOpen ? "Hide" : "Show"} the steps`, ...rm.rowDom(t.title, () => templateMenu(isOpen, { toggle: () => onToggle(t.key), use: () => onUse(t) })) }}
+          />
+        );
+        if (!isOpen) return [row];
+        return [row, (
+          <View key={`detail-${t.key}`} testID={`template-detail-${t.key}`} style={[v.detail, { marginLeft: 12 }]}>
+            <Text style={v.section}>Steps</Text>
+            {/* ui-rows-lint: not a list (one numbered sentence per step) */}
+            {t.steps.map((st, i) => <Text key={st.id} style={v.row}>{`${i + 1}. ${st.title}`}</Text>)}
+            <Text style={v.section}>Before you turn it on</Text>
+            {/* ui-rows-lint: not a list (one sentence per thing to set up) */}
+            {t.setUp.map((line) => <Text key={line} style={v.dim}>{line}</Text>)}
+            <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} testID={`use-${t.key}`} onPress={() => onUse(t)} style={[v.btnPrimary, pointer]}>
+              <Text style={v.btnPrimaryText}>Use template</Text>
+            </Pressable>
+          </View>
+        )];
+      })}
     </View>
   );
 }
@@ -65,12 +75,7 @@ export function TemplateGallery(): ReactElement {
   return (
     <Frame testID="templates" title="Templates" line={TEMPLATES_LINE}>
       <Status state={state} />
-      {state.phase === "ready" ? (
-        <View style={v.list}>
-          {/* ui-rows-lint: TemplateCard is the row */}
-          {state.value.map((t) => <TemplateCard key={t.key} t={t} open={open === t.key} busy={busy} onToggle={() => setOpen(open === t.key ? null : t.key)} onUse={() => void use(t)} />)}
-        </View>
-      ) : null}
+      {state.phase === "ready" ? <TemplateList templates={state.value} open={open} busy={busy} onToggle={(k) => setOpen(open === k ? null : k)} onUse={(t) => void use(t)} /> : null}
       {note ? <Text style={v.err} accessibilityRole="alert">{note}</Text> : null}
     </Frame>
   );

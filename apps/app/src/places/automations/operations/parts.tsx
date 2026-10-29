@@ -3,11 +3,14 @@ import { useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { AskVyre } from "../ask/AskVyre.tsx";
 import { useAutomationsData } from "../canvas/data.tsx";
 import { Glyph } from "../canvas/icons.tsx";
 import { pointer, webOnly } from "../canvas/parts.tsx";
+
+export { Row };
 
 export type Phase<T> = { phase: "loading" } | { phase: "error"; message: string } | { phase: "ready"; value: T };
 
@@ -88,31 +91,12 @@ export function MenuButton({ label, entries, testID, icon = "chevD" }: { label: 
 }
 
 /**
- * One row of a list. Press or Enter opens it, hover lights it, right-click or Shift-F10 opens its menu. Tab moves between rows.
- * The menu is built when it opens, so every entry acts on the row that was clicked.
+ * Right-click, Shift-F10 and the menu key open a row's menu. One menu serves the whole list; `rowDom` builds the handlers for one row,
+ * and the entries are built when the menu opens, so every item acts on the row that was clicked. A row is always the ui/Row: press or Enter opens it, hover lights it.
  */
-export function ListRow({ testID, label, selected = false, onPress, menu, children }: {
-  testID: string; label: string; selected?: boolean; onPress?: () => void; menu?: () => readonly MenuEntry[]; children: ReactNode;
-}): ReactElement {
+export function useRowMenu(): { element: ReactElement | null; rowDom(label: string, build: () => readonly MenuEntry[]): Record<string, unknown> } {
   const { element, show } = useMenu();
-  const [over, setOver] = useState(false);
-  return (
-    <View {...(menu ? menuTrigger((x, y) => show(menu(), x, y, "context", { label })) : {})}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        accessibilityState={{ selected }}
-        testID={testID}
-        onPress={onPress}
-        onHoverIn={() => setOver(true)}
-        onHoverOut={() => setOver(false)}
-        style={[v.line, over && v.lineOver, selected && v.lineOn, onPress ? pointer : null]}
-      >
-        {children}
-      </Pressable>
-      {element}
-    </View>
-  );
+  return { element, rowDom: (label, build) => menuTrigger((x, y) => show(build(), x, y, "context", { label })) };
 }
 
 export function Tile({ label, value, note, testID, tone }: { label: string; value: string; note?: string; testID: string; tone?: "danger" }): ReactElement {

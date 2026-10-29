@@ -10,7 +10,7 @@ import { pointer } from "../canvas/parts.tsx";
 import { EMPTY_PACKAGES_NEXT, PACKAGES_LINE } from "../chrome.ts";
 import { packageItems } from "./read.ts";
 import type { PackageItem } from "./read.ts";
-import { Empty, Frame, ListRow, MenuButton, Status, useCall, v } from "./parts.tsx";
+import { Empty, Frame, MenuButton, Row, Status, useCall, useRowMenu, v } from "./parts.tsx";
 
 export interface Own { connectionId: string; title: string; connector: string }
 export interface Source { id: string; name: string }
@@ -67,6 +67,7 @@ export function PackageDetail({ pkg, own, picks, onPick, onImport, busy }: {
     <View testID={`package-detail-${pkg.id}`} style={[v.detail, { marginLeft: 12 }]}>
       <Text style={v.section}>Connections</Text>
       {pkg.requires.connections.length === 0 ? <Text style={v.dim}>This package needs none.</Text> : null}
+      {/* ui-rows-lint: not a list (one connection slot with its own picker) */}
       {pkg.requires.connections.map((c) => {
         const chosen = own.find((o) => o.connectionId === picks[c.slot]);
         const entries: MenuEntry[] = [
@@ -97,6 +98,7 @@ export function Packages(): ReactElement {
   const [picked, setPicked] = useState<string | null>(null);
   const [picks, setPicks] = useState<Record<string, Record<string, string>>>({});
   const [busy, setBusy] = useState(false);
+  const rm = useRowMenu();
   const [note, setNote] = useState<ImportNote | null>(null);
   const packages = useCall("automations.packages.list", {}, packageItems, again);
   const sources = useCall("automations.list", { limit: 100 }, sourcesOf, again);
@@ -130,37 +132,40 @@ export function Packages(): ReactElement {
       {note ? (
         <View testID="package-note" style={v.stack} accessibilityLiveRegion="polite">
           <Text style={v.row}>{note.text}</Text>
+          {/* ui-rows-lint: not a list (one sentence per thing still to connect) */}
           {note.left && note.left.length > 0 ? note.left.map((l) => <Text key={l} style={v.dim}>{l}</Text>) : null}
           {note.open ? <Pressable accessibilityRole="button" testID="package-open-draft" onPress={() => data.nav.openAutomation(note.open!)} style={[v.btn, pointer]}><Text style={v.row}>Open the draft</Text></Pressable> : null}
         </View>
       ) : null}
       {packages.phase === "ready" && rows.length === 0 ? <Empty testID="packages-empty" title="No packages yet" next={EMPTY_PACKAGES_NEXT} /> : null}
+      {rm.element}
       <View style={v.list}>
-        {/* ui-rows-lint: ListRow is the row */}
-        {rows.map((p) => (
-          <View key={p.id}>
-            <ListRow testID={`package-${p.id}`} selected={picked === p.id} label={`${p.name}, saved ${new Date(p.createdAt).toISOString().slice(0, 10)}. ${picked === p.id ? "Hide" : "Show"} what it needs`}
-              onPress={() => setPicked(picked === p.id ? null : p.id)}
-              menu={() => [
-                { label: picked === p.id ? "Hide what it needs" : "Show what it needs", onSelect: () => setPicked(picked === p.id ? null : p.id) },
-                { label: "Import as a draft", onSelect: () => void importOne(p) },
-              ]}>
-              <View style={v.lineMain}>
-                <Text style={v.row} numberOfLines={1}>{p.name}</Text>
-                <Text style={v.dim}>{p.requires.connections.length === 0 ? "No connections needed" : `${p.requires.connections.length} ${p.requires.connections.length === 1 ? "connection" : "connections"} to choose`}</Text>
-              </View>
-              <Text style={v.right}>{new Date(p.createdAt).toISOString().slice(0, 10)}</Text>
-            </ListRow>
-            {picked === p.id ? (
-              <PackageDetail pkg={p} own={own} picks={picks[p.id] ?? {}} busy={busy} onImport={() => void importOne(p)}
-                onPick={(slot, id) => setPicks((cur) => {
-                  const next = { ...(cur[p.id] ?? {}) };
-                  if (id) next[slot] = id; else delete next[slot];
-                  return { ...cur, [p.id]: next };
-                })} />
-            ) : null}
-          </View>
-        ))}
+        {rows.flatMap((p) => {
+          const isOpen = picked === p.id;
+          const row = (
+            <Row
+              key={p.id} id={`package-${p.id}`} title={p.name} selected={isOpen}
+              note={p.requires.connections.length === 0 ? "No connections needed" : `${p.requires.connections.length} ${p.requires.connections.length === 1 ? "connection" : "connections"} to choose`}
+              trailing={<Text style={v.right}>{new Date(p.createdAt).toISOString().slice(0, 10)}</Text>} onPress={() => setPicked(isOpen ? null : p.id)}
+              domProps={{
+                "aria-label": `${p.name}, saved ${new Date(p.createdAt).toISOString().slice(0, 10)}. ${isOpen ? "Hide" : "Show"} what it needs`,
+                ...rm.rowDom(p.name, () => [
+                  { label: isOpen ? "Hide what it needs" : "Show what it needs", onSelect: () => setPicked(isOpen ? null : p.id) },
+                  { label: "Import as a draft", onSelect: () => void importOne(p) },
+                ]),
+              }}
+            />
+          );
+          if (!isOpen) return [row];
+          return [row, (
+            <PackageDetail key={`detail-${p.id}`} pkg={p} own={own} picks={picks[p.id] ?? {}} busy={busy} onImport={() => void importOne(p)}
+              onPick={(slot, id) => setPicks((cur) => {
+                const next = { ...(cur[p.id] ?? {}) };
+                if (id) next[slot] = id; else delete next[slot];
+                return { ...cur, [p.id]: next };
+              })} />
+          )];
+        })}
       </View>
     </Frame>
   );

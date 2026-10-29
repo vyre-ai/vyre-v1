@@ -10,7 +10,7 @@ import { EMPTY_EVENTS_NEXT, EVENTS_LINE, LISTENING } from "../chrome.ts";
 import { countBy, eventItems } from "./read.ts";
 import type { EventItem } from "./read.ts";
 import { filterLabel, filterMenu } from "./menus.ts";
-import { Empty, Frame, ListRow, MenuButton, Status, useCall, v } from "./parts.tsx";
+import { Empty, Frame, MenuButton, Row, Status, useCall, useRowMenu, v } from "./parts.tsx";
 
 export const REFRESH_MS = 5000;
 export const EVENT_LIMIT = 100;
@@ -47,37 +47,41 @@ export function EventList({ rows, onOpenRun, onOpenAutomation, copy, initialPick
 }): ReactElement {
   const [types, setTypes] = useState<ReadonlySet<string>>(new Set());
   const [picked, setPicked] = useState<string | null>(initialPicked);
+  const rm = useRowMenu();
   const toggle = (t: string): void => setTypes((cur) => { const n = new Set(cur); if (n.has(t)) n.delete(t); else n.add(t); return n; });
   const shown = shownEvents(rows, types);
   const entries = filterMenu("All events", countBy(rows, (r) => r.type).map((c) => ({ value: c.value, count: c.count })), types, toggle, () => setTypes(new Set()));
   return (
     <View testID="event-list" style={v.stack}>
+      {rm.element}
       <View style={v.actions}><MenuButton testID="events-type" label={filterLabel("Event type", types)} entries={entries} /></View>
       {shown.length === 0 ? <Text style={v.dim}>No event of that type in the latest {rows.length}.</Text> : null}
       <View style={v.list}>
-        {/* ui-rows-lint: ListRow is the row */}
-        {shown.map((e) => (
-          <View key={e.id}>
-            <ListRow testID={`event-${e.id}`} selected={picked === e.id} label={`${e.type} at ${clockWords(e.at)}${e.sealed ? ", sealed" : ""}`} onPress={() => setPicked(picked === e.id ? null : e.id)} menu={() => eventMenu(e, { isOpen: picked === e.id, toggle: () => setPicked(picked === e.id ? null : e.id), onlyType: (t) => setTypes(new Set([t])), openRun: onOpenRun, openAutomation: onOpenAutomation, copy })}>
-              <View style={v.lineMain}>
-                <Text style={v.row} numberOfLines={1}>{e.type}</Text>
-                <Text style={v.dim} numberOfLines={1}>{[e.subject ? `${e.subject.type} ${e.subject.id}` : "", e.runId ? `run ${e.runId}` : ""].filter(Boolean).join(" · ") || e.actor}</Text>
+        {shown.flatMap((e) => {
+          const row = (
+            <Row
+              key={e.id} id={`event-${e.id}`} title={e.type} selected={picked === e.id}
+              note={[e.subject ? `${e.subject.type} ${e.subject.id}` : "", e.runId ? `run ${e.runId}` : ""].filter(Boolean).join(" · ") || e.actor}
+              trailing={<View style={v.actions}>{e.sealed ? <Text style={v.right}>Sealed</Text> : null}<Text style={v.right}>{clockWords(e.at).slice(11, 19)}</Text></View>}
+              onPress={() => setPicked(picked === e.id ? null : e.id)}
+              domProps={{
+                "aria-label": `${e.type} at ${clockWords(e.at)}${e.sealed ? ", sealed" : ""}`,
+                ...rm.rowDom(e.type, () => eventMenu(e, { isOpen: picked === e.id, toggle: () => setPicked(picked === e.id ? null : e.id), onlyType: (t) => setTypes(new Set([t])), openRun: onOpenRun, openAutomation: onOpenAutomation, copy })),
+              }}
+            />
+          );
+          if (picked !== e.id) return [row];
+          return [row, (
+            <View key={`detail-${e.id}`} testID={`event-detail-${e.id}`} style={[v.detail, { marginLeft: 12 }]}>
+              <Text style={v.dim}>{`${clockWords(e.at)} · by ${e.actor || "the system"}`}</Text>
+              <Text selectable style={v.mono}>{payloadText(e)}</Text>
+              <View style={v.actions}>
+                {e.runId ? <TextButton label="Open the run" onPress={() => onOpenRun(e.runId!)} testID={`event-run-${e.id}`} /> : null}
+                {e.subject?.type === "automation" ? <TextButton label="Open the automation" onPress={() => onOpenAutomation(e.subject!.id)} testID={`event-auto-${e.id}`} /> : null}
               </View>
-              {e.sealed ? <Text style={v.right}>Sealed</Text> : null}
-              <Text style={v.right}>{clockWords(e.at).slice(11, 19)}</Text>
-            </ListRow>
-            {picked === e.id ? (
-              <View testID={`event-detail-${e.id}`} style={[v.detail, { marginLeft: 12 }]}>
-                <Text style={v.dim}>{`${clockWords(e.at)} · by ${e.actor || "the system"}`}</Text>
-                <Text selectable style={v.mono}>{payloadText(e)}</Text>
-                <View style={v.actions}>
-                  {e.runId ? <TextButton label="Open the run" onPress={() => onOpenRun(e.runId!)} testID={`event-run-${e.id}`} /> : null}
-                  {e.subject?.type === "automation" ? <TextButton label="Open the automation" onPress={() => onOpenAutomation(e.subject!.id)} testID={`event-auto-${e.id}`} /> : null}
-                </View>
-              </View>
-            ) : null}
-          </View>
-        ))}
+            </View>
+          )];
+        })}
       </View>
     </View>
   );

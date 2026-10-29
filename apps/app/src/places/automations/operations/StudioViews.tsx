@@ -10,7 +10,7 @@ import { choiceStartsRuns, readChoiceResult, scheduleRequestFromTask } from "./r
 import type { ScheduleChoiceKey } from "./recovery.ts";
 import { countBy } from "./read.ts";
 import { filterLabel, filterMenu } from "./menus.ts";
-import { Empty, Frame, ListRow, MenuButton, Status, useCall, v } from "./parts.tsx";
+import { Empty, Frame, MenuButton, Row, Status, useCall, useRowMenu, v } from "./parts.tsx";
 
 export { SpaceAnalytics, AnalyticsPanel } from "./AnalyticsView.tsx";
 export { Dependencies } from "./DependenciesView.tsx";
@@ -139,6 +139,7 @@ export function AllRuns(): ReactElement {
   const [statuses, setStatuses] = useState<ReadonlySet<string>>(new Set());
   const [again, setAgain] = useState(0);
   const [note, setNote] = useState<string | null>(null);
+  const rm = useRowMenu();
   const state = useCall("runs.list", { scope: "all", limit: 100 }, runLines, again);
   const rows = state.phase === "ready" ? state.value : [];
   const shown = shownRuns(rows, query, statuses);
@@ -156,17 +157,17 @@ export function AllRuns(): ReactElement {
     <Frame testID="all-runs" title="All runs" line={ALL_RUNS_LINE}
       actions={<><MenuButton testID="runs-status" label={filterLabel("Status", statuses, statusWord)} entries={filterMenu("All statuses", countBy(rows, (r) => r.status).map((c) => ({ value: c.value, label: statusWord(c.value), count: c.count })), statuses, toggle, () => setStatuses(new Set()))} /><TextButton label="Refresh" icon="loop" onPress={() => setAgain((n) => n + 1)} testID="runs-refresh" /></>}>
       <TextInput value={query} onChangeText={setQuery} placeholder={ALL_RUNS_SEARCH} accessibilityLabel={ALL_RUNS_SEARCH} testID="runs-search" style={v.input} />
+      {rm.element}
       <Status state={state} />
       {note ? <Text style={v.dim} accessibilityLiveRegion="polite">{note}</Text> : null}
       {state.phase === "ready" && rows.length === 0 ? <Empty testID="runs-empty" title="No runs yet" next="Open an automation and choose Run, or turn one on. Its runs list here." /> : null}
       {state.phase === "ready" && rows.length > 0 && shown.length === 0 ? <Text style={v.dim}>No runs match. Clear the search or the status filter.</Text> : null}
       <View style={v.list}>
-        {/* ui-rows-lint: ListRow is the row */}
         {shown.map((r) => (
-          <ListRow key={r.id} testID={`run-${r.id}`} label={`${r.title}, ${r.status}. Open the run`} onPress={() => data.nav.openRun(r.id)} menu={() => rowMenu(r)}>
-            <View style={v.lineMain}><Text style={v.row} numberOfLines={1}>{r.title}</Text></View>
-            <Text style={r.status === "failed" ? v.tag : v.right}>{statusWord(r.status)}</Text>
-          </ListRow>
+          <Row
+            key={r.id} id={`run-${r.id}`} title={r.title} trailing={<Text style={r.status === "failed" ? v.tag : v.right}>{statusWord(r.status)}</Text>} onPress={() => data.nav.openRun(r.id)}
+            domProps={{ "aria-label": `${r.title}, ${r.status}. Open the run`, ...rm.rowDom(r.title, () => rowMenu(r)) }}
+          />
         ))}
       </View>
     </Frame>
