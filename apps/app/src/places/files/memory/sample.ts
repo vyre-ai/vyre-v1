@@ -164,7 +164,7 @@ export function createSampleMemory(space: SampleSpace = northwind, o: { fail?: s
       return w(input as never);
     },
     now: () => o.now ?? SAMPLE_NOW, agents: space.agents, nameOf: (id) => space.people[id] ?? id,
-    nav: { openNote: (id) => void opened.push(`note:${id}`), openSource: (link) => void opened.push(`source:${link}`) },
+    nav: { openNote: (id) => void opened.push(`note:${id}`), openSource: (link) => void opened.push(`source:${link}`), go: (r) => void opened.push(`go:${JSON.stringify(r)}`), openChat: (link) => void opened.push(`chat:${link}`) },
   };
   return { data, replica, calls, opened };
 }

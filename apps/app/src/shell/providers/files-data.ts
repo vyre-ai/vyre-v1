@@ -3,6 +3,8 @@ import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../generated/types.ts";
 import type { FolderNode } from "../../../../../ui/src/FolderTree/index.tsx";
 import type { FilesData } from "../../places/files/tree/index.ts";
+import { routeToArgs } from "../../places/files/memory/know.ts";
+import type { KnowRoute } from "../../places/files/memory/know.ts";
 import { capLive, nameLookup } from "./records-live.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
@@ -33,7 +35,7 @@ export function foldersQuery(rt: ShellRuntime): LiveQuery<readonly FolderNode[]>
 }
 
 /** The Knowledge screens the body can show instead of the list. The place holds which one; the data carries it so the sidebar marks the row. */
-export interface MemoryView { view: "proposed" | "graph" | null; open(v: "proposed" | "graph" | null): void }
+export interface MemoryView { view: KnowRoute | null; open(v: KnowRoute | null): void }
 
 export function filesData(rt: ShellRuntime, memory?: MemoryView): FilesData {
   return {
@@ -50,8 +52,9 @@ export function filesData(rt: ShellRuntime, memory?: MemoryView): FilesData {
       shareFolder: (folderId) => rt.open({ screen: "spaces.switcher", args: { share: folderId } }),
       renameEntry: (kind, id, current) => rt.open({ screen: "files.list", args: { rename: id, kind, current } }),
       newFolder: (scope, parentId) => rt.open({ screen: "files.list", args: { newFolder: scope, ...(parentId ? { parentId } : {}) } }),
-      openMemory: () => (memory ? memory.open("proposed") : rt.open({ screen: "files.memory-proposed" })),
-      openGraph: () => (memory ? memory.open("graph") : rt.open({ screen: "files.memory-graph" })),
+      openMemory: () => (memory ? memory.open({ v: "learned" }) : rt.open({ screen: "files.memory-proposed" })),
+      openGraph: () => (memory ? memory.open({ v: "graph" }) : rt.open({ screen: "files.memory-graph" })),
+      openKnow: (route) => (memory ? memory.open(route) : rt.open({ screen: "files.knowledge", args: routeToArgs(route) })),
       ...(memory ? { leaveMemory: () => memory.open(null) } : {}),
       resolveConflict: (fileId) => rt.open({ screen: "shell.conflicts-tab", args: { entity: "file", recordId: fileId } }),
     },

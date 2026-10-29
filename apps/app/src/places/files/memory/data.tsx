@@ -3,14 +3,22 @@ import { createContext, useContext, useMemo, useSyncExternalStore } from "react"
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState } from "../../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import type { KnowRoute } from "./know.ts";
 
-export type LiveCap = "memory.graph" | "memory.layout.get" | "memory.facts.list" | "memory.notes.list" | "memory.read_note";
+export type LiveCap =
+  | "memory.graph" | "memory.layout.get" | "memory.facts.list" | "memory.notes.list" | "memory.read_note"
+  | "memory.learned" | "memory.page.get" | "memory.page.list" | "memory.page.versions" | "memory.backlinks" | "memory.trail" | "memory.trash.search" | "memory.questions.list"
+  | "memory.search" | "memory.fact.get" | "memory.counts" | "memory.meaning.status" | "memory.upkeep.status";
 
 export interface MemoryNav {
   /** A note opens beside the graph (a person, a client, a project, a decision, a record or a chat opens its own place). */
   openNote(nodeId: string, link?: string): void;
   /** The source of a fact: the chat, task or record it came from. */
   openSource(link: string): void;
+  /** Another Knowledge screen takes the body (a page, a list, the graph around a subject, History or Trash of one page, a search). */
+  go(route: KnowRoute): void;
+  /** A chat, run or record a source chip or a mention points at: a `vyre://thread/<id>?m=<message>` link opens the chat at that line. */
+  openChat(link: string): void;
 }
 
 export interface AgentRef { id: string; name: string }
@@ -23,6 +31,8 @@ export interface MemoryData {
   now(): number;
   agents: readonly AgentRef[];
   nameOf(id: string): string;
+  /** The signed-in person: "you" in a line that credits them. */
+  me?: { id: string; name: string };
   nav: MemoryNav;
 }
 

@@ -32,6 +32,12 @@ export interface MemoryGraphProps {
   step?: number;
   /** Start with this text in Find. */
   find?: string;
+  /** Open around this subject (a page id or node id) rather than the whole Space. */
+  focus?: string;
+  /** With a focus: true is "Around <subject>", false is "Whole Space". */
+  around?: boolean;
+  /** Open with this edge's evidence card showing (`<from>><to>`). */
+  edge?: string;
 }
 
 // ---------------------------------------------------------------- the screen

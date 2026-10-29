@@ -256,6 +256,7 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
     newFolder: (scope, parent) => void opened.push(`new-folder:${scope}:${parent ?? "root"}`),
     openMemory: () => void opened.push("memory"),
     openGraph: () => void opened.push("graph"),
+    openKnow: (r) => void opened.push(`know:${r.v}`),
     upload: (folderId) => void opened.push(`upload:${folderId ?? "root"}`),
     reviewChanges: (id) => void opened.push(`review:${id}`),
     resolveConflict: (id) => void opened.push(`resolve:${id}`),

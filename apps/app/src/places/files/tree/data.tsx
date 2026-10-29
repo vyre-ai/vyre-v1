@@ -5,11 +5,12 @@ import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { FolderNode } from "../../../../../../ui/src/FolderTree/index.tsx";
+import type { KnowRoute } from "../memory/know.ts";
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
 
 /** The capabilities the list reads live that no screen declares. */
-export type LiveCap = "files.list" | "files.recent" | "files.shared_with_me" | "files.knowledge" | "files.trash.list" | "files.tree" | "changesets.list" | "stars.list" | "files.viewer_data";
+export type LiveCap = "files.list" | "files.recent" | "files.shared_with_me" | "files.knowledge" | "files.trash.list" | "files.tree" | "changesets.list" | "stars.list" | "files.viewer_data" | "memory.learned" | "memory.trash.search";
 
 /** Where a click goes. The shell supplies these (tabs, the viewer, the share sheet, the Knowledge screens); Files never decides how a thing opens. */
 export interface FilesNav {
@@ -20,9 +21,11 @@ export interface FilesNav {
   /** Rename and Move need a name or a place; the shell asks for it and calls the capability. */
   renameEntry(kind: "file" | "folder", id: string, current: string): void;
   newFolder(scope: "personal" | "space", parentId: string | null): void;
-  /** Proposed: the facts agents suggested that nobody has decided on yet. */
+  /** Learned: what memory picked up, the first Knowledge screen. */
   openMemory(): void;
   openGraph(): void;
+  /** Any Knowledge screen: a list, a page, the graph around a subject, History, Trash, Archive or a search. */
+  openKnow(route: KnowRoute): void;
   /** The person went back to the notes or a folder, so the Proposed or Graph screen gives the body back to the list. */
   leaveMemory?(): void;
   /** Upload into a folder (null is the top of Files): the shell opens its picker and sends the bytes through files.upload_url. */
@@ -49,7 +52,7 @@ export interface FilesData {
   nameOf(id: string): string;
   nav: FilesNav;
   /** Which Knowledge screen has the body, when it is not the list: the sidebar marks that row. */
-  memoryView?: "proposed" | "graph" | null;
+  memoryView?: KnowRoute | null;
   /** The side pane's state, when the shell has one. */
   pane?: PaneControl;
 }

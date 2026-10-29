@@ -14,6 +14,7 @@ import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import { useFilesData, useLive, useOptionalFilesData, useSource } from "./data.tsx";
 import { dropMoves, hasAgentFace, openByDefault, orderFolders, parsePayload, rootRank, sameWhere, spaceRoots } from "./model.ts";
 import type { FolderRow, TreeRoots, Where } from "./model.ts";
+import { KNOW_ROWS, rowOf } from "../memory/know.ts";
 import { Glyph } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
 import { useFilesState } from "./state.tsx";
@@ -149,6 +150,10 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
   const rootRows: TreeRoots = roots.status === "ready" ? roots.data.roots : [];
   const virtual = rootRows.filter((r) => r.kind === "virtual");
   const count = (key: string): number | undefined => virtual.find((r) => r.key === key)?.count;
+  const learned = useLive("memory.learned", { since: data.clock().now - 86_400_000, limit: 50 });
+  const trashed = useLive("memory.trash.search", { area: "trash", limit: 50 });
+  const learnedCount = learned.status === "ready" ? learned.data.items.length : undefined;
+  const trashCount = trashed.status === "ready" ? trashed.data.facts.length : undefined;
   const starCount = stars.status === "ready" ? stars.data.stars.length : undefined;
   const folderId = state.where.kind === "folder" ? state.where.id : null;
   const rootSelected = state.where.kind === "folder" && state.where.id === null;
@@ -177,7 +182,8 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
     { id: "starred", title: "Starred", glyph: "star" as IconName, count: starCount, where: { kind: "starred" } as Where },
     { id: "shared", title: "Shared with me", glyph: "users" as IconName, count: count("shared"), where: { kind: "shared" } as Where },
   ], q);
-  const know = matchRows([{ id: "memory", title: "Memory" }, { id: "proposed", title: "Proposed" }, { id: "graph", title: "Graph" }], q);
+  const know = matchRows(KNOW_ROWS.map((r) => ({ id: r.id, title: r.title })), q);
+  const knowCount = (id: string): number | undefined => (id === "learned" ? learnedCount : id === "trash" ? trashCount : undefined);
   const allFiles = q === "" || matchRows([{ title: "All files" }], q).length > 0;
 
   const dropAll = {
@@ -191,11 +197,10 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollIn} testID="files-nav">
         {each(fixed, (r) => <NavRow key={r.id} id={r.id} title={r.title} glyph={r.glyph} selected={sameWhere(state.where, r.where)} count={r.count} onPress={go(r.where)} />)}
         {know.length > 0 ? <SectionHead id="know" label="Knowledge" open={!isShut("know")} onToggle={() => flip("know")} /> : null}
-        {know.length > 0 && !isShut("know") ? each(know, (r) => (r.id === "memory"
-          ? <NavRow key={r.id} id="memory" title="Memory" glyph="memory" selected={sameWhere(state.where, { kind: "knowledge" }) && !data.memoryView} onPress={() => { dispatch({ type: "go", where: { kind: "knowledge" } }); data.nav.leaveMemory?.(); slot?.openBody(); }} />
-          : r.id === "proposed"
-            ? <NavRow key={r.id} id="proposed" title="Proposed" glyph="memory" selected={data.memoryView === "proposed"} onPress={() => { data.nav.openMemory(); slot?.openBody(); }} />
-            : <NavRow key={r.id} id="graph" title="Graph" glyph="graph" selected={data.memoryView === "graph"} onPress={() => { data.nav.openGraph(); slot?.openBody(); }} />)) : null}
+        {know.length > 0 && !isShut("know") ? each(know, (r) => {
+          const row = KNOW_ROWS.find((x) => x.id === r.id)!;
+          return <NavRow key={r.id} id={r.id} title={r.title} glyph={row.glyph as IconName} selected={data.memoryView != null && rowOf(data.memoryView) === r.id} count={knowCount(r.id)} onPress={() => { data.nav.openKnow(row.route); slot?.openBody(); }} />;
+        }) : null}
         <SectionHead id="space" label="Space" open={q.length > 0 || !isShut("space")} onToggle={() => flip("space")} onAdd={() => data.nav.newFolder("space", null)} />
         {q.length > 0 || !isShut("space") ? (
           <View testID="files-space">
