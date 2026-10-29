@@ -68,11 +68,17 @@ test('saved-code recovery: same keys, private Vault data kept, old password and 
       assert.equal((await context.request.post(`${web.origin}/v1/identity/sign_in`, { data: { username: 'recoveryowner', password: NEW_PASSWORD, deviceName: 'Wrong code', deviceClass: 'web' } })).status(), 401, 'the new password was not set');
       const still = await context.request.post(`${web.origin}/v1/identity/whoami`, { headers: { authorization: `Bearer ${secondToken}` }, data: {} });assert.equal(still.status(), 200, 'the other session survives a failed attempt');
     });
+    await t.test('a dead connection gets its own honest line and sends nothing', async () => {
+      await page.route('**/v1/identity/recovery_fetch', (route) => route.abort('failed'));
+      await page.getByTestId('recovery-code').fill(code);await page.getByTestId('recovery-submit').click();
+      await page.getByText(/reach the Space/).waitFor({ timeout: 15000 });assert.match(await page.getByTestId('recovery-error').innerText(), /Nothing was changed/);
+      await page.unroute('**/v1/identity/recovery_fetch');assert.equal(restoreBodies.length, 0, 'an unreachable Space never produced a recovery commit');
+    });
     let newToken = '';
     await t.test('the saved code and a new password recover the account as the Owner', async () => {
       await page.getByTestId('recovery-code').fill(code);await page.getByTestId('recovery-password').fill(NEW_PASSWORD);await page.getByTestId('recovery-confirm').fill(NEW_PASSWORD);
       await page.getByTestId('recovery-submit').click();
-      await page.getByTestId('mobile-shell').or(page.getByTestId('shell')).first().waitFor({ timeout: 60000 });
+      await page.getByTestId('mobile-shell').or(page.getByTestId('shell')).first().waitFor({ timeout: 60000 }).catch(async (error) => { await page.screenshot({ path: path.join(shots, 'recovery-stuck.png') });fs.writeFileSync(path.join(shots, 'recovery-stuck.txt'), await page.locator('body').innerText());throw error; });
       newToken = (await storedSession())!.token;assert.ok(newToken);assert.notEqual(newToken, ownerToken);assert.notEqual(newToken, secondToken);
       assert.equal(restoreBodies.length, 1, 'exactly one recovery commit was sent');
     });
@@ -92,6 +98,15 @@ test('saved-code recovery: same keys, private Vault data kept, old password and 
       assert.equal((await context.request.post(`${web.origin}/v1/identity/sign_in`, { data: { username: 'recoveryowner', password: OLD_PASSWORD, deviceName: 'Old password', deviceClass: 'web' } })).status(), 401, 'the old password is refused');
       const signed = await context.request.post(`${web.origin}/v1/identity/sign_in`, { data: { username: 'recoveryowner', password: NEW_PASSWORD, deviceName: 'New password', deviceClass: 'web' } });assert.equal(signed.status(), 200, 'the new password signs in');
       await page.screenshot({ path: path.join(shots, 'recovered-shell-phone.png') });
+    });
+    await t.test('a real rate limit gets its own honest line (the limit is per source address)', async () => {
+      await page.evaluate(() => { document.documentElement.scrollTop = 0; });await page.getByTestId('tab-you').click();await page.getByTestId('row-you-sign-out').click();
+      await page.getByTestId('si-user').waitFor({ timeout: 20000 });await page.getByTestId('signin-help').click();
+      for (let i = 0; i < 12; i++) await anonymous('identity.recovery_fetch', { username: 'nobodyhere' }).catch(() => undefined);
+      await page.getByTestId('recovery-username').fill('nobodyhere');await page.getByTestId('recovery-code').fill(WRONG_CODE);
+      await page.getByTestId('recovery-password').fill(NEW_PASSWORD);await page.getByTestId('recovery-confirm').fill(NEW_PASSWORD);await page.getByTestId('recovery-submit').click();
+      await page.getByText(/Too many recovery attempts/).waitFor({ timeout: 15000 });await page.screenshot({ path: path.join(shots, 'recovery-rate-limit-phone.png') });
+      assert.equal(restoreBodies.length, 1, 'the rate-limited attempt sent no recovery commit');
     });
     await t.test('the proof is single use and neither code nor proof is stored, navigated to or logged', async () => {
       const body = JSON.parse(restoreBodies[0]!) as { recoveryProof: string };const proof = body.recoveryProof;assert.ok(proof && proof.length >= 16, 'the commit carried a proof');
