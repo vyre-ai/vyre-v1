@@ -100,7 +100,8 @@ test("status and scopes tell the wizard what is set and what to paste into the A
   await dwdSetup(h.ctx, setupInput);
   await dwdSetExcluded(h.ctx, { email: SAM, excluded: true });
   const after = await dwdStatus(h.ctx);
-  assert.deepEqual(after, { configured: true, adminEmail: "admin@vyre.test", domain: "vyre.test", lastProbeAt: NOW, lastProbeOk: true, autoConnect: true, mappedMembers: 2, excluded: [SAM] });
+  assert.deepEqual(after, { configured: true, adminEmail: "admin@vyre.test", domain: "vyre.test", lastProbeAt: NOW, lastProbeOk: true, autoConnect: true, mappedMembers: 2, excluded: [SAM], pushToken: pushToken(h.ctx) });
+  assert.match(after.pushToken!, /^[0-9a-f]{64}$/, "the secret for the Pub/Sub push address is made with the setup");
   check("google.dwd.status", before);
   check("google.dwd.status", after);
   const scopes = await dwdScopes(h.ctx);

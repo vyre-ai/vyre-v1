@@ -15,7 +15,9 @@ HTTP 422. Retryable: no.
 - agents.routine.delegate
 - agents.routine.run_now
 - agents.suggestion.accept
+- automations.migrate_runs
 - automations.promote
+- automations.replay
 - automations.set_enabled
 - changesets.approve
 - changesets.edit
@@ -29,5 +31,3 @@ HTTP 422. Retryable: no.
 - conflicts.redo
 - conflicts.resolve
 - conflicts.undo
-- connections.complete_auth
-- connectors.remove

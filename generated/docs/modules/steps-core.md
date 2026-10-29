@@ -2,7 +2,7 @@
 
 Lane L6. Kind module. Version 0.1.0.
 
-Requires: chat, esign, files, journeys, mail, records, tasks, telephony.
+Requires: chat, connectors, esign, files, journeys, mail, records, tasks, telephony.
 
 ## Capabilities (1)
 

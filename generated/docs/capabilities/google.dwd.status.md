@@ -39,6 +39,7 @@ type Out = {
   autoConnect: boolean;
   mappedMembers: number;
   excluded: Array<string>;
+  pushToken?: string;
 };
 ```
 
@@ -66,7 +67,8 @@ type Out = {
     ],
     "lastProbeAt": 1760000000000,
     "lastProbeOk": true,
-    "mappedMembers": 1
+    "mappedMembers": 1,
+    "pushToken": "example"
   }
 }
 ```
