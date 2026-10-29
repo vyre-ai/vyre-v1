@@ -60,7 +60,7 @@ type Out = {
       minutesPerRun?: number;
       tokensPerDay?: number;
     };
-    captureMode: "propose" | "auto_low_risk" | "off";
+    captureMode: "auto" | "propose" | "auto_low_risk" | "off";
     hasComputer: boolean;
     templateVersion: number;
     createdAt: number;
@@ -92,7 +92,7 @@ type Out = {
       "accountKey": "#Team_Anthropic_Key",
       "accountPolicy": "asker",
       "agentId": "agt_a1b2c3",
-      "captureMode": "propose",
+      "captureMode": "auto",
       "createdAt": 1760000000000,
       "face": "intake",
       "fallbackModel": "example",

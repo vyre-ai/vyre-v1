@@ -1281,6 +1281,7 @@ export function createClient(transport: Transport) {
       suspend: call("members.suspend", 1),
     },
     memory: {
+      archive_sweep: call("memory.archive_sweep", 1),
       capture: call("memory.capture", 1),
       counts: call("memory.counts", 1),
       erase: call("memory.erase", 1),
@@ -1307,6 +1308,7 @@ export function createClient(transport: Transport) {
         get: call("memory.layout.get", 1),
         save: call("memory.layout.save", 1),
       },
+      learned: call("memory.learned", 1),
       maintain: call("memory.maintain", 1),
       map: {
         get: call("memory.map.get", 1),
@@ -1324,8 +1326,14 @@ export function createClient(transport: Transport) {
       },
       propose_fact: call("memory.propose_fact", 1),
       read_note: call("memory.read_note", 1),
+      restore: call("memory.restore", 1),
       restore_version: call("memory.restore_version", 1),
       search: call("memory.search", 1),
+      trail: call("memory.trail", 1),
+      trash: {
+        search: call("memory.trash.search", 1),
+      },
+      undo: call("memory.undo", 1),
       versions: call("memory.versions", 1),
     },
     mounts: {

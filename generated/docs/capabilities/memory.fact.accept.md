@@ -49,6 +49,9 @@ type Out = {
     sourceLink?: string;
     status: "proposed" | "current" | "closed" | "removed";
     lowRisk?: boolean;
+    trashedAt?: number;
+    trashReason?: string;
+    archivedAt?: number;
   };
 };
 ```
@@ -72,6 +75,7 @@ type Out = {
   "output": {
     "fact": {
       "agentId": "agt_a1b2c3",
+      "archivedAt": 1760000000000,
       "closedAt": 1760000000000,
       "factId": "fct_a1b2c3",
       "layer": "person",
@@ -84,6 +88,8 @@ type Out = {
       "sourceRef": "example",
       "status": "proposed",
       "text": "example",
+      "trashReason": "example",
+      "trashedAt": 1760000000000,
       "validFrom": 1760000000000,
       "validTo": 1760000000000
     }

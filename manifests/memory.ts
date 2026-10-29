@@ -17,6 +17,16 @@ const factRow = t.obj({
   factId: id.fact, layer, ownerRef: t.str({ description: 'Person, agent, project or Space the fact belongs to', examples: ['agt_a1b2c3'] }), agentId: t.opt(id.agent), noteId: t.opt(id.note),
   text: t.str(), validFrom: t.ts(), validTo: t.opt(t.ts()), learnedAt: t.ts(), closedAt: t.opt(t.ts()), sourceKind, sourceRef: t.str(),
   sourceLink: t.opt(t.str({ description: 'Link to the exact chat, task or record' })), status: factStatus, lowRisk: t.opt(t.bool()),
+  trashedAt: t.opt(t.ts()), trashReason: t.opt(t.str({ description: 'Why the fact is in Trash, for example removed, duplicate, undone' })), archivedAt: t.opt(t.ts()),
+});
+const learnedRow = t.obj({
+  fact: factRow, at: t.ts(), actor: t.str({ description: 'Who learned it: the agent or person id, or upkeep' }), actorKind: t.enm('person', 'agent', 'upkeep', 'system'), sourceKind, sourceRef: t.str(),
+  sourceLink: t.opt(t.str()), from: t.opt(t.str({ description: 'The person the fact came from' })), undone: t.bool(),
+});
+const trailRow = t.obj({
+  id: t.str(), at: t.ts(), action: t.enm('create', 'edit', 'merge', 'delete', 'restore', 'archive', 'erase', 'learn', 'undo', 'accept', 'reject', 'promote', 'flag', 'resolve'), actor: t.str(),
+  actorKind: t.enm('person', 'agent', 'upkeep', 'system'), actingFor: t.opt(t.str()), factId: t.opt(id.fact), pageId: t.opt(t.str()), layer: t.opt(layer), source: t.opt(t.str()), reason: t.opt(t.str()),
+  runId: t.opt(t.str()), detail: t.opt(t.rec(t.any())),
 });
 const noteRow = t.obj({ noteId: id.note, path: t.str({ examples: ['Agents/Intake/memory/notes/clients.md'] }), title: t.str(), layer, agentId: t.opt(id.agent), updatedAt: t.ts() });
 const hit = t.obj({ kind: t.enm('note', 'fact'), noteId: t.opt(id.note), factId: t.opt(id.fact), title: t.str(), text: t.str(), path: t.opt(t.str()), trueSince: t.opt(t.ts()), layer, sourceLink: t.opt(t.str()), score: t.num() });
@@ -88,7 +98,7 @@ export default defineManifest({
         layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), text: t.str(), validFrom: t.opt(t.ts()), sourceKind, sourceRef: t.str(), threadId: t.opt(id.thread),
         kind: t.opt(t.str({ description: 'Fact kind, for example preference', examples: ['preference'] })),
       },
-      out: { fact: factRow, merged: t.bool() }, emits: ['memory.fact_proposed', 'memory.fact_accepted'], tool: 'memory', mcpName: 'memory_propose', agent: { planMode: 'blocked', blocks: ['memory_saved'] }, errors: ['permission.provider_label'],
+      out: { fact: factRow, merged: t.bool() }, emits: ['memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'], tool: 'memory', mcpName: 'memory_propose', agent: { planMode: 'blocked', blocks: ['memory_saved'] }, errors: ['permission.provider_label'],
     }),
     write('memory.fact.accept', 'Accept a proposed fact into current memory', {
       in: factT, out: { fact: factRow }, emits: ['memory.fact_accepted'], tool: 'memory', offline: 'queue', errors: ['validation.precondition_failed'],
@@ -124,7 +134,7 @@ export default defineManifest({
     // ---- write: system
     write('memory.capture', 'Capture at chat end: a cheap-model pass proposes facts to the person layer; channel facts go to the project layer, Automation facts to proposed/', {
       in: { threadId: id.thread, reason: t.enm('closed', 'idle') }, out: { proposed: t.int(), merged: t.int() },
-      emits: ['memory.captured', 'memory.fact_proposed', 'memory.fact_accepted'], idem: 'natural', risk: 'low', errors: ['permission.provider_label'],
+      emits: ['memory.captured', 'memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'], idem: 'natural', risk: 'low', errors: ['permission.provider_label'],
     }),
     write('memory.maintain', 'Nightly job: merge accepted facts, close old versions, rewrite MAP.md (under 200 lines) for each agent', {
       in: { agentId: t.opt(id.agent) }, out: { merged: t.int(), closed: t.int(), maps: t.int() }, emits: ['memory.map_rewritten'], idem: 'natural', risk: 'low',
@@ -159,6 +169,29 @@ export default defineManifest({
       in: { subject: t.str({ description: 'Record id, person id or free text identifier' }), ...pageIn }, out: { facts: t.arr(factRow), notes: t.arr(noteRow), ...pageOut },
       perm: 'memory.admin', level: 'manage', audit: 'always', label: 'filter',
     }),
+    // ---- the Learned feed, Undo, Trash, Archive and the trail (owner design 30 Oct 2026, rulings 2 and 5)
+    read('memory.learned', 'The Learned feed: what memory learned, newest first, with its source and who learned it, for what the reader can see; each row can be undone', {
+      in: { layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), since: t.opt(t.ts()), ...pageIn }, out: { items: t.arr(learnedRow), ...pageOut }, label: 'filter', tool: 'memory', mcpName: 'memory_learned',
+      agent: { planMode: 'allowed' },
+    }),
+    write('memory.undo', 'Undo something memory learned: the fact goes to Trash with the reason undone, and a restore brings it back', {
+      in: factT, out: { fact: factRow, trashed: t.bool() }, emits: ['memory.removed'], tool: 'memory', offline: 'queue', errors: ['validation.not_found', 'validation.precondition_failed'],
+    }),
+    write('memory.restore', 'Restore a fact from Trash, or from Archive for an admin; open to any person or agent who can see the fact', {
+      in: factT, out: { fact: factRow, restoredFrom: t.enm('trash', 'archive') }, emits: ['memory.restored'], tool: 'memory', mcpName: 'memory_restore', agent: { planMode: 'blocked' },
+      errors: ['validation.not_found', 'validation.precondition_failed', 'permission.role_lacks_permission'],
+    }),
+    read('memory.trash.search', 'Search Trash (or Archive, for an admin): deleted and merged-away facts, which normal search and recall never show', {
+      in: { q: t.opt(t.str()), area: t.opt(t.enm('trash', 'archive')), layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), ...pageIn }, out: { facts: t.arr(factRow), ...pageOut },
+      label: 'filter', tool: 'memory', mcpName: 'memory_search_trash', errors: ['permission.role_lacks_permission'],
+    }),
+    write('memory.archive_sweep', 'Daily job: move facts untouched in Trash for the Space setting (30 to 90 days, default 60) to Archive', {
+      in: {}, out: { archived: t.int(), days: t.int() }, emits: ['memory.archived'], idem: 'natural', risk: 'low',
+    }),
+    read('memory.trail', 'The trail of changes to facts and pages (who, what, when, why and source), for what the reader can see; rows are never deleted and never hold content', {
+      in: { factId: t.opt(id.fact), pageId: t.opt(t.str()), action: t.opt(t.str()), actor: t.opt(t.str()), since: t.opt(t.ts()), ...pageIn }, out: { rows: t.arr(trailRow), ...pageOut }, label: 'filter', tool: 'memory',
+      mcpName: 'memory_trail', agent: { planMode: 'allowed' },
+    }),
   ],
   events: [
     // ---- erase and purge (P-CC_39): governance removes data through these; each hard-deletes inside its own store
@@ -184,6 +217,12 @@ export default defineManifest({
     ev('memory.captured', 'Capture ran for a thread', { p: { threadId: id.thread, proposed: t.int(), merged: t.int() }, subject: ['thread', '/threadId'], vis: 'participants', retention: 'memory' }),
     ev('memory.map_rewritten', 'MAP.md of an agent was rewritten by the nightly job', { p: { agentId: id.agent, lines: t.int() }, subject: ['agent', '/agentId'], retention: 'memory' }),
     ev('memory.note_restored', 'A shared memory note was restored to an earlier version', { p: { noteId: id.note, versionId: id.version, by: t.str() }, subject: ['note', '/noteId'], retention: 'memory' }),
+    ev('memory.learned', 'Memory learned a fact (ids and places only, never the text); the Learned feed reads this', {
+      p: { factId: id.fact, layer, ownerRef: t.str(), agentId: t.opt(id.agent), sourceKind: t.str(), sourceRef: t.str(), actor: t.str(), actorKind: t.str(), saved: t.bool(), from: t.str() },
+      subject: ['entity', '/factId'], vis: 'participants', label: 'subject', retention: 'memory',
+    }),
+    ev('memory.restored', 'A fact came back from Trash or Archive', { p: { factId: id.fact, from: t.str(), by: t.str() }, subject: ['entity', '/factId'], vis: 'participants', retention: 'memory' }),
+    ev('memory.archived', 'Facts untouched in Trash moved to Archive', { p: { count: t.int(), days: t.int() }, subject: ['entity', '/count'], retention: 'memory' }),
     ev('memory.everything_viewed', 'An admin opened the everything graph view', { p: { by: t.str() }, subject: ['entity', '/by'], retention: 'audit' }),
   ],
   blocks: [
@@ -196,6 +235,11 @@ export default defineManifest({
   settings: [
     setting('memory.weekly_nudge', 'person', 'Memory and privacy', 'Weekly reminder about proposed facts', t.bool(), true),
     setting('memory.auto_merge_kinds', 'space', 'Policies', 'Fact kinds that merge without review', t.arr(t.str()), ['preference']),
+    setting('memory.require_review', 'space', 'Policies', 'Require review for shared memory', t.bool(), false),
+    setting('memory.review_projects', 'space', 'Policies', 'Projects whose memory needs review (project ids)', t.arr(t.str()), []),
+    setting('memory.trash_days', 'space', 'Policies', 'Days in Trash before Archive (30 to 90)', t.int({ minimum: 30, maximum: 90 }), 60),
+    setting('memory.upkeep_monthly_cap', 'space', 'Policies', 'Monthly spend cap for model upkeep, in US dollars', t.num({ minimum: 0 }), 5),
+    setting('memory.meaning_search', 'space', 'Policies', 'Meaning search: local model, the memory key, or off', t.enm('local', 'key', 'off'), 'local'),
   ],
   screens: [
     screen('chats.agent-memory', 'chats', 'ui:AgentMemory', {

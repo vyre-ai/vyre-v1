@@ -4496,6 +4496,12 @@
     },
     {
       "deferred": false,
+      "name": "memory_learned",
+      "summary": "The Learned feed: what memory learned, newest first, with its source and who learned it, for what the reader can see; each row can be undone",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_map_get",
       "summary": "The MAP.md block of an agent as the nightly job last wrote it (agent layer only, never personal memory); absent before the first night",
       "toolset": "memory"
@@ -4538,6 +4544,12 @@
     },
     {
       "deferred": false,
+      "name": "memory_restore",
+      "summary": "Restore a fact from Trash, or from Archive for an admin; open to any person or agent who can see the fact",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_restore_version",
       "summary": "Restore a shared memory note to an earlier version (owners and admins)",
       "toolset": "memory"
@@ -4546,6 +4558,24 @@
       "deferred": false,
       "name": "memory_search",
       "summary": "Search notes and current facts the asker may read; BM25, vectors and recency; snippets carry the source link",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_search_trash",
+      "summary": "Search Trash (or Archive, for an admin): deleted and merged-away facts, which normal search and recall never show",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_trail",
+      "summary": "The trail of changes to facts and pages (who, what, when, why and source), for what the reader can see; rows are never deleted and never hold content",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_undo",
+      "summary": "Undo something memory learned: the fact goes to Trash with the reason undone, and a restore brings it back",
       "toolset": "memory"
     },
     {

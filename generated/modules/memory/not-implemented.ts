@@ -5,6 +5,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "memory.archive_sweep": async (ctx) => { throw new VyreErr(notImplemented("memory.archive_sweep", ctx.trace)); },
   "memory.capture": async (ctx) => { throw new VyreErr(notImplemented("memory.capture", ctx.trace)); },
   "memory.counts": async (ctx) => { throw new VyreErr(notImplemented("memory.counts", ctx.trace)); },
   "memory.erase": async (ctx) => { throw new VyreErr(notImplemented("memory.erase", ctx.trace)); },
@@ -23,6 +24,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "memory.layers.list": async (ctx) => { throw new VyreErr(notImplemented("memory.layers.list", ctx.trace)); },
   "memory.layout.get": async (ctx) => { throw new VyreErr(notImplemented("memory.layout.get", ctx.trace)); },
   "memory.layout.save": async (ctx) => { throw new VyreErr(notImplemented("memory.layout.save", ctx.trace)); },
+  "memory.learned": async (ctx) => { throw new VyreErr(notImplemented("memory.learned", ctx.trace)); },
   "memory.maintain": async (ctx) => { throw new VyreErr(notImplemented("memory.maintain", ctx.trace)); },
   "memory.map.get": async (ctx) => { throw new VyreErr(notImplemented("memory.map.get", ctx.trace)); },
   "memory.notes.erase": async (ctx) => { throw new VyreErr(notImplemented("memory.notes.erase", ctx.trace)); },
@@ -34,7 +36,11 @@ export const handlers: Handlers<HandlerCtx> = {
   "memory.promotion.undo": async (ctx) => { throw new VyreErr(notImplemented("memory.promotion.undo", ctx.trace)); },
   "memory.propose_fact": async (ctx) => { throw new VyreErr(notImplemented("memory.propose_fact", ctx.trace)); },
   "memory.read_note": async (ctx) => { throw new VyreErr(notImplemented("memory.read_note", ctx.trace)); },
+  "memory.restore": async (ctx) => { throw new VyreErr(notImplemented("memory.restore", ctx.trace)); },
   "memory.restore_version": async (ctx) => { throw new VyreErr(notImplemented("memory.restore_version", ctx.trace)); },
   "memory.search": async (ctx) => { throw new VyreErr(notImplemented("memory.search", ctx.trace)); },
+  "memory.trail": async (ctx) => { throw new VyreErr(notImplemented("memory.trail", ctx.trace)); },
+  "memory.trash.search": async (ctx) => { throw new VyreErr(notImplemented("memory.trash.search", ctx.trace)); },
+  "memory.undo": async (ctx) => { throw new VyreErr(notImplemented("memory.undo", ctx.trace)); },
   "memory.versions": async (ctx) => { throw new VyreErr(notImplemented("memory.versions", ctx.trace)); },
 };

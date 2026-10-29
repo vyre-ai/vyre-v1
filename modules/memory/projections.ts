@@ -1,4 +1,5 @@
 // @reads /modules/memory/migrations/0001_init.sql
+// @reads /modules/memory/migrations/0003_trail.sql
 // Durable rows and shared helpers of the memory module (spec 2.15, 4.15; ARCH 6.10): the context type the handlers use, the schema bootstrap, fact rows and their
 // contract shape, the sealing of person-layer text, layer access, and the local ranking (BM25 over words, trigram similarity, recency) that search and the pointer block share.
 // Every statement names a memory_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
@@ -44,19 +45,29 @@ export const actorOf = (ctx: Pick<MemCtx, "principal" | "actingFor">): string =>
 
 // ---- schema
 
-const SCHEMA = readFileSync(new URL("./migrations/0001_init.sql", import.meta.url), "utf8")
+const SCHEMA = ["0001_init.sql", "0003_trail.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 
 const ready = new WeakSet<object>();
 
+/** Columns the trail, Trash and Archive added to memory_facts after the first schema. */
+const FACT_COLUMNS = [
+  '"trashed_at" INTEGER', '"trash_reason" TEXT', '"trashed_by" TEXT', '"prev_status" TEXT', '"prev_valid_to" INTEGER', '"merged_into" TEXT', '"touched_at" INTEGER', '"archived_at" INTEGER', '"archived_by" TEXT',
+];
+const FACT_INDEXES = ['CREATE INDEX IF NOT EXISTS memory_facts_trash ON memory_facts (trashed_at, archived_at)'];
+
 /** Make sure the memory tables exist. One cheap probe per handle; the CREATE ... IF NOT EXISTS statements run only when it fails. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
   try {
-    db.all("SELECT agent_id FROM memory_maps WHERE agent_id = ?", "probe");
+    db.all("SELECT archived_by FROM memory_facts WHERE id = ?", "probe");
+    db.all("SELECT stopped FROM memory_upkeep_runs WHERE id = ?", "probe");
   } catch {
     for (const stmt of SCHEMA) db.run(stmt);
+    // SQLite has no ADD COLUMN IF NOT EXISTS: a column that is already there raises and is skipped.
+    for (const col of FACT_COLUMNS) { try { db.run(`ALTER TABLE memory_facts ADD COLUMN ${col}`); } catch { /* already there */ } }
+    for (const stmt of FACT_INDEXES) db.run(stmt);
   }
   ready.add(db);
 }
@@ -108,6 +119,12 @@ export interface Fact {
   subject: string | null;
   replaces: string | null;
   promotedFrom: string | null;
+  /** In Trash since this time (a deleted or merged-away fact, not recalled, restorable). Null for a fact that is not in Trash. */
+  trashedAt: number | null;
+  trashReason: string | null;
+  mergedInto: string | null;
+  /** Moved from Trash to Archive at this time (out of all search, restorable by an admin). */
+  archivedAt: number | null;
 }
 
 /** Row to Fact. A person-layer row opens only for its owner; for anyone else its text stays empty and callers drop it before it reaches an answer. */
@@ -126,7 +143,7 @@ export function readFact(ctx: Pick<MemCtx, "seal" | "principal" | "actingFor">, 
     enc: num(r["enc"]), validFrom: num(r["valid_from"]), validTo: numOrNull(r["valid_to"]), learnedAt: num(r["learned_at"]), closedAt: numOrNull(r["closed_at"]),
     sourceKind: str(r["source_kind"]) as SourceKind, sourceRef: str(r["source_ref"]), sourceLink: orNull(r["source_link"]), sourcePerson: str(r["source_person"]),
     proposedBy: str(r["proposed_by"]), status: str(r["status"]) as FactStatus, lowRisk: num(r["low_risk"]) === 1, subject: orNull(r["subject"]), replaces: orNull(r["replaces"]),
-    promotedFrom: orNull(r["promoted_from"]),
+    promotedFrom: orNull(r["promoted_from"]), trashedAt: numOrNull(r["trashed_at"]), trashReason: orNull(r["trash_reason"]), mergedInto: orNull(r["merged_into"]), archivedAt: numOrNull(r["archived_at"]),
   };
 }
 
@@ -136,6 +153,7 @@ export function factOut(f: Fact) {
     factId: f.id, layer: f.layer, ownerRef: f.ownerRef, ...(f.agentId ? { agentId: f.agentId } : {}), ...(f.noteId ? { noteId: f.noteId } : {}), text: f.text,
     validFrom: f.validFrom, ...(f.validTo !== null ? { validTo: f.validTo } : {}), learnedAt: f.learnedAt, ...(f.closedAt !== null ? { closedAt: f.closedAt } : {}),
     sourceKind: f.sourceKind, sourceRef: f.sourceRef, ...(f.sourceLink ? { sourceLink: f.sourceLink } : {}), status: f.status, lowRisk: f.lowRisk,
+    ...(f.trashedAt !== null ? { trashedAt: f.trashedAt } : {}), ...(f.trashReason ? { trashReason: f.trashReason } : {}), ...(f.archivedAt !== null ? { archivedAt: f.archivedAt } : {}),
   };
 }
 

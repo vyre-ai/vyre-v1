@@ -25,7 +25,9 @@ export async function list(ctx: SettingsCtx, input: { page?: string; scope?: "sp
 }
 
 export async function get(ctx: SettingsCtx, input: { key: string }) {
-  return { row: rowOut(ctx, defOf(ctx, input.key), me(ctx)) };
+  const d = defOf(ctx, input.key);
+  // A Space setting is the same for everyone, so an agent (or any caller that is not a person) may read it; a person's own setting needs the person.
+  return { row: rowOut(ctx, d, d.scope === "space" ? ctx.principal?.id ?? "" : me(ctx)) };
 }
 
 export async function searchRows(_ctx: SettingsCtx, input: { q: string }) {

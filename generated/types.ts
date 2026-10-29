@@ -1088,7 +1088,7 @@ export type AgentsCreateOut = {
       minutesPerRun?: number;
       tokensPerDay?: number;
     };
-    captureMode: "propose" | "auto_low_risk" | "off";
+    captureMode: "auto" | "propose" | "auto_low_risk" | "off";
     hasComputer: boolean;
     templateVersion: number;
     createdAt: number;
@@ -1130,7 +1130,7 @@ export type AgentsGetOut = {
       minutesPerRun?: number;
       tokensPerDay?: number;
     };
-    captureMode: "propose" | "auto_low_risk" | "off";
+    captureMode: "auto" | "propose" | "auto_low_risk" | "off";
     hasComputer: boolean;
     templateVersion: number;
     createdAt: number;
@@ -1190,7 +1190,7 @@ export type AgentsListOut = {
         minutesPerRun?: number;
         tokensPerDay?: number;
       };
-      captureMode: "propose" | "auto_low_risk" | "off";
+      captureMode: "auto" | "propose" | "auto_low_risk" | "off";
       hasComputer: boolean;
       templateVersion: number;
       createdAt: number;
@@ -1229,7 +1229,7 @@ export type AgentsPauseOut = {
       minutesPerRun?: number;
       tokensPerDay?: number;
     };
-    captureMode: "propose" | "auto_low_risk" | "off";
+    captureMode: "auto" | "propose" | "auto_low_risk" | "off";
     hasComputer: boolean;
     templateVersion: number;
     createdAt: number;
@@ -1265,7 +1265,7 @@ export type AgentsRestoreOut = {
       minutesPerRun?: number;
       tokensPerDay?: number;
     };
-    captureMode: "propose" | "auto_low_risk" | "off";
+    captureMode: "auto" | "propose" | "auto_low_risk" | "off";
     hasComputer: boolean;
     templateVersion: number;
     createdAt: number;
@@ -1303,7 +1303,7 @@ export type AgentsRestoreVersionOut = {
       minutesPerRun?: number;
       tokensPerDay?: number;
     };
-    captureMode: "propose" | "auto_low_risk" | "off";
+    captureMode: "auto" | "propose" | "auto_low_risk" | "off";
     hasComputer: boolean;
     templateVersion: number;
     createdAt: number;
@@ -1339,7 +1339,7 @@ export type AgentsResumeOut = {
       minutesPerRun?: number;
       tokensPerDay?: number;
     };
-    captureMode: "propose" | "auto_low_risk" | "off";
+    captureMode: "auto" | "propose" | "auto_low_risk" | "off";
     hasComputer: boolean;
     templateVersion: number;
     createdAt: number;
@@ -1376,7 +1376,7 @@ export type AgentsRoleLineSetOut = {
       minutesPerRun?: number;
       tokensPerDay?: number;
     };
-    captureMode: "propose" | "auto_low_risk" | "off";
+    captureMode: "auto" | "propose" | "auto_low_risk" | "off";
     hasComputer: boolean;
     templateVersion: number;
     createdAt: number;
@@ -1531,7 +1531,7 @@ export type AgentsSetOwnerOut = {
       minutesPerRun?: number;
       tokensPerDay?: number;
     };
-    captureMode: "propose" | "auto_low_risk" | "off";
+    captureMode: "auto" | "propose" | "auto_low_risk" | "off";
     hasComputer: boolean;
     templateVersion: number;
     createdAt: number;
@@ -1717,7 +1717,7 @@ export type AgentsUpdateOut = {
       minutesPerRun?: number;
       tokensPerDay?: number;
     };
-    captureMode: "propose" | "auto_low_risk" | "off";
+    captureMode: "auto" | "propose" | "auto_low_risk" | "off";
     hasComputer: boolean;
     templateVersion: number;
     createdAt: number;
@@ -15853,6 +15853,11 @@ export type MembersSuspendIn = {
 export type MembersSuspendOut = {
   ok: boolean;
 };
+export type MemoryArchiveSweepIn = Record<string, unknown>;
+export type MemoryArchiveSweepOut = {
+  archived: number;
+  days: number;
+};
 export type MemoryCaptureIn = {
   threadId: string;
   reason: "closed" | "idle";
@@ -15903,6 +15908,9 @@ export type MemoryFactAcceptOut = {
     sourceLink?: string;
     status: "proposed" | "current" | "closed" | "removed";
     lowRisk?: boolean;
+    trashedAt?: number;
+    trashReason?: string;
+    archivedAt?: number;
   };
 };
 export type MemoryFactCorrectIn = {
@@ -15927,6 +15935,9 @@ export type MemoryFactCorrectOut = {
     sourceLink?: string;
     status: "proposed" | "current" | "closed" | "removed";
     lowRisk?: boolean;
+    trashedAt?: number;
+    trashReason?: string;
+    archivedAt?: number;
   };
   closed: {
     factId: string;
@@ -15944,6 +15955,9 @@ export type MemoryFactCorrectOut = {
     sourceLink?: string;
     status: "proposed" | "current" | "closed" | "removed";
     lowRisk?: boolean;
+    trashedAt?: number;
+    trashReason?: string;
+    archivedAt?: number;
   };
 };
 export type MemoryFactGetIn = {
@@ -15966,6 +15980,9 @@ export type MemoryFactGetOut = {
     sourceLink?: string;
     status: "proposed" | "current" | "closed" | "removed";
     lowRisk?: boolean;
+    trashedAt?: number;
+    trashReason?: string;
+    archivedAt?: number;
   };
   history: Array<{
       factId: string;
@@ -15983,6 +16000,9 @@ export type MemoryFactGetOut = {
       sourceLink?: string;
       status: "proposed" | "current" | "closed" | "removed";
       lowRisk?: boolean;
+      trashedAt?: number;
+      trashReason?: string;
+      archivedAt?: number;
     }>;
 };
 export type MemoryFactRejectIn = {
@@ -16005,6 +16025,9 @@ export type MemoryFactRejectOut = {
     sourceLink?: string;
     status: "proposed" | "current" | "closed" | "removed";
     lowRisk?: boolean;
+    trashedAt?: number;
+    trashReason?: string;
+    archivedAt?: number;
   };
 };
 export type MemoryFactsListIn = {
@@ -16034,6 +16057,9 @@ export type MemoryFactsListOut = {
       sourceLink?: string;
       status: "proposed" | "current" | "closed" | "removed";
       lowRisk?: boolean;
+      trashedAt?: number;
+      trashReason?: string;
+      archivedAt?: number;
     }>;
   next?: string;
   total?: number;
@@ -16074,6 +16100,9 @@ export type MemoryFactsAsOfOut = {
       sourceLink?: string;
       status: "proposed" | "current" | "closed" | "removed";
       lowRisk?: boolean;
+      trashedAt?: number;
+      trashReason?: string;
+      archivedAt?: number;
     }>;
   next?: string;
   total?: number;
@@ -16100,6 +16129,9 @@ export type MemoryFindBySubjectOut = {
       sourceLink?: string;
       status: "proposed" | "current" | "closed" | "removed";
       lowRisk?: boolean;
+      trashedAt?: number;
+      trashReason?: string;
+      archivedAt?: number;
     }>;
   notes: Array<{
       noteId: string;
@@ -16217,6 +16249,48 @@ export type MemoryLayoutSaveIn = {
 export type MemoryLayoutSaveOut = {
   ok: boolean;
 };
+export type MemoryLearnedIn = {
+  layer?: "person" | "agent" | "project" | "space";
+  agentId?: string;
+  projectId?: string;
+  since?: number;
+  cursor?: string;
+  limit?: number;
+};
+export type MemoryLearnedOut = {
+  items: Array<{
+      fact: {
+        factId: string;
+        layer: "person" | "agent" | "project" | "space";
+        ownerRef: string;
+        agentId?: string;
+        noteId?: string;
+        text: string;
+        validFrom: number;
+        validTo?: number;
+        learnedAt: number;
+        closedAt?: number;
+        sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+        sourceRef: string;
+        sourceLink?: string;
+        status: "proposed" | "current" | "closed" | "removed";
+        lowRisk?: boolean;
+        trashedAt?: number;
+        trashReason?: string;
+        archivedAt?: number;
+      };
+      at: number;
+      actor: string;
+      actorKind: "person" | "agent" | "upkeep" | "system";
+      sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+      sourceRef: string;
+      sourceLink?: string;
+      from?: string;
+      undone: boolean;
+    }>;
+  next?: string;
+  total?: number;
+};
 export type MemoryMaintainIn = {
   agentId?: string;
 };
@@ -16311,6 +16385,9 @@ export type MemoryPromotionApproveOut = {
     sourceLink?: string;
     status: "proposed" | "current" | "closed" | "removed";
     lowRisk?: boolean;
+    trashedAt?: number;
+    trashReason?: string;
+    archivedAt?: number;
   };
 };
 export type MemoryPromotionRejectIn = {
@@ -16355,6 +16432,9 @@ export type MemoryProposeFactOut = {
     sourceLink?: string;
     status: "proposed" | "current" | "closed" | "removed";
     lowRisk?: boolean;
+    trashedAt?: number;
+    trashReason?: string;
+    archivedAt?: number;
   };
   merged: boolean;
 };
@@ -16371,6 +16451,32 @@ export type MemoryReadNoteOut = {
     updatedAt: number;
   };
   markdown: string;
+};
+export type MemoryRestoreIn = {
+  factId: string;
+};
+export type MemoryRestoreOut = {
+  fact: {
+    factId: string;
+    layer: "person" | "agent" | "project" | "space";
+    ownerRef: string;
+    agentId?: string;
+    noteId?: string;
+    text: string;
+    validFrom: number;
+    validTo?: number;
+    learnedAt: number;
+    closedAt?: number;
+    sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+    sourceRef: string;
+    sourceLink?: string;
+    status: "proposed" | "current" | "closed" | "removed";
+    lowRisk?: boolean;
+    trashedAt?: number;
+    trashReason?: string;
+    archivedAt?: number;
+  };
+  restoredFrom: "trash" | "archive";
 };
 export type MemoryRestoreVersionIn = {
   noteId: string;
@@ -16408,6 +16514,93 @@ export type MemorySearchOut = {
       score: number;
     }>;
   tookMs: number;
+};
+export type MemoryTrailIn = {
+  factId?: string;
+  pageId?: string;
+  action?: string;
+  actor?: string;
+  since?: number;
+  cursor?: string;
+  limit?: number;
+};
+export type MemoryTrailOut = {
+  rows: Array<{
+      id: string;
+      at: number;
+      action: "create" | "edit" | "merge" | "delete" | "restore" | "archive" | "erase" | "learn" | "undo" | "accept" | "reject" | "promote" | "flag" | "resolve";
+      actor: string;
+      actorKind: "person" | "agent" | "upkeep" | "system";
+      actingFor?: string;
+      factId?: string;
+      pageId?: string;
+      layer?: "person" | "agent" | "project" | "space";
+      source?: string;
+      reason?: string;
+      runId?: string;
+      detail?: Record<string, unknown>;
+    }>;
+  next?: string;
+  total?: number;
+};
+export type MemoryTrashSearchIn = {
+  q?: string;
+  area?: "trash" | "archive";
+  layer?: "person" | "agent" | "project" | "space";
+  agentId?: string;
+  projectId?: string;
+  cursor?: string;
+  limit?: number;
+};
+export type MemoryTrashSearchOut = {
+  facts: Array<{
+      factId: string;
+      layer: "person" | "agent" | "project" | "space";
+      ownerRef: string;
+      agentId?: string;
+      noteId?: string;
+      text: string;
+      validFrom: number;
+      validTo?: number;
+      learnedAt: number;
+      closedAt?: number;
+      sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+      sourceRef: string;
+      sourceLink?: string;
+      status: "proposed" | "current" | "closed" | "removed";
+      lowRisk?: boolean;
+      trashedAt?: number;
+      trashReason?: string;
+      archivedAt?: number;
+    }>;
+  next?: string;
+  total?: number;
+};
+export type MemoryUndoIn = {
+  factId: string;
+};
+export type MemoryUndoOut = {
+  fact: {
+    factId: string;
+    layer: "person" | "agent" | "project" | "space";
+    ownerRef: string;
+    agentId?: string;
+    noteId?: string;
+    text: string;
+    validFrom: number;
+    validTo?: number;
+    learnedAt: number;
+    closedAt?: number;
+    sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+    sourceRef: string;
+    sourceLink?: string;
+    status: "proposed" | "current" | "closed" | "removed";
+    lowRisk?: boolean;
+    trashedAt?: number;
+    trashReason?: string;
+    archivedAt?: number;
+  };
+  trashed: boolean;
 };
 export type MemoryVersionsIn = {
   noteId: string;
@@ -27863,6 +28056,7 @@ export interface CapMap {
   "members.sso.set": { in: MembersSsoSetIn; out: MembersSsoSetOut };
   "members.sso.test": { in: MembersSsoTestIn; out: MembersSsoTestOut };
   "members.suspend": { in: MembersSuspendIn; out: MembersSuspendOut };
+  "memory.archive_sweep": { in: MemoryArchiveSweepIn; out: MemoryArchiveSweepOut };
   "memory.capture": { in: MemoryCaptureIn; out: MemoryCaptureOut };
   "memory.counts": { in: MemoryCountsIn; out: MemoryCountsOut };
   "memory.erase": { in: MemoryEraseIn; out: MemoryEraseOut };
@@ -27881,6 +28075,7 @@ export interface CapMap {
   "memory.layers.list": { in: MemoryLayersListIn; out: MemoryLayersListOut };
   "memory.layout.get": { in: MemoryLayoutGetIn; out: MemoryLayoutGetOut };
   "memory.layout.save": { in: MemoryLayoutSaveIn; out: MemoryLayoutSaveOut };
+  "memory.learned": { in: MemoryLearnedIn; out: MemoryLearnedOut };
   "memory.maintain": { in: MemoryMaintainIn; out: MemoryMaintainOut };
   "memory.map.get": { in: MemoryMapGetIn; out: MemoryMapGetOut };
   "memory.notes.erase": { in: MemoryNotesEraseIn; out: MemoryNotesEraseOut };
@@ -27892,8 +28087,12 @@ export interface CapMap {
   "memory.promotion.undo": { in: MemoryPromotionUndoIn; out: MemoryPromotionUndoOut };
   "memory.propose_fact": { in: MemoryProposeFactIn; out: MemoryProposeFactOut };
   "memory.read_note": { in: MemoryReadNoteIn; out: MemoryReadNoteOut };
+  "memory.restore": { in: MemoryRestoreIn; out: MemoryRestoreOut };
   "memory.restore_version": { in: MemoryRestoreVersionIn; out: MemoryRestoreVersionOut };
   "memory.search": { in: MemorySearchIn; out: MemorySearchOut };
+  "memory.trail": { in: MemoryTrailIn; out: MemoryTrailOut };
+  "memory.trash.search": { in: MemoryTrashSearchIn; out: MemoryTrashSearchOut };
+  "memory.undo": { in: MemoryUndoIn; out: MemoryUndoOut };
   "memory.versions": { in: MemoryVersionsIn; out: MemoryVersionsOut };
   "mounts.add": { in: MountsAddIn; out: MountsAddOut };
   "mounts.browse": { in: MountsBrowseIn; out: MountsBrowseOut };
@@ -30070,6 +30269,10 @@ export type MemberRemovedPayload = {
   by: string;
   reason?: string;
 };
+export type MemoryArchivedPayload = {
+  count: number;
+  days: number;
+};
 export type MemoryCapturedPayload = {
   threadId: string;
   proposed: number;
@@ -30104,6 +30307,18 @@ export type MemoryFactProposedPayload = {
 export type MemoryFactRejectedPayload = {
   factId: string;
   by: string;
+};
+export type MemoryLearnedPayload = {
+  factId: string;
+  layer: "person" | "agent" | "project" | "space";
+  ownerRef: string;
+  agentId?: string;
+  sourceKind: string;
+  sourceRef: string;
+  actor: string;
+  actorKind: string;
+  saved: boolean;
+  from: string;
 };
 export type MemoryMapRewrittenPayload = {
   agentId: string;
@@ -30140,6 +30355,11 @@ export type MemoryPromotionUndonePayload = {
 };
 export type MemoryRemovedPayload = {
   factIds: Array<string>;
+  by: string;
+};
+export type MemoryRestoredPayload = {
+  factId: string;
+  from: string;
   by: string;
 };
 export type MessageBouncedPayload = {
@@ -32157,6 +32377,7 @@ export interface EventMap {
   "member.joined": MemberJoinedPayload;
   "member.removal_plan_applied": MemberRemovalPlanAppliedPayload;
   "member.removed": MemberRemovedPayload;
+  "memory.archived": MemoryArchivedPayload;
   "memory.captured": MemoryCapturedPayload;
   "memory.erased": MemoryErasedPayload;
   "memory.everything_viewed": MemoryEverythingViewedPayload;
@@ -32164,6 +32385,7 @@ export interface EventMap {
   "memory.fact_corrected": MemoryFactCorrectedPayload;
   "memory.fact_proposed": MemoryFactProposedPayload;
   "memory.fact_rejected": MemoryFactRejectedPayload;
+  "memory.learned": MemoryLearnedPayload;
   "memory.map_rewritten": MemoryMapRewrittenPayload;
   "memory.note_restored": MemoryNoteRestoredPayload;
   "memory.promoted": MemoryPromotedPayload;
@@ -32171,6 +32393,7 @@ export interface EventMap {
   "memory.promotion_requested": MemoryPromotionRequestedPayload;
   "memory.promotion_undone": MemoryPromotionUndonePayload;
   "memory.removed": MemoryRemovedPayload;
+  "memory.restored": MemoryRestoredPayload;
   "message.bounced": MessageBouncedPayload;
   "message.clicked": MessageClickedPayload;
   "message.complained": MessageComplainedPayload;

@@ -5,6 +5,7 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "memory.archive_sweep": Handler<"memory.archive_sweep", X>;
   "memory.capture": Handler<"memory.capture", X>;
   "memory.counts": Handler<"memory.counts", X>;
   "memory.erase": Handler<"memory.erase", X>;
@@ -23,6 +24,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "memory.layers.list": Handler<"memory.layers.list", X>;
   "memory.layout.get": Handler<"memory.layout.get", X>;
   "memory.layout.save": Handler<"memory.layout.save", X>;
+  "memory.learned": Handler<"memory.learned", X>;
   "memory.maintain": Handler<"memory.maintain", X>;
   "memory.map.get": Handler<"memory.map.get", X>;
   "memory.notes.erase": Handler<"memory.notes.erase", X>;
@@ -34,7 +36,11 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "memory.promotion.undo": Handler<"memory.promotion.undo", X>;
   "memory.propose_fact": Handler<"memory.propose_fact", X>;
   "memory.read_note": Handler<"memory.read_note", X>;
+  "memory.restore": Handler<"memory.restore", X>;
   "memory.restore_version": Handler<"memory.restore_version", X>;
   "memory.search": Handler<"memory.search", X>;
+  "memory.trail": Handler<"memory.trail", X>;
+  "memory.trash.search": Handler<"memory.trash.search", X>;
+  "memory.undo": Handler<"memory.undo", X>;
   "memory.versions": Handler<"memory.versions", X>;
 }

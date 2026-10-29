@@ -19,7 +19,7 @@ Capture at chat end: a cheap-model pass proposes facts to the person layer; chan
 | HTTP | POST /v1/memory/capture |
 | MCP tool | none |
 | CLI | none |
-| Emits | memory.captured, memory.fact_proposed, memory.fact_accepted |
+| Emits | memory.captured, memory.fact_proposed, memory.fact_accepted, memory.learned |
 
 ## Input
 

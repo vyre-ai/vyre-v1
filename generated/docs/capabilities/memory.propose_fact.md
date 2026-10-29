@@ -19,7 +19,7 @@ Propose a fact for the asker layer of the agent memory, with its source; low-ris
 | HTTP | POST /v1/memory/propose_fact |
 | MCP tool | memory_propose (memory) |
 | CLI | none |
-| Emits | memory.fact_proposed, memory.fact_accepted |
+| Emits | memory.fact_proposed, memory.fact_accepted, memory.learned |
 
 ## Input
 
@@ -58,6 +58,9 @@ type Out = {
     sourceLink?: string;
     status: "proposed" | "current" | "closed" | "removed";
     lowRisk?: boolean;
+    trashedAt?: number;
+    trashReason?: string;
+    archivedAt?: number;
   };
   merged: boolean;
 };
@@ -91,6 +94,7 @@ type Out = {
   "output": {
     "fact": {
       "agentId": "agt_a1b2c3",
+      "archivedAt": 1760000000000,
       "closedAt": 1760000000000,
       "factId": "fct_a1b2c3",
       "layer": "person",
@@ -103,6 +107,8 @@ type Out = {
       "sourceRef": "example",
       "status": "proposed",
       "text": "example",
+      "trashReason": "example",
+      "trashedAt": 1760000000000,
       "validFrom": 1760000000000,
       "validTo": 1760000000000
     },

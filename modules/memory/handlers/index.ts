@@ -5,6 +5,7 @@ import {
   promotionApprove, promotionReject, promotionUndo, proposeFact, readNote, restoreVersion, search, versions,
 } from "./facts.ts";
 import { graph, graphEverything, graphExport, indexGraph, layoutGet, layoutSave } from "./graph.ts";
+import { archiveSweep, learned, restore, trailRead, trashSearch, undo } from "./lifecycle.ts";
 import { noteErase } from "./purge.ts";
 
 export const handlers = {
@@ -40,4 +41,10 @@ export const handlers = {
   "memory.restore_version": restoreVersion,
   "memory.find_by_subject": findBySubject,
   "memory.notes.erase": noteErase,
+  "memory.learned": learned,
+  "memory.undo": undo,
+  "memory.restore": restore,
+  "memory.trash.search": trashSearch,
+  "memory.archive_sweep": archiveSweep,
+  "memory.trail": trailRead,
 };

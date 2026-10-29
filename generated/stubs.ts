@@ -1281,6 +1281,7 @@ export function stubs(ctx: CallCtx) {
       suspend: call("members.suspend"),
     },
     memory: {
+      archive_sweep: call("memory.archive_sweep"),
       capture: call("memory.capture"),
       counts: call("memory.counts"),
       erase: call("memory.erase"),
@@ -1307,6 +1308,7 @@ export function stubs(ctx: CallCtx) {
         get: call("memory.layout.get"),
         save: call("memory.layout.save"),
       },
+      learned: call("memory.learned"),
       maintain: call("memory.maintain"),
       map: {
         get: call("memory.map.get"),
@@ -1324,8 +1326,14 @@ export function stubs(ctx: CallCtx) {
       },
       propose_fact: call("memory.propose_fact"),
       read_note: call("memory.read_note"),
+      restore: call("memory.restore"),
       restore_version: call("memory.restore_version"),
       search: call("memory.search"),
+      trail: call("memory.trail"),
+      trash: {
+        search: call("memory.trash.search"),
+      },
+      undo: call("memory.undo"),
       versions: call("memory.versions"),
     },
     mounts: {

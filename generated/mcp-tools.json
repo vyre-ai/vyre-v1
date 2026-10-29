@@ -30257,6 +30257,61 @@
     },
     {
       "blocks": [],
+      "cap": "memory.learned",
+      "deferred": false,
+      "description": "The Learned feed: what memory learned, newest first, with its source and who learned it, for what the reader can see; each row can be undone",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "since": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_learned",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.map.get",
       "deferred": false,
       "description": "The MAP.md block of an agent as the nightly job last wrote it (agent layer only, never personal memory); absent before the first night",
@@ -30568,6 +30623,32 @@
     },
     {
       "blocks": [],
+      "cap": "memory.restore",
+      "deferred": false,
+      "description": "Restore a fact from Trash, or from Archive for an admin; open to any person or agent who can see the fact",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "factId"
+        ],
+        "type": "object"
+      },
+      "name": "memory_restore",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.restore_version",
       "deferred": false,
       "description": "Restore a shared memory note to an earlier version (owners and admins)",
@@ -30658,6 +30739,137 @@
       },
       "name": "memory_search",
       "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.trash.search",
+      "deferred": false,
+      "description": "Search Trash (or Archive, for an admin): deleted and merged-away facts, which normal search and recall never show",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "area": {
+            "enum": [
+              "trash",
+              "archive"
+            ],
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "q": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_search_trash",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.trail",
+      "deferred": false,
+      "description": "The trail of changes to facts and pages (who, what, when, why and source), for what the reader can see; rows are never deleted and never hold content",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "pageId": {
+            "type": "string"
+          },
+          "since": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_trail",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.undo",
+      "deferred": false,
+      "description": "Undo something memory learned: the fact goes to Trash with the reason undone, and a restore brings it back",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "factId"
+        ],
+        "type": "object"
+      },
+      "name": "memory_undo",
+      "planMode": "blocked",
       "toolset": "memory",
       "v": 1
     },

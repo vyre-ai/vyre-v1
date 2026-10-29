@@ -118,6 +118,7 @@ export function instructionsLine(lines: number): string {
 }
 
 export const CAPTURE_WORDS: Record<AgentRow["captureMode"], string> = {
+  auto: "Learns on its own, you can undo",
   propose: "Proposes facts for you to accept",
   auto_low_risk: "Saves low-risk facts on its own",
   off: "Does not capture memory",

@@ -120,10 +120,12 @@ test("nightly: expired facts close, copies merge, and MAP.md is rewritten under 
   seedFact(h, { id: "fct_old", layer: "agent", agentId: "agt_intake", text: "The trial ends on the first", validTo: NOW - DAY });
   seedFact(h, { id: "fct_priv", layer: "person", owner: "usr_dana", agentId: "agt_intake", text: "Dana's private tea preference" });
   const out = await maintain(h.ctx, {});
-  assert.deepEqual(out, { merged: 1, closed: 2, maps: 1 });
+  assert.deepEqual(out, { merged: 1, closed: 1, maps: 1 }, "the expired fact closes; the copy goes to Trash, which is not closing");
   assert.deepEqual(contractErrors("memory.maintain", "out", out), []);
   const status = Object.fromEntries(h.rows("SELECT id, status FROM memory_facts").map((r) => [r["id"], r["status"]]));
-  assert.deepEqual(status, { fct_d1: "current", fct_d2: "closed", fct_old: "closed", fct_priv: "current" });
+  assert.deepEqual(status, { fct_d1: "current", fct_d2: "removed", fct_old: "closed", fct_priv: "current" });
+  const copy = h.rows("SELECT trashed_at, trash_reason, merged_into, text FROM memory_facts WHERE id = 'fct_d2'")[0]!;
+  assert.deepEqual([copy["trash_reason"], copy["merged_into"], copy["text"]], ["duplicate", "fct_d1", "intake never calls before  nine"], "the merged-away row is kept in Trash, words and all");
   const map = h.rows("SELECT body, lines, file_id FROM memory_maps")[0]!;
   assert.ok(Number(map["lines"]) < 200);
   assert.equal(map["file_id"], "fil_map");

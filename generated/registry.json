@@ -2459,125 +2459,6 @@
       ],
       "type": "object"
     },
-    "s_1ff9692f8d": {
-      "properties": {
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "closedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "factId": {
-          "examples": [
-            "fct_a1b2c3"
-          ],
-          "pattern": "^fct_[a-z0-9]+$",
-          "type": "string"
-        },
-        "layer": {
-          "enum": [
-            "person",
-            "agent",
-            "project",
-            "space"
-          ],
-          "type": "string"
-        },
-        "learnedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "lowRisk": {
-          "type": "boolean"
-        },
-        "noteId": {
-          "examples": [
-            "not_a1b2c3"
-          ],
-          "pattern": "^not_[a-z0-9]+$",
-          "type": "string"
-        },
-        "ownerRef": {
-          "description": "Person, agent, project or Space the fact belongs to",
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "type": "string"
-        },
-        "sourceKind": {
-          "enum": [
-            "chat",
-            "channel",
-            "task",
-            "record",
-            "run",
-            "journey",
-            "manual"
-          ],
-          "type": "string"
-        },
-        "sourceLink": {
-          "description": "Link to the exact chat, task or record",
-          "type": "string"
-        },
-        "sourceRef": {
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "proposed",
-            "current",
-            "closed",
-            "removed"
-          ],
-          "type": "string"
-        },
-        "text": {
-          "type": "string"
-        },
-        "validFrom": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "validTo": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "factId",
-        "layer",
-        "ownerRef",
-        "text",
-        "validFrom",
-        "learnedAt",
-        "sourceKind",
-        "sourceRef",
-        "status"
-      ],
-      "type": "object"
-    },
     "s_1fff9c7146": {
       "properties": {
         "areaCode": {
@@ -2867,6 +2748,12 @@
       ],
       "type": "object"
     },
+    "s_245e72f271": {
+      "items": {
+        "$ref": "#/$defs/s_b47bc60198"
+      },
+      "type": "array"
+    },
     "s_24f4f7e0a4": {
       "properties": {
         "allowGithub": {
@@ -3082,149 +2969,6 @@
         "type": "object"
       },
       "type": "array"
-    },
-    "s_2819d08f97": {
-      "properties": {
-        "accountKey": {
-          "description": "Vault handle, never a value",
-          "examples": [
-            "#Team_Anthropic_Key"
-          ],
-          "type": "string"
-        },
-        "accountPolicy": {
-          "enum": [
-            "asker",
-            "key"
-          ],
-          "type": "string"
-        },
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "captureMode": {
-          "enum": [
-            "propose",
-            "auto_low_risk",
-            "off"
-          ],
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "face": {
-          "description": "DiceBear Notionists seed tinted per Space",
-          "examples": [
-            "intake"
-          ],
-          "type": "string"
-        },
-        "fallbackModel": {
-          "type": "string"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "hasComputer": {
-          "type": "boolean"
-        },
-        "lastActiveAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "limits": {
-          "$ref": "#/$defs/s_dd54f66d0c"
-        },
-        "model": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "ownerId": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "pattern": "^usr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "pausedBy": {
-          "type": "string"
-        },
-        "pausedReason": {
-          "type": "string"
-        },
-        "role": {
-          "description": "The \"use me when\" line",
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "awake",
-            "working",
-            "asleep",
-            "paused"
-          ],
-          "type": "string"
-        },
-        "templateVersion": {
-          "type": "integer"
-        },
-        "toolsAllowed": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "toolsDenied": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "vaultKeys": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "agentId",
-        "name",
-        "face",
-        "status",
-        "ownerId",
-        "folderId",
-        "accountPolicy",
-        "toolsAllowed",
-        "toolsDenied",
-        "vaultKeys",
-        "limits",
-        "captureMode",
-        "hasComputer",
-        "templateVersion",
-        "createdAt"
-      ],
-      "type": "object"
     },
     "s_2842806102": {
       "properties": {
@@ -7233,17 +6977,6 @@
       },
       "type": "array"
     },
-    "s_5b5fd6f127": {
-      "properties": {
-        "fact": {
-          "$ref": "#/$defs/s_1ff9692f8d"
-        }
-      },
-      "required": [
-        "fact"
-      ],
-      "type": "object"
-    },
     "s_5bf4042104": {
       "properties": {
         "durationMinutes": {
@@ -7944,24 +7677,6 @@
       ],
       "type": "object"
     },
-    "s_636b76aa38": {
-      "properties": {
-        "facts": {
-          "$ref": "#/$defs/s_6ddc87dad0"
-        },
-        "next": {
-          "description": "Cursor for the next page; absent on the last page",
-          "type": "string"
-        },
-        "total": {
-          "type": "integer"
-        }
-      },
-      "required": [
-        "facts"
-      ],
-      "type": "object"
-    },
     "s_63dc3a7fc4": {
       "properties": {
         "files": {
@@ -8565,6 +8280,17 @@
       ],
       "type": "object"
     },
+    "s_6b3b63fba6": {
+      "properties": {
+        "fact": {
+          "$ref": "#/$defs/s_b47bc60198"
+        }
+      },
+      "required": [
+        "fact"
+      ],
+      "type": "object"
+    },
     "s_6b4cebc889": {
       "properties": {
         "connection": {
@@ -8724,12 +8450,6 @@
         "run"
       ],
       "type": "object"
-    },
-    "s_6ddc87dad0": {
-      "items": {
-        "$ref": "#/$defs/s_1ff9692f8d"
-      },
-      "type": "array"
     },
     "s_6fbfd139dc": {
       "properties": {
@@ -9861,6 +9581,24 @@
       ],
       "type": "object"
     },
+    "s_8087960aa3": {
+      "properties": {
+        "facts": {
+          "$ref": "#/$defs/s_245e72f271"
+        },
+        "next": {
+          "description": "Cursor for the next page; absent on the last page",
+          "type": "string"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "facts"
+      ],
+      "type": "object"
+    },
     "s_80c3e7c555": {
       "properties": {
         "previous": {
@@ -10772,6 +10510,17 @@
       "required": [
         "folderId",
         "branches"
+      ],
+      "type": "object"
+    },
+    "s_914c392665": {
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/s_b223d9e31a"
+        }
+      },
+      "required": [
+        "agent"
       ],
       "type": "object"
     },
@@ -12814,6 +12563,150 @@
       ],
       "type": "object"
     },
+    "s_b223d9e31a": {
+      "properties": {
+        "accountKey": {
+          "description": "Vault handle, never a value",
+          "examples": [
+            "#Team_Anthropic_Key"
+          ],
+          "type": "string"
+        },
+        "accountPolicy": {
+          "enum": [
+            "asker",
+            "key"
+          ],
+          "type": "string"
+        },
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "captureMode": {
+          "enum": [
+            "auto",
+            "propose",
+            "auto_low_risk",
+            "off"
+          ],
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "face": {
+          "description": "DiceBear Notionists seed tinted per Space",
+          "examples": [
+            "intake"
+          ],
+          "type": "string"
+        },
+        "fallbackModel": {
+          "type": "string"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "hasComputer": {
+          "type": "boolean"
+        },
+        "lastActiveAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "limits": {
+          "$ref": "#/$defs/s_dd54f66d0c"
+        },
+        "model": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ownerId": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^usr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "pausedBy": {
+          "type": "string"
+        },
+        "pausedReason": {
+          "type": "string"
+        },
+        "role": {
+          "description": "The \"use me when\" line",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "awake",
+            "working",
+            "asleep",
+            "paused"
+          ],
+          "type": "string"
+        },
+        "templateVersion": {
+          "type": "integer"
+        },
+        "toolsAllowed": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "toolsDenied": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "vaultKeys": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "agentId",
+        "name",
+        "face",
+        "status",
+        "ownerId",
+        "folderId",
+        "accountPolicy",
+        "toolsAllowed",
+        "toolsDenied",
+        "vaultKeys",
+        "limits",
+        "captureMode",
+        "hasComputer",
+        "templateVersion",
+        "createdAt"
+      ],
+      "type": "object"
+    },
     "s_b2a5d50757": {
       "properties": {
         "body": {
@@ -12869,6 +12762,145 @@
       "required": [
         "groupId",
         "name"
+      ],
+      "type": "object"
+    },
+    "s_b47bc60198": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "archivedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "closedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "factId": {
+          "examples": [
+            "fct_a1b2c3"
+          ],
+          "pattern": "^fct_[a-z0-9]+$",
+          "type": "string"
+        },
+        "layer": {
+          "enum": [
+            "person",
+            "agent",
+            "project",
+            "space"
+          ],
+          "type": "string"
+        },
+        "learnedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lowRisk": {
+          "type": "boolean"
+        },
+        "noteId": {
+          "examples": [
+            "not_a1b2c3"
+          ],
+          "pattern": "^not_[a-z0-9]+$",
+          "type": "string"
+        },
+        "ownerRef": {
+          "description": "Person, agent, project or Space the fact belongs to",
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "type": "string"
+        },
+        "sourceKind": {
+          "enum": [
+            "chat",
+            "channel",
+            "task",
+            "record",
+            "run",
+            "journey",
+            "manual"
+          ],
+          "type": "string"
+        },
+        "sourceLink": {
+          "description": "Link to the exact chat, task or record",
+          "type": "string"
+        },
+        "sourceRef": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "proposed",
+            "current",
+            "closed",
+            "removed"
+          ],
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "trashReason": {
+          "description": "Why the fact is in Trash, for example removed, duplicate, undone",
+          "type": "string"
+        },
+        "trashedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "validFrom": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "validTo": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "factId",
+        "layer",
+        "ownerRef",
+        "text",
+        "validFrom",
+        "learnedAt",
+        "sourceKind",
+        "sourceRef",
+        "status"
       ],
       "type": "object"
     },
@@ -15963,17 +15995,6 @@
           "type": "integer"
         }
       },
-      "type": "object"
-    },
-    "s_dd8211e1b7": {
-      "properties": {
-        "agent": {
-          "$ref": "#/$defs/s_2819d08f97"
-        }
-      },
-      "required": [
-        "agent"
-      ],
       "type": "object"
     },
     "s_de4eba3dc2": {
@@ -25697,7 +25718,7 @@
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
-              "captureMode": "propose",
+              "captureMode": "auto",
               "createdAt": 1760000000000,
               "face": "intake",
               "fallbackModel": "example",
@@ -25807,7 +25828,7 @@
       "name": "agents.create",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_914c392665"
       },
       "permission": "agents.create",
       "resource": {
@@ -25921,7 +25942,7 @@
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
-              "captureMode": "propose",
+              "captureMode": "auto",
               "createdAt": 1760000000000,
               "face": "intake",
               "fallbackModel": "example",
@@ -25978,7 +25999,7 @@
       "module": "agents",
       "name": "agents.get",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_914c392665"
       },
       "permission": null,
       "resource": {
@@ -26176,7 +26197,7 @@
                 "accountKey": "#Team_Anthropic_Key",
                 "accountPolicy": "asker",
                 "agentId": "agt_a1b2c3",
-                "captureMode": "propose",
+                "captureMode": "auto",
                 "createdAt": 1760000000000,
                 "face": "intake",
                 "fallbackModel": "example",
@@ -26264,7 +26285,7 @@
         "properties": {
           "agents": {
             "items": {
-              "$ref": "#/$defs/s_2819d08f97"
+              "$ref": "#/$defs/s_b223d9e31a"
             },
             "type": "array"
           },
@@ -26321,7 +26342,7 @@
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
-              "captureMode": "propose",
+              "captureMode": "auto",
               "createdAt": 1760000000000,
               "face": "intake",
               "fallbackModel": "example",
@@ -26380,7 +26401,7 @@
       "module": "agents",
       "name": "agents.pause",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_914c392665"
       },
       "permission": null,
       "resource": {
@@ -26421,7 +26442,7 @@
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
-              "captureMode": "propose",
+              "captureMode": "auto",
               "createdAt": 1760000000000,
               "face": "intake",
               "fallbackModel": "example",
@@ -26477,7 +26498,7 @@
       "module": "agents",
       "name": "agents.restore",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_914c392665"
       },
       "permission": null,
       "resource": {
@@ -26520,7 +26541,7 @@
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
-              "captureMode": "propose",
+              "captureMode": "auto",
               "createdAt": 1760000000000,
               "face": "intake",
               "fallbackModel": "example",
@@ -26591,7 +26612,7 @@
       "module": "agents",
       "name": "agents.restore_version",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_914c392665"
       },
       "permission": null,
       "resource": {
@@ -26635,7 +26656,7 @@
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
-              "captureMode": "propose",
+              "captureMode": "auto",
               "createdAt": 1760000000000,
               "face": "intake",
               "fallbackModel": "example",
@@ -26691,7 +26712,7 @@
       "module": "agents",
       "name": "agents.resume",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_914c392665"
       },
       "permission": null,
       "resource": {
@@ -26733,7 +26754,7 @@
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
-              "captureMode": "propose",
+              "captureMode": "auto",
               "createdAt": 1760000000000,
               "face": "intake",
               "fallbackModel": "example",
@@ -26798,7 +26819,7 @@
       "output": {
         "properties": {
           "agent": {
-            "$ref": "#/$defs/s_2819d08f97"
+            "$ref": "#/$defs/s_b223d9e31a"
           },
           "undoVersionId": {
             "examples": [
@@ -27417,7 +27438,7 @@
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
-              "captureMode": "propose",
+              "captureMode": "auto",
               "createdAt": 1760000000000,
               "face": "intake",
               "fallbackModel": "example",
@@ -27485,7 +27506,7 @@
       "module": "agents",
       "name": "agents.set_owner",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_914c392665"
       },
       "permission": null,
       "resource": {
@@ -28416,7 +28437,7 @@
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
-              "captureMode": "propose",
+              "captureMode": "auto",
               "createdAt": 1760000000000,
               "face": "intake",
               "fallbackModel": "example",
@@ -28478,7 +28499,7 @@
       "name": "agents.update",
       "offline": "patch",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_914c392665"
       },
       "permission": null,
       "resource": {
@@ -108913,9 +108934,66 @@
     {
       "effects": "write",
       "emits": [
+        "memory.archived"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "archived": 1,
+            "days": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "memory",
+      "name": "memory.archive_sweep",
+      "output": {
+        "properties": {
+          "archived": {
+            "type": "integer"
+          },
+          "days": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "archived",
+          "days"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Daily job: move facts untouched in Trash for the Space setting (30 to 90 days, default 60) to Archive",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
         "memory.captured",
         "memory.fact_proposed",
-        "memory.fact_accepted"
+        "memory.fact_accepted",
+        "memory.learned"
       ],
       "errors": [
         "internal.unexpected",
@@ -109209,6 +109287,7 @@
           "output": {
             "fact": {
               "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
               "closedAt": 1760000000000,
               "factId": "fct_a1b2c3",
               "layer": "person",
@@ -109221,6 +109300,8 @@
               "sourceRef": "example",
               "status": "proposed",
               "text": "example",
+              "trashReason": "example",
+              "trashedAt": 1760000000000,
               "validFrom": 1760000000000,
               "validTo": 1760000000000
             }
@@ -109248,7 +109329,7 @@
       "name": "memory.fact.accept",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_5b5fd6f127"
+        "$ref": "#/$defs/s_6b3b63fba6"
       },
       "permission": null,
       "resource": {
@@ -109287,6 +109368,7 @@
           "output": {
             "closed": {
               "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
               "closedAt": 1760000000000,
               "factId": "fct_a1b2c3",
               "layer": "person",
@@ -109299,11 +109381,14 @@
               "sourceRef": "example",
               "status": "proposed",
               "text": "example",
+              "trashReason": "example",
+              "trashedAt": 1760000000000,
               "validFrom": 1760000000000,
               "validTo": 1760000000000
             },
             "fact": {
               "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
               "closedAt": 1760000000000,
               "factId": "fct_a1b2c3",
               "layer": "person",
@@ -109316,6 +109401,8 @@
               "sourceRef": "example",
               "status": "proposed",
               "text": "example",
+              "trashReason": "example",
+              "trashedAt": 1760000000000,
               "validFrom": 1760000000000,
               "validTo": 1760000000000
             }
@@ -109357,10 +109444,10 @@
       "output": {
         "properties": {
           "closed": {
-            "$ref": "#/$defs/s_1ff9692f8d"
+            "$ref": "#/$defs/s_b47bc60198"
           },
           "fact": {
-            "$ref": "#/$defs/s_1ff9692f8d"
+            "$ref": "#/$defs/s_b47bc60198"
           }
         },
         "required": [
@@ -109403,6 +109490,7 @@
           "output": {
             "fact": {
               "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
               "closedAt": 1760000000000,
               "factId": "fct_a1b2c3",
               "layer": "person",
@@ -109415,12 +109503,15 @@
               "sourceRef": "example",
               "status": "proposed",
               "text": "example",
+              "trashReason": "example",
+              "trashedAt": 1760000000000,
               "validFrom": 1760000000000,
               "validTo": 1760000000000
             },
             "history": [
               {
                 "agentId": "agt_a1b2c3",
+                "archivedAt": 1760000000000,
                 "closedAt": 1760000000000,
                 "factId": "fct_a1b2c3",
                 "layer": "person",
@@ -109433,6 +109524,8 @@
                 "sourceRef": "example",
                 "status": "proposed",
                 "text": "example",
+                "trashReason": "example",
+                "trashedAt": 1760000000000,
                 "validFrom": 1760000000000,
                 "validTo": 1760000000000
               }
@@ -109463,10 +109556,10 @@
       "output": {
         "properties": {
           "fact": {
-            "$ref": "#/$defs/s_1ff9692f8d"
+            "$ref": "#/$defs/s_b47bc60198"
           },
           "history": {
-            "$ref": "#/$defs/s_6ddc87dad0"
+            "$ref": "#/$defs/s_245e72f271"
           }
         },
         "required": [
@@ -109510,6 +109603,7 @@
           "output": {
             "fact": {
               "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
               "closedAt": 1760000000000,
               "factId": "fct_a1b2c3",
               "layer": "person",
@@ -109522,6 +109616,8 @@
               "sourceRef": "example",
               "status": "proposed",
               "text": "example",
+              "trashReason": "example",
+              "trashedAt": 1760000000000,
               "validFrom": 1760000000000,
               "validTo": 1760000000000
             }
@@ -109549,7 +109645,7 @@
       "name": "memory.fact.reject",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_5b5fd6f127"
+        "$ref": "#/$defs/s_6b3b63fba6"
       },
       "permission": null,
       "resource": {
@@ -109594,6 +109690,7 @@
             "facts": [
               {
                 "agentId": "agt_a1b2c3",
+                "archivedAt": 1760000000000,
                 "closedAt": 1760000000000,
                 "factId": "fct_a1b2c3",
                 "layer": "person",
@@ -109606,6 +109703,8 @@
                 "sourceRef": "example",
                 "status": "proposed",
                 "text": "example",
+                "trashReason": "example",
+                "trashedAt": 1760000000000,
                 "validFrom": 1760000000000,
                 "validTo": 1760000000000
               }
@@ -109675,7 +109774,7 @@
       "module": "memory",
       "name": "memory.facts.list",
       "output": {
-        "$ref": "#/$defs/s_636b76aa38"
+        "$ref": "#/$defs/s_8087960aa3"
       },
       "permission": null,
       "resource": {
@@ -109818,6 +109917,7 @@
             "facts": [
               {
                 "agentId": "agt_a1b2c3",
+                "archivedAt": 1760000000000,
                 "closedAt": 1760000000000,
                 "factId": "fct_a1b2c3",
                 "layer": "person",
@@ -109830,6 +109930,8 @@
                 "sourceRef": "example",
                 "status": "proposed",
                 "text": "example",
+                "trashReason": "example",
+                "trashedAt": 1760000000000,
                 "validFrom": 1760000000000,
                 "validTo": 1760000000000
               }
@@ -109888,7 +109990,7 @@
       "module": "memory",
       "name": "memory.facts_as_of",
       "output": {
-        "$ref": "#/$defs/s_636b76aa38"
+        "$ref": "#/$defs/s_8087960aa3"
       },
       "permission": null,
       "resource": {
@@ -109932,6 +110034,7 @@
             "facts": [
               {
                 "agentId": "agt_a1b2c3",
+                "archivedAt": 1760000000000,
                 "closedAt": 1760000000000,
                 "factId": "fct_a1b2c3",
                 "layer": "person",
@@ -109944,6 +110047,8 @@
                 "sourceRef": "example",
                 "status": "proposed",
                 "text": "example",
+                "trashReason": "example",
+                "trashedAt": 1760000000000,
                 "validFrom": 1760000000000,
                 "validTo": 1760000000000
               }
@@ -109991,7 +110096,7 @@
       "output": {
         "properties": {
           "facts": {
-            "$ref": "#/$defs/s_6ddc87dad0"
+            "$ref": "#/$defs/s_245e72f271"
           },
           "next": {
             "description": "Cursor for the next page; absent on the last page",
@@ -110609,6 +110714,213 @@
       "surfaces": {
         "http": "auto",
         "mcp": {
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "cursor": "example",
+            "layer": "person",
+            "limit": 1,
+            "projectId": "prj_a1b2c3",
+            "since": 1760000000000
+          },
+          "name": "example",
+          "output": {
+            "items": [
+              {
+                "actor": "example",
+                "actorKind": "person",
+                "at": 1760000000000,
+                "fact": {
+                  "agentId": "agt_a1b2c3",
+                  "archivedAt": 1760000000000,
+                  "closedAt": 1760000000000,
+                  "factId": "fct_a1b2c3",
+                  "layer": "person",
+                  "learnedAt": 1760000000000,
+                  "lowRisk": true,
+                  "noteId": "not_a1b2c3",
+                  "ownerRef": "agt_a1b2c3",
+                  "sourceKind": "chat",
+                  "sourceLink": "example",
+                  "sourceRef": "example",
+                  "status": "proposed",
+                  "text": "example",
+                  "trashReason": "example",
+                  "trashedAt": 1760000000000,
+                  "validFrom": 1760000000000,
+                  "validTo": 1760000000000
+                },
+                "from": "example",
+                "sourceKind": "chat",
+                "sourceLink": "example",
+                "sourceRef": "example",
+                "undone": true
+              }
+            ],
+            "next": "example",
+            "total": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "since": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.learned",
+      "output": {
+        "properties": {
+          "items": {
+            "items": {
+              "properties": {
+                "actor": {
+                  "description": "Who learned it: the agent or person id, or upkeep",
+                  "type": "string"
+                },
+                "actorKind": {
+                  "enum": [
+                    "person",
+                    "agent",
+                    "upkeep",
+                    "system"
+                  ],
+                  "type": "string"
+                },
+                "at": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "fact": {
+                  "$ref": "#/$defs/s_b47bc60198"
+                },
+                "from": {
+                  "description": "The person the fact came from",
+                  "type": "string"
+                },
+                "sourceKind": {
+                  "enum": [
+                    "chat",
+                    "channel",
+                    "task",
+                    "record",
+                    "run",
+                    "journey",
+                    "manual"
+                  ],
+                  "type": "string"
+                },
+                "sourceLink": {
+                  "type": "string"
+                },
+                "sourceRef": {
+                  "type": "string"
+                },
+                "undone": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "fact",
+                "at",
+                "actor",
+                "actorKind",
+                "sourceKind",
+                "sourceRef",
+                "undone"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "next": {
+            "description": "Cursor for the next page; absent on the last page",
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The Learned feed: what memory learned, newest first, with its source and who learned it, for what the reader can see; each row can be undone",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "memory_learned",
           "toolset": "memory"
         }
       },
@@ -111245,6 +111557,7 @@
           "output": {
             "fact": {
               "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
               "closedAt": 1760000000000,
               "factId": "fct_a1b2c3",
               "layer": "person",
@@ -111257,6 +111570,8 @@
               "sourceRef": "example",
               "status": "proposed",
               "text": "example",
+              "trashReason": "example",
+              "trashedAt": 1760000000000,
               "validFrom": 1760000000000,
               "validTo": 1760000000000
             }
@@ -111283,7 +111598,7 @@
       "module": "memory",
       "name": "memory.promotion.approve",
       "output": {
-        "$ref": "#/$defs/s_5b5fd6f127"
+        "$ref": "#/$defs/s_6b3b63fba6"
       },
       "permission": null,
       "resource": {
@@ -111443,7 +111758,8 @@
       "effects": "write",
       "emits": [
         "memory.fact_proposed",
-        "memory.fact_accepted"
+        "memory.fact_accepted",
+        "memory.learned"
       ],
       "errors": [
         "internal.unexpected",
@@ -111470,6 +111786,7 @@
           "output": {
             "fact": {
               "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
               "closedAt": 1760000000000,
               "factId": "fct_a1b2c3",
               "layer": "person",
@@ -111482,6 +111799,8 @@
               "sourceRef": "example",
               "status": "proposed",
               "text": "example",
+              "trashReason": "example",
+              "trashedAt": 1760000000000,
               "validFrom": 1760000000000,
               "validTo": 1760000000000
             },
@@ -111577,7 +111896,7 @@
       "output": {
         "properties": {
           "fact": {
-            "$ref": "#/$defs/s_1ff9692f8d"
+            "$ref": "#/$defs/s_b47bc60198"
           },
           "merged": {
             "type": "boolean"
@@ -111690,6 +112009,108 @@
         "http": "auto",
         "mcp": {
           "name": "read_note",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "memory.restored"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "factId": "fct_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "fact": {
+              "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "closedAt": 1760000000000,
+              "factId": "fct_a1b2c3",
+              "layer": "person",
+              "learnedAt": 1760000000000,
+              "lowRisk": true,
+              "noteId": "not_a1b2c3",
+              "ownerRef": "agt_a1b2c3",
+              "sourceKind": "chat",
+              "sourceLink": "example",
+              "sourceRef": "example",
+              "status": "proposed",
+              "text": "example",
+              "trashReason": "example",
+              "trashedAt": 1760000000000,
+              "validFrom": 1760000000000,
+              "validTo": 1760000000000
+            },
+            "restoredFrom": "trash"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "factId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "memory",
+      "name": "memory.restore",
+      "output": {
+        "properties": {
+          "fact": {
+            "$ref": "#/$defs/s_b47bc60198"
+          },
+          "restoredFrom": {
+            "enum": [
+              "trash",
+              "archive"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "fact",
+          "restoredFrom"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Restore a fact from Trash, or from Archive for an admin; open to any person or agent who can see the fact",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "memory_restore",
           "toolset": "memory"
         }
       },
@@ -111974,6 +112395,434 @@
         "http": "auto",
         "mcp": {
           "name": "memory_search",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "action": "example",
+            "actor": "example",
+            "cursor": "example",
+            "factId": "fct_a1b2c3",
+            "limit": 1,
+            "pageId": "example",
+            "since": 1760000000000
+          },
+          "name": "example",
+          "output": {
+            "next": "example",
+            "rows": [
+              {
+                "actingFor": "example",
+                "action": "create",
+                "actor": "example",
+                "actorKind": "person",
+                "at": 1760000000000,
+                "detail": {},
+                "factId": "fct_a1b2c3",
+                "id": "example",
+                "layer": "person",
+                "pageId": "example",
+                "reason": "example",
+                "runId": "example",
+                "source": "example"
+              }
+            ],
+            "total": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "pageId": {
+            "type": "string"
+          },
+          "since": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.trail",
+      "output": {
+        "properties": {
+          "next": {
+            "description": "Cursor for the next page; absent on the last page",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "properties": {
+                "actingFor": {
+                  "type": "string"
+                },
+                "action": {
+                  "enum": [
+                    "create",
+                    "edit",
+                    "merge",
+                    "delete",
+                    "restore",
+                    "archive",
+                    "erase",
+                    "learn",
+                    "undo",
+                    "accept",
+                    "reject",
+                    "promote",
+                    "flag",
+                    "resolve"
+                  ],
+                  "type": "string"
+                },
+                "actor": {
+                  "type": "string"
+                },
+                "actorKind": {
+                  "enum": [
+                    "person",
+                    "agent",
+                    "upkeep",
+                    "system"
+                  ],
+                  "type": "string"
+                },
+                "at": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "detail": {
+                  "additionalProperties": {
+                    "description": "Any JSON value"
+                  },
+                  "type": "object"
+                },
+                "factId": {
+                  "examples": [
+                    "fct_a1b2c3"
+                  ],
+                  "pattern": "^fct_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "layer": {
+                  "enum": [
+                    "person",
+                    "agent",
+                    "project",
+                    "space"
+                  ],
+                  "type": "string"
+                },
+                "pageId": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "runId": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "at",
+                "action",
+                "actor",
+                "actorKind"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The trail of changes to facts and pages (who, what, when, why and source), for what the reader can see; rows are never deleted and never hold content",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "memory_trail",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "area": "trash",
+            "cursor": "example",
+            "layer": "person",
+            "limit": 1,
+            "projectId": "prj_a1b2c3",
+            "q": "example"
+          },
+          "name": "example",
+          "output": {
+            "facts": [
+              {
+                "agentId": "agt_a1b2c3",
+                "archivedAt": 1760000000000,
+                "closedAt": 1760000000000,
+                "factId": "fct_a1b2c3",
+                "layer": "person",
+                "learnedAt": 1760000000000,
+                "lowRisk": true,
+                "noteId": "not_a1b2c3",
+                "ownerRef": "agt_a1b2c3",
+                "sourceKind": "chat",
+                "sourceLink": "example",
+                "sourceRef": "example",
+                "status": "proposed",
+                "text": "example",
+                "trashReason": "example",
+                "trashedAt": 1760000000000,
+                "validFrom": 1760000000000,
+                "validTo": 1760000000000
+              }
+            ],
+            "next": "example",
+            "total": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "area": {
+            "enum": [
+              "trash",
+              "archive"
+            ],
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "q": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.trash.search",
+      "output": {
+        "$ref": "#/$defs/s_8087960aa3"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Search Trash (or Archive, for an admin): deleted and merged-away facts, which normal search and recall never show",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "memory_search_trash",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "memory.removed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "factId": "fct_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "fact": {
+              "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "closedAt": 1760000000000,
+              "factId": "fct_a1b2c3",
+              "layer": "person",
+              "learnedAt": 1760000000000,
+              "lowRisk": true,
+              "noteId": "not_a1b2c3",
+              "ownerRef": "agt_a1b2c3",
+              "sourceKind": "chat",
+              "sourceLink": "example",
+              "sourceRef": "example",
+              "status": "proposed",
+              "text": "example",
+              "trashReason": "example",
+              "trashedAt": 1760000000000,
+              "validFrom": 1760000000000,
+              "validTo": 1760000000000
+            },
+            "trashed": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "factId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "memory",
+      "name": "memory.undo",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "fact": {
+            "$ref": "#/$defs/s_b47bc60198"
+          },
+          "trashed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fact",
+          "trashed"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Undo something memory learned: the fact goes to Trash with the reason undone, and a restore brings it back",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
           "toolset": "memory"
         }
       },
@@ -183914,6 +184763,34 @@
     },
     {
       "module": "memory",
+      "name": "memory.archived",
+      "payload": {
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "days": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "days"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "memory",
+      "subject": {
+        "id": "/count",
+        "type": "entity"
+      },
+      "summary": "Facts untouched in Trash moved to Archive",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "memory",
       "name": "memory.captured",
       "payload": {
         "properties": {
@@ -184177,6 +185054,80 @@
       "vis": "participants"
     },
     {
+      "label": "subject",
+      "module": "memory",
+      "name": "memory.learned",
+      "payload": {
+        "properties": {
+          "actor": {
+            "type": "string"
+          },
+          "actorKind": {
+            "type": "string"
+          },
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "ownerRef": {
+            "type": "string"
+          },
+          "saved": {
+            "type": "boolean"
+          },
+          "sourceKind": {
+            "type": "string"
+          },
+          "sourceRef": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "factId",
+          "layer",
+          "ownerRef",
+          "sourceKind",
+          "sourceRef",
+          "actor",
+          "actorKind",
+          "saved",
+          "from"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "memory",
+      "subject": {
+        "id": "/factId",
+        "type": "entity"
+      },
+      "summary": "Memory learned a fact (ids and places only, never the text); the Learned feed reads this",
+      "sv": 1,
+      "vis": "participants"
+    },
+    {
       "module": "memory",
       "name": "memory.map_rewritten",
       "payload": {
@@ -184415,6 +185366,42 @@
         "type": "entity"
       },
       "summary": "Facts were removed from answers (kept in history)",
+      "sv": 1,
+      "vis": "participants"
+    },
+    {
+      "module": "memory",
+      "name": "memory.restored",
+      "payload": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "factId",
+          "from",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "memory",
+      "subject": {
+        "id": "/factId",
+        "type": "entity"
+      },
+      "summary": "A fact came back from Trash or Archive",
       "sv": 1,
       "vis": "participants"
     },
@@ -213584,6 +214571,72 @@
       },
       "scope": "space",
       "title": "Fact kinds that merge without review"
+    },
+    {
+      "default": "local",
+      "key": "memory.meaning_search",
+      "module": "memory",
+      "page": "Policies",
+      "schema": {
+        "enum": [
+          "local",
+          "key",
+          "off"
+        ],
+        "type": "string"
+      },
+      "scope": "space",
+      "title": "Meaning search: local model, the memory key, or off"
+    },
+    {
+      "default": false,
+      "key": "memory.require_review",
+      "module": "memory",
+      "page": "Policies",
+      "schema": {
+        "type": "boolean"
+      },
+      "scope": "space",
+      "title": "Require review for shared memory"
+    },
+    {
+      "default": [],
+      "key": "memory.review_projects",
+      "module": "memory",
+      "page": "Policies",
+      "schema": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "scope": "space",
+      "title": "Projects whose memory needs review (project ids)"
+    },
+    {
+      "default": 60,
+      "key": "memory.trash_days",
+      "module": "memory",
+      "page": "Policies",
+      "schema": {
+        "maximum": 90,
+        "minimum": 30,
+        "type": "integer"
+      },
+      "scope": "space",
+      "title": "Days in Trash before Archive (30 to 90)"
+    },
+    {
+      "default": 5,
+      "key": "memory.upkeep_monthly_cap",
+      "module": "memory",
+      "page": "Policies",
+      "schema": {
+        "minimum": 0,
+        "type": "number"
+      },
+      "scope": "space",
+      "title": "Monthly spend cap for model upkeep, in US dollars"
     },
     {
       "default": true,

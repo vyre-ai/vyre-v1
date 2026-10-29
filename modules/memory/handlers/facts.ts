@@ -5,6 +5,10 @@
 //   everything from a chat goes to the asker's own layer and merges on its own only for a kind in the setting memory.auto_merge_kinds (default preference), or when the person typed it themselves.
 // DECISION: search is local and has no model call: BM25 over words, character trigrams for the "semantic" side, a small recency lift. The vector table of ARCH 6.10 is the same call shape and slots in later.
 import { excerpt } from "../../../lib/md.ts";
+import { reviewRequired } from "../policy.ts";
+import { trail, whoIs } from "../trail.ts";
+import type { TrailAction, Who } from "../trail.ts";
+import { touchIfTrashed, trashFact } from "./lifecycle.ts";
 import {
   actorOf, autoMergeKinds, bm25, ensure, factOut, liveNow, loadFact, makeAccess, mintId, num, orNull, ownerOfLayer, pageOf, raise, readFact, recencyBoost, rowsOf, sealText, snippet, sourceLinkOf,
   str, tokens, trigramSim,
@@ -21,6 +25,8 @@ interface NewFact {
   layer: Layer; ownerRef: string; agentId: string | null; projectId: string | null; noteId?: string | null; kind: string | null; text: string; validFrom: number;
   sourceKind: SourceKind; sourceRef: string; sourcePerson: string; proposedBy: string; status: FactStatus; lowRisk: boolean; replaces?: string | null;
   promotedFrom?: string | null; promotedBy?: string | null; promotedAt?: number | null; links?: Array<[string, string]>;
+  /** The trail line this insert writes: create (the default), learn (captured by memory itself), edit (a correction), promote. */
+  how?: TrailAction; why?: string; who?: Who; runId?: string;
 }
 
 /** Insert one fact row (sealed when it is a person-layer fact) and its source links. */
@@ -40,6 +46,11 @@ function insertFact(ctx: MemCtx, n: NewFact): Fact {
   const f = loadFact(ctx, id);
   if (!f) raise(ctx, "internal.unexpected", "The fact was not saved.");
   f.text = n.text;
+  trail(ctx, {
+    action: n.how ?? "create", factId: id, layer: n.layer, ownerRef: n.ownerRef, agentId: n.agentId, projectId: n.projectId, ...(n.who ? { who: n.who } : {}),
+    source: `${n.sourceKind}:${n.sourceRef}`, ...(n.why ? { reason: n.why } : {}), ...(n.runId ? { runId: n.runId } : {}),
+    detail: { status: n.status, from: n.sourcePerson, ...(n.replaces ? { replaces: n.replaces } : {}), ...(n.promotedFrom ? { promotedFrom: n.promotedFrom } : {}) },
+  });
   return f;
 }
 
@@ -68,6 +79,14 @@ function emitProposed(ctx: MemCtx, f: Fact): void {
 
 function emitAccepted(ctx: MemCtx, f: Fact, auto: boolean): void {
   ctx.emit("memory.fact_accepted", f.id, { factId: f.id, layer: f.layer, auto });
+}
+
+/** The Learned feed reads this: what was learned, from where and by whom (ids and places only, never the text). */
+function emitLearned(ctx: MemCtx, f: Fact, saved: boolean, who: Who = whoIs(ctx)): void {
+  ctx.emit("memory.learned", f.id, {
+    factId: f.id, layer: f.layer, ownerRef: f.ownerRef, ...(f.agentId ? { agentId: f.agentId } : {}), sourceKind: f.sourceKind, sourceRef: f.sourceRef, actor: who.actor, actorKind: who.kind,
+    saved, from: f.sourcePerson,
+  });
 }
 
 /** Who may change this fact: a person layer only its owner, a shared layer anyone with edit on it. */
@@ -121,19 +140,29 @@ export async function proposeFact(ctx: MemCtx, input: ProposeIn) {
   if (dup) return { fact: factOut(dup), merged: dup.status === "current" };
 
   const low = input.kind !== undefined && (await autoMergeKinds(ctx)).includes(input.kind);
+  // An agent that saves a fact follows its own capture mode: auto saves it (and it shows in the Learned feed with Undo), propose waits for a person.
+  const modeAgent = ctx.principal.kind === "agent" ? ctx.principal.id : agentId;
+  const mode = modeAgent ? await captureModeOf(ctx, modeAgent) : null;
+  const byAgent = ctx.principal.kind === "agent";
+  const autoSave = mode === "auto" && byAgent;
   let status: FactStatus = "proposed";
-  if (input.sourceKind === "run" || input.sourceKind === "journey") status = "proposed";
+  if (autoSave) status = layer === "person" || (await access.can(layer, owner, agentId, projectId, "edit")) ? "current" : "proposed";
+  else if (input.sourceKind === "run" || input.sourceKind === "journey") status = "proposed";
   else if (layer === "project" && input.sourceKind === "channel") status = "current";
   else if (layer === "person") status = low || (input.sourceKind === "manual" && ctx.principal.kind === "person") ? "current" : "proposed";
   else if (low && (await access.can(layer, owner, agentId, projectId, "edit"))) status = "current";
+  // "Require review for shared memory": what an agent learns for the Space or a project waits in Proposed. A person typing a fact in themselves is not held back.
+  if (status === "current" && byAgent && (await reviewRequired(ctx, layer, layer === "project" ? projectId : null))) status = "proposed";
 
   const f = insertFact(ctx, {
     layer, ownerRef: owner, agentId: layer === "project" ? null : agentId, projectId: layer === "project" ? projectId : null, kind: input.kind ?? null, text,
     validFrom: input.validFrom ?? ctx.now(), sourceKind: input.sourceKind, sourceRef: input.sourceRef, sourcePerson: actor, proposedBy: ctx.principal.id, status, lowRisk: low,
     ...(input.threadId ? { links: [["thread", input.threadId]] as Array<[string, string]> } : {}),
+    ...(byAgent ? { how: "learn" as const } : {}),
   });
   emitProposed(ctx, f);
   if (status === "current") emitAccepted(ctx, f, true);
+  if (byAgent) emitLearned(ctx, f, status === "current");
   return { fact: factOut(f), merged: status === "current" };
 }
 
@@ -145,6 +174,7 @@ export async function factAccept(ctx: MemCtx, input: { factId: string }) {
   await needEdit(ctx, makeAccess(ctx), f);
   if (f.status !== "proposed") raise(ctx, "validation.precondition_failed", "Only a proposed fact can be accepted.", { status: f.status });
   ctx.db.run("UPDATE memory_facts SET status = 'current' WHERE id = ?", f.id);
+  trail(ctx, { action: "accept", factId: f.id, layer: f.layer, ownerRef: f.ownerRef, agentId: f.agentId, projectId: f.projectId });
   emitAccepted(ctx, f, false);
   return { fact: factOut({ ...f, status: "current" }) };
 }
@@ -154,7 +184,7 @@ export async function factReject(ctx: MemCtx, input: { factId: string }) {
   const f = needFact(ctx, input.factId);
   await needEdit(ctx, makeAccess(ctx), f);
   if (f.status !== "proposed") raise(ctx, "validation.bad_input", "Only a proposed fact can be rejected.", { status: f.status });
-  ctx.db.run("UPDATE memory_facts SET status = 'removed', closed_at = ? WHERE id = ?", ctx.now(), f.id);
+  trashFact(ctx, f, { reason: "rejected", action: "reject" });
   ctx.emit("memory.fact_rejected", f.id, { factId: f.id, by: actorOf(ctx) });
   return { fact: factOut({ ...f, status: "removed", closedAt: ctx.now() }) };
 }
@@ -171,6 +201,7 @@ export async function factCorrect(ctx: MemCtx, input: { factId: string; text: st
   const fresh = insertFact(ctx, {
     layer: old.layer, ownerRef: old.ownerRef, agentId: old.agentId, projectId: old.projectId, noteId: old.noteId, kind: old.kind, text, validFrom: input.validFrom ?? now,
     sourceKind: "manual", sourceRef: old.id, sourcePerson: actorOf(ctx), proposedBy: ctx.principal.id, status: "current", lowRisk: false, replaces: old.id,
+    how: "edit", why: "corrected",
   });
   ctx.emit("memory.fact_corrected", fresh.id, { factId: fresh.id, closedFactId: old.id, by: actorOf(ctx) });
   return { fact: factOut(fresh), closed: factOut({ ...old, status: "closed", validTo: now, closedAt: now }) };
@@ -192,7 +223,6 @@ export async function factsRemove(ctx: MemCtx, input: { factIds?: string[]; scop
     if (s.fromMe) { sql += " AND source_person = ?"; args.push(me); }
     rows = rowsOf(ctx.db, sql, ...args);
   } else raise(ctx, "validation.bad_input", "Name the facts to remove, or a layer.");
-  const now = ctx.now();
   const removed: string[] = [];
   for (const r of rows) {
     const f = readFact(ctx, r);
@@ -201,7 +231,7 @@ export async function factsRemove(ctx: MemCtx, input: { factIds?: string[]; scop
       if (input.factIds) raise(ctx, "permission.no_grant", "You cannot change this memory.");
       continue;
     }
-    ctx.db.run("UPDATE memory_facts SET status = 'removed', closed_at = ?, valid_to = COALESCE(valid_to, ?) WHERE id = ?", now, now, f.id);
+    if (!trashFact(ctx, f, { reason: "removed" })) continue;
     removed.push(f.id);
   }
   if (removed.length > 0) ctx.emit("memory.removed", me, { factIds: removed, by: me });
@@ -243,8 +273,16 @@ export async function erase(ctx: MemCtx, input: { factIds?: string[]; scope?: { 
     }
   }
   for (const id of all) {
+    // The line the trail keeps says that a fact was erased, by whom, when and where it lived. It never holds the words.
+    const r = rowsOf(ctx.db, "SELECT layer, owner_ref, agent_id, project_id FROM memory_facts WHERE id = ?", id)[0];
+    trail(ctx, {
+      action: "erase", factId: id, ...(r ? { layer: str(r["layer"]) as Layer, ownerRef: str(r["owner_ref"]), agentId: orNull(r["agent_id"]), projectId: orNull(r["project_id"]) } : {}),
+      ...(input.reason ? { reason: input.reason } : {}),
+    });
     ctx.db.run("DELETE FROM memory_fact_links WHERE fact_id = ?", id);
     ctx.db.run("DELETE FROM memory_promotions WHERE fact_id = ?", id);
+    ctx.db.run("DELETE FROM memory_vectors WHERE doc_kind = 'fact' AND doc_id = ?", id);
+    ctx.db.run("DELETE FROM memory_questions WHERE fact_a = ? OR fact_b = ?", id, id);
     ctx.db.run("DELETE FROM memory_facts WHERE id = ?", id);
   }
   ctx.emit("memory.erased", me, { count: all.size, by: me, ...(input.scope ? { scope: input.scope.layer } : {}) });
@@ -260,6 +298,7 @@ export async function factGet(ctx: MemCtx, input: { factId: string }) {
   if (f.layer === "person" ? f.ownerRef !== actorOf(ctx) : !(await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view"))) {
     raise(ctx, "validation.not_found", "There is no such fact.", { factId: input.factId });
   }
+  touchIfTrashed(ctx, f);
   const history: Fact[] = [];
   const seen = new Set<string>([f.id]);
   for (let cur = f.replaces; cur && !seen.has(cur);) {
@@ -658,7 +697,7 @@ function applyPromotion(ctx: MemCtx, p: Promotion, by: string): Fact {
   const copy = insertFact(ctx, {
     layer: p.toLayer, ownerRef: ownerOfLayer(ctx, p.toLayer, by, p.agentId, p.projectId), agentId: p.toLayer === "agent" ? p.agentId : null, projectId: p.toLayer === "project" ? p.projectId : null,
     kind: src.kind, text, validFrom: src.validFrom, sourceKind: src.sourceKind, sourceRef: src.sourceRef, sourcePerson: src.sourcePerson, proposedBy: p.requestedBy, status: "current",
-    lowRisk: src.lowRisk, promotedFrom: src.id, promotedBy: by, promotedAt: ctx.now(), links: [["promoted_from", src.id]],
+    lowRisk: src.lowRisk, promotedFrom: src.id, promotedBy: by, promotedAt: ctx.now(), links: [["promoted_from", src.id]], how: "promote",
   });
   ctx.db.run("UPDATE memory_promotions SET status = 'approved', decided_by = ?, decided_at = ?, new_fact_id = ? WHERE id = ?", by, ctx.now(), copy.id, p.id);
   ctx.emit("memory.promoted", copy.id, { promotionId: p.id, factId: src.id, newFactId: copy.id, toLayer: p.toLayer, by });
@@ -757,6 +796,8 @@ export async function promotionUndo(ctx: MemCtx, input: { promotionId: string })
   if (!mayUndo) raise(ctx, "permission.no_grant", "Only the person who promoted it or someone who can edit this memory can undo it.");
   const now = ctx.now();
   ctx.db.run("UPDATE memory_facts SET status = 'closed', valid_to = ?, closed_at = ? WHERE id = ? AND status = 'current'", now, now, p.newFactId);
+  const copy = loadFact(ctx, p.newFactId);
+  trail(ctx, { action: "edit", factId: p.newFactId, ...(copy ? { layer: copy.layer, ownerRef: copy.ownerRef, agentId: copy.agentId, projectId: copy.projectId } : {}), reason: "promotion undone", detail: { promotionId: p.id } });
   ctx.db.run("UPDATE memory_promotions SET status = 'undone', decided_by = ?, decided_at = ? WHERE id = ?", me, now, p.id);
   ctx.emit("memory.promotion_undone", p.factId, { promotionId: p.id, factId: p.factId, by: me });
   return { ok: true };
@@ -801,11 +842,13 @@ export function setCaptureExtractor(fn: Extractor | null): void {
 
 interface ThreadOut { thread: { kind: string; starter?: string; scopeType?: string; scopeId?: string; agents: Array<{ agentId: string; mode: string }> } }
 
-async function captureModeOf(ctx: MemCtx, agentId: string): Promise<"propose" | "auto_low_risk" | "off" | null> {
+type CaptureMode = "auto" | "propose" | "auto_low_risk" | "off";
+
+async function captureModeOf(ctx: MemCtx, agentId: string): Promise<CaptureMode | null> {
   try {
     const out = (await ctx.call("agents.get", { agentId })) as { agent?: { captureMode?: string } };
     const m = out.agent?.captureMode;
-    return m === "off" || m === "propose" || m === "auto_low_risk" ? m : null;
+    return m === "off" || m === "propose" || m === "auto_low_risk" || m === "auto" ? m : null;
   } catch { return null; }
 }
 
@@ -817,27 +860,33 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
   const shared = t.kind === "channel" || t.kind === "thread";
   const fromRun = t.kind === "run";
   const projectId = shared && t.scopeType === "project" && t.scopeId ? t.scopeId : null;
-  // The lead agent's captureMode decides what a chat may leave behind: off saves nothing, propose leaves every fact for a person to accept, auto_low_risk merges the low-risk kinds.
-  // An agent that cannot be read leaves the Space setting in charge, as before.
+  // The lead agent's captureMode decides what a chat may leave behind: auto (the default) saves everything it learns and shows it in the Learned feed with Undo, propose leaves every fact for a person
+  // to accept, auto_low_risk merges the low-risk kinds, off saves nothing. An agent that cannot be read leaves the Space setting in charge, as before.
   const mode = agentId ? await captureModeOf(ctx, agentId) : null;
   if (mode === "off") return { proposed: 0, merged: 0 };
+  const auto = mode === "auto";
   const kinds = mode === "propose" ? [] : await autoMergeKinds(ctx);
+  // Memory itself learned these: the actor on the trail is the lead agent when there is one, else whoever captured.
+  const who: Who = agentId ? { actor: agentId, kind: "agent" } : whoIs(ctx);
   let proposed = 0;
   let merged = 0;
   for (const c of await extractor(page.messages)) {
     const key = `${input.threadId}:${c.messageId}:${c.index}`;
     if (rowsOf(ctx.db, "SELECT fact_id FROM memory_fact_links WHERE kind = 'capture' AND ref = ?", key)[0]) continue;
     let layer: Layer = "person";
-    let status: FactStatus = kinds.includes(c.kind) ? "current" : "proposed";
+    let status: FactStatus = auto || kinds.includes(c.kind) ? "current" : "proposed";
     let sourceKind: SourceKind = "chat";
-    if (fromRun) { layer = "agent"; status = "proposed"; sourceKind = "run"; }
-    else if (shared) { sourceKind = "channel"; if (projectId) { layer = "project"; status = "current"; } else { layer = agentId ? "agent" : "space"; status = "proposed"; } }
+    if (fromRun) { layer = "agent"; status = auto ? "current" : "proposed"; sourceKind = "run"; }
+    else if (shared) { sourceKind = "channel"; if (projectId) { layer = "project"; status = "current"; } else { layer = agentId ? "agent" : "space"; status = auto ? "current" : "proposed"; } }
+    // "Require review for shared memory": a Space or project fact waits in Proposed whatever the mode.
+    if (status === "current" && (await reviewRequired(ctx, layer, projectId))) status = "proposed";
     const owner = layer === "person" ? c.person : layer === "agent" ? agentId ?? "" : layer === "project" ? projectId ?? "" : ctx.space;
     const f = insertFact(ctx, {
       layer, ownerRef: owner, agentId: layer === "project" || layer === "space" ? null : agentId, projectId: layer === "project" ? projectId : null, kind: c.kind, text: c.text, validFrom: ctx.now(),
-      sourceKind, sourceRef: input.threadId, sourcePerson: c.person, proposedBy: ctx.principal.id, status, lowRisk: kinds.includes(c.kind), links: [["capture", key]],
+      sourceKind, sourceRef: input.threadId, sourcePerson: c.person, proposedBy: ctx.principal.id, status, lowRisk: kinds.includes(c.kind), links: [["capture", key]], how: "learn", who,
     });
     emitProposed(ctx, f);
+    emitLearned(ctx, f, status === "current", who);
     proposed++;
     if (status === "current") { emitAccepted(ctx, f, true); merged++; }
   }
@@ -881,9 +930,8 @@ export async function maintain(ctx: MemCtx, input: { agentId?: string }) {
   for (const r of rows) {
     const k = `${str(r["layer"])}|${str(r["owner_ref"])}|${str(r["agent_id"])}|${str(r["project_id"])}|${normal(str(r["text"]))}`;
     if (keep.has(k)) {
-      ctx.db.run("UPDATE memory_facts SET status = 'closed', valid_to = ?, closed_at = ? WHERE id = ?", now, now, str(r["id"]));
-      merged++;
-      closed++;
+      // A merged-away copy goes to Trash (its row is kept, with a pointer to the fact that stayed), not out of history.
+      if (trashFact(ctx, readFact(ctx, r), { reason: "duplicate", action: "merge", mergedInto: keep.get(k) as string, who: { actor: "upkeep", kind: "upkeep" }, source: "upkeep:rule" })) merged++;
     } else keep.set(k, str(r["id"]));
   }
   // MAP.md for each agent: its notes and current facts, under 200 lines. Personal layers never go in.
