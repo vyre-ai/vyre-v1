@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import type { EngineAgent, SessionSpec, StoredMessage, TurnInput } from "../../turn-engine/types.ts";
 import type { SessionContext } from "./session.ts";
-import type { AccountRef, Authorizer, Clock, Fetch, FetchResponse, ProviderId } from "./types.ts";
+import type { AccountRef, Authorizer, Clock, Fetch, FetchResponse, ApiId, ProviderId } from "./types.ts";
 
 export function fixture(name: string, opts: { crlf?: boolean } = {}): string {
   const text = readFileSync(new URL(`./fixtures/${name}.sse`, import.meta.url), "utf8");
@@ -140,7 +140,7 @@ export function gate(): Gate {
 export const KEY = "sk-test-0123456789abcdef";
 
 /** The fake Vault filler: the header each provider takes, the account ref as the key's handle. */
-export const authorize: Authorizer = async (_acct: AccountRef, provider: ProviderId) => {
+export const authorize: Authorizer = async (_acct: AccountRef, provider: ApiId) => {
   if (provider === "anthropic") return { "x-api-key": KEY };
   if (provider === "google") return { "x-goog-api-key": KEY };
   return { authorization: `Bearer ${KEY}` };

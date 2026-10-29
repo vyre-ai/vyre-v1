@@ -132,9 +132,44 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: runner.os == 'macOS'
         with: { name: desktop-macOS-sha256, path: dmg-sum, if-no-files-found: error }
+      - name: The update bundle Vyre.app.tar.gz and its BLAKE2b-512 digest, the one line that goes through sign (the app updates itself from it, scripts/release/updater.ts)
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          mkdir -p upd-sum upd-bundle
+          COPYFILE_DISABLE=1 tar -czf upd-bundle/Vyre.app.tar.gz -C apps/desktop/src-tauri/target/release/bundle/macos Vyre.app
+          node scripts/release/cli.ts updater-digest upd-bundle/Vyre.app.tar.gz > upd-sum/Vyre.app.tar.gz.b2
+          cat upd-sum/Vyre.app.tar.gz.b2
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'macOS'
+        with: { name: desktop-macOS-update-sum, path: upd-sum, if-no-files-found: error }
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'macOS'
+        with: { name: desktop-macOS-update, path: upd-bundle, if-no-files-found: error }
       - name: Exercise the packaged Windows shell and capture it
         if: runner.os == 'Windows'
         run: apps/desktop/src-tauri/ci/run-shell.sh "$PWD/apps/desktop/src-tauri/target/release/vyre-desktop.exe" "$PWD/out"
+      - name: The Windows installer as VyreSetup.exe (the name install.ps1 downloads) and its SHA-256, a small file the release carries instead of the installer until publish
+        if: runner.os == 'Windows'
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          # Tauri names the installer <productName>_<version>_<arch>-setup.exe
+          exes=(apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe)
+          [ "${#exes[@]}" -eq 1 ] || { echo "expected exactly one Windows installer, found ${#exes[@]}"; exit 1; }
+          mkdir -p win-exe win-sum
+          cp "${exes[0]}" win-exe/VyreSetup.exe
+          (cd win-exe && sha256sum VyreSetup.exe) > win-sum/VyreSetup.exe.sha256
+          cat win-sum/VyreSetup.exe.sha256
+          # the same installer is the Windows update bundle: its BLAKE2b-512 digest goes through sign beside the SHA-256
+          node scripts/release/cli.ts updater-digest win-exe/VyreSetup.exe > win-sum/VyreSetup.exe.b2
+          cat win-sum/VyreSetup.exe.b2
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with: { name: desktop-Windows-sha256, path: win-sum, if-no-files-found: error }
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with: { name: desktop-Windows-exe, path: win-exe, if-no-files-found: error }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
