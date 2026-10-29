@@ -4,7 +4,7 @@
 // DECISION: "Working" is the awake state; an awake computer with nothing to do is Working without a caption. Idle sleep is the job sleepIdle (the host schedules it), not a capability.
 // DECISION: Take over wakes a sleeping computer first, then pauses the agent's tools and hands the desktop to the person; a person must act (an agent cannot take over).
 import {
-  actorOf, addStep, boundFill, computerBy, computerOut, computerOf, DEFAULT_IDLE_MINUTES, DEFAULT_TAB_LIMIT, dropFill, ensure, holdFill, hostOf, boundHost, mintId, mintTicket, needComputer, needTeam, raise, rowsOf, setComputer, setStepCaption,
+  actorOf, addStep, boundFill, computerBy, computerOut, computerOf, DEFAULT_IDLE_MINUTES, DEFAULT_TAB_LIMIT, dropFill, ensure, holdFill, hostFor, hostOf, boundHost, mintId, nodeOf, mintTicket, needComputer, needTeam, raise, rowsOf, setComputer, setStepCaption,
 } from "../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, Probe, SessionInfo } from "../projections.ts";
 import { finishRecording } from "./record.ts";
@@ -27,7 +27,7 @@ function personOf(ctx: CompCtx): string {
 
 /** Read what the running container reports (tabs, caption, last frame) into the row. A computer whose container is gone is marked as an error, not left looking awake. */
 async function refresh(ctx: CompCtx, c: ComputerRow): Promise<ComputerRow> {
-  const host = boundHost();
+  const host = hostFor(ctx, c.computerId);
   if (!host || (c.state !== "working" && c.state !== "takeover")) return c;
   try {
     const p = await host.probe(c.computerId);
@@ -87,24 +87,42 @@ export async function health(ctx: CompCtx, _input: Record<string, never>) {
 
 // ---- provision, configure, remove
 
-export async function provision(ctx: CompCtx, input: { agentId: string; tabLimit?: number; idempotencyKey: string }) {
+async function nodeIsListed(ctx: CompCtx, nodeId: string): Promise<boolean> {
+  try { return (((await ctx.call("network.servers", {})) as { servers?: Array<{ serverId: string }> }).servers ?? []).some((r) => r.serverId === nodeId); } catch { return true; }
+}
+
+/** The node a computer may be placed on: a computer that joined, was approved, and (when it is a person's own) belongs to the agent's owner. */
+async function placeable(ctx: CompCtx, nodeId: string, agentId: string): Promise<void> {
+  let rows: Array<{ serverId: string; role?: string; enrollment?: string; owner?: string }> = [];
+  try { rows = ((await ctx.call("network.servers", {})) as { servers?: typeof rows }).servers ?? []; } catch { /* no list, no placement */ }
+  const node = rows.find((r) => r.serverId === nodeId);
+  if (!node || node.role !== "compute" || (node.enrollment !== undefined && node.enrollment !== "approved")) raise(ctx, "validation.bad_input", "That computer has not joined this Space.", { nodeId });
+  if (node.owner) {
+    let owner: string | undefined;
+    try { owner = ((await ctx.call("agents.get", { agentId })) as { agent?: { ownerId?: string } }).agent?.ownerId; } catch { /* unknown owner */ }
+    if (owner !== node.owner) raise(ctx, "permission.no_grant", "That is someone's own computer. It runs only that person's agents.", { nodeId });
+  }
+}
+
+export async function provision(ctx: CompCtx, input: { agentId: string; tabLimit?: number; nodeId?: string; idempotencyKey: string }) {
   ensure(ctx.db);
   needTeam(ctx);
-  const host = hostOf(ctx);
+  const host = input.nodeId === undefined ? hostOf(ctx) : null;
   try {
     await ctx.call("agents.get", { agentId: input.agentId });
   } catch {
     raise(ctx, "validation.bad_input", "There is no such agent.", { agentId: input.agentId });
   }
   if (rowsOf(ctx.db, "SELECT computer_id FROM computers_computers WHERE agent_id = ?", input.agentId)[0]) raise(ctx, "validation.duplicate", "This agent already has a computer.", { agentId: input.agentId });
+  if (input.nodeId !== undefined) await placeable(ctx, input.nodeId, input.agentId);
   const computerId = mintId("cmt", ctx.now());
   const tabLimit = input.tabLimit ?? DEFAULT_TAB_LIMIT;
   ctx.db.run(
-    "INSERT INTO computers_computers (computer_id, agent_id, state, tabs, tab_limit, idle_sleep_minutes, host, created_at) VALUES (?, ?, 'provisioning', 0, ?, ?, ?, ?)",
-    computerId, input.agentId, tabLimit, DEFAULT_IDLE_MINUTES, host.kind, ctx.now(),
+    "INSERT INTO computers_computers (computer_id, agent_id, state, tabs, tab_limit, idle_sleep_minutes, host, node_id, created_at) VALUES (?, ?, 'provisioning', 0, ?, ?, ?, ?, ?)",
+    computerId, input.agentId, tabLimit, DEFAULT_IDLE_MINUTES, "server", input.nodeId ?? null, ctx.now(),
   );
   try {
-    const made = await host.create({ computerId, agentId: input.agentId, tabLimit, idleSleepMinutes: DEFAULT_IDLE_MINUTES });
+    const made = await (host ?? hostOf(ctx, computerId)).create({ computerId, agentId: input.agentId, tabLimit, idleSleepMinutes: DEFAULT_IDLE_MINUTES });
     setComputer(ctx.db, computerId, { state: "asleep", ...(made.diskBytes !== undefined ? { disk_bytes: made.diskBytes } : {}) });
   } catch (e) {
     ctx.db.run("DELETE FROM computers_computers WHERE computer_id = ?", computerId);
@@ -124,7 +142,7 @@ export async function configure(ctx: CompCtx, input: { computerId: string; tabLi
   if (input.idleSleepMinutes !== undefined) { fields.push("idleSleepMinutes"); cols["idle_sleep_minutes"] = input.idleSleepMinutes; }
   if (fields.length === 0) raise(ctx, "validation.bad_input", "Name the tab limit or the idle sleep to change.");
   setComputer(ctx.db, c.computerId, cols);
-  const host = boundHost();
+  const host = hostFor(ctx, c.computerId);
   if (host && input.tabLimit !== undefined && AWAKE.has(c.state)) {
     try { await host.configure({ computerId: c.computerId, tabLimit: input.tabLimit }); } catch { ctx.log.warn("the running computer did not take the new tab limit", { computerId: c.computerId }); }
   }
@@ -136,14 +154,17 @@ export async function remove(ctx: CompCtx, input: { computerId: string }) {
   ensure(ctx.db);
   needTeam(ctx);
   const c = needComputer(ctx, input.computerId);
-  const host = hostOf(ctx);
+  const host = hostOf(ctx, c.computerId);
   if (c.state === "takeover") raise(ctx, "validation.bad_input", "A person has the controls; they give it back first.");
   if (c.recordingId) raise(ctx, "validation.bad_input", "A recording is running; stop it first.");
   if (AWAKE.has(c.state)) {
     try { await host.stop({ computerId: c.computerId, reason: "remove" }); } catch { /* the container is removed next */ }
   }
   dropFill(c.computerId);
-  await host.remove(c.computerId);
+  try { await host.remove(c.computerId); } catch (e) {
+    // a computer whose node was removed from the Space has nothing left to answer: its row goes, and what was on that machine went with the machine's own wipe
+    if (c.nodeId === undefined || (await nodeIsListed(ctx, c.nodeId))) throw e;
+  }
   for (const t of ["computers_sessions", "computers_tickets", "computers_timeline", "computers_computers"]) ctx.db.run(`DELETE FROM ${t} WHERE computer_id = ?`, c.computerId);
   ctx.emit("computer.removed", c.computerId, { computerId: c.computerId, agentId: c.agentId });
   return { removed: true };
@@ -166,6 +187,7 @@ function storeSessions(ctx: CompCtx, computerId: string, sessions: readonly Sess
 async function connectFill(ctx: CompCtx, host: ComputerHost, c: ComputerRow): Promise<void> {
   const binding = boundFill();
   if (!binding) return;
+  if (nodeOf(ctx.db, c.computerId) !== null) return;   // the Vault channel reaches the Space from the computer; a computer on a node has none yet (BACKLOG)
   let grant: { fillToken: string; revoke(): void } | null = null;
   try {
     const out = (await ctx.call("agents.get", { agentId: c.agentId })) as { agent?: { ownerId?: string } };
@@ -184,7 +206,7 @@ export async function awaken(ctx: CompCtx, c: ComputerRow, by: string): Promise<
   if (c.state === "working" || c.state === "takeover") return c;
   if (c.state === "provisioning") raise(ctx, "validation.bad_input", "This computer is still being set up.");
   if (c.state === "waking") return c;
-  const host = hostOf(ctx);
+  const host = hostOf(ctx, c.computerId);
   setComputer(ctx.db, c.computerId, { state: "waking", error: null });
   try {
     await host.start({ computerId: c.computerId, tabLimit: c.tabLimit, agentId: c.agentId });
@@ -206,7 +228,7 @@ export async function wake(ctx: CompCtx, input: { computerId: string }) {
 }
 
 async function putToSleep(ctx: CompCtx, c: ComputerRow, reason: "idle" | "requested"): Promise<void> {
-  const host = hostOf(ctx);
+  const host = hostOf(ctx, c.computerId);
   let out: { sessions?: SessionInfo[]; diskBytes?: number };
   try {
     out = await host.stop({ computerId: c.computerId, reason, agentId: c.agentId });
@@ -229,7 +251,7 @@ export async function sleep(ctx: CompCtx, input: { computerId: string }) {
   if (c0.state === "waking" || c0.state === "provisioning") raise(ctx, "validation.precondition_failed", "This computer is still starting.");
   if (c0.recordingId) raise(ctx, "validation.precondition_failed", "A recording is running.");
   const c = await refresh(ctx, c0);
-  const probe = await hostOf(ctx).probe(c.computerId).catch(() => null);
+  const probe = await hostOf(ctx, c.computerId).probe(c.computerId).catch(() => null);
   if (probe?.busy) raise(ctx, "validation.precondition_failed", "A task is running on this computer. It sleeps when the task ends.", { caption: probe.caption });
   await putToSleep(ctx, c, "requested");
   return { computer: computerOut(needComputer(ctx, c.computerId)) };
@@ -238,10 +260,11 @@ export async function sleep(ctx: CompCtx, input: { computerId: string }) {
 /** The idle job: every awake computer with nothing running that has been quiet for its idle time goes to sleep. Never mid-task, never with a person at the controls or a recording running. */
 export async function sleepIdle(ctx: CompCtx): Promise<number> {
   ensure(ctx.db);
-  const host = boundHost();
-  if (!host) return 0;
+  if (!boundHost() && rowsOf(ctx.db, "SELECT 1 FROM computers_computers WHERE node_id IS NOT NULL LIMIT 1").length === 0) return 0;
   let slept = 0;
   for (const c of rowsOf(ctx.db, "SELECT * FROM computers_computers WHERE state = 'working' AND recording_id IS NULL").map(computerOf)) {
+    const host = hostFor(ctx, c.computerId);
+    if (!host) continue;
     let p: Probe;
     try { p = await host.probe(c.computerId); } catch { continue; }
     if (!p.running) { setComputer(ctx.db, c.computerId, { state: "error", error: "The computer stopped on its own." }); continue; }
@@ -273,7 +296,7 @@ export async function takeOver(ctx: CompCtx, input: { computerId: string }) {
   }
   if (c.state === "provisioning" || c.state === "waking") raise(ctx, "validation.precondition_failed", "This computer is still starting.");
   c = await awaken(ctx, c, person);
-  const host = hostOf(ctx);
+  const host = hostOf(ctx, c.computerId);
   try {
     await host.takeover({ computerId: c.computerId, personId: person });
   } catch {
@@ -298,7 +321,7 @@ export async function giveBack(ctx: CompCtx, input: { computerId: string }) {
   }
   if (c.recordingId) await finishRecording(ctx, c);
   try {
-    await hostOf(ctx).giveBack(c.computerId);
+    await hostOf(ctx, c.computerId).giveBack(c.computerId);
   } catch {
     raise(ctx, "internal.unexpected", "The computer did not take the controls back. Try again.");
   }
@@ -314,7 +337,7 @@ export async function sessionsList(ctx: CompCtx, input: { computerId: string }) 
   ensure(ctx.db);
   needTeam(ctx);
   const c = needComputer(ctx, input.computerId);
-  const host = boundHost();
+  const host = hostFor(ctx, c.computerId);
   if (host && (c.state === "working" || c.state === "takeover")) {
     try { storeSessions(ctx, c.computerId, await host.sessions(c.computerId)); } catch { /* the last list stays */ }
   }
@@ -333,7 +356,7 @@ export async function sessionSignOut(ctx: CompCtx, input: { computerId: string; 
   if (site === "") raise(ctx, "validation.bad_input", "Name the site to sign out of.");
   const c = await awaken(ctx, needComputer(ctx, input.computerId), actorOf(ctx));
   let ok: boolean;
-  try { ok = await hostOf(ctx).signOut({ computerId: c.computerId, site }); } catch { raise(ctx, "internal.unexpected", "The computer did not sign out. Try again."); }
+  try { ok = await hostOf(ctx, c.computerId).signOut({ computerId: c.computerId, site }); } catch { raise(ctx, "internal.unexpected", "The computer did not sign out. Try again."); }
   if (!ok) return { ok: false };
   ctx.db.run("DELETE FROM computers_sessions WHERE computer_id = ? AND site = ?", c.computerId, site);
   ctx.emit("computer.session_signed_out", c.computerId, { computerId: c.computerId, site, by: actorOf(ctx) });

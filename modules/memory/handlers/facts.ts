@@ -479,7 +479,7 @@ export const POINTER_MIN_MASS = 0.8;
 export const POINTER_MAX_LINES = 5;
 export const POINTER_MAX_TOKENS = 350;
 
-export interface PointerLine { title: string; fact?: string; trueSince?: number; path: string }
+export interface PointerLine { title: string; fact?: string; trueSince?: number; path: string; sourceLink?: string }
 export interface PointerOut { lines: PointerLine[]; tokens: number; skipped?: "short_ack" | "mid_tool_loop" | "no_match" | "duplicate" }
 
 export async function pointer(ctx: MemCtx, input: { threadId: string; agentId: string; text: string; sinceIdx?: number }): Promise<PointerOut> {
@@ -509,7 +509,7 @@ export async function pointer(ctx: MemCtx, input: { threadId: string; agentId: s
     const ref = `${d.kind}:${d.id}`;
     if (shown.has(ref)) continue;
     const line: PointerLine = d.kind === "fact"
-      ? { title: d.title, fact: d.text.length > 160 ? `${d.text.slice(0, 157)}...` : d.text, ...(d.since !== null ? { trueSince: d.since } : {}), path: d.path ?? `memory/${d.layer}` }
+      ? { title: d.title, fact: d.text.length > 160 ? `${d.text.slice(0, 157)}...` : d.text, ...(d.since !== null ? { trueSince: d.since } : {}), path: d.path ?? `memory/${d.layer}`, ...(d.link ? { sourceLink: d.link } : {}) }
       : { title: d.title, path: d.path ?? `memory/${d.layer}` };
     const cost = Math.ceil((line.title.length + (line.fact?.length ?? 0) + line.path.length + 12) / 4);
     if (tokenCount + cost > POINTER_MAX_TOKENS && lines.length > 0) break;
@@ -777,10 +777,13 @@ const PATTERNS: Array<{ kind: string; re: RegExp }> = [
 ];
 
 /** The default extractor: rules over the sentences people wrote. The host binds a cheap-model pass over this with setCaptureExtractor. */
+/** A body that is still an envelope (modules/chat/handlers/private.ts) cannot be read here. A private chat is flagged enc even when its body arrived as text, and that text is the person's own to remember. */
+const sealed = (m: CaptureMessage): boolean => Boolean(m.enc) && /^enc2\.\d+\./.test(m.body);
+
 export function heuristicExtract(messages: CaptureMessage[]): Candidate[] {
   const out: Candidate[] = [];
   for (const m of messages) {
-    if (m.author.kind !== "person" || m.enc) continue;
+    if (m.author.kind !== "person" || sealed(m)) continue;
     const sentences = m.body.split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter((s) => s.length >= 8 && s.length <= 300 && !s.endsWith("?"));
     sentences.forEach((s, index) => {
       const hit = PATTERNS.find((p) => p.re.test(s));
@@ -798,6 +801,14 @@ export function setCaptureExtractor(fn: Extractor | null): void {
 
 interface ThreadOut { thread: { kind: string; starter?: string; scopeType?: string; scopeId?: string; agents: Array<{ agentId: string; mode: string }> } }
 
+async function captureModeOf(ctx: MemCtx, agentId: string): Promise<"propose" | "auto_low_risk" | "off" | null> {
+  try {
+    const out = (await ctx.call("agents.get", { agentId })) as { agent?: { captureMode?: string } };
+    const m = out.agent?.captureMode;
+    return m === "off" || m === "propose" || m === "auto_low_risk" ? m : null;
+  } catch { return null; }
+}
+
 export async function capture(ctx: MemCtx, input: { threadId: string; reason: "closed" | "idle" }) {
   ensure(ctx.db);
   const t = ((await ctx.call("threads.get", { threadId: input.threadId })) as ThreadOut).thread;
@@ -806,7 +817,11 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
   const shared = t.kind === "channel" || t.kind === "thread";
   const fromRun = t.kind === "run";
   const projectId = shared && t.scopeType === "project" && t.scopeId ? t.scopeId : null;
-  const kinds = await autoMergeKinds(ctx);
+  // The lead agent's captureMode decides what a chat may leave behind: off saves nothing, propose leaves every fact for a person to accept, auto_low_risk merges the low-risk kinds.
+  // An agent that cannot be read leaves the Space setting in charge, as before.
+  const mode = agentId ? await captureModeOf(ctx, agentId) : null;
+  if (mode === "off") return { proposed: 0, merged: 0 };
+  const kinds = mode === "propose" ? [] : await autoMergeKinds(ctx);
   let proposed = 0;
   let merged = 0;
   for (const c of await extractor(page.messages)) {
