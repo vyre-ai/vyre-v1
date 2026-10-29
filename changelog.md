@@ -1,6 +1,5 @@
 # Changelog
 
-- Records table: the drawn columns reach one 40 px scroll step past the right edge instead of 240 px, so a vertical scroll mounts about a quarter fewer cells per row; every on-screen column stays drawn at any rounded scroll position (tested).
 - The shots perf job (startup, scroll and browser budgets) runs on the dedicated v1-perf-wide host instead of the shared v1-perf runners, whose co-tenant CI jobs moved the same head's phone cold start by 500 ms between runs.
 - Records 100k scroll: a moving scroll keeps FLING_OVERSCAN rows ahead but only a few behind (it carried twelve rows it had left), and the chip dot sits by its bottom margin instead of position: relative, which made every dot a paint layer; pixels unchanged.
 - Phone cold start: the service worker registers once the app marks itself usable (or 5 s after load), not at the load event, which fires while React is still hydrating; its install fetched every place and cached the scripts alongside startup.
