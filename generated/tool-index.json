@@ -5798,6 +5798,12 @@
     },
     {
       "deferred": false,
+      "name": "search_resolve",
+      "summary": "One indexed item by kind and id, if the caller may see it; a record names its record type",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "sessions_continue",
       "summary": "Start a separate live Vyre chat linked to an immutable imported conversation; it never writes back to the local provider store",
       "toolset": "chats"

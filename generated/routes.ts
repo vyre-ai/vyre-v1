@@ -22267,6 +22267,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/search/resolve",
+    "cap": "search.resolve",
+    "v": 1,
+    "module": "search",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/sessions/continue",
     "cap": "sessions.continue",
     "v": 1,

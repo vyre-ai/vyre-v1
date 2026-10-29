@@ -128,3 +128,17 @@ test("merge: the device's answer first, a thing in both once with what the serve
   assert.deepEqual(mergeHits(local, []).map((x) => x.id), ["usr_elena", "rec_a"], "the server has not answered yet");
   assert.equal(mergeHits([local[0]!, local[0]!], []).length, 1, "a repeated local hit is shown once");
 });
+
+test("resolve names one visible item, a record's type included, and nothing for one the asker may not see", async () => {
+  const h = harness();
+  seed(h, { id: "rec_open", title: "Open contact", kind: "record", recordType: "contact" });
+  seed(h, { id: "rec_hidden", title: "Hidden contact", kind: "record", recordType: "contact" });
+  h.deny("record:rec_hidden");
+  const { resolveItem } = await import("../handlers/query.ts");
+  const open = await resolveItem(h.ctx, { kind: "record", itemId: "rec_open" });
+  assert.equal(open.hit?.recordType, "contact");
+  assert.deepEqual(await resolveItem(h.ctx, { kind: "record", itemId: "rec_hidden" }), {});
+  assert.deepEqual(await resolveItem(h.ctx, { kind: "record", itemId: "rec_missing" }), {});
+  seed(h, { id: "fld_x", title: "A folder", kind: "folder" });
+  assert.equal((await resolveItem(h.ctx, { kind: "folder", itemId: "fld_x" })).hit?.recordType, undefined, "only a record hit names a type");
+});

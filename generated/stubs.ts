@@ -1686,6 +1686,7 @@ export function stubs(ctx: CallCtx) {
         record: call("search.recent.record"),
       },
       related: call("search.related"),
+      resolve: call("search.resolve"),
     },
     sessions: {
       continue: call("sessions.continue"),

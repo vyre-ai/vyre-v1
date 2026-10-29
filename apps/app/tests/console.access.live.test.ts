@@ -160,6 +160,34 @@ test("production Console Access: People directory, person object, groups, device
       assert.equal((await call("identity.whoami", {}, maya.token)).status, 401, "the revoked device's token stops working");
       await matrix("person-object-access", async (p) => { await toPeople(p); await p.getByTestId(`row-object-row-console-person-${priya.personId}`).click(); await p.getByRole("tab", { name: /^Access/ }).click(); await p.getByTestId("person-effective").waitFor(); });
     });
+    await t.test("a grant on one record resolves the record's type and hides the chosen field, enforced for the recipient", async () => {
+      const guest = await join("gus", "Gus Hale", "Guest");
+      const rec = (await api("records.create", { type: "contact", fields: { name: "Zephyr Quill", phone: "555-0100" }, idempotencyKey: "grant-rec" })).record.id as string;
+      let indexed = false; for (let i = 0; i < 100 && !indexed; i++) { const hits = (await api("search.query", { q: "Zephyr", types: ["record"] })).hits as { id: string }[]; indexed = hits.some((h) => h.id === rec); if (!indexed) await new Promise((r) => setTimeout(r, 200)); }
+      assert.ok(indexed, "the record reaches the search index " + JSON.stringify(await api("search.query", { q: "Quill" })) + JSON.stringify(await api("search.query", { q: "Zephyr Quill", types: ["record"] })));
+      { const got = await api("search.resolve", { kind: "record", itemId: rec }); assert.equal(got.hit?.recordType, "contact", JSON.stringify(got)); }
+      assert.equal((await call("records.get", { type: "contact", recordId: rec }, guest.token)).status, 403, "before the grant the guest cannot read it");
+      await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
+      await goTo(page, "grants", "Grants", "Access"); await page.getByTestId("console-grants").waitFor();
+      await page.getByTestId("grant-create-open").click();
+      await page.getByRole("button", { name: "Choose resource", exact: true }).click();
+      await page.getByTestId("grant-resource-picker").getByRole("button", { name: "Resource kind", exact: true }).click(); await page.getByRole("menuitem", { name: "Records", exact: true }).click();
+      await page.getByTestId("grant-resource-picker-search").fill("Zephyr");
+      await page.getByText("Zephyr Quill", { exact: true }).first().click();
+      await page.getByRole("button", { name: "Choose subject", exact: true }).click();
+      await page.getByTestId("row-grant-subject-picker-" + guest.personId).click();
+      await page.getByRole("button", { name: "Hidden fields", exact: true }).click(); await page.getByRole("menuitem", { name: "Choose fields to hide", exact: true }).click();
+      await page.getByTestId("row-field-phone").waitFor();
+      await page.getByTestId("row-field-phone").getByRole("button", { name: "Hide field" }).click();
+      await page.getByTestId("grant-add").click(); await page.getByTestId("grant-save-confirm").click();
+      await page.getByText("Access granted").first().waitFor();
+      const grants = (await api("access.grants.list", { resource: { type: "record", id: rec } })).grants as { subject: { id: string }; conditions: { hiddenFields?: string[] } }[];
+      assert.deepEqual(grants.find((g) => g.subject.id === guest.personId)?.conditions.hiddenFields, ["phone"]);
+      const seen = await call("records.get", { type: "contact", recordId: rec }, guest.token);
+      assert.equal(seen.status, 200); assert.equal(seen.data.record.fields.name, "Zephyr Quill"); assert.equal(seen.data.record.fields.phone, undefined, "the hidden field is not returned");
+      assert.match(await page.getByTestId("console-grants").innerText(), /Gus Hale[\s\S]*Zephyr Quill/, "the grant row names the record");
+      await matrix("grant-on-record", async (p) => { await goTo(p, "grants", "Grants", "Access"); await p.getByTestId("console-grants").waitFor(); });
+    });
     assert.deepEqual(errors, []);
   } catch (error) {
     await page.screenshot({ path: path.join(shots, "failure.png") }).catch(() => undefined);

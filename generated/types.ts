@@ -20313,6 +20313,7 @@ export type SearchQueryOut = {
       kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
       id: string;
       title: string;
+      recordType?: string;
       snippet?: string;
       path?: string;
       link: string;
@@ -20333,6 +20334,7 @@ export type SearchRecentListOut = {
       kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
       id: string;
       title: string;
+      recordType?: string;
       snippet?: string;
       path?: string;
       link: string;
@@ -20358,6 +20360,7 @@ export type SearchRelatedOut = {
       kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
       id: string;
       title: string;
+      recordType?: string;
       snippet?: string;
       path?: string;
       link: string;
@@ -20365,6 +20368,24 @@ export type SearchRelatedOut = {
       score: number;
       updatedAt?: number;
     }>;
+};
+export type SearchResolveIn = {
+  kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
+  itemId: string;
+};
+export type SearchResolveOut = {
+  hit?: {
+    kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
+    id: string;
+    title: string;
+    recordType?: string;
+    snippet?: string;
+    path?: string;
+    link: string;
+    label?: "public" | "internal" | "confidential" | "restricted";
+    score: number;
+    updatedAt?: number;
+  };
 };
 export type SessionsContinueIn = {
   conversationId: string;
@@ -28019,6 +28040,7 @@ export interface CapMap {
   "search.recent.list": { in: SearchRecentListIn; out: SearchRecentListOut };
   "search.recent.record": { in: SearchRecentRecordIn; out: SearchRecentRecordOut };
   "search.related": { in: SearchRelatedIn; out: SearchRelatedOut };
+  "search.resolve": { in: SearchResolveIn; out: SearchResolveOut };
   "sessions.continue": { in: SessionsContinueIn; out: SessionsContinueOut };
   "sessions.get": { in: SessionsGetIn; out: SessionsGetOut };
   "sessions.import": { in: SessionsImportIn; out: SessionsImportOut };
