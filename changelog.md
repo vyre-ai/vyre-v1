@@ -1,5 +1,7 @@
 # Changelog
 
+
+- Fix the template install confirmation closing itself: Apps reads refresh on every live change, each read hands back a new object, and the card reset on that, so Confirm install detached while being clicked. It now resets only when another template is opened. Make the release real-app Computer health check expect the state the runner really has (ready with Docker, unavailable without) instead of always unavailable.
 - Let a public relation question take several published choices (a multi-select on the public page, the Build preview as a checklist), each key checked against this form and question and re-checked as the publisher, never more than 200 and never outside the published list; a person question stays one pick. Test data now uses neutral company names.
 - Label the publisher-authority checks of a public form submission with origin "forms-public" instead of "gate", so audit records say what acted; the origin carries no extra rights.
 - Run public-choice lookups with their own origin, forms-public, instead of borrowing gate (which lets a call park holds); add a live proof that a choice published by a non-owner stops being accepted once that publisher is suspended.
