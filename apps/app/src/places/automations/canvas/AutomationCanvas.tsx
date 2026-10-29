@@ -11,6 +11,7 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import type { PaneTab } from "../../../../../../ui/src/SidePane/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { AskTab } from "../ask/AskTab.tsx";
 import { AskVyre } from "../ask/AskVyre.tsx";
 import type { AskBundle } from "../ask/bundle.ts";
 import { loadProductCatalog, menuGroups } from "../catalog/model.ts";
@@ -46,7 +47,7 @@ type GetOut = CapMap["automations.get"]["out"];
 type VersionsOut = CapMap["automations.versions"]["out"];
 type RunsOut = CapMap["runs.list"]["out"];
 
-export type CanvasTab = "steps" | "runs" | "versions" | "settings" | "analytics";
+export type CanvasTab = "steps" | "runs" | "versions" | "settings" | "analytics" | "ask";
 
 export interface CanvasProps {
   automationId: string;
@@ -388,6 +389,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
     { key: "analytics", label: "Analytics" },
     { key: "versions", label: "Versions", note: `v${a.version}` },
     { key: "settings", label: "Settings" },
+    { key: "ask", label: "Ask" },
   ];
   const askBundle = (issue: { nodeId?: string; message: string }): AskBundle => ({ resource: a.id, message: issue.message, ...(issue.nodeId ? { nodeId: issue.nodeId } : {}), definitionVersion: a.version });
   const trigSel = sel?.id === "trigger";
@@ -480,7 +482,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
           <Text style={s.statusText}>{statusLabel}</Text>
           <Glyph name="chevD" size={11} color="var(--ink-3)" />
         </Pressable>
-        <TextButton label="Ask" icon="sparkle" testID="ask" onPress={() => data.nav.ask(a.id)} />
+        <TextButton label="Ask" icon="sparkle" testID="ask" onPress={() => setTab("ask")} />
         <IconButton icon="panel" label={paneOpen ? "Hide the side pane" : "Show the side pane"} on={paneOpen} testID="toggle-pane" onPress={onTogglePane} />
         <IconButton icon="more" label={moreLabel(a.name)} testID="more" onPress={openMore} />
       </View>
@@ -575,6 +577,18 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
       {tab === "analytics" ? <AnalyticsPanel automationId={a.id} /> : null}
       {tab === "versions" ? <View style={s.pageBody}>{tabBodies.versions ?? <VersionsList versions={versions} current={a.version} onRestore={(id) => void data.call("automations.restore_version", { automationId: a.id, versionId: id }).then(() => flash("Restored as a new version")).catch((x: unknown) => flash(x instanceof Error ? x.message : "That did not restore"))} />}<CohortMigration automationId={a.id} currentVersion={a.version} /></View> : null}
       {tab === "settings" ? <View style={s.pageBody}>{tabBodies.settings ?? <AutomationConfig automationId={a.id} />}</View> : null}
+      {tab === "ask" ? (
+        <AskTab
+          def={def}
+          selectedId={sel && sel.id !== "trigger" ? sel.id : null}
+          accounts={data.accounts ?? []}
+          steps={catalog.phase === "ready" ? catalog.steps.map((step) => ({ key: step.key, title: step.title })) : []}
+          onChange={edit}
+          onOpenChat={(bundle) => data.nav.ask(a.id, bundle)}
+          onConnect={(target) => data.nav.connect(target)}
+          call={(cap, input) => data.call(cap, input)}
+        />
+      ) : null}
       {promoteOpen ? (
         <Overlay label="Promote to Space" onClose={() => setPromoteOpen(false)} testID="promote-overlay">
           <PromoteSheet automation={a} onClose={() => setPromoteOpen(false)} />

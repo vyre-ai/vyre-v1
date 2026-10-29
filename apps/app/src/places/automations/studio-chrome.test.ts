@@ -46,6 +46,9 @@ test("the builder header segment and inspector tabs are the prototype labels", (
   assert.match(marks, /INSPECTOR_TABS/);
   assert.match(marks, /DATA_SHELF_NAME/);
   assert.doesNotMatch(canvas, />Publish</);
+  assert.match(canvas, /key: "ask"/);
+  assert.match(canvas, /setTab\("ask"\)/);
+  assert.match(canvas, /<AskTab/);
   assert.doesNotMatch(canvas, /3 edits/);
 });
 
