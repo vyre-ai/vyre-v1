@@ -430,30 +430,37 @@ test("previews.render makes a preview now, force makes it again, and the queue f
   assert.deepEqual([w.rows("previews_file").length, w.rows("previews_image").length], [0, 0]);
 }));
 
-test("health: healthy with every converter, degraded and named when one is missing or the queue is long", () => with_(async (w) => {
+test("health: a converter that is not installed is not set up (healthy with the hint); one that is installed and does not answer is degraded; a long queue is degraded", () => with_(async (w) => {
   const ok = await call(w, "previews.health", {});
   assert.deepEqual([ok["state"], ok["queued"], typeof ok["latencyMs"]], ["healthy", 0, "number"]);
+  assert.equal(ok["detail"], undefined);
+  // not installed: healthy with the hint, with or without files waiting (a Mac that has not installed vips or LibreOffice)
   w.tools.pdftoppm = false;
   const quiet = await call(w, "previews.health", {});
-  assert.equal(quiet["state"], "healthy", "a missing converter is a hint while no preview waits on it");
+  assert.equal(quiet["state"], "healthy", "a missing converter is not a failure");
+  assert.match(String(quiet["detail"]), /Previews of images and documents need vips and LibreOffice on this computer/);
   assert.match(String(quiet["detail"]), /pdftoppm/);
+  assert.doesNotMatch(String(quiet["detail"]), /soffice/);
   w.db.run("INSERT INTO previews_queue (file_id, version, queued_at) VALUES (?, ?, ?)", "fil_wait", 1, 1);
-  const d1 = await call(w, "previews.health", {});
-  assert.equal(d1["state"], "degraded");
-  assert.match(String(d1["detail"]), /pdftoppm/);
-  assert.doesNotMatch(String(d1["detail"]), /soffice/);
+  assert.equal((await call(w, "previews.health", {}))["state"], "healthy", "the first upload does not turn a new Space amber");
   w.tools.soffice = false;
   w.tools.vips = false;
-  const d3 = await call(w, "previews.health", {});
-  assert.match(String(d3["detail"]), /pdftoppm.*soffice.*vipsthumbnail/);
+  assert.match(String((await call(w, "previews.health", {}))["detail"]), /pdftoppm.*soffice.*vipsthumbnail/);
+  // installed but not answering: that is a failure, and it is named
   w.tools.pdftoppm = true; w.tools.soffice = true; w.tools.vips = true;
+  w.failures.set("soffice", { code: 124, stdout: "", stderr: "timed out" });
+  const hung = await call(w, "previews.health", {});
+  assert.equal(hung["state"], "degraded");
+  assert.match(String(hung["detail"]), /Not answering: soffice/);
+  w.failures.delete("soffice");
+  assert.equal((await call(w, "previews.health", {}))["state"], "healthy");
+  // every converter there and a long queue
   w.db.run("DELETE FROM previews_queue");
   for (let i = 0; i < 501; i++) w.db.run("INSERT INTO previews_queue (file_id, version, queued_at) VALUES (?, ?, ?)", `fil_q${i}`, 1, 1);
   const long = await call(w, "previews.health", {});
   assert.deepEqual([long["state"], long["queued"]], ["degraded", 501]);
   assert.match(String(long["detail"]), /501 versions are waiting/);
 }));
-
 test("a converter that hangs or crashes is a timeout or a corrupt file, not a crash of the module", () => with_(async (w) => {
   w.failures.set("pdftoppm", { code: 124, stdout: "", stderr: "timed out" });
   const f = w.files.add("slow.pdf", "application/pdf", pdf([["Text survives"]]));
