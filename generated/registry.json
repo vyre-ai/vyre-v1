@@ -37566,7 +37566,9 @@
     {
       "audit": "always",
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "calendar.created"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -37679,7 +37681,9 @@
     },
     {
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "calendar.created"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -178297,6 +178301,50 @@
         "title": "A booking is made"
       },
       "vis": "space"
+    },
+    {
+      "module": "calendar",
+      "name": "calendar.created",
+      "payload": {
+        "properties": {
+          "calendarId": {
+            "examples": [
+              "cld_a1b2c3"
+            ],
+            "pattern": "^cld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ownerId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "provider": {
+            "enum": [
+              "google",
+              "microsoft",
+              "local"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "calendarId",
+          "provider",
+          "ownerId"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/calendarId",
+        "type": "calendar"
+      },
+      "summary": "A calendar came into being: a private local one, or a member's Google or Outlook calendar connected by an admin",
+      "sv": 1,
+      "vis": "participants"
     },
     {
       "module": "calendar",

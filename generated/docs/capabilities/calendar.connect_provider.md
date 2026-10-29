@@ -19,7 +19,7 @@ Put a member's Google or Microsoft calendar in Calendar, owned by them and read 
 | HTTP | POST /v1/calendar/connect_provider |
 | MCP tool | calendar_connect_provider (meta) |
 | CLI | none |
-| Emits | none |
+| Emits | calendar.created |
 
 ## Input
 

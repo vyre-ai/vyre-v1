@@ -143,6 +143,7 @@ export async function createCalendar(ctx: CalCtx, input: { title: string; color?
     `INSERT INTO calendar_list (id, title, color, provider, "connectionId", "remoteId", "ownerId", personal, state, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, title, color, "local", null, null, owner, personal ? 1 : 0, "syncing", 1, ctx.now(), null,
   );
+  ctx.emit("calendar.created", `calendar/${id}`, { calendarId: id, provider: "local", ownerId: owner });
   return { calendar: toCalendar(calendarRow(ctx, id, "view")) };
 }
 
@@ -873,5 +874,6 @@ export async function connectProvider(ctx: CalCtx, input: ConnectProviderIn): Pr
     id, title, color, input.provider, input.connectionId, remoteId, input.ownerId, 0, "syncing", 1, now, null,
   );
   ctx.db.run(`INSERT INTO calendar_account ("calendarId", account) VALUES (?, ?)`, id, account);
+  ctx.emit("calendar.created", `calendar/${id}`, { calendarId: id, provider: input.provider, ownerId: input.ownerId });
   return { calendarId: id, created: true };
 }

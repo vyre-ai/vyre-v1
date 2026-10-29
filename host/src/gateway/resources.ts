@@ -27,7 +27,7 @@ const ID_SHAPE: Readonly<Record<string, RegExp | null>> = Object.freeze({
  * Resource types whose birth event may name the owner (its payload `ownerId`). Opt-in per type: the capability that creates one of these decides who may assign an owner other than the caller
  * (agents.create refuses a caller who is not an owner or admin), so the registrar only records what that capability allowed.
  */
-const OWNER_NAMED: ReadonlySet<string> = new Set(["agent"]);
+const OWNER_NAMED: ReadonlySet<string> = new Set(["agent", "calendar"]);
 /** Every resource type the registrar checks ids for. */
 export const KNOWN_TYPES: readonly string[] = Object.freeze(Object.keys(ID_SHAPE));
 const ANY_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/;
