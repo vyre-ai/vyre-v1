@@ -15,9 +15,11 @@ import type { AccountOption } from "../connect/accounts.ts";
 import { fieldsFromSchema, asFixture } from "../builder/fields.ts";
 import { MessageComposer } from "../builder/MessageComposer.tsx";
 import { DataShelf, MappingFix, SectionRow, advancedInputEdit, basicFieldEdit, commitTyped, nodeIdSet } from "../builder/marks.tsx";
-import { Choice, Field } from "./fields.tsx";
+import { Choice, Field, MapTargetContext } from "./fields.tsx";
+import type { MapTarget } from "./fields.tsx";
 import { frameFor } from "./frame.ts";
 import type { StudioLayout } from "./frame.ts";
+import { RunStepIo } from "../builder/RunStepIo.tsx";
 import { StepTest } from "../builder/StepTest.tsx";
 import { CONNECT_LIMIT } from "../connect/trust-view.ts";
 import { presenceOf } from "../values/typed.ts";
@@ -32,7 +34,7 @@ import { IconButton, pointer, s as ps, webOnly } from "./parts.tsx";
 const humanize = (k: string): string => k.replace(/([A-Z])/g, " $1").replace(/[_.]+/g, " ").replace(/^./, (x) => x.toUpperCase());
 const show = (v: unknown): string => (typeof v === "string" ? v : v === undefined || v === null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
 
-export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onChange, onClose, onDelete, testID = "inspector", embedded = false, layout, initialAdvanced = false, mode = "basic", onMode, section = "configure", onSection, samples = {}, version = 0, onStoreSample, onAsk, keysStatus, accounts = [], inputSchema, lastPicks, kind: automationKind = "personal" }: {
+export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onChange, onClose, onDelete, testID = "inspector", embedded = false, layout, initialAdvanced = false, mode = "basic", onMode, section = "configure", onSection, samples = {}, version = 0, onStoreSample, onAsk, keysStatus, accounts = [], inputSchema, lastPicks, kind: automationKind = "personal", runId, runLog }: {
   def: Definition;
   node: DefNode | null;
   trigger: DefTrigger | null;
@@ -66,8 +68,13 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
   lastPicks?: Readonly<Record<string, string>>;
   /** Personal or Space: an AI step runs on its owner's own account in the first and on a key shared with the Space in the second. */
   kind?: "personal" | "space";
+  /** The run being shown on the canvas. Its log for this step is on the Test tab. */
+  runId?: string;
+  /** The log of that step already read, for a screen that paints before the read answers. */
+  runLog?: unknown;
 }): ReactElement {
   const { element, show: openMenu } = useMenu();
+  const [mapTarget, setMapTarget] = useState<MapTarget | null>(null);
   const ordered = layout ? frameFor(layout).ordered : false;
   useEffect(() => { installFocusRing(); }, []);
   const headerMode = onMode !== undefined;
@@ -137,7 +144,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
         <Head title={meta?.title ?? "Trigger"} sub="Trigger" icon={meta?.icon ?? "bolt"} onClose={onClose} />
         <ScrollView contentContainerStyle={i.body}>
           <SectionRow section={section} ordered={ordered} onSection={(next) => onSection?.(next)} />
-          {section === "data" ? <DataShelf triggerSample={samples["trigger"]} steps={prior} /> : null}
+          {section === "data" ? <DataShelf triggerSample={samples["trigger"]} steps={prior} target={mapTarget} onPick={(_id, _expression, next) => { mapTarget?.commit(next); setMapTarget(null); }} /> : null}
           {section === "test" ? <Text style={i.hint}>Pick a step to test it.</Text> : null}
           {section === "configure" ? (
             <>
@@ -224,11 +231,13 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
     }} />);
   }
   return (
+    <MapTargetContext.Provider value={{ set: setMapTarget }}>
     <View style={paneStyle(embedded, layout)} testID={testID} accessibilityLabel={`${node.title ?? titleOfKey(node.key)} settings`} {...webOnly({ dataSet: { vyreFocus: "1" } })}>
       <Head title={node.title ?? titleOfKey(node.key)} sub={groupOfKey(node.key)} icon={iconOfKey(node.key)} onClose={onClose} />
       <ScrollView contentContainerStyle={i.body} keyboardShouldPersistTaps="handled">
         <SectionRow section={section} ordered={ordered} onSection={(next) => onSection?.(next)} />
-        {section === "data" ? <DataShelf triggerSample={samples["trigger"]} steps={prior} /> : null}
+        {section === "data" ? <DataShelf triggerSample={samples["trigger"]} steps={prior} target={mapTarget} onPick={(_id, _expression, next) => { mapTarget?.commit(next); setMapTarget(null); }} /> : null}
+        {section === "test" && runId ? <RunStepIo runId={runId} stepId={node.id} {...(runLog !== undefined ? { ready: runLog } : {})} /> : null}
         {section === "test" ? <StepTest stepKey={node.key} nodeId={node.id} input={node.input ?? {}} version={version} samples={samples} onUseOutput={(output) => onStoreSample?.(node.id, asFixture(version, node.key, output))} /> : null}
         {section === "configure" ? (
           <>
@@ -330,6 +339,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
       </ScrollView>
       {element}
     </View>
+    </MapTargetContext.Provider>
   );
 }
 

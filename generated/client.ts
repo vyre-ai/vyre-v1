@@ -1640,6 +1640,7 @@ export function createClient(transport: Transport) {
       retry: call("runs.retry", 1),
       start: call("runs.start", 1),
       status: call("runs.status", 1),
+      step_io: call("runs.step_io", 1),
       steps: call("runs.steps", 1),
       stop: call("runs.stop", 1),
       undo: call("runs.undo", 1),

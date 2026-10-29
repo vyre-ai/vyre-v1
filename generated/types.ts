@@ -20084,6 +20084,19 @@ export type RunsStatusOut = {
   queued: number;
   stuck: number;
 };
+export type RunsStepIoIn = {
+  runId: string;
+  step: string;
+  attempt?: number;
+};
+export type RunsStepIoOut = {
+  step: string;
+  attempt: number;
+  input?: unknown;
+  output?: unknown;
+  hidden: number;
+  truncated: boolean;
+};
 export type RunsStepsIn = {
   runId: string;
   cursor?: string;
@@ -28607,6 +28620,7 @@ export interface CapMap {
   "runs.retry": { in: RunsRetryIn; out: RunsRetryOut };
   "runs.start": { in: RunsStartIn; out: RunsStartOut };
   "runs.status": { in: RunsStatusIn; out: RunsStatusOut };
+  "runs.step_io": { in: RunsStepIoIn; out: RunsStepIoOut };
   "runs.steps": { in: RunsStepsIn; out: RunsStepsOut };
   "runs.stop": { in: RunsStopIn; out: RunsStopOut };
   "runs.undo": { in: RunsUndoIn; out: RunsUndoOut };

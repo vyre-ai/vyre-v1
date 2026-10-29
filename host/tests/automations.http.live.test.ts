@@ -138,6 +138,10 @@ test("a GET reads through the installed network with the key in a header; the ke
     assert.deepEqual([out.status, out.ok, out.body.path], [200, true, "/v1/items"]);
     assert.match(String(out.body.echoedAuth), /\[(hidden|redacted)\]/, "a server that echoes the header gets it scrubbed");
     noSecret(String(out.body.echoedAuth), "the echoed header");
+    const io = await ok(d, "/v1/runs/step_io", { runId, step: "look" });
+    assert.equal((io["output"] as { status: number }).status, 200, "the run history shows what the step answered");
+    assert.equal((io["input"] as { method: string }).method, "GET");
+    noSecret(JSON.stringify(io), "the run history read");
     noSecret(await dump(d, runId, id), "the run, step log, definition or hold");
   } finally { await d.stop(); }
 });

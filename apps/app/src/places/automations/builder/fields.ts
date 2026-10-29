@@ -144,3 +144,18 @@ export function filterShelf(rows: readonly ShelfRow[], query: string): ShelfRow[
 export function fixtureNote(version: number, stepKey: string): string {
   return `Fixture for ${stepKey} on definition version ${version}. Reads may run live. Writes and sends stay stubbed.`;
 }
+
+/** The expression that brings a shelf row into a field: `{{ trigger.name }}` for the trigger, `{{ steps.lookup.out.name }}` for an earlier step. */
+export function mappingExpression(rowId: string): string {
+  const at = rowId.indexOf(".");
+  const head = at < 0 ? rowId : rowId.slice(0, at);
+  const path = at < 0 ? "" : rowId.slice(at + 1);
+  if (head === "trigger") return `{{ trigger${path ? `.${path}` : ""} }}`;
+  return `{{ steps.${head}.out${path ? `.${path}` : ""} }}`;
+}
+
+/** The text with an expression added: after what is there, with one space between, or alone when the field is empty. */
+export function withExpression(text: string, expression: string): string {
+  if (text.trim() === "") return expression;
+  return /\s$/.test(text) ? `${text}${expression}` : `${text} ${expression}`;
+}

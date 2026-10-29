@@ -1,11 +1,15 @@
 // The small inputs the step panel is made of: a labelled text field (one line or several), a choice that opens a menu, a group with a head, a hint, and rows of name and value. They were the
 // Inspector's own; the HTTP request, Run code and AI forms (steps/) use the same ones so every step panel looks and behaves alike.
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Glyph } from "./icons.tsx";
 import { IconButton, pointer, webOnly } from "./parts.tsx";
 import type { Pair } from "./steps/edits.ts";
+
+/** The field a person last had in hand. The Data shelf puts the data a person picks into it, so mapping works from the keyboard and the mouse alike. */
+export interface MapTarget { label: string; value: string; commit(next: string): void }
+export const MapTargetContext = createContext<{ set(t: MapTarget | null): void } | null>(null);
 
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
@@ -14,8 +18,9 @@ export function Field({ label, value, onCommit, placeholder, mono = false, readO
   label: string; value: string; onCommit(v: string): void; placeholder?: string; mono?: boolean; readOnly?: boolean; testID?: string; rows?: number; invalid?: boolean;
 }): ReactElement {
   const [draft, setDraft] = useState<string | null>(null);
+  const map = useContext(MapTargetContext);
   const shown = draft ?? value;
-  const done = (): void => { if (draft !== null && draft !== value) onCommit(draft); setDraft(null); };
+  const done = (): void => { if (draft !== null && draft !== value) onCommit(draft); map?.set({ label, value: shown, commit: onCommit }); setDraft(null); };
   return (
     <View style={f.field}>
       <Text style={f.label}>{label}</Text>
@@ -27,6 +32,7 @@ export function Field({ label, value, onCommit, placeholder, mono = false, readO
         placeholder={placeholder}
         placeholderTextColor="var(--ink-4)"
         onChangeText={setDraft}
+        onFocus={() => map?.set({ label, value: shown, commit: onCommit })}
         onBlur={done}
         {...(rows ? { multiline: true, numberOfLines: rows } : { onSubmitEditing: done })}
         {...webOnly({ onKeyDown: (e: { key?: string }) => { if (e.key === "Escape") setDraft(null); } })}
@@ -77,6 +83,7 @@ export function Rows({ label, pairs, onCommit, keyLabel = "Name", valueLabel = "
   check?: (name: string) => string | null;
 }): ReactElement {
   const [local, setLocal] = useState<Pair[]>(() => [...pairs]);
+  const map = useContext(MapTargetContext);
   const isValid = (p: Pair): boolean => p.key.trim() !== "" && !(check && check(p.key));
   const saved = JSON.stringify(pairs);
   useEffect(() => {
@@ -100,7 +107,8 @@ export function Rows({ label, pairs, onCommit, keyLabel = "Name", valueLabel = "
         />
         <TextInput
           accessibilityLabel={`${label} ${valueLabel.toLowerCase()} ${n + 1}`} testID={`${testID}-value-${n}`} value={p.value} placeholder={valueLabel} placeholderTextColor="var(--ink-4)"
-          onChangeText={(t) => edit(n, { value: t })} onBlur={() => write(local)}
+          onChangeText={(t) => edit(n, { value: t })} onBlur={() => { write(local); map?.set({ label: `${label} ${valueLabel.toLowerCase()} ${n + 1}`, value: local[n]?.value ?? "", commit: (v) => write(local.map((q, at) => (at === n ? { ...q, value: v } : q))) }); }}
+          onFocus={() => map?.set({ label: `${label} ${valueLabel.toLowerCase()} ${n + 1}`, value: p.value, commit: (v) => write(local.map((q, at) => (at === n ? { ...q, value: v } : q))) })}
           style={[f.input, f.pairValue]}
         />
         <IconButton icon="x" label={`Remove ${label.toLowerCase()} row ${n + 1}`} testID={`${testID}-remove-${n}`} onPress={() => write(local.filter((_, at) => at !== n))} />

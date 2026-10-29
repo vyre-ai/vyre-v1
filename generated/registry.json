@@ -135528,6 +135528,108 @@
       "examples": [
         {
           "input": {
+            "attempt": 1,
+            "runId": "run_a1b2c3",
+            "step": "example"
+          },
+          "name": "example",
+          "output": {
+            "attempt": 1,
+            "hidden": 1,
+            "input": {},
+            "output": {},
+            "step": "example",
+            "truncated": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "attempt": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "runId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          },
+          "step": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId",
+          "step"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "runs",
+      "name": "runs.step_io",
+      "output": {
+        "properties": {
+          "attempt": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "hidden": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "input": {
+            "description": "Any JSON value"
+          },
+          "output": {
+            "description": "Any JSON value"
+          },
+          "step": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "step",
+          "attempt",
+          "hidden",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/runId",
+        "type": "run"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "What one step of a Run was given and what it answered, as the step log holds them, with anything that looks like a key hidden",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
             "cursor": "example",
             "limit": 1,
             "runId": "run_a1b2c3"

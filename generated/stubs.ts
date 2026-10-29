@@ -1640,6 +1640,7 @@ export function stubs(ctx: CallCtx) {
       retry: call("runs.retry"),
       start: call("runs.start"),
       status: call("runs.status"),
+      step_io: call("runs.step_io"),
       steps: call("runs.steps"),
       stop: call("runs.stop"),
       undo: call("runs.undo"),

@@ -73,6 +73,10 @@ export default defineManifest({
     }),
     read('runs.get', 'Read one Run: status, owner, key and model used, cost, thread, trace', { in: target, out: { run: runRow }, on: ['run', '/runId'], tool: 'automations', label: 'check', cli: 'vyre runs get' }),
     read('runs.steps', 'The durable step log of a Run', { in: { ...target, ...pageIn }, out: { steps: t.arr(stepRow), ...pageOut }, on: ['run', '/runId'], tool: 'automations' }),
+    read('runs.step_io', 'What one step of a Run was given and what it answered, as the step log holds them, with anything that looks like a key hidden', {
+      in: { ...target, step: t.str(), attempt: t.opt(t.int({ minimum: 1 })) }, out: { step: t.str(), attempt: t.int({ minimum: 1 }), input: t.opt(t.json()), output: t.opt(t.json()), hidden: t.int({ minimum: 0 }), truncated: t.bool() },
+      on: ['run', '/runId'], tool: 'automations', errors: ['validation.not_found'],
+    }),
     read('runs.count', 'Count Runs by status for badges (failed runs in Needs you, running now)', {
       in: { scope: t.enm('mine', 'all'), statuses: t.opt(t.arr(runStatus)) }, out: { count: t.int() }, tool: 'automations',
     }),

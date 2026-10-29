@@ -137,3 +137,42 @@ test("the cards say what each live step does", () => {
   assert.equal(subs["c"], "Runs 1 line of code, no network");
   assert.equal(subs["a"], "Summarise the result. your own AI account");
 });
+
+test("the Data tab of a live step tells where picked data goes, and each shelf row can be picked", () => {
+  const node: DefNode = { id: "ask", key: "ai", input: { prompt: "Hi" } };
+  const first: DefNode = { id: "lookup", key: "records.find", input: { type: "contact" }, next: ["ask"] };
+  const d: Definition = { triggers: [{ key: "manual" }], nodes: [first, node] };
+  const out = renderToStaticMarkup(
+    <AutomationsDataProvider value={data}>
+      <Inspector def={d} node={node} trigger={null} triggerIndex={null} issues={[]} keys={keys} kind="personal" section="data" samples={{ lookup: { rows: [1], count: 1 }, trigger: { email: "a@b.c" } }} onChange={() => undefined} onClose={() => undefined} onDelete={() => undefined} />
+    </AutomationsDataProvider>,
+  ).replaceAll("<!-- -->", "");
+  assert.ok(has(out, 'data-testid="data-shelf-target"'));
+  assert.ok(has(out, "Click a field on Configure, then pick data here to put it in."));
+  assert.ok(has(out, 'data-testid="mapping-lookup.rows"') && has(out, 'data-testid="mapping-trigger.email"'));
+});
+
+test("Advanced shows the same input as JSON beside the form, and what the JSON holds is what the form shows", () => {
+  const input = { method: "POST", url: "https://api.example.com/orders", json: { sku: "A-1" }, auth: { kind: "bearer", handle: "#Acme_API" } };
+  const node: DefNode = { id: "post", key: "http_request", input };
+  const d: Definition = { triggers: [{ key: "manual" }], nodes: [node] };
+  const out = renderToStaticMarkup(
+    <AutomationsDataProvider value={data}>
+      <Inspector def={d} node={node} trigger={null} triggerIndex={null} issues={[]} keys={keys} kind="personal" mode="advanced" onMode={() => undefined} onChange={() => undefined} onClose={() => undefined} onDelete={() => undefined} />
+    </AutomationsDataProvider>,
+  ).replaceAll("<!-- -->", "");
+  assert.ok(has(out, 'data-testid="field-input-json"'));
+  assert.ok(has(out, "&quot;url&quot;: &quot;https://api.example.com/orders&quot;"));
+  assert.ok(has(out, 'data-testid="field-url"') && has(out, 'data-testid="field-json-body"'), "the form is still there");
+});
+
+test("with a run shown, the Test tab carries that run's log for the step, and a missing log says so", () => {
+  const node: DefNode = { id: "get", key: "http_request", input: { method: "GET", url: "https://a.example.com" } };
+  const d: Definition = { triggers: [{ key: "manual" }], nodes: [node] };
+  const out = renderToStaticMarkup(
+    <AutomationsDataProvider value={data}>
+      <Inspector def={d} node={node} trigger={null} triggerIndex={null} issues={[]} keys={keys} kind="personal" section="test" runId="run_1" onChange={() => undefined} onClose={() => undefined} onDelete={() => undefined} />
+    </AutomationsDataProvider>,
+  ).replaceAll("<!-- -->", "");
+  assert.ok(has(out, 'data-testid="run-step-io"') && has(out, "In the run shown"));
+});

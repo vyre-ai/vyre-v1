@@ -21866,6 +21866,25 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/runs/step_io",
+    "cap": "runs.step_io",
+    "v": 1,
+    "module": "runs",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "run",
+      "id": "/runId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/runs/steps",
     "cap": "runs.steps",
     "v": 1,
