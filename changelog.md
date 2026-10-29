@@ -1,5 +1,6 @@
 # Changelog
 
+- Startup probe: each cold METRIC also carries median phases from app.start (scripts in, DOMContentLoaded, load, first contentful paint, usable).
 - Startup probe: seven cold and warm runs per size (median, same budgets), the raw runs, sample count and host CPU steal in each METRIC line, and transferred bytes read from resource timing after the load instead of fetching every body over CDP during the measured load.
 - scripts/shots/startup.test.ts reads the Metro config at its new name, apps/app/metro.config.cjs.
 - The shots perf job (startup, scroll and browser budgets) runs on the dedicated v1-perf-wide host instead of the shared v1-perf runners, whose co-tenant CI jobs moved the same head's phone cold start by 500 ms between runs.
