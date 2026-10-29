@@ -49,3 +49,17 @@ test("the host keeps the shell mounted and shows nothing extra before the sessio
   const out = renderToStaticMarkup(<OnboardingHost call={null} space={{ kind: "personal", name: "Personal" }}><span data-shell="1">shell</span></OnboardingHost>);
   assert.ok(out.includes('data-shell="1"') && !out.includes('data-testid="onboarding"'));
 });
+
+test("first launch shows the three doors and a way in for people who already have a Space", async () => {
+  const { FirstLaunch } = await import("./FirstLaunch.tsx");
+  const out = renderToStaticMarkup(<FirstLaunch onDoor={async () => undefined} existing={<span>sign in</span>} />);
+  for (const id of ["door-me", "door-invited", "door-team", "door-existing"]) assert.ok(out.includes(`data-testid="${id}"`), id);
+  assert.ok(out.includes("Just me") && out.includes("I was invited") && out.includes("Set up my team"));
+});
+
+test("the team bridge card warns about a sleeping Mac in plain words, only on a Mac", async () => {
+  const { TeamBridgeCard, MAC_WARNING } = await import("./TeamBridgeCard.tsx");
+  assert.equal(MAC_WARNING, "This Mac must be on and Vyre open for your team to connect. For always-on, install on a server.");
+  assert.ok(renderToStaticMarkup(<TeamBridgeCard mac onCreate={noop} />).includes("mac-warning"));
+  assert.ok(!renderToStaticMarkup(<TeamBridgeCard mac={false} onCreate={noop} />).includes("mac-warning"));
+});

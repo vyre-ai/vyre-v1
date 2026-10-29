@@ -6,6 +6,8 @@ import { StyleSheet, Text, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
 import { ConnectAiCard } from "./ConnectAiCard.tsx";
 import { InterviewCard } from "./InterviewCard.tsx";
+import { takeTeamNext } from "./doors.ts";
+import { TeamBridgeCard } from "./TeamBridgeCard.tsx";
 import { shouldAutoOpen } from "./flow.ts";
 import type { CardKind, FlowKind, Progress, StepState } from "./flow.ts";
 import { OnboardingScreen } from "./OnboardingScreen.tsx";
@@ -17,11 +19,15 @@ export interface OnboardingHostProps {
   call: CapCall | null;
   space: { kind: "personal" | "team"; name: string };
   children: ReactNode;
+  /** opens the Space entry to create or join another Space */
+  onAddSpace?: () => void;
+  /** this is the desktop app on a Mac */
+  mac?: boolean;
   /** extra cards, by kind, supplied as they are built */
   cards?: Partial<Record<CardKind, (ctx: CardContext) => ReactNode>>;
 }
 
-export function OnboardingHost({ call, space, children, cards }: OnboardingHostProps): ReactElement {
+export function OnboardingHost({ call, space, children, cards, onAddSpace, mac = false }: OnboardingHostProps): ReactElement {
   const [flow, setFlow] = useState<FlowKind | null>(null);
   const [progress, setProgress] = useState<Progress>({});
   const [shown, setShown] = useState(false);
@@ -39,6 +45,8 @@ export function OnboardingHost({ call, space, children, cards }: OnboardingHostP
         setFlow(f); setProgress(state.progress);
         const before = state.seen ? true : await usedChecklistBefore(call).catch(() => false);
         if (off) return;
+        // "Set up my team" made this Personal Space first: open straight on the team step
+        if (f === "personal" && takeTeamNext()) { setStep("team"); setShown(true); void markSeen(call, f).catch(() => undefined); return; }
         if (shouldAutoOpen(f, state.progress, before)) { setShown(true); void markSeen(call, f).catch(() => undefined); }
       } catch { /* the app works without it; the checklist can reopen it */ }
     })();
@@ -57,9 +65,10 @@ export function OnboardingHost({ call, space, children, cards }: OnboardingHostP
     const given = cards?.[card];
     if (given) return given(ctx);
     if (card === "connect_ai" && call) return <ConnectAiCard call={call} connected={aiProvider !== null || progress["ai"] === "done"} onConnected={(id) => { setAiProvider(id); ctx.done(); }} />;
+    if (card === "bridge_team" && onAddSpace) return <TeamBridgeCard mac={mac} onCreate={() => { onAddSpace(); ctx.later(); }} />;
     if (card === "interview" && call) return <InterviewCard call={call} onSaved={() => ctx.done()} />;
     return <Text testID="card-not-set-up" style={s.dim}>This part is not set up yet. You can do it later from the checklist on Home.</Text>;
-  }, [call, cards, aiProvider, progress]);
+  }, [call, cards, aiProvider, progress, onAddSpace, mac]);
 
   // the shell stays mounted underneath, so closing the screen returns to exactly where the person was
   return (

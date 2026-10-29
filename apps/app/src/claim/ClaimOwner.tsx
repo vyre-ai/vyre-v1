@@ -25,6 +25,8 @@ export interface ClaimOwnerProps {
   dead?: ClaimFailure | null;
   onCopyCode?(code: string): void;
   onSaveCode?(code: string): void;
+  /** The name and username from a Personal Space claimed a moment ago, offered again here; the password is always typed again. */
+  prefill?: { name: string; username: string } | null;
   /** Sign in instead (the link was used by the owner already). */
   onSignIn?(): void;
 }
@@ -100,7 +102,7 @@ function RecoveryStep({ s, dispatch, onCopyCode, onSaveCode }: { s: State; dispa
 }
 
 export function ClaimOwner(props: ClaimOwnerProps): ReactElement {
-  const [s, dispatch] = useReducer(reduce, undefined, () => ({ ...first(props.newCode(), props.dead ?? null), ...(props.stage === "recovery" ? { stage: "recovery" as const, name: "Irfad Imtiaz", username: "irfad", password: "correct horse", confirm: "correct horse" } : {}) }));
+  const [s, dispatch] = useReducer(reduce, undefined, () => ({ ...first(props.newCode(), props.dead ?? null), ...(props.prefill ? { name: props.prefill.name, username: props.prefill.username } : {}), ...(props.stage === "recovery" ? { stage: "recovery" as const, name: "Irfad Imtiaz", username: "irfad", password: "correct horse", confirm: "correct horse" } : {}) }));
   const [busy, setBusy] = useState(false);
   const problem = problemOf(s);
 
