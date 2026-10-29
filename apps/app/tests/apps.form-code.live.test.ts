@@ -175,6 +175,53 @@ test("production Apps: form Code tab, sandboxed public page and inline Ask with 
       assert.match(await page.getByTestId("apps-ask-error").innerText(), /Cancelled/);
       assert.match((await api("forms.get", { formId })).html, /Privacy: <a href/, "the saved source is unchanged");
     });
+    // Review captures (VYRE_FORM_CODE_MATRIX=1): the Code tab, a refused source and an inline Ask diff, then the public page, at desktop and phone width in the light (paper) and dark (graphite) skins
+    if (process.env["VYRE_FORM_CODE_MATRIX"] === "1") {
+      const editor = new URL(page.url());
+      const goTo = async (skin: string, width: number, height: number): Promise<void> => {
+        editor.searchParams.set("skin", skin);
+        await page.setViewportSize({ width, height });
+        await page.goto("about:blank");   // a fresh load every time: an identical address would keep the page, and its unsaved edits
+        await page.goto(editor.toString(), { waitUntil: "load" });
+        await page.getByTestId("apps-form-detail").waitFor({ timeout: 20_000 });
+        await page.getByRole("button", { name: "Code", exact: true }).click();
+        await page.getByTestId("apps-form-code").waitFor();
+      };
+      for (const [skin, mode] of [["paper", "light"], ["graphite", "graphite"]] as const) {
+        for (const [size, w, h] of [["desktop", 1280, 900], ["phone", 390, 844]] as const) {
+          const tag = `${size}-${mode}`;
+          await goTo(skin, w, h);
+          await page.getByTestId("apps-form-code").scrollIntoViewIfNeeded();
+          await shot(`matrix-code-editors-${tag}`);
+          const html = await page.getByLabel("HTML", { exact: true }).inputValue();
+          await page.getByLabel("HTML", { exact: true }).fill('<h1>Hi</h1>\n<script>alert(1)</script>');
+          await page.getByTestId("apps-code-html-error").waitFor();
+          await page.getByTestId("apps-code-html-error").scrollIntoViewIfNeeded();
+          await shot(`matrix-code-refused-${tag}`);
+          await page.getByLabel("HTML", { exact: true }).fill(html);
+          await goTo(skin, w, h);
+          v.script.push({ text: JSON.stringify({ html: `${html}\n<p>Privacy: <a href="https://example.com/privacy">read this</a></p>`, css: "h1 { color: red; }" }) });
+          await page.getByLabel("What should change?", { exact: true }).fill("Add a privacy link and make the heading red");
+          await page.getByTestId("apps-ask-send").click();
+          await page.getByTestId("apps-ask-accept-html").waitFor({ timeout: 60_000 });
+          await page.getByTestId("apps-ask-diff").scrollIntoViewIfNeeded();
+          await shot(`matrix-ask-diff-${tag}`);
+        }
+      }
+      // the public page is served by the Space, not skinned by it: shown at both widths, once with the publisher's own light theme and once with a dark one
+      await api("forms.design_set", { formId, thankYou: { text: "Thanks" } });
+      for (const [mode, theme] of [["light", { background: "#ffffff", text: "#1a1a1c", accent: "#5B5BD6" }], ["dark", { background: "#1c1c1e", text: "#f2f2f4", accent: "#8b9bff" }]] as const) {
+        await api("forms.design_set", { formId, theme });
+        const pub = await context.newPage();
+        for (const [size, w, h] of [["desktop", 1280, 900], ["phone", 390, 844]] as const) {
+          await pub.setViewportSize({ width: w, height: h });
+          await pub.goto(`${space.url}/f/${slug}`, { waitUntil: "load" });
+          await pub.locator('form#vf-form[data-authored="yes"]').waitFor({ timeout: 10_000 });
+          await shot(`matrix-public-${size}-${mode}`, pub);
+        }
+        await pub.close();
+      }
+    }
     assert.deepEqual(errors, []);
   } catch (error) {
     await page.screenshot({ path: path.join(shots, "failure.png") }).catch(() => undefined);

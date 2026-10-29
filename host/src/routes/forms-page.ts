@@ -132,6 +132,7 @@ const BASE_CSS = `
 :root{--vf-accent:#3b6ef6;--vf-bg:#fff;--vf-text:#1d1d1f;--vf-muted:#6e6e73;--vf-line:#d2d2d7;--vf-radius:8px;--vf-width:560px;--vf-font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 @media (prefers-color-scheme:dark){:root:not([data-themed]){--vf-bg:#1c1c1e;--vf-text:#f5f5f7;--vf-muted:#98989d;--vf-line:#3a3a3c}}
 *{box-sizing:border-box}
+main a{color:var(--vf-accent)}
 body{margin:0;background:var(--vf-bg);color:var(--vf-text);font:16px/1.45 var(--vf-font)}
 main{max-width:var(--vf-width);margin:0 auto;padding:32px 16px 64px}
 .vf-cover{width:100%;max-height:200px;object-fit:cover;border-radius:var(--vf-radius);margin-bottom:20px}

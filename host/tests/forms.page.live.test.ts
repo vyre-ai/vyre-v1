@@ -189,6 +189,8 @@ test("a form's own HTML and JavaScript are served as written, with its questions
     assert.match(csp, /^sandbox allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox; default-src 'none'/, "script runs in an opaque origin");
     assert.match(csp, /connect-src 'self'/); assert.match(csp, /form-action 'none'/);
 
+    assert.match(html, /main a\{color:var\(--vf-accent\)\}/, "links use the form's accent, so they stay readable on a dark theme");
+
     // a form with no script is not sandboxed, and carries no author script
     const plainPage = await fetch(`${d.url}/f/${plain.slug}`);
     assert.doesNotMatch(plainPage.headers.get("content-security-policy") ?? "", /sandbox/);
