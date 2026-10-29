@@ -34,7 +34,7 @@ interface LoopIteration { iterationKey: string; iterationIndex: number; item: un
 interface StepResult { output?: unknown; next?: string | null; wait?: unknown; prepare?: { iterations: LoopIteration[] } }
 type Call = Row & { attempt: number; prepare?: boolean; children?: ChildReport[]; item?: unknown; index?: number };
 
-export type HostCall = (name: string, input: unknown, as?: { principal: { kind: "person" | "agent" | "service"; id: string } }) => Promise<unknown>;
+export type HostCall = (name: string, input: unknown, as?: { principal: { kind: "person" | "agent" | "service"; id: string }; run?: string }) => Promise<unknown>;
 
 const STEPS = new Map((registry.steps as unknown as { key: string; effects: "read" | "write" | "outward"; sample?: unknown }[]).map((s) => [s.key, s] as const));
 
@@ -221,16 +221,33 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
   const known = new Set<string>();      // queued or being driven
   const again = new Set<string>();      // asked for again while being driven: driven once more when this one ends
   const inflight = new Set<Promise<void>>();
+  const later = new Map<string, ReturnType<typeof setTimeout>>();  // a retry whose time has not come
   let active = 0;
+  const due = (result: unknown): number | undefined => {
+    if (!result || typeof result !== "object") return undefined;
+    const at = (result as { retryAt?: unknown }).retryAt;
+    return typeof at === "number" && Number.isFinite(at) ? at : undefined;
+  };
+  const schedule = (runId: string, at: number): void => {
+    const prev = later.get(runId);
+    if (prev) clearTimeout(prev);
+    const timer = setTimeout(() => { later.delete(runId); enqueue(runId); }, Math.max(0, at - Date.now()));
+    later.set(runId, timer);
+  };
   const pump = (): void => {
     while (active < max && waiting.length > 0) {
       const id = waiting.shift()!;
       active += 1;
       const p: Promise<void> = d.call("runs.drive_run", { runId: id })
-        .then(() => undefined, (e: unknown) => d.log?.("runs.drive_failed", { runId: id, error: e instanceof Error ? e.message : String((e as { error?: { message?: string } })?.error?.message ?? e) }))
-        .then(() => {
+        .then((result) => due(result), (e: unknown) => { d.log?.("runs.drive_failed", { runId: id, error: e instanceof Error ? e.message : String((e as { error?: { message?: string } })?.error?.message ?? e) }); return undefined; })
+        .then((retryAt) => {
           active -= 1; inflight.delete(p); known.delete(id);
-          if (again.delete(id)) enqueue(id); else pump();
+          if (again.delete(id)) enqueue(id);
+          else {
+            // the engine returned the time of the next attempt; call again then, without holding a drive slot for the wait
+            if (retryAt !== undefined) schedule(id, retryAt);
+            pump();
+          }
         });
       inflight.add(p);
     }
@@ -306,7 +323,7 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
       };
       return (await d.call("steps-core.run_step", {
         node, call: withItem, run: { id: run.id, automation: p.link.automationId, ...(typeof p.link.depth === "number" ? { depth: p.link.depth } : {}) },
-      }, { principal: p.link.principal })) as StepResult;
+      }, { principal: p.link.principal, run: run.id })) as StepResult;
     };
     const finish = (node: GNode, r: StepResult): StepResult => {
       const rest: StepResult = { output: r.output, next: r.next, wait: r.wait };
@@ -436,6 +453,8 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
     },
     /** Shutdown: wait for the drives in flight, but not for ever (a step log makes a half-done Run recoverable). */
     async settle(ms: number): Promise<void> {
+      for (const timer of later.values()) clearTimeout(timer);
+      later.clear();
       await Promise.race([Promise.allSettled([...inflight]), new Promise((r) => setTimeout(r, ms))]);
     },
     resolve,

@@ -24,6 +24,16 @@ export class IdempotencyTable {
     return Number(r.changes) === 1;
   }
 
+  /** Replace a stored hold with the finished result of the same input. A finished result is left as it is. */
+  settle(key: string, principal: string, cap: string, rec: IdemRecord, now: number): boolean {
+    const cur = this.get(key, now);
+    const held = cur?.result !== null && typeof cur?.result === "object" && (cur.result as { status?: unknown; taskId?: unknown }).status === "held" && typeof (cur.result as { taskId?: unknown }).taskId === "string";
+    if (!cur || !held || cur.hash !== rec.hash) return false;
+    const r = this.db.prepare("UPDATE idempotency SET principal = ?, cap = ?, result = ?, at = ? WHERE key = ?")
+      .run(principal, cap, new TextEncoder().encode(JSON.stringify(rec)), now, key);
+    return Number(r.changes) === 1;
+  }
+
   /** Drop everything older than 30 days; returns how many rows went. */
   purge(now: number): number {
     return Number(this.db.prepare("DELETE FROM idempotency WHERE at < ?").run(now - IDEM_TTL_MS).changes);

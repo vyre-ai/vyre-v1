@@ -49,9 +49,22 @@ const REASON: Record<string, ErrorCode> = {
 };
 export const codeForReason = (reason: string): ErrorCode => REASON[reason] ?? "permission.no_grant";
 
-/** Anything a handler throws becomes a shaped error. VyreErr and HostError pass through (with this call's trace id); the rest is internal.unexpected and never leaks its message. */
+/** A step failure the engine already named (`run.stopped`, `run.branch_failed`). Its words are for a person, so they stay. */
+function runFailure(e: unknown, traceId: string): VyreError | undefined {
+  const shaped = (e as { error?: { code?: unknown; message?: unknown; retryable?: unknown } } | null)?.error;
+  if (!shaped || typeof shaped.code !== "string" || !/^run\.[a-z0-9_]+$/.test(shaped.code)) return undefined;
+  if (typeof shaped.message !== "string" || shaped.message.length === 0 || shaped.message.length > 400 || /[\r\n]/.test(shaped.message)) return undefined;
+  return {
+    code: shaped.code as ErrorCode, message: shaped.message, retryable: shaped.retryable === true, traceId,
+    next: [{ kind: "report", label: "Report a problem" }],
+  };
+}
+
+/** Anything a handler throws becomes a shaped error. VyreErr and HostError pass through (with this call's trace id); a named run failure keeps its words; the rest is internal.unexpected and never leaks its message. */
 export function toVyreError(e: unknown, traceId: string): { error: VyreError; unexpected: boolean } {
   if (e instanceof HostError) return { error: { ...e.error, traceId }, unexpected: false };
   if (e instanceof VyreErr) return { error: { ...e.error, traceId }, unexpected: false };
+  const named = runFailure(e, traceId);
+  if (named) return { error: named, unexpected: false };
   return { error: makeError("internal.unexpected", traceId, { message: "Something went wrong on our side.", details: { traceId } }), unexpected: true };
 }

@@ -115,6 +115,18 @@ export function createPrincipalRegistrar(deps: { exists(id: string): boolean; /*
       const out: PrincipalEvent[] = [];
       const seen = new Set<string>();
       for (const ev of a.events) {
+        // A Space automation runs as its own service. Promote says the access was granted to that service, and a grant needs a principal that exists.
+        if (ev.type === "automation.promoted") {
+          const promoted = ev.payload as { automationId?: unknown; ownerId?: unknown } | null;
+          const automationId = typeof promoted?.automationId === "string" ? promoted.automationId : "";
+          const ownerId = typeof promoted?.ownerId === "string" ? promoted.ownerId : "";
+          if (!/^aut_[a-z0-9]+$/.test(automationId) || !/^usr_[a-z0-9]+$/.test(ownerId)) continue;
+          const serviceId = `svc_${automationId.slice(4)}`;
+          if (seen.has(serviceId) || deps.exists(serviceId)) continue;
+          seen.add(serviceId);
+          out.push({ type: "principal.created", entity: "principal", id: serviceId, payload: { id: serviceId, kind: "service", owner: ownerId, status: "active", name: serviceId } });
+          continue;
+        }
         if (ev.type !== "agent.created") continue;
         const p = ev.payload as { agentId?: unknown; name?: unknown; ownerId?: unknown; folderId?: unknown } | null;
         const id = typeof p?.agentId === "string" ? p.agentId : "";

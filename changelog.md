@@ -1,5 +1,8 @@
 # Changelog
 
+- Prove an outward send held for approval through the live daemon. The run resumes on the same attempt and the same idempotency key. A promoted Space automation is a service principal its owner can share with, the hold names the run, and the approved result replaces the hold stored for that key.
+- Prove a failed parallel lane through the live daemon. waitFor all fails the parent and names that lane. waitFor any waits while another lane is open, then succeeds on the lane that finished, and the failed lane stays listed. A named run failure keeps its words instead of becoming a generic internal error.
+- Prove a retryable failure through the live daemon. The next attempt has its own key, and a step that already finished is not run again. The host queue drives the run again when that attempt is due.
 - Point the app release daemon at a computer socket that is not there. This runner's Docker engine answers the default socket, so Console was saying the host was ready. A down host still cannot provision a computer.
 - Keep an open template install review when the gallery refetches the same preview. The review was closing itself, so Confirm install left the page before it could be pressed.
 - Prove Parallel, Loop, and a killed host through the live daemon. The old in-process driver is gone. Publishing a later version leaves a waiting run on the version it started, and previewing a move answers that it is not available yet.

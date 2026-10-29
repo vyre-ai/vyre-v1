@@ -31,13 +31,14 @@ export function driveFromEvent(ctx: RunsCtx, event: { payload: Row }): void {
   if (host && runId && findRun(ctx.db, runId)) host.enqueue(runId);
 }
 
-/** The host call the host's queue makes: drive one Run in a call of its own (its own ctx, its own commit), from its step log. */
-export async function driveRun(ctx: RunsCtx, input: { runId: string }): Promise<string> {
+/** The host call the host's queue makes: drive one Run in a call of its own (its own ctx, its own commit), from its step log. A pending retry keeps its time so the queue can call again when it is due. */
+export async function driveRun(ctx: RunsCtx, input: { runId: string }): Promise<{ status: string; retryAt?: number }> {
   const run = findRun(ctx.db, input.runId);
-  if (!host || !run) return "gone";
+  if (!host || !run) return { status: "gone" };
   const r = await host.resolve(run);
-  if (!r) return "not_ours";
-  return (await drive(ctx, run.id, r.plan, r.exec, r.opts)).status;
+  if (!r) return { status: "not_ours" };
+  const driven = await drive(ctx, run.id, r.plan, r.exec, r.opts);
+  return driven.retryAt === undefined ? { status: driven.status } : { status: driven.status, retryAt: driven.retryAt };
 }
 
 /** The Runs the last server left queued or running. */
