@@ -248,13 +248,23 @@ export async function exportChat(data: ConversationData, thread: Thread, format:
 /** Most characters of the old chat that go into the new one: the end of it, which is what the work is about now. */
 export const CONTINUE_LIMIT = 60_000;
 
+export const OTHERS_LINE = "This chat has other people in it, so it can't be copied to another Space.";
+
+/** A chat may be copied to another Space only when the signed-in person is the only human in it. Agents' words are fine. */
+export function onlyMeHere(thread: Pick<Thread, "kind" | "members" | "channelId">, meId: string): boolean {
+  return thread.kind !== "channel" && thread.channelId === undefined && thread.members.every((m) => m.kind !== "person" || m.id === meId);
+}
+
 /**
  * Continue this chat in another Space the person belongs to. A new chat starts there with that Space's assistant; its first message says where it came from and carries the conversation so far as
  * words (a copy, not new instructions). Nothing in the old chat changes. Returns the new chat's id in that Space.
  */
 export async function continueElsewhere(data: ConversationData, thread: Thread, space: { id: string; name: string }, fromName: string, key: string): Promise<string> {
   if (!data.elsewhere) throw new Error("There is no other Space to continue in");
+  if (!onlyMeHere(thread, data.me.id)) throw new Error(OTHERS_LINE);
   const messages = await allMessages(data);
+  // a person who spoke here and has since left is still someone else's words
+  if (messages.some((m) => m.author.kind === "person" && m.author.id !== data.me.id)) throw new Error(OTHERS_LINE);
   const names = new Map<string, string>();
   for (const id of new Set(messages.flatMap((m) => m.attachments))) {
     try { names.set(id, ((await data.call("files.get", { fileId: id })) as CapMap["files.get"]["out"]).file.name); } catch { names.set(id, "File"); }

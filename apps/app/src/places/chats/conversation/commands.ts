@@ -53,6 +53,7 @@ export async function runSlash(text: string, env: CommandEnv): Promise<boolean> 
 
 const failureLine = (id: string, e: unknown): string => {
   const m = e instanceof Error ? e.message : "";
+  if (m === act.OTHERS_LINE) return m;
   return m !== "" && m.length < 140 && !/^[a-z]+\.[a-z_]+$/.test(m) ? `/${id}: ${m}` : `/${id} did not work. Try again.`;
 };
 
@@ -112,6 +113,7 @@ async function run(id: string, arg: string, env: CommandEnv, plugins: readonly P
       return;
     }
     case "continue": {
+      if (!act.onlyMeHere(thread, data.me.id)) { say(act.OTHERS_LINE); return; }
       const spaces = data.elsewhere?.spaces ?? [];
       if (spaces.length === 0) { say("You are in no other Space on this device"); return; }
       const want = arg.trim().toLowerCase();

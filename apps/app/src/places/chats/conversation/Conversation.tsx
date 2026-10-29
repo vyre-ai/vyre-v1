@@ -263,7 +263,7 @@ function ConversationView(): ReactElement {
       ...connectEntries(thread, data.nav),
       { separator: true } as MenuEntry,
       ...(data.nav.openSearch ? [{ label: "Search All Chats…", onSelect: () => data.nav.openSearch!("") } as MenuEntry] : []),
-      ...collect((data.elsewhere?.spaces ?? []).slice(0, 6), (sp): MenuEntry => ({ label: `Continue in ${sp.name}`, onSelect: () => void runSlash(`/continue ${sp.name}`, commandEnv()) })),
+      ...collect(act.onlyMeHere(thread, data.me.id) ? (data.elsewhere?.spaces ?? []).slice(0, 6) : [], (sp): MenuEntry => ({ label: `Continue in ${sp.name}`, onSelect: () => void runSlash(`/continue ${sp.name}`, commandEnv()) })),
       { label: "Fork This Chat", onSelect: () => void runSlash("/fork", commandEnv()) } as MenuEntry,
       { label: "Export as Markdown", onSelect: () => void runSlash("/export md", commandEnv()) } as MenuEntry,
       { label: "Export as JSON", onSelect: () => void runSlash("/export json", commandEnv()) } as MenuEntry,

@@ -474,3 +474,24 @@ test("/continue with no other Space, or a name that matches none, says so and st
   await runSlash("/continue", r.env);
   assert.match(r.said.at(-1)!, /\/continue needs/);
 });
+
+test("a chat with another person in it is never copied to another Space, and nothing is read or sent", async () => {
+  const there: string[] = [];
+  const r = rig({}, { elsewhere: { spaces: [{ id: "spc_2", name: "Personal" }], call: async (_s, cap) => { there.push(cap); return {}; } } });
+  const withMaya = { ...r.thread, members: [...r.thread.members, { kind: "person" as const, id: "usr_maya" }] };
+  await runSlash("/continue Personal", { ...r.env, thread: withMaya });
+  assert.equal(r.said.at(-1), "This chat has other people in it, so it can't be copied to another Space.");
+  assert.deepEqual(there, []);
+  assert.equal(r.calls.some((c) => c.cap === "chat.messages.list"), false, "not even the messages were read");
+  await assert.rejects(act.continueElsewhere(r.data, { ...withMaya, kind: "channel" } as never, { id: "spc_2", name: "Personal" }, "Northwind", "k"), /other people/);
+  assert.equal(act.onlyMeHere({ ...r.thread, members: [{ kind: "person", id: r.data.me.id }, { kind: "agent", id: "agt_intake" }] }, r.data.me.id), true, "agents are fine");
+});
+
+test("a person who spoke in the chat and has since left still counts as someone else", async () => {
+  const there: string[] = [];
+  const r = rig({ "chat.messages.list": () => ({ messages: [{ messageId: "m1", threadId: "t", threadSeq: 1, author: { kind: "person", id: "usr_gone" }, kind: "text", body: "hi", blocks: [], depth: 0, attachments: [], reactions: [], pinned: false, createdAt: 1 }], hasMore: false }) },
+    { elsewhere: { spaces: [{ id: "spc_2", name: "Personal" }], call: async (_s, cap) => { there.push(cap); return {}; } } });
+  const solo = { ...r.thread, members: [{ kind: "person" as const, id: r.data.me.id }] };
+  await assert.rejects(act.continueElsewhere(r.data, solo, { id: "spc_2", name: "Personal" }, "Northwind", "k"), /other people/);
+  assert.deepEqual(there, []);
+});
