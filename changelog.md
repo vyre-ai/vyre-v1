@@ -1,6 +1,7 @@
 # Changelog
 
 - Checkpoint the saved-code recovery client and approved onboarding form: preserve existing identity/Space keys, answer the sealed challenge locally, verify the replacement session and wipe temporary key buffers. Crypto interoperability and orchestration tests pass; full production-browser recovery acceptance remains pending.
+- Verify that the internal identity recovery-noise seed never enters a shared Space archive, including decompressed ZIP contents.
 
 - Verify sealed recovery over real daemon HTTP with client-encrypted legacy-format bundles: wrong code/cipher-hash, key substitution, replay, expiry and a post-hash password race fail safely; successful recovery preserves keys, changes password and revokes old sessions. Add actual SQLite rollback/CAS tests, membership/policy/bundle races and bounded challenge cleanup/quota regressions. Align fake initial Space-key epoch with canonical client epoch0.
 
