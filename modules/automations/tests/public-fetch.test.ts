@@ -169,6 +169,24 @@ test("other blocked literals and names are refused before fetch", async () => {
     "https://[febf::1]/",
     "https://[::ffff:127.0.0.1]/",
     "https://[::ffff:10.1.2.3]/",
+    "https://100.64.0.1/",
+    "https://100.100.100.100/",
+    "https://100.127.255.255/",
+    "https://198.18.0.1/",
+    "https://198.19.255.255/",
+    "https://192.0.0.8/",
+    "https://224.0.0.1/",
+    "https://239.255.255.250/",
+    "https://240.0.0.1/",
+    "https://255.255.255.255/",
+    "https://[::]/",
+    "https://[0:0:0:0:0:0:0:0]/",
+    "https://[64:ff9b:1::1]/",
+    "https://[64:ff9b::6440:1]/",
+    "https://[::ffff:100.64.0.1]/",
+    "https://[::ffff:6440:1]/",
+    "https://[2002:6440:1::1]/",
+    "https://[ff02::1]/",
     "https://[::ffff:169.254.169.254]/",
     "https://[::7f00:1]/",
     "https://2130706433/",
@@ -231,7 +249,7 @@ test("lookup failure, an empty answer, and any blocked address are refused", asy
   assertRefused(mixed, /public/);
   assert.equal(fetched, false);
 
-  for (const address of ["::1", "0:0:0:0:0:0:0:1", "fc00::1", "fe80::1", "::ffff:127.0.0.1", "10.9.8.7", "169.254.1.1", "192.168.0.2"]) {
+  for (const address of ["::1", "0:0:0:0:0:0:0:1", "fc00::1", "fe80::1", "::ffff:127.0.0.1", "10.9.8.7", "169.254.1.1", "192.168.0.2", "100.64.1.1", "198.18.0.9", "192.0.0.1", "224.1.1.1", "::", "64:ff9b:1::5", "::ffff:100.100.0.1"]) {
     const out = await fetchPublicDocument("https://example.com/a", {
       lookup: async () => [address],
       fetch: (async () => new Response("no")) as typeof fetch,
@@ -382,4 +400,16 @@ test("an https IP URL passes that address to connect", async () => {
   assert.equal(fetched, false);
   assert.deepEqual(addresses, [["1.1.1.1"]]);
   assert.deepEqual(out, { ok: true, text: "literal", finalUrl: "https://1.1.1.1/doc" });
+});
+
+test("the edges of the shared and reserved ranges stay open to public neighbours", async () => {
+  for (const raw of ["https://100.63.255.255/", "https://100.128.0.1/", "https://198.17.0.1/", "https://198.20.0.1/", "https://192.0.1.1/", "https://223.255.255.255/", "https://[2606:4700:4700::1111]/"]) {
+    let used = false;
+    const out = await fetchPublicDocument(raw, {
+      lookup: async () => { used = true; return ["127.0.0.1"]; },
+      fetch: (async () => new Response("ok")) as typeof fetch,
+    });
+    assert.equal(used, false, raw);
+    assert.equal(out.ok, true, raw);
+  }
 });

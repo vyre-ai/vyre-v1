@@ -1,6 +1,7 @@
 // ctx.vault for module code (ruling 31/32, ARCH 6.11): `use(handle)` names a handle and `fill(handle, into)` asks the vault module to put the value in a place, through the same invoke pipeline as any
 // caller, so authorize (Use level), audit and the history row are the normal ones and the value never passes through the module that asked. The places (git_credential, container_env, route_auth, env...)
 // are sinks the host registers per kind in DaemonOptions.seams.vaultSinks; a kind with no sink is refused by the vault module ("no place to fill").
+import { refusesAddress, reservedAddress } from "../../../lib/net-guard.ts";
 import dns from "node:dns/promises";
 import http from "node:http";
 import https from "node:https";
@@ -46,6 +47,8 @@ export function resolveVaultItem(db: { all(sql: string, ...a: unknown[]): unknow
 
 /** An address the probe may not reach (SSRF): link-local always (cloud metadata is 169.254.169.254); loopback, private, unique-local and unspecified unless this is the caller's own computer. */
 export function blockedAddress(ip: string, own: boolean): string | null {
+  // The shared list first: it covers the forms the lines below do not (multicast, reserved, benchmarking, NAT64, 6to4, a mapped address written in hex).
+  if (own ? reservedAddress(ip) : net.isIP(ip) !== 0 && refusesAddress(ip)) return "a reserved address";
   const v4 = (a: number, b: number): string | null => {
     if (a === 169 && b === 254) return "a link-local address";
     if (own) return null;

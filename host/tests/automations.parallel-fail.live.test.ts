@@ -108,7 +108,7 @@ test("waitFor all fails the parent when one lane fails, names that lane, and doe
       return undefined;
     });
     assert.match(String(run.summary), /The lane Bad/);
-    assert.match(String(run.summary), /The bad lane stopped/);
+    assert.doesNotMatch(String(run.summary), /The bad lane stopped/, "the parent no longer carries the child reason");
     const par = (await stepsOf(d, runId)).find((s) => s.step === "par" && s.state === "failed");
     assert.ok(par, "the parallel step failed");
     assert.equal(par.error?.code, "run.branch_failed");

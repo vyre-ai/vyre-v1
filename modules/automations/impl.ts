@@ -10,7 +10,7 @@ import type { ChoiceLimits, ScheduleChoiceKey } from "./schedule/schedule.ts";
 export { handlers };
 export const hostSeams = { setDocumentNetwork, setConnectorReadSender };
 export { accessDiff, canView, structuralIssues, validateDefinition, webhookSecretMatches } from "./handlers/defs.ts";
-import { loadRunPlan, startRun } from "./handlers/triggers.ts";
+import { acceptHook, loadRunPlan, startRun } from "./handlers/triggers.ts";
 export { consumeEvent, dropReason, fireOne, loadRunPlan, matches, startRun, triggerPayload } from "./handlers/triggers.ts";
 import { recordSavedItem } from "./offer-store.ts";
 import type { OfferDb } from "./offer-store.ts";
@@ -40,6 +40,8 @@ export const periodic = {
   "automations.schedule_tick": { everyMs: SCHEDULE_EVERY_MS, run: (ctx: Ctx) => runDueSchedules(ctx as AutoCtx) },
 };
 export const hostCalls = {
+  /** The inbound webhook route asks this: does the URL belong to a live, turned-on automation, and if so start its Run. Null is the one answer to every refusal. */
+  "automations.accept_hook": (ctx: Ctx, i: Parameters<typeof acceptHook>[1]) => acceptHook(ctx as unknown as AutoCtx, i),
   /** What the executor needs for a Run of an Automation (P-L6_24): the pinned definition, what started it, who it acts as, the vault names it may use. Nothing when the Run is not an Automation's. */
   "automations.run_plan": (ctx: Ctx, i: { runId: string }) => {
     const p = loadRunPlan(ctx, i.runId);
