@@ -26,6 +26,7 @@ export function ChromeSheetBody({ done, busy, failure, onOpen, onReveal }: { don
       {done ? (
         <View testID="vault-chrome-steps">
           <Text style={s.ok}>{`Installed${done.version ? ` ${done.version}` : ""} for ${done.browsers.join(", ")}. Chrome needs three clicks from you:`}</Text>
+          {/* ui-rows-lint: not a list (three numbered instructions read as one paragraph) */}
           {chromeSteps(done.extensionDir).map((step, i) => <Text key={i} style={s.step}>{`${i + 1}. ${step}`}</Text>)}
           <View style={s.actions}>
             <Btn label="Open Chrome extensions" disabled={busy} onPress={onOpen} testID="vault-chrome-open" />
