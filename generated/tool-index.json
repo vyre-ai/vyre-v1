@@ -542,6 +542,24 @@
     },
     {
       "deferred": false,
+      "name": "automations_connector_offer_accept",
+      "summary": "Accept a connector setup offer. Accepting is final for that Vault item.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_connector_offer_decline",
+      "summary": "Decline a connector setup offer. Declining is final for that Vault item.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_connector_offers",
+      "summary": "Open connector setup offers. Each one names an app. A Vault value is not included.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_create",
       "summary": "Create an Automation; it starts Personal",
       "toolset": "automations"

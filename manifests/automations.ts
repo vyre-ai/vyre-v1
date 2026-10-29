@@ -315,6 +315,24 @@ export default defineManifest({
       tool: 'automations',
       agent: { planMode: 'blocked' },
     }),
+    read('automations.connector_offers', 'Open connector setup offers. Each one names an app. A Vault value is not included.', {
+      in: {},
+      out: { offers: t.arr(t.obj({ itemId: id.vaultItem, appName: t.str(), text: t.str() })) },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    write('automations.connector_offer.decline', 'Decline a connector setup offer. Declining is final for that Vault item.', {
+      in: { itemId: id.vaultItem },
+      out: { decision: t.enm('declined', 'absent') },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    write('automations.connector_offer.accept', 'Accept a connector setup offer. Accepting is final for that Vault item.', {
+      in: { itemId: id.vaultItem },
+      out: { decision: t.enm('accepted', 'absent') },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
   ],
   triggers: [
     trigger('record_change', 'A record changes', { events: ['record.created', 'record.updated', 'record.deleted'], filter: recordFilter },

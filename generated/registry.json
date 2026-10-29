@@ -29902,6 +29902,234 @@
     },
     {
       "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "itemId": "vit_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "decision": "accepted"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "automations",
+      "name": "automations.connector_offer.accept",
+      "output": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "accepted",
+              "absent"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Accept a connector setup offer. Accepting is final for that Vault item.",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "itemId": "vit_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "decision": "declined"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "automations",
+      "name": "automations.connector_offer.decline",
+      "output": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "declined",
+              "absent"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Decline a connector setup offer. Declining is final for that Vault item.",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "offers": [
+              {
+                "appName": "example",
+                "itemId": "vit_a1b2c3",
+                "text": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.connector_offers",
+      "output": {
+        "properties": {
+          "offers": {
+            "items": {
+              "properties": {
+                "appName": {
+                  "type": "string"
+                },
+                "itemId": {
+                  "examples": [
+                    "vit_a1b2c3"
+                  ],
+                  "pattern": "^vit_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "itemId",
+                "appName",
+                "text"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "offers"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Open connector setup offers. Each one names an app. A Vault value is not included.",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
       "emits": [
         "automation.created"
       ],
@@ -195644,6 +195872,9 @@
               "ai_subscription",
               "other"
             ],
+            "type": "string"
+          },
+          "name": {
             "type": "string"
           },
           "scope": {

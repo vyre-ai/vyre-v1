@@ -162,6 +162,11 @@ export function createClient(transport: Transport) {
         get: call("automations.alerts.get", 1),
         set: call("automations.alerts.set", 1),
       },
+      connector_offer: {
+        accept: call("automations.connector_offer.accept", 1),
+        decline: call("automations.connector_offer.decline", 1),
+      },
+      connector_offers: call("automations.connector_offers", 1),
       create: call("automations.create", 1),
       delete: call("automations.delete", 1),
       draft_connector: call("automations.draft_connector", 1),

@@ -1958,6 +1958,26 @@ export type AutomationsAlertsSetOut = {
       }>;
   };
 };
+export type AutomationsConnectorOfferAcceptIn = {
+  itemId: string;
+};
+export type AutomationsConnectorOfferAcceptOut = {
+  decision: "accepted" | "absent";
+};
+export type AutomationsConnectorOfferDeclineIn = {
+  itemId: string;
+};
+export type AutomationsConnectorOfferDeclineOut = {
+  decision: "declined" | "absent";
+};
+export type AutomationsConnectorOffersIn = Record<string, unknown>;
+export type AutomationsConnectorOffersOut = {
+  offers: Array<{
+      itemId: string;
+      appName: string;
+      text: string;
+    }>;
+};
 export type AutomationsCreateIn = {
   name: string;
   description?: string;
@@ -27248,6 +27268,9 @@ export interface CapMap {
   "automations.account_picks": { in: AutomationsAccountPicksIn; out: AutomationsAccountPicksOut };
   "automations.alerts.get": { in: AutomationsAlertsGetIn; out: AutomationsAlertsGetOut };
   "automations.alerts.set": { in: AutomationsAlertsSetIn; out: AutomationsAlertsSetOut };
+  "automations.connector_offer.accept": { in: AutomationsConnectorOfferAcceptIn; out: AutomationsConnectorOfferAcceptOut };
+  "automations.connector_offer.decline": { in: AutomationsConnectorOfferDeclineIn; out: AutomationsConnectorOfferDeclineOut };
+  "automations.connector_offers": { in: AutomationsConnectorOffersIn; out: AutomationsConnectorOffersOut };
   "automations.create": { in: AutomationsCreateIn; out: AutomationsCreateOut };
   "automations.delete": { in: AutomationsDeleteIn; out: AutomationsDeleteOut };
   "automations.draft_connector": { in: AutomationsDraftConnectorIn; out: AutomationsDraftConnectorOut };
@@ -31882,6 +31905,7 @@ export type VaultItemCreatedPayload = {
   kind: "login" | "api_key" | "env" | "card" | "note" | "totp" | "ssh_key" | "ai_subscription" | "other";
   folderId: string;
   scope: "mine" | "shared";
+  name?: string;
 };
 export type VaultItemDeletedPayload = {
   itemId: string;

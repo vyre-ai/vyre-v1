@@ -4244,6 +4244,73 @@
     },
     {
       "blocks": [],
+      "cap": "automations.connector_offer.accept",
+      "deferred": false,
+      "description": "Accept a connector setup offer. Accepting is final for that Vault item.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_connector_offer_accept",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.connector_offer.decline",
+      "deferred": false,
+      "description": "Decline a connector setup offer. Declining is final for that Vault item.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_connector_offer_decline",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.connector_offers",
+      "deferred": false,
+      "description": "Open connector setup offers. Each one names an app. A Vault value is not included.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "automations_connector_offers",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.create",
       "deferred": false,
       "description": "Create an Automation; it starts Personal",

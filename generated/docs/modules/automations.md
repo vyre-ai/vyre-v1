@@ -4,11 +4,14 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (41)
+## Capabilities (44)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
 - [automations.alerts.set](../capabilities/automations.alerts.set.md): Set error alerts: who, when (every failure or after N in a row), where (Needs you, DM, channel), and the escalation chain
+- [automations.connector_offer.accept](../capabilities/automations.connector_offer.accept.md): Accept a connector setup offer. Accepting is final for that Vault item.
+- [automations.connector_offer.decline](../capabilities/automations.connector_offer.decline.md): Decline a connector setup offer. Declining is final for that Vault item.
+- [automations.connector_offers](../capabilities/automations.connector_offers.md): Open connector setup offers. Each one names an app. A Vault value is not included.
 - [automations.create](../capabilities/automations.create.md): Create an Automation; it starts Personal
 - [automations.delete](../capabilities/automations.delete.md): Move an Automation to Trash
 - [automations.draft_connector](../capabilities/automations.draft_connector.md): Draft actions from an OpenAPI document already in memory, or from the official OpenAPI directory for a named app. A docs URL the person supplies is stored and is not fetched. Nothing is promoted.
