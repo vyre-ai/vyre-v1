@@ -1,7 +1,6 @@
 // /hooks/google/<kind>: the intake for Google's pushes (Gmail and Meet through Pub/Sub, Calendar and Drive through watch channels). The host reaches it through
 // `google.accept_webhook` (a host call; the webhook route is the only way in). Google signs none of these with a key we hold, so the credential is the push secret
 // (pushToken): the channel token Google echoes on every Calendar and Drive notice, and the `token` query on the Pub/Sub endpoint address. Nothing is recorded until it matches.
-import { createHash, timingSafeEqual } from "node:crypto";
 import { fail } from "../../../host/src/routes/errors.ts";
 import { bad, first, pushToken } from "../projections.ts";
 import type { GoogleCtx } from "../projections.ts";
@@ -13,9 +12,14 @@ const KINDS = ["gmail", "calendar", "drive", "meet"] as const;
 type Kind = (typeof KINDS)[number];
 const EMAIL = /^[^\s@]+@[^\s@]+$/;
 
-const digest = (s: string): Buffer => createHash("sha256").update(s).digest();
-/** Equal secrets without a timing signal. */
-export const sameSecret = (a: string, b: string): boolean => timingSafeEqual(digest(a), digest(b));
+const digest = async (s: string): Promise<Uint8Array> => new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)));
+/** Equal secrets without a timing signal: both are hashed to the same length and compared in full. */
+export async function sameSecret(a: string, b: string): Promise<boolean> {
+  const x = await digest(a), y = await digest(b);
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) diff |= x[i]! ^ y[i]!;
+  return diff === 0;
+}
 
 function refuse(ctx: GoogleCtx): never {
   throw fail("auth.bad_credentials", ctx.trace.traceId, { message: "That request did not come from Google." });
@@ -34,7 +38,7 @@ export async function acceptHook(ctx: GoogleCtx, h: HookIn): Promise<{ accepted:
   const given = sent(h);
   // No secret yet means nothing was ever watched: refuse the same way as a wrong one, so a caller learns nothing.
   const haveRow = first(ctx.db.all(`SELECT token FROM google_push_secret WHERE id = ?`, "google"));
-  if (!given || !haveRow || !sameSecret(given, pushToken(ctx))) refuse(ctx);
+  if (!given || !haveRow || !(await sameSecret(given, pushToken(ctx)))) refuse(ctx);
   return kind === "calendar" || kind === "drive" ? channelNotice(ctx, kind, h) : pubsubNotice(ctx, kind as "gmail" | "meet", h);
 }
 
