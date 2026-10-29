@@ -1,6 +1,8 @@
 # Changelog
 
 
+- Let the saved-code recovery browser test skip a data file that vanishes between listing and reading (a transient SQLite journal raised ENOENT); every file that exists is still scanned for the recovery secrets.
+
 - Make the Comms paging test also check that the first 100 inbox rows stay whole for 3 s after they appear (a live refresh must never swap a paged list for a partial page).
 
 - Let the Comms Console paging test wait for the first 100 inbox rows to render before it counts them (it counted right after opening and could see the first row only); the count it asserts is unchanged.
