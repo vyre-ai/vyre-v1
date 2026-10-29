@@ -33,9 +33,9 @@ const routineView = (s: Sample, routineId: string, mode: "view" | "delegate"): s
 test("at 340 px the strip shows what fits and folds the rest behind More; no tab is clipped", () => {
   assert.equal(PANE_WIDTH_GUESS, 340);
   const out = pane(createSample(), "computer");
-  for (const shown of ["Computer", "Threads", "Files"]) assert.ok(has(out, `>${shown}<`), `${shown} is drawn`);
+  for (const shown of ["Computer", "Threads", "Files", "Knows"]) assert.ok(has(out, `>${shown}<`), `${shown} is drawn`);
   assert.ok(has(out, ">More<"), "the fold is a More tab");
-  assert.ok(!has(out, ">Memory<") && !has(out, ">Routines<"), "the folded ones are not drawn half-cut");
+  assert.ok(!has(out, ">Routines<"), "the folded one is not drawn half-cut");
 });
 
 test("every layout keeps the strip inside the room the header leaves", () => {

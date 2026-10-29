@@ -6,12 +6,18 @@ import type { ConversationData, ConversationNav } from "../../places/chats/conve
 import type { Candidate } from "../../places/chats/conversation/model.ts";
 import type { ChatRightPaneData, RightPaneNav } from "../../places/chats/rightpane/data.tsx";
 import type { Principal } from "../../places/home/sections-a/data.tsx";
+import { createMemoryStore } from "../../places/chats/memory/data.tsx";
+import type { ChatMemoryData, MemoryStore } from "../../places/chats/memory/data.tsx";
+import { KNOW_SCREEN, routeToArgs } from "../../places/files/memory/know.ts";
+import { nameLookup } from "./records-live.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export interface ChatsActions {
   /** Open a chat or channel's thread in the main column. */
   openThread(threadId: string): void;
   togglePane(): void;
+  /** Opens the pane and leaves it open (the Knows tab asks for it). Absent where the place only toggles. */
+  openPane?(): void;
   /** Start (or return to) a chat with an agent. */
   openAgentChat(agentId: string): void;
   fillComposer(text: string): void;
@@ -62,6 +68,34 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
   };
 }
 
+const stores = new WeakMap<ShellRuntime, MemoryStore>();
+
+/** One memory store per Space runtime: the conversation and the right pane share it, so a Forget in one shows in the other. */
+export function memoryStore(rt: ShellRuntime): MemoryStore {
+  let s = stores.get(rt);
+  if (!s) { s = createMemoryStore(rt.call); stores.set(rt, s); }
+  return s;
+}
+
+/** The memory surfaces of a chat: reads and writes are capabilities as the person; a click on a source, a page or the graph opens Files Knowledge or the chat at that line. */
+export function chatMemory(rt: ShellRuntime, a: ChatsActions): ChatMemoryData {
+  const know = (route: Parameters<typeof routeToArgs>[0]): void => rt.open({ screen: KNOW_SCREEN, args: routeToArgs(route) });
+  return {
+    store: memoryStore(rt),
+    now: () => rt.clock().now,
+    me: { id: rt.me.id, name: rt.me.name },
+    nameOf: nameLookup(rt),
+    nav: {
+      openLink: (link) => rt.openUrl(link),
+      openPage: (pageId) => know({ v: "page", pageId }),
+      openGraph: (pageId) => know({ v: "graph", focus: pageId }),
+      openKnowledge: () => know({ v: "learned" }),
+      openSource: (kind, ref, link) => { if (link) rt.openUrl(link); else rt.open({ subject: { type: kind, id: ref } }); },
+    },
+    ...(a.openPane ? { showKnows: a.openPane } : {}),
+  };
+}
+
 export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: string, principals: readonly Principal[]): ConversationData {
   const byId = new Map(principals.map((p) => [p.id, p] as const));
   const nav: ConversationNav = {
@@ -75,6 +109,7 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     nameOf: (id) => byId.get(id)?.name ?? id,
     kindOf: (id) => kindOf(byId.get(id)),
     nav, clock: rt.clock,
+    memory: chatMemory(rt, a),
     lists: composerLists(principals, rt.me.id),
     directory: candidates(principals, rt.me.id),
     newKey,
@@ -102,5 +137,6 @@ export function paneData(rt: ShellRuntime, a: ChatsActions, threadId: string, ag
     agent: { agentId: agent.agentId, name: agent.name },
     space: { name: rt.space.name, personal: rt.space.kind === "personal" },
     nav, clock: rt.clock,
+    memory: chatMemory(rt, a),
   };
 }

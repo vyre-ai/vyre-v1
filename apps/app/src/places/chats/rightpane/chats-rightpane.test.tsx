@@ -45,11 +45,11 @@ const routinesNow = (s: Sample): Routine[] => s.replica.rows("routines") as unkn
 const tabs: TabKey[] = ["computer", "threads", "files", "memory", "routines"];
 
 test("five tabs in order under one pane toggle at the far left", () => {
-  assert.deepEqual(TABS.map((t) => t.title), ["Computer", "Threads", "Files", "Memory", "Routines"]);
+  assert.deepEqual(TABS.map((t) => t.title), ["Computer", "Threads", "Files", "Knows", "Routines"]);
   const out = html(createSample(), "computer", 640);
   assert.equal(out.split('data-pane-toggle="far-left"').length - 1, 1, "exactly one toggle");
   assert.ok(has(out, 'data-toggle-count="1"'));
-  inOrder(out, ['data-pane-toggle="far-left"', ">Computer<", ">Threads<", ">Files<", ">Memory<", ">Routines<"]);
+  inOrder(out, ['data-pane-toggle="far-left"', ">Computer<", ">Threads<", ">Files<", ">Knows<", ">Routines<"]);
   assert.ok(has(out, 'data-testid="chats-right-pane"') && has(out, 'data-testid="pane-body-computer"'));
   assert.ok(!has(out, String.fromCharCode(0x2014)), "no em dash in any copy");
 });

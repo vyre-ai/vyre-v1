@@ -58,6 +58,8 @@ export interface Go {
   closeLayer(): void;
   closeTerminal(): void;
   togglePane(): void;
+  /** Opens the pane (leaves it open when it already is). */
+  openPane(): void;
   /** A line the place shows for a moment. */
   say(text: string): void;
 }
@@ -226,12 +228,13 @@ export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: s
     closeLayer: () => act({ t: "layer-close" }),
     closeTerminal: () => act({ t: "terminal-close" }),
     togglePane: () => act({ t: "pane" }),
+    openPane: () => act({ t: "pane-open" }),
     say,
   };
 }
 
 /** What the sidebar and the chat ask the place for. */
-export const chatsActions = (go: Go): ChatsActions => ({ openThread: go.chat, togglePane: go.togglePane, openAgentChat: go.agentChat, fillComposer: () => undefined });
+export const chatsActions = (go: Go): ChatsActions => ({ openThread: go.chat, togglePane: go.togglePane, openPane: go.openPane, openAgentChat: go.agentChat, fillComposer: () => undefined });
 
 /** The sidebar: its rows open in this place; Needs you and All agents are this place's own pages. */
 export function wireSidebar(rt: ShellRuntime, go: Go, toggleSidebar?: () => void): ChatsSidebarData {

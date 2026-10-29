@@ -373,7 +373,9 @@ export function createKnowSample(o: KnowSampleOptions = {}): KnowSample {
 
   // ------------------------------------------------------------ reads the chat surfaces make (memory.used, memory.knows, memory.quote)
   const row = (f: State["facts"][number]): KFact => strip(f);
-  replica.resolve("memory.used", (_t, i: { threadId: string; messageId: string }) => {
+  // these three capabilities are proposed (not in the generated map yet), so they register through an untyped door
+  const resolveAny = replica.resolve.bind(replica) as unknown as (cap: string, fn: (t: unknown, i: any) => unknown) => void; // eslint-disable-line @typescript-eslint/no-explicit-any
+  resolveAny("memory.used", (_t, i: { threadId: string; messageId: string }) => {
     const s = st(), u = USED[`${i.threadId}:${i.messageId}`];
     if (!u) return { facts: [], quotes: [] };
     return {
@@ -381,12 +383,12 @@ export function createKnowSample(o: KnowSampleOptions = {}): KnowSample {
       quotes: u.quotes.map((q) => quoteOf(q)),
     };
   });
-  replica.resolve("memory.quote", (_t, i: { ref: string }) => {
+  resolveAny("memory.quote", (_t, i: { ref: string }) => {
     const q = Object.values(USED).flatMap((u) => u.quotes).find((x) => x === i.ref);
     if (!q) throw new Error("validation.not_found");
     return { quote: quoteOf(q) };
   });
-  replica.resolve("memory.knows", (_t, i: { threadId: string; agentId?: string; asOf?: number }) => {
+  resolveAny("memory.knows", (_t, i: { threadId: string; agentId?: string; asOf?: number }) => {
     const s = st();
     const chat = SUBJECTS.find((x) => x.type === "chat" && CHAT[x.id.slice(5)]?.thread === i.threadId);
     const near = new Set<string>();

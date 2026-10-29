@@ -1,5 +1,5 @@
 // The Chats right pane (spec 3.2, 2.7, 3.0): it belongs to whoever you talk to. Five quiet tabs in the shared tab strip, with the one pane toggle at the far left of the header
-// (ui/SidePane): Computer, Threads, Files, Memory, Routines. It follows the agent of the open chat; the width belongs to the pane, not to a tab, so switching tabs never moves
+// (ui/SidePane): Computer, Threads, Files, Knows (it was Memory: the same facts with Accept, Correct and Remove, now with what the Space and you know too), Routines. It follows the agent of the open chat; the width belongs to the pane, not to a tab, so switching tabs never moves
 // the edge. Every change says so in one quiet line at the foot, with Undo where it can be taken back.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
@@ -11,11 +11,14 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { PaneDeps } from "./actions.ts";
+import { useKnowsFocus } from "../memory/data.tsx";
+import type { ChatMemoryData } from "../memory/data.tsx";
 import { RightPaneDataProvider, useOnline, useOptionalPaneData, usePaneData, useScreenQuery } from "./data.tsx";
 import type { ChatRightPaneData } from "./data.tsx";
 import { ComputerTab } from "./ComputerTab.tsx";
 import { FilesTab } from "./FilesTab.tsx";
 import { MemoryTab } from "./MemoryTab.tsx";
+import { KnowsTab } from "../memory/KnowsTab.tsx";
 import { RoutinesTab } from "./RoutinesTab.tsx";
 import { ThreadsTab, AGENT_PAGE_SCREEN } from "./ThreadsTab.tsx";
 import { DEFAULT_TAB, PANE_KEY, PANE_WIDTH_GUESS, TABS } from "./model.ts";
@@ -43,13 +46,20 @@ export interface ChatRightPaneProps {
   openRoutine?: string;
 }
 
+/** "Show what the agent knew here" on a message pins the store's Knows focus and asks for the tab: switch to it (also when the pane opens because of the request). */
+function useKnowsRequest(store: ChatMemoryData["store"] | undefined, show: () => void): void {
+  const seq = useKnowsFocus(store ?? null).seq;
+  useEffect(() => { if (store && store.takeKnowsRequest()) show(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store, seq]);
+}
+
 export const NOTICE_MS = 8000;
 /** What the pane header holds besides tabs: the toggle, the strip's padding and the options button. */
 export const PANE_CHROME = 56;
 const withMore = (w: ReadonlyMap<string, number>): ReadonlyMap<string, number> => new Map(w).set("More", 14).set("More tabs", 14);
 /** A pane tab is pinned and tight: no close slot, so it adds 7 + 7 padding, 2 border and the 2 px between tabs around its text, not TAB_EXTRA's 45. */
 export const PANE_TAB_EXTRA = 16;
-/** The prototype's pane: 340 px, room for Computer, Threads, Files and Memory with its count; Routines waits behind More at this width. */
+/** The prototype's pane: 340 px, room for Computer, Threads, Files and Knows with its count; Routines waits behind More at this width. */
 export const WIDE_PANE_W = 340;
 /** Below this window width the pane fills it (a phone shows it as a screen of its own); above, it is a resizable column. */
 export const NARROW = 640;
@@ -78,6 +88,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
   const narrow = win.width > 0 && win.width < NARROW;
   const [own, setOwn] = useState<TabKey>(initialTab ?? DEFAULT_TAB);
   const tab = controlled ?? own;
+  useKnowsRequest(data.memory?.store, (): void => { setOwn("memory"); onTab?.("memory"); });
   const [paneW, setPaneW] = useState(PANE_WIDTH_GUESS);
   const [notice, setNotice] = useState<{ text: string; undo?: () => Promise<void> | void } | null>(null);
   const deps: PaneDeps = useMemo(() => ({
@@ -94,7 +105,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
   const agent = agentQ.status === "ready" ? agentQ.data.agent : null;
   const summaryQ = useScreenQuery<CapMap["agents.summary"]["out"]>(AGENT_PAGE_SCREEN, "summary", { agentId: data.agent.agentId });
   const facts = summaryQ.status === "ready" ? summaryQ.data.memoryFacts : 0;
-  const tabs = useMemo(() => TABS.map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Memory ${facts}` } : {}) })), [facts]);
+  const tabs = useMemo(() => TABS.map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })), [facts]);
   const titles = useTitleWidths();
   const paneNow = paneWidth ?? (narrow ? win.width : paneW);
   const { strip, select } = useFittedTabs(tabs, tab, paneNow, {
@@ -131,7 +142,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
           {tab === "computer" ? <ComputerTab deps={deps} {...(window ? { window } : {})} /> : null}
           {tab === "threads" ? <ThreadsTab deps={deps} {...(window ? { window } : {})} /> : null}
           {tab === "files" ? <FilesTab deps={deps} folderId={agent?.folderId ?? ""} {...(window ? { window } : {})} /> : null}
-          {tab === "memory" ? <MemoryTab deps={deps} spaceName={data.space.name} {...(window ? { window } : {})} /> : null}
+          {tab === "memory" ? (data.memory ? <KnowsTab deps={deps} memory={data.memory} spaceName={data.space.name} {...(window ? { window } : {})} /> : <MemoryTab deps={deps} spaceName={data.space.name} {...(window ? { window } : {})} />) : null}
           {tab === "routines" ? <RoutinesTab deps={deps} {...(window ? { window } : {})} {...(openRoutine ? { initial: { routineId: openRoutine } } : {})} /> : null}
         </View>
         {notice ? <Notice text={notice.text} onClose={() => setNotice(null)} {...(notice.undo ? { onUndo: () => { const u = notice.undo; setNotice(null); void u?.(); } } : {})} /> : null}

@@ -41,6 +41,8 @@ export type Act =
   | { t: "needs"; taskId?: string }
   | { t: "agent"; agentId: string; tab?: TabKey }
   | { t: "pane" }
+  /** Opens the agent's pane whatever it showed (the message menu's "Show what the agent knew here"). */
+  | { t: "pane-open" }
   | { t: "terminal"; terminalId: string }
   | { t: "terminal-close" }
   | { t: "layer"; layer: Layer }
@@ -54,6 +56,7 @@ export function step(s: Shown, a: Act): Shown {
     case "agent": return { ...s, route: { view: "agent", agentId: a.agentId, tab: a.tab ?? null }, layer: null };
     // One column on the right: the agent's pane or the terminal. The pane button closes whichever is showing, or opens the pane.
     case "pane": return s.terminalId !== null ? { ...s, terminalId: null } : { ...s, pane: !s.pane };
+    case "pane-open": return { ...s, terminalId: null, pane: true };
     case "terminal": return { ...s, terminalId: a.terminalId, pane: false, layer: null };
     case "terminal-close": return { ...s, terminalId: null };
     case "layer": return { ...s, layer: a.layer };

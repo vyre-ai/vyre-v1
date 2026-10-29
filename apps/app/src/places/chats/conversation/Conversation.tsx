@@ -17,6 +17,8 @@ import { Face } from "../needsyou/parts.tsx";
 import { ConversationDataProvider, useConversationData, useOnline, useOptionalConversationData, useScreenQuery } from "./data.tsx";
 import type { ConversationData, ConversationNav } from "./data.tsx";
 import * as act from "./actions.ts";
+import { ChatMemoryProvider } from "../memory/thread.tsx";
+import { useMemoryEntries } from "../memory/menu.tsx";
 import { MessageView } from "./MessageView.tsx";
 import type { MessageActions } from "./MessageView.tsx";
 import { FaceButton, Glyph, IconButton, TextButton, anchorOf } from "./parts.tsx";
@@ -36,7 +38,7 @@ export function Conversation({ data }: { data?: ConversationData }): ReactElemen
   const ctx = useOptionalConversationData();
   const value = data ?? ctx;
   if (!value) return <ConversationLoading />;
-  return <ConversationDataProvider value={value}><ConversationView /></ConversationDataProvider>;
+  return <ConversationDataProvider value={value}><ChatMemoryProvider memory={value.memory} threadId={value.threadId}><ConversationView /></ChatMemoryProvider></ConversationDataProvider>;
 }
 
 /** The frame before data: a header bar, messages the size of real ones and a composer box, so nothing moves when the thread arrives. */
@@ -66,6 +68,7 @@ function ConversationView(): ReactElement {
   const data = useConversationData();
   const online = useOnline();
   const menu = useMenu();
+  const memoryEntries = useMemoryEntries();
   const threadQ = useScreenQuery<ThreadOut>(CONVERSATION_SCREEN, "thread", { threadId: data.threadId });
   const messagesQ = useScreenQuery<MessagesOut>(CONVERSATION_SCREEN, "messages", { threadId: data.threadId });
   const helpersQ = useScreenQuery<HelpersOut>(CONVERSATION_SCREEN, "helpers", { threadId: data.threadId });
@@ -244,6 +247,7 @@ function ConversationView(): ReactElement {
     retrySend: (id) => { const p = pending.find((x) => `pending:${x.key}` === id); if (p) { setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "sending" as const } : x))); setLine(""); run(p); } },
     discardSend: (id) => { setPending((cur) => cur.filter((x) => `pending:${x.key}` !== id)); setLine(""); },
     showMenu: (entries, x, y, label) => menu.show(entries, x, y, "context", { label }),
+    ...(memoryEntries ? { memoryEntries } : {}),
   };
 
   const personMention = thread.kind === "chat" && thread.members.filter((m) => m.kind === "person").length <= 1

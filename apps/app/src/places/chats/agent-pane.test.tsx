@@ -28,9 +28,9 @@ test("the pane is the prototype's 340 px, its tabs are pinned (no close slot) an
   for (const t of ["Computer", "Threads"]) assert.ok(out.includes(t), t);
 });
 
-test("a roomy pane draws every tab, Memory with its count, and no More", () => {
+test("a roomy pane draws every tab, Knows with its count, and no More", () => {
   const out = pane({ width: 640 });
-  for (const t of ["Computer", "Threads", "Files", "Memory 4", "Routines"]) assert.ok(out.includes(t), t);
+  for (const t of ["Computer", "Threads", "Files", "Knows 4", "Routines"]) assert.ok(out.includes(t), t);
   assert.ok(!out.includes(">More<"), "no More when everything fits");
 });
 
