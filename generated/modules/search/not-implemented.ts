@@ -15,4 +15,5 @@ export const handlers: Handlers<HandlerCtx> = {
   "search.recent.list": async (ctx) => { throw new VyreErr(notImplemented("search.recent.list", ctx.trace)); },
   "search.recent.record": async (ctx) => { throw new VyreErr(notImplemented("search.recent.record", ctx.trace)); },
   "search.related": async (ctx) => { throw new VyreErr(notImplemented("search.related", ctx.trace)); },
+  "search.resolve": async (ctx) => { throw new VyreErr(notImplemented("search.resolve", ctx.trace)); },
 };

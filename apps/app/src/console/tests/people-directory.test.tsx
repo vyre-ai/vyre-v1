@@ -26,3 +26,13 @@ test("permissions group by area and sort", async () => {
   const { permissionAreas } = await import("../pages/People.tsx");
   assert.deepEqual(permissionAreas(["records.edit", "agents.manage", "records.create", "console.access"]), [["agents", ["manage"]], ["console", ["access"]], ["records", ["create", "edit"]]]);
 });
+
+test("an agent edit patches only what changed", async () => {
+  const { agentPatch } = await import("../pages/Agents.tsx");
+  const agent = { name: "Intake", role: "Triage", model: "m1", accountPolicy: "asker", toolsAllowed: ["a"], toolsDenied: [] as string[] };
+  const same = { name: "Intake", role: "Triage", model: "m1", fallback: "", accountPolicy: "asker", accountKey: "", allowed: "a", denied: "" };
+  assert.deepEqual(agentPatch(agent, same), {});
+  assert.deepEqual(agentPatch(agent, { ...same, model: "m2", fallback: "m3", accountPolicy: "key", accountKey: "#Team_Key", allowed: "a, b, a", denied: "terminal" }),
+    { model: "m2", fallbackModel: "m3", accountPolicy: "key", accountKey: "#Team_Key", toolsAllowed: ["a", "b"], toolsDenied: ["terminal"] });
+  assert.deepEqual(agentPatch(agent, { ...same, accountKey: "#ignored" }), {}, "a key is not sent while the account is the asker's");
+});

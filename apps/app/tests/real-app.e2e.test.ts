@@ -319,7 +319,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await openConsole("access.people");
         const roles = await api("access.roles.list", {}) as { roles: { id: string; name: string; permissions: string[] }[] };
         const member = roles.roles.find((role) => /member/i.test(role.name))!;
-        await page.getByTestId(`row-invite-role-${member.id}`).click();
+        await page.getByRole("button",{name:"Role",exact:true}).click();await page.getByRole("menuitem",{name:member.name,exact:true}).click();
         await page.getByTestId("console-invite-create").click();
         await page.getByTestId("console-invite-link").waitFor();
         assert.equal(new URL(await page.getByTestId("console-invite-link").innerText()).host,new URL(space.url).host);

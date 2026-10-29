@@ -1501,6 +1501,43 @@ export type AgentsRoutinesListOut = {
       };
     }>;
 };
+export type AgentsSetOwnerIn = {
+  agentId: string;
+  ownerId: string;
+};
+export type AgentsSetOwnerOut = {
+  agent: {
+    agentId: string;
+    name: string;
+    face: string;
+    role?: string;
+    status: "awake" | "working" | "asleep" | "paused";
+    pausedReason?: string;
+    pausedBy?: string;
+    ownerId: string;
+    folderId: string;
+    model?: string;
+    fallbackModel?: string;
+    accountPolicy: "asker" | "key";
+    accountKey?: string;
+    toolsAllowed: Array<string>;
+    toolsDenied: Array<string>;
+    vaultKeys: Array<string>;
+    limits: {
+      runCostMicros?: number;
+      dayCostMicros?: number;
+      monthCostMicros?: number;
+      turnsPerDay?: number;
+      minutesPerRun?: number;
+      tokensPerDay?: number;
+    };
+    captureMode: "propose" | "auto_low_risk" | "off";
+    hasComputer: boolean;
+    templateVersion: number;
+    createdAt: number;
+    lastActiveAt?: number;
+  };
+};
 export type AgentsSnapshotTakeIn = {
   agentId: string;
   runId?: string;
@@ -10193,7 +10230,7 @@ export type FormsUpdateOut = {
 export type GateActsListIn = Record<string, unknown>;
 export type GateActsListOut = {
   acts: Array<{
-      key: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+      key: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
       title: string;
       risk: "low" | "medium" | "high";
       humanToo: boolean;
@@ -10214,7 +10251,7 @@ export type GateEffectiveRuleIn = {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
   };
-  act: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
 };
 export type GateEffectiveRuleOut = {
   hold: boolean;
@@ -10242,7 +10279,7 @@ export type GateHoldsGetIn = {
 export type GateHoldsGetOut = {
   hold: {
     id: string;
-    act: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
     capName: string;
     taskId: string;
     runId?: string;
@@ -10259,7 +10296,7 @@ export type GateHoldsGetOut = {
 };
 export type GateHoldsListIn = {
   states?: Array<"held" | "approved" | "denied" | "expired">;
-  act?: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act?: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   runId?: string;
   cursor?: string;
   limit?: number;
@@ -10267,7 +10304,7 @@ export type GateHoldsListIn = {
 export type GateHoldsListOut = {
   holds: Array<{
       id: string;
-      act: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
       capName: string;
       taskId: string;
       runId?: string;
@@ -10289,7 +10326,7 @@ export type GateParkIn = {
   capVersion: number;
   input: unknown;
   payloadHash: string;
-  act: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   principal: {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
@@ -10319,7 +10356,7 @@ export type GateRulesListIn = {
 };
 export type GateRulesListOut = {
   rules: Array<{
-      act: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
       mode: "hold" | "allow";
       approvers: string;
       peopleOnly: boolean;
@@ -10333,7 +10370,7 @@ export type GateRulesListOut = {
     }>;
 };
 export type GateRulesSetIn = {
-  act: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   mode: "hold" | "allow";
@@ -10345,7 +10382,7 @@ export type GateRulesSetIn = {
 };
 export type GateRulesSetOut = {
   rule: {
-    act: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
     mode: "hold" | "allow";
     approvers: string;
     peopleOnly: boolean;
@@ -20313,6 +20350,7 @@ export type SearchQueryOut = {
       kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
       id: string;
       title: string;
+      recordType?: string;
       snippet?: string;
       path?: string;
       link: string;
@@ -20333,6 +20371,7 @@ export type SearchRecentListOut = {
       kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
       id: string;
       title: string;
+      recordType?: string;
       snippet?: string;
       path?: string;
       link: string;
@@ -20358,6 +20397,7 @@ export type SearchRelatedOut = {
       kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
       id: string;
       title: string;
+      recordType?: string;
       snippet?: string;
       path?: string;
       link: string;
@@ -20365,6 +20405,24 @@ export type SearchRelatedOut = {
       score: number;
       updatedAt?: number;
     }>;
+};
+export type SearchResolveIn = {
+  kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
+  itemId: string;
+};
+export type SearchResolveOut = {
+  hit?: {
+    kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
+    id: string;
+    title: string;
+    recordType?: string;
+    snippet?: string;
+    path?: string;
+    link: string;
+    label?: "public" | "internal" | "confidential" | "restricted";
+    score: number;
+    updatedAt?: number;
+  };
 };
 export type SessionsContinueIn = {
   conversationId: string;
@@ -26889,6 +26947,7 @@ export interface CapMap {
   "agents.routine.run_now": { in: AgentsRoutineRunNowIn; out: AgentsRoutineRunNowOut };
   "agents.routine.save": { in: AgentsRoutineSaveIn; out: AgentsRoutineSaveOut };
   "agents.routines.list": { in: AgentsRoutinesListIn; out: AgentsRoutinesListOut };
+  "agents.set_owner": { in: AgentsSetOwnerIn; out: AgentsSetOwnerOut };
   "agents.snapshot.take": { in: AgentsSnapshotTakeIn; out: AgentsSnapshotTakeOut };
   "agents.status": { in: AgentsStatusIn; out: AgentsStatusOut };
   "agents.suggestion.accept": { in: AgentsSuggestionAcceptIn; out: AgentsSuggestionAcceptOut };
@@ -28019,6 +28078,7 @@ export interface CapMap {
   "search.recent.list": { in: SearchRecentListIn; out: SearchRecentListOut };
   "search.recent.record": { in: SearchRecentRecordIn; out: SearchRecentRecordOut };
   "search.related": { in: SearchRelatedIn; out: SearchRelatedOut };
+  "search.resolve": { in: SearchResolveIn; out: SearchResolveOut };
   "sessions.continue": { in: SessionsContinueIn; out: SessionsContinueOut };
   "sessions.get": { in: SessionsGetIn; out: SessionsGetOut };
   "sessions.import": { in: SessionsImportIn; out: SessionsImportOut };
@@ -28465,6 +28525,12 @@ export type AgentModelChangedPayload = {
   agentId: string;
   model: string;
   provider: string;
+  by: string;
+};
+export type AgentOwnerChangedPayload = {
+  agentId: string;
+  from: string;
+  to: string;
   by: string;
 };
 export type AgentPausedPayload = {
@@ -29388,14 +29454,14 @@ export type FormSubmittedPayload = {
 };
 export type GateApprovedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   taskId: string;
   by: string;
   forPerson?: string;
 };
 export type GateDeniedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   taskId: string;
   by: string;
   mode: "send_back" | "drop";
@@ -29403,14 +29469,14 @@ export type GateDeniedPayload = {
 };
 export type GateExpiredPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   taskId: string;
   outcome: "dropped" | "escalated";
   escalatedTo?: string;
 };
 export type GateRequestedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   capName: string;
   taskId: string;
   principal: {
@@ -29422,7 +29488,7 @@ export type GateRequestedPayload = {
   expiresAt: number;
 };
 export type GateRuleChangedPayload = {
-  act: "send" | "post" | "pay" | "delete" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   by: string;
@@ -31719,6 +31785,7 @@ export interface EventMap {
   "agent.limit_hit": AgentLimitHitPayload;
   "agent.mode_changed": AgentModeChangedPayload;
   "agent.model_changed": AgentModelChangedPayload;
+  "agent.owner_changed": AgentOwnerChangedPayload;
   "agent.paused": AgentPausedPayload;
   "agent.restored": AgentRestoredPayload;
   "agent.resumed": AgentResumedPayload;

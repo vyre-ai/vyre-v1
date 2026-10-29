@@ -15,4 +15,5 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "search.recent.list": Handler<"search.recent.list", X>;
   "search.recent.record": Handler<"search.recent.record", X>;
   "search.related": Handler<"search.related", X>;
+  "search.resolve": Handler<"search.resolve", X>;
 }

@@ -43,6 +43,7 @@ type Out = {
       kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
       id: string;
       title: string;
+      recordType?: string;
       snippet?: string;
       path?: string;
       link: string;
@@ -87,6 +88,7 @@ type Out = {
         "label": "public",
         "link": "vyre://record/rec_a1b2c3",
         "path": "example",
+        "recordType": "example",
         "score": 1,
         "snippet": "example",
         "title": "example",

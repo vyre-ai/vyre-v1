@@ -50,6 +50,9 @@ export function fakeFiles(clock: { t: number }) {
 
   const handlers: Record<string, Handler> = {
     // agents.create shares the new folder to an owner who is not the asker (ruling 88): the share is recorded in `calls`
+    // agents.set_owner asks who the new owner is and moves ownership of the agent and its folder (ruling 88)
+    "access.principals.get": (i) => { const id = String((i["principal"] as { id: string }).id); return { principal: { id, kind: "person", name: id, status: id === "usr_gone" ? "removed" : "active", roles: [], groups: [], createdAt: 0 } }; },
+    "access.transfer_ownership": () => true,
     "access.share": (i) => ({ grant: { id: "gnt_fake", subject: i["subject"], resource: i["resource"], level: i["level"] } }),
     "files.folder.search": (i) => ({ folders: [...folders.values()].filter((f) => !f.deleted && f.name.toLowerCase().includes(String(i.q).toLowerCase())).map(folderOut) }),
     "files.folder.create": (i, o) => {
@@ -201,7 +204,7 @@ export function harness(o: HarnessOptions = {}) {
   const raw = o.raw ?? openRaw();
   const clock = o.clock ?? { t: NOW };
   const emitted: Emitted[] = [];
-  const warned: string[] = [];
+  const warned: string[] = [], errored: { msg: string; attrs?: Record<string, unknown> }[] = [];
   const world = o.files ?? fakeFiles(clock);
   let allow = o.allow ?? (() => true);
   const db = scopedDb("agents", raw, TRACE);
@@ -220,10 +223,10 @@ export function harness(o: HarnessOptions = {}) {
       return f(input, opts);
     },
     authorize: (action, resource) => ({ effect: allow(action, resource) ? "allow" : "deny" }),
-    log: { warn(msg) { warned.push(msg); } },
+    log: { warn(msg) { warned.push(msg); }, error(msg, attrs) { errored.push({ msg, ...(attrs ? { attrs } : {}) }); } },
   };
   const h = {
-    ctx, raw, db, emitted, clock, world, warned,
+    ctx, raw, db, emitted, clock, world, warned, errored,
     advance(ms: number) { clock.t += ms; },
     allowOnly(f: NonNullable<HarnessOptions["allow"]>) { allow = f; },
     rows(sql: string, ...args: unknown[]): Record<string, unknown>[] { return db.all(sql, ...args) as Record<string, unknown>[]; },

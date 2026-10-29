@@ -77,7 +77,7 @@ test("production Console Access: People directory, person object, groups, device
     await t.test("the directory lists everyone and narrows by search and by status, role and group together", async () => {
       await goPeople();
       for (const id of [maya.personId, noah.personId, priya.personId]) await rowOf(id).waitFor();
-      assert.match(await rowOf(maya.personId).innerText(), /Maya Lin[\s\S]*active · Member · \d+ groups?/);
+      assert.match(await rowOf(maya.personId).innerText(), /Maya Lin[\s\S]*Active · Member · \d+ groups?/);
       await page.getByTestId("object-list-filter").click(); await page.getByTestId("menu").getByText("Role: Member", { exact: true }).click();
       await rowOf(noah.personId).waitFor({ state: "detached" });
       assert.equal(await rowOf(maya.personId).count() + await rowOf(priya.personId).count(), 2);
@@ -91,22 +91,33 @@ test("production Console Access: People directory, person object, groups, device
       await matrix("people-directory", toPeople);
     });
 
+    await t.test("the invite form names the Role, defaults to Member, and Create invite makes a real one-time link", async () => {
+      await goPeople();
+      assert.equal(await page.getByRole("button", { name: "Role", exact: true }).innerText(), "Member");
+      await page.getByRole("button", { name: "Role", exact: true }).click();
+      assert.ok(await page.getByRole("menuitem", { name: "Guest", exact: true }).count());
+      await page.getByRole("menuitem", { name: "Guest", exact: true }).click();
+      assert.equal(await page.getByRole("button", { name: "Role", exact: true }).innerText(), "Guest");
+      await page.getByTestId("console-invite-create").click(); await page.getByTestId("console-invite-link").waitFor();
+      assert.match(await page.getByTestId("console-invite-link").innerText(), /^https?:\/\//);
+    });
+
     await t.test("bulk: add several people to a group and assign a role, each applied and read back", async () => {
       await goPeople();
       await pickRow(maya.personId); await pickRow(priya.personId);
       await page.getByRole("button", { name: "Add to group…", exact: true }).click();
-      await page.getByRole("button", { name: "Group", exact: true }).click(); await page.getByRole("menuitem", { name: "Support", exact: true }).click();
+      await page.getByTestId("people-bulk").getByRole("button", { name: "Group", exact: true }).click(); await page.getByRole("menuitem", { name: "Support", exact: true }).click();
       await page.getByTestId("people-bulk-confirm").click();
       await page.getByText(/2 changed/).waitFor();
       assert.deepEqual((await groupOf(support)).sort(), [maya.personId, priya.personId].sort());
       await pickRow(maya.personId); await pickRow(priya.personId);
       await page.getByRole("button", { name: "Assign role…", exact: true }).click();
-      await page.getByRole("button", { name: "Role", exact: true }).click(); await page.getByRole("menuitem", { name: "Developer", exact: true }).click();
+      await page.getByTestId("people-bulk").getByRole("button", { name: "Role", exact: true }).click(); await page.getByRole("menuitem", { name: "Developer", exact: true }).click();
       await page.getByTestId("people-bulk-confirm").click(); await page.getByText(/2 changed/).waitFor();
       assert.ok((await rolesOf(maya.personId)).includes(roleId("Developer")) && (await rolesOf(priya.personId)).includes(roleId("Developer")));
       await pickRow(maya.personId); await pickRow(priya.personId);
       await page.getByRole("button", { name: "Assign role…", exact: true }).click();
-      await page.getByRole("button", { name: "Role", exact: true }).click(); await page.getByRole("menuitem", { name: "Developer", exact: true }).click();
+      await page.getByTestId("people-bulk").getByRole("button", { name: "Role", exact: true }).click(); await page.getByRole("menuitem", { name: "Developer", exact: true }).click();
       await page.getByTestId("people-bulk-confirm").click();
       await page.getByText(/0 changed, 2 skipped/).waitFor();
     });
@@ -148,6 +159,107 @@ test("production Console Access: People directory, person object, groups, device
       await page.getByTestId("person-device-revoke-confirm-" + device).click(); await page.getByText("Device revoked").waitFor();
       assert.equal((await call("identity.whoami", {}, maya.token)).status, 401, "the revoked device's token stops working");
       await matrix("person-object-access", async (p) => { await toPeople(p); await p.getByTestId(`row-object-row-console-person-${priya.personId}`).click(); await p.getByRole("tab", { name: /^Access/ }).click(); await p.getByTestId("person-effective").waitFor(); });
+    });
+    await t.test("a grant on one record resolves the record's type and hides the chosen field, enforced for the recipient", async () => {
+      const guest = await join("gus", "Gus Hale", "Guest");
+      const rec = (await api("records.create", { type: "contact", fields: { name: "Zephyr Quill", phone: "555-0100" }, idempotencyKey: "grant-rec" })).record.id as string;
+      let indexed = false; for (let i = 0; i < 100 && !indexed; i++) { const hits = (await api("search.query", { q: "Zephyr", types: ["record"] })).hits as { id: string }[]; indexed = hits.some((h) => h.id === rec); if (!indexed) await new Promise((r) => setTimeout(r, 200)); }
+      assert.ok(indexed, "the record reaches the search index " + JSON.stringify(await api("search.query", { q: "Quill" })) + JSON.stringify(await api("search.query", { q: "Zephyr Quill", types: ["record"] })));
+      { const got = await api("search.resolve", { kind: "record", itemId: rec }); assert.equal(got.hit?.recordType, "contact", JSON.stringify(got)); }
+      assert.equal((await call("records.get", { type: "contact", recordId: rec }, guest.token)).status, 403, "before the grant the guest cannot read it");
+      await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
+      await goTo(page, "grants", "Grants", "Access"); await page.getByTestId("console-grants").waitFor();
+      await page.getByTestId("grant-create-open").click();
+      await page.getByRole("button", { name: "Choose resource", exact: true }).click();
+      await page.getByTestId("grant-resource-picker").getByRole("button", { name: "Resource kind", exact: true }).click(); await page.getByRole("menuitem", { name: "Records", exact: true }).click();
+      await page.getByTestId("grant-resource-picker-search").fill("Zephyr");
+      await page.getByText("Zephyr Quill", { exact: true }).first().click();
+      await page.getByRole("button", { name: "Choose subject", exact: true }).click();
+      await page.getByTestId("row-grant-subject-picker-" + guest.personId).click();
+      await page.getByRole("button", { name: "Hidden fields", exact: true }).click(); await page.getByRole("menuitem", { name: "Choose fields to hide", exact: true }).click();
+      await page.getByTestId("row-field-phone").waitFor();
+      await page.getByTestId("row-field-phone").getByRole("button", { name: "Hide field" }).click();
+      await page.getByTestId("grant-add").click(); await page.getByTestId("grant-save-confirm").click();
+      await page.getByText("Access granted").first().waitFor();
+      const grants = (await api("access.grants.list", { resource: { type: "record", id: rec } })).grants as { subject: { id: string }; conditions: { hiddenFields?: string[] } }[];
+      assert.deepEqual(grants.find((g) => g.subject.id === guest.personId)?.conditions.hiddenFields, ["phone"]);
+      const seen = await call("records.get", { type: "contact", recordId: rec }, guest.token);
+      assert.equal(seen.status, 200); assert.equal(seen.data.record.fields.name, "Zephyr Quill"); assert.equal(seen.data.record.fields.phone, undefined, "the hidden field is not returned");
+      assert.match(await page.getByTestId("console-grants").innerText(), /Gus Hale[\s\S]*view · Zephyr Quill · Phone hidden/, "the grant row names the record and what is hidden");
+      await matrix("grant-on-record", async (p) => { await goTo(p, "grants", "Grants", "Access"); await p.getByTestId("console-grants").waitFor(); });
+    });
+    await t.test("an outside actor: create with a role, redeem the one-time token, edit its roles, revoke, and the credential stops working", async () => {
+      await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
+      await goTo(page, "actors", "Outside actors", "Agents and actors"); await page.getByTestId("console-outside-actors").waitFor();
+      await page.getByRole("button", { name: "Name", exact: true }).count();
+      await page.getByLabel("Name", { exact: true }).fill("Claude Code");
+      await page.getByRole("button", { name: "Provider", exact: true }).click(); await page.getByRole("menuitem", { name: "Anthropic", exact: true }).click();
+      await page.getByRole("button", { name: "Role", exact: true }).click(); await page.getByRole("menuitem", { name: "Developer", exact: true }).click();
+      await page.getByTestId("actor-create").click(); await page.getByTestId("actor-token").waitFor();
+      const oneTime = await page.getByTestId("actor-token").innerText();
+      const listed = (await api("access.actors.list", {})).actors as { id: string; name: string; status: string; roles: string[] }[];
+      const actor = listed.find((a) => a.name === "Claude Code")!;
+      assert.match(await page.getByTestId(`row-object-row-${actor.id}`).innerText(), /Anthropic · Pending/, "the row reads Provider · Status");
+      assert.equal(actor.status, "pending"); assert.deepEqual(actor.roles, [roleId("Developer")]);
+      const redeemed = await context.request.post(`${web.origin}/v1/access/actors/redeem`, { data: { token: oneTime } });
+      assert.equal(redeemed.status(), 200, await redeemed.text());
+      const credential = (await redeemed.json()).data.credential as string;
+      let worked = 0; for (let i = 0; i < 25 && worked !== 200; i++) { worked = (await call("schema.types.list", {}, credential)).status; if (worked !== 200) await new Promise((r) => setTimeout(r, 200)); }
+      assert.equal(worked, 200, "the credential signs the tool in as its actor, with the role it was issued");
+      assert.equal((await context.request.post(`${web.origin}/v1/access/actors/redeem`, { data: { token: oneTime } })).status() >= 400, true, "the token works once");
+      await page.reload({ waitUntil: "load" }); await goTo(page, "actors", "Outside actors", "Agents and actors");
+      await page.getByTestId(`row-object-row-${actor.id}`).click();
+      await page.getByRole("button", { name: "Edit actor", exact: true }).click();
+      await page.getByTestId(`row-actor-role-choice-${roleId("Developer")}`).getByRole("button", { name: "Deselect" }).click();
+      await page.getByTestId(`row-actor-role-choice-${roleId("Member")}`).getByRole("button", { name: "Select" }).click();
+      await page.getByRole("button", { name: "Save actor", exact: true }).click(); await page.getByText("Actor updated").first().waitFor();
+      assert.deepEqual(((await api("access.actors.list", {})).actors as { id: string; roles: string[] }[]).find((a) => a.id === actor.id)!.roles, [roleId("Member")]);
+      await page.getByRole("tab", { name: /^Access/ }).click(); await page.getByText("Effective access").first().waitFor();
+      await matrix("outside-actor", async (p) => { await goTo(p, "actors", "Outside actors", "Agents and actors"); await p.getByTestId("console-outside-actors").waitFor(); });
+      await page.getByTestId("object-more").click(); await page.getByRole("menuitem", { name: "Revoke", exact: true }).click();
+      await page.getByTestId("object-confirm-go").click();
+      await page.getByText("Actor revoked").first().waitFor();
+      assert.equal(((await api("access.actors.list", {})).actors as { id: string; status: string }[]).find((a) => a.id === actor.id)!.status, "revoked");
+      assert.equal((await call("schema.types.list", {}, credential)).status, 401, "the revoked credential stops working");
+    });
+    await t.test("an agent's lifecycle: create, edit model, account and tools, pause and resume, hand over, delete and undo", async () => {
+      await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
+      await goTo(page, "agents", "Agents register", "Agents and actors"); await page.getByTestId("console-agents").waitFor();
+      await page.getByTestId("agent-name").fill("Intake Bot"); await page.getByLabel("Role line", { exact: true }).fill("Use me when a new inquiry arrives.");
+      await page.getByLabel("Model (optional)", { exact: true }).fill("model-a");
+      await page.getByTestId("agent-create").click(); await page.getByText("Agent created").first().waitFor();
+      const agent = ((await api("agents.list", {})).agents as { agentId: string; name: string }[]).find((a) => a.name === "Intake Bot")!;
+      const read = async (): Promise<any> => (await api("agents.get", { agentId: agent.agentId })).agent; // eslint-disable-line @typescript-eslint/no-explicit-any
+      assert.equal((await read()).model, "model-a"); assert.equal((await read()).ownerId, (await api("identity.whoami", {})).principal.id);
+      const openAgent = async (p: Page = page): Promise<void> => { await p.getByTestId(`row-object-row-${agent.agentId}`).click(); await p.getByTestId("object-page-" + agent.agentId).waitFor(); };
+      await openAgent();
+      await page.getByTestId("object-action-edit").click(); await page.getByTestId("agent-edit-sheet").waitFor();
+      await page.getByTestId("agent-edit-model").fill("model-b"); await page.getByLabel("Fallback model", { exact: true }).fill("model-c");
+      await page.getByRole("button", { name: "Account", exact: true }).click(); await page.getByRole("menuitem", { name: "A shared key from the Vault", exact: true }).click();
+      await page.getByTestId("agent-edit-key").fill("#Team_Anthropic_Key");
+      await page.getByLabel("Tools allowed (comma separated)", { exact: true }).fill("records.read, files.read"); await page.getByLabel("Tools denied (comma separated)", { exact: true }).fill("terminal");
+      await page.getByTestId("agent-save").click(); await page.getByText("Agent updated").first().waitFor();
+      const saved = await read();
+      assert.deepEqual([saved.model, saved.fallbackModel, saved.accountPolicy, saved.accountKey, saved.toolsAllowed, saved.toolsDenied], ["model-b", "model-c", "key", "#Team_Anthropic_Key", ["records.read", "files.read"], ["terminal"]]);
+      await page.getByRole("tab", { name: /^Configuration/ }).click(); await page.getByTestId("agent-configuration").waitFor();
+      const config = await page.getByTestId("agent-configuration").innerText();
+      assert.match(config, /model-b/); assert.match(config, /#Team_Anthropic_Key/); assert.match(config, /records\.read, files\.read/); assert.match(config, /terminal/);
+      await matrix("agent-configuration", async (p) => { await goTo(p, "agents", "Agents register", "Agents and actors"); await p.getByTestId("console-agents").waitFor(); await openAgent(p); await p.getByRole("tab", { name: /^Configuration/ }).click(); await p.getByTestId("agent-configuration").waitFor(); });
+      await page.getByRole("tab", { name: /^Overview/ }).click(); await page.getByTestId("agent-pause-reason").fill("Cost review");
+      await page.getByTestId("object-action-pause").click(); await page.getByText("Agent paused").first().waitFor();
+      assert.equal((await read()).status, "paused"); assert.equal((await read()).pausedReason, "Cost review");
+      await page.getByTestId("object-action-pause").click(); await page.getByText("Agent resumed").first().waitFor();
+      assert.notEqual((await read()).status, "paused");
+      await page.getByTestId("object-action-edit").click();
+      await page.getByRole("button", { name: "Hand over to", exact: true }).click(); await page.getByRole("menuitem", { name: "Maya Lin", exact: true }).click();
+      await page.getByTestId("agent-handover-review").click(); await page.getByTestId("agent-handover-confirm").click(); await page.getByText("Agent handed over").first().waitFor();
+      assert.equal((await read()).ownerId, maya.personId);
+      await page.getByTestId("object-more").click(); await page.getByRole("menuitem", { name: "Delete agent", exact: true }).click(); await page.getByTestId("object-confirm-go").click();
+      await page.getByTestId(`row-agent-trashed-${agent.agentId}`).waitFor();
+      assert.equal(((await api("agents.list", {})).agents as { agentId: string }[]).some((a) => a.agentId === agent.agentId), false, "a deleted agent leaves the register");
+      await page.getByTestId(`agent-undo-${agent.agentId}`).click(); await page.getByText("Agent restored").first().waitFor();
+      assert.equal(((await api("agents.list", {})).agents as { agentId: string }[]).some((a) => a.agentId === agent.agentId), true);
+      assert.equal((await read()).ownerId, maya.personId, "the restored agent keeps its new owner");
     });
     assert.deepEqual(errors, []);
   } catch (error) {

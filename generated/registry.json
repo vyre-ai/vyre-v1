@@ -1166,6 +1166,12 @@
       ],
       "type": "object"
     },
+    "s_0c62195ebd": {
+      "items": {
+        "$ref": "#/$defs/s_b549e9e216"
+      },
+      "type": "array"
+    },
     "s_0d12905f33": {
       "properties": {
         "fileId": {
@@ -2794,99 +2800,6 @@
       ],
       "type": "object"
     },
-    "s_22b226b71d": {
-      "properties": {
-        "act": {
-          "enum": [
-            "send",
-            "post",
-            "pay",
-            "delete",
-            "push_protected",
-            "campaign_launch",
-            "secret_export",
-            "site_promote",
-            "signature_send",
-            "spend_raise"
-          ],
-          "type": "string"
-        },
-        "afterHours": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "agentOkFor": {
-          "enum": [
-            "low",
-            "medium",
-            "high"
-          ],
-          "type": "string"
-        },
-        "approvers": {
-          "description": "role:<name>, owner or asker",
-          "examples": [
-            "role:admin"
-          ],
-          "type": "string"
-        },
-        "emailBackstopHours": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "escalateTo": {
-          "enum": [
-            "delegate",
-            "role"
-          ],
-          "type": "string"
-        },
-        "mode": {
-          "enum": [
-            "hold",
-            "allow"
-          ],
-          "type": "string"
-        },
-        "onTimeout": {
-          "enum": [
-            "drop",
-            "escalate"
-          ],
-          "type": "string"
-        },
-        "peopleOnly": {
-          "type": "boolean"
-        },
-        "scope": {
-          "enum": [
-            "space",
-            "floor",
-            "agent"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "act",
-        "mode",
-        "approvers",
-        "peopleOnly",
-        "afterHours",
-        "onTimeout",
-        "escalateTo",
-        "emailBackstopHours",
-        "scope"
-      ],
-      "type": "object"
-    },
     "s_22ee988823": {
       "properties": {
         "continuedThreadId": {
@@ -3828,6 +3741,22 @@
         "computer"
       ],
       "type": "object"
+    },
+    "s_3171ba2f8d": {
+      "enum": [
+        "send",
+        "post",
+        "pay",
+        "delete",
+        "transfer",
+        "push_protected",
+        "campaign_launch",
+        "secret_export",
+        "site_promote",
+        "signature_send",
+        "spend_raise"
+      ],
+      "type": "string"
     },
     "s_323acdeb06": {
       "properties": {
@@ -4955,6 +4884,87 @@
       },
       "minItems": 1,
       "type": "array"
+    },
+    "s_3dc8e97e60": {
+      "properties": {
+        "act": {
+          "$ref": "#/$defs/s_3171ba2f8d"
+        },
+        "afterHours": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "agentOkFor": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "type": "string"
+        },
+        "approvers": {
+          "description": "role:<name>, owner or asker",
+          "examples": [
+            "role:admin"
+          ],
+          "type": "string"
+        },
+        "emailBackstopHours": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "escalateTo": {
+          "enum": [
+            "delegate",
+            "role"
+          ],
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "hold",
+            "allow"
+          ],
+          "type": "string"
+        },
+        "onTimeout": {
+          "enum": [
+            "drop",
+            "escalate"
+          ],
+          "type": "string"
+        },
+        "peopleOnly": {
+          "type": "boolean"
+        },
+        "scope": {
+          "enum": [
+            "space",
+            "floor",
+            "agent"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "act",
+        "mode",
+        "approvers",
+        "peopleOnly",
+        "afterHours",
+        "onTimeout",
+        "escalateTo",
+        "emailBackstopHours",
+        "scope"
+      ],
+      "type": "object"
     },
     "s_3e81e0d4aa": {
       "items": {
@@ -8377,6 +8387,17 @@
       ],
       "type": "object"
     },
+    "s_67b1fefbc6": {
+      "properties": {
+        "hits": {
+          "$ref": "#/$defs/s_0c62195ebd"
+        }
+      },
+      "required": [
+        "hits"
+      ],
+      "type": "object"
+    },
     "s_685b085375": {
       "properties": {
         "alerts": {
@@ -9011,17 +9032,6 @@
         "tokensIn",
         "tokensOut",
         "costMicros"
-      ],
-      "type": "object"
-    },
-    "s_75a8987aa8": {
-      "properties": {
-        "hits": {
-          "$ref": "#/$defs/s_f2420b6b29"
-        }
-      },
-      "required": [
-        "hits"
       ],
       "type": "object"
     },
@@ -12382,6 +12392,86 @@
       ],
       "type": "object"
     },
+    "s_ab64720dbb": {
+      "properties": {
+        "act": {
+          "$ref": "#/$defs/s_3171ba2f8d"
+        },
+        "actingFor": {
+          "type": "string"
+        },
+        "capName": {
+          "examples": [
+            "mail.send"
+          ],
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expiresAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "hld_a1b2c3"
+          ],
+          "pattern": "^hld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "payloadHash": {
+          "type": "string"
+        },
+        "principal": {
+          "$ref": "#/$defs/s_6c1eb10d98"
+        },
+        "runId": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "held",
+            "approved",
+            "denied",
+            "expired"
+          ],
+          "type": "string"
+        },
+        "taskId": {
+          "examples": [
+            "tsk_a1b2c3"
+          ],
+          "pattern": "^tsk_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "act",
+        "capName",
+        "taskId",
+        "principal",
+        "state",
+        "payloadHash",
+        "createdAt",
+        "expiresAt"
+      ],
+      "type": "object"
+    },
     "s_aba1e4e8d2": {
       "properties": {
         "rules": {
@@ -12758,98 +12848,6 @@
       ],
       "type": "object"
     },
-    "s_b44f7a5998": {
-      "properties": {
-        "act": {
-          "enum": [
-            "send",
-            "post",
-            "pay",
-            "delete",
-            "push_protected",
-            "campaign_launch",
-            "secret_export",
-            "site_promote",
-            "signature_send",
-            "spend_raise"
-          ],
-          "type": "string"
-        },
-        "actingFor": {
-          "type": "string"
-        },
-        "capName": {
-          "examples": [
-            "mail.send"
-          ],
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "expiresAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "hld_a1b2c3"
-          ],
-          "pattern": "^hld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "payloadHash": {
-          "type": "string"
-        },
-        "principal": {
-          "$ref": "#/$defs/s_6c1eb10d98"
-        },
-        "runId": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "state": {
-          "enum": [
-            "held",
-            "approved",
-            "denied",
-            "expired"
-          ],
-          "type": "string"
-        },
-        "taskId": {
-          "examples": [
-            "tsk_a1b2c3"
-          ],
-          "pattern": "^tsk_[a-z0-9]+$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "act",
-        "capName",
-        "taskId",
-        "principal",
-        "state",
-        "payloadHash",
-        "createdAt",
-        "expiresAt"
-      ],
-      "type": "object"
-    },
     "s_b4aa39e281": {
       "items": {
         "properties": {
@@ -13136,6 +13134,81 @@
       },
       "required": [
         "scope"
+      ],
+      "type": "object"
+    },
+    "s_b549e9e216": {
+      "properties": {
+        "id": {
+          "examples": [
+            "rec_a1b2c3"
+          ],
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "person",
+            "agent",
+            "chat",
+            "inbox",
+            "record",
+            "file",
+            "automation",
+            "app",
+            "setting",
+            "memory",
+            "task",
+            "channel"
+          ],
+          "type": "string"
+        },
+        "label": {
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ],
+          "type": "string"
+        },
+        "link": {
+          "description": "Source link that opens through the place",
+          "examples": [
+            "vyre://record/rec_a1b2c3"
+          ],
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "recordType": {
+          "description": "For a record hit: the record type it belongs to",
+          "type": "string"
+        },
+        "score": {
+          "type": "number"
+        },
+        "snippet": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "title",
+        "link",
+        "score"
       ],
       "type": "object"
     },
@@ -15816,6 +15889,35 @@
       ],
       "type": "object"
     },
+    "s_dbfb75845a": {
+      "properties": {
+        "itemId": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "person",
+            "agent",
+            "chat",
+            "inbox",
+            "record",
+            "file",
+            "automation",
+            "app",
+            "setting",
+            "memory",
+            "task",
+            "channel"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "itemId"
+      ],
+      "type": "object"
+    },
     "s_dd54f66d0c": {
       "properties": {
         "dayCostMicros": {
@@ -17367,80 +17469,6 @@
         "id"
       ],
       "type": "object"
-    },
-    "s_f2420b6b29": {
-      "items": {
-        "properties": {
-          "id": {
-            "examples": [
-              "rec_a1b2c3"
-            ],
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "person",
-              "agent",
-              "chat",
-              "inbox",
-              "record",
-              "file",
-              "automation",
-              "app",
-              "setting",
-              "memory",
-              "task",
-              "channel"
-            ],
-            "type": "string"
-          },
-          "label": {
-            "enum": [
-              "public",
-              "internal",
-              "confidential",
-              "restricted"
-            ],
-            "type": "string"
-          },
-          "link": {
-            "description": "Source link that opens through the place",
-            "examples": [
-              "vyre://record/rec_a1b2c3"
-            ],
-            "type": "string"
-          },
-          "path": {
-            "type": "string"
-          },
-          "score": {
-            "type": "number"
-          },
-          "snippet": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "updatedAt": {
-            "description": "Milliseconds since the Unix epoch",
-            "examples": [
-              1760000000000
-            ],
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "kind",
-          "id",
-          "title",
-          "link",
-          "score"
-        ],
-        "type": "object"
-      },
-      "type": "array"
     },
     "s_f2c5e7c5f8": {
       "properties": {
@@ -20658,8 +20686,11 @@
     },
     {
       "audit": "always",
+      "caller": "anonymous",
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "access.changed"
+      ],
       "errors": [
         "auth.invalid_code",
         "internal.unexpected",
@@ -20717,6 +20748,11 @@
         "type": "object"
       },
       "permission": null,
+      "rate": {
+        "n": 20,
+        "perSeconds": 60,
+        "scope": "space"
+      },
       "resource": {
         "type": "space"
       },
@@ -27324,6 +27360,117 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "Routines of an agent (schedules set by the owner)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "sensitive",
+      "effects": "write",
+      "emits": [
+        "agent.owner_changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "ownerId": "usr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "agent": {
+              "accountKey": "#Team_Anthropic_Key",
+              "accountPolicy": "asker",
+              "agentId": "agt_a1b2c3",
+              "captureMode": "propose",
+              "createdAt": 1760000000000,
+              "face": "intake",
+              "fallbackModel": "example",
+              "folderId": "fld_a1b2c3",
+              "hasComputer": true,
+              "lastActiveAt": 1760000000000,
+              "limits": {
+                "dayCostMicros": 1,
+                "minutesPerRun": 1,
+                "monthCostMicros": 1,
+                "runCostMicros": 1,
+                "tokensPerDay": 1,
+                "turnsPerDay": 1
+              },
+              "model": "example",
+              "name": "example",
+              "ownerId": "usr_a1b2c3",
+              "pausedBy": "example",
+              "pausedReason": "example",
+              "role": "example",
+              "status": "awake",
+              "templateVersion": 1,
+              "toolsAllowed": [
+                "example"
+              ],
+              "toolsDenied": [
+                "example"
+              ],
+              "vaultKeys": [
+                "example"
+              ]
+            }
+          }
+        }
+      ],
+      "gate": {
+        "act": "transfer",
+        "when": "actor.kind != 'person'"
+      },
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ownerId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "ownerId"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "agents",
+      "name": "agents.set_owner",
+      "output": {
+        "$ref": "#/$defs/s_dd8211e1b7"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/agentId",
+        "type": "agent"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Hand an agent to another active person: its home folder and the agent change owner with it and the previous owner keeps nothing on them",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -74540,19 +74687,7 @@
                   "type": "boolean"
                 },
                 "key": {
-                  "enum": [
-                    "send",
-                    "post",
-                    "pay",
-                    "delete",
-                    "push_protected",
-                    "campaign_launch",
-                    "secret_export",
-                    "site_promote",
-                    "signature_send",
-                    "spend_raise"
-                  ],
-                  "type": "string"
+                  "$ref": "#/$defs/s_3171ba2f8d"
                 },
                 "peopleOnly": {
                   "type": "boolean"
@@ -74728,19 +74863,7 @@
       "input": {
         "properties": {
           "act": {
-            "enum": [
-              "send",
-              "post",
-              "pay",
-              "delete",
-              "push_protected",
-              "campaign_launch",
-              "secret_export",
-              "site_promote",
-              "signature_send",
-              "spend_raise"
-            ],
-            "type": "string"
+            "$ref": "#/$defs/s_3171ba2f8d"
           },
           "principal": {
             "$ref": "#/$defs/s_6c1eb10d98"
@@ -74971,7 +75094,7 @@
       "output": {
         "properties": {
           "hold": {
-            "$ref": "#/$defs/s_b44f7a5998"
+            "$ref": "#/$defs/s_ab64720dbb"
           }
         },
         "required": [
@@ -75043,19 +75166,7 @@
       "input": {
         "properties": {
           "act": {
-            "enum": [
-              "send",
-              "post",
-              "pay",
-              "delete",
-              "push_protected",
-              "campaign_launch",
-              "secret_export",
-              "site_promote",
-              "signature_send",
-              "spend_raise"
-            ],
-            "type": "string"
+            "$ref": "#/$defs/s_3171ba2f8d"
           },
           "cursor": {
             "type": "string"
@@ -75095,7 +75206,7 @@
         "properties": {
           "holds": {
             "items": {
-              "$ref": "#/$defs/s_b44f7a5998"
+              "$ref": "#/$defs/s_ab64720dbb"
             },
             "type": "array"
           },
@@ -75169,19 +75280,7 @@
       "input": {
         "properties": {
           "act": {
-            "enum": [
-              "send",
-              "post",
-              "pay",
-              "delete",
-              "push_protected",
-              "campaign_launch",
-              "secret_export",
-              "site_promote",
-              "signature_send",
-              "spend_raise"
-            ],
-            "type": "string"
+            "$ref": "#/$defs/s_3171ba2f8d"
           },
           "actingFor": {
             "type": "string"
@@ -75434,7 +75533,7 @@
         "properties": {
           "rules": {
             "items": {
-              "$ref": "#/$defs/s_22b226b71d"
+              "$ref": "#/$defs/s_3dc8e97e60"
             },
             "type": "array"
           }
@@ -75508,19 +75607,7 @@
       "input": {
         "properties": {
           "act": {
-            "enum": [
-              "send",
-              "post",
-              "pay",
-              "delete",
-              "push_protected",
-              "campaign_launch",
-              "secret_export",
-              "site_promote",
-              "signature_send",
-              "spend_raise"
-            ],
-            "type": "string"
+            "$ref": "#/$defs/s_3171ba2f8d"
           },
           "afterHours": {
             "minimum": 1,
@@ -75591,7 +75678,7 @@
       "output": {
         "properties": {
           "rule": {
-            "$ref": "#/$defs/s_22b226b71d"
+            "$ref": "#/$defs/s_3dc8e97e60"
           }
         },
         "required": [
@@ -136388,6 +136475,7 @@
                 "label": "public",
                 "link": "vyre://record/rec_a1b2c3",
                 "path": "example",
+                "recordType": "example",
                 "score": 1,
                 "snippet": "example",
                 "title": "example",
@@ -136469,7 +136557,7 @@
       "output": {
         "properties": {
           "hits": {
-            "$ref": "#/$defs/s_f2420b6b29"
+            "$ref": "#/$defs/s_0c62195ebd"
           },
           "next": {
             "description": "Cursor for the next page; absent on the last page",
@@ -136535,6 +136623,7 @@
                 "label": "public",
                 "link": "vyre://record/rec_a1b2c3",
                 "path": "example",
+                "recordType": "example",
                 "score": 1,
                 "snippet": "example",
                 "title": "example",
@@ -136580,7 +136669,7 @@
       "module": "search",
       "name": "search.recent.list",
       "output": {
-        "$ref": "#/$defs/s_75a8987aa8"
+        "$ref": "#/$defs/s_67b1fefbc6"
       },
       "permission": null,
       "resource": {
@@ -136620,33 +136709,7 @@
       ],
       "idempotency": "none",
       "input": {
-        "properties": {
-          "itemId": {
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "person",
-              "agent",
-              "chat",
-              "inbox",
-              "record",
-              "file",
-              "automation",
-              "app",
-              "setting",
-              "memory",
-              "task",
-              "channel"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind",
-          "itemId"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_dbfb75845a"
       },
       "level": "edit",
       "module": "search",
@@ -136703,6 +136766,7 @@
                 "label": "public",
                 "link": "vyre://record/rec_a1b2c3",
                 "path": "example",
+                "recordType": "example",
                 "score": 1,
                 "snippet": "example",
                 "title": "example",
@@ -136752,7 +136816,7 @@
       "module": "search",
       "name": "search.related",
       "output": {
-        "$ref": "#/$defs/s_75a8987aa8"
+        "$ref": "#/$defs/s_67b1fefbc6"
       },
       "permission": null,
       "resource": {
@@ -136761,6 +136825,69 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "Items related to one item by links, relations and shared terms",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "meta"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "itemId": "example",
+            "kind": "person"
+          },
+          "name": "example",
+          "output": {
+            "hit": {
+              "id": "rec_a1b2c3",
+              "kind": "person",
+              "label": "public",
+              "link": "vyre://record/rec_a1b2c3",
+              "path": "example",
+              "recordType": "example",
+              "score": 1,
+              "snippet": "example",
+              "title": "example",
+              "updatedAt": 1760000000000
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_dbfb75845a"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "search",
+      "name": "search.resolve",
+      "output": {
+        "properties": {
+          "hit": {
+            "$ref": "#/$defs/s_b549e9e216"
+          }
+        },
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "One indexed item by kind and id, if the caller may see it; a record names its record type",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -172995,6 +173122,53 @@
     },
     {
       "module": "agents",
+      "name": "agent.owner_changed",
+      "payload": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "by": {
+            "type": "string"
+          },
+          "from": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "to": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "from",
+          "to",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/agentId",
+        "type": "agent"
+      },
+      "summary": "An agent was handed to another person",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "agents",
       "name": "agent.paused",
       "payload": {
         "properties": {
@@ -179296,19 +179470,7 @@
       "payload": {
         "properties": {
           "act": {
-            "enum": [
-              "send",
-              "post",
-              "pay",
-              "delete",
-              "push_protected",
-              "campaign_launch",
-              "secret_export",
-              "site_promote",
-              "signature_send",
-              "spend_raise"
-            ],
-            "type": "string"
+            "$ref": "#/$defs/s_3171ba2f8d"
           },
           "by": {
             "type": "string"
@@ -179356,19 +179518,7 @@
       "payload": {
         "properties": {
           "act": {
-            "enum": [
-              "send",
-              "post",
-              "pay",
-              "delete",
-              "push_protected",
-              "campaign_launch",
-              "secret_export",
-              "site_promote",
-              "signature_send",
-              "spend_raise"
-            ],
-            "type": "string"
+            "$ref": "#/$defs/s_3171ba2f8d"
           },
           "by": {
             "type": "string"
@@ -179424,19 +179574,7 @@
       "payload": {
         "properties": {
           "act": {
-            "enum": [
-              "send",
-              "post",
-              "pay",
-              "delete",
-              "push_protected",
-              "campaign_launch",
-              "secret_export",
-              "site_promote",
-              "signature_send",
-              "spend_raise"
-            ],
-            "type": "string"
+            "$ref": "#/$defs/s_3171ba2f8d"
           },
           "escalatedTo": {
             "type": "string"
@@ -179494,19 +179632,7 @@
       "payload": {
         "properties": {
           "act": {
-            "enum": [
-              "send",
-              "post",
-              "pay",
-              "delete",
-              "push_protected",
-              "campaign_launch",
-              "secret_export",
-              "site_promote",
-              "signature_send",
-              "spend_raise"
-            ],
-            "type": "string"
+            "$ref": "#/$defs/s_3171ba2f8d"
           },
           "actingFor": {
             "type": "string"
@@ -179573,19 +179699,7 @@
       "payload": {
         "properties": {
           "act": {
-            "enum": [
-              "send",
-              "post",
-              "pay",
-              "delete",
-              "push_protected",
-              "campaign_launch",
-              "secret_export",
-              "site_promote",
-              "signature_send",
-              "spend_raise"
-            ],
-            "type": "string"
+            "$ref": "#/$defs/s_3171ba2f8d"
           },
           "agentId": {
             "examples": [
@@ -196482,6 +196596,39 @@
         "onTimeout": "escalate"
       },
       "title": "Raise a spend cap"
+    },
+    {
+      "appliesTo": {
+        "actors": [
+          "agent",
+          "automation",
+          "campaign"
+        ],
+        "humanToo": false
+      },
+      "approvers": {
+        "default": "asker",
+        "peopleOnly": true
+      },
+      "key": "transfer",
+      "module": "gate",
+      "preview": {
+        "blocks": [
+          {
+            "from": "$input",
+            "type": "record_card"
+          }
+        ]
+      },
+      "risk": "high",
+      "sendsOnApprove": "gate.release",
+      "timeout": {
+        "afterHours": 24,
+        "emailBackstopHours": 4,
+        "escalateTo": "delegate",
+        "onTimeout": "escalate"
+      },
+      "title": "Hand over ownership"
     }
   ],
   "health": [
