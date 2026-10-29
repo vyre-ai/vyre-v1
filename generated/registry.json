@@ -2135,91 +2135,6 @@
       ],
       "type": "object"
     },
-    "s_1a833ff71f": {
-      "properties": {
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "caption": {
-          "description": "What it is doing, shown under the live view",
-          "type": "string"
-        },
-        "computerId": {
-          "examples": [
-            "cmt_a1b2c3"
-          ],
-          "pattern": "^cmt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "diskBytes": {
-          "type": "integer"
-        },
-        "host": {
-          "enum": [
-            "server",
-            "vm"
-          ],
-          "type": "string"
-        },
-        "lastActiveAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "lastFrameAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "recording": {
-          "type": "boolean"
-        },
-        "state": {
-          "enum": [
-            "provisioning",
-            "asleep",
-            "waking",
-            "working",
-            "takeover",
-            "error"
-          ],
-          "type": "string"
-        },
-        "tabLimit": {
-          "type": "integer"
-        },
-        "tabs": {
-          "type": "integer"
-        },
-        "takeoverBy": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "pattern": "^usr_[a-z0-9]+$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "computerId",
-        "agentId",
-        "state",
-        "tabs",
-        "tabLimit",
-        "host",
-        "recording"
-      ],
-      "type": "object"
-    },
     "s_1a9882542d": {
       "items": {
         "properties": {
@@ -4130,17 +4045,6 @@
       ],
       "type": "object"
     },
-    "s_316907fd11": {
-      "properties": {
-        "computer": {
-          "$ref": "#/$defs/s_1a833ff71f"
-        }
-      },
-      "required": [
-        "computer"
-      ],
-      "type": "object"
-    },
     "s_323acdeb06": {
       "properties": {
         "address": {
@@ -5672,6 +5576,95 @@
       "required": [
         "fileId",
         "isTemplate"
+      ],
+      "type": "object"
+    },
+    "s_44e9401dbf": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "caption": {
+          "description": "What it is doing, shown under the live view",
+          "type": "string"
+        },
+        "computerId": {
+          "examples": [
+            "cmt_a1b2c3"
+          ],
+          "pattern": "^cmt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "diskBytes": {
+          "type": "integer"
+        },
+        "host": {
+          "enum": [
+            "server",
+            "vm"
+          ],
+          "type": "string"
+        },
+        "lastActiveAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lastFrameAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "nodeId": {
+          "description": "The computer that joined the Space and runs this one; absent when it runs on the Space server",
+          "type": "string"
+        },
+        "recording": {
+          "type": "boolean"
+        },
+        "state": {
+          "enum": [
+            "provisioning",
+            "asleep",
+            "waking",
+            "working",
+            "takeover",
+            "error"
+          ],
+          "type": "string"
+        },
+        "tabLimit": {
+          "type": "integer"
+        },
+        "tabs": {
+          "type": "integer"
+        },
+        "takeoverBy": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^usr_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "computerId",
+        "agentId",
+        "state",
+        "tabs",
+        "tabLimit",
+        "host",
+        "recording"
       ],
       "type": "object"
     },
@@ -13241,6 +13234,17 @@
       "required": [
         "conflictId",
         "resolutionId"
+      ],
+      "type": "object"
+    },
+    "s_b0f6c1a1d4": {
+      "properties": {
+        "computer": {
+          "$ref": "#/$defs/s_44e9401dbf"
+        }
+      },
+      "required": [
+        "computer"
       ],
       "type": "object"
     },
@@ -49905,6 +49909,7 @@
               "host": "server",
               "lastActiveAt": 1760000000000,
               "lastFrameAt": 1760000000000,
+              "nodeId": "example",
               "recording": true,
               "state": "provisioning",
               "tabLimit": 1,
@@ -49944,7 +49949,7 @@
       "module": "computers",
       "name": "computers.configure",
       "output": {
-        "$ref": "#/$defs/s_316907fd11"
+        "$ref": "#/$defs/s_b0f6c1a1d4"
       },
       "permission": "computers.use",
       "resource": {
@@ -50474,6 +50479,7 @@
               "host": "server",
               "lastActiveAt": 1760000000000,
               "lastFrameAt": 1760000000000,
+              "nodeId": "example",
               "recording": true,
               "state": "provisioning",
               "tabLimit": 1,
@@ -50503,7 +50509,7 @@
       "module": "computers",
       "name": "computers.get",
       "output": {
-        "$ref": "#/$defs/s_316907fd11"
+        "$ref": "#/$defs/s_b0f6c1a1d4"
       },
       "permission": "computers.watch",
       "resource": {
@@ -50552,6 +50558,7 @@
               "host": "server",
               "lastActiveAt": 1760000000000,
               "lastFrameAt": 1760000000000,
+              "nodeId": "example",
               "recording": true,
               "state": "provisioning",
               "tabLimit": 1,
@@ -50582,7 +50589,7 @@
       "name": "computers.give_back",
       "offline": "online",
       "output": {
-        "$ref": "#/$defs/s_316907fd11"
+        "$ref": "#/$defs/s_b0f6c1a1d4"
       },
       "permission": "computers.take_over",
       "resource": {
@@ -50714,6 +50721,7 @@
                 "host": "server",
                 "lastActiveAt": 1760000000000,
                 "lastFrameAt": 1760000000000,
+                "nodeId": "example",
                 "recording": true,
                 "state": "provisioning",
                 "tabLimit": 1,
@@ -50762,7 +50770,7 @@
         "properties": {
           "computers": {
             "items": {
-              "$ref": "#/$defs/s_1a833ff71f"
+              "$ref": "#/$defs/s_44e9401dbf"
             },
             "type": "array"
           },
@@ -50816,6 +50824,7 @@
           "input": {
             "agentId": "agt_a1b2c3",
             "idempotencyKey": "idem_1",
+            "nodeId": "example",
             "tabLimit": 1
           },
           "name": "example",
@@ -50828,6 +50837,7 @@
               "host": "server",
               "lastActiveAt": 1760000000000,
               "lastFrameAt": 1760000000000,
+              "nodeId": "example",
               "recording": true,
               "state": "provisioning",
               "tabLimit": 1,
@@ -50854,6 +50864,10 @@
             "minLength": 1,
             "type": "string"
           },
+          "nodeId": {
+            "description": "Run it on a computer that joined the Space instead of the Space server",
+            "type": "string"
+          },
           "tabLimit": {
             "maximum": 50,
             "minimum": 1,
@@ -50870,7 +50884,7 @@
       "module": "computers",
       "name": "computers.provision",
       "output": {
-        "$ref": "#/$defs/s_316907fd11"
+        "$ref": "#/$defs/s_b0f6c1a1d4"
       },
       "permission": "computers.use",
       "resource": {
@@ -52567,6 +52581,7 @@
               "host": "server",
               "lastActiveAt": 1760000000000,
               "lastFrameAt": 1760000000000,
+              "nodeId": "example",
               "recording": true,
               "state": "provisioning",
               "tabLimit": 1,
@@ -52597,7 +52612,7 @@
       "name": "computers.sleep",
       "offline": "online",
       "output": {
-        "$ref": "#/$defs/s_316907fd11"
+        "$ref": "#/$defs/s_b0f6c1a1d4"
       },
       "permission": "computers.use",
       "resource": {
@@ -52742,6 +52757,7 @@
               "host": "server",
               "lastActiveAt": 1760000000000,
               "lastFrameAt": 1760000000000,
+              "nodeId": "example",
               "recording": true,
               "state": "provisioning",
               "tabLimit": 1,
@@ -52775,7 +52791,7 @@
       "output": {
         "properties": {
           "computer": {
-            "$ref": "#/$defs/s_1a833ff71f"
+            "$ref": "#/$defs/s_44e9401dbf"
           },
           "ticket": {
             "type": "string"
@@ -53040,6 +53056,7 @@
               "host": "server",
               "lastActiveAt": 1760000000000,
               "lastFrameAt": 1760000000000,
+              "nodeId": "example",
               "recording": true,
               "state": "provisioning",
               "tabLimit": 1,
@@ -53070,7 +53087,7 @@
       "name": "computers.wake",
       "offline": "online",
       "output": {
-        "$ref": "#/$defs/s_316907fd11"
+        "$ref": "#/$defs/s_b0f6c1a1d4"
       },
       "permission": "computers.use",
       "resource": {

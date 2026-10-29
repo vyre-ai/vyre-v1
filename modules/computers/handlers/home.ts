@@ -43,7 +43,8 @@ export interface HomeSync {
   /** One pass; passes of one home never overlap. Answers what it did. */
   pass(): Promise<HomeReport>;
 }
-export interface HomeReport { down: number; up: number; conflicts: number; removed: number; refused: string[]; suggested: number }
+/** `failed` counts what a pass could not do (a call refused or lost, a removal that did not happen): a pass with any is not a finished sync. */
+export interface HomeReport { down: number; up: number; conflicts: number; removed: number; refused: string[]; suggested: number; failed: number }
 
 const emptyManifest = (): Manifest => ({ files: {}, folders: {} });
 
@@ -123,12 +124,12 @@ export function createHomeSync(o: { agentId: string; computerId: string; fs: Hom
   // ---- the pass
 
   async function run(): Promise<HomeReport> {
-    const report: HomeReport = { down: 0, up: 0, conflicts: 0, removed: 0, refused: [], suggested: 0 };
+    const report: HomeReport = { down: 0, up: 0, conflicts: 0, removed: 0, refused: [], suggested: 0, failed: 0 };
     const agent = (await d.callAs(o.agentId, "agents.get", { agentId: o.agentId })).agent as { folderId: string; ownerId: string };
     const m = load();
     const R = await remote(agent.folderId);
     const snap = await o.fs.snapshot();
-    if (!snap.complete) { d.log("warn", "computers.home.too_big", { computer: o.computerId }); return report; }
+    if (!snap.complete) { report.failed++; d.log("warn", "computers.home.too_big", { computer: o.computerId }); return report; }
     report.refused = snap.refused;
     const L = { files: new Map<string, LocalFile>([...snap.files].map(([rel, f]) => [rel, { rel, bytes: f.bytes, mtimeMs: f.mtimeMs }])), dirs: snap.dirs };
     const settled = (f: LocalFile): boolean => d.now() - f.mtimeMs >= SETTLE_MS;
@@ -233,6 +234,7 @@ export function createHomeSync(o: { agentId: string; computerId: string; fs: Hom
           delete m.files[rel];   // gone on both sides
         }
       } catch (e) {
+        report.failed++;
         d.log("warn", "computers.home.file_failed", { computer: o.computerId, path: rel, error: e instanceof Error ? e.message.slice(0, 160) : "unknown" });
       }
     }
@@ -240,7 +242,7 @@ export function createHomeSync(o: { agentId: string; computerId: string; fs: Hom
     // folders only on the disk: made in Files; folders Files no longer lists: removed when empty
     for (const rel of [...L.dirs].sort()) {
       if (R.folders.has(rel) || m.folders[rel] !== undefined) continue;   // a folder Files used to list and no longer does was taken away, not made here
-      try { await folderFor(rel); } catch (e) { d.log("warn", "computers.home.folder_failed", { computer: o.computerId, path: rel, error: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); }
+      try { await folderFor(rel); } catch (e) { report.failed++; d.log("warn", "computers.home.folder_failed", { computer: o.computerId, path: rel, error: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); }
     }
     for (const rel of Object.keys(m.folders).sort().reverse()) {
       if (R.folders.has(rel) || !R.complete) continue;
@@ -249,7 +251,7 @@ export function createHomeSync(o: { agentId: string; computerId: string; fs: Hom
     }
     // removals last, in one helper run inside the computer's mounts; the manifest forgets a file only once it is really gone, so a failed removal is tried again and never read as a new file
     if (removeFiles.length > 0 || removeDirs.length > 0) {
-      try { await o.fs.remove(removeFiles, removeDirs); for (const done of afterRemove) done(); } catch (e) { d.log("warn", "computers.home.remove_failed", { computer: o.computerId, error: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); }
+      try { await o.fs.remove(removeFiles, removeDirs); for (const done of afterRemove) done(); } catch (e) { report.failed++; d.log("warn", "computers.home.remove_failed", { computer: o.computerId, error: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); }
     }
     save(m);
     if (report.refused.length > 0) d.log("warn", "computers.home.refused", { computer: o.computerId, paths: report.refused.slice(0, 20) });

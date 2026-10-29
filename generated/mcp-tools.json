@@ -11406,6 +11406,10 @@
             "minLength": 1,
             "type": "string"
           },
+          "nodeId": {
+            "description": "Run it on a computer that joined the Space instead of the Space server",
+            "type": "string"
+          },
           "tabLimit": {
             "maximum": 50,
             "minimum": 1,
