@@ -21,7 +21,7 @@ export function stageRolePermission(role: Role, drafts: Drafts, key: string): st
 }
 export function PermissionMatrix({ roles, drafts, onChange, onOpen, disabled = false }: { roles: readonly Role[]; drafts: Drafts; onChange: (role: Role, key: string) => void; onOpen: (role: Role) => void; disabled?: boolean }): ReactElement {
   const [details, setDetails] = useState("");
-  const compact = useWindowDimensions().width < 720;
+  const width = useWindowDimensions().width, compact = width > 0 && width < 720;   // an unmeasured screen (a static render) is the full matrix
   const [phoneRole, setPhoneRole] = useState("");
   const areas = [...new Set(permissions.map((permission) => permission.area))];
   const rows: ReactElement[] = [];
@@ -48,6 +48,7 @@ function PhoneMatrix({ roles, drafts, onChange, onOpen, disabled, roleId, onRole
     <Select label="Role" value={role.id} options={roles.map((r) => ({ key: r.id, title: r.name }))} onChange={onRole} />
     <Note>{role.builtIn ? "Built-in role, locked. Clone it to change permissions." : "Custom role. Tap a permission to stage a change."} {count(held.length, "permission")} on.</Note>
     <Button label={`Open ${role.name}`} onPress={() => onOpen(role)} />
+    {/* ui-rows-lint: not a list (one section per permission area; the rows inside are ui/Row) */}
     {areas.map((area) => <Section key={area} title={capital(area)}><Group>{permissions.filter((entry) => entry.area === area).map((permission) => {
       const on = held.includes(permission.key);
       return <Row key={permission.key} id={`permission-${permission.key}`} title={permission.title} note={`${permission.risk === "high" ? "High" : permission.risk === "medium" ? "Medium" : "Low"} risk`}
