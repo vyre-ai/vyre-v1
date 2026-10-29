@@ -26,7 +26,7 @@ import type { Invoke } from "../../../../../client/src/connection/desktop-link.t
 import { mark } from "../../startup/marks.ts";
 import type { ShellHub } from "../spaces/hub.ts";
 import { createCapCaller } from "./caps.ts";
-import { acceptDesktopJoin, consumeDesktopBootstrap, consumeDesktopRoute, desktopBridge, previewDesktopJoin, redeemDesktopPair } from "./desktop.ts";
+import { acceptDesktopJoin, consumeDesktopBootstrap, consumeDesktopRoute, desktopBridge, pairFromUrl, previewDesktopJoin, redeemDesktopPair } from "./desktop.ts";
 import type { DesktopRoute } from "./desktop.ts";
 import type { LoadVoiceDevice } from "./phone.ts";
 import { openRealSession } from "./session.ts";
@@ -256,7 +256,9 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     const stored = readStored(undefined, baseUrl ?? undefined);
     const href=(globalThis as {location?:{href?:string}}).location?.href;
     const incoming=href?entryTarget(href):null;
-    if(baseUrl!==null&&incoming?.kind==='join'){setDesktopRoute(incoming);setPhase({kind:'signin'});}
+    const phonePair=href&&baseUrl&&!stored?pairFromUrl(href,baseUrl):null;
+    if(phonePair){const loc=(globalThis as {location?:{pathname:string;hash:string};history?:History}).location;const url=new URL(href!);url.searchParams.delete('pair');globalThis.history?.replaceState(null,'',url.pathname+url.search+(loc?.hash??''));setDesktopRoute(phonePair);setPhase({kind:'signin'});}
+    else if(baseUrl!==null&&incoming?.kind==='join'){setDesktopRoute(incoming);setPhase({kind:'signin'});}
     else if(stored?.def.kind==='personal'&&isLoopbackUrl(stored.baseUrl)&&bridge){
       const invoke=(globalThis as {__TAURI__?:{core?:{invoke?:Invoke}}}).__TAURI__?.core?.invoke;
       if(invoke){let alive=true;setPhase({kind:'opening-personal'});setLoadedAddress(baseUrl);setReady(true);void ensurePersonalSpace(invoke).then(async local=>{if(local.spaceId!==stored.def.spaceId||local.claimUrl)throw new Error('Personal Space identity changed');const resumed=await resumePersonal(local,stored,open);if(alive){setConnectedAddress(local.address);setPhase({kind:'shell',stored:resumed});}}).catch(()=>{if(alive){setPhase({kind:'signin'});setNotice(true);}});return()=>{alive=false;};}

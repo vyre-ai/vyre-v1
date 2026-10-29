@@ -159,7 +159,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const selectSpace=(id:string):void=>{if(id===stored.def.spaceId)return;const target=catalogue.find(item=>item.def.spaceId===id);if(!target||!onSwitchSpace)return;sessionTheme(target,false);onSwitchSpace(id);};
   const renderNewTab = (): ReactElement => (search ? <NewTabSearch data={search} /> : <States kind="empty" title="Open anything, or start something" icon="search" />);
   // the onboarding screen opens over whatever the shell shows, the first time a person enters a Space and when asked
-  const wrap = (el: ReactElement): ReactElement => <OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} {...(onAddSpace?{onAddSpace}:{})}>{el}</OnboardingHost>;
+  const wrap = (el: ReactElement): ReactElement => <OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} address={stored.baseUrl} onGo={(place) => hub.go(place as PlaceId, "")} {...(onAddSpace?{onAddSpace}:{})}>{el}</OnboardingHost>;
   if (location.place === "console") return wrap(<HubProvider hub={hub}>{renderPlace({ place: "console", hash: location.hash } as PlaceContext)}</HubProvider>);
   if (narrow) return wrap(<Suspense fallback={<View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />}><PhoneHost session={session} location={{ place: location.place, hash: location.hash }} needsYou={stored.def.counts.chats ?? 0} registerGo={registerGo} onSignOut={signOut} onLock={lock} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} {...(onAddSpace?{onAddSpace}:{})} /></Suspense>);
   return wrap(
