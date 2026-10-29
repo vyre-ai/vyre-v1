@@ -140,6 +140,8 @@ jobs:
         with: { name: desktop-macOS-sha256, path: desktop-sum }
       - uses: actions/download-artifact@v4
         with: { name: desktop-Windows-sha256, path: desktop-sum-win }
+      - uses: actions/download-artifact@v4
+        with: { name: desktop-macOS-update-sum, path: desktop-sum-upd }
       - name: Exactly one macOS DMG, named by its SHA-256 sidecar from the desktop build
         run: |
           set -euo pipefail
@@ -159,6 +161,9 @@ jobs:
           [ "$(basename "${wsums[0]}")" = "VyreSetup.exe.sha256" ] || { echo "the Windows checksum is not VyreSetup.exe.sha256"; exit 1; }
           awk 'NR == 1 && substr($0, 1, 64) ~ /^[0-9a-f]+$/ && length(substr($0, 1, 64)) == 64 && substr($0, 65, 2) == "  " && substr($0, 67) == "VyreSetup.exe" { ok = 1 } END { exit !(ok && NR == 1) }' "${wsums[0]}" || { echo "the Windows checksum sidecar is malformed"; exit 1; }
           cp "${wsums[0]}" dist/VyreSetup.exe.sha256
+          # the digests the app's own updates are signed from: Vyre.app.tar.gz.b2 and VyreSetup.exe.b2 (the bundles themselves go to publish, not through sign)
+          cp desktop-sum-upd/Vyre.app.tar.gz.b2 dist/
+          cp desktop-sum-win/VyreSetup.exe.b2 dist/
       - uses: actions/upload-artifact@v4
         with: { name: release-files-desktop, path: dist, if-no-files-found: error, retention-days: 7 }
   live:
@@ -195,9 +200,13 @@ jobs:
       - name: Sign every channel entry (refuses a key that is not the compiled-in one)
         env:
           VYRE_SIGNING_KEY: ${{ secrets.VYRE_SIGNING_KEY }}
+          VERSION: ${{ needs.guard.outputs.version }}
+          TAG: ${{ github.ref_name }}
         run: |
           node scripts/release/cli.ts sign dist "$CHANNEL" "${{ steps.key.outputs.pub }}"
           node scripts/release/cli.ts assets dist
+          # the desktop app's own updates: a minisign signature per update digest and the feed the app reads, made with this same key
+          node scripts/release/cli.ts updater dist "$VERSION" "$CHANNEL" "$TAG" "${{ steps.key.outputs.pub }}"
       - name: No key material is left in the workspace (the key was only ever in this step's environment, never written)
         if: always()
         env:
@@ -225,6 +234,8 @@ jobs:
       - id: sign
         env:
           CHANNEL: ${{ needs.guard.outputs.channel }}
+          VERSION: ${{ needs.guard.outputs.version }}
+          TAG: ${{ github.ref_name }}
         run: |
           # a key that exists for this job only: it proves the sign, publish and smoke steps, and trusts nothing real
           VYRE_SIGNING_KEY="$(openssl genpkey -algorithm ed25519)"
@@ -233,6 +244,7 @@ jobs:
           echo "pub=$pub" >> "$GITHUB_OUTPUT"
           node scripts/release/cli.ts sign dist "$CHANNEL" "$pub"
           node scripts/release/cli.ts assets dist
+          node scripts/release/cli.ts updater dist "$VERSION" "$CHANNEL" "$TAG" "$pub"
       - uses: actions/upload-artifact@v4
         with: { name: release-signed, path: dist, if-no-files-found: error, retention-days: 1 }
   publish:
@@ -253,6 +265,8 @@ jobs:
         with: { name: desktop-macOS, path: desktop-artifact }
       - uses: actions/download-artifact@v4
         with: { name: desktop-Windows-exe, path: desktop-win }
+      - uses: actions/download-artifact@v4
+        with: { name: desktop-macOS-update, path: desktop-upd }
       - name: The one DMG matches the build's SHA-256 sidecar from the payload handed through sign, before anything is uploaded
         run: |
           set -euo pipefail
@@ -273,6 +287,12 @@ jobs:
           # install.ps1 reads the line for VyreSetup.exe from this file; the DMG line is there for anyone checking by hand
           (cd dist && cat *.dmg.sha256 VyreSetup.exe.sha256 > SHA256SUMS)
           cat dist/SHA256SUMS
+      - name: The update bundles are the files whose BLAKE2b-512 digests were signed, before anything is uploaded
+        run: |
+          set -euo pipefail
+          [ -f desktop-upd/Vyre.app.tar.gz ] && [ "$(find desktop-upd -type f | wc -l)" -eq 1 ] || { echo "expected exactly one macOS update bundle"; exit 1; }
+          cp desktop-upd/Vyre.app.tar.gz dist/Vyre.app.tar.gz
+          node scripts/release/cli.ts updater-check dist dist
       - name: Attach everything to the release of the tag (a prerelease for beta)
         run: node scripts/release/cli.ts publish dist
       - name: The rolling release a prerelease channel is read from
