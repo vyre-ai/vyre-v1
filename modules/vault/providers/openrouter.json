@@ -1,0 +1,10 @@
+{
+  "order": 6,
+  "key": "openrouter",
+  "name": "OpenRouter",
+  "connections": [
+    "api_key"
+  ],
+  "modelsSource": "https://openrouter.ai/api/v1/models",
+  "engine": "openrouter"
+}

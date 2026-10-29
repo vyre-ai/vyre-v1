@@ -1,0 +1,20 @@
+{
+  "order": 9,
+  "key": "opencode-go",
+  "name": "OpenCode Go",
+  "connections": [
+    "api_key"
+  ],
+  "modelsSource": "https://opencode.ai/inference/go/v1/models",
+  "engine": "opencode-go",
+  "base": "https://opencode.ai/inference/go/openai/v1",
+  "models": [
+    "glm-5.3",
+    "glm-5.2",
+    "kimi-k3",
+    "kimi-k2.7-code",
+    "deepseek-v4-pro",
+    "mimo-v2.5-pro",
+    "minimax-m3.1-flash"
+  ]
+}

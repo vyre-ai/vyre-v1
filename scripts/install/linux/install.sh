@@ -12,7 +12,7 @@
 #   --uninstall        stop the server, remove the units and /usr/local/bin/vyre-server; data and backups stay
 #   --purge            with --uninstall: also delete the data and backups, after asking
 #
-# Environment: VYRE_DIR (default /srv/vyre), VYRE_UPDATE_URL (default https://vyre.run/server/), VYRE_CODE (the one-time setup
+# Environment: VYRE_DIR (default /srv/vyre), VYRE_UPDATE_URL (default: the signed release feed on GitHub, for the channel), VYRE_CODE (the one-time setup
 # code the Vyre app makes when a server is added, for the install line `curl -fsSL https://vyre.run/install.sh | VYRE_CODE=... sh`;
 # it is written only to $VYRE_DIR/vyre.env at mode 0600 and is never printed or taken as an argument).
 #
@@ -48,7 +48,7 @@ DATA_DIR_ARG=""
 TMP=""
 
 DIR=${VYRE_DIR:-/srv/vyre}
-UPDATE_URL=${VYRE_UPDATE_URL:-https://vyre.run/server/}
+UPDATE_URL=${VYRE_UPDATE_URL:-}   # empty until parse_args knows the channel
 BIN_DIR=${VYRE_BIN_DIR:-/usr/local/bin}
 UNIT_DIR=${VYRE_SYSTEMD_DIR:-/etc/systemd/system}
 DEFAULT_RELAY=https://relay.vyre.run
@@ -90,8 +90,21 @@ ask() {
 # disk_encrypted DIR: 0 when the volume that holds DIR is encrypted, 1 when it is not, 2 when it cannot be told.
 # Linux: the mount that holds DIR (longest target in /proc/mounts) is ecryptfs, an encrypted ZFS dataset, or its block device stack has a
 # dm-crypt layer (`lsblk -s` lists a "crypt" row). Anything else, including tmpfs and overlay, is not encrypted.
+# macOS: `diskutil info` for the volume that holds DIR says FileVault: Yes (or Encrypted: Yes for an external volume).
 disk_encrypted() {
   _d=$1
+  _os=$(uname -s)
+  [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -z "${VYRE_TEST_OS:-}" ] || _os=$VYRE_TEST_OS
+  if [ "$_os" = Darwin ]; then
+    _du=diskutil
+    [ "${VYRE_TEST_MODE:-0}" != 1 ] || [ -z "${VYRE_TEST_DISKUTIL:-}" ] || _du=$VYRE_TEST_DISKUTIL
+    _dev=$(df -P "$_d" 2>/dev/null | awk 'NR==2 {print $1}')
+    [ -n "$_dev" ] || return 2
+    _info=$("$_du" info "$_dev" 2>/dev/null || true)
+    if printf '%s\n' "$_info" | grep -Eq '^ *(FileVault|Encrypted): +Yes'; then return 0; fi
+    if printf '%s\n' "$_info" | grep -Eq '^ *(FileVault|Encrypted): +No'; then return 1; fi
+    return 2
+  fi
   _mounts=/proc/mounts
   _lsblk=lsblk
   if [ "${VYRE_TEST_MODE:-0}" = 1 ]; then _mounts=${VYRE_TEST_PROC_MOUNTS:-/proc/mounts}; [ -z "${VYRE_TEST_LSBLK:-}" ] || _lsblk=$VYRE_TEST_LSBLK; fi
@@ -159,6 +172,14 @@ ver_cmp() {
 }
 # END semver
 
+# The signed release feed of a channel, as scripts/release/feed.ts writes it: stable is the newest published release, beta and nightly are rolling releases with a fixed tag.
+default_feed() {
+  case "$1" in
+    stable) printf 'https://github.com/vyre-ai/vyre-v1/releases/latest/download/' ;;
+    *) printf 'https://github.com/vyre-ai/vyre-v1/releases/download/channel-%s/' "$1" ;;
+  esac
+}
+
 usage() { sed -n '2,19p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//' || true; }
 
 parse_args() {
@@ -182,6 +203,7 @@ parse_args() {
   if [ -n "$DOMAIN" ] && [ -n "$RELAY" ]; then die "--domain and --relay are two ways to reach this server; choose one" 2; fi
   case "$DOMAIN" in ""|*[!A-Za-z0-9.-]*) [ -z "$DOMAIN" ] || die "--domain must be a host name like vyre.example.com" 2 ;; esac
   DATA_DIR=${DATA_DIR_ARG:-${VYRE_DATA_DIR:-$DIR/data}}
+  [ -n "$UPDATE_URL" ] || UPDATE_URL=$(default_feed "$CHANNEL")
 }
 
 # ---- the machine --------------------------------------------------------------------------------------------------------------------
@@ -316,7 +338,12 @@ verify_manifest() {
   tr -d ' \n\r' <"$2" | openssl base64 -d -A >"$TMP/sig.bin" 2>/dev/null || return 1
   [ "$(wc -c <"$TMP/sig.bin" | tr -d ' ')" = 64 ] || return 1
   { printf 'vyre-release-sums\n'; cat "$1"; } >"$TMP/signed.msg"
-  openssl pkeyutl -verify -pubin -inkey "$key" -rawin -in "$TMP/signed.msg" -sigfile "$TMP/sig.bin" >/dev/null 2>&1
+  "${OSSL:-openssl}" pkeyutl -verify -pubin -inkey "$key" -rawin -in "$TMP/signed.msg" -sigfile "$TMP/sig.bin" >/dev/null 2>&1
+}
+
+# sha256_of FILE: the hex digest (sha256sum on Linux, shasum on macOS).
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'; else shasum -a 256 "$1" | awk '{print $1}'; fi
 }
 
 fetch() { curl -fsSL --retry 3 --retry-delay 2 --max-time "${3:-120}" "$1" -o "$2"; }
@@ -346,7 +373,7 @@ fetch_release() {
   case "$url" in http://*|https://*) ;; "") die "the manifest names no artifact; nothing was installed." ;; *) url="$base/$url" ;; esac
   say "  Downloading Vyre Server $REL_VERSION"
   fetch "$url" "$TMP/release.tgz" 900 || die "could not download $url; nothing was installed."
-  got=$(sha256sum "$TMP/release.tgz" | awk '{print $1}')
+  got=$(sha256_of "$TMP/release.tgz")
   [ "$got" = "$sum" ] || die "the download does not match the signed release (wanted $sum, got $got); nothing was installed."
   say "  ok  the download matches the signed release"
   REL_TARBALL=$TMP/release.tgz
@@ -559,7 +586,7 @@ main() {
   parse_args "$@"
   TMP=$(mktemp -d "${TMPDIR:-/tmp}/vyre-install.XXXXXX")
   trap cleanup EXIT
-  case "$(uname -s)" in Linux) ;; *) [ "${VYRE_TEST_MODE:-0}" = 1 ] || die "this installer is for Linux; on a Mac use the Mac installer." ;; esac
+  case "$(uname -s)" in Linux) ;; *) [ "${VYRE_TEST_MODE:-0}" = 1 ] || die "this installer is for Linux; on a Mac run: curl -fsSL https://vyre.run/install-mac.sh | sh" ;; esac
   case "$(uname -m)" in x86_64|amd64|aarch64|arm64) ;; *) die "Vyre Server runs on x86_64 and arm64; this machine is $(uname -m)." ;; esac
   is_root || die "run this as root (for example: curl -fsSL https://vyre.run/install.sh | sudo sh)."
   if [ "$UNINSTALL" = 1 ]; then uninstall; return 0; fi

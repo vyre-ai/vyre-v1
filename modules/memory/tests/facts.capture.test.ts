@@ -84,12 +84,20 @@ test("a private chat's ciphertext is skipped, and questions are not facts", asyn
   const h = harness({
     principal: { kind: "service", id: "svc_engine" },
     respond: chat("chat", {}, [
-      { messageId: "msg_e", author: person("usr_dana"), body: "x9f0...ciphertext I prefer tea", enc: true },
+      { messageId: "msg_e", author: person("usr_dana"), body: "enc2.1.AAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBB.Y2lwaGVydGV4dCBJIHByZWZlciB0ZWE.CCCCCCCCCCCCCCCCCCCCCC", enc: 2 },
       { messageId: "msg_q", author: person("usr_dana"), body: "Do I prefer tea or coffee?" },
     ]),
   });
   assert.deepEqual(await capture(h.ctx, { threadId: "thr_enc", reason: "closed" }), { proposed: 0, merged: 0 });
   assert.equal(h.named("memory.captured").length, 1);
+});
+
+test("a private chat's text is captured when its body reached the Space as text, whatever the thread's flag says", async () => {
+  const h = harness({
+    principal: { kind: "service", id: "svc_engine" },
+    respond: chat("chat", {}, [{ messageId: "msg_t", author: person("usr_dana"), body: "I prefer tea in the afternoon.", enc: 2 }]),
+  });
+  assert.deepEqual(await capture(h.ctx, { threadId: "thr_enc", reason: "closed" }), { proposed: 1, merged: 1 });
 });
 
 test("the extractor can be replaced with a model pass, and put back", async () => {

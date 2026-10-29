@@ -1958,91 +1958,6 @@
       ],
       "type": "object"
     },
-    "s_1a833ff71f": {
-      "properties": {
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "caption": {
-          "description": "What it is doing, shown under the live view",
-          "type": "string"
-        },
-        "computerId": {
-          "examples": [
-            "cmt_a1b2c3"
-          ],
-          "pattern": "^cmt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "diskBytes": {
-          "type": "integer"
-        },
-        "host": {
-          "enum": [
-            "server",
-            "vm"
-          ],
-          "type": "string"
-        },
-        "lastActiveAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "lastFrameAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "recording": {
-          "type": "boolean"
-        },
-        "state": {
-          "enum": [
-            "provisioning",
-            "asleep",
-            "waking",
-            "working",
-            "takeover",
-            "error"
-          ],
-          "type": "string"
-        },
-        "tabLimit": {
-          "type": "integer"
-        },
-        "tabs": {
-          "type": "integer"
-        },
-        "takeoverBy": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "pattern": "^usr_[a-z0-9]+$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "computerId",
-        "agentId",
-        "state",
-        "tabs",
-        "tabLimit",
-        "host",
-        "recording"
-      ],
-      "type": "object"
-    },
     "s_1a9882542d": {
       "items": {
         "properties": {
@@ -4133,17 +4048,6 @@
       ],
       "type": "object"
     },
-    "s_316907fd11": {
-      "properties": {
-        "computer": {
-          "$ref": "#/$defs/s_1a833ff71f"
-        }
-      },
-      "required": [
-        "computer"
-      ],
-      "type": "object"
-    },
     "s_323acdeb06": {
       "properties": {
         "address": {
@@ -5643,6 +5547,95 @@
       "required": [
         "fileId",
         "isTemplate"
+      ],
+      "type": "object"
+    },
+    "s_44e9401dbf": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "caption": {
+          "description": "What it is doing, shown under the live view",
+          "type": "string"
+        },
+        "computerId": {
+          "examples": [
+            "cmt_a1b2c3"
+          ],
+          "pattern": "^cmt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "diskBytes": {
+          "type": "integer"
+        },
+        "host": {
+          "enum": [
+            "server",
+            "vm"
+          ],
+          "type": "string"
+        },
+        "lastActiveAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lastFrameAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "nodeId": {
+          "description": "The computer that joined the Space and runs this one; absent when it runs on the Space server",
+          "type": "string"
+        },
+        "recording": {
+          "type": "boolean"
+        },
+        "state": {
+          "enum": [
+            "provisioning",
+            "asleep",
+            "waking",
+            "working",
+            "takeover",
+            "error"
+          ],
+          "type": "string"
+        },
+        "tabLimit": {
+          "type": "integer"
+        },
+        "tabs": {
+          "type": "integer"
+        },
+        "takeoverBy": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^usr_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "computerId",
+        "agentId",
+        "state",
+        "tabs",
+        "tabLimit",
+        "host",
+        "recording"
       ],
       "type": "object"
     },
@@ -7567,6 +7560,17 @@
       },
       "required": [
         "resource"
+      ],
+      "type": "object"
+    },
+    "s_5a861eae61": {
+      "properties": {
+        "provider": {
+          "$ref": "#/$defs/s_9c8d435efe"
+        }
+      },
+      "required": [
+        "provider"
       ],
       "type": "object"
     },
@@ -11056,6 +11060,44 @@
       },
       "type": "object"
     },
+    "s_8e499b5b27": {
+      "properties": {
+        "base": {
+          "type": "string"
+        },
+        "connected": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "key": {
+          "examples": [
+            "custom-acme-gateway"
+          ],
+          "type": "string"
+        },
+        "keyless": {
+          "type": "boolean"
+        },
+        "models": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "name",
+        "base",
+        "keyless",
+        "models",
+        "connected"
+      ],
+      "type": "object"
+    },
     "s_8e8b8fb9fc": {
       "properties": {
         "members": {
@@ -11820,6 +11862,139 @@
       "required": [
         "kind",
         "id"
+      ],
+      "type": "object"
+    },
+    "s_9c8d435efe": {
+      "properties": {
+        "address": {
+          "description": "The address a local model or custom endpoint is reached at",
+          "type": "string"
+        },
+        "agentsUsing": {
+          "items": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "connection": {
+          "enum": [
+            "subscription",
+            "api_key",
+            "local_model"
+          ],
+          "type": "string"
+        },
+        "engine": {
+          "examples": [
+            "claude-code"
+          ],
+          "type": "string"
+        },
+        "handle": {
+          "examples": [
+            "#Dana_Lawmatics"
+          ],
+          "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+          "type": "string"
+        },
+        "id": {
+          "examples": [
+            "prv_a1b2c3"
+          ],
+          "pattern": "^prv_[a-z0-9]+$",
+          "type": "string"
+        },
+        "itemId": {
+          "examples": [
+            "vit_a1b2c3"
+          ],
+          "pattern": "^vit_[a-z0-9]+$",
+          "type": "string"
+        },
+        "keyless": {
+          "type": "boolean"
+        },
+        "logo": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "providerKey": {
+          "examples": [
+            "anthropic"
+          ],
+          "type": "string"
+        },
+        "scope": {
+          "enum": [
+            "mine",
+            "shared"
+          ],
+          "type": "string"
+        },
+        "spaceMayUse": {
+          "type": "boolean"
+        },
+        "state": {
+          "enum": [
+            "ok",
+            "needs_sign_in",
+            "failing"
+          ],
+          "type": "string"
+        },
+        "usage": {
+          "properties": {
+            "costCents": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "periodStart": {
+              "description": "Milliseconds since the Unix epoch",
+              "examples": [
+                1760000000000
+              ],
+              "minimum": 0,
+              "type": "integer"
+            },
+            "tokens": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "tokens",
+            "costCents",
+            "periodStart"
+          ],
+          "type": "object"
+        },
+        "via": {
+          "examples": [
+            "Subscription, yours"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "providerKey",
+        "name",
+        "connection",
+        "via",
+        "scope",
+        "itemId",
+        "agentsUsing",
+        "usage",
+        "engine",
+        "spaceMayUse",
+        "state"
       ],
       "type": "object"
     },
@@ -13186,17 +13361,6 @@
       },
       "type": "object"
     },
-    "s_afaca9223b": {
-      "properties": {
-        "provider": {
-          "$ref": "#/$defs/s_bc0017b836"
-        }
-      },
-      "required": [
-        "provider"
-      ],
-      "type": "object"
-    },
     "s_afcf784aa2": {
       "properties": {
         "address": {
@@ -13306,6 +13470,17 @@
       "required": [
         "conflictId",
         "resolutionId"
+      ],
+      "type": "object"
+    },
+    "s_b0f6c1a1d4": {
+      "properties": {
+        "computer": {
+          "$ref": "#/$defs/s_44e9401dbf"
+        }
+      },
+      "required": [
+        "computer"
       ],
       "type": "object"
     },
@@ -14480,132 +14655,6 @@
         "label",
         "createdAt",
         "updatedAt"
-      ],
-      "type": "object"
-    },
-    "s_bc0017b836": {
-      "properties": {
-        "agentsUsing": {
-          "items": {
-            "examples": [
-              "agt_a1b2c3"
-            ],
-            "pattern": "^agt_[a-z0-9]+$",
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "connection": {
-          "enum": [
-            "subscription",
-            "api_key",
-            "local_model"
-          ],
-          "type": "string"
-        },
-        "engine": {
-          "examples": [
-            "claude-code"
-          ],
-          "type": "string"
-        },
-        "handle": {
-          "examples": [
-            "#Dana_Lawmatics"
-          ],
-          "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
-          "type": "string"
-        },
-        "id": {
-          "examples": [
-            "prv_a1b2c3"
-          ],
-          "pattern": "^prv_[a-z0-9]+$",
-          "type": "string"
-        },
-        "itemId": {
-          "examples": [
-            "vit_a1b2c3"
-          ],
-          "pattern": "^vit_[a-z0-9]+$",
-          "type": "string"
-        },
-        "logo": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "providerKey": {
-          "examples": [
-            "anthropic"
-          ],
-          "type": "string"
-        },
-        "scope": {
-          "enum": [
-            "mine",
-            "shared"
-          ],
-          "type": "string"
-        },
-        "spaceMayUse": {
-          "type": "boolean"
-        },
-        "state": {
-          "enum": [
-            "ok",
-            "needs_sign_in",
-            "failing"
-          ],
-          "type": "string"
-        },
-        "usage": {
-          "properties": {
-            "costCents": {
-              "minimum": 0,
-              "type": "integer"
-            },
-            "periodStart": {
-              "description": "Milliseconds since the Unix epoch",
-              "examples": [
-                1760000000000
-              ],
-              "minimum": 0,
-              "type": "integer"
-            },
-            "tokens": {
-              "minimum": 0,
-              "type": "integer"
-            }
-          },
-          "required": [
-            "tokens",
-            "costCents",
-            "periodStart"
-          ],
-          "type": "object"
-        },
-        "via": {
-          "examples": [
-            "Subscription, yours"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "providerKey",
-        "name",
-        "connection",
-        "via",
-        "scope",
-        "itemId",
-        "agentsUsing",
-        "usage",
-        "engine",
-        "spaceMayUse",
-        "state"
       ],
       "type": "object"
     },
@@ -50773,6 +50822,7 @@
               "host": "server",
               "lastActiveAt": 1760000000000,
               "lastFrameAt": 1760000000000,
+              "nodeId": "example",
               "recording": true,
               "state": "provisioning",
               "tabLimit": 1,
@@ -50812,7 +50862,7 @@
       "module": "computers",
       "name": "computers.configure",
       "output": {
-        "$ref": "#/$defs/s_316907fd11"
+        "$ref": "#/$defs/s_b0f6c1a1d4"
       },
       "permission": "computers.use",
       "resource": {
@@ -51342,6 +51392,7 @@
               "host": "server",
               "lastActiveAt": 1760000000000,
               "lastFrameAt": 1760000000000,
+              "nodeId": "example",
               "recording": true,
               "state": "provisioning",
               "tabLimit": 1,
@@ -51371,7 +51422,7 @@
       "module": "computers",
       "name": "computers.get",
       "output": {
-        "$ref": "#/$defs/s_316907fd11"
+        "$ref": "#/$defs/s_b0f6c1a1d4"
       },
       "permission": "computers.watch",
       "resource": {
@@ -51420,6 +51471,7 @@
               "host": "server",
               "lastActiveAt": 1760000000000,
               "lastFrameAt": 1760000000000,
+              "nodeId": "example",
               "recording": true,
               "state": "provisioning",
               "tabLimit": 1,
@@ -51450,7 +51502,7 @@
       "name": "computers.give_back",
       "offline": "online",
       "output": {
-        "$ref": "#/$defs/s_316907fd11"
+        "$ref": "#/$defs/s_b0f6c1a1d4"
       },
       "permission": "computers.take_over",
       "resource": {
@@ -51582,6 +51634,7 @@
                 "host": "server",
                 "lastActiveAt": 1760000000000,
                 "lastFrameAt": 1760000000000,
+                "nodeId": "example",
                 "recording": true,
                 "state": "provisioning",
                 "tabLimit": 1,
@@ -51630,7 +51683,7 @@
         "properties": {
           "computers": {
             "items": {
-              "$ref": "#/$defs/s_1a833ff71f"
+              "$ref": "#/$defs/s_44e9401dbf"
             },
             "type": "array"
           },
@@ -51684,6 +51737,7 @@
           "input": {
             "agentId": "agt_a1b2c3",
             "idempotencyKey": "idem_1",
+            "nodeId": "example",
             "tabLimit": 1
           },
           "name": "example",
@@ -51696,6 +51750,7 @@
               "host": "server",
               "lastActiveAt": 1760000000000,
               "lastFrameAt": 1760000000000,
+              "nodeId": "example",
               "recording": true,
               "state": "provisioning",
               "tabLimit": 1,
@@ -51722,6 +51777,10 @@
             "minLength": 1,
             "type": "string"
           },
+          "nodeId": {
+            "description": "Run it on a computer that joined the Space instead of the Space server",
+            "type": "string"
+          },
           "tabLimit": {
             "maximum": 50,
             "minimum": 1,
@@ -51738,7 +51797,7 @@
       "module": "computers",
       "name": "computers.provision",
       "output": {
-        "$ref": "#/$defs/s_316907fd11"
+        "$ref": "#/$defs/s_b0f6c1a1d4"
       },
       "permission": "computers.use",
       "resource": {
@@ -53435,6 +53494,7 @@
               "host": "server",
               "lastActiveAt": 1760000000000,
               "lastFrameAt": 1760000000000,
+              "nodeId": "example",
               "recording": true,
               "state": "provisioning",
               "tabLimit": 1,
@@ -53465,7 +53525,7 @@
       "name": "computers.sleep",
       "offline": "online",
       "output": {
-        "$ref": "#/$defs/s_316907fd11"
+        "$ref": "#/$defs/s_b0f6c1a1d4"
       },
       "permission": "computers.use",
       "resource": {
@@ -53610,6 +53670,7 @@
               "host": "server",
               "lastActiveAt": 1760000000000,
               "lastFrameAt": 1760000000000,
+              "nodeId": "example",
               "recording": true,
               "state": "provisioning",
               "tabLimit": 1,
@@ -53643,7 +53704,7 @@
       "output": {
         "properties": {
           "computer": {
-            "$ref": "#/$defs/s_1a833ff71f"
+            "$ref": "#/$defs/s_44e9401dbf"
           },
           "ticket": {
             "type": "string"
@@ -53908,6 +53969,7 @@
               "host": "server",
               "lastActiveAt": 1760000000000,
               "lastFrameAt": 1760000000000,
+              "nodeId": "example",
               "recording": true,
               "state": "provisioning",
               "tabLimit": 1,
@@ -53938,7 +54000,7 @@
       "name": "computers.wake",
       "offline": "online",
       "output": {
-        "$ref": "#/$defs/s_316907fd11"
+        "$ref": "#/$defs/s_b0f6c1a1d4"
       },
       "permission": "computers.use",
       "resource": {
@@ -64566,7 +64628,9 @@
           "output": {
             "accounts": [
               {
+                "base": "example",
                 "driver": "anthropic",
+                "keyless": true,
                 "kind": "api_key",
                 "lastProbeAt": 1760000000000,
                 "mine": true,
@@ -64592,6 +64656,10 @@
           "accounts": {
             "items": {
               "properties": {
+                "base": {
+                  "description": "The address of a local or custom OpenAI-compatible endpoint",
+                  "type": "string"
+                },
                 "driver": {
                   "enum": [
                     "anthropic",
@@ -64601,11 +64669,15 @@
                     "xai",
                     "opencode_go",
                     "local",
+                    "custom",
                     "claude_code",
                     "codex",
                     "grok"
                   ],
                   "type": "string"
+                },
+                "keyless": {
+                  "type": "boolean"
                 },
                 "kind": {
                   "enum": [
@@ -65796,6 +65868,7 @@
                     "xai",
                     "opencode_go",
                     "local",
+                    "custom",
                     "claude_code",
                     "codex",
                     "grok"
@@ -66214,6 +66287,7 @@
                     "xai",
                     "opencode_go",
                     "local",
+                    "custom",
                     "claude_code",
                     "codex",
                     "grok"
@@ -66420,6 +66494,7 @@
                     "xai",
                     "opencode_go",
                     "local",
+                    "custom",
                     "claude_code",
                     "codex",
                     "grok"
@@ -67975,6 +68050,7 @@
               "xai",
               "opencode_go",
               "local",
+              "custom",
               "claude_code",
               "codex",
               "grok"
@@ -114245,6 +114321,7 @@
               {
                 "fact": "example",
                 "path": "example",
+                "sourceLink": "example",
                 "title": "example",
                 "trueSince": 1760000000000
               }
@@ -114298,6 +114375,10 @@
                   "type": "string"
                 },
                 "path": {
+                  "type": "string"
+                },
+                "sourceLink": {
+                  "description": "Link to the exact chat, task or record the fact came from",
                   "type": "string"
                 },
                 "title": {
@@ -128317,6 +128398,7 @@
           "name": "example",
           "output": {
             "provider": {
+              "address": "example",
               "agentsUsing": [
                 "agt_a1b2c3"
               ],
@@ -128325,6 +128407,7 @@
               "handle": "#Dana_Lawmatics",
               "id": "prv_a1b2c3",
               "itemId": "vit_a1b2c3",
+              "keyless": true,
               "logo": "example",
               "name": "example",
               "providerKey": "anthropic",
@@ -128405,7 +128488,7 @@
       "name": "providers.add",
       "offline": "online",
       "output": {
-        "$ref": "#/$defs/s_afaca9223b"
+        "$ref": "#/$defs/s_5a861eae61"
       },
       "permission": null,
       "resource": {
@@ -128438,9 +128521,11 @@
           "output": {
             "providers": [
               {
+                "base": "example",
                 "connections": [
                   "subscription"
                 ],
+                "custom": true,
                 "engine": "example",
                 "key": "example",
                 "logo": "example",
@@ -128464,6 +128549,9 @@
           "providers": {
             "items": {
               "properties": {
+                "base": {
+                  "type": "string"
+                },
                 "connections": {
                   "items": {
                     "enum": [
@@ -128474,6 +128562,9 @@
                     "type": "string"
                   },
                   "type": "array"
+                },
+                "custom": {
+                  "type": "boolean"
                 },
                 "engine": {
                   "type": "string"
@@ -128524,6 +128615,297 @@
       "v": 1
     },
     {
+      "audit": "sensitive",
+      "effects": "write",
+      "emits": [
+        "provider.added",
+        "vault.item_created"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.duplicate"
+      ],
+      "examples": [
+        {
+          "input": {
+            "apiKey": "example",
+            "baseUrl": "https://llm.acme.test/v1",
+            "folderId": "vfd_a1b2c3",
+            "idempotencyKey": "idem_1",
+            "models": [
+              "example"
+            ],
+            "name": "Acme gateway",
+            "scope": "mine"
+          },
+          "name": "example",
+          "output": {
+            "endpoint": {
+              "base": "example",
+              "connected": 1,
+              "key": "custom-acme-gateway",
+              "keyless": true,
+              "models": [
+                "example"
+              ],
+              "name": "example"
+            },
+            "provider": {
+              "address": "example",
+              "agentsUsing": [
+                "agt_a1b2c3"
+              ],
+              "connection": "subscription",
+              "engine": "claude-code",
+              "handle": "#Dana_Lawmatics",
+              "id": "prv_a1b2c3",
+              "itemId": "vit_a1b2c3",
+              "keyless": true,
+              "logo": "example",
+              "name": "example",
+              "providerKey": "anthropic",
+              "scope": "mine",
+              "spaceMayUse": true,
+              "state": "ok",
+              "usage": {
+                "costCents": 1,
+                "periodStart": 1760000000000,
+                "tokens": 1
+              },
+              "via": "Subscription, yours"
+            }
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "apiKey": {
+            "type": "string"
+          },
+          "baseUrl": {
+            "examples": [
+              "https://llm.acme.test/v1"
+            ],
+            "type": "string"
+          },
+          "folderId": {
+            "examples": [
+              "vfd_a1b2c3"
+            ],
+            "pattern": "^vfd_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "examples": [
+              "Acme gateway"
+            ],
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "mine",
+              "shared"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "baseUrl",
+          "scope",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "vault",
+      "name": "providers.custom_add",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "endpoint": {
+            "$ref": "#/$defs/s_8e499b5b27"
+          },
+          "provider": {
+            "$ref": "#/$defs/s_9c8d435efe"
+          }
+        },
+        "required": [
+          "endpoint",
+          "provider"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Register an OpenAI-compatible endpoint (a gateway, vLLM, LiteLLM, a hosted model) by base address and connect it with my key, held in the Vault by handle",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "vault"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "endpoints": [
+              {
+                "base": "example",
+                "connected": 1,
+                "key": "custom-acme-gateway",
+                "keyless": true,
+                "models": [
+                  "example"
+                ],
+                "name": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "vault",
+      "name": "providers.custom_list",
+      "output": {
+        "properties": {
+          "endpoints": {
+            "items": {
+              "$ref": "#/$defs/s_8e499b5b27"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "endpoints"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The custom OpenAI-compatible endpoints this Space registered",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "vault"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "provider.removed",
+        "vault.item_deleted"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "key": "example"
+          },
+          "name": "example",
+          "output": {
+            "ok": true
+          }
+        }
+      ],
+      "gate": {
+        "act": "delete",
+        "when": "actor.kind != 'person'"
+      },
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "vault",
+      "name": "providers.custom_remove",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Remove a custom endpoint I registered, and my connections to it",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "vault"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -128539,6 +128921,7 @@
           "output": {
             "providers": [
               {
+                "address": "example",
                 "agentsUsing": [
                   "agt_a1b2c3"
                 ],
@@ -128547,6 +128930,7 @@
                 "handle": "#Dana_Lawmatics",
                 "id": "prv_a1b2c3",
                 "itemId": "vit_a1b2c3",
+                "keyless": true,
                 "logo": "example",
                 "name": "example",
                 "providerKey": "anthropic",
@@ -128576,7 +128960,7 @@
         "properties": {
           "providers": {
             "items": {
-              "$ref": "#/$defs/s_bc0017b836"
+              "$ref": "#/$defs/s_9c8d435efe"
             },
             "type": "array"
           }
@@ -128696,6 +129080,7 @@
           "name": "example",
           "output": {
             "provider": {
+              "address": "example",
               "agentsUsing": [
                 "agt_a1b2c3"
               ],
@@ -128704,6 +129089,7 @@
               "handle": "#Dana_Lawmatics",
               "id": "prv_a1b2c3",
               "itemId": "vit_a1b2c3",
+              "keyless": true,
               "logo": "example",
               "name": "example",
               "providerKey": "anthropic",
@@ -128745,7 +129131,7 @@
       "name": "providers.set_space_use",
       "offline": "online",
       "output": {
-        "$ref": "#/$defs/s_afaca9223b"
+        "$ref": "#/$defs/s_5a861eae61"
       },
       "permission": null,
       "resource": {
@@ -128785,6 +129171,7 @@
           "name": "example",
           "output": {
             "provider": {
+              "address": "example",
               "agentsUsing": [
                 "agt_a1b2c3"
               ],
@@ -128793,6 +129180,7 @@
               "handle": "#Dana_Lawmatics",
               "id": "prv_a1b2c3",
               "itemId": "vit_a1b2c3",
+              "keyless": true,
               "logo": "example",
               "name": "example",
               "providerKey": "anthropic",
@@ -128830,7 +129218,7 @@
       "name": "providers.subscription_complete",
       "offline": "online",
       "output": {
-        "$ref": "#/$defs/s_afaca9223b"
+        "$ref": "#/$defs/s_5a861eae61"
       },
       "permission": null,
       "resource": {

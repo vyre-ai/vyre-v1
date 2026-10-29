@@ -34,7 +34,7 @@ type In = {
 ```ts
 type Out = {
   providers: Array<{
-      driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "claude_code" | "codex" | "grok";
+      driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "custom" | "claude_code" | "codex" | "grok";
       kind: "api" | "cli";
       title: string;
       connected: boolean;

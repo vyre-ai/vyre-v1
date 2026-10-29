@@ -4,6 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -18,7 +19,7 @@ const tmp = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "vyre-install-te
 type Out = { status: number | null; stdout: string; stderr: string };
 /** Runs a snippet of sh with a script's functions loaded and nothing else executed. */
 function sh(script: string, body: string, env: Record<string, string> = {}): Out {
-  const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", VYRE_SOURCE_ONLY: "1", VYRE_TEST_MODE: "1", ...env } });
+  const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", VYRE_SOURCE_ONLY: "1", VYRE_TEST_MODE: "1", VYRE_TEST_OS: "Linux", ...env } });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
@@ -117,6 +118,31 @@ test("vyre-server doctor reports the same disk rule", () => {
   const enc = fakeHost(dir, {});
   const g = sh(SERVER, `DATA_DIR="${dir}/data"; check_all; printf '%s\\n' "$FINDINGS"`, hostEnv(enc));
   assert.match(g.stdout, /host\.disk_encrypted\thealthy\t/);
+  fs.rmSync(dir, { recursive: true });
+});
+
+test("on a Mac the same rule reads diskutil: FileVault or an encrypted volume passes, a plain volume does not, and no answer is reported as such", () => {
+  const dir = tmp();
+  const du = path.join(dir, "diskutil");
+  const run = (out: string): number | null => {
+    fs.writeFileSync(du, `#!/bin/sh\ncat <<'EOT'\n${out}\nEOT\n`, { mode: 0o755 });
+    return sh(INSTALL, `disk_encrypted "${dir}"`, { VYRE_TEST_OS: "Darwin", VYRE_TEST_DISKUTIL: du }).status;
+  };
+  assert.equal(run("   Volume Name:  Macintosh HD - Data\n   FileVault:                 Yes"), 0, "FileVault on");
+  assert.equal(run("   Volume Name:  Backup\n   FileVault:                 No\n   Encrypted:                 Yes"), 0, "an external encrypted volume");
+  assert.equal(run("   Volume Name:  Scratch\n   FileVault:                 No"), 1, "FileVault off");
+  assert.equal(run("   Volume Name:  Scratch"), 2, "diskutil says nothing about it");
+  const doctor = sh(SERVER, `DATA_DIR="${dir}"; check_all; printf '%s\\n' "$FINDINGS"`, { VYRE_TEST_OS: "Darwin", VYRE_TEST_DISKUTIL: du });
+  assert.match(doctor.stdout, /host\.disk_encrypted\tdown\t/, "doctor reports the same rule on a Mac");
+  fs.rmSync(dir, { recursive: true });
+});
+
+test("sha256_of gives the same digest as the file's real SHA-256", () => {
+  const dir = tmp();
+  const f = path.join(dir, "x");
+  fs.writeFileSync(f, "vyre");
+  const want = createHash("sha256").update("vyre").digest("hex");
+  for (const script of [INSTALL, SERVER]) assert.equal(sh(script, `sha256_of "${f}"`).stdout.trim(), want);
   fs.rmSync(dir, { recursive: true });
 });
 
@@ -335,7 +361,7 @@ test("--dry-run on the whole installer stops at the first check: a plain disk ex
   const dir = tmp();
   const plain = fakeHost(dir, { src: "/dev/sdb1", layers: ["part", "disk"] });
   const target = path.join(dir, "srv");
-  const r = spawnSync("sh", [INSTALL, "--yes", "--dry-run"], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", VYRE_TEST_MODE: "1", VYRE_TEST_NONROOT: "1", VYRE_DIR: target, ...hostEnv(plain) } });
+  const r = spawnSync("sh", [INSTALL, "--yes", "--dry-run"], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", VYRE_TEST_MODE: "1", VYRE_TEST_OS: "Linux", VYRE_TEST_NONROOT: "1", VYRE_DIR: target, ...hostEnv(plain) } });
   // Tools it needs (curl, jq, openssl 3) are checked first; on a machine without them the exit is 1, with them it is 3. Never 0, never a write.
   assert.notEqual(r.status, 0);
   assert.ok(!fs.existsSync(target));
@@ -405,4 +431,15 @@ test('manual rollback respects the same active operation lock before changing st
  const dir=tmp();try{const lock=path.join(dir,'state','update.lock');fs.mkdirSync(lock,{recursive:true});
   const out=sh(SERVER,'trap cleanup EXIT; cmd_rollback',{VYRE_DIR:dir,TMPDIR:dir});assert.equal(out.status,75,out.stderr);assert.equal(fs.existsSync(lock),true);
  }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test("the default release feed is the GitHub feed of the chosen channel (no dependency on vyre.run), and VYRE_UPDATE_URL wins", () => {
+  const feed = (a: string, env: Record<string, string> = {}): string => sh(INSTALL, `parse_args ${a}; echo "$UPDATE_URL"`, { VYRE_DIR: "/srv/vyre", ...env }).stdout.trim();
+  assert.equal(feed("--yes"), "https://github.com/vyre-ai/vyre-v1/releases/latest/download/");
+  assert.equal(feed("--channel beta"), "https://github.com/vyre-ai/vyre-v1/releases/download/channel-beta/");
+  assert.equal(feed("--channel nightly"), "https://github.com/vyre-ai/vyre-v1/releases/download/channel-nightly/");
+  assert.equal(feed("--channel beta", { VYRE_UPDATE_URL: "https://updates.example/server/" }), "https://updates.example/server/");
+  assert.doesNotMatch(read(INSTALL), /vyre\.run\/server/);
+  assert.doesNotMatch(read(SERVER), /vyre\.run\/server/);
+  assert.match(read(SERVER), /printf 'https:\/\/github\.com\/vyre-ai\/vyre-v1\/releases\/latest\/download\/'/, "an install with no update-url file reads the stable feed");
 });

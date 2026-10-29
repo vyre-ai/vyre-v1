@@ -7,6 +7,9 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "providers.add": Handler<"providers.add", X>;
   "providers.catalog": Handler<"providers.catalog", X>;
+  "providers.custom_add": Handler<"providers.custom_add", X>;
+  "providers.custom_list": Handler<"providers.custom_list", X>;
+  "providers.custom_remove": Handler<"providers.custom_remove", X>;
   "providers.list": Handler<"providers.list", X>;
   "providers.remove": Handler<"providers.remove", X>;
   "providers.set_space_use": Handler<"providers.set_space_use", X>;

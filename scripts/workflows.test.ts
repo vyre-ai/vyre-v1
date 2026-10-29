@@ -108,11 +108,20 @@ test("native stays non-blocking for live while the macOS desktop artifact gates 
   const assembled = rel.jobs.find((j) => j.name === "desktop-release-files");
   assert.ok(assembled, "release assembles the desktop artifact");
   assert.deepEqual(assembled.needs, ["package", "desktop"]);
-  assert.match(assembled.text, /^ {4}timeout-minutes: 15$/m, "the 125 MB desktop artifact has enough time to download and verify");
-  assert.match(assembled.text, /name: desktop-macOS, path: desktop-artifact/);
+  assert.match(assembled.text, /^ {4}timeout-minutes: 30$/m, "assembling has room for a slow artifact service (rc.2 hit 15)");
+  // the DMG crosses the network once, into publish: assembling and signing carry only its SHA-256 sidecar
+  assert.match(assembled.text, /name: desktop-macOS-sha256, path: desktop-sum/);
+  assert.doesNotMatch(assembled.text, /name: desktop-macOS,/, "assembling never downloads the DMG");
   assert.match(assembled.text, /exactly one DMG/);
-  assert.match(assembled.text, /sha256sum/);
   assert.match(assembled.text, /name: release-files-desktop/);
+  const desktop = wf("desktop");
+  assert.match(desktop.text, /shasum -a 256/);
+  assert.match(desktop.text, /name: desktop-macOS-sha256, path: dmg-sum/);
+  const publish = rel.jobs.find((j) => j.name === "publish")!;
+  assert.match(publish.text, /name: desktop-macOS, path: desktop-artifact/, "publish takes the DMG once");
+  assert.match(publish.text, /sha256sum -c "\$dmg_name\.sha256"/, "publish checks the DMG against the build's SHA-256 sidecar before uploading");
+  assert.ok(publish.text.indexOf("sha256sum -c") < publish.text.indexOf("cli.ts publish"), "the check comes before the upload");
+  for (const n of ["sign", "sign-dryrun"]) assert.doesNotMatch(rel.jobs.find((j) => j.name === n)!.text, /desktop-macOS/, `${n} never downloads the DMG`);
   assert.doesNotMatch(assembled.text, /nsis/i, "Windows installers never enter the release payload");
   for (const n of ["sign", "sign-dryrun"] as const) {
     const job = rel.jobs.find((j) => j.name === n)!;
@@ -225,4 +234,29 @@ test("seeded bad input: a blocked license, a secret, a high advisory and an unli
   assert.equal(applyKnown([v], [{ rule: "B1", file: "modules/a/x.ts", reason: "", until: "2099-01-01" }]).failing.length, 1, "a known entry without a reason does not count");
   assert.equal(applyKnown([v], [{ rule: "B1", file: "modules/a/x.ts", reason: "moves with P-X, until then accepted", until: "2020-01-01" }]).failing.length, 1, "an expired known entry does not count");
   assert.equal(applyKnown([], [{ rule: "B1", file: "gone.ts", reason: "was needed once, now fixed", until: "2099-01-01" }]).stale.length, 1, "a stale known entry fails");
+});
+
+test("the Windows setup program reaches the release as VyreSetup.exe with a SHA-256 sidecar that goes through sign, and install.ps1 asks for exactly those names", () => {
+  const desktop = wf("desktop"), rel = wf("release");
+  assert.match(desktop.text, /bundle\/nsis\/\*-setup\.exe/, "the build's own output name is globbed, then renamed");
+  assert.match(desktop.text, /cp "\$\{exes\[0\]\}" win-exe\/VyreSetup\.exe/);
+  assert.match(desktop.text, /sha256sum VyreSetup\.exe\) > win-sum\/VyreSetup\.exe\.sha256/);
+  assert.match(desktop.text, /name: desktop-Windows-sha256, path: win-sum/);
+  assert.match(desktop.text, /name: desktop-Windows-exe, path: win-exe/);
+  // Tauri's name for the installer is <productName>_<version>_<arch>-setup.exe: the glob has to match it
+  const conf = JSON.parse(fs.readFileSync(path.resolve(dir, "../../apps/desktop/src-tauri/tauri.conf.json"), "utf8")) as { productName: string; version: string };
+  assert.match(`${conf.productName}_${conf.version}_x64-setup.exe`, /^[^/]+-setup\.exe$/);
+  // the checksum travels through assembling and sign; the program itself is downloaded once, by publish
+  const assembled = rel.jobs.find((j) => j.name === "desktop-release-files")!;
+  assert.match(assembled.text, /name: desktop-Windows-sha256, path: desktop-sum-win/);
+  assert.doesNotMatch(assembled.text, /desktop-Windows-exe/, "assembling never downloads the setup program");
+  for (const n of ["sign", "sign-dryrun"]) assert.doesNotMatch(rel.jobs.find((j) => j.name === n)!.text, /desktop-Windows/, `${n} never downloads the setup program`);
+  const publish = rel.jobs.find((j) => j.name === "publish")!;
+  assert.match(publish.text, /name: desktop-Windows-exe, path: desktop-win/);
+  assert.match(publish.text, /sha256sum -c VyreSetup\.exe\.sha256/);
+  assert.match(publish.text, /cat \*\.dmg\.sha256 VyreSetup\.exe\.sha256 > SHA256SUMS/);
+  assert.ok(publish.text.indexOf("sha256sum -c VyreSetup.exe.sha256") < publish.text.indexOf("cli.ts publish"), "the check comes before the upload");
+  const ps1 = fs.readFileSync(path.resolve(dir, "../../scripts/install/windows/install.ps1"), "utf8");
+  assert.match(ps1, /"\$ReleaseBase\/VyreSetup\.exe"/);
+  assert.match(ps1, /"\$ReleaseBase\/SHA256SUMS"/);
 });
