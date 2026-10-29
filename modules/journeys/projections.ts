@@ -169,18 +169,23 @@ export function countInFlight(db: Db, journeyId: string): number {
 
 // ---- tasks and breaches ----
 
-export interface TaskLink { stage: string; taskKey: string; enteredAt: number; taskId: string; required: boolean }
+export interface TaskLink { stage: string; taskKey: string; enteredAt: number; taskId: string; required: boolean; doneRunId?: string }
 export function saveTaskLink(db: Db, recordId: string, t: TaskLink): void {
-  db.run("INSERT OR REPLACE INTO journeys_tasks (record_id, stage, task_key, entered_at, task_id, required) VALUES (?, ?, ?, ?, ?, ?)", recordId, t.stage, t.taskKey, t.enteredAt, t.taskId, t.required ? 1 : 0);
+  db.run("INSERT OR REPLACE INTO journeys_tasks (record_id, stage, task_key, entered_at, task_id, required, done_run_id) VALUES (?, ?, ?, ?, ?, ?, ?)", recordId, t.stage, t.taskKey, t.enteredAt, t.taskId, t.required ? 1 : 0, t.doneRunId ?? null);
+}
+/** The task whose Automation ran as this Run, if any. */
+export function taskOfRun(db: Db, runId: string): { recordId: string; taskId: string; taskKey: string } | undefined {
+  const r = (db.all("SELECT record_id, task_id, task_key FROM journeys_tasks WHERE done_run_id = ?", runId) as Raw[])[0];
+  return r ? { recordId: r.record_id as string, taskId: r.task_id as string, taskKey: r.task_key as string } : undefined;
 }
 export function taskLinks(db: Db, recordId: string, stage: string, enteredAt: number): TaskLink[] {
   return (db.all("SELECT * FROM journeys_tasks WHERE record_id = ? AND stage = ? AND entered_at = ? ORDER BY task_key", recordId, stage, enteredAt) as Raw[])
-    .map((r) => ({ stage: r.stage as string, taskKey: r.task_key as string, enteredAt: num(r.entered_at) ?? 0, taskId: r.task_id as string, required: num(r.required) === 1 }));
+    .map((r) => ({ stage: r.stage as string, taskKey: r.task_key as string, enteredAt: num(r.entered_at) ?? 0, taskId: r.task_id as string, required: num(r.required) === 1, ...(r.done_run_id ? { doneRunId: r.done_run_id as string } : {}) }));
 }
 /** Every task made for a record, the latest entry of each stage's template key only (a record that left a stage and came back has a newer copy). */
 export function allTaskLinks(db: Db, recordId: string, stage?: string): TaskLink[] {
   const rows = (db.all(`SELECT * FROM journeys_tasks WHERE record_id = ?${stage ? " AND stage = ?" : ""} ORDER BY entered_at, stage, task_key`, ...(stage ? [recordId, stage] : [recordId])) as Raw[])
-    .map((r) => ({ stage: r.stage as string, taskKey: r.task_key as string, enteredAt: num(r.entered_at) ?? 0, taskId: r.task_id as string, required: num(r.required) === 1 }));
+    .map((r) => ({ stage: r.stage as string, taskKey: r.task_key as string, enteredAt: num(r.entered_at) ?? 0, taskId: r.task_id as string, required: num(r.required) === 1, ...(r.done_run_id ? { doneRunId: r.done_run_id as string } : {}) }));
   const latest = new Map<string, TaskLink>();
   for (const l of rows) latest.set(`${l.stage}\u0000${l.taskKey}`, l);
   return [...latest.values()];
