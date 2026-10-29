@@ -19160,7 +19160,8 @@
               "secret_export",
               "site_promote",
               "signature_send",
-              "spend_raise"
+              "spend_raise",
+              "signin_change"
             ],
             "type": "string"
           },
@@ -19247,7 +19248,8 @@
               "secret_export",
               "site_promote",
               "signature_send",
-              "spend_raise"
+              "spend_raise",
+              "signin_change"
             ],
             "type": "string"
           },
@@ -19338,7 +19340,8 @@
               "secret_export",
               "site_promote",
               "signature_send",
-              "spend_raise"
+              "spend_raise",
+              "signin_change"
             ],
             "type": "string"
           },

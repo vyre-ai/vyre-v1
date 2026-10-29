@@ -133,3 +133,52 @@ test("an admin sets the GitHub app in the app: the secret goes to the Vault and 
     assert.equal((await post("identity.sign_in_options", {})).body.data.github, false);
   } finally { await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); await gh.close(); }
 });
+
+test("an agent's call to set or clear the GitHub app is held for a person: nothing changes until a person approves it, then it applies", async () => {
+  const gh = await standIn();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-gh-gate-"));
+  delete process.env["VYRE_GH_OAUTH_CLIENT_ID"]; delete process.env["VYRE_GH_OAUTH_CLIENT_SECRET"];
+  const d = await boot(dir, "spc_gh_gate", { authorizeUrl: `${gh.url}/authorize`, tokenUrl: `${gh.url}/token`, userUrl: `${gh.url}/user` });
+  const post = async (cap: string, input: unknown, token?: string) => { const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(input) }); return { status: r.status, body: await r.json() as { data?: any; error?: { code: string } } }; };
+  const until = async (ok: () => Promise<boolean>) => { for (let i = 0; i < 50; i++) { if (await ok()) return true; await new Promise((r) => setTimeout(r, 200)); } return false; };
+  const options = async () => (await post("identity.sign_in_options", {})).body.data.github as boolean;
+  const vaultItems = async (owner: string) => ((await post("vault.items.list", { q: "GitHub sign-in" }, owner)).body.data.items as { name: string }[]).filter((i) => i.name === "GitHub sign-in client secret").length;
+  const approveHold = async (owner: string): Promise<void> => {
+    const holds = (await post("gate.holds.list", { states: ["held"] }, owner)).body.data.holds as { act: string; taskId: string; capName?: string }[];
+    const hold = holds.find((h) => h.act === "signin_change");
+    assert.ok(hold, `a signin_change hold waits for a person: ${JSON.stringify(holds)}`);
+    assert.equal((await post("tasks.act", { taskId: hold!.taskId, action: "approve" }, owner)).status, 200);
+  };
+  try {
+    const claimCode = decodeURIComponent(new URL(d.claim!.url).pathname.split("/").pop() ?? "");
+    assert.equal((await post("identity.claim_owner", { code: claimCode, spaceId: "spc_gh_gate", username: "olivia", displayName: "Olivia", password: PASSWORD, ...device, keys: KEYS })).status, 200);
+    const owner = (await post("identity.sign_in", { username: "olivia", password: PASSWORD, ...device })).body.data.session.token as string;
+    const roles = (await post("access.roles.list", {}, owner)).body.data.roles as { id: string; name: string }[];
+    const made = await post("access.actors.create", { name: "Admin tool", provider: "anthropic", roleIds: [roles.find((r) => r.name === "Admin")!.id], idempotencyKey: "gh-gate-actor" }, owner);
+    const agent = (await post("access.actors.redeem", { token: made.body.data.oneTimeToken })).body.data.credential as string;
+    assert.ok(await until(async () => (await post("members.sign_in_github.get", {}, agent)).status === 200), "an agent may read the setting");
+
+    // set: held, and nothing moves
+    const set = await post("members.sign_in_github.set", { clientId: "Iv1.stubclient0001", clientSecret: SECRET }, agent);
+    assert.ok(set.status !== 200 || JSON.stringify(set.body.data).includes("held"), `the agent's set is not applied: ${JSON.stringify(set.body)}`);
+    assert.ok(await until(async () => ((await post("gate.holds.list", { states: ["held"] }, owner)).body.data.holds as { act: string }[]).some((h) => h.act === "signin_change")));
+    assert.equal(await options(), false); assert.equal(await vaultItems(owner), 0);
+    assert.equal((await post("members.sign_in_github.get", {}, owner)).body.data.github.source, "none");
+    await approveHold(owner);
+    assert.ok(await until(options), "after approval the Space offers GitHub");
+    assert.equal(await vaultItems(owner), 1); assert.equal((await post("members.sign_in_github.get", {}, owner)).body.data.github.source, "space");
+
+    // clear: held, GitHub stays on until a person approves
+    const clear = await post("members.sign_in_github.clear", {}, agent);
+    assert.ok(clear.status !== 200 || JSON.stringify(clear.body.data).includes("held"), `the agent's clear is not applied: ${JSON.stringify(clear.body)}`);
+    assert.ok(await until(async () => ((await post("gate.holds.list", { states: ["held"] }, owner)).body.data.holds as { act: string }[]).some((h) => h.act === "signin_change")));
+    assert.equal(await options(), true);
+    await approveHold(owner);
+    assert.ok(await until(async () => !(await options())), "after approval GitHub is off again");
+
+    // a person's own call is not held
+    assert.equal((await post("members.sign_in_github.set", { clientId: "Iv1.stubclient0001", clientSecret: SECRET }, owner)).status, 200);
+    assert.equal(await options(), true);
+    assert.ok(!(await post("audit.list", { limit: 200 }, owner).then((r) => JSON.stringify(r.body))).includes(SECRET));
+  } finally { await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); await gh.close(); }
+});

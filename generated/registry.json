@@ -383,6 +383,24 @@
       },
       "type": "array"
     },
+    "s_072f18ff76": {
+      "enum": [
+        "send",
+        "post",
+        "pay",
+        "delete",
+        "transfer",
+        "enroll_node",
+        "push_protected",
+        "campaign_launch",
+        "secret_export",
+        "site_promote",
+        "signature_send",
+        "spend_raise",
+        "signin_change"
+      ],
+      "type": "string"
+    },
     "s_07340211b5": {
       "anyOf": [
         {
@@ -5288,87 +5306,6 @@
       ],
       "type": "object"
     },
-    "s_475c563580": {
-      "properties": {
-        "act": {
-          "$ref": "#/$defs/s_75dff07a61"
-        },
-        "afterHours": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "agentOkFor": {
-          "enum": [
-            "low",
-            "medium",
-            "high"
-          ],
-          "type": "string"
-        },
-        "approvers": {
-          "description": "role:<name>, owner or asker",
-          "examples": [
-            "role:admin"
-          ],
-          "type": "string"
-        },
-        "emailBackstopHours": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "escalateTo": {
-          "enum": [
-            "delegate",
-            "role"
-          ],
-          "type": "string"
-        },
-        "mode": {
-          "enum": [
-            "hold",
-            "allow"
-          ],
-          "type": "string"
-        },
-        "onTimeout": {
-          "enum": [
-            "drop",
-            "escalate"
-          ],
-          "type": "string"
-        },
-        "peopleOnly": {
-          "type": "boolean"
-        },
-        "scope": {
-          "enum": [
-            "space",
-            "floor",
-            "agent"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "act",
-        "mode",
-        "approvers",
-        "peopleOnly",
-        "afterHours",
-        "onTimeout",
-        "escalateTo",
-        "emailBackstopHours",
-        "scope"
-      ],
-      "type": "object"
-    },
     "s_47621c6fe1": {
       "properties": {
         "expiresAt": {
@@ -9040,6 +8977,87 @@
       ],
       "type": "object"
     },
+    "s_750ebe20cf": {
+      "properties": {
+        "act": {
+          "$ref": "#/$defs/s_072f18ff76"
+        },
+        "afterHours": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "agentOkFor": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "type": "string"
+        },
+        "approvers": {
+          "description": "role:<name>, owner or asker",
+          "examples": [
+            "role:admin"
+          ],
+          "type": "string"
+        },
+        "emailBackstopHours": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "escalateTo": {
+          "enum": [
+            "delegate",
+            "role"
+          ],
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "hold",
+            "allow"
+          ],
+          "type": "string"
+        },
+        "onTimeout": {
+          "enum": [
+            "drop",
+            "escalate"
+          ],
+          "type": "string"
+        },
+        "peopleOnly": {
+          "type": "boolean"
+        },
+        "scope": {
+          "enum": [
+            "space",
+            "floor",
+            "agent"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "act",
+        "mode",
+        "approvers",
+        "peopleOnly",
+        "afterHours",
+        "onTimeout",
+        "escalateTo",
+        "emailBackstopHours",
+        "scope"
+      ],
+      "type": "object"
+    },
     "s_753c0a822e": {
       "properties": {
         "request": {
@@ -9073,23 +9091,6 @@
         "costMicros"
       ],
       "type": "object"
-    },
-    "s_75dff07a61": {
-      "enum": [
-        "send",
-        "post",
-        "pay",
-        "delete",
-        "transfer",
-        "enroll_node",
-        "push_protected",
-        "campaign_launch",
-        "secret_export",
-        "site_promote",
-        "signature_send",
-        "spend_raise"
-      ],
-      "type": "string"
     },
     "s_7636d4fac9": {
       "properties": {
@@ -12191,86 +12192,6 @@
       },
       "type": "array"
     },
-    "s_a7a9bf3d71": {
-      "properties": {
-        "act": {
-          "$ref": "#/$defs/s_75dff07a61"
-        },
-        "actingFor": {
-          "type": "string"
-        },
-        "capName": {
-          "examples": [
-            "mail.send"
-          ],
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "expiresAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "hld_a1b2c3"
-          ],
-          "pattern": "^hld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "payloadHash": {
-          "type": "string"
-        },
-        "principal": {
-          "$ref": "#/$defs/s_6c1eb10d98"
-        },
-        "runId": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "state": {
-          "enum": [
-            "held",
-            "approved",
-            "denied",
-            "expired"
-          ],
-          "type": "string"
-        },
-        "taskId": {
-          "examples": [
-            "tsk_a1b2c3"
-          ],
-          "pattern": "^tsk_[a-z0-9]+$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "act",
-        "capName",
-        "taskId",
-        "principal",
-        "state",
-        "payloadHash",
-        "createdAt",
-        "expiresAt"
-      ],
-      "type": "object"
-    },
     "s_a803997f5b": {
       "properties": {
         "count": {
@@ -14564,6 +14485,86 @@
         "recordingState",
         "hasTranscript",
         "hasSummary"
+      ],
+      "type": "object"
+    },
+    "s_c2c24ad476": {
+      "properties": {
+        "act": {
+          "$ref": "#/$defs/s_072f18ff76"
+        },
+        "actingFor": {
+          "type": "string"
+        },
+        "capName": {
+          "examples": [
+            "mail.send"
+          ],
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expiresAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "hld_a1b2c3"
+          ],
+          "pattern": "^hld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "payloadHash": {
+          "type": "string"
+        },
+        "principal": {
+          "$ref": "#/$defs/s_6c1eb10d98"
+        },
+        "runId": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "held",
+            "approved",
+            "denied",
+            "expired"
+          ],
+          "type": "string"
+        },
+        "taskId": {
+          "examples": [
+            "tsk_a1b2c3"
+          ],
+          "pattern": "^tsk_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "act",
+        "capName",
+        "taskId",
+        "principal",
+        "state",
+        "payloadHash",
+        "createdAt",
+        "expiresAt"
       ],
       "type": "object"
     },
@@ -74775,7 +74776,7 @@
                   "type": "boolean"
                 },
                 "key": {
-                  "$ref": "#/$defs/s_75dff07a61"
+                  "$ref": "#/$defs/s_072f18ff76"
                 },
                 "peopleOnly": {
                   "type": "boolean"
@@ -74951,7 +74952,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_75dff07a61"
+            "$ref": "#/$defs/s_072f18ff76"
           },
           "principal": {
             "$ref": "#/$defs/s_6c1eb10d98"
@@ -75182,7 +75183,7 @@
       "output": {
         "properties": {
           "hold": {
-            "$ref": "#/$defs/s_a7a9bf3d71"
+            "$ref": "#/$defs/s_c2c24ad476"
           }
         },
         "required": [
@@ -75254,7 +75255,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_75dff07a61"
+            "$ref": "#/$defs/s_072f18ff76"
           },
           "cursor": {
             "type": "string"
@@ -75294,7 +75295,7 @@
         "properties": {
           "holds": {
             "items": {
-              "$ref": "#/$defs/s_a7a9bf3d71"
+              "$ref": "#/$defs/s_c2c24ad476"
             },
             "type": "array"
           },
@@ -75368,7 +75369,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_75dff07a61"
+            "$ref": "#/$defs/s_072f18ff76"
           },
           "actingFor": {
             "type": "string"
@@ -75621,7 +75622,7 @@
         "properties": {
           "rules": {
             "items": {
-              "$ref": "#/$defs/s_475c563580"
+              "$ref": "#/$defs/s_750ebe20cf"
             },
             "type": "array"
           }
@@ -75695,7 +75696,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_75dff07a61"
+            "$ref": "#/$defs/s_072f18ff76"
           },
           "afterHours": {
             "minimum": 1,
@@ -75766,7 +75767,7 @@
       "output": {
         "properties": {
           "rule": {
-            "$ref": "#/$defs/s_475c563580"
+            "$ref": "#/$defs/s_750ebe20cf"
           }
         },
         "required": [
@@ -108475,6 +108476,10 @@
           }
         }
       ],
+      "gate": {
+        "act": "signin_change",
+        "when": "actor.kind != 'person'"
+      },
       "idempotency": "natural",
       "input": {
         "properties": {},
@@ -108587,6 +108592,10 @@
           }
         }
       ],
+      "gate": {
+        "act": "signin_change",
+        "when": "actor.kind != 'person'"
+      },
       "idempotency": "natural",
       "input": {
         "properties": {
@@ -180392,7 +180401,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_75dff07a61"
+            "$ref": "#/$defs/s_072f18ff76"
           },
           "by": {
             "type": "string"
@@ -180440,7 +180449,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_75dff07a61"
+            "$ref": "#/$defs/s_072f18ff76"
           },
           "by": {
             "type": "string"
@@ -180496,7 +180505,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_75dff07a61"
+            "$ref": "#/$defs/s_072f18ff76"
           },
           "escalatedTo": {
             "type": "string"
@@ -180554,7 +180563,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_75dff07a61"
+            "$ref": "#/$defs/s_072f18ff76"
           },
           "actingFor": {
             "type": "string"
@@ -180621,7 +180630,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_75dff07a61"
+            "$ref": "#/$defs/s_072f18ff76"
           },
           "agentId": {
             "examples": [
@@ -197520,6 +197529,39 @@
         "onTimeout": "escalate"
       },
       "title": "Send a document for signature"
+    },
+    {
+      "appliesTo": {
+        "actors": [
+          "agent",
+          "automation",
+          "campaign"
+        ],
+        "humanToo": false
+      },
+      "approvers": {
+        "default": "asker",
+        "peopleOnly": true
+      },
+      "key": "signin_change",
+      "module": "gate",
+      "preview": {
+        "blocks": [
+          {
+            "from": "$input",
+            "type": "record_card"
+          }
+        ]
+      },
+      "risk": "high",
+      "sendsOnApprove": "gate.release",
+      "timeout": {
+        "afterHours": 24,
+        "emailBackstopHours": 4,
+        "escalateTo": "delegate",
+        "onTimeout": "escalate"
+      },
+      "title": "Change how people sign in to the Space"
     },
     {
       "appliesTo": {

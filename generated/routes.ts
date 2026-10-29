@@ -16823,7 +16823,7 @@ export const routes: Route[] = [
     "risk": "high",
     "offline": null,
     "teamOnly": true,
-    "gate": null
+    "gate": "signin_change"
   },
   {
     "method": "POST",
@@ -16859,7 +16859,7 @@ export const routes: Route[] = [
     "risk": "high",
     "offline": null,
     "teamOnly": true,
-    "gate": null
+    "gate": "signin_change"
   },
   {
     "method": "POST",

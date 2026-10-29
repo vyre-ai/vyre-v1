@@ -19,7 +19,7 @@ A hold timed out: dropped or escalated to a delegate or role
 ```ts
 type Payload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
   taskId: string;
   outcome: "dropped" | "escalated";
   escalatedTo?: string;
