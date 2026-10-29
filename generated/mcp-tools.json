@@ -36179,6 +36179,107 @@
     },
     {
       "blocks": [],
+      "cap": "providers.custom_add",
+      "deferred": false,
+      "description": "Register an OpenAI-compatible endpoint (a gateway, vLLM, LiteLLM, a hosted model) by base address and connect it with my key, held in the Vault by handle",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "apiKey": {
+            "type": "string"
+          },
+          "baseUrl": {
+            "examples": [
+              "https://llm.acme.test/v1"
+            ],
+            "type": "string"
+          },
+          "folderId": {
+            "examples": [
+              "vfd_a1b2c3"
+            ],
+            "pattern": "^vfd_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "examples": [
+              "Acme gateway"
+            ],
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "mine",
+              "shared"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "baseUrl",
+          "scope",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "providers_custom_add",
+      "planMode": "blocked",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "providers.custom_list",
+      "deferred": false,
+      "description": "The custom OpenAI-compatible endpoints this Space registered",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "providers_custom_list",
+      "planMode": "allowed",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "providers.custom_remove",
+      "deferred": false,
+      "description": "Remove a custom endpoint I registered, and my connections to it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "type": "object"
+      },
+      "name": "providers_custom_remove",
+      "planMode": "blocked",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "providers.list",
       "deferred": false,
       "description": "My connected AI providers: logo, how connected, Mine or Shared, agents using it, this month's usage",
@@ -43920,6 +44021,7 @@
               "xai",
               "opencode_go",
               "local",
+              "custom",
               "claude_code",
               "codex",
               "grok"

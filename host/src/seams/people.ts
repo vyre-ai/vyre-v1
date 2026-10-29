@@ -35,7 +35,7 @@ const count = (db: PeopleDeps["db"], sql: string, ...args: unknown[]): number =>
 };
 
 /** The GitHub OAuth app of this server (VYRE_GH_OAUTH_CLIENT_ID and VYRE_GH_OAUTH_CLIENT_SECRET, set by the installer from the owner's vault); both or neither. */
-export interface GithubOAuth { clientId: string; clientSecret: string; fetch?: typeof globalThis.fetch }
+export interface GithubOAuth { clientId: string; clientSecret: string; fetch?: typeof globalThis.fetch; /** the GitHub endpoints; only a test points these at a stand-in server */ authorizeUrl?: string; tokenUrl?: string; userUrl?: string }
 export function githubOAuthFromEnv(env: NodeJS.ProcessEnv): GithubOAuth | null {
   const clientId = env["VYRE_GH_OAUTH_CLIENT_ID"], clientSecret = env["VYRE_GH_OAUTH_CLIENT_SECRET"];
   return clientId && clientSecret ? { clientId, clientSecret } : null;
@@ -46,12 +46,12 @@ export function createGithub(o: GithubOAuth): { resolve(code: string): Promise<{
   const f = o.fetch ?? globalThis.fetch;
   return {
     async resolve(code) {
-      const t = await f("https://github.com/login/oauth/access_token", {
+      const t = await f(o.tokenUrl ?? "https://github.com/login/oauth/access_token", {
         method: "POST", headers: { accept: "application/json", "content-type": "application/json" }, body: JSON.stringify({ client_id: o.clientId, client_secret: o.clientSecret, code }), redirect: "error",
       });
       const token = ((await t.json()) as { access_token?: unknown }).access_token;
       if (typeof token !== "string" || token === "") throw new Error("GitHub did not accept the code");
-      const u = await f("https://api.github.com/user", { headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "user-agent": "vyre-server" }, redirect: "error" });
+      const u = await f(o.userUrl ?? "https://api.github.com/user", { headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "user-agent": "vyre-server" }, redirect: "error" });
       const user = (await u.json()) as { id?: unknown; login?: unknown };
       if ((typeof user.id !== "number" && typeof user.id !== "string") || typeof user.login !== "string") throw new Error("GitHub did not say who this is");
       return { id: String(user.id), login: user.login };

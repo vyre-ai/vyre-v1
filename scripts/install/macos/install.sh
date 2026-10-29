@@ -13,7 +13,7 @@
 #   --uninstall        stop the server, remove the launchd agents and the vyre-server command; data and backups stay
 #   --purge            with --uninstall: also delete the data and backups, after asking
 #
-# Environment: VYRE_DIR (default ~/.vyre/server), VYRE_UPDATE_URL (default https://vyre.run/server/), VYRE_CODE (the one-time setup code the Vyre app makes
+# Environment: VYRE_DIR (default ~/.vyre/server), VYRE_UPDATE_URL (default: the signed release feed on GitHub, for the channel), VYRE_CODE (the one-time setup code the Vyre app makes
 # when a server is added; it is written only to $VYRE_DIR/vyre.env at mode 0600 and is never printed or taken as an argument).
 #
 # Run it as your own account, not with sudo: Docker Desktop and the launchd agent belong to the person who is logged in. In order, stopping at the first
@@ -45,7 +45,7 @@ TMP=""
 OSSL=""
 
 DIR=${VYRE_DIR:-$HOME/.vyre/server}
-UPDATE_URL=${VYRE_UPDATE_URL:-https://vyre.run/server/}
+UPDATE_URL=${VYRE_UPDATE_URL:-}   # empty until parse_args knows the channel
 BIN_DIR=${VYRE_BIN_DIR:-$HOME/.local/bin}
 AGENT_DIR=${VYRE_LAUNCHD_DIR:-$HOME/Library/LaunchAgents}
 DEFAULT_RELAY=https://relay.vyre.run
@@ -169,6 +169,14 @@ ver_cmp() {
     }'
 }
 # END semver
+# The signed release feed of a channel, as scripts/release/feed.ts writes it: stable is the newest published release, beta and nightly are rolling releases with a fixed tag.
+default_feed() {
+  case "$1" in
+    stable) printf 'https://github.com/vyre-ai/vyre-v1/releases/latest/download/' ;;
+    *) printf 'https://github.com/vyre-ai/vyre-v1/releases/download/channel-%s/' "$1" ;;
+  esac
+}
+
 usage() { sed -n "2,14p" "$0" 2>/dev/null | sed 's/^# \{0,1\}//' || true; }
 
 parse_args() {
@@ -192,6 +200,7 @@ parse_args() {
   if [ -n "$DOMAIN" ] && [ -n "$RELAY" ]; then die "--domain and --relay are two ways to reach this server; choose one" 2; fi
   case "$DOMAIN" in ""|*[!A-Za-z0-9.-]*) [ -z "$DOMAIN" ] || die "--domain must be a host name like vyre.example.com" 2 ;; esac
   DATA_DIR=${DATA_DIR_ARG:-${VYRE_DATA_DIR:-$DIR/data}}
+  [ -n "$UPDATE_URL" ] || UPDATE_URL=$(default_feed "$CHANNEL")
   # These paths go into a property list and a compose file; a space or a markup character in them would break both.
   for p in "$DIR" "$DATA_DIR" "$BIN_DIR"; do
     case "$p" in *[!A-Za-z0-9_@%+=:,./~-]*) die "the path $p holds a space or a special character; choose a plain path (letters, digits, - _ . /)." 2 ;; esac

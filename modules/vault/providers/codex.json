@@ -1,0 +1,14 @@
+{
+  "order": 2,
+  "key": "codex",
+  "name": "Codex",
+  "connections": [
+    "subscription"
+  ],
+  "modelsSource": "static",
+  "engine": "codex",
+  "models": [
+    "gpt-5-codex"
+  ],
+  "instruction": "On your computer run `codex login`. Vyre saves the sign-in as an AI subscription item in your Mine folder. Then press Done."
+}

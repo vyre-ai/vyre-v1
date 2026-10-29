@@ -19,7 +19,7 @@ const mcpCallIn = { agentId: id.agent, server: t.str({ examples: ['greeter/echo'
 const mcpCallOut = { isError: t.bool(), text: t.str(), structured: t.opt(t.json()) };
 const agentMode = t.enm('lead', 'listen');
 const turnState = t.enm('queued', 'running', 'waiting', 'completed', 'failed', 'cancelled');
-const driverId = t.enm('anthropic', 'openai', 'openrouter', 'google', 'xai', 'opencode_go', 'local', 'claude_code', 'codex', 'grok');
+const driverId = t.enm('anthropic', 'openai', 'openrouter', 'google', 'xai', 'opencode_go', 'local', 'custom', 'claude_code', 'codex', 'grok');
 const accountRef = t.str({ description: 'Vault handle or subscription account reference; never a secret value', examples: ['#Team_Anthropic_Key'] });
 const errShape = t.obj({ code: t.str(), message: t.str(), next: t.arr(t.obj({ kind: t.str(), label: t.str() })), traceId: id.trace });
 const modelInfo = t.obj({
@@ -29,6 +29,7 @@ const modelInfo = t.obj({
 const accountRow = t.obj({
   ref: accountRef, driver: driverId, kind: t.enm('api_key', 'subscription'), title: t.str(), mine: t.bool(), ownerId: t.opt(id.user),
   status: t.enm('ok', 'expired', 'failed', 'untested'), lastProbeAt: t.opt(t.ts()),
+  base: t.opt(t.str({ description: 'The address of a local or custom OpenAI-compatible endpoint' })), keyless: t.opt(t.bool()),
 });
 const turnRow = t.obj({
   turnId: id.turn, threadId: id.thread, agentId: id.agent, asker: t.str(), accountRef: t.opt(accountRef), engine: t.str(), model: t.str(), state: turnState,

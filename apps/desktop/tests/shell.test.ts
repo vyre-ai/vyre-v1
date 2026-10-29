@@ -151,3 +151,22 @@ test("the Rust unit tests pass where a Rust toolchain exists", { skip: spawnSync
 });
 
 // Final run on the last commit of P-L10_03: the temporary hosted-runner workflow is gone and this file reports its own ok line.
+
+test("Run this Mac as the Space server: one registered command with no caller input, a fixed team Space on a fixed loopback port linked to the relay, stopped with the app", () => {
+  const commands = read("src", "commands.rs");
+  assert.match(commands, /pub async fn ensure_mac_server\(app: AppHandle, state: State<'_, AppState>\)/, "the page passes nothing");
+  const lib = read("src", "lib.rs");
+  assert.match(lib, /commands::ensure_mac_server,/);
+  assert.match(lib, /sidecar::stop\(&server_exit\)/);
+  assert.match(lib, /macserver::profile_exists\(&handle\)/, "a Mac that was set up as a server starts it again on the next launch");
+  const side = read("src", "sidecar.rs");
+  assert.match(side, /MAC_SERVER_PORT: u16 = 8425/);
+  assert.match(side, /MAC_SERVER_RELAY: &str = "https:\/\/relay\.vyre\.run"/);
+  assert.match(side, /"--space-kind"\.into\(\), "team"\.into\(\)/);
+  assert.match(side, /"--host"\.into\(\), "127\.0\.0\.1"\.into\(\)/, "no port is opened to the network");
+  const mac = read("src", "macserver.rs");
+  assert.match(mac, /cfg!\(target_os = "macos"\)/);
+  assert.match(mac, /p\.join\("server"\)/, "its own data folder, apart from the device daemon and the Personal Space");
+  const caps = JSON.parse(read("capabilities", "default.json")) as { permissions: unknown[] };
+  assert.ok(!JSON.stringify(caps).includes("shell:"), "still only the Rust side spawns vyred");
+});

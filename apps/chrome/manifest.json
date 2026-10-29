@@ -2,6 +2,7 @@
   "manifest_version": 3,
   "name": "Vyre for Chrome",
   "version": "0.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApeH/P8PRm1l5A9KmLk0RghHMjVuv4fT6u37aBnNFMHKwfRm03RqGSkzMtiRqiW1eve12XS2NT0lSKT0w2sfpPEmUKwqAGHU+nj/ZVJ8ZHnWH4H+a56g4gzVks2yIA+y4WsXpracyIMToYUFVDPDvz5k8coxIDenNSR1afxLXfP2eJNhLLXHAWbilO/3T6FJnmJTd63btLoAyJ9OY2jk0hzrvla5EOvNeCSw+U80o1ZkzDpgg8KRLpiUQTpj2O43uHJKcBamnUSWyvaeGn5lvKtik2ARJZKvZogvIODZ1uB3dVkop5J/ImX9zRdbZyCYQDkUYLpcRop/g+W3QE/7YQwIDAQAB",
   "description": "Fill logins and codes from your Space's Vault, save new logins, ask an agent about the page. Talks only to the Vyre app on this computer.",
   "minimum_chrome_version": "116",
   "icons": {

@@ -1,0 +1,10 @@
+{
+  "order": 8,
+  "key": "xai",
+  "name": "xAI",
+  "connections": [
+    "api_key"
+  ],
+  "modelsSource": "https://api.x.ai/v1/models",
+  "engine": "xai"
+}

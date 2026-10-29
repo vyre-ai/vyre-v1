@@ -91,7 +91,8 @@ test("providers.list names every API and CLI engine with connected and allowed, 
   assert.deepEqual(contractErrors("engine.providers.list", "out", open), []);
   const row = (d: string) => open.providers.find((p) => p.driver === d);
   assert.deepEqual([row("anthropic")?.connected, row("anthropic")?.kind, row("openai")?.connected, row("google")?.connected, row("claude_code")?.kind, row("claude_code")?.connected], [true, "api", true, false, "cli", false]);
-  assert.equal(open.providers.length, 10);
+  assert.equal(open.providers.length, 11, "ten engines and the custom endpoint driver");
+  assert.deepEqual([row("custom")?.kind, row("custom")?.title], ["api", "A custom endpoint"]);
 
   await H["engine.policy.set"](ctx, { labelProviders: { restricted: ["anthropic"] } });
   const restricted = await H["engine.providers.list"](ctx, { threadId: "thr_x" });
