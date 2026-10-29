@@ -10,6 +10,7 @@ import { bindEngine, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } 
 import type { Db } from "./projections.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { bridgeConsumers } from "./handlers/bridge.ts";
+import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
 import { ensureRuntime, setEngineHost, wakeAfterUnblock } from "./runtime.ts";
 import type { EngineCtx } from "./projections.ts";
 
@@ -24,11 +25,13 @@ export const hostSeams = { setEngineHost };
 /** The runtime is built at boot, not at the first message, and recovers threads a dead host left mid-turn. */
 export const periodic = {
   "engine.runtime": { everyMs: 5_000, run: async (ctx: EngineCtx): Promise<void> => { await ensureRuntime(ctx); } },
+  ...capturePeriodic,
 };
 
 /** A task reached Done: if it was the Unblock for a turn with no account, wake that agent in that thread. */
 export const consumers = {
   ...bridgeConsumers,
+  ...captureConsumers,
   "engine.unblock": {
     on: ["task.completed"],
     run: async (ctx: EngineCtx, event: { payload: { taskId: string } }): Promise<string[]> => ((await wakeAfterUnblock(ctx, event.payload.taskId)) ? [event.payload.taskId] : []),
