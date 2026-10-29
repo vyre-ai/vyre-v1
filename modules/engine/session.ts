@@ -6,6 +6,7 @@ import { createLocalLauncher } from "../../agent/src/drivers/cli/launcher.ts";
 import { SandboxError } from "../../sandbox/src/index.ts";
 import { openMcpBridge } from "./mcp-bridge.ts";
 import { sandboxWrap, scratchFolder, workFolder } from "./sandbox.ts";
+import { nativePlugins } from "./plugin-native.ts";
 import type { SandboxPlan } from "./sandbox.ts";
 import type { ApiTools } from "../../agent/src/drivers/open/api-tools.ts";
 import type { SystemBlock } from "../../agent/src/drivers/api/types.ts";
@@ -33,6 +34,8 @@ export interface OpenerHost {
   apiTools?: ApiTools;
   own?: (person: string) => boolean;
   now?: () => number;
+  /** Set false to keep installed plugins out of a CLI engine's own config. Default: they are written there. */
+  pluginsNative?: boolean;
 }
 
 const MEMORY_RULES = "You remember through Vyre memory. Facts recalled for a message come with their source: say where you know a thing from. Save what you learn with memory_propose and cite where it came from. Memory you cannot see is not yours to guess.";
@@ -87,6 +90,7 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     },
     // Behind the wall the engine cannot reach the daemon's loopback: its MCP config starts a stdio shim that talks to a unix socket in the person's scratch folder (ruling 61).
     ...(dataDir ? { mcpBridge: (m: { url: string; token: string }, spec: { asker: string }) => openMcpBridge(m, { scratch: scratchFolder(dataDir, spec.asker) }) } : {}),
+    ...(dataDir && h.pluginsNative !== false ? { nativePlugins: (spec: SessionSpec, driver: "claude_code" | "codex") => nativePlugins({ call: h.call }, driver, spec.agent.id, spec.asker, workFolder(dataDir, spec.asker, spec.threadId)) } : {}),
     ...(dataDir ? { cli: { workFolder: (spec) => workFolder(dataDir, spec.asker, spec.threadId) } } : {}),
     apiContext: h.apiTools ? h.apiTools.context : async (spec, input) => ({ system: await system(spec, input), tools: [] }),
   });

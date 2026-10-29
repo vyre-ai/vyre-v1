@@ -11,7 +11,7 @@
 // was seen for it (an older CLI, or partial messages off).
 import { arr, num, obj, parseLine, str } from "./json.ts";
 import type { Json } from "./json.ts";
-import type { CliAdapter, CliDecoder, CliEvent, CommandOptions } from "./types.ts";
+import type { CliAdapter, CliDecoder, CliEvent, CommandOptions, NativePlugins } from "./types.ts";
 import { TOKEN_ENV } from "./types.ts";
 
 interface Tally { input: number; output: number }
@@ -22,7 +22,12 @@ function tallyOf(u: Json | null): Tally {
 }
 
 /** The MCP server block the CLI is started with. The token is the environment variable's, expanded by the CLI: the command line holds only its name. */
-export function mcpConfigJson(url: string, stdio?: { command: string; args: readonly string[] }): string {
+export function mcpConfigJson(url: string, stdio?: { command: string; args: readonly string[] }, plugins?: NativePlugins): string {
+  const extra = Object.fromEntries(Object.entries(plugins?.mcpServers ?? {}).map(([name, m]) => [`plugin_${name}`, { type: "stdio", command: m.command, args: [...m.args], env: { ...m.env } }]));
+  const cfg = JSON.parse(base(url, stdio)) as { mcpServers: Record<string, unknown> };
+  return JSON.stringify({ mcpServers: { ...cfg.mcpServers, ...extra } });
+}
+function base(url: string, stdio?: { command: string; args: readonly string[] }): string {
   // Through a sandbox's socket the CLI starts the shim as a stdio server; the token reaches it by name from the environment, as with the URL form.
   if (stdio) return JSON.stringify({ mcpServers: { vyre: { type: "stdio", command: stdio.command, args: [...stdio.args], env: { [TOKEN_ENV]: "${" + TOKEN_ENV + "}" } } } });
   return JSON.stringify({ mcpServers: { vyre: { type: "http", url, headers: { Authorization: "Bearer ${" + TOKEN_ENV + "}" } } } });
@@ -156,10 +161,12 @@ export const claudeCode: CliAdapter = {
   systemFlag: true,
   env: () => ({}),
   command(o: CommandOptions) {
-    const allowed = ["mcp__vyre__*", ...(o.workFolder !== null ? WORK_FOLDER_TOOLS : [])];
+    const allowed = ["mcp__vyre__*", ...Object.keys(o.plugins?.mcpServers ?? {}).map((n) => `mcp__plugin_${n}__*`), ...(o.workFolder !== null ? WORK_FOLDER_TOOLS : [])];
     return [
       "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
-      "--mcp-config", mcpConfigJson(o.mcpUrl, o.mcpStdio), "--strict-mcp-config",
+      "--mcp-config", mcpConfigJson(o.mcpUrl, o.mcpStdio, o.plugins), "--strict-mcp-config",
+      // installed plugins load natively: their commands, skills and agents come from the plugin folder in the work folder
+      ...(o.plugins?.dirs ?? []).flatMap((d) => ["--plugin-dir", d]),
       "--permission-mode", o.planMode ? "plan" : "default",
       "--allowedTools", ...allowed,
       // A chat on the person's computer runs Vyre's tools only: the CLI's own tools are switched off unless a work folder was granted.

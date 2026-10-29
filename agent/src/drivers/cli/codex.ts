@@ -122,6 +122,11 @@ export const codex: CliAdapter = {
       ...(o.mcpStdio
         ? ["-c", `mcp_servers.vyre.command=${toml(o.mcpStdio.command)}`, "-c", `mcp_servers.vyre.args=[${o.mcpStdio.args.map(toml).join(", ")}]`, "-c", `mcp_servers.vyre.env_vars=[${toml(TOKEN_ENV)}]`]
         : ["-c", `mcp_servers.vyre.url=${toml(o.mcpUrl)}`, "-c", `mcp_servers.vyre.bearer_token_env_var=${toml(TOKEN_ENV)}`]),
+      // installed plugin MCP servers (same unproven -c form as vyre's); a secret is passed by variable name, the host fills it from the Vault
+      ...Object.entries(o.plugins?.mcpServers ?? {}).flatMap(([n, m]) => [
+        "-c", `mcp_servers.plugin_${n}.command=${toml(m.command)}`, "-c", `mcp_servers.plugin_${n}.args=[${m.args.map(toml).join(", ")}]`,
+        ...(Object.keys(m.env).length ? ["-c", `mcp_servers.plugin_${n}.env_vars=[${Object.keys(m.env).map(toml).join(", ")}]`] : []),
+      ]),
       ...(o.model !== null ? ["-m", o.model] : []),
       ...(o.resume !== null ? ["resume", o.resume] : []),
       // The prompt comes on stdin.
