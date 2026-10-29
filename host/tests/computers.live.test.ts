@@ -128,8 +128,11 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     const inNs = Number(/sandboxed=(\d+)/.exec(ns)?.[1] ?? "0");
     assert.ok(inNs > 0, `Chromium's child processes run in their own user namespace: ${ns}`);
     // Vyre for Chrome is loaded (its service worker runs) and pinned to the toolbar by policy
-    const status = await docker(["exec", "-u", "10001", box, "/opt/agentd/ctl", "status", "{}"], 30_000);
-    const ext = (JSON.parse(status.out.trim().split("\n").find((l) => l.startsWith("{")) ?? "{}") as { extension?: { configured?: boolean; workers?: number } }).extension;
+    // the extension's service worker starts a moment after the browser does, later on a loaded host: wait for it, up to 40 s, and assert the same thing
+    let status = await docker(["exec", "-u", "10001", box, "/opt/agentd/ctl", "status", "{}"], 30_000);
+    const extOf = (out: string) => (JSON.parse(out.trim().split("\n").find((l) => l.startsWith("{")) ?? "{}") as { extension?: { configured?: boolean; workers?: number } }).extension;
+    for (let i = 0; i < 80 && (extOf(status.out)?.workers ?? 0) < 1; i++) { await new Promise<void>((r) => setTimeout(r, 500)); status = await docker(["exec", "-u", "10001", box, "/opt/agentd/ctl", "status", "{}"], 30_000); }
+    const ext = extOf(status.out);
     assert.equal(ext?.configured, true, `the extension is in the image: ${status.out}`);
     assert.ok((ext?.workers ?? 0) >= 1, `the extension's worker runs: ${status.out}`);
     const policy = (await docker(["exec", box, "cat", "/etc/chromium/policies/managed/vyre.json"], 30_000)).out;
