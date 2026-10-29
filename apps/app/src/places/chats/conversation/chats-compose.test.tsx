@@ -495,3 +495,13 @@ test("a person who spoke in the chat and has since left still counts as someone 
   await assert.rejects(act.continueElsewhere(r.data, solo, { id: "spc_2", name: "Personal" }, "Northwind", "k"), /other people/);
   assert.deepEqual(there, []);
 });
+
+test("a plugin command with a colon in its name is a command, and its prompt is rendered by the plugin with what was typed", async () => {
+  assert.deepEqual(parseSlash("/greeter:hello Dana", ["greeter:hello"]), { id: "greeter:hello", arg: "Dana" });
+  const asked: string[] = [];
+  const plugins: PluginCommand[] = [{ name: "greeter:hello", description: "Greet", render: async (a) => { asked.push(a); return `Say hello to ${a}`; } }];
+  const r = rig({}, { pluginCommands: () => plugins });
+  await runSlash("/greeter:hello Dana", r.env);
+  assert.deepEqual(asked, ["Dana"]);
+  assert.deepEqual(r.flags.sent, ["Say hello to Dana"]);
+});

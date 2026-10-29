@@ -150,6 +150,7 @@ async function run(id: string, arg: string, env: CommandEnv, plugins: readonly P
       const p = plugins.find((x) => x.name.replace(/^\//, "").toLowerCase() === id);
       if (!p) { say(`/${id} is not a command here`); return; }
       if (p.run) { const line = await p.run(arg); if (line) say(line); return; }
+      if (p.render) { env.send(await p.render(arg)); return; }
       if (p.prompt) { env.send(p.prompt.replaceAll("$ARGUMENTS", arg).trim()); return; }
       say(`/${id} has nothing to run`);
     }

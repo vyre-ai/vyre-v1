@@ -25,7 +25,9 @@ export interface ConversationNav {
 }
 
 /** A slash command a plugin adds. It runs `run` when it has one, else its `prompt` is sent as the message ($ARGUMENTS is replaced by what follows the name). */
-export interface PluginCommand { name: string; description: string; pluginId?: string; prompt?: string; run?(arg: string): Promise<string | void> }
+export interface PluginCommand { name: string; description: string; pluginId?: string; prompt?: string; run?(arg: string): Promise<string | void>;
+  /** Fills the command's prompt with what was typed after its name; the result is sent as the person's message. */
+  render?(arg: string): Promise<string> }
 
 /** The live replies of a chat: a row for each reply that is being written or just finished and not yet saved. */
 export interface LiveTurns {

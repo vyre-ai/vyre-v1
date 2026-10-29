@@ -38,7 +38,7 @@ export const chatCommand = (id: string): ChatCommandDef | undefined => BY_ID.get
  * `extra` holds the names of plugin commands the caller also accepts.
  */
 export function parseSlash(text: string, extra: ReadonlySet<string> | readonly string[] = []): { id: string; arg: string } | null {
-  const m = /^\/([a-z][a-z0-9_-]*)(?:\s+([\s\S]*))?$/i.exec(text.trim());
+  const m = /^\/([a-z][a-z0-9_:-]*)(?:\s+([\s\S]*))?$/i.exec(text.trim());
   if (!m) return null;
   const id = (m[1] ?? "").toLowerCase();
   const known = BY_ID.has(id) || (extra instanceof Set ? extra.has(id) : (extra as readonly string[]).includes(id));

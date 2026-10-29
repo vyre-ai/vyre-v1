@@ -2,7 +2,7 @@
 // says what to open and this place decides (the open chat is local state of the place, the pane is a toggle). Nothing here touches the network.
 import type { ComposerLists, ListItem } from "../../../../../ui/src/Composer/index.tsx";
 import type { ChatsNav, ChatsSidebarData } from "../../places/chats/sidebar/data.tsx";
-import type { ConversationData, ConversationNav } from "../../places/chats/conversation/data.tsx";
+import type { ConversationData, ConversationNav, PluginCommand } from "../../places/chats/conversation/data.tsx";
 import type { Candidate } from "../../places/chats/conversation/model.ts";
 import type { ChatRightPaneData, RightPaneNav } from "../../places/chats/rightpane/data.tsx";
 import type { Principal } from "../../places/home/sections-a/data.tsx";
@@ -77,6 +77,28 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
   };
 }
 
+/** Plugin slash commands of this Space (chat-ecosystem's plugins.commands.list), read once per runtime and kept a minute; a Space without the capability simply has none. */
+const pluginCache = new WeakMap<object, { at: number; list: PluginCommand[]; loading: boolean }>();
+function pluginCommandsOf(rt: ShellRuntime): PluginCommand[] {
+  let c = pluginCache.get(rt);
+  if (!c) { c = { at: 0, list: [], loading: false }; pluginCache.set(rt, c); }
+  const entry = c;
+  if (!entry.loading && Date.now() - entry.at > 60_000) {
+    entry.loading = true;
+    void Promise.resolve(rt.call("plugins.commands.list", {})).then(
+      (out) => {
+        const cmds = (out as { commands?: Array<{ name: string; description?: string; pluginId?: string }> }).commands ?? [];
+        entry.list = cmds.map((x) => ({
+          name: x.name, description: x.description ?? "", ...(x.pluginId ? { pluginId: x.pluginId } : {}),
+          render: async (arg: string) => ((await rt.call("plugins.command.render", { name: x.name, ...(arg ? { args: arg } : {}) })) as { prompt: string }).prompt,
+        }));
+      },
+      () => undefined,
+    ).finally(() => { entry.at = Date.now(); entry.loading = false; });
+  }
+  return entry.list;
+}
+
 export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: string, principals: readonly Principal[]): ConversationData {
   const byId = new Map(principals.map((p) => [p.id, p] as const));
   const nav: ConversationNav = {
@@ -102,7 +124,7 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
       : {}),
     ...(rt.putBlob ? { putBlob: (url: string, bytes: Uint8Array) => rt.putBlob!(url, bytes) } : {}),
     ...(canSave() ? { saveFile } : {}),
-    ...(rt.pluginCommands ? { pluginCommands: () => rt.pluginCommands!() } : {}),
+    pluginCommands: () => (rt.pluginCommands ? rt.pluginCommands() : pluginCommandsOf(rt)),
   };
 }
 
