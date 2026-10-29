@@ -266,9 +266,9 @@ test("health asks GitHub for the App: healthy with a latency, down on a refused 
   h.on("GET /app", { status: 200, throws: true });
   assert.deepEqual(await health(h.ctx), { state: "down", detail: "GitHub could not be reached." });
   setGithubHost({ ...h.host, appJwt: async (ctx) => { throw fail("provider.auth_failed", ctx.trace.traceId); } });
-  assert.deepEqual(await health(h.ctx), { state: "down", detail: "The GitHub App is not set up. Create it in Settings, Integrations." });
+  assert.deepEqual(await health(h.ctx), { state: "healthy", detail: "The GitHub App is not set up yet. Create it in Settings, Integrations." });
   setGithubHost(null);
-  assert.deepEqual(await health(h.ctx), { state: "down", detail: "GitHub is not set up on this server." });
+  assert.deepEqual(await health(h.ctx), { state: "healthy", detail: "GitHub is not set up yet." });
 });
 
 // ---- the webhook signature

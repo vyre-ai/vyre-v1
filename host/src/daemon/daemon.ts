@@ -1118,13 +1118,20 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     chainBroken = true;
     return probes.eventsDb({ ok: false, seq: verified.seq, why: `${v.why} at event ${v.at}`, latencyMs: now() - t0 });
   };
+  // Docker and Caddy matter once an agent computer exists. Before that, a Space without them has nothing waiting on them, so a miss is a hint, not a failure.
+  const unusedRuntime = (r: ProbeResult): ProbeResult => {
+    if (r.state !== "down") return r;
+    let used = true;
+    try { used = Number((db?.all("SELECT COUNT(*) AS n FROM computers_computers") as { n?: unknown }[] | undefined)?.[0]?.n ?? 0) > 0; } catch { used = false; }
+    return used ? r : { ...r, state: "healthy", detail: `${r.detail ?? "Not running."} Agent computers need it; none exist yet.` };
+  };
   const probeFns: Record<ProbeName, () => Promise<ProbeResult> | ProbeResult> = {
     disk_encrypted: () => (o.probes?.diskEncrypted ? o.probes.diskEncrypted() : probes.diskEncrypted(platform, paths.root)),
     events_db: events,
     index_db: () => probes.indexLag(o.probes?.indexLag ? o.probes.indexLag() : null),
     scheduler: () => probes.schedulerTick(scheduler.lastTickAt, now()),
-    docker: () => probes.docker(platform),
-    caddy: () => (fetchFn ? probes.caddy(fetchFn, cfg.caddyAdmin, now) : { state: "down", detail: "No HTTP client to reach the Caddy admin API." }),
+    docker: async () => unusedRuntime(await probes.docker(platform)),
+    caddy: async () => unusedRuntime(fetchFn ? await probes.caddy(fetchFn, cfg.caddyAdmin, now) : { state: "down", detail: "No HTTP client to reach the Caddy admin API." }),
     disk_space: () => probes.diskSpace(platform, paths.root),
     time_skew: () => probes.timeSkew(fetchFn, cfg.relayUrl, now),
   };

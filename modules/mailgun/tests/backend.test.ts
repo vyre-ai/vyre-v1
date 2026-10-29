@@ -1,6 +1,7 @@
 // The Mailgun backend against recorded responses (spec 2.18, 2.19; ARCH 8.2): sending, delivery event lookups, domains and their DNS records, routes,
 // health, and the delivery events and inbound mail the host passes on after it has verified the signature.
 import test from "node:test";
+import { fail } from "../../../host/src/routes/errors.ts";
 import assert from "node:assert/strict";
 import {
   domainsCreate, domainsDelete, domainsGet, domainsList, domainsVerify, eventsList, health, parseInbound, parseWebhook, receiveInbound, receiveWebhook, routesCreate, routesDelete,
@@ -265,7 +266,9 @@ test("health follows the key and the domain's state", async () => {
   h.on("GET /v4/domains?limit=1", { status: 0, throws: true });
   assert.deepEqual(await health(h.ctx, {}), { state: "down", detail: "Mailgun could not be reached." });
   setMailgunHost(null);
-  assert.deepEqual(await health(h.ctx, {}), { state: "down", detail: "Mailgun is not set up on this server." });
+  assert.deepEqual(await health(h.ctx, {}), { state: "healthy", detail: "Mailgun is not set up yet." });
+  setMailgunHost({ async secret(ctx: { trace: { traceId: string } }) { throw fail("provider.auth_failed", ctx.trace.traceId); } } as never);
+  assert.deepEqual(await health(h.ctx, {}), { state: "healthy", detail: "Mailgun has no API key yet. Add Mailgun_Key to the Vault." });
 });
 
 // ---- delivery events

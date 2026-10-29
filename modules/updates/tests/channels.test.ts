@@ -224,6 +224,14 @@ test("history lists updates newest first", async () => {
   assert.equal(out.updates[0]!.at, NOW + 60_000);
 });
 
+test("health: a server without vyre-server (run from source) reads healthy with a hint", async () => {
+  const w = await ready();
+  w.installer.current = async () => { throw new Error("vyre-server could not say which version is running"); };
+  const r = await call("updates.health", w.ctx, {}) as { state: string; detail: string };
+  assert.equal(r.state, "healthy");
+  assert.match(r.detail, /vyre-server, which is not installed/);
+});
+
 test("health: failed last update, a waiting security update and a stale check are degraded", async () => {
   const w = await ready();
   assert.deepEqual(await call("updates.health", w.ctx, {}), { state: "healthy", latencyMs: 0 });

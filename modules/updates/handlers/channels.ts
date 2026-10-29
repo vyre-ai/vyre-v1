@@ -357,7 +357,10 @@ export async function app_compat(ctx: UpdateCtx, _input: Record<string, unknown>
 export async function health(ctx: UpdateCtx, _input: Record<string, unknown>) {
   const d = need(ctx);
   const started = ctx.now();
-  const current = await d.installer.current();
+  let current: string;
+  try { current = await d.installer.current(); } catch {
+    return { state: "healthy" as const, detail: "Updates are run by vyre-server, which is not installed here." };
+  }
   const latencyMs = Math.max(0, ctx.now() - started);
   const state = readState(ctx);
   const w = waiting(state, current);
