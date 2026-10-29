@@ -366,11 +366,11 @@ function Body(p: BodyProps): ReactElement {
   const { items, loaded, total, width, cols, colWin, selected, sel, hot, colourField, names, onTap, onOpen, onHot, onMenu } = p;
   // the top and the way the scroll last moved, which decides the side the drawn rows reach out to
   const [pos, setPos] = useState<{ top: number; dir: 1 | -1 }>({ top: p.top, dir: 1 });
-  const { setTop: register } = p;
+  const { setTop: registerRef } = p;
   useEffect(() => {
-    register.current = (t) => setPos((cur) => (t === cur.top ? cur : { top: t, dir: t > cur.top ? 1 : -1 }));
-    return () => { register.current = null; };
-  }, [register]);
+    registerRef.current = (t) => setPos((cur) => (t === cur.top ? cur : { top: t, dir: t > cur.top ? 1 : -1 }));
+    return () => { registerRef.current = null; };
+  }, [registerRef]);
   const win = flingWindow(pos.top, p.viewH, total, pos.dir);
   const rowAt = (i: number): RecordRow | null => (loaded ? loaded.rows[i - loaded.offset] ?? null : null);
   const rows: ReactElement[] = [];
@@ -415,8 +415,14 @@ function Body(p: BodyProps): ReactElement {
     }
     rows.push(<TableRow key={r ? r.id : `p${i}`} row={r} n={i + 1} y={y} width={width} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} selected={picked} tint={r ? colourOf(colourField, r) : null} names={names} onSelect={p.onSelect} onOpen={onOpen} />);
   }
-  return <View style={{ height: total * ROW_H, width }} testID="records-body" accessibilityLabel={`${total} rows`}>{rows}{web ? <View testID="records-frozen" style={styles.frozenLayer}>{frozen}</View> : null}</View>;
+  return <View style={{ height: total * ROW_H, width }} testID="records-body" accessibilityLabel={`${total} rows`}>{rows}{web ? <View testID="records-frozen" style={styles.frozenLayer}>{FROZEN_ANCHOR}{frozen}</View> : null}</View>;
 }
+
+/**
+ * The frozen layer's first paint: one pixel left of the scroller's edge, always clipped. Chrome keys a composited layer by its first paint chunk; the frozen layer painted nothing of its own,
+ * so its first chunk was the top frozen row, and every row that scrolled off made a new layer that was rastered whole (525 layers in one 100,000-row fling, run 40808834427).
+ */
+const FROZEN_ANCHOR = Platform.OS === "web" ? createElement("div", { "aria-hidden": true, style: { position: "absolute", left: -1, top: 0, width: 1, height: 1, backgroundColor: "var(--win)", pointerEvents: "none" } }) : null;
 
 // ---------------------------------------------------------------- the grid
 

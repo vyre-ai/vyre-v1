@@ -1,5 +1,6 @@
 # Changelog
 
+- Records 100k scroll: the frozen column layer paints a clipped one-pixel anchor first, so Chrome keeps one composited layer for it; its first paint was the top frozen row, and each row that scrolled off made a new layer rastered whole (525 in one fling). Pixels unchanged.
 - Make Console People a full directory and person object: filter by status, role and group together, search, select several people and assign a role, add to a group or suspend them in one reviewed step (owner and yourself skipped, per-person results reported); a person opens to Overview (roles, account lifecycle), Access (roles, permissions by area, direct grants, owned things), Groups (add and remove), Devices (revoke) and Activity. Proven in Chromium at desktop and phone, light and graphite (apps/app/tests/console.access.live.test.ts).
 - The shots perf job (startup, scroll and browser budgets) runs on the dedicated v1-perf-wide host instead of the shared v1-perf runners, whose co-tenant CI jobs moved the same head's phone cold start by 500 ms between runs.
 - Records 100k scroll: a moving scroll keeps FLING_OVERSCAN rows ahead but only a few behind (it carried twelve rows it had left), and the chip dot sits by its bottom margin instead of position: relative, which made every dot a paint layer; pixels unchanged.
