@@ -134,7 +134,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         if (!msg || msg.author.kind !== "agent") return;
         ready.delete(`${e.threadId}:${e.authorId}`);
         enqueuePost(e.threadId, e.authorId, {
-          threadId: e.threadId, body: msg.body, blocks: r?.blocks ?? [], mentions: [...msg.mentions], clientId: msg.id, ...(r?.routineOwner ? { via: { routineOwner: r.routineOwner } } : {}),
+          threadId: e.threadId, body: msg.body, blocks: r?.blocks ?? [], mentions: [...msg.mentions, ...askerMention(e.threadId, e.authorId).filter((m) => !msg.mentions.some((x) => x.id === m.id))], clientId: msg.id, ...(r?.routineOwner ? { via: { routineOwner: r.routineOwner } } : {}),
         });
         return;
       }

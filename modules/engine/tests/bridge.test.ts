@@ -16,7 +16,7 @@ const WATCHER = "agt_watch";
 
 interface ChatRow { messageId: string; threadId: string; threadSeq: number; author: { kind: string; id: string }; body: string; blocks: unknown[]; mentions: unknown[]; via?: { routineOwner: string }; depth: number }
 
-function setup(opts: { agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
+function setup(opts: { addressAsker?: (threadId: string, agentId: string) => boolean; agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
   const h = harness();
   const chat: ChatRow[] = [];
   const echoes: Array<{ id: string; result: unknown }> = [];
@@ -39,7 +39,7 @@ function setup(opts: { agents?: Array<{ agentId: string; mode: "lead" | "listen"
     const result = await bridge.onEvent(ctx, { name: "message.received", payload: { messageId: row.messageId, threadId: T, author: { kind: "agent", id: agentId }, mentions: p.mentions, depth: 1 } });
     echoes.push({ id: row.messageId, result });
   };
-  bridge = createBridge({ postAs });
+  bridge = createBridge({ postAs, ...(opts.addressAsker ? { addressAsker: opts.addressAsker } : {}) });
   const provider = scriptedProvider({ script: opts.script });
   const engine = h.runtime({ openSession: bridge.tap(provider.openSession), schedule: () => () => {} });
   bridge.attach(engine);
@@ -164,4 +164,13 @@ test("a thread with no agents is left alone, and a host without an engine skips"
   assert.equal(s.h.rows("SELECT id FROM engine_messages").length, 0);
   const bare = createBridge({ postAs: async () => {} });
   assert.deepEqual(await bare.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_x", threadId: T } }), { skipped: "engine_not_running" });
+});
+
+test("a reply that is addressed to the asker (a reviewer's verdict) carries an @mention of the person, so no agent answers it", async () => {
+  const s = setup({ script: reply("Approved."), addressAsker: (_t, agent) => agent === LEAD });
+  await s.say("check this");
+  assert.deepEqual(s.chat.at(-1)?.mentions, [{ kind: "person", id: "usr_dana" }]);
+  const plain = setup({ script: reply("Done.") });
+  await plain.say("do this");
+  assert.deepEqual(plain.chat.at(-1)?.mentions, []);
 });
