@@ -1,5 +1,6 @@
 # Changelog
 
+- Fetch a documentation page only when a connector draft has no pasted document and no app name. The page is data. An OpenAPI document becomes drafted actions, and any other page becomes no actions. The page text is not returned.
 - Offer a tested connector to another Space as a draft. The copy keeps the app name and the action names, and it does not keep a key.
 - Draft actions from a pasted OpenAPI document, then mark one of them tested with a Vault read. The document text and the key stay out of the reply.
 - Try one connector read on the documented host. The host fills the Vault key onto that request and returns only whether it was tested.
