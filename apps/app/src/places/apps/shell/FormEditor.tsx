@@ -6,6 +6,7 @@ import { FormDesign } from "./FormDesign.tsx";
 import { choicesOf, rulesOf } from "./form-design.ts";
 import type { Choice } from "./form-design.ts";
 import { FormWorkspace } from "./FormWorkspace.tsx";
+import { codeProblem } from "./FormCode.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useAppsData } from "./data.tsx";
 import { actionKey, errorMessage, mutate } from "./mutations.ts";
@@ -25,7 +26,7 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
   const [consent, setConsent] = useState("");
   const [captcha, setCaptcha] = useState("keep");
   const [thankYou, setThankYou] = useState("");
-  const [css, setCss] = useState("");
+  const [css, setCss] = useState(""), [html, setHtml] = useState(""), [js, setJs] = useState("");
   const [theme, setTheme] = useState<Record<string, unknown>>({}), [logic, setLogic] = useState<unknown>(null);
   const [answers, setAnswers] = useState<Record<string,unknown>>({});
   const [relations, setRelations] = useState<Record<string,Choice[]>>({});
@@ -40,7 +41,7 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
   const [recordId, setRecordId] = useState(""), [singleUse, setSingleUse] = useState("once"), [expires, setExpires] = useState("48"), [linkConfirm, setLinkConfirm] = useState(false), [link, setLink] = useState("");
   const records = useRead<CapMap["records.query"]["out"]>(route.id && kind === "one_use" && type ? "records.query" : null, { type, limit: 50 });
   const schema = useRead<CapMap["schema.types.get"]["out"]>(type ? "schema.types.get" : null, { type });
-  useEffect(() => { if (form.data && !dirty) { setName(form.data.form.name); setType(form.data.form.recordType); setKind(form.data.form.kind); setFields(form.data.fields); setCss(form.data.css ?? ""); setTheme(form.data.theme ?? {}); setLogic(form.data.logic ?? null); setConsent(form.data.settings.consentText); setCaptcha(form.data.settings.captcha ? "on" : "off"); setThankYou(form.data.settings.thankYou?.text ?? ""); setDirty(false); setPreview(false); } }, [form.data]);
+  useEffect(() => { if (form.data && !dirty) { setName(form.data.form.name); setType(form.data.form.recordType); setKind(form.data.form.kind); setFields(form.data.fields); setCss(form.data.css ?? ""); setHtml(form.data.html ?? ""); setJs(form.data.js ?? ""); setTheme(form.data.theme ?? {}); setLogic(form.data.logic ?? null); setConsent(form.data.settings.consentText); setCaptcha(form.data.settings.captcha ? "on" : "off"); setThankYou(form.data.settings.thankYou?.text ?? ""); setDirty(false); setPreview(false); } }, [form.data]);
   useEffect(() => {
     let live=true;
     const targets=(schema.data?.type.fields??[]).filter((field)=>field.type==='relation'&&typeof field.options?.target==='string'&&fields.some((f)=>f.field===field.key&&f.mode!=='hide'));
@@ -63,7 +64,7 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
     }
     await mutate(d, "forms.update", { formId: route.id, name: name.trim(), consentText: consent, ...(captcha === "keep" ? {} : { captcha: captcha === "on" }) }, key);
     await mutate(d, "forms.fields_set", { formId: route.id, fields }, key);
-    await mutate(d, "forms.design_set", { formId: route.id, thankYou: { text: thankYou }, css, theme, logic }, key);
+    await mutate(d, "forms.design_set", { formId: route.id, thankYou: { text: thankYou }, css, html, js, theme, logic }, key);
     setDirty(false); setNotice("Saved the form."); form.refresh();
   };
   const selected=schema.data?.type.fields.find((field)=>field.key===selectedField);
@@ -78,7 +79,7 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
       </Card>);
   const publicRelations=(schema.data?.type.fields??[]).filter((field)=>['relation','person'].includes(field.type)&&fields.some((mode)=>mode.field===field.key&&mode.mode==='ask'));
   const requiredRelations=publicRelations.filter((field)=>field.required||rulesOf(logic).some((rule)=>rule.require?.includes(field.key)));
-  const controls = (<View style={s.actions}><Button title={route.id ? "Save changes" : "Create draft"} testID="apps-save-form" primary disabled={disabled || !name.trim() || !type || kind === "booking" && !d.me} onPress={() => void perform(save)} />
+  const controls = (<View style={s.actions}><Button title={route.id ? "Save changes" : "Create draft"} testID="apps-save-form" primary disabled={disabled || !name.trim() || !type || kind === "booking" && !d.me || codeProblem(html, js) !== null} onPress={() => void perform(save)} />
       {route.id ? <Button title="Preview publishing" disabled={disabled || dirty} testID="apps-preview-form" onPress={() => { setPreview(true); setPublished(null); }} /> : null}
       {route.id && form.data?.form.state === "published" ? <Button title="Unpublish" disabled={disabled} onPress={() => void perform(async () => { await mutate(d, "forms.unpublish", { formId: route.id }, key); setNotice("The public form is closed."); form.refresh(); })} /> : null}
     </View>);
@@ -115,5 +116,5 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
     {published ? <Card title="Published form"><Text selectable style={s.text}>{published.url}</Text><Text selectable style={s.text}>{published.embed}</Text></Card> : null}
   </>;
   const frame = { title: route.id ? name || "Form" : "New form", back, offline: !online, error: error ?? form.error ?? types.error ?? schema.error, loading: form.loading && form.data === null, retry: form.refresh };
-  return route.id ? <FormWorkspace {...frame} fields={schema.data?.type.fields ?? []} modes={fields} previewOptions={{theme,logic,answers,relations,...(previewStep==='all'?{}:{step:Number(previewStep)})}} consent={consent} ask={d.assistantId ? () => void perform(async () => { const out = await d.call("chat.start", { kind: "ask", agentIds: [d.assistantId], scopeType: "form", scopeId: route.id, title: name, idempotencyKey: key }) as { thread: { id: string; threadId?: string } }; d.nav.openThread(out.thread.threadId ?? out.thread.id); }) : undefined} css={css} onCss={(v) => change(setCss, v)} rail={questions} actions={controls}>{content}</FormWorkspace> : <Frame {...frame} testID="apps-create-form">{content}</Frame>;
+  return route.id ? <FormWorkspace {...frame} fields={schema.data?.type.fields ?? []} modes={fields} previewOptions={{theme,logic,answers,relations,...(previewStep==='all'?{}:{step:Number(previewStep)})}} consent={consent} ask={d.assistantId ? () => void perform(async () => { const out = await d.call("chat.start", { kind: "ask", agentIds: [d.assistantId], scopeType: "form", scopeId: route.id, title: name, idempotencyKey: key }) as { thread: { id: string; threadId?: string } }; d.nav.openThread(out.thread.threadId ?? out.thread.id); }) : undefined} css={css} onCss={(v) => change(setCss, v)} html={html} onHtml={(v) => change(setHtml, v)} js={js} onJs={(v) => change(setJs, v)} rail={questions} actions={controls}>{content}</FormWorkspace> : <Frame {...frame} testID="apps-create-form">{content}</Frame>;
 }
