@@ -85,7 +85,7 @@ export function PlaceHost({ place, runtime, hash = "", opened }: { place: PlaceI
       <PlaceBoundary key={routeId} place={routeId}>
         <Suspense fallback={null}>
           <Place place={routeId} />
-          <ScreenSignal place={routeId} hash={hash} />
+          <ScreenSignal place={place} hash={hash} />
           <Usable place={routeId} spaceId={runtime?.space.id ?? null} />
         </Suspense>
       </PlaceBoundary>

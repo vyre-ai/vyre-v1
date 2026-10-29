@@ -20,3 +20,15 @@ test("an object is type:id, and anything else is not an object", () => {
   assert.equal(askAbout("fil_a1"), null);
   assert.equal(askAbout("Bad Type:x"), null);
 });
+
+import { workOf } from "./route.ts";
+
+test("a chat tied to a record or a project is a workspace; a DM, a channel and an Ask pane are not", () => {
+  assert.deepEqual(workOf({ kind: "chat", recordId: "rec_1" }), { type: "record", id: "rec_1" });
+  assert.deepEqual(workOf({ kind: "chat", recordId: "prj_1" }), { type: "project", id: "prj_1" });
+  assert.deepEqual(workOf({ kind: "thread", scopeType: "project", scopeId: "prj_2" }), { type: "project", id: "prj_2" });
+  assert.deepEqual(workOf({ kind: "chat", scopeType: "record", scopeId: "rec_3" }), { type: "record", id: "rec_3" });
+  assert.equal(workOf({ kind: "chat" }), null);
+  assert.equal(workOf({ kind: "channel", recordId: "rec_1" }), null);
+  assert.equal(workOf({ kind: "ask", scopeType: "record", scopeId: "rec_1" }), null);
+});

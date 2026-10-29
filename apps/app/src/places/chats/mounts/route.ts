@@ -92,6 +92,15 @@ export const SCREEN = {
   terminalRules: "chats.terminal-rules",
 } as const;
 
+/** What a chat is the workspace of: the record or the project it is tied to. DMs, channels and Ask panes (their own door) have none. */
+export interface Work { type: "record" | "project"; id: string }
+export function workOf(t: { kind?: string; recordId?: string; scopeType?: string; scopeId?: string }): Work | null {
+  if (t.kind !== "chat" && t.kind !== "thread") return null;
+  const id = t.recordId ?? (t.scopeType === "record" || t.scopeType === "project" ? t.scopeId : undefined);
+  if (!id) return null;
+  return { type: id.startsWith("prj_") || t.scopeType === "project" ? "project" : "record", id };
+}
+
 /** `record:rec_1` as the object an Ask is about. Null when it is not that shape. */
 export function askAbout(v: string): { type: string; id: string } | null {
   const m = /^([a-z][a-z0-9_]{0,31}):(.{1,200})$/.exec(v);
