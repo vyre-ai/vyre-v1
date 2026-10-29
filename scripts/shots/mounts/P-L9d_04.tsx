@@ -1,7 +1,7 @@
 // Mount for P-L9d_04: a record page over the Northwind sample Space (or Harbor Studio with ?space=harbor). Elena Rivera (cl_0) opens by default.
 // ?type=clients|projects  ?id=cl_0  ?map=1 (the relationship map)  ?tab=activity|comments|chat|files|memory|history (the right pane's tab)  ?pane=0 shuts the pane  ?all=1 shows empty fields
 // ?probe=navigate opens the page seven times in the browser and draws the median (ruling 43).  ?edit=phone starts that field open with ?text=...  The page reads its query after it is live (the static export keeps the markup it was rendered with).
-import { useEffect, useMemo, useState } from "react";
+import { createElement, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Text, View } from "react-native";
 import { RecordPage, RecordPageDataProvider } from "../../../apps/app/src/places/records/recordpage/index.ts";
@@ -13,20 +13,23 @@ export const title = "Records: the record page";
 const BUDGET_MS = 50;
 
 /**
- * The navigate probe (ruling 43), in-app navigation and not page load: the page is mounted and settled with a list showing, then performance.mark("nav-start") is put when a row is opened, the
+ * The navigate probe (ruling 43), in-app navigation and not page load: the page is mounted and settled with a list showing, then performance.mark("nav-start") is put in the press handler of a row the runner clicks for real, the
  * record page is rendered, and performance.mark("nav-end") when its content has first painted (two animation frames after the commit). The measure between them is window.__probes.navigate,
  * which scripts/shots/probes/browser.mjs reads on the v1-perf runner for each fresh mount (the first is the warm-up). It is drawn in the corner too, so a screenshot carries it.
  */
 function Navigate({ type, id }: { type: string; id: string }): ReactNode {
   const [open, setOpen] = useState(false);
+  const [settled, setSettled] = useState(false);
   const [ms, setMs] = useState<number | null>(null);
   const sample = useMemo(() => createSamplePage(northwind), []);
   useEffect(() => {
-    // settle first: the shell is up and idle, as it is when a person clicks a row
+    // settle first: the shell is up and idle, as it is when a person clicks a row; then the row offers itself to the runner, which clicks it for real (target "click")
     let a = 0, b = 0, c = 0;
-    a = requestAnimationFrame(() => { b = requestAnimationFrame(() => { c = window.setTimeout(() => { performance.mark("nav-start"); setOpen(true); }, 400); }); });
+    a = requestAnimationFrame(() => { b = requestAnimationFrame(() => { c = window.setTimeout(() => setSettled(true), 400); }); });
     return () => { cancelAnimationFrame(a); cancelAnimationFrame(b); clearTimeout(c); };
   }, []);
+  // the row's press is a click, a discrete input event, as in the app; the measure starts in its handler
+  const openRow = (): void => { performance.mark("nav-start"); setOpen(true); };
   useEffect(() => {
     if (!open) return;
     let a = 0, b = 0;
@@ -53,7 +56,13 @@ function Navigate({ type, id }: { type: string; id: string }): ReactNode {
   return (
     <RecordPageDataProvider value={sample.data}>
       <View style={{ flex: 1, minHeight: 0 }}>
-        {open ? <RecordPage type={type} recordId={id} /> : <View testID="navigate-list" style={{ padding: 24 }}><Text style={{ fontSize: 14, color: "#555" }}>Clients</Text></View>}
+        {open ? <RecordPage type={type} recordId={id} /> : (
+          <View testID="navigate-list" style={{ padding: 24 }}>
+            <Text style={{ fontSize: 14, color: "#555" }}>Clients</Text>
+            {/* a row as the Records table draws one on the web: a plain element with a click handler (TableView RowFrozen), not a React Native Pressable */}
+            {createElement("div", { role: "button", "data-testid": settled ? "navigate-row" : "navigate-row-settling", onClick: openRow, style: { marginTop: 8, padding: "6px 0", fontSize: 14, color: "#000", cursor: "pointer" } }, "Elena Rivera")}
+          </View>
+        )}
         {ms !== null ? (
           <View testID="navigate-probe" style={{ position: "absolute", left: 12, bottom: 12, padding: 8, backgroundColor: "rgba(255,255,255,0.94)" as string, zIndex: 99999 }}>
             <Text style={{ fontSize: 12, color: "#000" }}>{`navigate (in-app): ${ms.toFixed(1)} ms, budget ${BUDGET_MS} ms, ${ms < BUDGET_MS ? "inside" : "OVER"}`}</Text>
