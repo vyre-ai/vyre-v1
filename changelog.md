@@ -1,6 +1,8 @@
 # Changelog
 
 
+- Split the perf seed script test into its own file: with the builder checks it took about 115 s of its 120 s watchdog on the shared CI hosts (10 s on an idle machine), so slow-15 failed on every run with no assertion failing. The assertions are unchanged.
+
 - Make the Console Webhooks browser test's action helper wait for an action to appear as a button or in the more menu (it chose once, right after reload, and on a slow runner waited for a menu item that had become a button); it still fails if the action never appears.
 
 - Run the release browser evidence on a GitHub-hosted VM of its own instead of a shared self-hosted v1 host: on the shared hosts it ran four to five times slower than on an idle machine (real-app 21 s vs 4.5 s for the same step) and a changing set of files hit the 120 s watchdog with no assertion failing.
