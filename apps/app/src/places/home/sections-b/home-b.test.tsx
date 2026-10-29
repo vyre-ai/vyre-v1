@@ -138,13 +138,13 @@ test("hiding the checklist calls the capability and the card leaves", async () =
   assert.deepEqual(h.calls.map((c) => c.cap), ["home.dismiss_checklist"]);
 });
 
-test("the Ask box starts a chat with the assistant and returns the thread to open", async () => {
+test("the Ask box is the Ask door: an Ask about Home with the agent picked, opened as a chat, and the thread to open is returned", async () => {
   const h = createSampleHomeB();
   const { d } = deps(h);
   const thread = await startAsk(d, "agt_assistant", "What is waiting on me?", 1_000);
   assert.equal(thread, "thr_new1");
-  const call = h.calls.find((c) => c.cap === "chat.start")!.input as { kind: string; agentIds: string[]; first: string; idempotencyKey: string };
-  assert.deepEqual([call.kind, call.agentIds, call.first], ["chat", ["agt_assistant"], "What is waiting on me?"]);
+  const call = h.calls.find((c) => c.cap === "chat.start")!.input as { kind: string; agentIds: string[]; first: string; scopeType: string; scopeId: string; idempotencyKey: string };
+  assert.deepEqual([call.kind, call.agentIds, call.first, call.scopeType, call.scopeId], ["ask", ["agt_assistant"], "What is waiting on me?", "home", "home"]);
   assert.match(call.idempotencyKey, /^home-ask-1000-\d+$/);
   const again = await startAsk(d, "agt_assistant", "Another", 1_000);
   assert.notEqual(again, null);

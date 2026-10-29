@@ -52,7 +52,8 @@ export function currentScreen(): ScreenContext | null {
 
 export function subscribeScreen(fn: () => void): () => void { listeners.add(fn); return () => { listeners.delete(fn); }; }
 
-/** The kind of each thread the Chats place has open, noted when it loads. Only an Ask pane's messages carry the screen: a plain chat is not about a screen. */
+/** The kind of each thread the Chats place (or the Console assistant) has open, noted when it loads. Only an Ask pane's messages carry the screen: a plain chat is not about a screen. */
 const KIND = new Map<string, string>();
 export function noteThreadKind(threadId: string, kind: string): void { KIND.set(threadId, kind); }
-export const carriesScreen = (threadId: string): boolean => KIND.get(threadId) === "ask";
+/** The Console assistant is an Ask too: its thread is a `console` thread and its page is its screen. */
+export const carriesScreen = (threadId: string): boolean => KIND.get(threadId) === "ask" || KIND.get(threadId) === "console";

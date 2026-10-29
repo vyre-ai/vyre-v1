@@ -12,6 +12,7 @@ import { BlockViewA, isPartOneType } from "../../../../../../ui/src/blocks/impl-
 import type { BlockHost } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import { Face } from "../needsyou/parts.tsx";
 import { AgentFileProposal, PlanFileCard, isPlanFile, isProposal } from "./proposal.tsx";
+import { TurnChangesCard, isTurnChanges } from "./turnchanges.tsx";
 import { Fold, Glyph, IconButton, TextButton } from "./parts.tsx";
 import type { GlyphName } from "./parts.tsx";
 import { reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, planSteps, questionOptions, workOf } from "./model.ts";
@@ -192,6 +193,7 @@ function Theirs({ item, actions, stream, openWork, mark }: MessageViewProps & { 
       {stream ? <View testID={`body-${m.messageId}`} style={st.body}><StreamText store={stream} /></View> : m.body ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={blocks ?? []} /></View> : null}
       {collect(cards, (b) => {
         if (isProposal(b)) return <AgentFileProposal key={b.id} block={b} host={actions.host} />;
+        if (isTurnChanges(b)) return <TurnChangesCard key={b.id} block={b} host={actions.host} />;
         if (isPlanFile(b)) return <PlanFileCard key={b.id} block={b} onOpen={(id) => actions.openBeside("file", id)} />;
         if (isPartOneType(b.type)) return <BlockViewA key={b.id} block={b} host={actions.host} />;
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;

@@ -25,4 +25,6 @@ test("only an Ask pane carries the screen", () => {
   assert.equal(carriesScreen("thr_ask"), true);
   assert.equal(carriesScreen("thr_chat"), false);
   assert.equal(carriesScreen("thr_unknown"), false);
+  noteThreadKind("thr_console", "console");
+  assert.equal(carriesScreen("thr_console"), true, "the Console assistant sends its page as the screen");
 });

@@ -1,0 +1,2 @@
+- Ask Vyre is one door: the Home Ask box and the Console assistant open the same Ask thread with the same screen context as every other Ask entry.
+- Undo for Ask edits: under an agent's reply a card lists what the turn changed (records, fields, files) with one Undo that puts each back to its previous version. A send, a signature request, a launch or a deploy is listed as "can't be undone" and stays as it is. A turn can be undone once.

@@ -15002,6 +15002,29 @@
       },
       "type": "array"
     },
+    "s_c9b4d41ccf": {
+      "properties": {
+        "threadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "turnId": {
+          "examples": [
+            "trn_a1b2c3"
+          ],
+          "pattern": "^trn_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId",
+        "turnId"
+      ],
+      "type": "object"
+    },
     "s_ca7c46ddb0": {
       "properties": {
         "call": {
@@ -20613,6 +20636,81 @@
         "tab": "terminal"
       },
       "type": "terminal",
+      "v": 1
+    },
+    {
+      "actions": [
+        {
+          "cap": "engine.turn.undo",
+          "input": {
+            "threadId": "/threadId",
+            "turnId": "/turnId"
+          },
+          "key": "undo",
+          "label": "Undo"
+        }
+      ],
+      "component": "ui:BlockTurnChanges",
+      "data": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "changes": {
+            "items": {
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "undoable": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "label",
+                "undoable"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "turnId": {
+            "examples": [
+              "trn_a1b2c3"
+            ],
+            "pattern": "^trn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "undone": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "threadId",
+          "turnId",
+          "agentId",
+          "summary",
+          "changes"
+        ],
+        "type": "object"
+      },
+      "fallback": "{{summary}}",
+      "module": "chat",
+      "type": "turn_changes",
       "v": 1
     },
     {
@@ -44963,27 +45061,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "properties": {
-          "threadId": {
-            "examples": [
-              "thr_a1b2c3"
-            ],
-            "pattern": "^thr_[a-z0-9]+$",
-            "type": "string"
-          },
-          "turnId": {
-            "examples": [
-              "trn_a1b2c3"
-            ],
-            "pattern": "^trn_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "threadId",
-          "turnId"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_c9b4d41ccf"
       },
       "label": "check",
       "level": "view",
@@ -65402,6 +65480,88 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "threadId": "thr_a1b2c3",
+            "turnId": "trn_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "changes": [
+              {
+                "label": "example",
+                "undoable": true
+              }
+            ],
+            "undone": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_c9b4d41ccf"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "engine",
+      "name": "engine.turn.changes",
+      "output": {
+        "properties": {
+          "changes": {
+            "items": {
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "undoable": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "label",
+                "undoable"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "undone": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "changes",
+          "undone"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "What one agent turn changed on behalf of the asker: records and files it created or edited (each can go back) and acts that cannot be undone, such as a send",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [
         "turn.queued"
@@ -66241,6 +66401,77 @@
       "summary": "Start a queued turn on the placement chosen (host or device); records account, engine and model",
       "surfaces": {
         "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "turn.undone"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "threadId": "thr_a1b2c3",
+            "turnId": "trn_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "left": [
+              "example"
+            ],
+            "undone": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_c9b4d41ccf"
+      },
+      "level": "use",
+      "module": "engine",
+      "name": "engine.turn.undo",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "left": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "undone": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "undone",
+          "left"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Undo a turn: restore the previous version of each record and file the turn changed, move what it created to Trash and bring back what it deleted; acts that cannot be undone are left and reported",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
       },
       "v": 1
     },
@@ -195136,6 +195367,50 @@
       "summary": "A turn started on a host or device",
       "sv": 1,
       "vis": "participants"
+    },
+    {
+      "module": "engine",
+      "name": "turn.undone",
+      "payload": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "turnId": {
+            "examples": [
+              "trn_a1b2c3"
+            ],
+            "pattern": "^trn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "undone": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "threadId",
+          "turnId",
+          "undone",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "summary": "A person undid what an agent turn changed",
+      "sv": 1,
+      "vis": "space"
     },
     {
       "module": "engine",

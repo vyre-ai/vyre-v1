@@ -2342,6 +2342,12 @@
     },
     {
       "deferred": false,
+      "name": "engine_turn_changes",
+      "summary": "What one agent turn changed on behalf of the asker: records and files it created or edited (each can go back) and acts that cannot be undone, such as a send",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "engine_turn_get",
       "summary": "What happened: steps, durations, machine, model, key used and denials of one turn",
       "toolset": "chats"
@@ -2350,6 +2356,12 @@
       "deferred": false,
       "name": "engine_turn_retry",
       "summary": "Retry a failed turn, optionally on another model or backup key (the next step on a turn error)",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_turn_undo",
+      "summary": "Undo a turn: restore the previous version of each record and file the turn changed, move what it created to Trash and bring back what it deleted; acts that cannot be undone are left and reported",
       "toolset": "chats"
     },
     {

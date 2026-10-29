@@ -5,6 +5,7 @@ import { modelsList, providersList } from "./models.ts";
 import { placementDecide, poolStatus, warm } from "../place.ts";
 import { reviewList, reviewMark } from "./review.ts";
 import { reviewerGet, reviewerSet } from "../reviewer.ts";
+import { turnChanges, turnUndo } from "../undo.ts";
 import { engineHealth, leaseAcquire, leaseHeartbeat, leaseRelease, queueList, queuePeek, routePreview } from "./threads.ts";
 import { turnAppend, turnEnqueue, turnFallback, turnFinish, turnGet, turnRetry, turnStart, turnWait, turnsList } from "./turns.ts";
 
@@ -21,6 +22,8 @@ export const extraHandlers = {
   "engine.subscription_share.set": subscriptionShareSet,
   "engine.runtime.opt_in": runtimeOptIn,
   "engine.use_policy.export": usePolicyExport,
+  "engine.turn.changes": turnChanges,
+  "engine.turn.undo": turnUndo,
   "engine.reviewer.set": reviewerSet,
   "engine.reviewer.get": reviewerGet,
   "engine.review.list": reviewList,

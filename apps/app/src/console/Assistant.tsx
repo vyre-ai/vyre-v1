@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 import { conversationData } from "../shell/providers/chats-data.ts";
 import type { ShellRuntime } from "../shell/providers/runtime.tsx";
 import { Note } from "./pages/shared.tsx";
+import { noteThreadKind, setScreenContext } from "../shell/ask/screen.ts";
 
 const ChatsConversation = lazy(() => import("../shell/providers/chats.tsx").then((m) => ({ default: m.ChatsConversation })));
 
@@ -15,6 +16,8 @@ export function Assistant({ rt, page }: { rt: ShellRuntime; page: string }): Rea
     void rt.call("console.assistant_open", { page, idempotencyKey: key.current }).then((out) => { if (live) setThread((out as { threadId: string }).threadId); }, () => { if (live) setError(true); });
     return () => { live = false; };
   }, [rt]);
+  // The same screen context every Ask sends: the Console page the person is on, with the Console focus skill.
+  useEffect(() => { if (thread) { noteThreadKind(thread, "console"); setScreenContext({ place: "console", title: page, focus: "focus-console" }); } }, [thread, page]);
   useEffect(() => { if (thread) void rt.call("console.assistant_context_set", { threadId: thread, page }).catch(() => setError(true)); }, [rt, thread, page]);
   const data = useMemo(() => {
     if (!thread) return null;

@@ -8316,6 +8316,17 @@ export type EngineTurnAppendIn = {
 export type EngineTurnAppendOut = {
   idx: number;
 };
+export type EngineTurnChangesIn = {
+  threadId: string;
+  turnId: string;
+};
+export type EngineTurnChangesOut = {
+  changes: Array<{
+      label: string;
+      undoable: boolean;
+    }>;
+  undone: boolean;
+};
 export type EngineTurnEnqueueIn = {
   threadId: string;
   agentId: string;
@@ -8510,6 +8521,14 @@ export type EngineTurnStartOut = {
       traceId: string;
     };
   };
+};
+export type EngineTurnUndoIn = {
+  threadId: string;
+  turnId: string;
+};
+export type EngineTurnUndoOut = {
+  undone: number;
+  left: Array<string>;
 };
 export type EngineTurnWaitIn = {
   turnId: string;
@@ -27585,6 +27604,7 @@ export interface CapMap {
   "engine.subscription_share.set": { in: EngineSubscriptionShareSetIn; out: EngineSubscriptionShareSetOut };
   "engine.switch": { in: EngineSwitchIn; out: EngineSwitchOut };
   "engine.turn.append": { in: EngineTurnAppendIn; out: EngineTurnAppendOut };
+  "engine.turn.changes": { in: EngineTurnChangesIn; out: EngineTurnChangesOut };
   "engine.turn.enqueue": { in: EngineTurnEnqueueIn; out: EngineTurnEnqueueOut };
   "engine.turn.fallback": { in: EngineTurnFallbackIn; out: EngineTurnFallbackOut };
   "engine.turn.finish": { in: EngineTurnFinishIn; out: EngineTurnFinishOut };
@@ -27592,6 +27612,7 @@ export interface CapMap {
   "engine.turn.record_usage": { in: EngineTurnRecordUsageIn; out: EngineTurnRecordUsageOut };
   "engine.turn.retry": { in: EngineTurnRetryIn; out: EngineTurnRetryOut };
   "engine.turn.start": { in: EngineTurnStartIn; out: EngineTurnStartOut };
+  "engine.turn.undo": { in: EngineTurnUndoIn; out: EngineTurnUndoOut };
   "engine.turn.wait": { in: EngineTurnWaitIn; out: EngineTurnWaitOut };
   "engine.turns.list": { in: EngineTurnsListIn; out: EngineTurnsListOut };
   "engine.usage.query": { in: EngineUsageQueryIn; out: EngineUsageQueryOut };
@@ -31799,6 +31820,12 @@ export type TurnStartedPayload = {
   model: string;
   accountRef?: string;
 };
+export type TurnUndonePayload = {
+  threadId: string;
+  turnId: string;
+  undone: number;
+  by: string;
+};
 export type TurnWaitingPayload = {
   turnId: string;
   threadId: string;
@@ -32618,6 +32645,7 @@ export interface EventMap {
   "turn.fallback_used": TurnFallbackUsedPayload;
   "turn.queued": TurnQueuedPayload;
   "turn.started": TurnStartedPayload;
+  "turn.undone": TurnUndonePayload;
   "turn.waiting": TurnWaitingPayload;
   "twilio.recording_received": TwilioRecordingReceivedPayload;
   "twilio.sms_received": TwilioSmsReceivedPayload;

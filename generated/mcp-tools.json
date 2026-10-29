@@ -15857,6 +15857,40 @@
     },
     {
       "blocks": [],
+      "cap": "engine.turn.changes",
+      "deferred": false,
+      "description": "What one agent turn changed on behalf of the asker: records and files it created or edited (each can go back) and acts that cannot be undone, such as a send",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "turnId": {
+            "examples": [
+              "trn_a1b2c3"
+            ],
+            "pattern": "^trn_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "turnId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_turn_changes",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "engine.turn.get",
       "deferred": false,
       "description": "What happened: steps, durations, machine, model, key used and denials of one turn",
@@ -15916,6 +15950,40 @@
         "type": "object"
       },
       "name": "engine_turn_retry",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.turn.undo",
+      "deferred": false,
+      "description": "Undo a turn: restore the previous version of each record and file the turn changed, move what it created to Trash and bring back what it deleted; acts that cannot be undone are left and reported",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "turnId": {
+            "examples": [
+              "trn_a1b2c3"
+            ],
+            "pattern": "^trn_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "turnId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_turn_undo",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1

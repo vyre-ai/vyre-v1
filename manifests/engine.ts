@@ -72,6 +72,13 @@ export default defineManifest({
     read('engine.reviewer.get', 'The reviewer of a chat, if one is set', {
       in: threadT, out: { reviewer: t.nullable(t.obj({ kind: t.enm('agent', 'person'), id: t.str() })) }, on: ['thread', '/threadId'], tool: 'chats', label: 'check',
     }),
+    read('engine.turn.changes', 'What one agent turn changed on behalf of the asker: records and files it created or edited (each can go back) and acts that cannot be undone, such as a send', {
+      in: { ...threadT, turnId: id.turn }, out: { changes: t.arr(t.obj({ label: t.str(), undoable: t.bool() })), undone: t.bool() }, on: ['thread', '/threadId'], tool: 'chats', label: 'check', errors: ['validation.not_found'],
+    }),
+    write('engine.turn.undo', 'Undo a turn: restore the previous version of each record and file the turn changed, move what it created to Trash and bring back what it deleted; acts that cannot be undone are left and reported', {
+      in: { ...threadT, turnId: id.turn }, out: { undone: t.int({ minimum: 0 }), left: t.arr(t.str()) }, on: ['thread', '/threadId'], level: 'use', emits: ['turn.undone'], tool: 'chats', offline: 'online', idem: 'natural',
+      errors: ['validation.not_found', 'validation.precondition_failed'],
+    }),
     write('engine.set_model', 'Set the model, provider, effort and paying account of an agent in a thread', {
       in: { ...threadT, agentId: id.agent, model: t.opt(t.str()), provider: t.opt(t.str()), effort: t.opt(effort), accountRef: t.opt(accountRef) },
       out: { model: t.str(), provider: t.str(), effort: t.opt(effort), accountRef: t.opt(accountRef) }, on: ['thread', '/threadId'], level: 'use',
@@ -296,6 +303,7 @@ export default defineManifest({
       p: { agentId: id.agent, threadId: id.thread, turnId: t.opt(id.turn), taskId: id.task, what: t.str() }, subject: ['thread', '/threadId'], vis: 'participants', notify: 'agent.blocked',
     }),
     ev('thread.reviewer_changed', 'A chat got a reviewer, or lost it', { p: { threadId: id.thread, reviewer: t.nullable(t.obj({ kind: t.enm('agent', 'person'), id: t.str() })), by: t.str() }, subject: ['thread', '/threadId'] }),
+    ev('turn.undone', 'A person undid what an agent turn changed', { p: { threadId: id.thread, turnId: id.turn, undone: t.int({ minimum: 0 }), by: t.str() }, subject: ['thread', '/threadId'] }),
     ev('agent.mode_changed', 'An agent switched between Leading and Listening in a thread', {
       p: { threadId: id.thread, agentId: id.agent, mode: t.str(), by: t.str() }, subject: ['thread', '/threadId'], vis: 'participants',
     }),

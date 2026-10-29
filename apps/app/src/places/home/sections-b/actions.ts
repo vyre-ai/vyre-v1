@@ -24,13 +24,17 @@ export function dismissChecklist(d: ActionDeps): Promise<boolean> {
 }
 
 let seq = 0;
-/** Start a chat with the assistant from the Ask box. Returns the thread to open, or null when it failed. */
+/**
+ * Ask Vyre from Home: the same door as every place. The person's Ask thread about Home with the agent they picked (their assistant by default), started with what they typed, then opened as a chat so it
+ * shows in Recent. Returns the thread to open, or null when it failed.
+ */
 export async function startAsk(d: ActionDeps, assistantId: string, text: string, at: number): Promise<string | null> {
   const key = `home-ask-${at}-${++seq}`;
   let thread: string | null = null;
   const ok = await attempt(d, "start that chat", async () => {
-    const out = (await d.call("chat.start", { kind: "chat", agentIds: [assistantId], first: text, idempotencyKey: key })) as { thread: { threadId: string } };
+    const out = (await d.call("chat.start", { kind: "ask", agentIds: [assistantId], scopeType: "home", scopeId: "home", first: text, idempotencyKey: key })) as { thread: { threadId: string } };
     thread = out.thread.threadId;
+    try { await d.call("chat.open_as_chat", { threadId: thread }); } catch { /* it stays an Ask pane, found from its object */ }
   });
   return ok ? thread : null;
 }
