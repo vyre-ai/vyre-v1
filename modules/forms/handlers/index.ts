@@ -8,7 +8,8 @@ import type { FieldMode, FormKind } from "../projections.ts";
 import {
   fail, fieldsOf, formsConfig, formOut, insertForm, isNull, isRec, many, mustForm, num, one, optBool, optInt, optStr, pageOf, parseJson, publicUrl, rec, reqStr, str,
 } from "../projections.ts";
-import { checkFormHtml, checkFormJs } from "../../../lib/form-source.ts";
+import { askCancel, askDiff } from "./ask.ts";
+import { validateCss, validateHtml, validateJs } from "./source.ts";
 import { bookingHandlers } from "./bookings.ts";
 import { linkHandlers } from "./links.ts";
 import { submitHandlers } from "./submit.ts";
@@ -19,7 +20,6 @@ const RECORD_TYPE = /^[a-z][a-z0-9_]*$/;
 const FIELD_NAME = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
 const PREFILL_KEY = /^[a-z][a-z0-9_]{0,39}$/;
 const NAME_MAX = 120;
-const CSS_MAX = 50_000;
 const SECTIONS = ["personal", "shared", "space"];
 
 function esc(text: string): string {
@@ -171,28 +171,18 @@ async function designSet(ctx: Ctx, input: unknown) {
   }
   const css = optStr(ctx, o, "css");
   if (css !== undefined) {
-    if (css.length > CSS_MAX) fail(ctx, "validation.too_large", "The custom CSS is too large.", { field: "css" });
-    if (/<\/?\s*style|<script|@import|javascript:|expression\s*\(/i.test(css)) fail(ctx, "validation.bad_input", "The custom CSS may not load other files or run script.", { field: "css" });
+    validateCss(ctx, css);
     sets.push(["css", css.length > 0 ? css : null]);
   }
   // The author's own source. A refusal names the line and the reason; nothing is cleaned up silently, so what is saved is exactly what the page serves.
   const html = optStr(ctx, o, "html");
   if (html !== undefined) {
-    if (html.length > 0) {
-      const checked = checkFormHtml(html);
-      if (!checked.ok) fail(ctx, "validation.bad_input", `The form HTML is not valid: ${checked.reason}`, { field: "html" });
-      const asked = new Set(fieldsOf(ctx, str(form.id)).filter((f) => f.mode === "ask").map((f) => str(f.field)));
-      const unknown = checked.fields.filter((name) => !asked.has(name));
-      if (unknown.length > 0) fail(ctx, "validation.bad_input", `${unknown.join(", ")} ${unknown.length === 1 ? "is not a question" : "are not questions"} on this form. Ask for ${unknown.length === 1 ? "it" : "them"} in Build first.`, { field: "html" });
-      const steps = new Set(fieldsOf(ctx, str(form.id)).filter((f) => f.mode === "ask").map((f) => (isNull(f.step) ? 0 : Number(f.step))));
-      if (steps.size > 1) fail(ctx, "validation.precondition_failed", "Custom HTML places every question on one page. Put all questions on one step first.", { field: "html" });
-    }
+    validateHtml(ctx, form, html);
     sets.push(["html", html.length > 0 ? html : null]);
   }
   const js = optStr(ctx, o, "js");
   if (js !== undefined) {
-    const checked = js.length > 0 ? checkFormJs(js) : { ok: true as const };
-    if (!checked.ok) fail(ctx, "validation.bad_input", `The form JavaScript is not valid: ${checked.reason}`, { field: "js" });
+    validateJs(ctx, js);
     sets.push(["js", js.length > 0 ? js : null]);
   }
   if (o.logic !== undefined) sets.push(["logic", o.logic === null ? null : JSON.stringify(o.logic)]);
@@ -258,6 +248,8 @@ export const handlers = {
   "forms.update": (ctx: Ctx, input: unknown) => update(ctx, input),
   "forms.fields_set": (ctx: Ctx, input: unknown) => fieldsSet(ctx, input),
   "forms.design_set": (ctx: Ctx, input: unknown) => designSet(ctx, input),
+  "forms.ask_diff": (ctx: Ctx, input: unknown) => askDiff(ctx, input),
+  "forms.ask_cancel": (ctx: Ctx, input: unknown) => askCancel(ctx, input),
   "forms.publish": (ctx: Ctx, input: unknown) => publish(ctx, input),
   "forms.unpublish": (ctx: Ctx, input: unknown) => unpublish(ctx, input),
   "forms.delete": (ctx: Ctx, input: unknown) => remove(ctx, input),

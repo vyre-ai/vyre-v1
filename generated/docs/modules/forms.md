@@ -4,13 +4,15 @@ Lane L8. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (23)
+## Capabilities (25)
 
 - [bookings.availability](../capabilities/bookings.availability.md): Open slots in the visitor time zone from connected calendars; unavailable when the host is disconnected
 - [bookings.book](../capabilities/bookings.book.md): Public: make a booking; creates or updates a record and a meeting
 - [bookings.cancel](../capabilities/bookings.cancel.md): Cancel a booking
 - [bookings.list](../capabilities/bookings.list.md): List bookings of a page
 - [bookings.page_create](../capabilities/bookings.page_create.md): Create a booking page with host or round-robin pool, length, buffer and questions
+- [forms.ask_cancel](../capabilities/forms.ask_cancel.md): Stop my Ask Vyre request on a form that is still waiting for the agent
+- [forms.ask_diff](../capabilities/forms.ask_diff.md): Ask Vyre edit of a form's source: an agent proposes changes to the HTML, CSS or JavaScript, returned as a per-field diff the author accepts or rejects one by one; nothing is saved
 - [forms.attribution_get](../capabilities/forms.attribution_get.md): First source and Latest source of a record
 - [forms.create](../capabilities/forms.create.md): Create a form on a record type; every input maps to a field
 - [forms.delete](../capabilities/forms.delete.md): Delete a form

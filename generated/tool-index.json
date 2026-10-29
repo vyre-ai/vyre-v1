@@ -2738,6 +2738,18 @@
     },
     {
       "deferred": false,
+      "name": "forms_ask_cancel",
+      "summary": "Stop my Ask Vyre request on a form that is still waiting for the agent",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "forms_ask_diff",
+      "summary": "Ask Vyre edit of a form's source: an agent proposes changes to the HTML, CSS or JavaScript, returned as a per-field diff the author accepts or rejects one by one; nothing is saved",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "forms_attribution_get",
       "summary": "First source and Latest source of a record",
       "toolset": "records"

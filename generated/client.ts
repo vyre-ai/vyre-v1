@@ -781,6 +781,8 @@ export function createClient(transport: Transport) {
       toggle: call("follows.toggle", 1),
     },
     forms: {
+      ask_cancel: call("forms.ask_cancel", 1),
+      ask_diff: call("forms.ask_diff", 1),
       attribution_get: call("forms.attribution_get", 1),
       create: call("forms.create", 1),
       delete: call("forms.delete", 1),

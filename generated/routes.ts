@@ -10192,6 +10192,44 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/forms/ask_cancel",
+    "cap": "forms.ask_cancel",
+    "v": 1,
+    "module": "forms",
+    "effects": "write",
+    "permission": "forms.publish",
+    "level": "edit",
+    "resource": {
+      "type": "form",
+      "id": "/formId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/forms/ask_diff",
+    "cap": "forms.ask_diff",
+    "v": 1,
+    "module": "forms",
+    "effects": "read",
+    "permission": "forms.publish",
+    "level": "view",
+    "resource": {
+      "type": "form",
+      "id": "/formId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/forms/attribution_get",
     "cap": "forms.attribution_get",
     "v": 1,

@@ -6,6 +6,8 @@
     "bookings.cancel@1": "5682a422ed76eff3bb99303d1e45491706a0c19c8fc3031230de0e6e3bcde645",
     "bookings.list@1": "c978481f6d02bea6d23ab9ccad3cdeb52d6bb3696547e3d4ca5c6397a0fcceba",
     "bookings.page_create@1": "b83d84f4cbc429c5bf5ef0e55ab685afe8bbc7bc024aa6182dc5b776cd23f5d6",
+    "forms.ask_cancel@1": "f462a832d9a7e88315f1e097ba9725ede0e5c216e75b5a95bd5656d34ae4f87a",
+    "forms.ask_diff@1": "ffdd59138e6d5c12a5d04dbfde8ce87e5e4a42dd5d5f8c6cef5427399b57bb36",
     "forms.attribution_get@1": "291e770ae847fda71959b3816361ca9566ff91d21b167f9f6fb1f82d9aa59080",
     "forms.create@1": "8b26e24ec0ba50a381232666857a8426896d169cf47eee74a3b56958916b6852",
     "forms.delete@1": "b7abc38ad9b73adfd730600743291ca2594ef5150233f284f978b379ab885aed",
