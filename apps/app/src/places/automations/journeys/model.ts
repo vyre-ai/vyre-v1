@@ -171,7 +171,10 @@ export function migrationLine(p: Preview): string {
 
 /* ---------- clearing an optional field of a task ---------- */
 
-export type OptionalTaskField = "keyId" | "backupKeyId" | "dueAfterHours" | "description";
+export type OptionalTaskField = "keyId" | "backupKeyId" | "dueAfterHours" | "description" | "doneByAutomation";
+
+/** Who does a task: a person, agent, group or role in its seats, or an Automation that does it by running. */
+export const doneByWords = (t: Pick<Task, "doneByAutomation">, name: (id: string) => string): string => (t.doneByAutomation ? name(t.doneByAutomation) : "A person or agent");
 export function clearTaskField(stages: readonly Stage[], stageKey: string, taskKey: string, field: OptionalTaskField): Stage[] {
   return mapStage(stages, stageKey, (s) => ({
     ...s,

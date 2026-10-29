@@ -56,12 +56,14 @@ function Body({ journey: j, counts, versions, tab, setTab, sel, choose, canDesig
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set(initialFolded));
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [stateOver, setStateOver] = useState<Readonly<Record<string, TaskState>>>({});
-  const [leaveOver, setLeaveOver] = useState<Readonly<Record<string, readonly string[]>>>({});
   const baseStates = extras.taskStates?.(j.id);
   const stateOf = (taskKey: string): TaskState => stateOver[taskKey] ?? baseStates?.[taskKey] ?? "To do";
+  // The Automations that run when a record leaves a stage are part of the design (stage.onLeaving), saved with it. A shell that keeps them itself (the sample) says so with extras.leaving.
+  const [leaveOver, setLeaveOver] = useState<Readonly<Record<string, readonly string[]>>>({});
   const baseLeaving = extras.leaving?.(j.id);
-  const leavingOf = (g: Stage): readonly string[] => leaveOver[g.key] ?? baseLeaving?.[g.key] ?? [];
+  const leavingOf = (g: Stage): readonly string[] => leaveOver[g.key] ?? baseLeaving?.[g.key] ?? g.onLeaving ?? [];
   const setLeaving = (g: Stage, next: readonly string[], text: string): void => {
+    if (!extras.setLeaving) { void d.design(j.stages.map((x) => (x.key === g.key ? { ...x, onLeaving: [...next] } : x)), text); return; }
     const prev = leavingOf(g);
     const apply = (to: readonly string[]) => async (): Promise<void> => { setLeaveOver((cur) => ({ ...cur, [g.key]: to })); extras.setLeaving?.(j.id, g.key, to); };
     void d.saved.run(text, apply(next), apply(prev));
@@ -116,7 +118,7 @@ function Body({ journey: j, counts, versions, tab, setTab, sel, choose, canDesig
     ], x, y, "context", { label: data.name(id) });
   };
   const addAutomationMenu = (g: Stage, x: number, y: number, when: "enter" | "leave" = "enter"): void => {
-    const rows = extras.directory.automations;
+    const rows = when === "leave" ? extras.directory.automationsLeaving ?? extras.directory.automations : extras.directory.automations;
     const taken = when === "enter" ? g.automations : leavingOf(g);
     const add = (a: { id: string; name: string }): void => (when === "enter" ? edit(addAutomation(stages, g.key, a.id), `${a.name} runs when a record enters ${g.title}`) : setLeaving(g, [...taken, a.id], `${a.name} runs when a record leaves ${g.title}`));
     show(rows.length ? each(rows.filter((a) => !taken.includes(a.id)), (a) => ({ label: a.name, onSelect: () => add(a) })) : [{ head: "No Automations to add" }], x, y, "other", { label: "Add an Automation" });
