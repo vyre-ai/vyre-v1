@@ -10,6 +10,7 @@ import { isPersonal, useExtras } from "./data.tsx";
 import { CHECKLIST_SCREEN, checklistProgress, checklistRows } from "./model.ts";
 import type { ChecklistRow } from "./model.ts";
 import { GoButton, Icon } from "./parts.tsx";
+import { openOnboarding } from "../../../onboarding/store.ts";
 
 type Out = CapMap["home.checklist"]["out"];
 
@@ -39,6 +40,12 @@ export function Checklist(): ReactElement | null {
       </View>,
     );
   }
+  // the setup guide (step rail, chat, preview) holds the longer flow; this row reopens it where the person left off
+  items.push(
+    <View key="guide" style={[local.item, local.itemLine]} testID="first-guide">
+      <Row id="first-guide" title="Setup guide" note="Pick up any step you put off" leading={<View style={local.lead} />} trailing={<GoButton label="Open" testID="first-go-guide" onPress={() => { openOnboarding(); }} />} onPress={() => { openOnboarding(); }} />
+    </View>,
+  );
   return (
     <View testID="s-first" accessibilityLabel="Get started" style={local.card}>
       <View style={local.head}>
