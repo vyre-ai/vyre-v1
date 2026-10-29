@@ -150,7 +150,7 @@ const capabilities = [
 ];
 
 // Common operations whose handlers already exist. Word-style editing, admin setup, and watch channels stay off the catalogue.
-const accountErrors = ['validation.bad_input', 'internal.unexpected', 'provider.auth_failed', 'provider.unavailable', 'permission.needs_approval'];
+const accountErrors = ['validation.bad_input', 'internal.unexpected', 'provider.auth_failed', 'provider.unavailable', 'permission.needs_approval'] as ('validation.bad_input' | 'internal.unexpected' | 'provider.auth_failed' | 'provider.unavailable' | 'permission.needs_approval')[];
 const steps = [
   step('google.gmail.list_messages', 'Google · List Gmail messages', 'data', 'capability', {
     cap: 'google.gmail.list_messages', effects: 'read', errors: accountErrors,

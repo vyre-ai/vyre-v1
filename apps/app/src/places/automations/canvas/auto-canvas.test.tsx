@@ -99,7 +99,7 @@ test("build a three-path Automation: the lanes appear, save writes one version, 
   assert.ok(check(defOf(s, id)).some((i) => i.nodeId === p.id && /needs its condition/.test(i.message)));
   // fix them and the line goes away
   let fixed = updateStep(defOf(s, id), p.id, { branches: [{ label: "Hot", to: hot.id, when: "lead.score > 80" }, { label: "Warm", to: warm.id, when: "lead.score > 40" }, { label: "Otherwise", to: "" }] });
-  fixed = updateStep(fixed, warm.id, { input: { to: "{{lead.email}}" } });
+  fixed = updateStep(fixed, warm.id, { input: { to: "{{lead.email}}", mailboxId: "mbx_main" } });
   await s.data.call("automations.update", { automationId: id, definition: fixed, expectedVersion: 2 });
   const clean = html(s, id);
   assert.ok(!has(clean, 'data-testid="problems"'), "no errors left");

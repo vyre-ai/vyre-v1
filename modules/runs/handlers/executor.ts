@@ -2,7 +2,7 @@
 //   consumer  runs.drive   on automation.run_started (a fired, tested, retried or replayed Automation) and run.resumed (a wait ended): asks the host for the Run's plan and executor and calls
 //                          `drive` in this module's own ctx. A Run the host does not know how to execute (a Journey, a Gate Run) resolves to nothing and is left alone.
 //   periodic  runs.sweep_waits   the clock consumer: ends a wait whose time came or that timed out, which emits run.resumed and so drives the Run on.
-//   host calls  runs.drive_run (the host's queue drives one Run in a call of its own) and runs.interrupted (the Runs the last server left queued or running, driven again from their step log, once after boot).
+//   host calls  runs.drive_run (the host's queue drives one Run in a call of its own), runs.interrupted (the Runs the last server left queued or running, driven again from their step log, once after boot), and runs.get, runs.steps, runs.stop, runs.resume (the seam reads a child and moves a parked parent; the hook runner does not dispatch the capabilities of the same names).
 // The plan and the executor are the host's to build (it can see the Automation and steps-core, this module can see neither): setRunsHost gives it the way in (ruling 31), and the
 // consumer only reads what it hands back. A step is keyed run:step:attempt, so a step that was running when the server stopped runs again with the same key and its capability dedupes.
 // The consumer does not drive: it asks the host to, and returns, so an AI step that takes minutes never holds the events behind it. The host queue runs a few drives at once, one per Run.

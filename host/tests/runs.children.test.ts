@@ -1,454 +1,230 @@
-// Parallel lanes and Loop iterations are child Runs. A missed milestone skips outward steps. The host queue drives each Run; this file wires the real runs and automations databases behind it.
+// Parallel lanes and loop iterations are child Runs. On a booted daemon, through the gateway: notes the lanes and the loop write, a lane that loses an any-join, a wait that does not block the other lane, and a parent stop that keeps the note after a child's wait from being written.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRunsHost } from "../src/seams/runs.ts";
-import type { HostCall } from "../src/seams/runs.ts";
-import { harness as runsHarness } from "../../modules/runs/fixtures/db.ts";
-import { harness as autoHarness } from "../../modules/automations/fixtures/db.ts";
-import { alice, engine, HOUR, node, NOW } from "../../modules/automations/fixtures/seed.ts";
-import type { Definition } from "../../modules/automations/projections.ts";
-import { findAutomation, findRunLink, listChildLinks } from "../../modules/automations/projections.ts";
-import { startRun } from "../../modules/automations/handlers/triggers.ts";
-import { hostCalls as autoHost } from "../../modules/automations/impl.ts";
-import { hostCalls as stepHost } from "../../modules/steps-core/impl.ts";
-import { drive, sweepWaits, wake } from "../../modules/runs/handlers/engine.ts";
-import { allSteps, findRun, readWait } from "../../modules/runs/projections.ts";
-import { interrupted } from "../../modules/runs/handlers/engine.ts";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { bootCore } from "../../fixtures/seed/core/index.ts";
+import { fakePlatform } from "../src/platform/index.ts";
+import type { FetchFn } from "../src/platform/probes.ts";
+import { loadConfig } from "../src/daemon/config.ts";
+import { startDaemon } from "../src/daemon/daemon.ts";
+import type { Daemon, DaemonOptions } from "../src/daemon/daemon.ts";
 
-interface CapCall { cap: string; input: Record<string, unknown> }
+const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const OWNER = "tok-usr_olivia";
 
-const manual = [{ key: "manual" }];
-const contact = (fields: Record<string, unknown>) => ({ type: "contact", fields });
-
-function parallelDef(waitInLane: boolean): Definition {
-  const leftRest = waitInLane
-    ? [
-        node("a2", "wait", { forDuration: "1h" }, { next: ["a3"] }),
-        node("a3", "records.update", { type: "contact", recordId: "rec_left", patch: { step: "a3" } }, { next: ["join"] }),
-      ]
-    : [node("a2", "records.update", { type: "contact", recordId: "rec_left", patch: { step: "a2" } }, { next: ["join"] })];
-  return {
-    triggers: manual,
-    start: ["par"],
-    nodes: [
-      node("par", "parallel", { waitFor: "all" }, { branches: [{ label: "Left", to: "a1" }, { label: "Right", to: "b1" }], next: ["join"] }),
-      node("a1", "records.create", contact({ lane: "left" }), { next: ["a2"] }),
-      ...leftRest,
-      node("b1", "records.create", contact({ lane: "right" }), { next: ["join"] }),
-      node("join", "records.update", { type: "contact", recordId: "rec_join", patch: { step: "join" } }),
-    ],
-  };
+function seededDir(): string {
+  const core = bootCore();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-children-"));
+  core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
+  fs.copyFileSync(core.file, path.join(dir, "events.db"));
+  core.close();
+  return dir;
 }
 
-function loopDef(): Definition {
-  return {
-    triggers: manual,
-    start: ["each"],
-    nodes: [
-      node("each", "loop", {
-        items: [{ id: "a", name: "Ada" }, { id: "b", name: "Bea" }, { id: "c", name: "Cy" }],
-        concurrency: 1,
-        maxIterations: 10,
-      }, { branches: [{ label: "body", to: "make" }], next: ["after"] }),
-      node("make", "records.create", contact({ name: "{{ item.name }}" }), { next: ["hold"] }),
-      node("hold", "wait", { forDuration: "1h" }),
-      node("after", "records.update", { type: "contact", recordId: "rec_after", patch: { step: "after" } }),
-    ],
-  };
-}
-
-function rig() {
-  const calls: CapCall[] = [];
-  let startsAt = NOW + 5 * HOUR;
-  const runsH = runsHarness({ now: NOW });
-  runsH.callee("tasks.create", () => ({ task: { id: "tsk_needs" } }));
-  const autoH = autoHarness({
-    now: NOW,
-    calls: {
-      "runs.start": (i) => runsH.call("runs.start", i, engine),
-      "runs.stop": (i) => runsH.call("runs.stop", i, engine),
-      "runs.get": (i) => runsH.call("runs.get", i, engine),
-      "runs.resume": (i) => runsH.call("runs.resume", i, engine),
-      "runs.mark_waiting": (i) => runsH.call("runs.mark_waiting", i, engine),
-      "runs.steps": (i) => runsH.call("runs.steps", i, engine),
-      "runs.list": (i) => runsH.call("runs.list", i, engine),
-      "runs.retry": (i) => runsH.call("runs.retry", i, engine),
-      "tasks.create": () => ({ task: { id: "tsk_needs" } }),
+const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> => startDaemon({
+  config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+  platform: fakePlatform({
+    os: "linux", hostname: "children-live", free: 80e9,
+    commands: {
+      [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+      "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+      "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
     },
-  });
-  const stepCtx = {
-    space: "spc_test",
-    principal: { kind: "person", id: alice.id },
-    trace: { traceId: "0123456789abcdef0123456789abcdef" },
-    now: () => runsH.now(),
-    db: { all: () => [], run: () => ({ changes: 0 }) },
-    emit: () => ({ id: "evt_step" }),
-    async call(cap: string, input: unknown) {
-      const body = (input ?? {}) as Record<string, unknown>;
-      calls.push({ cap, input: body });
-      if (cap === "records.create" || cap === "records.update") return { record: { id: "rec_made", version: 1 } };
-      if (cap === "mail.send" || cap === "mail.draft") return { messageId: "msg_1" };
-      if (cap === "calendar.get_event") return { event: { startsAt } };
-      throw new Error(`unexpected step call ${cap}`);
-    },
-  };
-  const errors: string[] = [];
-  let driveCount = 0;
-  let host!: ReturnType<typeof createRunsHost>;
-  const call: HostCall = async (name, input, as) => {
-    if (name === "runs.drive_run") {
-      driveCount += 1;
-      const runId = (input as { runId: string }).runId;
-      const before = findRun(runsH.db, runId);
-      if (!before) return "gone";
-      try {
-        const resolved = await host.resolve({ id: runId });
-        if (!resolved) return "not_ours";
-        const status = (await drive(runsH.ctxFor(null, engine), runId, resolved.plan, resolved.exec)).status;
-        if (before.parentRun) {
-          const parent = findRun(runsH.db, before.parentRun);
-          if (parent && (parent.status === "queued" || parent.status === "running")) host.enqueue(parent.id);
-        }
-        return status;
-      } catch (e) {
-        errors.push(e instanceof Error ? e.stack ?? e.message : String(e));
-        throw e;
-      }
-    }
-    if (name === "runs.interrupted") return interrupted(runsH.db);
-    if (name.startsWith("automations.")) {
-      const fn = autoHost[name as keyof typeof autoHost] as (ctx: unknown, i: unknown) => unknown;
-      return fn(autoH.ctxFor(null, engine), input);
-    }
-    if (name.startsWith("runs.")) return runsH.call(name, input, engine);
-    if (name === "steps-core.run_step") {
-      return stepHost["steps-core.run_step"]({ ...stepCtx, principal: as?.principal ?? stepCtx.principal } as never, input as never);
-    }
-    throw new Error(`unexpected host call ${name}`);
-  };
-  host = createRunsHost({
-    call,
-    log: (msg, attrs) => errors.push(`${msg} ${JSON.stringify(attrs)}`),
-  });
+  }),
+  fetch: caddyFetch,
+  session: (h) => {
+    const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+    return t === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "children-live" } : null;
+  },
+  intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
+  ...extra,
+});
 
-  async function drain(): Promise<void> {
-    let prev = -1;
-    for (let i = 0; i < 40; i++) {
-      const mark = driveCount;
-      await host.settle(5000);
-      await new Promise((r) => setTimeout(r, 0));
-      if (errors.length) throw new Error(errors.join("\n"));
-      if (driveCount === mark && driveCount === prev) return;
-      prev = driveCount;
-    }
-    const rows = runsH.db.all("SELECT id, status, parent_run, summary FROM runs_items") as { id: string; status: string; parent_run: string | null; summary: string | null }[];
-    throw new Error(`drain did not settle ${JSON.stringify(rows)}`);
+const call = async (d: Daemon, p: string, body: unknown, token = OWNER): Promise<{ status: number; data: Record<string, unknown>; text: string }> => {
+  const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) });
+  const text = await r.text();
+  return { status: r.status, data: ((JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {}), text };
+};
+const ok = async (d: Daemon, p: string, body: unknown, token = OWNER): Promise<Record<string, unknown>> => {
+  const r = await call(d, p, body, token);
+  assert.equal(r.status, 200, `${p}: ${r.text}`);
+  return r.data;
+};
+async function until<T>(what: string, ms: number, look: () => Promise<T | undefined>): Promise<T> {
+  const end = Date.now() + ms;
+  for (;;) {
+    const v = await look();
+    if (v !== undefined) return v;
+    assert.ok(Date.now() < end, `gave up waiting for ${what}`);
+    await new Promise((r) => setTimeout(r, 150));
   }
+}
 
-  async function boot(definition: Definition, name: string): Promise<{ automationId: string; parentId: string }> {
-    const made = await autoH.call("automations.create", { name, definition }, alice);
-    const automationId = made.automation.id as string;
-    const parentId = await autoH.consumer(engine, (ctx) => {
-      const a = findAutomation(ctx.db, automationId);
-      if (!a) throw new Error("missing automation");
-      return startRun(ctx, a, { trigger: "manual", payload: { startedBy: alice.id }, test: false, depth: 0, key: `parent:${automationId}`, principal: { kind: "person", id: alice.id } });
+type Note = { fields: { title?: string } };
+const note = (id: string, title: string, next?: string[]) => ({ id, key: "records.create", input: { type: "note_board", fields: { title } }, ...(next ? { next } : {}) });
+/** The catalogue requires `branches` on a parallel step's input. The host follows the labeled node branches. */
+const parallel = (id: string, waitFor: "all" | "any", lanes: { label: string; to: string }[], next: string[]) => ({
+  id, key: "parallel", input: { waitFor, branches: lanes.map((l) => l.to) }, branches: lanes, next,
+});
+
+async function automation(d: Daemon, name: string, definition: unknown): Promise<string> {
+  const made = await ok(d, "/v1/automations/create", { idempotencyKey: `child-${name}`, name });
+  const id = String((made["automation"] as { id?: string } | undefined)?.id ?? made["automationId"]);
+  assert.match(id, /^aut_/, `automation.create: ${JSON.stringify(made)}`);
+  await ok(d, "/v1/automations/update", { automationId: id, definition });
+  return id;
+}
+const runOf = async (d: Daemon, id: string, key: string): Promise<string> => String((await ok(d, "/v1/automations/run", { automationId: id, idempotencyKey: key }))["runId"]);
+const runRow = async (d: Daemon, runId: string): Promise<{ status?: string; summary?: string; parentRun?: string }> =>
+  ((await ok(d, "/v1/runs/get", { runId }))["run"] ?? {}) as { status?: string; summary?: string; parentRun?: string };
+const statusOf = async (d: Daemon, runId: string): Promise<string> => String((await runRow(d, runId)).status);
+const notes = async (d: Daemon): Promise<Note[]> => ((await ok(d, "/v1/records/query", { type: "note_board" }))["rows"] as Note[]);
+const countOf = async (d: Daemon, title: string): Promise<number> => (await notes(d)).filter((r) => r.fields.title === title).length;
+
+async function succeed(d: Daemon, runId: string, ms: number): Promise<void> {
+  await until("the run to succeed", ms, async () => {
+    const run = await runRow(d, runId);
+    if (run.status === "succeeded") return true;
+    if (run.status === "failed" || run.status === "stopped") {
+      const steps = await ok(d, "/v1/runs/steps", { runId });
+      assert.fail(`the run ${run.status}: ${run.summary ?? ""} ${JSON.stringify(steps)}`);
+    }
+    return undefined;
+  });
+}
+
+test("two parallel lanes write Left note and Right note, then Joined once exists exactly once", async () => {
+  const d = await boot(seededDir());
+  try {
+    const id = await automation(d, "split", {
+      triggers: [{ key: "manual" }],
+      start: ["par"],
+      nodes: [
+        parallel("par", "all", [{ label: "Left", to: "a1" }, { label: "Right", to: "b1" }], ["join"]),
+        note("a1", "Left note", ["join"]),
+        note("b1", "Right note", ["join"]),
+        note("join", "Joined once"),
+      ],
     });
-    return { automationId, parentId };
-  }
-
-  function advance(ms: number): void {
-    const n = runsH.now() + ms;
-    runsH.setNow(n);
-    autoH.setNow(n);
-  }
-
-  const caps = (cap: string) => calls.filter((c) => c.cap === cap);
-  const run = (id: string) => findRun(runsH.db, id);
-  const steps = (id: string) => allSteps(runsH.db, id);
-  const children = (parentId: string) => listChildLinks(autoH.db, parentId);
-
-  return { host, calls, caps, boot, drain, advance, run, steps, children, autoH, runsH, errors, setStartsAt(n: number) { startsAt = n; } };
-}
-
-test("two parallel lanes become two child Runs and the parent joins once", async () => {
-  const w = rig();
-  const def = parallelDef(false);
-  const { automationId, parentId } = await w.boot(def, "Split");
-  const rewritten = structuredClone(def);
-  rewritten.nodes.find((n) => n.id === "a1")!.input = contact({ lane: "rewritten" });
-  await w.autoH.call("automations.update", { automationId, definition: rewritten, expectedVersion: 1 }, alice);
-  w.host.enqueue(parentId);
-  await w.drain();
-
-  const parent = w.run(parentId);
-  assert.equal(parent?.status, "succeeded", parent?.summary);
-  const kids = w.children(parentId);
-  assert.equal(kids.length, 2);
-  const left = kids.find((k) => k.scope?.laneId === "Left");
-  const right = kids.find((k) => k.scope?.laneId === "Right");
-  assert.ok(left && right);
-  assert.equal(left.version, 1);
-  assert.equal(right.version, 1);
-  assert.equal(findRunLink(w.autoH.db, parentId)?.version, 1);
-  assert.equal((await w.autoH.call("automations.get", { automationId }, alice)).automation.version, 2);
-  assert.equal(left.parentRun, parentId);
-  assert.equal(left.scope?.containerNodeId, "par");
-  assert.equal(w.run(left.runId)?.parentRun, parentId);
-  assert.deepEqual(w.steps(parentId).map((s) => s.step), ["par", "join"]);
-  assert.deepEqual(w.steps(left.runId).map((s) => [s.step, s.state]), [["a1", "succeeded"], ["a2", "succeeded"]]);
-  assert.deepEqual(w.steps(right.runId).map((s) => [s.step, s.state]), [["b1", "succeeded"]]);
-  const creates = w.caps("records.create");
-  assert.equal(creates.length, 2);
-  const leftCreate = creates.find((c) => (c.input.fields as { lane?: string }).lane === "left");
-  assert.equal(leftCreate?.input.idempotencyKey, `${left.runId}:a1:1`);
-  assert.equal(creates.filter((c) => (c.input.fields as { lane?: string }).lane === "rewritten").length, 0);
-  const join = w.caps("records.update").filter((c) => (c.input.patch as { step?: string }).step === "join");
-  assert.equal(join.length, 1);
-
-  const again = await w.host.resolve({ id: parentId });
-  assert.ok(again);
-  const par = again.plan.find((s) => s.id === "par");
-  assert.ok(par);
-  await again.exec(par as never, { attempt: 1, key: "again", input: par.input, outputs: {}, sandbox: false, resumed: true, startedAt: NOW } as never);
-  assert.equal(w.children(parentId).length, 2);
+    const runId = await runOf(d, id, "run-split");
+    await succeed(d, runId, 20_000);
+    assert.equal(await countOf(d, "Left note"), 1);
+    assert.equal(await countOf(d, "Right note"), 1);
+    assert.equal(await countOf(d, "Joined once"), 1);
+  } finally { await d.stop(); }
 });
 
-test("a wait inside a lane parks only that child, then the parent joins once", async () => {
-  const w = rig();
-  const { parentId } = await w.boot(parallelDef(true), "Wait in a lane");
-  w.host.enqueue(parentId);
-  await w.drain();
-
-  const kids = w.children(parentId);
-  const left = kids.find((k) => k.scope?.laneId === "Left")!;
-  const right = kids.find((k) => k.scope?.laneId === "Right")!;
-  assert.equal(w.run(parentId)?.status, "waiting");
-  assert.equal(w.run(left.runId)?.status, "waiting");
-  assert.equal(w.run(right.runId)?.status, "succeeded");
-  assert.equal(w.steps(left.runId).find((s) => s.step === "a2")?.state, "waiting");
-  assert.equal(w.steps(left.runId).some((s) => s.step === "a3"), false);
-  assert.equal(w.caps("records.update").some((c) => (c.input.patch as { step?: string }).step === "a3"), false);
-  assert.equal(w.caps("records.update").some((c) => (c.input.patch as { step?: string }).step === "join"), false);
-  assert.equal(w.steps(parentId).map((s) => s.step).includes("join"), false);
-
-  w.advance(HOUR);
-  const woken = await w.runsH.engineRun(engine, (ctx) => sweepWaits(ctx));
-  assert.ok(woken.includes(left.runId));
-  assert.equal(woken.includes(parentId), false);
-  for (const id of woken) w.host.enqueue(id);
-  await w.drain();
-
-  assert.equal(w.run(left.runId)?.status, "succeeded", w.run(left.runId)?.summary);
-  assert.equal(w.run(parentId)?.status, "succeeded", w.run(parentId)?.summary);
-  assert.deepEqual(w.steps(left.runId).map((s) => [s.step, s.state]), [["a1", "succeeded"], ["a2", "succeeded"], ["a3", "succeeded"]]);
-  assert.equal(w.caps("records.create").filter((c) => (c.input.fields as { lane?: string }).lane === "left").length, 1);
-  assert.equal(w.caps("records.update").filter((c) => (c.input.patch as { step?: string }).step === "a3").length, 1);
-  assert.equal(w.caps("records.update").filter((c) => (c.input.patch as { step?: string }).step === "join").length, 1);
-  assert.deepEqual(w.steps(parentId).map((s) => [s.step, s.state]), [["par", "succeeded"], ["join", "succeeded"]]);
+test("waitFor any writes the fast note and leaves the slow note absent when the parent succeeds", async () => {
+  const d = await boot(seededDir());
+  try {
+    const id = await automation(d, "any", {
+      triggers: [{ key: "manual" }],
+      start: ["par"],
+      nodes: [
+        parallel("par", "any", [{ label: "Slow", to: "pause" }, { label: "Fast", to: "fast" }], ["join"]),
+        { id: "pause", key: "wait", input: { forDuration: "30s" }, next: ["slow"] },
+        note("slow", "Slow note", ["join"]),
+        note("fast", "Fast note", ["join"]),
+        note("join", "Joined any"),
+      ],
+    });
+    const runId = await runOf(d, id, "run-any");
+    await succeed(d, runId, 15_000);
+    assert.equal(await countOf(d, "Fast note"), 1);
+    assert.equal(await countOf(d, "Slow note"), 0);
+    assert.equal(await countOf(d, "Joined any"), 1);
+  } finally { await d.stop(); }
 });
 
-test("stopping a parent stops a waiting child and does not run its later step", async () => {
-  for (const via of ["runs", "automations"] as const) {
-    const w = rig();
-    const { automationId, parentId } = await w.boot(parallelDef(true), `Stop ${via}`);
-    w.host.enqueue(parentId);
-    await w.drain();
-    const left = w.children(parentId).find((k) => k.scope?.laneId === "Left")!;
-    const right = w.children(parentId).find((k) => k.scope?.laneId === "Right")!;
-    assert.equal(w.run(left.runId)?.status, "waiting");
-    assert.equal(w.run(right.runId)?.status, "succeeded");
-    const creates = () => w.caps("records.create").filter((c) => (c.input.fields as { lane?: string }).lane === "left").length;
-    assert.equal(creates(), 1);
-
-    if (via === "runs") await w.runsH.call("runs.stop", { runId: parentId, reason: "stop parent" }, engine);
-    else await w.autoH.call("automations.stop", { automationId, runId: parentId, pause: false }, alice);
-
-    assert.equal(w.run(parentId)?.status, "stopped", via);
-    assert.equal(w.run(left.runId)?.status, "stopped", via);
-    assert.equal(w.run(right.runId)?.status, "succeeded", via);
-
-    w.advance(HOUR);
-    const woken = await w.runsH.engineRun(engine, (ctx) => sweepWaits(ctx));
-    for (const id of woken) w.host.enqueue(id);
-    w.host.enqueue(parentId);
-    w.host.enqueue(left.runId);
-    await w.drain();
-
-    assert.equal(w.run(parentId)?.status, "stopped", via);
-    assert.equal(w.run(left.runId)?.status, "stopped", via);
-    assert.equal(w.run(right.runId)?.status, "succeeded", via);
-    assert.equal(w.steps(left.runId).some((s) => s.step === "a3"), false, via);
-    assert.equal(w.caps("records.update").length, 0, via);
-    assert.equal(creates(), 1, via);
-  }
+test("a loop of three items writes Ada, Bea and Cy, then one note after the loop", async () => {
+  const d = await boot(seededDir());
+  try {
+    const id = await automation(d, "each", {
+      triggers: [{ key: "manual" }],
+      start: ["each"],
+      nodes: [
+        {
+          id: "each", key: "loop",
+          input: { items: [{ id: "a", name: "Ada" }, { id: "b", name: "Bea" }, { id: "c", name: "Cy" }], concurrency: 2 },
+          branches: [{ label: "body", to: "make" }], next: ["after"],
+        },
+        note("make", "{{ item.name }}"),
+        note("after", "After the loop"),
+      ],
+    });
+    const runId = await runOf(d, id, "run-each");
+    await succeed(d, runId, 20_000);
+    const titles = (await notes(d)).map((r) => r.fields.title);
+    for (const title of ["Ada", "Bea", "Cy", "After the loop"]) assert.equal(titles.filter((t) => t === title).length, 1, titles.join(","));
+    // records.query orders by created_at, then id. The three iteration titles keep input order in that list.
+    assert.deepEqual(titles.filter((t) => t === "Ada" || t === "Bea" || t === "Cy"), ["Ada", "Bea", "Cy"]);
+    assert.ok(titles.indexOf("After the loop") > titles.indexOf("Cy"));
+  } finally { await d.stop(); }
 });
 
-test("a crashed child resumes at the incomplete step and a parked parent wakes when its children are terminal", async () => {
-  const w = rig();
-  const { parentId } = await w.boot(parallelDef(true), "Crash resume");
-  w.host.enqueue(parentId);
-  await w.drain();
-  const left = w.children(parentId).find((k) => k.scope?.laneId === "Left")!;
-  const right = w.children(parentId).find((k) => k.scope?.laneId === "Right")!;
-  const creates = () => w.caps("records.create").filter((c) => (c.input.fields as { lane?: string }).lane === "left").length;
-  assert.equal(creates(), 1);
-  assert.equal(w.steps(left.runId).filter((s) => s.step === "a1" && s.state === "succeeded").length, 1);
-
-  w.runsH.db.run("UPDATE runs_items SET status = ?, wait_reason = NULL WHERE id = ?", "running", left.runId);
-  w.runsH.db.run("UPDATE runs_steps SET state = ? WHERE run_id = ? AND step = ?", "running", left.runId, "a2");
-  w.runsH.db.run("DELETE FROM runs_waits WHERE run_id = ?", left.runId);
-  w.host.enqueue(left.runId);
-  await w.drain();
-  assert.equal(creates(), 1);
-  assert.equal(w.run(left.runId)?.status, "waiting");
-  const a2 = w.steps(left.runId).filter((s) => s.step === "a2");
-  assert.equal(a2.length, 1);
-  assert.equal(a2[0]?.attempt, 1);
-  assert.equal(a2[0]?.state, "waiting");
-  assert.equal(w.run(parentId)?.status, "waiting");
-
-  await w.runsH.call("runs.resume", { runId: left.runId, reason: "background" }, engine);
-  w.host.enqueue(left.runId);
-  await w.drain();
-  assert.equal(creates(), 1);
-  assert.equal(w.steps(left.runId).filter((s) => s.step === "a1").length, 1);
-  assert.equal(w.run(left.runId)?.status, "waiting");
-
-  w.runsH.db.run("UPDATE runs_items SET status = ?, wait_reason = NULL, ended_at = ? WHERE id = ?", "succeeded", w.runsH.now(), left.runId);
-  w.runsH.db.run("UPDATE runs_items SET status = ? WHERE id = ?", "succeeded", right.runId);
-  w.runsH.db.run("DELETE FROM runs_waits WHERE run_id = ?", left.runId);
-  assert.equal(w.run(parentId)?.status, "waiting");
-  await w.host.recover();
-  await w.drain();
-  assert.equal(w.run(parentId)?.status, "succeeded", w.run(parentId)?.summary);
-  assert.equal(w.caps("records.update").filter((c) => (c.input.patch as { step?: string }).step === "join").length, 1);
-  assert.equal(creates(), 1);
+test("a wait of 2s inside one parallel lane does not block the other lane's note, then the parent joins once", async () => {
+  const d = await boot(seededDir());
+  try {
+    const id = await automation(d, "lane-wait", {
+      triggers: [{ key: "manual" }],
+      start: ["par"],
+      nodes: [
+        parallel("par", "all", [{ label: "Left", to: "pause" }, { label: "Right", to: "right" }], ["join"]),
+        { id: "pause", key: "wait", input: { forDuration: "2s" }, next: ["left"] },
+        note("left", "Left after the wait", ["join"]),
+        note("right", "Right during the wait", ["join"]),
+        note("join", "Joined once"),
+      ],
+    });
+    const runId = await runOf(d, id, "run-lane-wait");
+    await until("the other lane's note before the wait lane writes", 8_000, async () => {
+      const right = await countOf(d, "Right during the wait");
+      const left = await countOf(d, "Left after the wait");
+      if (left > 0) assert.fail("the wait lane wrote its note before the other lane was seen");
+      return right === 1 ? true : undefined;
+    });
+    assert.equal(await countOf(d, "Joined once"), 0, "the parent has not joined while one lane is still waiting");
+    await succeed(d, runId, 20_000);
+    assert.equal(await countOf(d, "Left after the wait"), 1);
+    assert.equal(await countOf(d, "Right during the wait"), 1);
+    assert.equal(await countOf(d, "Joined once"), 1);
+  } finally { await d.stop(); }
 });
 
-test("a loop of three items creates three child Runs and resumes a waiting child at its incomplete step", async () => {
-  const w = rig();
-  const { parentId } = await w.boot(loopDef(), "Each person");
-  w.host.enqueue(parentId);
-  await w.drain();
-
-  const kids = w.children(parentId);
-  assert.equal(kids.length, 3);
-  assert.deepEqual(kids.map((k) => k.scope?.iterationKey).sort(), ["a", "b", "c"]);
-  const live = kids.find((k) => k.scope?.held !== true)!;
-  const held = kids.filter((k) => k.scope?.held === true);
-  assert.equal(held.length, 2);
-  assert.equal(live.scope?.iterationKey, "a");
-  assert.equal(live.scope?.iterationIndex, 0);
-  assert.equal(w.run(live.runId)?.status, "waiting");
-  assert.equal(w.steps(live.runId).find((s) => s.step === "make")?.state, "succeeded");
-  assert.equal(w.steps(live.runId).find((s) => s.step === "hold")?.state, "waiting");
-  assert.equal(w.caps("records.create").map((c) => (c.input.fields as { name?: string }).name).join(","), "Ada");
-  assert.equal(w.caps("records.create")[0]?.input.idempotencyKey, `${live.runId}:make:1`);
-  for (const h of held) {
-    assert.equal(w.run(h.runId)?.status, "waiting");
-    const slot = readWait(w.runsH.db, h.runId);
-    assert.equal(slot?.label, "a loop slot");
-    assert.equal((slot?.on as { at?: number } | undefined)?.at, undefined);
-    assert.equal(w.steps(h.runId).length, 0);
-  }
-  assert.equal(w.run(parentId)?.status, "waiting");
-
-  await w.runsH.call("runs.resume", { runId: parentId, reason: "background" }, engine);
-  w.host.enqueue(parentId);
-  await w.drain();
-  assert.equal(w.children(parentId).length, 3);
-  assert.equal(w.caps("records.create").length, 1);
-
-  await w.runsH.call("runs.resume", { runId: live.runId, reason: "background" }, engine);
-  w.host.enqueue(live.runId);
-  await w.drain();
-  assert.equal(w.caps("records.create").length, 1);
-  assert.equal(w.steps(live.runId).filter((s) => s.step === "make" && s.state === "succeeded").length, 1);
-  assert.equal(w.run(live.runId)?.status, "waiting");
-  assert.equal(w.steps(live.runId).find((s) => s.step === "hold")?.state, "waiting");
-
-  w.advance(HOUR);
-  const woken = await w.runsH.engineRun(engine, (ctx) => sweepWaits(ctx));
-  assert.deepEqual(woken, [live.runId]);
-  for (const id of woken) w.host.enqueue(id);
-  await w.drain();
-
-  assert.equal(w.run(live.runId)?.status, "succeeded", w.run(live.runId)?.summary);
-  assert.equal(w.steps(live.runId).filter((s) => s.step === "make").length, 1);
-  const names = w.caps("records.create").map((c) => (c.input.fields as { name?: string }).name);
-  assert.deepEqual(names, ["Ada", "Bea"]);
-  const next = w.children(parentId).find((k) => k.scope?.iterationKey === "b")!;
-  assert.equal(next.scope?.held, false);
-  assert.equal(w.run(next.runId)?.status, "waiting");
-  assert.equal(w.steps(next.runId).find((s) => s.step === "make")?.state, "succeeded");
-  assert.equal(w.steps(next.runId).find((s) => s.step === "hold")?.state, "waiting");
-  const still = w.children(parentId).find((k) => k.scope?.iterationKey === "c")!;
-  assert.equal(still.scope?.held, true);
-  assert.equal(w.steps(still.runId).length, 0);
-  assert.equal(w.run(parentId)?.status, "waiting");
-});
-
-test("a milestone that is already past skips outward steps and still updates the record", async () => {
-  const w = rig();
-  const def: Definition = {
-    triggers: manual,
-    start: ["pause"],
-    nodes: [
-      node("pause", "wait", { at: NOW - HOUR }, { next: ["mail"] }),
-      node("mail", "send_email", { mailboxId: "mbx_1", to: ["a@b.c"], subject: "Hi", body: "There" }, { next: ["upd"] }),
-      node("upd", "records.update", { type: "contact", recordId: "rec_1", patch: { status: "active" } }),
-    ],
-  };
-  const { parentId } = await w.boot(def, "Missed milestone");
-  w.host.enqueue(parentId);
-  await w.drain();
-  assert.equal(w.run(parentId)?.status, "succeeded", w.run(parentId)?.summary);
-  const rows = w.steps(parentId);
-  assert.deepEqual(rows.map((s) => [s.step, s.state]), [["pause", "succeeded"], ["mail", "skipped"], ["upd", "succeeded"]]);
-  assert.deepEqual(JSON.parse(rows[0]!.outputJson!), { missed: true, skipTimeSensitive: true, reason: "milestone_passed" });
-  assert.deepEqual(JSON.parse(rows[1]!.outputJson!), { skipped: true, reason: "milestone_passed" });
-  assert.equal(w.caps("mail.send").length, 0);
-  assert.equal(w.caps("records.update").length, 1);
-  assert.equal((w.caps("records.update")[0]!.input.patch as { status?: string }).status, "active");
-});
-
-test("reschedule and cancel leave a succeeded send as it is", async () => {
-  const w = rig();
-  w.setStartsAt(NOW + 5 * HOUR);
-  const def: Definition = {
-    triggers: manual,
-    start: ["mail"],
-    nodes: [
-      node("mail", "send_email", { mailboxId: "mbx_1", to: ["a@b.c"], subject: "Hi", body: "Sent" }, { next: ["pause"] }),
-      node("pause", "wait", { at: NOW + 2 * HOUR, anchorId: "evt_cal", direction: "after" }),
-    ],
-  };
-  const { parentId } = await w.boot(def, "Follow the meeting");
-  w.host.enqueue(parentId);
-  await w.drain();
-  assert.equal(w.run(parentId)?.status, "waiting");
-  assert.equal(w.steps(parentId).find((s) => s.step === "mail")?.state, "succeeded");
-  assert.equal(w.caps("mail.send").length, 1);
-  assert.equal(w.caps("mail.send")[0]?.input.idempotencyKey, `${parentId}:mail:1`);
-  const parked = readWait(w.runsH.db, parentId);
-  assert.equal((parked?.on as { at?: number; anchorId?: string }).at, NOW + 2 * HOUR);
-  assert.equal((parked?.on as { anchorId?: string }).anchorId, "evt_cal");
-
-  const woken = await w.runsH.engineRun(engine, (ctx) => wake(ctx, { type: "calendar_event.updated", payload: { eventId: "evt_cal" } }));
-  assert.deepEqual(woken, [parentId]);
-  for (const id of woken) w.host.enqueue(id);
-  await w.drain();
-  assert.equal(w.run(parentId)?.status, "waiting");
-  assert.equal(w.caps("calendar.get_event").length, 1);
-  assert.equal((readWait(w.runsH.db, parentId)?.on as { at?: number }).at, NOW + 5 * HOUR);
-  assert.equal(w.caps("mail.send").length, 1);
-  assert.equal(w.steps(parentId).filter((s) => s.step === "mail" && s.state === "succeeded").length, 1);
-
-  await w.runsH.engineRun(engine, (ctx) => wake(ctx, { type: "calendar_event.deleted", payload: { eventId: "evt_cal" } }));
-  w.host.enqueue(parentId);
-  await w.drain();
-  assert.equal(w.run(parentId)?.status, "stopped");
-  assert.equal(w.caps("mail.send").length, 1);
-  assert.equal(w.steps(parentId).filter((s) => s.step === "mail").length, 1);
-  assert.equal(w.steps(parentId).find((s) => s.step === "mail")?.state, "succeeded");
+test("stopping the parent while a child is waiting does not write the note after that wait", async () => {
+  const d = await boot(seededDir());
+  try {
+    const id = await automation(d, "stop-parent", {
+      triggers: [{ key: "manual" }],
+      start: ["par"],
+      nodes: [
+        parallel("par", "all", [{ label: "Wait", to: "pause" }, { label: "Other", to: "other" }], ["join"]),
+        { id: "pause", key: "wait", input: { forDuration: "5s" }, next: ["later"] },
+        note("later", "After the stopped wait", ["join"]),
+        note("other", "Other lane", ["join"]),
+        note("join", "Joined after stop"),
+      ],
+    });
+    const runId = await runOf(d, id, "run-stop");
+    const childId = await until("a child to park on its wait", 10_000, async () => {
+      const listed = (await ok(d, "/v1/runs/list", { scope: "subject", subject: { type: "automation", id }, statuses: ["waiting"], limit: 20 }))["runs"] as { id: string; parentRun?: string }[];
+      const child = listed.find((r) => r.parentRun === runId);
+      if (!child) return undefined;
+      const steps = (await ok(d, "/v1/runs/steps", { runId: child.id }))["steps"] as { step: string; state: string }[];
+      return steps.some((s) => s.step === "pause" && s.state === "waiting") ? child.id : undefined;
+    });
+    assert.equal(await countOf(d, "After the stopped wait"), 0);
+    await ok(d, "/v1/runs/stop", { runId, reason: "stop parent" });
+    assert.equal(await statusOf(d, runId), "stopped");
+    assert.equal(await statusOf(d, childId), "stopped");
+    const end = Date.now() + 6_000;
+    while (Date.now() < end) {
+      assert.equal(await countOf(d, "After the stopped wait"), 0);
+      assert.equal(await countOf(d, "Joined after stop"), 0);
+      assert.equal(await statusOf(d, runId), "stopped");
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  } finally { await d.stop(); }
 });

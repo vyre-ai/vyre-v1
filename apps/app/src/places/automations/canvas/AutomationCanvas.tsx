@@ -574,7 +574,13 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
         ) : <View style={s.pageBody}><RunsList automationId={a.id} nodes={def.nodes} onLight={(r) => { setLitRun(r); setTab("steps"); }} onAsk={(message) => data.nav.ask(a.id, { resource: a.id, message })} /></View>
       ) : null}
       {tab === "analytics" ? <AnalyticsPanel automationId={a.id} /> : null}
-      {tab === "versions" ? <View style={s.pageBody}>{tabBodies.versions ?? <VersionsList versions={versions} current={a.version} onRestore={(id) => void data.call("automations.restore_version", { automationId: a.id, versionId: id }).then(() => flash("Restored as a new version")).catch((x: unknown) => flash(x instanceof Error ? x.message : "That did not restore"))} /></View> : null}
+      {tab === "versions" ? (
+        <View style={s.pageBody}>
+          {tabBodies.versions ?? (
+            <VersionsList versions={versions} current={a.version} onRestore={(id) => void data.call("automations.restore_version", { automationId: a.id, versionId: id }).then(() => flash("Restored as a new version")).catch((x: unknown) => flash(x instanceof Error ? x.message : "That did not restore"))} />
+          )}
+        </View>
+      ) : null}
       {tab === "settings" ? <View style={s.pageBody}>{tabBodies.settings ?? <AutomationConfig automationId={a.id} />}</View> : null}
       {tab === "ask" ? (
         <AskTab

@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { harness, codeOf, reasonOf } from "../fixtures/db.ts";
 import { alice, node } from "../fixtures/seed.ts";
-import { migrateRuns } from "../handlers/migrate.ts";
+import { migrateRuns, migrateRunsBody } from "../handlers/migrate.ts";
 import { findRunLink, saveRunLink } from "../projections.ts";
 
 const tag = node("tag", "records.update", { type: "contact", recordId: "rec_abc", patch: { status: "active" } }, { next: ["hold"] });
@@ -43,7 +43,7 @@ test("apply pins a safe waiting run and does not replay its finished step", asyn
   };
   await h.call("automations.update", { automationId: id, definition: next }, alice);
   const names: string[] = [];
-  const out = await migrateRuns(ctxOf(h, names), { automationId: id, toVersion: 2, runIds: [runId] }) as { moved: { runId: string; fromVersion: number; atStepId: string }[] };
+  const out = await migrateRunsBody(ctxOf(h, names), { automationId: id, toVersion: 2, runIds: [runId] }) as { moved: { runId: string; fromVersion: number; atStepId: string }[] };
   assert.deepEqual(pins, [{ runId, definitionVersion: 2 }]);
   assert.equal(findRunLink(h.db, runId)!.version, 2);
   assert.equal(h.runs[0]!.definitionVersion, 2);
@@ -57,7 +57,7 @@ test("an ambiguous cohort and a finished run stay pinned", async () => {
   const changed = { triggers: [{ key: "manual" }], nodes: [tag, node("hold", "send_email", { mailboxId: "mbx_main", to: "a@b.c", subject: "Hi", body: "Hi" })] };
   await h.call("automations.update", { automationId: id, definition: changed }, alice);
   const names: string[] = [];
-  await assert.rejects(migrateRuns(ctxOf(h, names), { automationId: id, toVersion: 2, runIds: [runId] }), (e) => codeOf(e) === "validation.precondition_failed" && reasonOf(e) === "unsafe_cohort");
+  await assert.rejects(migrateRunsBody(ctxOf(h, names), { automationId: id, toVersion: 2, runIds: [runId] }), (e) => codeOf(e) === "validation.precondition_failed" && reasonOf(e) === "unsafe_cohort");
   assert.deepEqual(pins, []);
   assert.equal(findRunLink(h.db, runId)!.version, 1);
   h.runs[0]!.status = "succeeded";
@@ -66,7 +66,7 @@ test("an ambiguous cohort and a finished run stay pinned", async () => {
     nodes: [node("tag", "records.update", { type: "contact", recordId: "rec_abc", patch: { status: "done" } }, { next: ["hold"] }), hold],
   };
   await h.call("automations.update", { automationId: id, definition: same }, alice);
-  await assert.rejects(migrateRuns(ctxOf(h, names), { automationId: id, toVersion: 3, runIds: [runId] }), (e) => reasonOf(e) === "unsafe_cohort");
+  await assert.rejects(migrateRunsBody(ctxOf(h, names), { automationId: id, toVersion: 3, runIds: [runId] }), (e) => reasonOf(e) === "unsafe_cohort");
   assert.deepEqual(pins, []);
   assert.deepEqual(names, []);
 });
@@ -78,8 +78,15 @@ test("a run already on the target version is not pinned again", async () => {
   saveRunLink(h.db, { ...link, version: 2 });
   h.runs[0]!.definitionVersion = 2;
   const names: string[] = [];
-  const out = await migrateRuns(ctxOf(h, names), { automationId: id, toVersion: 2, runIds: [runId] }) as { moved: unknown[] };
+  const out = await migrateRunsBody(ctxOf(h, names), { automationId: id, toVersion: 2, runIds: [runId] }) as { moved: unknown[] };
   assert.deepEqual(out.moved, []);
   assert.deepEqual(pins, []);
+  assert.deepEqual(names, []);
+});
+
+test("the public route does not move runs yet", async () => {
+  const { h, id, runId } = await setup();
+  const names: string[] = [];
+  await assert.rejects(migrateRuns(ctxOf(h, names), { automationId: id, toVersion: 1, runIds: [runId] }), (e) => codeOf(e) === "internal.unavailable");
   assert.deepEqual(names, []);
 });

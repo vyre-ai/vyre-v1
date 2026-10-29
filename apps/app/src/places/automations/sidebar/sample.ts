@@ -31,15 +31,15 @@ export const LEAD_FOLLOW_UP: Definition = {
       title: "Does the lead have a mobile number?", input: {},
       branches: [{ label: "Has a mobile", to: "text", when: "lead.phone is not empty" }, { label: "Otherwise", to: "email" }],
     }),
-    n("text", "send_sms", { title: "Text the lead a first hello", input: { summary: "Twilio · action messages.create ...", to: "{{lead.phone}}", body: "{{draft.text}}" }, next: ["wait"] }),
+    n("text", "send_sms", { title: "Text the lead a first hello", input: { summary: "Twilio · action messages.create ...", to: "{{lead.phone}}", body: "{{draft.text}}", numberId: "num_main" }, next: ["wait"] }),
     n("wait", "wait", { title: "Wait until they reply, or 1 day", input: { note: "They reply by text, up to 1 day", event: { event: "sms.received" }, timeout: "1d" }, next: ["replied"] }),
     n("replied", "paths", {
       title: "Did they reply?", input: {},
       branches: [{ label: "They replied", to: "task", when: "wait.resumedBy is event" }, { label: "Otherwise", to: "nudge" }],
     }),
     n("task", "create_task", { title: "Ask Lena to call the lead", input: { title: "Call {{lead.name}}", assignee: "Lena Ortiz" } }),
-    n("nudge", "send_email", { title: "Nudge by email after a day", input: { summary: "Gmail · to {{lead.email}} · subject Following up", to: "{{lead.email}}" } }),
-    n("email", "send_email", { title: "Email the lead a first hello", input: { summary: "Gmail · to {{lead.email}} · subject T...", to: "{{lead.email}}" } }),
+    n("nudge", "send_email", { title: "Nudge by email after a day", input: { summary: "Gmail · to {{lead.email}} · subject Following up", to: "{{lead.email}}", mailboxId: "mbx_main" } }),
+    n("email", "send_email", { title: "Email the lead a first hello", input: { summary: "Gmail · to {{lead.email}} · subject T...", to: "{{lead.email}}", mailboxId: "mbx_main" } }),
   ],
 };
 

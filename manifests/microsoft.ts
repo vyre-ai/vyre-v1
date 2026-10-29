@@ -123,7 +123,7 @@ const capabilities = [
 ];
 
 // Common operations whose handlers already exist. Word, Excel, and admin consent stay off the catalogue.
-const accountErrors = ['validation.bad_input', 'internal.unexpected', 'provider.auth_failed', 'provider.unavailable', 'permission.needs_approval'];
+const accountErrors = ['validation.bad_input', 'internal.unexpected', 'provider.auth_failed', 'provider.unavailable', 'permission.needs_approval'] as ('validation.bad_input' | 'internal.unexpected' | 'provider.auth_failed' | 'provider.unavailable' | 'permission.needs_approval')[];
 const steps = [
   step('ms.mail.list_messages', 'Microsoft · List Outlook messages', 'data', 'capability', {
     cap: 'ms.mail.list_messages', effects: 'read', errors: accountErrors,

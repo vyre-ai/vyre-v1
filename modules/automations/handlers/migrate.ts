@@ -131,6 +131,11 @@ export async function migrationPreview(ctx: AutoCtx, input: In): Promise<unknown
 
 export async function migrateRuns(ctx: AutoCtx, input: In): Promise<unknown> {
   if (!cohortsOpen()) raise(ctx, "internal.unavailable", "Moving runs onto a new version is not available yet.");
+  return migrateRunsBody(ctx, input);
+}
+
+/** The reviewed move. The public route stays closed until that review. */
+export async function migrateRunsBody(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = editable(ctx, getAutomation(ctx, input.automationId));
   const toVersion = input.toVersion;
   if (typeof toVersion !== "number" || !Number.isInteger(toVersion) || toVersion < 1) raise(ctx, "validation.bad_input", "A definition version is a whole number.");
