@@ -69,6 +69,8 @@ export function harness(opts: HarnessOptions = {}) {
         const id = String(body.providerId);
         return { messageId: `eml_${id}${++linkSeq}`, deduped: ingestState.deduped.has(id), linked: "none" };
       }
+      if (cap === "meetings.ingest") return { meetingId: "rec_meet00001", created: true, merged: false };
+      if (cap === "meetings.attach_recording") return { runId: "run_meet00001" };
       throw new Error(`unexpected capability ${cap}`);
     },
     authorize(action) {

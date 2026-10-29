@@ -13,6 +13,7 @@ import {
 } from "../projections.ts";
 import type { MsCtx } from "../projections.ts";
 import { ensureMailbox, pollInterval, pullMailbox } from "./graph.ts";
+import { pullTeams } from "./teams.ts";
 import type { Act } from "./graph.ts";
 import { mintUuid } from "../../../lib/ids.ts";
 
@@ -217,6 +218,8 @@ async function pullAndSchedule(ctx: MsCtx, email: string, cause: string): Promis
     ctx.log.warn("microsoft pull failed", { mailbox: email, code: codeOf(e), cause });
     delay = pollInterval(now, null, false);
   }
+  // Teams transcripts ride on the same pass; a Teams failure never fails the mailbox pull
+  await pullTeams(ctx, { connectionId, mailbox: email }).catch((e: unknown) => ctx.log.warn("microsoft teams pull failed", { mailbox: email, code: codeOf(e) }));
   const box = first(ctx.db.all(`SELECT "nextPollAt" FROM microsoft_mailbox WHERE email = ?`, email));
   const queued = box && typeof box.nextPollAt === "number" ? box.nextPollAt : 0;
   if (queued > now) return;   // a poll is already waiting; a notice or a manual sync does not start a second chain
@@ -275,6 +278,11 @@ export async function consentSnippet(ctx: MsCtx) {
     `# Check one mapped member (should say Granted) and one who is not mapped (should say Denied):`,
     `Test-ApplicationAccessPolicy -AppId "${clientId}" -Identity ${mapped[0] ? `"${mapped[0]}"` : `"first.member@${domain}"`}`,
     `Test-ApplicationAccessPolicy -AppId "${clientId}" -Identity "someone.else@${domain}"`,
+    "",
+    "# Run in Microsoft Teams PowerShell (Install-Module MicrosoftTeams; Connect-MicrosoftTeams) as a tenant administrator.",
+    "# Teams transcripts need their own policy, granted to each mapped member one by one, so a meeting organized by anyone else stays out of reach.",
+    `New-CsApplicationAccessPolicy -Identity "${GROUP_NAME}" -AppIds "${clientId}" -Description "Vyre: transcripts of the mapped members' meetings"`,
+    ...(mapped.length ? mapped : [`first.member@${domain}`]).map((e) => `Grant-CsApplicationAccessPolicy -PolicyName "${GROUP_NAME}" -Identity "${e}"`),
   ].join("\n");
   return { language: "powershell" as const, snippet, groupName: GROUP_NAME };
 }

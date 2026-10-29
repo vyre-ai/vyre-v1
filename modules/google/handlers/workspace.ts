@@ -9,6 +9,7 @@ import {
 } from "../projections.ts";
 import type { Call, GoogleCtx } from "../projections.ts";
 import { ensureMailbox, pollInterval, pullMailbox } from "./gmail.ts";
+import { pullMeet } from "./meet.ts";
 import type { Act } from "./gmail.ts";
 
 const g = (ctx: GoogleCtx, a: Act, cap: string, scope: string, c: Omit<Call, "cap" | "connectionId" | "as" | "scope">): Promise<Record<string, unknown>> =>
@@ -264,6 +265,8 @@ async function pullAndSchedule(ctx: GoogleCtx, email: string, cause: string): Pr
     ctx.log.warn("google pull failed", { mailbox: email, code: codeOf(e), cause });
     delay = pollInterval(now, null, false);
   }
+  // Meet transcripts ride on the same pass; a Meet failure never fails the mailbox pull
+  await pullMeet(ctx, { connectionId, mailbox: email }).catch((e: unknown) => ctx.log.warn("google meet pull failed", { mailbox: email, code: codeOf(e) }));
   const box = first(ctx.db.all(`SELECT "nextPollAt" FROM google_mailbox WHERE email = ?`, email));
   const queued = box && typeof box.nextPollAt === "number" ? box.nextPollAt : 0;
   if (queued > now) return;   // a poll is already waiting; a push or a manual sync does not start a second chain
