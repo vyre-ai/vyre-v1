@@ -11,7 +11,7 @@ export interface AskWho { principal: { kind: "person" | "agent" | "service"; id:
 /** Run one capability as the asker; the daemon builds it over the invoke pipeline. */
 export type AskCall = (cap: string, input: unknown, as: AskWho) => Promise<unknown>;
 
-export interface EmailAskRequest { instruction: string; agentId: string | null; doc: { emailId: string } & Json; principal: AskWho["principal"]; actingFor?: string | undefined; signal?: AbortSignal | undefined }
+export interface EmailAskRequest { instruction: string; agentId: string | null; doc: Json; principal: AskWho["principal"]; actingFor?: string | undefined; signal?: AbortSignal | undefined }
 
 /** An answer the driver could not turn into a proposal. `code` is an error code of the catalogue; the module raises it as it is. */
 export class AskDriverError extends Error {
@@ -81,7 +81,11 @@ export function personOf(r: { principal: AskWho["principal"]; actingFor?: string
   return r.actingFor ?? (r.principal.kind === "person" ? r.principal.id : "");
 }
 
-export function createEmailAskDriver(d: EmailAskDeps): { propose(req: EmailAskRequest): Promise<Json>; cancel(asker: string, emailId: string): number } {
+/** What differs between the things an agent can be asked about: the Ask pane's scope, its title, which id names the subject, and what the agent is told. */
+export interface AskSpec { scope: string; title: string; idOf(doc: Json): string; prompt(instruction: string, doc: Json): string }
+
+/** The Ask driver for any subject: one agent turn in a private Ask pane, as the asker, answering with changed fields as JSON. */
+export function createAskDriver(d: EmailAskDeps, spec: AskSpec): { propose(req: EmailAskRequest): Promise<Json>; cancel(asker: string, subjectId: string): number } {
   const now = d.now ?? Date.now;
   const sleep = d.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const timeoutMs = d.timeoutMs ?? 120_000, pollMs = d.pollMs ?? 250;
@@ -89,7 +93,7 @@ export function createEmailAskDriver(d: EmailAskDeps): { propose(req: EmailAskRe
   async function pickAgent(req: EmailAskRequest, who: AskWho): Promise<string> {
     if (req.agentId) return req.agentId;
     try {
-      const s = (await d.call("chat.ask_suggest", { scopeType: "email", scopeId: req.doc.emailId }, who)) as { agentId?: string | null };
+      const s = (await d.call("chat.ask_suggest", { scopeType: spec.scope, scopeId: spec.idOf(req.doc) }, who)) as { agentId?: string | null };
       if (s.agentId) return s.agentId;
     } catch { /* no suggestion: take the first awake agent the person can use */ }
     const list = (await d.call("agents.list", {}, who)) as { agents?: { agentId: string; status?: string }[] };
@@ -107,13 +111,13 @@ export function createEmailAskDriver(d: EmailAskDeps): { propose(req: EmailAskRe
 
   return {
     /** Stops the Asks this person has running on this design. Returns how many were asked to stop. */
-    cancel(asker, emailId) {
-      const set = running.get(`${asker}:${emailId}`);
+    cancel(asker, subjectId) {
+      const set = running.get(`${asker}:${subjectId}`);
       for (const c of set ?? []) c.abort();
       return set?.size ?? 0;
     },
     async propose(req0) {
-      const own = new AbortController(), key0 = `${personOf(req0)}:${req0.doc.emailId}`;
+      const own = new AbortController(), key0 = `${personOf(req0)}:${spec.idOf(req0.doc)}`;
       req0.signal?.addEventListener("abort", () => own.abort(), { once: true });
       if (req0.signal?.aborted) own.abort();
       const req = { ...req0, signal: own.signal };
@@ -127,13 +131,13 @@ export function createEmailAskDriver(d: EmailAskDeps): { propose(req: EmailAskRe
         const agentId = await pickAgent(req, who);
         // the first engine call builds the runtime; a message written before it exists is never handed to an engine
         await d.call("engine.pool.status", {}, who);
-        const key = `email-ask-${req.doc.emailId}-${now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const started = (await d.call("chat.start", { kind: "ask", agentIds: [agentId], scopeType: "email", scopeId: req.doc.emailId, title: "Email design", idempotencyKey: key }, who)) as { thread: { threadId: string } };
+        const key = `${spec.scope}-ask-${spec.idOf(req.doc)}-${now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const started = (await d.call("chat.start", { kind: "ask", agentIds: [agentId], scopeType: spec.scope, scopeId: spec.idOf(req.doc), title: spec.title, idempotencyKey: key }, who)) as { thread: { threadId: string } };
         const threadId = started.thread.threadId;
         // an Ask with nobody to pay for it fails here, in words, instead of waiting for a turn that never starts
         const resolved = (await d.call("engine.account.resolve", { threadId, agentId, askerId: person }, who)) as { allowed?: boolean; accountRef?: string | null };
         if (!resolved.allowed || !resolved.accountRef) throw new AskDriverError("validation.precondition_failed", NO_MODEL);
-        const posted = (await d.call("chat.post", { threadId, body: askPrompt(req.instruction, req.doc), mentions: [{ kind: "agent", id: agentId }], idempotencyKey: `${key}-post` }, who)) as { message?: { messageId?: string; threadSeq?: number } };
+        const posted = (await d.call("chat.post", { threadId, body: spec.prompt(req.instruction, req.doc), mentions: [{ kind: "agent", id: agentId }], idempotencyKey: `${key}-post` }, who)) as { message?: { messageId?: string; threadSeq?: number } };
         const after = posted.message?.threadSeq ?? 0;
         const deadline = now() + timeoutMs;
         // the engine ends a turn by speaking: the agent's reply is posted once, whole, when the turn completes, and a failed, stopped or parked turn posts a turn_status block instead
@@ -155,3 +159,22 @@ export function createEmailAskDriver(d: EmailAskDeps): { propose(req: EmailAskRe
     },
   };
 }
+
+/** The email builder's Ask: the design goes in whole and the agent answers with the fields it changes. */
+export const EMAIL_SPEC: AskSpec = { scope: "email", title: "Email design", idOf: (doc) => String(doc["emailId"]), prompt: askPrompt };
+export function createEmailAskDriver(d: EmailAskDeps): { propose(req: EmailAskRequest): Promise<Json>; cancel(asker: string, emailId: string): number } { return createAskDriver(d, EMAIL_SPEC); }
+
+/** What the agent is told about a form: the source it may change, and the questions it can place (placing is by name, the inputs themselves come from Build). */
+export function formAskPrompt(instruction: string, doc: Json): string {
+  return [
+    "You are editing the source of one form for the person who asked. Do what the instruction says to this source and nothing else.",
+    `Instruction: ${instruction}`,
+    "Current source (JSON): html is a template, css is the style sheet, js is the script. questions are the questions the form asks.",
+    JSON.stringify(doc),
+    "HTML rules: use only headings, paragraphs, lists, links (https, mailto, tel or #), images (https), tables and div, section or span containers, with double-quoted attributes. Put <vyre-field name=\"KEY\"></vyre-field> where the question with that key should appear, once each; never write inputs, forms, scripts, styles, ids or comments. Questions you do not place still appear after your HTML.",
+    "Answer with ONE JSON object and no other words: the source fields you change (html, css, js), each with its complete new text. Leave out every field you do not change. Do not wrap the answer in a code fence.",
+  ].join("\n\n");
+}
+/** The forms builder's Ask: the same turn, about a form's source. */
+export const FORM_SPEC: AskSpec = { scope: "form", title: "Form source", idOf: (doc) => String(doc["formId"]), prompt: formAskPrompt };
+export function createFormAskDriver(d: EmailAskDeps): { propose(req: EmailAskRequest): Promise<Json>; cancel(asker: string, formId: string): number } { return createAskDriver(d, FORM_SPEC); }

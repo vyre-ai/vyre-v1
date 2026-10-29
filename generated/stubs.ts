@@ -781,6 +781,8 @@ export function stubs(ctx: CallCtx) {
       toggle: call("follows.toggle"),
     },
     forms: {
+      ask_cancel: call("forms.ask_cancel"),
+      ask_diff: call("forms.ask_diff"),
       attribution_get: call("forms.attribution_get"),
       create: call("forms.create"),
       delete: call("forms.delete"),

@@ -66,7 +66,7 @@ import { withGateNesting } from "./gate-nesting.ts";
 import { createComputersFillHost, createFillRoute } from "../seams/computers.ts";
 import { createComputersHost } from "../seams/computers-host.ts";
 import { createEngineHost } from "../seams/engine.ts";
-import { createEmailAskDriver } from "../seams/email-ask.ts";
+import { createEmailAskDriver, createFormAskDriver } from "../seams/email-ask.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
 import { applyPendingRestore, clearRestoredTombstones, createBackupHost, readRestoredTombstones } from "../seams/backup.ts";
 import { createKitsHost } from "../seams/kits.ts";
@@ -850,6 +850,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             call: async (cap, input, who) => {
               // exactly the principal that asked, and whom it acts for: an agent is never turned into a person
               const r = await invoke(cap, input, { space: spaceId, principal: who.principal, ...(who.actingFor ? { actingFor: who.actingFor } : {}), origin: "email-ask" });
+              if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
+              return r.output;
+            },
+          }),
+        }),
+        // Ask Vyre on a form's source is the same agent turn, as the asker, about a form (host/src/seams/email-ask.ts)
+        configureFormsAsk: () => ({
+          ask: createFormAskDriver({
+            now, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "forms", ...(attrs ? { attrs } : {}) }),
+            call: async (cap, input, who) => {
+              const r = await invoke(cap, input, { space: spaceId, principal: who.principal, ...(who.actingFor ? { actingFor: who.actingFor } : {}), origin: "forms-ask" });
               if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
               return r.output;
             },

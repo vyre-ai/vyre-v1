@@ -9907,6 +9907,24 @@ export type FollowsToggleIn = {
 export type FollowsToggleOut = {
   following: boolean;
 };
+export type FormsAskCancelIn = {
+  formId: string;
+};
+export type FormsAskCancelOut = {
+  cancelled: number;
+};
+export type FormsAskDiffIn = {
+  formId: string;
+  instruction: string;
+  agentId?: string;
+};
+export type FormsAskDiffOut = {
+  changes: Array<{
+      path: string;
+      before: string;
+      after: string;
+    }>;
+};
 export type FormsAttributionGetIn = {
   recordId: string;
 };
@@ -9961,6 +9979,8 @@ export type FormsDesignSetIn = {
   formId: string;
   theme?: Record<string, unknown>;
   css?: string;
+  html?: string;
+  js?: string;
   logic?: unknown;
   thankYou?: {
     text?: string;
@@ -10011,6 +10031,8 @@ export type FormsGetOut = {
     };
   };
   css?: string;
+  html?: string;
+  js?: string;
   theme?: Record<string, unknown>;
   logic?: unknown;
 };
@@ -27311,6 +27333,8 @@ export interface CapMap {
   "folders.unplace": { in: FoldersUnplaceIn; out: FoldersUnplaceOut };
   "follows.list": { in: FollowsListIn; out: FollowsListOut };
   "follows.toggle": { in: FollowsToggleIn; out: FollowsToggleOut };
+  "forms.ask_cancel": { in: FormsAskCancelIn; out: FormsAskCancelOut };
+  "forms.ask_diff": { in: FormsAskDiffIn; out: FormsAskDiffOut };
   "forms.attribution_get": { in: FormsAttributionGetIn; out: FormsAttributionGetOut };
   "forms.create": { in: FormsCreateIn; out: FormsCreateOut };
   "forms.delete": { in: FormsDeleteIn; out: FormsDeleteOut };

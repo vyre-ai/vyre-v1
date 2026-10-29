@@ -10,7 +10,7 @@ test("form preview escapes untrusted labels and blocks scripts, resources and su
 });
 test("desktop form workspace keeps Build Code Preview, compact rail and sandboxed canvas", () => {
  Dimensions.set({window:{width:1280,height:900,scale:1,fontScale:1},screen:{width:1280,height:900,scale:1,fontScale:1}});
- const html=renderToStaticMarkup(<FormWorkspace title="Client intake" back={()=>undefined} fields={[]} modes={[]} consent="" css="" onCss={()=>undefined} rail={<span>Fields of Clients</span>}><span>Save</span></FormWorkspace>);
+ const html=renderToStaticMarkup(<FormWorkspace title="Client intake" back={()=>undefined} fields={[]} modes={[]} consent="" css="" onCss={()=>undefined} html="" onHtml={()=>undefined} js="" onJs={()=>undefined} rail={<span>Fields of Clients</span>}><span>Save</span></FormWorkspace>);
  assert.ok(html.includes('Fields of Clients')); assert.ok(html.includes('>Build<')); assert.ok(html.includes('>Code<')); assert.ok(html.includes('>Preview<')); assert.ok(html.includes('sandbox=""')); assert.ok(html.includes('referrerPolicy="no-referrer"'));
 });
 test("typed preview uses options, relation labels, readonly Show, step grouping and theme without executable CSS", () => {
@@ -34,4 +34,23 @@ test("preview orders questions by form layout and preserves individual pages", (
  const fields=[{key:'first',title:'First question',type:'text'},{key:'last',title:'Last question',type:'text'}],modes=[{field:'last',mode:'ask',step:1},{field:'first',mode:'ask',step:0}];
  const html=formPreviewHtml('Order',fields,modes,'',''); assert.ok(html.indexOf('>Last question<')<html.indexOf('>First question<'));
  const page=formPreviewHtml('Order',fields,modes,'','',{step:1});assert.ok(page.includes('>Last question<'));assert.ok(!page.includes('>First question<'));
+});
+
+test("the form's own HTML puts the bound inputs where the author placed them, appends the rest, and refuses unsafe markup in the preview", () => {
+ const fields=[{key:'email',title:'Email',type:'email'},{key:'name',title:'Name',type:'text'},{key:'notes',title:'Notes',type:'text'}],modes=[{field:'email',mode:'ask'},{field:'name',mode:'ask'},{field:'notes',mode:'ask'}];
+ const html=formPreviewHtml('Own',fields,modes,'','',{html:'<h1 class="big">Hi</h1>\n<vyre-field name="name"></vyre-field>\n<p>Then <a href="https://example.com" target="_blank">read this</a></p>\n<vyre-field name="email"></vyre-field>'});
+ assert.ok(html.indexOf('<h1 class="big">Hi</h1>')<html.indexOf('data-field="name"'));assert.ok(html.indexOf('data-field="name"')<html.indexOf('Then <a'));assert.ok(html.indexOf('Then <a')<html.indexOf('data-field="email"'));
+ assert.ok(html.indexOf('data-field="email"')<html.indexOf('data-field="notes"'),'a question that was not placed follows the markup');
+ assert.ok(html.includes('rel="noopener noreferrer"'));assert.ok(!html.includes('<vyre-field'));assert.ok(html.includes('id="vf-form"'));
+ const unsafe=formPreviewHtml('Own',fields,modes,'','',{html:'<p onclick="x()">no</p><script>alert(1)</script>'});
+ assert.ok(!unsafe.includes('onclick')&&!unsafe.includes('alert(1)'),'invalid markup is not drawn; the generated form is');assert.ok(unsafe.includes('data-field="email"'));
+});
+test("the form's own JavaScript runs only in the sandboxed preview and never past its bounds", () => {
+ const fields=[{key:'email',title:'Email',type:'email'}],modes=[{field:'email',mode:'ask'}];
+ const none=formPreviewHtml('Own',fields,modes,'','');assert.ok(!none.includes('<script')&&!none.includes("script-src"));
+ const withJs=formPreviewHtml('Own',fields,modes,'','',{js:'document.title="x";'});assert.ok(withJs.includes('<script>document.title="x";</script>'));assert.ok(withJs.includes("script-src 'unsafe-inline'"));assert.ok(withJs.includes("default-src 'none'"));assert.ok(withJs.includes("form-action 'none'"));
+ const broken=formPreviewHtml('Own',fields,modes,'','',{js:'a</script><script>b'});assert.ok(!broken.includes('<script'),'script that could close its own tag is not drawn');
+ Dimensions.set({window:{width:1280,height:900,scale:1,fontScale:1},screen:{width:1280,height:900,scale:1,fontScale:1}});
+ const ws=(js:string)=>renderToStaticMarkup(<FormWorkspace title="T" back={()=>undefined} fields={fields} modes={modes} consent="" css="" onCss={()=>undefined} html="" onHtml={()=>undefined} js={js} onJs={()=>undefined} rail={<span/>}><span/></FormWorkspace>);
+ assert.ok(ws('').includes('sandbox=""'));assert.ok(ws('x=1').includes('sandbox="allow-scripts"'));assert.ok(!ws('x=1').includes('allow-same-origin'));
 });

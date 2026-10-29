@@ -10,6 +10,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "bookings.cancel": Handler<"bookings.cancel", X>;
   "bookings.list": Handler<"bookings.list", X>;
   "bookings.page_create": Handler<"bookings.page_create", X>;
+  "forms.ask_cancel": Handler<"forms.ask_cancel", X>;
+  "forms.ask_diff": Handler<"forms.ask_diff", X>;
   "forms.attribution_get": Handler<"forms.attribution_get", X>;
   "forms.create": Handler<"forms.create", X>;
   "forms.delete": Handler<"forms.delete", X>;

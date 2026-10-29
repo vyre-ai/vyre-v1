@@ -3,7 +3,6 @@
 // a disposable transport port (the connector network seam), so no real account is contacted.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -11,46 +10,18 @@ import { bootCore, CORE_SPACE } from "../../fixtures/seed/core/index.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { fakePlatform } from "../src/platform/index.ts";
+import { CLIENT_SECRET, PAY_ACTION, PAY_TOML, oauthProvider } from "../../fixtures/oauth-provider.ts";
 
 test("OAuth connector: PKCE sign-in as the owner, tokens in the Vault, run, refresh, revoke on delete", async () => {
   const core = bootCore(), dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-connectors-oauth-"));
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE"); fs.copyFileSync(core.file, path.join(dir, "events.db")); core.close();
-  // the provider: authorization-code with PKCE, bearer API, rotating refresh tokens, revoke
-  const provider = { challenge: "", issued: 0, access: "", refresh: "", expired: new Set<string>(), seen: [] as string[], revoked: [] as string[], refreshes: 0, usedRefresh: new Set<string>() };
-  const issue = () => { provider.issued++; provider.access = `at_ACCESS_${provider.issued}`; provider.refresh = `rt_REFRESH_${provider.issued}`; return { access_token: provider.access, refresh_token: provider.refresh, token_type: "Bearer", expires_in: 3600 }; };
-  const reply = (status: number, body: unknown) => ({ status, text: JSON.stringify(body) });
-  const secretValues = ["client-secret-LIVE-VALUE", "code-LIVE-ONE"];
+  const provider = oauthProvider();
+  const secretValues = [CLIENT_SECRET, "code-LIVE-ONE"];
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "https://configured.fixture.test"], {}, "1.2.3"), platform: fakePlatform(),
     session: (headers) => ({ space: CORE_SPACE, principal: { kind: "person", id: headers.authorization === "Bearer owner" ? "usr_olivia" : "usr_noah" }, device: "fixture" }),
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
-    connectorNetwork: {
-      resolve: async () => ["203.0.113.9"],
-      request: async (url, o) => {
-        provider.seen.push(`${o.method} ${url.pathname}`);
-        const form = new URLSearchParams(o.body ?? "");
-        if (url.pathname === "/token") {
-          assert.equal(form.get("client_secret"), secretValues[0], "the client secret reaches the app from the Vault slot");
-          if (form.get("grant_type") === "authorization_code") {
-            assert.equal(form.get("code"), secretValues[1]);
-            assert.equal(createHash("sha256").update(form.get("code_verifier") ?? "").digest("base64url"), provider.challenge, "PKCE: the verifier answers the challenge");
-            return reply(200, issue());
-          }
-          if (form.get("grant_type") === "refresh_token") {
-            const token = form.get("refresh_token")!;
-            if (token !== provider.refresh || provider.usedRefresh.has(token)) return reply(400, { error: "invalid_grant" });
-            provider.usedRefresh.add(token); provider.refreshes++;
-            return reply(200, issue());
-          }
-        }
-        if (url.pathname === "/revoke") { provider.revoked.push(form.get("token") ?? ""); return reply(200, {}); }
-        if (url.pathname === "/me") {
-          const bearer = (o.headers["Authorization"] ?? "").replace(/^Bearer /, "");
-          return bearer === provider.access && !provider.expired.has(bearer) ? reply(200, { user: { name: "Dana" } }) : reply(401, { error: "expired" });
-        }
-        return reply(404, {});
-      },
-    },
+    connectorNetwork: provider.network,
   });
   const call = async (token: string, cap: string, input: object): Promise<{ status: number; body: any }> => {   // eslint-disable-line @typescript-eslint/no-explicit-any
     const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(input) });
@@ -64,10 +35,10 @@ test("OAuth connector: PKCE sign-in as the owner, tokens in the Vault, run, refr
     // the connector: made, its TOML source edited in Files, tested and published through the real path
     const init = await ok("owner", "connectors.init", { key: "livepay", title: "Live Pay", mode: "oauth_app", idempotencyKey: key() });
     const main = (await ok("owner", "files.list", { folder: init.folderId })).files.find((f: { name: string }) => f.name === "connector.toml");
-    const toml = `key = "livepay"\ntitle = "Live Pay"\nmode = "oauth_app"\nscope = "person"\nversion = "0.0.0"\ndomains = ["api.livepay.test"]\nhealth = "me"\n\n[auth]\ntype = "oauth2"\nsecret = "Pay_Token"\nclientId = "live-client"\nclientSecret = "Pay_Client"\nauthUrl = "https://api.livepay.test/authorize"\ntokenUrl = "https://api.livepay.test/token"\nrevokeUrl = "https://api.livepay.test/revoke"\nscopes = ["read"]\n\n[[secrets]]\nname = "Pay_Token"\ndescription = "access token"\n\n[[secrets]]\nname = "Pay_Token_refresh"\ndescription = "refresh token"\n\n[[secrets]]\nname = "Pay_Client"\ndescription = "client secret"\n`;
+    const toml = PAY_TOML;
     await ok("owner", "files.write", { fileId: main.fileId, baseVersion: main.version, content: { text: toml }, idempotencyKey: key() });
     const actions = (await ok("owner", "files.folder.create", { parentId: init.folderId, name: "actions", idempotencyKey: key() })).folder.folderId;
-    await ok("owner", "files.create", { folderId: actions, name: "me.json", content: { text: JSON.stringify({ name: "me", url: "https://api.livepay.test/me", output: "/user" }) }, idempotencyKey: key() });
+    await ok("owner", "files.create", { folderId: actions, name: "me.json", content: { text: PAY_ACTION }, idempotencyKey: key() });
     const published = await ok("owner", "connectors.publish", { key: "livepay", idempotencyKey: key() });
     assert.equal(published.published, true, JSON.stringify(published));
     // a literal client secret in the source is refused before anything compiles
@@ -83,7 +54,7 @@ test("OAuth connector: PKCE sign-in as the owner, tokens in the Vault, run, refr
     const made = await connect("Dana pay");
     const url = new URL(made.authUrl);
     assert.equal(url.searchParams.get("code_challenge_method"), "S256");
-    provider.challenge = url.searchParams.get("code_challenge")!;
+    provider.expect(secretValues[1]!, url.searchParams.get("code_challenge")!);
     const state = url.searchParams.get("state")!;
 
     // someone else cannot finish it (and cannot spend it); the provider is never contacted
@@ -120,7 +91,7 @@ test("OAuth connector: PKCE sign-in as the owner, tokens in the Vault, run, refr
 
     // a locked vault: a personal account's tokens are never put anywhere shared, so the sign-in is refused with guidance
     const second = await connect("Dana pay again");
-    provider.challenge = new URL(second.authUrl).searchParams.get("code_challenge")!;
+    provider.expect(secretValues[1]!, new URL(second.authUrl).searchParams.get("code_challenge")!);
     assert.equal((await keyRoute("lock")).status, 204);
     const locked = await call("owner", "connections.complete_auth", { state: new URL(second.authUrl).searchParams.get("state")!, code: secretValues[1] });
     assert.ok(locked.status >= 400 && /vault is locked on this computer/.test(JSON.stringify(locked.body)), JSON.stringify(locked.body));

@@ -14,6 +14,7 @@
 import type http from "node:http";
 import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 import type { ErrorCode } from "../../../packages/contracts/src/types.ts";
+import { checkFormHtml, checkFormJs } from "../../../lib/form-source.ts";
 import { sourceOf } from "../daemon/preauth.ts";
 import { httpOf, isKnownCode, makeError } from "./errors.ts";
 
@@ -25,6 +26,9 @@ export interface PublicFormView {
   fields: { field: string; hidden: boolean; prefillKey?: string; step: number; title?: string; type?: string; required?: boolean; choices?: { key: string; title: string }[] }[];
   theme?: Record<string, unknown>;
   css?: string;
+  /** the author's HTML template and script (lib/form-source.ts), checked again here before they are served */
+  html?: string;
+  js?: string;
   consentText?: string;
   captcha: boolean;
   logic?: { rules: unknown[] };
@@ -128,6 +132,7 @@ const BASE_CSS = `
 :root{--vf-accent:#3b6ef6;--vf-bg:#fff;--vf-text:#1d1d1f;--vf-muted:#6e6e73;--vf-line:#d2d2d7;--vf-radius:8px;--vf-width:560px;--vf-font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 @media (prefers-color-scheme:dark){:root:not([data-themed]){--vf-bg:#1c1c1e;--vf-text:#f5f5f7;--vf-muted:#98989d;--vf-line:#3a3a3c}}
 *{box-sizing:border-box}
+main a{color:var(--vf-accent)}
 body{margin:0;background:var(--vf-bg);color:var(--vf-text);font:16px/1.45 var(--vf-font)}
 main{max-width:var(--vf-width);margin:0 auto;padding:32px 16px 64px}
 .vf-cover{width:100%;max-height:200px;object-fit:cover;border-radius:var(--vf-radius);margin-bottom:20px}
@@ -256,7 +261,7 @@ const SCRIPT = String.raw`
     if (document.referrer) a.referrer = document.referrer;
     var ids = {}; ["gclid", "fbclid", "msclkid", "ttclid"].forEach(function (k) { if (q.get(k)) ids[k] = q.get(k); });
     if (Object.keys(ids).length) a.clickIds = ids;
-    a.landingPage = location.origin + location.pathname;
+    a.landingPage = location.href.split(/[?#]/)[0];   // not location.origin: a sandboxed page's origin is "null"
     return a;
   }
   function captchaToken() {
@@ -391,7 +396,12 @@ export function renderFormPage(o: RenderOpts): string {
   }
   const steps = [...new Set(fields.map((f) => f.step))].sort((a, b) => a - b);
   const groups = (steps.length > 0 ? steps : [0]).map((n) => fields.filter((f) => f.step === n));
-  const body = groups.map((g, i) => `<fieldset data-step="${i}" style="border:0;margin:0;padding:0"${i === 0 ? "" : " hidden"}>${g.map((f) => fieldHtml(view, f, o.uploads)).join("")}</fieldset>`).join("");
+  // The author's own HTML (when valid): their markup, with the form's inputs where they placed <vyre-field>, and any question they did not place after it. Every question is one page then.
+  const template = view.html ? checkFormHtml(view.html) : null;
+  const authored = template && template.ok ? template : null;
+  const body = authored
+    ? `<fieldset data-step="0" style="border:0;margin:0;padding:0">${authoredBody(view, fields, authored.pieces, o.uploads)}</fieldset>`
+    : groups.map((g, i) => `<fieldset data-step="${i}" style="border:0;margin:0;padding:0"${i === 0 ? "" : " hidden"}>${g.map((f) => fieldHtml(view, f, o.uploads)).join("")}</fieldset>`).join("");
   const cap = o.captcha && view.captcha ? o.captcha : undefined;
   const data = {
     slug: view.slug, kind: view.kind, captcha: view.captcha,
@@ -427,15 +437,38 @@ ${cap ? `<div class="${esc(cap.className)}" data-sitekey="${esc(cap.siteKey)}"><
 <script type="application/json" id="vf-data">${jsonIn(data)}</script>
 ${cap ? `<script src="${esc(cap.scriptUrl)}" async defer></script>` : ""}
 <script nonce="${nonce}">${SCRIPT}</script>
+${authoredJs(view) ? `<script nonce="${nonce}">${authoredJs(view)}</script>` : ""}
 </body></html>
 `;
 }
 
+
+/** The author's pieces with the form's inputs in place. Links that open a new tab get rel="noopener noreferrer". */
+function authoredBody(view: PublicFormView, fields: PublicFormView["fields"], pieces: readonly ({ type: "html"; html: string } | { type: "field"; name: string })[], uploads: boolean): string {
+  const byName = new Map(fields.map((f) => [f.field, f]));
+  const placed = new Set<string>();
+  let out = "";
+  for (const p of pieces) {
+    if (p.type === "html") { out += p.html.replace(/(<a\b[^>]*?)target="_blank"/g, '$1target="_blank" rel="noopener noreferrer"'); continue; }
+    const f = byName.get(p.name);
+    if (f) { placed.add(p.name); out += fieldHtml(view, f, uploads); }   // a name that is no longer a question (Build removed it) is simply not drawn
+  }
+  for (const f of fields) if (!placed.has(f.field)) out += fieldHtml(view, f, uploads);
+  return out;
+}
+
+/** The author's script, only when it passes the same bounds as a save. */
+function authoredJs(view: PublicFormView): string {
+  return view.js && checkFormJs(view.js).ok ? view.js : "";
+}
+
 // ---- the route ---------------------------------------------------------------------------------------------------
 
-function policyHeader(nonce: string, cap?: CaptchaWidget): string {
+function policyHeader(nonce: string, cap?: CaptchaWidget, sandboxed = false): string {
   const origin = cap ? new URL(cap.scriptUrl).origin : "";
   return [
+    // A form with its author's own JavaScript runs in an opaque origin: it cannot read this Space's storage or tokens when a signed-in member opens the page, and it reaches only the public form addresses (which allow any origin)
+    ...(sandboxed ? ["sandbox allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"] : []),
     "default-src 'none'", `script-src 'nonce-${nonce}'${origin ? ` ${origin}` : ""}`, "style-src 'unsafe-inline'", "img-src 'self' https: data:", "font-src data:",
     "connect-src 'self'", `frame-src ${origin || "'none'"}`, "form-action 'none'", "base-uri 'none'", "frame-ancestors *",
   ].join("; ");
@@ -492,7 +525,7 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
     const html = renderFormPage({ view, page: kind === "f" ? "form" : "booking", nonce, captcha: deps.captcha, uploads: deps.upload !== undefined, link, token });
     res.writeHead(200, {
       "content-type": "text/html; charset=utf-8", "content-length": Buffer.byteLength(html), "cache-control": "no-store", "x-content-type-options": "nosniff",
-      "content-security-policy": policyHeader(nonce, view.captcha ? deps.captcha : undefined), "referrer-policy": "strict-origin-when-cross-origin",
+      "content-security-policy": policyHeader(nonce, view.captcha ? deps.captcha : undefined, authoredJs(view) !== ""), "referrer-policy": "strict-origin-when-cross-origin",
     });
     res.end(method === "HEAD" ? undefined : html);
   }
@@ -579,11 +612,23 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
     res.end(body);
   }
 
+  /** The public form addresses answer any origin, without credentials: a page with its author's script runs in an opaque origin and still has to post its answers. */
+  function cors(req: http.IncomingMessage, res: http.ServerResponse, methods: string): boolean {
+    res.setHeader("access-control-allow-origin", "*");
+    res.setHeader("access-control-expose-headers", "x-vyre-trace, retry-after");
+    if ((req.method ?? "").toUpperCase() !== "OPTIONS") return false;
+    res.writeHead(204, { "access-control-allow-methods": `${methods}, OPTIONS`, "access-control-allow-headers": "content-type, x-file-name, x-vyre-trace", "access-control-max-age": "600", "content-length": "0" });
+    res.end();
+    return true;
+  }
+
   return {
     handle(req, res) {
       const url = new URL(req.url ?? "/", "http://vyred");
       const method = (req.method ?? "GET").toUpperCase();
       const cap = CAPS[url.pathname];
+      if (cap && deps.call && cors(req, res, cap.method)) return true;
+      if (!cap && UPLOAD.test(url.pathname) && cors(req, res, "POST")) return true;
       if (cap && deps.call) {
         if (method !== cap.method) { reply(res, "validation.bad_input", 405, `This address takes ${cap.method}.`, { allow: cap.method }); return true; }
         void publicCall(req, res, url, cap).catch(() => { if (!res.headersSent) reply(res, "internal.unexpected", 500); else res.end(); });
