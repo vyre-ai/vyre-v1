@@ -108,11 +108,20 @@ test("native stays non-blocking for live while the macOS desktop artifact gates 
   const assembled = rel.jobs.find((j) => j.name === "desktop-release-files");
   assert.ok(assembled, "release assembles the desktop artifact");
   assert.deepEqual(assembled.needs, ["package", "desktop"]);
-  assert.match(assembled.text, /^ {4}timeout-minutes: 15$/m, "the 125 MB desktop artifact has enough time to download and verify");
-  assert.match(assembled.text, /name: desktop-macOS, path: desktop-artifact/);
+  assert.match(assembled.text, /^ {4}timeout-minutes: 30$/m, "assembling has room for a slow artifact service (rc.2 hit 15)");
+  // the DMG crosses the network once, into publish: assembling and signing carry only its SHA-256 sidecar
+  assert.match(assembled.text, /name: desktop-macOS-sha256, path: desktop-sum/);
+  assert.doesNotMatch(assembled.text, /name: desktop-macOS,/, "assembling never downloads the DMG");
   assert.match(assembled.text, /exactly one DMG/);
-  assert.match(assembled.text, /sha256sum/);
   assert.match(assembled.text, /name: release-files-desktop/);
+  const desktop = wf("desktop");
+  assert.match(desktop.text, /shasum -a 256/);
+  assert.match(desktop.text, /name: desktop-macOS-sha256, path: dmg-sum/);
+  const publish = rel.jobs.find((j) => j.name === "publish")!;
+  assert.match(publish.text, /name: desktop-macOS, path: desktop-artifact/, "publish takes the DMG once");
+  assert.match(publish.text, /sha256sum -c "\$dmg_name\.sha256"/, "publish checks the DMG against the build's SHA-256 sidecar before uploading");
+  assert.ok(publish.text.indexOf("sha256sum -c") < publish.text.indexOf("cli.ts publish"), "the check comes before the upload");
+  for (const n of ["sign", "sign-dryrun"]) assert.doesNotMatch(rel.jobs.find((j) => j.name === n)!.text, /desktop-macOS/, `${n} never downloads the DMG`);
   assert.doesNotMatch(assembled.text, /nsis/i, "Windows installers never enter the release payload");
   for (const n of ["sign", "sign-dryrun"] as const) {
     const job = rel.jobs.find((j) => j.name === n)!;
@@ -225,4 +234,21 @@ test("seeded bad input: a blocked license, a secret, a high advisory and an unli
   assert.equal(applyKnown([v], [{ rule: "B1", file: "modules/a/x.ts", reason: "", until: "2099-01-01" }]).failing.length, 1, "a known entry without a reason does not count");
   assert.equal(applyKnown([v], [{ rule: "B1", file: "modules/a/x.ts", reason: "moves with P-X, until then accepted", until: "2020-01-01" }]).failing.length, 1, "an expired known entry does not count");
   assert.equal(applyKnown([], [{ rule: "B1", file: "gone.ts", reason: "was needed once, now fixed", until: "2099-01-01" }]).stale.length, 1, "a stale known entry fails");
+});
+
+test("a release skips only what a reused green whole-suite run covers, and says which run it reused", () => {
+  const rel = wf("release");
+  const job = (n: string) => rel.jobs.find((j) => j.name === n)!;
+  assert.match(job("reuse").text, /cli\.ts reuse "\$\{\{ github\.sha \}\}"/);
+  for (const n of ["select", "client", "kits", "images"]) assert.match(job(n).text, /if: needs\.reuse\.outputs\.run == ''/, `${n} runs unless a whole-suite run is reused`);
+  for (const n of ["heavy", "security", "package", "desktop", "desktop-release-files"]) assert.doesNotMatch(job(n).text, /needs\.reuse/, `${n} always runs`);
+  const live = job("live");
+  for (const n of ["guard", "reuse", "package", "suite", "client", "kits", "images", "heavy", "security"]) assert.ok(live.needs.includes(n), `live needs ${n}`);
+  for (const n of ["guard", "reuse", "package", "heavy", "security"]) assert.match(live.text, new RegExp(`needs\\.${n}\\.result == 'success'`), `live requires ${n} to pass`);
+  assert.match(live.text, /needs\.reuse\.outputs\.run != '' \|\| \(needs\.suite\.result == 'success' && needs\.client\.result == 'success' && needs\.kits\.result == 'success' && needs\.images\.result == 'success'\)/, "without a reused run the suite must pass here");
+  assert.match(job("publish").text, /RELEASE_TESTS: \$\{\{ needs\.reuse\.outputs\.tests \}\}/, "the release notes say where the tests ran");
+  // a job below live with the implied success() would be skipped by live's skipped ancestors when a run is reused (dryrun.18 skipped deploy that way): sign and deploy test live's result
+  assert.match(job("sign").text, /if: always\(\) && needs\.guard\.result == 'success' && needs\.guard\.outputs\.dryrun != 'true' && needs\.desktop-release-files\.result == 'success' && needs\.live\.result == 'success'/);
+  assert.match(job("deploy").text, /if: always\(\) && needs\.live\.result == 'success'/);
+  for (const j of rel.jobs) if (j.needs.includes("live")) assert.match(j.text, /if: always\(\)/, `${j.name} runs on live's result, not on the implied success() of live's ancestors`);
 });

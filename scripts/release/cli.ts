@@ -3,6 +3,7 @@
 //   node scripts/release/cli.ts bump <version> | --check
 //   node scripts/release/cli.ts lineage <sha> <tag>
 //   VYRE_SIGNING_KEY=<pkcs8 pem> node scripts/release/cli.ts pubkey [outfile]    prints the public half (hex) and its key id; with outfile writes {"publicKey","keyId"} for compiling into the servers
+//   node scripts/release/cli.ts reuse <sha>    a green whole-suite main.yml run for exactly <sha> (scripts/release/reuse.ts): writes run= and url= to GITHUB_OUTPUT, or nothing
 //   node scripts/release/cli.ts assets <dir>    writes <channel>.json, <channel>.json.sig (and <channel>-<kind>... for the others) from <dir>/feed.json: the files attached to the GitHub Release
 //   VYRE_SIGNING_KEY=<pkcs8 pem> node scripts/release/cli.ts sign <dir> <channel> <pinned-public-key-hex>
 //     dir holds releases.json ({ app?, server?, kits?, extension? } of { version, tarball, sha256 }); writes <dir>/feed.json with one signed entry per channel present.
@@ -18,6 +19,7 @@ import type { ImageKey } from "./pack.ts";
 import { imageHasChrome, stageChrome } from "./computer.ts";
 import { GithubReleases, publishRelease, updateRolling } from "./publish.ts";
 import { smokeRelease } from "./smoke.ts";
+import { findReusable } from "./reuse.ts";
 import { lineage, newestStable } from "./lineage.ts";
 import { SIGNING_KEY_ENV, keyId, publicKeyHexOf } from "./sign.ts";
 import { bump, channelOfVersion, releaseCounter, tagVersion, versionProblems } from "./version.ts";
@@ -106,7 +108,7 @@ export function main(argv: string[]): number {
         console.log(`release: wrote ${names.join(", ")}`);
         return 0;
       }
-      default: console.error("usage: counter | bump | tag | lineage | pack | stage-chrome | image-has-chrome | pubkey | sign | assets | feed-base | publish | rolling | unpublish | smoke"); return 2;
+      default: console.error("usage: counter | bump | tag | lineage | pack | stage-chrome | image-has-chrome | pubkey | sign | assets | feed-base | publish | rolling | unpublish | smoke | reuse"); return 2;
     }
   } catch (e) { console.error(`release: ${e instanceof Error ? e.message : "failed"}`); return 1; }
 }
@@ -119,7 +121,9 @@ export async function publishMain(argv: string[]): Promise<number> {
   try {
     if (cmd === "publish" && a) {
       const channel = process.env["CHANNEL"] ?? "stable";
-      const r = await publishRelease({ repo, token, tag, dir: a, prerelease: channel !== "stable", notes: `Release ${tag}. Signed manifests: ${channel}.json and ${channel}.json.sig.` });
+      // RELEASE_TESTS says where this release's tests ran (its own suite, or the reused main.yml run), so the notes carry it for audit
+      const tests = process.env["RELEASE_TESTS"] ?? "";
+      const r = await publishRelease({ repo, token, tag, dir: a, prerelease: channel !== "stable", notes: `Release ${tag}. Signed manifests: ${channel}.json and ${channel}.json.sig.${tests ? `\n\n${tests}` : ""}` });
       console.log(`release: attached ${r.attached.join(", ")} to ${tag}`);
       return 0;
     }
@@ -127,6 +131,27 @@ export async function publishMain(argv: string[]): Promise<number> {
     if (cmd === "unpublish" && a) { console.log((await new GithubReleases(repo, token).remove(a)) ? `release: deleted the release of ${a}` : `release: no release of ${a}`); return 0; }
     console.error("usage: publish <dir> | rolling <dir> <channel> | unpublish <tag>"); return 2;
   } catch (e) { console.error(`release: ${e instanceof Error ? e.message : "failed"}`); return 1; }
+}
+
+/** reuse <sha>: the release's own suite may be skipped only for a commit with a green whole-suite main.yml run; any API failure means the release runs everything (exit 0, no run). */
+export async function reuseMain(argv: string[]): Promise<number> {
+  const [, sha] = argv;
+  const repo = process.env["GITHUB_REPOSITORY"] ?? "", token = process.env["GH_TOKEN"] ?? "";
+  if (!sha || repo === "" || token === "") { console.error("usage: GITHUB_REPOSITORY=... GH_TOKEN=... reuse <sha>"); return 2; }
+  const out = process.env["GITHUB_OUTPUT"], summary = process.env["GITHUB_STEP_SUMMARY"];
+  let line: string;
+  try {
+    const r = await findReusable({ repo, token, sha });
+    for (const why of r.refused) console.log(`release-reuse: not reused: ${why}`);
+    if (r.run) {
+      if (out) fs.appendFileSync(out, `run=${r.run.id}\nurl=${r.run.html_url}\n`);
+      line = `Tests: reused the green whole-suite main.yml run ${r.run.html_url} (${r.run.event}) for ${sha}; the release did not run select, suite, client, kits or images again.`;
+    } else line = `Tests: no green whole-suite main.yml run for ${sha}, so this release runs the whole suite itself.`;
+  } catch (e) { line = `Tests: could not look up a reusable run (${e instanceof Error ? e.message : "failed"}), so this release runs the whole suite itself.`; }
+  console.log(line);
+  if (out) fs.appendFileSync(out, `tests=${line}\n`);
+  if (summary) fs.appendFileSync(summary, `${line}\n`);
+  return 0;
 }
 
 /** smoke <base> <stable|beta|nightly> <public-key-hex> <version>: asynchronous, so it is not a case of main(). */
@@ -144,5 +169,6 @@ if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === path.res
   const args = process.argv.slice(2);
   if (args[0] === "smoke") void smokeMain(args).then((code) => process.exit(code));
   else if (args[0] === "publish" || args[0] === "rolling" || args[0] === "unpublish") void publishMain(args).then((code) => process.exit(code));
+  else if (args[0] === "reuse") void reuseMain(args).then((code) => process.exit(code));
   else process.exit(main(args));
 }

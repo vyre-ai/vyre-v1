@@ -1,6 +1,7 @@
 name: release
-# Tag to live under 25 minutes (ARCH-DECISIONS 13). Live needs the suite, client, kits, images and security; never native or desktop.
+# Tag to live under 25 minutes (ARCH-DECISIONS 13). Live needs the suite, client, kits, images (or a reused green whole-suite main.yml run for the commit), heavy and security; never native or desktop.
 # After live: sign (in the `release` Environment, after its reviewer approves), publish to the GitHub Release of the tag, and a post-publish smoke. docs/release/runbook.md says how and why.
+# The macOS DMG is downloaded once, by publish, and checked there against the build's SHA-256 sidecar in the payload handed through sign (the sidecar itself is not signed); sign and the jobs before it never move it.
 # A tag whose name contains "dryrun" is a practice run: it builds and packs everything, validates the bake file (no image is pushed), signs with a key made for the run and thrown away
 # (no server trusts it), publishes a prerelease named after the tag, smoke-tests it, and deletes the prerelease. The real `sign` job (the `release` Environment) is skipped.
 on:
@@ -31,6 +32,23 @@ jobs:
           { echo "version=${out% *}"; echo "channel=${out#* }"; echo "dryrun=false"; } >> "$GITHUB_OUTPUT"
           # a commit that is not on main must be the next patch of the newest published stable release, on origin/hotfix/<tag>
           if git merge-base --is-ancestor "$SHA" origin/main; then echo "lineage: $SHA is on main"; else node scripts/release/cli.ts lineage "$SHA" "$TAG"; fi
+  reuse:
+    # A commit whose whole suite already passed in a green main.yml schedule or dispatch run (scripts/release/reuse.ts says what counts) does not run it again here. The run reused is
+    # written to this job's summary and to the release notes. Anything else, including a failed lookup, and the release runs the whole suite itself. heavy and security always run.
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 5
+    permissions: { contents: read, actions: read }
+    outputs:
+      run: ${{ steps.find.outputs.run }}
+      tests: ${{ steps.find.outputs.tests }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release/cli.ts reuse "${{ github.sha }}"
   package:
     needs: guard
     # the multi-arch image build needs docker buildx and qemu: one host serves the `buildx` label (vyre-ci-7)
@@ -83,6 +101,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: release-files, path: dist, if-no-files-found: error, retention-days: 7 }
   select:
+    needs: reuse
+    if: needs.reuse.outputs.run == ''
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     outputs:
@@ -111,10 +131,16 @@ jobs:
           slow: ${{ matrix.slow }}
           runner: ${{ matrix.runner }}
   client:
+    needs: reuse
+    if: needs.reuse.outputs.run == ''
     uses: ./.github/workflows/client.yml
   kits:
+    needs: reuse
+    if: needs.reuse.outputs.run == ''
     uses: ./.github/workflows/kits.yml
   images:
+    needs: reuse
+    if: needs.reuse.outputs.run == ''
     uses: ./.github/workflows/images.yml
   heavy:
     uses: ./.github/workflows/heavy.yml
@@ -125,34 +151,44 @@ jobs:
   desktop:
     uses: ./.github/workflows/desktop.yml
   desktop-release-files:
+    # The DMG (about 127 MB) crosses the network once, into publish: the payload signed and handed between jobs carries only its SHA-256 sidecar. rc.2 spent 35 of 81 minutes pulling
+    # the DMG into this job, sign and publish at about 0.18 MB/s.
     needs: [package, desktop]
     runs-on: [self-hosted, linux, v1]
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/download-artifact@v4
         with: { name: release-files, path: dist }
       - uses: actions/download-artifact@v4
-        with: { name: desktop-macOS, path: desktop-artifact }
-      - name: Include exactly one macOS DMG and its checksum
+        with: { name: desktop-macOS-sha256, path: desktop-sum }
+      - name: Exactly one macOS DMG, named by its SHA-256 sidecar from the desktop build
         run: |
           set -euo pipefail
-          mapfile -d '' dmgs < <(find desktop-artifact -type f -name '*.dmg' -print0)
-          [ "${#dmgs[@]}" -eq 1 ] || { echo "expected exactly one DMG, found ${#dmgs[@]}"; exit 1; }
-          dmg_name=$(basename "${dmgs[0]}")
-          case "$dmg_name" in *$'\n'*|*$'\r'*) echo "invalid DMG name"; exit 1 ;; esac
-          cp "${dmgs[0]}" "dist/$dmg_name"
-          (cd dist && sha256sum "$dmg_name" > "$dmg_name.sha256" && sha256sum -c "$dmg_name.sha256")
+          mapfile -d '' sums < <(find desktop-sum -type f -name '*.dmg.sha256' -print0)
+          [ "${#sums[@]}" -eq 1 ] || { echo "expected exactly one DMG checksum, found ${#sums[@]}"; exit 1; }
+          sum_name=$(basename "${sums[0]}")
+          dmg_name="${sum_name%.sha256}"
+          case "$dmg_name" in *$'\n'*|*$'\r'*|*/*|"") echo "invalid DMG name"; exit 1 ;; esac
+          # one line, "<64 hex>  <the DMG's own name>": publish checks the downloaded DMG against exactly this
+          awk -v n="$dmg_name" 'NR == 1 && substr($0, 1, 64) ~ /^[0-9a-f]+$/ && length(substr($0, 1, 64)) == 64 && substr($0, 65, 2) == "  " && substr($0, 67) == n { ok = 1 } END { exit !(ok && NR == 1) }' "${sums[0]}" || { echo "the DMG checksum sidecar is malformed"; exit 1; }
+          cp "${sums[0]}" "dist/$sum_name"
       - uses: actions/upload-artifact@v4
         with: { name: release-files-desktop, path: dist, if-no-files-found: error, retention-days: 7 }
   live:
-    needs: [guard, package, suite, client, kits, images, heavy, security]
+    needs: [guard, reuse, package, suite, client, kits, images, heavy, security]
+    # Every gate passed, with the suite, client, kits and images either passed here or covered by the reused whole-suite run (skipped only then).
+    if: >-
+      always() && needs.guard.result == 'success' && needs.reuse.result == 'success' && needs.package.result == 'success'
+      && needs.heavy.result == 'success' && needs.security.result == 'success'
+      && (needs.reuse.outputs.run != '' || (needs.suite.result == 'success' && needs.client.result == 'success' && needs.kits.result == 'success' && needs.images.result == 'success'))
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
       - run: echo "live gate passed"
   sign:
     needs: [guard, desktop-release-files, live]
-    if: needs.guard.outputs.dryrun != 'true'
+    # explicit results, not the implied success(): with a reused whole-suite run, live's own skipped ancestors (select, suite) would otherwise skip the real signing too
+    if: always() && needs.guard.result == 'success' && needs.guard.outputs.dryrun != 'true' && needs.desktop-release-files.result == 'success' && needs.live.result == 'success'
     # The only job that ever holds the real key. It has a runner label of its own that no other workflow names (scripts/release/runner-label.test.ts fails if one does), on a host that runs
     # nothing else, and it runs in a container that is removed when the job ends. Never on the shared CI runners: code from an earlier PR job could have changed them.
     runs-on: [self-hosted, linux, release-sign]
@@ -219,7 +255,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: release-signed, path: dist, if-no-files-found: error, retention-days: 1 }
   publish:
-    needs: [guard, sign, sign-dryrun]
+    needs: [guard, reuse, sign, sign-dryrun]
     if: always() && (needs.sign.result == 'success' || needs.sign-dryrun.result == 'success')
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 30
@@ -228,10 +264,24 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       TAG: ${{ github.ref_name }}
       CHANNEL: ${{ needs.guard.outputs.channel }}
+      RELEASE_TESTS: ${{ needs.reuse.outputs.tests }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with: { name: release-signed, path: dist }
+      - uses: actions/download-artifact@v4
+        with: { name: desktop-macOS, path: desktop-artifact }
+      - name: The one DMG matches the build's SHA-256 sidecar from the payload handed through sign, before anything is uploaded
+        run: |
+          set -euo pipefail
+          mapfile -d '' sums < <(find dist -maxdepth 1 -type f -name '*.dmg.sha256' -print0)
+          [ "${#sums[@]}" -eq 1 ] || { echo "expected exactly one DMG checksum in the payload handed through sign, found ${#sums[@]}"; exit 1; }
+          dmg_name=$(basename "${sums[0]}" .sha256)
+          mapfile -d '' dmgs < <(find desktop-artifact -type f -name '*.dmg' -print0)
+          [ "${#dmgs[@]}" -eq 1 ] || { echo "expected exactly one DMG, found ${#dmgs[@]}"; exit 1; }
+          [ "$(basename "${dmgs[0]}")" = "$dmg_name" ] || { echo "the DMG is $(basename "${dmgs[0]}"), the payload handed through sign names $dmg_name"; exit 1; }
+          cp "${dmgs[0]}" "dist/$dmg_name"
+          (cd dist && sha256sum -c "$dmg_name.sha256")
       - name: Attach everything to the release of the tag (a prerelease for beta)
         run: node scripts/release/cli.ts publish dist
       - name: The rolling release a prerelease channel is read from
@@ -274,6 +324,7 @@ jobs:
         run: node scripts/release/cli.ts unpublish "$TAG"
   deploy:
     needs: live
+    if: always() && needs.live.result == 'success'
     uses: ./.github/workflows/deploy.yml
   budget-tag:
     permissions: { contents: read, actions: read }
