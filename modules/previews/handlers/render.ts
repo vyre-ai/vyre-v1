@@ -1257,9 +1257,10 @@ async function render(ctx: Ctx, input: unknown): Promise<{ queued: boolean }> {
 /** A one-pixel picture the health probe asks the thumbnail maker to read. */
 const SAMPLE_PNG = encodePng({ width: 1, height: 1, data: Uint8Array.from([255, 0, 0, 255]) });
 
-async function present(d: PreviewDrivers, name: "pdftoppm" | "pdftotext" | "soffice" | "vips"): Promise<boolean> {
+/** missing: not on this computer (exit 127). broken: it is there and did not answer in time. ok: it ran. */
+async function probeTool(d: PreviewDrivers, name: "pdftoppm" | "pdftotext" | "soffice" | "vips"): Promise<"missing" | "broken" | "ok"> {
   const res = await d.exec([tool(d, name), name === "vips" ? "--version" : name === "soffice" ? "--version" : "-v"], { timeoutMs: 8000 });
-  return res.code !== 127 && res.code !== 124;
+  return res.code === 127 ? "missing" : res.code === 124 ? "broken" : "ok";
 }
 
 async function health(ctx: Ctx, _input: unknown): Promise<Row> {
@@ -1272,15 +1273,17 @@ async function health(ctx: Ctx, _input: unknown): Promise<Row> {
   } catch {
     sampleOk = false;
   }
-  const missing: string[] = [];
-  if (!(await present(d, "pdftoppm"))) missing.push("pdftoppm (PDF page images)");
-  if (!(await present(d, "soffice"))) missing.push("soffice (Office page images and old Office files)");
-  if (!(await present(d, "vips"))) missing.push("vipsthumbnail (JPEG, WebP and GIF thumbnails)");
+  const missing: string[] = [], broken: string[] = [];
+  for (const [name, label] of [["pdftoppm", "pdftoppm (PDF page images)"], ["soffice", "soffice (Office page images and old Office files)"], ["vips", "vipsthumbnail (JPEG, WebP and GIF thumbnails)"]] as const) {
+    const state = await probeTool(d, name);
+    if (state === "missing") missing.push(label); else if (state === "broken") broken.push(label);
+  }
   const queued = (ctx.db.all("SELECT * FROM previews_queue") as Row[]).length;
   const latencyMs = Date.now() - started;
   if (!sampleOk) return { state: "down", detail: "The thumbnail maker did not answer on the sample file.", latencyMs, queued };
-  // Missing tools only hurt once a preview is waiting on them; a new Space has none.
-  if (missing.length > 0) return { state: queued > 0 ? "degraded" : "healthy", detail: `Not installed: ${missing.join(", ")}`, latencyMs, queued };
+  // A converter that is installed and does not answer is a failure. One that is not installed is not set up: a computer without them (a Mac that has not installed vips or LibreOffice) is healthy, with the hint.
+  if (broken.length > 0) return { state: "degraded", detail: `Not answering: ${broken.join(", ")}`, latencyMs, queued };
+  if (missing.length > 0) return { state: "healthy", detail: `Previews of images and documents need vips and LibreOffice on this computer. Not installed: ${missing.join(", ")}`, latencyMs, queued };
   if (queued > 500) return { state: "degraded", detail: `${queued} versions are waiting for a preview`, latencyMs, queued };
   return { state: "healthy", latencyMs, queued };
 }
