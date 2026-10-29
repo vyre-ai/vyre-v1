@@ -45,6 +45,11 @@ export default defineManifest({
       cap: 'records.update', effects: 'write', idempotency: 'key', compensate: 'records.restore_version', errors: ['validation.bad_input', 'internal.unexpected', 'validation.field_locked', 'validation.version_conflict', 'permission.on_hold'],
       in: { type: id.recordType, recordId: id.record, patch: t.rec() }, out: { recordId: id.record, version: t.int() },
     }),
+    step('records.relate', 'Link records', 'data', 'capability', {
+      cap: 'records.relate', effects: 'write',
+      in: { type: id.recordType, recordId: id.record, field: t.str(), toId: id.record, unlink: t.opt(t.bool()) },
+      out: { record: t.rec() },
+    }),
     step('create_task', 'Create a task', 'data', 'capability', {
       cap: 'tasks.create', effects: 'write', idempotency: 'key', compensate: 'tasks.transition',
       in: {
@@ -91,7 +96,12 @@ export default defineManifest({
     // wait
     step('wait', 'Wait', 'wait', 'wait', {
       effects: 'read',
-      in: { forDuration: t.opt(duration), until: t.opt(t.str({ description: 'A time or an expression that yields one' })), event: t.opt(t.obj({ event: t.str(), filter: t.opt(t.json()) })), timeout: t.opt(duration) },
+      in: {
+        forDuration: t.opt(duration), until: t.opt(t.str({ description: 'A time or an expression that yields one' })), event: t.opt(t.obj({ event: t.str(), filter: t.opt(t.json()) })), timeout: t.opt(duration),
+        hours: t.opt(t.obj({
+          timezone: t.str(), days: t.arr(t.int({ minimum: 0, maximum: 6 }), { minItems: 1 }), start: t.str(), end: t.str(),
+        })),
+      },
       out: { resumedBy: t.enm('duration', 'time', 'event', 'timeout'), at: t.ts() },
       waits: { timeoutDefault: '30d', cancelsOn: ['record.deleted'] },
     }),
@@ -104,11 +114,23 @@ export default defineManifest({
       effects: 'read', in: { branches: t.arr(t.str(), { minItems: 2 }), waitFor: t.opt(t.enm('all', 'any')) }, out: { finished: t.arr(t.str()) },
     }),
     step('loop', 'Loop', 'control', 'control', {
-      effects: 'read', in: { items: expr, maxIterations: t.opt(t.int({ minimum: 1, maximum: 10000 })), concurrency: t.opt(t.int({ minimum: 1, maximum: 20 })) },
+      effects: 'read', in: { items: expr, maxIterations: t.opt(t.int({ minimum: 1, maximum: 1000 })), concurrency: t.opt(t.int({ minimum: 1, maximum: 20 })) },
       out: { iterations: t.int(), results: t.arr(t.json()) },
     }),
     step('stop', 'Stop', 'control', 'control', {
       effects: 'read', in: { outcome: t.opt(t.enm('succeeded', 'failed')), message: t.opt(tpl('Why the run stops')) }, out: { stopped: t.bool() },
+    }),
+    step('transform', 'Transform', 'control', 'control', {
+      effects: 'read', in: { value: t.json(), mapping: t.rec() }, out: { value: t.rec() },
+    }),
+    step('collect', 'Collect', 'control', 'control', {
+      effects: 'read', in: { items: t.json(), fields: t.opt(t.arr(t.str())) }, out: { items: t.arr(t.json()), count: t.int() },
+    }),
+    step('group_by', 'Group by', 'control', 'control', {
+      effects: 'read', in: { items: t.json(), by: t.str() }, out: { groups: t.arr(t.obj({ key: t.str(), items: t.arr(t.json()), count: t.int() })) },
+    }),
+    step('call_automation', 'Run another automation', 'journey', 'control', {
+      effects: 'write', in: { automationId: id.automation, trigger: t.str(), payload: t.opt(t.rec()) }, out: { runId: id.run, status: t.str() },
     }),
     step('approval', 'Approval', 'control', 'control', {
       effects: 'write', idempotency: 'key', compensate: 'tasks.transition',
@@ -147,6 +169,18 @@ export default defineManifest({
       errors: ['validation.bad_input', 'internal.unexpected', 'provider.unavailable', 'provider.network', 'permission.needs_approval'],
       in: { fileId: id.file, signers: t.arr(t.obj({ name: t.str(), email: tpl('Signer email'), order: t.opt(t.int({ minimum: 1 })) }), { minItems: 1 }), recordId: t.opt(id.record), message: t.opt(tpl('Note to signers')) },
       out: { envelopeId: t.str(), taskId: t.opt(id.task) },
+    }),
+    step('connector_request', 'Authenticated request', 'data', 'capability', {
+      cap: 'connectors.run', effects: 'outward', gateAct: 'send', idempotency: 'key',
+      errors: ['validation.bad_input', 'validation.precondition_failed', 'internal.unexpected', 'provider.unavailable', 'provider.auth_failed', 'permission.needs_approval'],
+      in: {
+        connector: t.str({ description: 'Connector key', examples: ['stripe'] }),
+        action: t.str({ description: 'Action name from that connector', examples: ['ping'] }),
+        connectionId: t.opt(id.connection),
+        input: t.opt(t.rec()),
+        dryRun: t.opt(t.bool()),
+      },
+      out: { output: t.json(), dryRun: t.bool() },
     }),
     // code
     step('code', 'Run code', 'code', 'code', {

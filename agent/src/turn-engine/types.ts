@@ -157,7 +157,9 @@ export interface EngineSession {
  * The account a turn runs on, as engine.account.resolve answered it. `ref` is the Vault handle (never a value); the opener fetches the secret itself through Vault fill.
  * `itemId` is the Vault item behind the handle, so usage can be metered against it. `payer` is the person who pays.
  */
-export interface ResolvedAccount { ref: string; driver: string; provider: string; kind: AccountKind; payer: string; reason: ResolveReason; itemId?: string }
+export interface ResolvedAccount { ref: string; driver: string; provider: string; kind: AccountKind; payer: string; reason: ResolveReason; itemId?: string;
+  /** An OpenAI-compatible endpoint names its own address (custom, local); `keyless` is a local server with no key. */
+  base?: string; keyless?: boolean }
 export interface AccountQuery { threadId: string; agentId: string; askerId: string; stepKey?: string }
 export interface SessionSpec { threadId: string; agent: EngineAgent; asker: string; turnId: string; traceId: string; account?: ResolvedAccount }
 export type OpenSession = (spec: SessionSpec) => Promise<EngineSession>;

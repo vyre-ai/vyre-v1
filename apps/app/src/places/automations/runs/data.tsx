@@ -3,6 +3,7 @@
 import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
+import type { AskBundle } from "../ask/bundle.ts";
 import type { ThreadMessage } from "./model.ts";
 
 export interface RunsNav {
@@ -12,6 +13,8 @@ export interface RunsNav {
   openRun(runId: string): void;
   /** The run chat in the side pane. */
   openRunSide(runId: string): void;
+  /** Ask Vyre about a failed run. Optional so a runs sample without the shell still renders. */
+  ask?(aboutId: string, context?: AskBundle): void;
 }
 
 export interface RunsData {

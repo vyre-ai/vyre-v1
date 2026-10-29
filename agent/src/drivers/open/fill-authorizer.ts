@@ -17,6 +17,7 @@ export interface FillAuthorizerDeps {
 
 export function createFillAuthorizer(d: FillAuthorizerDeps): Authorizer {
   return async (account, provider) => {
+    if (account.keyless) return {};   // a local server has no key: nothing to fill, nothing to ask the Vault for
     const got: { headers?: Record<string, string> } = {};
     const run = await runWithVault(
       { source: d.source, reportMiss: d.reportMiss },

@@ -12,7 +12,7 @@
 #   --uninstall        stop the server, remove the units and /usr/local/bin/vyre-server; data and backups stay
 #   --purge            with --uninstall: also delete the data and backups, after asking
 #
-# Environment: VYRE_DIR (default /srv/vyre), VYRE_UPDATE_URL (default https://vyre.run/server/), VYRE_CODE (the one-time setup
+# Environment: VYRE_DIR (default /srv/vyre), VYRE_UPDATE_URL (default: the signed release feed on GitHub, for the channel), VYRE_CODE (the one-time setup
 # code the Vyre app makes when a server is added, for the install line `curl -fsSL https://vyre.run/install.sh | VYRE_CODE=... sh`;
 # it is written only to $VYRE_DIR/vyre.env at mode 0600 and is never printed or taken as an argument).
 #
@@ -48,7 +48,7 @@ DATA_DIR_ARG=""
 TMP=""
 
 DIR=${VYRE_DIR:-/srv/vyre}
-UPDATE_URL=${VYRE_UPDATE_URL:-https://vyre.run/server/}
+UPDATE_URL=${VYRE_UPDATE_URL:-}   # empty until parse_args knows the channel
 BIN_DIR=${VYRE_BIN_DIR:-/usr/local/bin}
 UNIT_DIR=${VYRE_SYSTEMD_DIR:-/etc/systemd/system}
 DEFAULT_RELAY=https://relay.vyre.run
@@ -172,6 +172,14 @@ ver_cmp() {
 }
 # END semver
 
+# The signed release feed of a channel, as scripts/release/feed.ts writes it: stable is the newest published release, beta and nightly are rolling releases with a fixed tag.
+default_feed() {
+  case "$1" in
+    stable) printf 'https://github.com/vyre-ai/vyre-v1/releases/latest/download/' ;;
+    *) printf 'https://github.com/vyre-ai/vyre-v1/releases/download/channel-%s/' "$1" ;;
+  esac
+}
+
 usage() { sed -n '2,19p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//' || true; }
 
 parse_args() {
@@ -195,6 +203,7 @@ parse_args() {
   if [ -n "$DOMAIN" ] && [ -n "$RELAY" ]; then die "--domain and --relay are two ways to reach this server; choose one" 2; fi
   case "$DOMAIN" in ""|*[!A-Za-z0-9.-]*) [ -z "$DOMAIN" ] || die "--domain must be a host name like vyre.example.com" 2 ;; esac
   DATA_DIR=${DATA_DIR_ARG:-${VYRE_DATA_DIR:-$DIR/data}}
+  [ -n "$UPDATE_URL" ] || UPDATE_URL=$(default_feed "$CHANNEL")
 }
 
 # ---- the machine --------------------------------------------------------------------------------------------------------------------
