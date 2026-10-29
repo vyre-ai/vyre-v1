@@ -1,0 +1,1 @@
+- A root README and `docs/getting-started.md` for people: install a server on Linux or a Mac, the Mac app (right-click Open), Windows, the phone as a web app on the home screen, Vyre for Chrome, and inviting a team. Plain words.
