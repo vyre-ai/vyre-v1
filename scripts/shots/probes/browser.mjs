@@ -4,6 +4,7 @@
 // A value is a number, or a function/promise-free plain number set once the measure finished; `ready: true` marks the object complete.
 // A target in scripts/shots/targets/*.json declares what to judge:
 //   "probes": { "navigate": {}, "prefetch": {}, "chat_open": { "budget": 100 } }   (optional "runs", default 6; optional "budget" never above perf/budgets.json)
+//   optional "click": "<css>" on the target: the runner clicks that element for real once it shows (an interaction probe measured from a person's input, not a timer)
 // Per kind the runner mounts the route fresh `runs` times, discards the first (warm-up), takes the median of the other 5, compares it to the budget
 // (max kinds must be at or under, prefetch must be at or over), prints the worst, and exits 1 on any breach so the shots job fails.
 //   node scripts/shots/probes/browser.mjs [--target <id|P-packet|all>] [--skin paper] [--size desktop|phone] [--throttle 4]
@@ -94,13 +95,15 @@ export function verdictLine(r) {
 }
 
 /** One fresh mount in a new context; waits for the target's selector and for window.__probes.ready, then returns the object. */
-export async function readMount(browser, { url, selector, viewport, scheme, throttle, kinds, timeoutMs = 30000 }) {
+export async function readMount(browser, { url, selector, click, viewport, scheme, throttle, kinds, timeoutMs = 30000 }) {
   const ctx = await browser.newContext({ viewport, colorScheme: scheme, reducedMotion: "reduce" });
   try {
     const page = await ctx.newPage();
     if (throttle > 1) { const cdp = await ctx.newCDPSession(page); await cdp.send("Emulation.setCPUThrottlingRate", { rate: throttle }); }
     if (traceEnabled()) await startMountTrace(browser, page);
     await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
+    // a target with "click" is driven the way a person does it: a real click (a discrete input event) on that element once the mount shows it
+    if (click) { await page.waitForSelector(click, { timeout: timeoutMs }); await page.click(click); }
     await page.waitForSelector(selector, { timeout: timeoutMs });
     await page.waitForFunction((ks) => { const p = window.__probes; return !!p && (p.ready === true || ks.every((k) => typeof p[k] === "number")); }, kinds, { timeout: timeoutMs });
     const got = await page.evaluate(() => ({ ...window.__probes }));
@@ -133,7 +136,7 @@ async function main() {
   try {
     for (const t of targets) {
       const kinds = Object.keys(t.probes);
-      const rs = await runTarget(t, table, { size, measure: (tg) => readMount(browser, { url: routeUrl(server.origin, tg.route, skin), selector: tg.waitFor, viewport: SIZES[size], scheme: skin === "graphite" ? "dark" : "light", throttle, kinds }) });
+      const rs = await runTarget(t, table, { size, measure: (tg) => readMount(browser, { url: routeUrl(server.origin, tg.route, skin), selector: tg.waitFor, click: tg.click, viewport: SIZES[size], scheme: skin === "graphite" ? "dark" : "light", throttle, kinds }) });
       for (const r of rs) { console.log(metricLine(r)); console.log(`${size} x${throttle} ${verdictLine(r)}`); if (!r.ok) failed.push(`${r.target}:${r.kind}`); }
     }
   } finally { await browser.close(); server.close(); }
