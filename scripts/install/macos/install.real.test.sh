@@ -1,6 +1,6 @@
 #!/bin/sh
 # install.real.test.sh: the macOS installer on a real Mac's own tools (BSD tar, shasum, diskutil, plutil, LibreSSL next to a Homebrew OpenSSL 3), with no
-# Docker and no launchd changes. CI runs it on a hosted macOS runner (.github/workflows/install-macos.yml); never run it on a Mac you rely on for a server.
+# Docker and no launchd changes. CI runs it on a hosted macOS runner (.github/workflows/desktop.yml); never run it on a Mac you rely on for a server.
 # What it proves that the unit tests (install.test.ts, which run on Linux too) cannot: diskutil's real output is understood, a real release tarball unpacks
 # with BSD tar, a signed feed over file:// is fetched and checked with shasum, and the launchd property lists pass `plutil -lint`.
 set -eu
