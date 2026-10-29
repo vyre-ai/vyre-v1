@@ -210,6 +210,22 @@ function seed(): State {
 
 const strip = (f: KFact & { _s?: string; _who?: string; _history?: unknown }): KFact => { const { _s: _a, _who: _b, _history: _c, ...rest } = f; return rest; };
 
+/** The extra inputs a chat gives memory.learned: only what was learned from this thread, or from this one message. */
+interface ChatScope { threadId?: string; sourceRef?: string }
+const threadOfLink = (link: string | undefined): string | undefined => (link ? /^vyre:\/\/thread\/([^?]+)/.exec(link)?.[1] : undefined);
+
+/** What a reply used, by "<thread>:<message>": facts as [subject, text] and quotes as the key of a quote below. */
+const USED: Record<string, { facts: Array<[string, string]>; quotes: string[] }> = {
+  "thr_k2:msg_k2_1": { facts: [["brooksonb", "First deliverable is the logistics dashboard, due Nov 14."], ["ian", "Brooks Logistics is on the Growth plan, $2,400 a month, since Sep 3."]], quotes: ["quote_ian_updates"] },
+};
+const QUOTES: Record<string, { text: string; author: string; at: number; chat: string; i: number }> = {
+  quote_ian_updates: { text: "Ian was clear about updates. He reads everything on his phone, so three bullets, no attachments, and nothing before 9 in the morning.", author: "usr_irfad", at: T(12, 15, 5), chat: "k1", i: 2 },
+};
+const quoteOf = (ref: string): { ref: string; text: string; author: { kind: "person" | "agent"; id: string; name: string }; at: number; threadId: string; threadTitle: string; link: string } => {
+  const q = QUOTES[ref]!;
+  return { ref, text: q.text, author: { kind: q.author.startsWith("agt_") ? "agent" : "person", id: q.author, name: NAMES[q.author] ?? q.author }, at: q.at, threadId: CHAT[q.chat]!.thread, threadTitle: CHAT[q.chat]!.title, link: `vyre://thread/${CHAT[q.chat]!.thread}?m=msg_${q.chat}_${q.i}` };
+};
+
 export interface KnowSampleOptions { now?: number; fail?: string; member?: boolean; proposed?: boolean }
 export interface KnowSample extends SampleMemory { snapshot(): State }
 
@@ -237,10 +253,11 @@ export function createKnowSample(o: KnowSampleOptions = {}): KnowSample {
   // ------------------------------------------------------------ reads
   replica.resolve("memory.learned", (_t, i: CapMap["memory.learned"]["in"]) => {
     const s = st();
-    const items = live(s).filter((f) => (!i.since || f.learnedAt >= i.since) && (!i.layer || f.layer === i.layer) && (!i.agentId || f.agentId === i.agentId)).map((f) => ({
+    const x = i as typeof i & ChatScope;
+    const items = live(s).filter((f) => (!i.since || f.learnedAt >= i.since) && (!i.layer || f.layer === i.layer) && (!i.agentId || f.agentId === i.agentId) && (!x.sourceRef || f.sourceRef === x.sourceRef) && (!x.threadId || threadOfLink(f.sourceLink) === x.threadId)).map((f) => ({
       fact: f, at: f.learnedAt, actor: f.by ?? "", actorKind: f.byKind ?? "agent", sourceKind: f.sourceKind, sourceRef: f.sourceRef, ...(f.sourceLink ? { sourceLink: f.sourceLink } : {}), from: s.facts.find((x) => x.factId === f.factId)!._who, undone: false,
     }));
-    for (const r of s.trail.filter((x) => x.actorKind === "upkeep" && (x.action === "merge" || x.action === "flag") && x.factId && (!i.since || x.at >= i.since))) {
+    for (const r of x.sourceRef || x.threadId ? [] : s.trail.filter((x) => x.actorKind === "upkeep" && (x.action === "merge" || x.action === "flag") && x.factId && (!i.since || x.at >= i.since))) {
       const f = s.facts.find((x) => x.factId === r.factId);
       if (f) items.push({ fact: { ...f, ...(r.reason ? { trashReason: r.reason } : {}) }, at: r.at, actor: "upkeep", actorKind: "upkeep", sourceKind: f.sourceKind, sourceRef: f.sourceRef, from: r.action, undone: false } as never);
     }
@@ -278,7 +295,7 @@ export function createKnowSample(o: KnowSampleOptions = {}): KnowSample {
     const sid = page.pageId.slice(3);
     const n = s.notes[page.pageId];
     const links = n ? [...n.text.matchAll(/\[\[([^\]]+)\]\]/g)].map((m) => ({ label: "links to", title: m[1]!, pageId: s.pages.find((p) => p.title.toLowerCase() === m[1]!.toLowerCase())?.pageId, evidence: n.text })) : [];
-    return { page, notes: n?.text ?? "", facts: live(s).filter((f) => f._s === sid).map(strip), links, backlinks: backlinksOf(s, page.pageId), versions: n?.version ?? 1 } as never;
+    return { page: s.trashedPages.includes(page.pageId) ? { ...page, trashedAt: now } : page, notes: n?.text ?? "", facts: live(s).filter((f) => f._s === sid).map(strip), links, backlinks: backlinksOf(s, page.pageId), versions: n?.version ?? 1 } as never;
   });
   replica.resolve("memory.backlinks", (_t, i: CapMap["memory.backlinks"]["in"]) => ({ backlinks: backlinksOf(st(), i.pageId) }));
   replica.resolve("memory.page.versions", (_t, i: CapMap["memory.page.versions"]["in"]) => ({ versions: [...(st().notes[i.pageId]?.versions ?? [])].reverse().map((v) => ({ version: v.version, by: v.by, actorKind: v.by.startsWith("agt_") ? "agent" as const : "person" as const, at: v.at, notes: v.notes })) }));
@@ -353,6 +370,38 @@ export function createKnowSample(o: KnowSampleOptions = {}): KnowSample {
     for (const n of nodes) by.set(n.cluster ?? "", [...(by.get(n.cluster ?? "") ?? []), n]);
     return { nodes, edges, clusters: [...by].map(([name, list]) => ({ name, hub: list[0]!.nodeId, size: list.length })) } as never;
   });
+
+  // ------------------------------------------------------------ reads the chat surfaces make (memory.used, memory.knows, memory.quote)
+  const row = (f: State["facts"][number]): KFact => strip(f);
+  replica.resolve("memory.used", (_t, i: { threadId: string; messageId: string }) => {
+    const s = st(), u = USED[`${i.threadId}:${i.messageId}`];
+    if (!u) return { facts: [], quotes: [] };
+    return {
+      facts: u.facts.map(([sid, text]) => s.facts.find((f) => f._s === sid && f.text === text && f.status === "current" && !f.trashedAt)).filter((f): f is State["facts"][number] => f !== undefined).map((f) => ({ ...row(f), at: f.learnedAt })),
+      quotes: u.quotes.map((q) => quoteOf(q)),
+    };
+  });
+  replica.resolve("memory.quote", (_t, i: { ref: string }) => {
+    const q = Object.values(USED).flatMap((u) => u.quotes).find((x) => x === i.ref);
+    if (!q) throw new Error("validation.not_found");
+    return { quote: quoteOf(q) };
+  });
+  replica.resolve("memory.knows", (_t, i: { threadId: string; agentId?: string; asOf?: number }) => {
+    const s = st();
+    const chat = SUBJECTS.find((x) => x.type === "chat" && CHAT[x.id.slice(5)]?.thread === i.threadId);
+    const near = new Set<string>();
+    if (chat) {
+      let front = [chat.id];
+      const seen = new Set<string>(front);
+      for (let hop = 0; hop < 2; hop++) { const next: string[] = []; for (const [a, b] of EDGES) for (const [x, y] of [[a, b], [b, a]] as const) if (front.includes(x) && !seen.has(y)) { seen.add(y); next.push(y); } front = next; }
+      for (const id of seen) if (!["chat", "agent", "run"].includes(sub(id).type)) near.add(id);
+    }
+    const mine = (f: State["facts"][number]): boolean => f.status === "current" && !f.trashedAt && (i.asOf === undefined || f.learnedAt <= i.asOf) && (f.layer !== "agent" || f.agentId === i.agentId) && (f.layer !== "person" || f.by === ME) && (near.has(f._s) || f.layer === "space" || f.layer === "person");
+    const open = new Set(s.questions.filter((q) => q.status === "open").flatMap((q) => q.facts.map((f) => f.factId)));
+    const facts = s.facts.filter(mine).map((f) => ({ ...row(f), at: f.learnedAt, ...(open.has(f.factId) ? { conflict: true } : {}) }));
+    return { facts, total: facts.length };
+  });
+
   replica.resolve("memory.layout.get", () => ({ positions: {} }));
   replica.resolve("memory.notes.list", () => ({ notes: [], total: 0 }));
 
@@ -389,8 +438,8 @@ export function createKnowSample(o: KnowSampleOptions = {}): KnowSample {
       const s = st(), q = s.questions.find((x) => x.questionId === i.questionId);
       if (!q) throw new Error("validation.not_found");
       const [a, b] = q.facts;
-      const gone = i.resolution === "keep_a" ? b : i.resolution === "keep_b" ? a : undefined;
-      if (gone) { const f = find(s, gone.factId); f.status = "removed"; f.trashedAt = now; f.trashReason = "Replaced by the other address"; log(s, "resolve", ME, label(f), "You picked the other one", f.factId); }
+      const gone = i.resolution === "keep_a" ? [b] : i.resolution === "keep_b" ? [a] : i.resolution === "drop" ? [a, b] : [];
+      for (const g of gone) { const f = find(s, g.factId); f.status = "removed"; f.trashedAt = now; f.trashReason = i.resolution === "drop" ? "Neither was right" : "Replaced by the other address"; log(s, "resolve", ME, label(f), i.resolution === "drop" ? "You kept neither" : "You picked the other one", f.factId); }
       q.status = "resolved"; q.resolution = i.resolution;
       save(s);
       return { ok: true, resolution: i.resolution };
@@ -425,7 +474,10 @@ export function createKnowSample(o: KnowSampleOptions = {}): KnowSample {
     },
     "memory.remember": (i: { text: string; layer?: KFact["layer"]; threadId?: string; sourceRef?: string }) => {
       const s = st();
-      const f = F("ian", i.text, i.layer ?? "person", now, { k: "chat", label: "This chat", who: "Irfad Imtiaz" }, "Irfad Imtiaz");
+      const named = SUBJECTS.find((x) => PAGEABLE.has(x.type) && [x.name, ...(x.alias ?? [])].some((n) => n.length >= 3 && i.text.toLowerCase().includes(n.toLowerCase())));
+      const chatKey = Object.entries(CHAT).find(([, c]) => c.thread === i.threadId)?.[0];
+      const f = F(named?.id ?? "ian", i.text, i.layer ?? "person", now, { k: "chat", label: chatKey ? CHAT[chatKey]!.title : "This chat", ...(chatKey ? { chat: chatKey } : {}), who: "Irfad Imtiaz" }, "Irfad Imtiaz");
+      if (chatKey && i.sourceRef) { f.sourceRef = i.sourceRef; f.sourceLink = `vyre://thread/${i.threadId}?m=${i.sourceRef}`; }
       s.facts.unshift(structuredClone(f)); log(s, "create", ME, i.text, "Remembered from a message", f.factId);
       save(s);
       return { fact: strip(f), merged: false };
@@ -438,6 +490,27 @@ export function createKnowSample(o: KnowSampleOptions = {}): KnowSample {
     },
     "memory.fact.accept": (i: { factId: string }) => { const s = st(), f = find(s, i.factId); f.status = "current"; save(s); return { fact: strip(f) }; },
     "memory.fact.reject": (i: { factId: string }) => { const s = st(), f = find(s, i.factId); f.status = "removed"; f.closedAt = now; save(s); return { fact: strip(f) }; },
+    "memory.page.set_visibility": (i: { pageId: string; layer: KFact["layer"]; projectId?: string }) => {
+      const s = st(), p = s.pages.find((x) => x.pageId === i.pageId);
+      if (!p) throw new Error("validation.not_found");
+      p.layer = i.layer; p.visibleTo = VIS[i.layer];
+      log(s, "edit", ME, `${p.title}: visible to ${VIS[i.layer].toLowerCase()}`, "Visibility changed", undefined, p.pageId);
+      save(s);
+      return { page: p };
+    },
+    "memory.promote": (i: { factId: string; toLayer: "agent" | "project" | "space"; agentId?: string; projectId?: string }) => {
+      const s = st(), f = find(s, i.factId);
+      f.layer = i.toLayer;
+      log(s, "promote", ME, label(f), `Promoted to ${i.toLayer}`, f.factId);
+      save(s);
+      return { promotionId: `prm_${++s.seq}`, promoted: true };
+    },
+    "memory.export_markdown": () => {
+      const s = st();
+      const pages = pageRows(s);
+      const markdown = pages.map((p) => `# ${p.title}\n\n${s.notes[p.pageId]?.text ?? ""}\n\n${live(s).filter((f) => f.subject?.pageId === p.pageId).map((f) => `- ${f.text}`).join("\n")}\n`).join("\n");
+      return { markdown, pages: pages.length, facts: live(s).length, bytes: markdown.length };
+    },
     "memory.layout.save": () => ({ ok: true }),
     "memory.graph_export": () => ({ fileId: "fil_export_1" }),
   };
