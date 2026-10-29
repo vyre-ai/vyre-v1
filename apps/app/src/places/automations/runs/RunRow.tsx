@@ -7,6 +7,7 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import { pressPoint } from "./actions.tsx";
 import { IconButton, QuietButton, StatusMark, TestBadge, webOnly } from "./parts.tsx";
+import { moreLabel } from "../a11y.ts";
 import { isTest, metaLine, rowTime, runTitle } from "./model.ts";
 import type { Run } from "./model.ts";
 
@@ -48,7 +49,7 @@ export function RunRow({ run, now, selected = false, open = false, currentVersio
       ) : lit ? (
         <View style={r.acts}>
           {open ? <IconButton icon="retry" label="Retry" testID={`retry-${run.id}`} onPress={() => onRetry(run)} /> : null}
-          <IconButton icon="more" label="More" testID={`more-${run.id}`} onPress={(e) => { const p = pressPoint(e); onMenu(run, p.x, p.y); }} />
+          <IconButton icon="more" label={moreLabel(title ?? runTitle(run))} testID={`more-${run.id}`} onPress={(e) => { const p = pressPoint(e); onMenu(run, p.x, p.y); }} />
         </View>
       ) : (
         <Text style={r.time}>{rowTime(run.startedAt, now)}</Text>

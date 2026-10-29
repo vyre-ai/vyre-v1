@@ -58,6 +58,7 @@ port.on("message", (m: { req: number; op: string; args?: any }) => {
       case "head": return port.postMessage({ req: m.req, ok: true, value: store.head });
       case "idem_get": return port.postMessage({ req: m.req, ok: true, value: idem.get(m.args.key, Date.now()) });
       case "idem_put": return port.postMessage({ req: m.req, ok: true, value: idem.put(m.args.key, m.args.principal, m.args.cap, m.args.rec, Date.now()) });
+      case "idem_settle": return port.postMessage({ req: m.req, ok: true, value: idem.settle(m.args.key, m.args.principal, m.args.cap, m.args.rec, Date.now()) });
       case "idem_purge": return port.postMessage({ req: m.req, ok: true, value: idem.purge(Date.now()) });
       case "close": flush(); store.close(); return port.postMessage({ req: m.req, ok: true, value: null });
       default: return port.postMessage({ req: m.req, ok: false, error: { code: "internal", message: `unknown op ${m.op}` } });
