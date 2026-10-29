@@ -60,10 +60,11 @@ async function unlockOwnKey(baseUrl: string, token: string, password: string, ke
 
 export const SIGNED_OUT_LINE = "You were signed out. Sign in again to continue.";
 
-export function signInInvite(baseUrl: string, options: SignInOptions | null): JoinInvite {
+/** `github` is true only for a caller that wires the GitHub button (the sign-in screen below); a bare invite never lists a control with nothing behind it. */
+export function signInInvite(baseUrl: string, options: SignInOptions | null, github = false): JoinInvite {
   return {
     space: options?.name ?? hostOf(baseUrl), host: hostOf(baseUrl), by: "", role: "", ...(options?.fingerprint?{fingerprint:options.fingerprint}:{}),
-    sso: [], github: options?.github === true, adminKey: false,   // sso stays empty: identity.sso_sign_in answers validation.unsupported, so no provider is offered
+    sso: [], github: github && options?.github === true, adminKey: false,   // sso stays empty: identity.sso_sign_in answers validation.unsupported, so no provider is offered
   };
 }
 
@@ -82,7 +83,7 @@ function SignInScreen({ baseUrl, open, onSignedIn, notice, onBack, unlock }: { b
     void (anonymous("identity.sign_in_options", {}) as Promise<SignInOptions>).then((found) => { if (active) setDiscovery({ address: baseUrl, options: found }); }).catch(() => undefined);
     return () => { active = false; };
   }, [anonymous, baseUrl]);
-  const invite = useMemo(() => signInInvite(baseUrl, options), [baseUrl, options]);
+  const invite = useMemo(() => signInInvite(baseUrl, options, true), [baseUrl, options]);
   const [githubLine, setGithubLine] = useState<string | null>(null);
   useEffect(() => {
     const browser = globalThis as { location?: { hash: string; pathname: string; search: string }; history?: { replaceState(d: unknown, u: string, url: string): void } };

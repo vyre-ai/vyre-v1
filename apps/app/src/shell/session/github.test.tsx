@@ -4,9 +4,9 @@ import{SignIn}from'../../join/SignIn.tsx';import{JoinFrame}from'../../join/kit.t
 import type{SignInOptions}from'./stored.ts';
 // The answer a booted daemon gives for identity.sign_in_options (host/tests/github-signin.live.test.ts): GitHub on, SSO empty.
 const answer:SignInOptions={name:'Northwind',fingerprint:'ab12 cd34',password:true,github:true,sso:[],secondFactorRequired:false};
-const screen=(options:SignInOptions|null)=>{const invite=signInInvite('http://northwind.example:3000',options);return renderToStaticMarkup(<JoinFrame><SignIn invite={invite} state={initialState(invite,{stage:'signin'})} dispatch={()=>undefined} onSubmit={()=>undefined} onGithub={()=>undefined}/></JoinFrame>);};
+const screen=(options:SignInOptions|null)=>{const invite=signInInvite('http://northwind.example:3000',options,true);return renderToStaticMarkup(<JoinFrame><SignIn invite={invite} state={initialState(invite,{stage:'signin'})} dispatch={()=>undefined} onSubmit={()=>undefined} onGithub={()=>undefined}/></JoinFrame>);};
 test('the sign-in screen offers GitHub when the Space says it is on, and not before it has answered or when it is off',()=>{
- assert.equal(signInInvite('http://northwind.example:3000',answer).github,true);
+ assert.equal(signInInvite('http://northwind.example:3000',answer,true).github,true);
  assert.ok(screen(answer).includes('data-testid="github"'));assert.ok(screen(answer).includes('data-testid="sign-in-github"'));
  assert.ok(!screen({...answer,github:false}).includes('data-testid="github"'));
  assert.ok(!screen(null).includes('data-testid="github"'));
@@ -21,8 +21,6 @@ test('the GitHub button leads to the Space start route and back to this page; th
  assert.deepEqual(takeGithubReturn({...loc,hash:'#github_error=denied'},()=>undefined),{error:true});
  assert.equal(takeGithubReturn({...loc,hash:'#other=1'},()=>{throw new Error('untouched');}),null);assert.equal(takeGithubReturn(undefined,()=>undefined),null);
 });
-test('GitHub is offered only when the screen has a handler for it, so no control is inert',()=>{
- const invite=signInInvite('http://northwind.example',answer);
- const html=renderToStaticMarkup(<JoinFrame><SignIn invite={invite} state={initialState(invite,{stage:'signin'})} dispatch={()=>undefined} onSubmit={()=>undefined}/></JoinFrame>);
- assert.ok(!html.includes('data-testid="github"'));
+test('a bare invite never lists GitHub, so no control is inert; the sign-in screen asks for it with a handler',()=>{
+ assert.equal(signInInvite('http://northwind.example',answer).github,false);assert.equal(signInInvite('http://northwind.example',answer,true).github,true);
 });
