@@ -78,3 +78,12 @@ test("the phone card makes a one-time link on the Space address and the open car
   assert.equal(pairLink("https://a.example", "x y"), "https://a.example/home?pair=x%20y");
   for (const k of ["import_sessions", "local_folders", "chrome", "first_win"]) assert.ok(OPEN_TARGETS[k], k);
 });
+
+test("the same-account offer asks first, names the account, and shows nothing when there is no key to copy", async () => {
+  const { SameAccountOffer } = await import("./SameAccountOffer.tsx");
+  const none = (async () => ({})) as never;
+  const acct = [{ providerId: "prv_1", providerKey: "anthropic", name: "Anthropic", itemId: "itm_1" }];
+  const out = renderToStaticMarkup(<SameAccountOffer personal={none} team={none} accounts={acct} onCopied={noop} />);
+  assert.ok(out.includes("Use the same AI account here?") && out.includes("Anthropic") && out.includes('data-testid="same-account-yes"') && out.includes('data-testid="same-account-no"'));
+  assert.equal(renderToStaticMarkup(<SameAccountOffer personal={none} team={none} accounts={[]} onCopied={noop} />), "");
+});

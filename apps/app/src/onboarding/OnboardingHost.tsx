@@ -10,6 +10,8 @@ import { takeTeamNext } from "./doors.ts";
 import { TeamBridgeCard } from "./TeamBridgeCard.tsx";
 import { OPEN_TARGETS, OpenCard } from "./OpenCard.tsx";
 import { PairPhoneCard } from "./PairPhoneCard.tsx";
+import { KitPickCard } from "./KitPickCard.tsx";
+import { SpaceAiCard } from "./SpaceAiCard.tsx";
 import { shouldAutoOpen } from "./flow.ts";
 import type { CardKind, FlowKind, Progress, StepState } from "./flow.ts";
 import { OnboardingScreen } from "./OnboardingScreen.tsx";
@@ -23,6 +25,8 @@ export interface OnboardingHostProps {
   children: ReactNode;
   /** opens the Space entry to create or join another Space */
   onAddSpace?: () => void;
+  /** a caller for the Personal Space on this device, when there is one (for "use the same AI account") */
+  personalCall?: CapCall | null;
   /** the Space address, for a pairing link */
   address?: string;
   /** go to a place of the shell (the screen closes first) */
@@ -33,7 +37,7 @@ export interface OnboardingHostProps {
   cards?: Partial<Record<CardKind, (ctx: CardContext) => ReactNode>>;
 }
 
-export function OnboardingHost({ call, space, children, cards, onAddSpace, mac = false, address, onGo }: OnboardingHostProps): ReactElement {
+export function OnboardingHost({ call, space, children, cards, onAddSpace, mac = false, address, onGo, personalCall = null }: OnboardingHostProps): ReactElement {
   const [flow, setFlow] = useState<FlowKind | null>(null);
   const [progress, setProgress] = useState<Progress>({});
   const [shown, setShown] = useState(false);
@@ -75,9 +79,11 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
     if (card === "phone" && call && address) return <PairPhoneCard call={call} address={address} onPaired={() => ctx.done()} />;
     const target = OPEN_TARGETS[card];
     if (target && onGo) return <OpenCard text={target.text} action={target.action} onOpen={() => { setShown(false); setStep(null); onGo(target.place); }} onDone={() => ctx.done()} />;
+    if (card === "space_ai" && call) return <SpaceAiCard team={call} personal={personalCall} onConnected={() => ctx.done()} />;
+    if (card === "org" && call) return <KitPickCard call={call} onInstalled={() => ctx.done()} />;
     if (card === "interview" && call) return <InterviewCard call={call} onSaved={() => ctx.done()} />;
     return <Text testID="card-not-set-up" style={s.dim}>This part is not set up yet. You can do it later from the checklist on Home.</Text>;
-  }, [call, cards, aiProvider, progress, onAddSpace, mac, address, onGo]);
+  }, [call, cards, aiProvider, progress, onAddSpace, mac, address, onGo, personalCall]);
 
   // the shell stays mounted underneath, so closing the screen returns to exactly where the person was
   return (

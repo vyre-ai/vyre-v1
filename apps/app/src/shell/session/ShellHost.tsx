@@ -20,7 +20,8 @@ import type { ShellPurge } from "../spaces/purge.ts";
 import { HubProvider, useHubState } from "../spaces/context.tsx";
 import { Shell } from "../spaces/Shell.tsx";
 import type { PlaceContext } from "../spaces/Shell.tsx";
-import { CapError } from "./caps.ts";
+import { CapError, createCapCaller } from "./caps.ts";
+import { isLoopbackUrl } from "../../../../../client/src/gateway/local-key.ts";
 import { PHONE_BELOW } from "./mobile-map.ts";
 import { openPhone } from "./phone.ts";
 import type { LoadVoiceDevice, Phone } from "./phone.ts";
@@ -159,7 +160,9 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const selectSpace=(id:string):void=>{if(id===stored.def.spaceId)return;const target=catalogue.find(item=>item.def.spaceId===id);if(!target||!onSwitchSpace)return;sessionTheme(target,false);onSwitchSpace(id);};
   const renderNewTab = (): ReactElement => (search ? <NewTabSearch data={search} /> : <States kind="empty" title="Open anything, or start something" icon="search" />);
   // the onboarding screen opens over whatever the shell shows, the first time a person enters a Space and when asked
-  const wrap = (el: ReactElement): ReactElement => <OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} address={stored.baseUrl} onGo={(place) => hub.go(place as PlaceId, "")} {...(onAddSpace?{onAddSpace}:{})}>{el}</OnboardingHost>;
+  // the Personal Space on this computer, so a Team Space can offer "use the same AI account" (never copied without a yes)
+  const personalCall = useMemo(() => { const p = catalogue.find((item) => item.def.kind === "personal" && item.def.spaceId !== stored.def.spaceId && isLoopbackUrl(item.baseUrl)); return p ? createCapCaller({ baseUrl: p.baseUrl, token: () => p.token }) : null; }, [catalogueKey, stored.def.spaceId]);
+  const wrap = (el: ReactElement): ReactElement => <OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} address={stored.baseUrl} personalCall={personalCall} onGo={(place) => hub.go(place as PlaceId, "")} {...(onAddSpace?{onAddSpace}:{})}>{el}</OnboardingHost>;
   if (location.place === "console") return wrap(<HubProvider hub={hub}>{renderPlace({ place: "console", hash: location.hash } as PlaceContext)}</HubProvider>);
   if (narrow) return wrap(<Suspense fallback={<View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />}><PhoneHost session={session} location={{ place: location.place, hash: location.hash }} needsYou={stored.def.counts.chats ?? 0} registerGo={registerGo} onSignOut={signOut} onLock={lock} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} {...(onAddSpace?{onAddSpace}:{})} /></Suspense>);
   return wrap(
