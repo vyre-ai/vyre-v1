@@ -1,5 +1,6 @@
 # Changelog
 
+- The host binds a public document fetch to the addresses that passed the check.
 - Fetch a documentation page only when a connector draft has no pasted document and no app name. The page is data. An OpenAPI document becomes drafted actions, and any other page becomes no actions. The page text is not returned.
 - Offer a tested connector to another Space as a draft. The copy keeps the app name and the action names, and it does not keep a key.
 - Draft actions from a pasted OpenAPI document, then mark one of them tested with a Vault read. The document text and the key stay out of the reply.
