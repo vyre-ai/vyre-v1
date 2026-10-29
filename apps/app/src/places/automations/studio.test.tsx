@@ -47,9 +47,9 @@ test("a failed run has no Stop, and replay and live re-run are different labels"
   assert.equal(canStopRun("running"), true);
 });
 
-test("preview badge on ai, code runs, and a schedule is available", () => {
-  assert.equal(availabilityFor("ai", "step"), "preview");
-  assert.equal(availabilityFor("code", "step"), "available");
+test("AI and Code are unavailable, and a schedule, Parallel, and Loop stay available", () => {
+  assert.equal(availabilityFor("ai", "step"), "unavailable");
+  assert.equal(availabilityFor("code", "step"), "unavailable");
   assert.equal(availabilityFor("schedule", "trigger"), "available");
   assert.equal(availabilityFor("parallel", "step"), "available");
   assert.equal(availabilityFor("loop", "step"), "available");

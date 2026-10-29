@@ -117,7 +117,7 @@ test("Basic and Advanced write one typed value, and the other section 17 models 
   assert.equal(neighbour(laid, "b", "up"), "a");
   assert.equal(neighbour(laid, "b", "down"), null);
 
-  assert.equal(liveBlockerStep(check(LEAD_FOLLOW_UP, "space")), "text");
+  assert.equal(liveBlockerStep(check(LEAD_FOLLOW_UP, "space")), null);
   assert.equal(liveBlockerStep(check({ triggers: [], nodes: [] } as unknown as Definition)), "trigger");
   assert.equal(liveBlockerStep([]), null);
 
@@ -221,7 +221,7 @@ test("section 17 controls render in light, dark, desktop, and compact", () => {
       assert.doesNotMatch(out, /stale/i);
       assert.ok(has(out, "Fix this mapping. node missing is not in this Automation."));
       assert.ok(has(out, "Use output from test"));
-      assert.match(tag(out, "problem-go"), /aria-label="Go to text\. This step blocks going live\."/);
+      assert.equal(has(out, 'data-testid="problem-go"'), false);
       assert.ok(has(out, "Parent run_parent"));
       assert.ok(has(out, "Child run_child, attempt 2"));
       assert.ok(has(out, "Attempt 2"));
@@ -236,7 +236,7 @@ test("section 17 controls render in light, dark, desktop, and compact", () => {
       assert.match(compactRow.css, /\.r-minHeight-[^{]+\{min-height:26px;\}/);
       assert.match(tag(out, "line-found"), new RegExp(compactRow.className));
       assert.ok(has(out, "Found the person"));
-      assert.ok(has(out, "Preview"), "AI stays Preview");
+      assert.equal(has(out, 'data-testid="preview-ai"'), false);
       assert.equal(has(out, String.fromCharCode(0x2014)), false);
     }
   }
