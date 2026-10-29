@@ -1,5 +1,6 @@
 // Connections (spec 2.10, 4.18): one account plugged into a connector, owned by a person or the Space. The owner can pause it. It starts Pending until the sign-in or the first good
 // probe, and a provider that rejects the key sends it to needs_reconnect. A connection holds the NAME of the Vault item for each secret, never a value.
+import { newPkce, oauthOf, OAUTH_TTL_MS } from "./oauth.ts";
 import { checkEgress, ensureTables, mintShort, nowOf, PAGE, refuse, scrubber, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectionState, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
 import { executeAction } from "./runtime.ts";
@@ -17,13 +18,12 @@ export interface ConnectionsHandlers {
   "connections.pause"(ctx: ConnectorsCtx, input: { connectionId: string }): Promise<{ ok: boolean }>;
   "connections.resume"(ctx: ConnectorsCtx, input: { connectionId: string }): Promise<{ ok: boolean }>;
   "connections.reconnect"(ctx: ConnectorsCtx, input: { connectionId: string }): Promise<{ authUrl?: string }>;
-  "connections.complete_auth"(ctx: ConnectorsCtx, input: { state: string; code: string }): Promise<{ connectionId: string }>;
+  "connections.complete_auth"(ctx: ConnectorsCtx, input: { state: string; code?: string; error?: string }): Promise<{ connectionId: string }>;
   "connections.test"(ctx: ConnectorsCtx, input: { connectionId: string }): Promise<Health>;
   "connections.delete"(ctx: ConnectorsCtx, input: { connectionId: string }): Promise<{ deleted: boolean }>;
 }
 
 const HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
-const OAUTH_TTL_MS = 10 * 60_000;
 
 export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHandlers {
   const { tx } = deps;
@@ -67,6 +67,9 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
     const now = nowOf(deps);
     const state = mintShort("oas", now);
     tx.run("INSERT INTO cn_oauth (state, connection_id, created_at, reconnect) VALUES (?, ?, ?, ?)", state, conn.connection_id, now, reconnect ? 1 : 0);
+    // The state is bound to this connection and to the person who started the sign-in, and the code is bound to a PKCE verifier only this server holds: a code someone else obtained cannot be redeemed here.
+    const pkce = newPkce();
+    tx.run("INSERT INTO cn_oauth_flow (state, started_by, verifier) VALUES (?, ?, ?)", state, actorOf(ctx), pkce.verifier);
     const u = new URL(eg.url.toString());
     u.searchParams.set("response_type", "code");
     if (def.auth.clientId) u.searchParams.set("client_id", def.auth.clientId);
@@ -74,6 +77,8 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
     const sc = scopes.length ? scopes : (def.auth.scopes ?? []);
     if (sc.length) u.searchParams.set("scope", sc.join(" "));
     u.searchParams.set("state", state);
+    u.searchParams.set("code_challenge", pkce.challenge);
+    u.searchParams.set("code_challenge_method", "S256");
     return u.toString();
   };
 
@@ -152,6 +157,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       owned(ctx, r);
       const def = defOf(ctx, r.connector);
       tx.run("UPDATE cn_connections SET state = 'pending', paused_by = NULL, paused_from = NULL WHERE connection_id = ?", r.connection_id);
+      tx.run("DELETE FROM cn_oauth_flow WHERE state IN (SELECT state FROM cn_oauth WHERE connection_id = ?)", r.connection_id);
       tx.run("DELETE FROM cn_oauth WHERE connection_id = ?", r.connection_id);
       const authUrl = authUrlFor(def, need(ctx, r.connection_id), JSON.parse(r.scopes) as string[], true, ctx);
       // Without a provider sign-in the person puts the key back in the Vault; the next test makes the connection active again.
@@ -162,42 +168,26 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       ready();
       const row = tx.get<{ connection_id: string; created_at: number; reconnect: number }>("SELECT connection_id, created_at, reconnect FROM cn_oauth WHERE state = ?", input.state);
       if (!row) return refuse(ctx, "auth.invalid_code", "This sign-in link is wrong or was already used.");
-      if (nowOf(deps) - row.created_at > OAUTH_TTL_MS) return refuse(ctx, "auth.invalid_code", "This sign-in link has expired: start again.");
       const conn = tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", row.connection_id);
-      if (!conn) return refuse(ctx, "validation.not_found", "The connection was removed while you signed in.");
+      const flow = tx.get<{ started_by: string; verifier: string }>("SELECT started_by, verifier FROM cn_oauth_flow WHERE state = ?", input.state);
+      const forget = (): void => { tx.run("DELETE FROM cn_oauth WHERE state = ?", input.state); tx.run("DELETE FROM cn_oauth_flow WHERE state = ?", input.state); };
+      // Whose sign-in this is is decided BEFORE the state is used up: someone else holding the link can neither finish it nor spend it.
+      if (conn && (!flow || flow.started_by !== actorOf(ctx))) return refuse(ctx, "permission.no_grant", "This sign-in was started by someone else. Only they can finish it.");
+      if (nowOf(deps) - row.created_at > OAUTH_TTL_MS) { forget(); return refuse(ctx, "auth.invalid_code", "This sign-in link has expired: start again."); }
+      if (!conn) { forget(); return refuse(ctx, "validation.not_found", "The connection was removed while you signed in."); }
       owned(ctx, conn);
-      tx.run("DELETE FROM cn_oauth WHERE state = ?", input.state);
+      forget();   // one use, whatever happens next
+      if (input.error !== undefined) return refuse(ctx, "validation.precondition_failed", input.error === "access_denied" ? "The app was not given access: the sign-in was declined." : "The app ended the sign-in without giving access.", { reason: "declined" });
+      if (typeof input.code !== "string" || input.code === "") return refuse(ctx, "validation.bad_input", "The app did not send a sign-in code.");
       const def = defOf(ctx, conn.connector);
       if (def.auth.type !== "oauth2" || !def.auth.tokenUrl || !def.auth.secret) return refuse(ctx, "validation.precondition_failed", `${def.title} does not sign in with OAuth.`);
-      const eg = checkEgress(def.auth.tokenUrl, def.domains);
-      if (!eg.ok) return refuse(ctx, "permission.no_grant", `Egress refused: ${eg.reason}.`);
-      const secrets = secretsOf(conn);
-      const clientSecret = def.auth.clientSecret && secrets[def.auth.clientSecret] && deps.resolveSecret ? await deps.resolveSecret(secrets[def.auth.clientSecret]!, {connector:def.key,connectionId:conn.connection_id,slot:def.auth.clientSecret}) : undefined;
-      const scrub = scrubber(clientSecret ? [clientSecret, input.code] : [input.code]);
-      const form = new URLSearchParams({ grant_type: "authorization_code", code: input.code, redirect_uri: `${deps.publicBase ?? ""}/oauth/callback` });
-      if (def.auth.clientId) form.set("client_id", def.auth.clientId);
-      if (clientSecret) form.set("client_secret", clientSecret);
-      let res: { status: number; text(): Promise<string> };
-      try {
-        res = await ctx.http(eg.url.toString(), { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" }, body: form.toString() });
-      } catch (e) {
-        return refuse(ctx, "provider.network", scrub.text(`The app could not be reached: ${e instanceof Error ? e.message : String(e)}`));
-      }
-      const text = await res.text();
-      if (res.status >= 400) return refuse(ctx, "provider.auth_failed", "The app did not accept the sign-in.", { status: res.status });
-      let tokens: { access_token?: string; refresh_token?: string };
-      try { tokens = JSON.parse(text) as typeof tokens; } catch { return refuse(ctx, "provider.bad_response", "The app answered the sign-in in an unexpected way."); }
-      if (!tokens.access_token) return refuse(ctx, "provider.bad_response", "The app did not return an access token.");
-      if (!deps.storeSecret) return refuse(ctx, "internal.unavailable", "The Vault is not available to keep the sign-in.");
-      secrets[def.auth.secret] = await deps.storeSecret(`${conn.title}_${def.auth.secret}`, tokens.access_token);
-      const refreshName = `${def.auth.secret}_refresh`;
-      if (tokens.refresh_token && def.secrets.some((s) => s.name === refreshName)) secrets[refreshName] = await deps.storeSecret(`${conn.title}_${refreshName}`, tokens.refresh_token);
+      const handles = await oauthOf(deps).exchangeCode(ctx, def, conn, input.code, flow!.verifier, `${deps.publicBase ?? ""}/oauth/callback`);
+      const secrets = { ...secretsOf(conn), ...handles };
       tx.run("UPDATE cn_connections SET state = 'active', secrets = ? WHERE connection_id = ?", JSON.stringify(secrets), conn.connection_id);
       if (row.reconnect === 1) ctx.emit("connection.reconnected", `connection/${conn.connection_id}`, { connectionId: conn.connection_id });
       else ctx.emit("connection.created", `connection/${conn.connection_id}`, { connectionId: conn.connection_id, connector: conn.connector, ownerKind: conn.owner_kind });
       return { connectionId: conn.connection_id };
     },
-
     "connections.test": async (ctx, input) => {
       const r = need(ctx, input.connectionId);
       if (r.state === "paused") return { state: "down" as const, detail: `Paused${r.paused_by ? ` by ${r.paused_by}` : ""}.` };
@@ -223,6 +213,10 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
     "connections.delete": async (ctx, input) => {
       const r = need(ctx, input.connectionId);
       owned(ctx, r);
+      // an OAuth connection's tokens are revoked at the app (when the connector declares how) and removed from the Vault before the connection goes
+      const stored = tx.get<{ def: string }>("SELECT def FROM cn_connectors WHERE key = ?", r.connector);
+      await oauthOf(deps).revoke(ctx, stored ? (JSON.parse(stored.def) as ConnectorDef) : undefined, r);
+      tx.run("DELETE FROM cn_oauth_flow WHERE state IN (SELECT state FROM cn_oauth WHERE connection_id = ?)", r.connection_id);
       tx.run("DELETE FROM cn_oauth WHERE connection_id = ?", r.connection_id);
       tx.run("DELETE FROM cn_connections WHERE connection_id = ?", r.connection_id);
       ctx.emit("connection.deleted", `connection/${r.connection_id}`, { connectionId: r.connection_id, connector: r.connector });

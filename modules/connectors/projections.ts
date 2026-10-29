@@ -21,7 +21,11 @@ export interface AuthDef {
   header?: string;
   prefix?: string;
   /** oauth2 */
-  authUrl?: string; tokenUrl?: string; clientId?: string; clientSecret?: string; scopes?: string[];
+  authUrl?: string; tokenUrl?: string; clientId?: string; scopes?: string[];
+  /** The NAME of a declared secret that holds the client secret (never the secret itself). */
+  clientSecret?: string;
+  /** Where a token is revoked when a connection is deleted; optional, best effort. */
+  revokeUrl?: string;
 }
 
 /** One call the connector makes. `{input.x}`, `{secret.Name}` and `{connection.id}` are filled in at call time; secrets only in headers and body. */
