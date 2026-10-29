@@ -233,13 +233,19 @@ test("the daemon's copy of a table matches the module's own migration column for
     const dir = path.join(ROOT, "modules", module, "migrations");
     if (!fs.existsSync(dir)) continue;
     const theirs = openDb(":memory:");
-    for (const f of fs.readdirSync(dir).filter((x) => x.endsWith(".sql")).sort()) theirs.exec(fs.readFileSync(path.join(dir, f), "utf8"));
+    const files = fs.readdirSync(dir).filter((x) => x.endsWith(".sql")).sort();
+    for (const f of files) theirs.exec(fs.readFileSync(path.join(dir, f), "utf8"));
+    // The daemon creates its copy first and then runs every migration over it (a later one may ALTER the table), so the copy is compared in the state the daemon leaves it in.
+    const lived = openDb(":memory:");
+    lived.exec(HOST_TABLES);
+    for (const f of files) lived.exec(fs.readFileSync(path.join(dir, f), "utf8"));
     for (const t of tables) {
       const cols = (db: HostDb) => (db.all(`PRAGMA table_info(${t})`) as { name: string; type: string; notnull: number; pk: number }[]).map((c) => `${c.name} ${c.type} ${c.notnull} ${c.pk}`);
-      assert.deepEqual(cols(mine), cols(theirs), `${t} drifted from modules/${module}/migrations`);
+      assert.deepEqual(cols(lived), cols(theirs), `${t} drifted from modules/${module}/migrations`);
       compared++;
     }
     theirs.close();
+    lived.close();
   }
   mine.close();
   assert.ok(compared >= 0);
