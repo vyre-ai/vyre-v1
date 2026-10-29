@@ -37,6 +37,14 @@ export interface SyncHostSeam {
   endpoints?(): SyncEndpoint[];
   /** Fingerprint of the Space key, for the pairing screen. */
   fingerprint?(): string;
+  /**
+   * The live socket. The module registers a LAZY factory for its hub (the hub opens the Space store, so the host calls it only when a device connects, after every module has declared its projections),
+   * and finds the host's WebSocket hub for purges: a purge frames the sockets it concerns and closes them. Omitted: no modern live hub, and the socket stays on the legacy envelope.
+   */
+  liveHub?: {
+    provide(factory: () => Pick<LiveHub, "accept" | "commit" | "close">): void;
+    host(): { purge(person: string, epoch: number): number; purgeDevice(person: string, device: string, epoch: number): number } | null;
+  };
 }
 
 /** A stable 24 hex digit name for (op, field), from three FNV-1a passes with different seeds: the same retried op always parks under the same id (modules take no crypto, B3). */

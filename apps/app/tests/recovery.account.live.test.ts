@@ -121,7 +121,8 @@ test('saved-code recovery: same keys, private Vault data kept, old password and 
       const visible = [browserStore, urls.join('\n'), console_.join('\n'), errors.join('\n')].join('\n');
       for (const secret of secrets) assert.equal(visible.includes(secret), false, 'a recovery secret reached browser storage, a URL or the console');
       const files = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? files(path.join(dir, e.name)) : [path.join(dir, e.name)]);
-      for (const file of files(space.dir)) { const bytes = fs.readFileSync(file); for (const secret of [code, proof, NEW_PASSWORD, OLD_PASSWORD]) assert.equal(bytes.includes(Buffer.from(secret)), false, `a recovery secret reached ${path.basename(file)} in the Space data directory`); }
+      for (const file of files(space.dir)) { let bytes: Buffer; try { bytes = fs.readFileSync(file); } catch (e) { if ((e as NodeJS.ErrnoException).code === "ENOENT") continue; throw e; }   // a SQLite journal listed a moment ago may be gone by the time it is read; every file that exists is still scanned
+        for (const secret of [code, proof, NEW_PASSWORD, OLD_PASSWORD]) assert.equal(bytes.includes(Buffer.from(secret)), false, `a recovery secret reached ${path.basename(file)} in the Space data directory`); }
     });
     assert.deepEqual(errors, []);
   } catch (error) {
