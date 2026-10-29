@@ -9,6 +9,7 @@ import {
   fail, fieldsOf, formsConfig, formOut, insertForm, isNull, isRec, many, mustForm, num, one, optBool, optInt, optStr, pageOf, parseJson, publicUrl, rec, reqStr, str,
 } from "../projections.ts";
 import { askCancel, askDiff } from "./ask.ts";
+import { choicesCandidates, choicesOf, choicesSet, needsChoices } from "./choices.ts";
 import { validateCss, validateHtml, validateJs } from "./source.ts";
 import { bookingHandlers } from "./bookings.ts";
 import { linkHandlers } from "./links.ts";
@@ -53,6 +54,12 @@ async function get(ctx: Ctx, input: unknown) {
       return row;
     }),
   };
+  const published = choicesOf(ctx, str(form.id)) as (ReturnType<typeof choicesOf>[number] & { field: string })[];
+  if (published.length > 0) {
+    const byField: Record<string, unknown[]> = {};
+    for (const c of published) (byField[c.field] ??= []).push({ key: c.key, refId: c.refId, kind: c.kind, label: c.label });
+    out.choices = byField;
+  }
   if (!isNull(form.css)) out.css = str(form.css);
   if (!isNull(form.html)) out.html = str(form.html);
   if (!isNull(form.js)) out.js = str(form.js);
@@ -212,7 +219,7 @@ async function publish(ctx: Ctx, input: unknown) {
     const schema=await schemaReader(str(form.record_type)),modes=fieldsOf(ctx,str(form.id)),logic=parseJson(form.logic);
     const rules=isRec(logic)&&Array.isArray(logic.rules)?logic.rules:[];
     for(const field of schema)if((field.required||rules.some((rule)=>isRec(rule)&&Array.isArray(rule.require)&&rule.require.includes(field.key)))&&(field.type==='relation'||field.type==='person')&&modes.some((mode)=>mode.field===field.key&&mode.mode==='ask'))
-      fail(ctx,'validation.precondition_failed',`${field.title} cannot be answered on a public form until publisher-approved record choices are supported. Hide this question or use a form without it.`,{field:`fields.${field.key}`});
+      if(choicesOf(ctx,str(form.id),field.key).length===0)fail(ctx,'validation.precondition_failed',`${field.title} needs publisher-approved choices before the form can go public. Choose which ${field.type==='person'?'people':'records'} visitors may pick, or hide this question.`,{field:`fields.${field.key}`});
   }
   if (form.kind === "booking") {
     if (!one(ctx, "SELECT * FROM forms_booking_page WHERE form_id = ?", str(form.id))) fail(ctx, "validation.precondition_failed", "This booking page has no hosts yet.");
@@ -248,6 +255,8 @@ export const handlers = {
   "forms.update": (ctx: Ctx, input: unknown) => update(ctx, input),
   "forms.fields_set": (ctx: Ctx, input: unknown) => fieldsSet(ctx, input),
   "forms.design_set": (ctx: Ctx, input: unknown) => designSet(ctx, input),
+  "forms.choices_set": (ctx: Ctx, input: unknown) => choicesSet(ctx, input),
+  "forms.choices_candidates": (ctx: Ctx, input: unknown) => choicesCandidates(ctx, input),
   "forms.ask_diff": (ctx: Ctx, input: unknown) => askDiff(ctx, input),
   "forms.ask_cancel": (ctx: Ctx, input: unknown) => askCancel(ctx, input),
   "forms.publish": (ctx: Ctx, input: unknown) => publish(ctx, input),

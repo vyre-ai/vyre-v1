@@ -72862,6 +72862,235 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "field": "example",
+            "formId": "frm_a1b2c3",
+            "q": "example"
+          },
+          "name": "example",
+          "output": {
+            "candidates": [
+              {
+                "label": "example",
+                "refId": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "formId": {
+            "examples": [
+              "frm_a1b2c3"
+            ],
+            "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          },
+          "q": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "formId",
+          "field"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "forms",
+      "name": "forms.choices_candidates",
+      "output": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "refId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "refId",
+                "label"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "candidates"
+        ],
+        "type": "object"
+      },
+      "permission": "forms.publish",
+      "resource": {
+        "id": "/formId",
+        "type": "form"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The records the publisher can see, or the people in the Space, that a relation or person question could offer; display labels only",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "sensitive",
+      "effects": "write",
+      "emits": [
+        "form.choices_changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed",
+        "validation.too_large"
+      ],
+      "examples": [
+        {
+          "input": {
+            "choices": [
+              {
+                "refId": "example"
+              }
+            ],
+            "field": "example",
+            "formId": "frm_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "choices": [
+              {
+                "key": "example",
+                "kind": "record",
+                "label": "example",
+                "refId": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "choices": {
+            "items": {
+              "properties": {
+                "refId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "refId"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "field": {
+            "type": "string"
+          },
+          "formId": {
+            "examples": [
+              "frm_a1b2c3"
+            ],
+            "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "formId",
+          "field",
+          "choices"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "forms",
+      "name": "forms.choices_set",
+      "output": {
+        "properties": {
+          "choices": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "record",
+                    "person"
+                  ],
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "refId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "refId",
+                "kind",
+                "label"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "choices"
+        ],
+        "type": "object"
+      },
+      "permission": "forms.publish",
+      "resource": {
+        "id": "/formId",
+        "type": "form"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Publish the records or people a public relation or person question may offer: a bounded list the visitor can only pick from; a visitor sees each one's display label only",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [
         "form.created"
@@ -73229,6 +73458,7 @@
           },
           "name": "example",
           "output": {
+            "choices": {},
             "css": "example",
             "fields": [
               {
@@ -73284,6 +73514,10 @@
       "name": "forms.get",
       "output": {
         "properties": {
+          "choices": {
+            "additionalProperties": true,
+            "type": "object"
+          },
           "css": {
             "type": "string"
           },
@@ -178885,6 +179119,41 @@
       "summary": "A follow was removed",
       "sv": 1,
       "vis": "owner"
+    },
+    {
+      "module": "forms",
+      "name": "form.choices_changed",
+      "payload": {
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "field": {
+            "type": "string"
+          },
+          "formId": {
+            "examples": [
+              "frm_a1b2c3"
+            ],
+            "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "formId",
+          "field",
+          "count"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/formId",
+        "type": "form"
+      },
+      "summary": "The records or people a public question offers were changed by its publisher",
+      "sv": 1,
+      "vis": "space"
     },
     {
       "module": "forms",

@@ -62,6 +62,7 @@ type Out = {
   js?: string;
   theme?: Record<string, unknown>;
   logic?: unknown;
+  choices?: Record<string, unknown>;
 };
 ```
 
@@ -82,6 +83,7 @@ type Out = {
     "formId": "frm_a1b2c3"
   },
   "output": {
+    "choices": {},
     "css": "example",
     "fields": [
       {
