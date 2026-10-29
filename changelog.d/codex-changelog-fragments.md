@@ -1,1 +1,0 @@
-- Changelog entries now go in changelog.d/<branch>.md fragments, folded into changelog.md at release by scripts/changelog/assemble.ts, so pull requests stop conflicting on changelog.md.
