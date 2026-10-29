@@ -17,7 +17,7 @@ export function KnowHeader({ crumbs, right, q = "", focusSearch = false }: { cru
   const parts: ReactElement[] = [];
   for (let i = 0; i < crumbs.length; i++) {
     const c = crumbs[i]!, last = i === crumbs.length - 1;
-    if (i > 0) parts.push(<Icon key={`s${i}`} name="chevd" size={10} color="var(--ink-4)" />);
+    if (i > 0) parts.push(<Icon key={`s${i}`} name="chev" size={10} color="var(--ink-4)" />);
     parts.push(last || !c.route ? (
       <View key={`c${i}`} style={h.cur}>{c.icon ? <Icon name={c.icon} size={15} color="var(--ink-3)" /> : null}<Text accessibilityRole="header" aria-level={1} style={h.curText} numberOfLines={1}>{c.t}</Text></View>
     ) : (
