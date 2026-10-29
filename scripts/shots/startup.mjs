@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Startup of the production web export (apps/app: the app entry only, no shots mounts, no samples), measured the way a person feels it: app.start to app.usable.
-//   node scripts/shots/startup.mjs [--skip-export] [--route /home] [--runs 3] [--enforce]
+//   node scripts/shots/startup.mjs [--skip-export] [--route /home] [--runs 7] [--enforce]
 // Prints (1) the bundle size of every JS chunk, raw and gzip, sorted, with the total and what the first screen loads, and (2) startup per size (desktop 1x CPU, phone 4x CPU), cold and warm, median of --runs.
 // Budgets (V1-SPEC): desktop under 1000 ms, phone under 1500 ms at 4x CPU. --enforce exits 1 over budget. Run on the pinned v1-perf runners (ruling 46).
 import fs from "node:fs";
@@ -62,6 +62,14 @@ export function weights(dist) {
   return [...by.entries()].sort((a, b) => b[1] - a[1]).map(([name, bytes]) => ({ name, bytes }));
 }
 
+/** The host's CPU steal so far (Linux /proc/stat, jiffies), so a run on a busy hypervisor says so in its METRIC; null elsewhere. */
+export function cpuSteal() {
+  try {
+    const f = fs.readFileSync("/proc/stat", "utf8").split("\n")[0].trim().split(/\s+/).slice(1).map(Number);
+    return { steal: f[7] ?? 0, total: f.reduce((a, b) => a + b, 0) };
+  } catch { return null; }
+}
+
 export const median = (a) => { const s = a.filter((x) => x !== null).sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
 const kb = (n) => (n / 1024).toFixed(1).padStart(8);
 
@@ -93,32 +101,45 @@ export async function main(argv) {
   const server = await serve(dist, { spa: true });
   const { chromium } = await import("playwright-core");
   const browser = await chromium.launch({ args: ["--no-sandbox"] });
-  const runs = Number(args.runs || 3), rows = [];
+  // seven runs a size: three left the phone median to one or two outliers (1626 to 2210 ms within one job on the dedicated host); same budget, more samples
+  const runs = Number(args.runs || 7), rows = [];
   try {
     for (const [size, vp] of [["desktop", { width: 1280, height: 800 }], ["phone", { width: 390, height: 844 }]]) {
-      const cold = [], warm = [], sizes = [];
+      const cold = [], warm = [], sizes = [], phases = [];
+      const steal0 = cpuSteal();
       for (let i = 0; i < runs; i++) {
         const ctx = await browser.newContext({ viewport: vp });
         const page = await ctx.newPage();
         const cdp = await ctx.newCDPSession(page);
         await cdp.send("Emulation.setCPUThrottlingRate", { rate: CPU[size] });
-        let bytes = 0;
-        page.on("response", async (r) => { try { bytes += (await r.body()).length; } catch { /* a cancelled request has no body */ } });
+        // the bytes come from the page's resource timing after the load, not by fetching every response body over CDP while the measured load is running
         for (const kind of ["cold", "warm"]) {
-          bytes = 0;
           await page.goto(server.origin + (args.route || "/home"), { waitUntil: "load" });
           await page.waitForFunction(() => performance.getEntriesByName("app.usable").length > 0, null, { timeout: 30000 }).catch(() => {});
           const marks = await page.evaluate(() => performance.getEntriesByType("mark").map((m) => ({ name: m.name, startTime: m.startTime })));
           const a = marks.find((m) => m.name === "app.start"), b = marks.find((m) => m.name === "app.usable");
           (kind === "cold" ? cold : warm).push(a && b ? b.startTime - a.startTime : null);
-          if (kind === "cold") { sizes.push(bytes); await page.waitForTimeout(1200); }
+          if (kind === "cold") {
+            // where a cold start goes, from app.start: the scripts arrive, run (DOMContentLoaded waits for the deferred bundles), the first paint, and React until app.usable
+            phases.push(await page.evaluate(() => {
+              const t0 = performance.getEntriesByName("app.start")[0]?.startTime ?? 0;
+              const nav = performance.getEntriesByType("navigation")[0];
+              const scripts = performance.getEntriesByType("resource").filter((r) => r.initiatorType === "script" && r.startTime < (nav?.domContentLoadedEventStart ?? Infinity));
+              const at = (x) => (x === undefined ? null : Math.round(x - t0));
+              return { scripts_in: at(Math.max(0, ...scripts.map((r) => r.responseEnd))), dcl: at(nav?.domContentLoadedEventEnd), load: at(nav?.loadEventEnd), fcp: at(performance.getEntriesByName("first-contentful-paint")[0]?.startTime), usable: at(performance.getEntriesByName("app.usable")[0]?.startTime) };
+            }));
+            sizes.push(await page.evaluate(() => performance.getEntriesByType("resource").reduce((n, r) => n + (r.decodedBodySize || 0), 0) + (performance.getEntriesByType("navigation")[0]?.decodedBodySize || 0)));
+            await page.waitForTimeout(1200);
+          }
         }
         await ctx.close();
       }
+      const steal1 = cpuSteal();
+      const steal_pct = steal0 && steal1 && steal1.total > steal0.total ? +((100 * (steal1.steal - steal0.steal)) / (steal1.total - steal0.total)).toFixed(2) : null;
       for (const [kind, v] of [["cold", cold], ["warm", warm]]) {
         const ms = median(v);
         rows.push({ size, kind, ms, budget: BUDGET_MS[size], cpu: CPU[size] });
-        console.log(`METRIC ${JSON.stringify({ name: "startup_prod", size, kind, cpu_rate: CPU[size], ms, runs: v, budget_ms: BUDGET_MS[size], transferred_bytes: median(sizes) })}`);
+        console.log(`METRIC ${JSON.stringify({ name: "startup_prod", size, kind, cpu_rate: CPU[size], ms, samples: v.length, runs: v, budget_ms: BUDGET_MS[size], transferred_bytes: median(sizes), cpu_steal_pct: steal_pct, ...(kind === "cold" ? { phases_median_ms: Object.fromEntries(["scripts_in", "dcl", "load", "fcp", "usable"].map((k) => [k, median(phases.map((p) => p[k]))])) } : {}) })}`);
       }
     }
   } finally { await browser.close(); server.close(); }

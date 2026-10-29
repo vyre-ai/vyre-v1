@@ -57,15 +57,9 @@ export function totalWidth(cols: readonly Column[]): number {
   return GUTTER + (last ? last.left + last.width : 0);
 }
 
-/** The horizontal scroll moves the drawn columns in steps of this many pixels (the grid rounds scrollLeft down to it). */
-export const COLUMN_STEP = 40;
-
-/**
- * The columns to draw for a horizontal scroll: the primary always, then those that meet the viewport, plus a spacer for the ones skipped on the left. Past the right edge it reaches one
- * scroll step, which is all the rounding needs: a 240 px reach drew two cells a row nobody sees, a quarter of the cells every vertical scroll frame mounts.
- */
+/** The columns to draw for a horizontal scroll: the primary always, then those that meet the viewport, plus a spacer for the ones skipped on the left. */
 export function columnWindow(cols: readonly Column[], scrollLeft: number, viewport: number): { from: number; to: number; pad: number } {
-  const x0 = Math.max(0, scrollLeft - GUTTER), x1 = x0 + viewport + COLUMN_STEP;
+  const x0 = Math.max(0, scrollLeft - GUTTER), x1 = x0 + viewport + 240;
   let from = 1, to = cols.length;
   while (from < cols.length && cols[from]!.left + cols[from]!.width < x0) from++;
   while (to > from && cols[to - 1]!.left > x1) to--;

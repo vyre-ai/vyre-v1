@@ -1,5 +1,5 @@
 // The startup report: chunk sizes, which scripts the entry loads, and the median; and the Metro setting that keeps unused modules from being evaluated at start.
-// @reads /apps/app/metro.config.js
+// @reads /apps/app/metro.config.cjs
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -38,7 +38,7 @@ test("the median ignores runs with no mark", () => {
 });
 
 test("Metro inlines requires, so a module the first screen never touches is not evaluated at start", () => {
-  const cfg = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), "..", "..", "apps", "app", "metro.config.js"), "utf8");
+  const cfg = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), "..", "..", "apps", "app", "metro.config.cjs"), "utf8");
   assert.match(cfg, /inlineRequires:\s*true/);
   assert.match(cfg, /getDefaultConfig\(__dirname\)/, "it extends Expo's own config");
 });

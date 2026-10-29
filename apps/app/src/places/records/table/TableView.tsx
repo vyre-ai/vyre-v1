@@ -18,7 +18,7 @@ import { useRecordsState } from "../sidebar/state.tsx";
 import { Scroller } from "./Scroller.tsx";
 import type { ScrollHandle } from "./Scroller.tsx";
 import {
-  COLUMN_STEP, FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, groupable, hasOptions,
+  FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, groupable, hasOptions,
   FaceLru, faceClassOf, faceRule, flingWindow, hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, scrollBlockTop, setSort, sortable, toSaved, toggleHidden, totalWidth, safeBitmapUrl,
 } from "./model.ts";
 import { allIds, eachId, recordsWord } from "./bulk.ts";
@@ -645,7 +645,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
     const t = scrollBlockTop(pos.top);
     top.current = t;
     bodyTop.current?.(t);
-    const l = Math.floor(pos.left / COLUMN_STEP) * COLUMN_STEP;
+    const l = Math.floor(pos.left / 40) * 40;
     if (l !== left) setLeft(l);
     const f = rowWindow(t, viewH, v.group ? GROUP_LIMIT : total0).first;
     if (queryOffset(f, total0) !== queryOffset(first, total0)) setFirst(f);

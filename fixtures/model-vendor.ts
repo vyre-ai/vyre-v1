@@ -14,13 +14,14 @@ export async function vendor() {
       if (next.status && next.status !== 200) { res.writeHead(next.status, { "content-type": "application/json" }); res.end(JSON.stringify({ error: { message: "vendor says no", type: "invalid_request_error" } })); return; }
       res.writeHead(200, { "content-type": "text/event-stream" });
       const chunk = (o: unknown): void => { res.write(`data: ${JSON.stringify(o)}\n\n`); };
-      if (next.hold) { chunk({ id: "1", choices: [{ index: 0, delta: { role: "assistant", content: "thinking" } }] }); req.on("close", () => res.end()); return; }
+      // held: the stream stays open until the client hangs up (the turn is stopped). It must not end on the REQUEST closing: that event fires as soon as the request body has been read, which would end the "held" answer at once and let the Ask finish before the test can cancel it.
+      if (next.hold) { chunk({ id: "1", choices: [{ index: 0, delta: { role: "assistant", content: "thinking" } }] }); return; }
       chunk({ id: "1", choices: [{ index: 0, delta: { role: "assistant", content: next.text ?? "" } }] });
       chunk({ id: "1", choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 50, completion_tokens: 20, total_tokens: 70 } });
       res.write("data: [DONE]\n\n"); res.end();
     });
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
-  return { script, requests, base: `http://127.0.0.1:${(server.address() as { port: number }).port}`, close: () => server.close() };
+  return { script, requests, base: `http://127.0.0.1:${(server.address() as { port: number }).port}`, close: () => { server.close(); server.closeAllConnections(); } };
 }
 

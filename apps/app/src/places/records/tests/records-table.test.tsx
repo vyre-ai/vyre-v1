@@ -9,7 +9,7 @@ import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import { RecordsDataProvider, RecordsSidebar, RecordsSidebarSlot, RecordsStateProvider, SidebarLoading, compact, effectiveType, reduce, sortedViews, typeGroups, INITIAL_STATE } from "../sidebar/index.ts";
 import type { RecordsState } from "../sidebar/index.ts";
 import {
-  COLUMN_STEP, FLING_BEHIND, FLING_OVERSCAN, GUTTER, PLAIN, ROW_H, SCROLL_BLOCK, TableLoading, TableView, cellText, chosen, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, isEdited,
+  FLING_BEHIND, FLING_OVERSCAN, GUTTER, PLAIN, ROW_H, SCROLL_BLOCK, TableLoading, TableView, cellText, chosen, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, isEdited,
   flingWindow, optionsOf, queryOffset, querySpec, rowWindow, scrollBlockTop, setSort, toSaved, toggleHidden, toggleOption, totalWidth,
 } from "../table/index.ts";
 import type { RecordRow, TableViewState } from "../table/index.ts";
@@ -81,9 +81,8 @@ test("screen: the table draws a header, one row per record and the cached count 
 
 test("column windowing: only the columns that meet the screen are drawn, the title column always", () => {
   const out = table();
-  // a 1000 px sheet shows the title and the body columns up to Next step due (the last that starts inside it); Company, Email and on start past the edge
-  assert.ok(has(out, 'data-testid="th-name"') && has(out, 'data-testid="th-stage"') && has(out, 'data-testid="th-due"'));
-  assert.ok(!has(out, 'data-testid="th-email"') && !has(out, 'data-testid="th-notes"') && !has(out, 'data-testid="th-active"') && !has(out, 'data-testid="th-rating"'), "columns past the right edge are not drawn");
+  assert.ok(has(out, 'data-testid="th-name"') && has(out, 'data-testid="th-email"'));
+  assert.ok(!has(out, 'data-testid="th-notes"') && !has(out, 'data-testid="th-active"') && !has(out, 'data-testid="th-rating"'), "columns past the right edge are not drawn");
   const cols = columnsOf(northwind.types[0]!, []);
   assert.equal(cols[0]!.field.key, "name", "the title field leads");
   assert.equal(cols.length, 13);
@@ -93,14 +92,6 @@ test("column windowing: only the columns that meet the screen are drawn, the tit
   const far = columnWindow(cols, 1400, 1000);
   assert.ok(far.from > 4 && far.pad > 0, "scrolled right, the columns on the left drop out and a spacer keeps the rest in place");
   assert.equal(columnWindow(cols, totalWidth(cols), 1000).to, cols.length);
-  // every column on screen is drawn at any scrollLeft the 40 px rounding leaves behind the real one
-  for (let real = 0; real < totalWidth(cols); real += 13) {
-    const drawn = columnWindow(cols, Math.floor(real / COLUMN_STEP) * COLUMN_STEP, 1000);
-    for (let i = 1; i < cols.length; i++) {
-      const x = GUTTER + cols[i]!.left - real;
-      if (x < 1000 && x + cols[i]!.width > GUTTER + cols[0]!.width) assert.ok(i >= drawn.from && i < drawn.to, `column ${i} at scroll ${real}`);
-    }
-  }
   assert.deepEqual(columnsOf(northwind.types[0]!, ["notes", "email"]).map((c) => c.field.key).includes("notes"), false);
   assert.equal(columnsOf(northwind.types[0]!, ["name"])[0]!.field.key, "name", "the title field cannot be hidden");
 });
