@@ -23,7 +23,7 @@ export function KnowHeader({ crumbs, right, q = "", focusSearch = false }: { cru
     ) : last || !c.route ? (
       <View key={`c${i}`} style={h.cur}>{c.icon ? <Icon name={c.icon} size={15} color="var(--ink-3)" /> : null}<Text accessibilityRole="header" aria-level={1} style={h.curText} numberOfLines={1}>{c.t}</Text></View>
     ) : (
-      <Pressable key={`c${i}`} accessibilityRole="link" accessibilityLabel={c.t} testID={`know-crumb-${i}`} onPress={() => nav.go(c.route!)} style={({ hovered }: { hovered?: boolean }) => [h.crumb, hovered === true && h.over]}><Text style={h.crumbText}>{c.t}</Text></Pressable>
+      <Pressable key={`c${i}`} accessibilityRole="link" accessibilityLabel={c.t} testID={`know-crumb-${i}`} onPress={() => nav.go(c.route!)} style={({ hovered }: { hovered?: boolean }) => [h.crumb, hovered === true && h.over]}><Text style={h.crumbText} numberOfLines={1}>{c.t}</Text></Pressable>
     ));
   }
   return (
@@ -94,10 +94,10 @@ export const frame = { main: { flex: 1, minWidth: 0, backgroundColor: "var(--win
 
 const h = StyleSheet.create({
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 18, paddingRight: 12, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
-  crumbs: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0, flexShrink: 1 },
-  crumb: { height: 26, paddingHorizontal: 6, borderRadius: 6, justifyContent: "center" },
+  crumbs: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0, flexShrink: 1, overflow: "hidden" },
+  crumb: { height: 26, paddingHorizontal: 6, borderRadius: 6, justifyContent: "center", flexShrink: 0 },
   crumbText: { fontSize: 13, color: "var(--ink-2)" as string },
-  cur: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 4, minWidth: 0 },
+  cur: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 4, minWidth: 0, flexShrink: 1 },
   curText: { margin: 0, fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   over: { backgroundColor: "var(--hover)" as string },
   grow: { flex: 1 },
