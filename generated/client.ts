@@ -1026,6 +1026,7 @@ export function createClient(transport: Transport) {
       pair_redeem: call("identity.pair_redeem", 1),
       passkey_register: call("identity.passkey_register", 1),
       passkey_remove: call("identity.passkey_remove", 1),
+      recovery_fetch: call("identity.recovery_fetch", 1),
       recovery_restore: call("identity.recovery_restore", 1),
       recovery_save: call("identity.recovery_save", 1),
       reset_complete: call("identity.reset_complete", 1),

@@ -94,6 +94,11 @@ export default defineManifest({
       ...V, caller: 'anonymous', in: { username: t.str(), recoveryProof: t.str(), newPassword: t.str(), keys: keyBundle, ...deviceIn }, out: signInOut,
       emits: ['password.reset', 'keys.stored', 'signin.succeeded', 'signin.failed'], audit: 'always', offline: 'online', rate: { n: 5, perSeconds: 300, scope: 'principal' }, errors: ['auth.invalid_code'],
     }),
+    write('identity.recovery_fetch','Fetch recovery-only encrypted keys and a short-lived sealed private-key possession challenge',{
+      ...V,caller:'anonymous',in:{username:t.str({maxLength:32})},
+      out:{keys:t.obj({personKeyByRecovery:wrapped,publicKey:t.str(),privateKeyWrapped:wrapped,spaceKeys:t.arr(t.obj({epoch:t.int({minimum:0}),wrapped}))}),challenge:t.obj({eph:t.str(),iv:t.str(),ct:t.str(),tag:t.str()}),context:t.str(),expiresAt:t.ts()},
+      emits:[],audit:'always',offline:'online',rate:{n:5,perSeconds:60,scope:'principal'},errors:['auth.invalid_code'],
+    }),
     // Ruling 23: the pre-auth half of joining by invite. The person does not exist yet, so the caller is anonymous (no principal), rate limited
     // per Space and audited. It lives in this manifest because the invites module list is frozen; members.accept stays for a caller already holding a pending join session.
     write('invites.accept_create_account', 'Join by invite with no account yet: creates the person, sets the password, stores the wrapped keys and joins the Space with the invite\'s role and groups', {

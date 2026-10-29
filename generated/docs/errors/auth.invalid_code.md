@@ -12,6 +12,7 @@ HTTP 401. Retryable: no.
 - identity.claim_owner
 - identity.github_sign_in
 - identity.pair_redeem
+- identity.recovery_fetch
 - identity.recovery_restore
 - identity.reset_complete
 - identity.sign_in

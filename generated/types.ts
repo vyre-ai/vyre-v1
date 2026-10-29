@@ -12377,6 +12377,28 @@ export type IdentityPasskeyRemoveIn = {
 export type IdentityPasskeyRemoveOut = {
   ok: boolean;
 };
+export type IdentityRecoveryFetchIn = {
+  username: string;
+};
+export type IdentityRecoveryFetchOut = {
+  keys: {
+    personKeyByRecovery: string;
+    publicKey: string;
+    privateKeyWrapped: string;
+    spaceKeys: Array<{
+        epoch: number;
+        wrapped: string;
+      }>;
+  };
+  challenge: {
+    eph: string;
+    iv: string;
+    ct: string;
+    tag: string;
+  };
+  context: string;
+  expiresAt: number;
+};
 export type IdentityRecoveryRestoreIn = {
   username: string;
   recoveryProof: string;
@@ -27463,6 +27485,7 @@ export interface CapMap {
   "identity.pair_redeem": { in: IdentityPairRedeemIn; out: IdentityPairRedeemOut };
   "identity.passkey_register": { in: IdentityPasskeyRegisterIn; out: IdentityPasskeyRegisterOut };
   "identity.passkey_remove": { in: IdentityPasskeyRemoveIn; out: IdentityPasskeyRemoveOut };
+  "identity.recovery_fetch": { in: IdentityRecoveryFetchIn; out: IdentityRecoveryFetchOut };
   "identity.recovery_restore": { in: IdentityRecoveryRestoreIn; out: IdentityRecoveryRestoreOut };
   "identity.recovery_save": { in: IdentityRecoverySaveIn; out: IdentityRecoverySaveOut };
   "identity.reset_complete": { in: IdentityResetCompleteIn; out: IdentityResetCompleteOut };

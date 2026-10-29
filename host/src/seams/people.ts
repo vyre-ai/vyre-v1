@@ -14,8 +14,10 @@ import {DEFAULT_SIGN_IN_POLICY,parseSignInPolicy} from "../../../lib/sign-in-pol
 //   spaces.attention    Needs you from tasks (tasks.attention) and unread from chat (chat.attention), asked as the person
 import type { AccessSnapshot } from "../../../kernel/src/authorize/snapshot.ts";
 import type { Keyring } from "./keyring.ts";
+import type {RecoveryCommit} from "../../../packages/contracts/src/identity-recovery.ts";
 
 export interface PeopleDeps {
+  recoveryCommit?:RecoveryCommit;
   access(): AccessSnapshot;
   db: { all(sql: string, ...args: unknown[]): unknown[] };
   /** run a module's host call as that module */
@@ -121,6 +123,7 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
   };
   const extras: Record<string, Record<string, unknown>> = {
     identity: {
+      ...(d.recoveryCommit?{recoveryCommit:d.recoveryCommit}:{}),
       signInPolicy:{current:currentSignInPolicy,methods:signInMethods},spaceOwner,
       directory,
       // a person the access projection does not know as active gets no session, whatever proves who they are; the one exception is the call that creates the person (the account comes first, the principal event commits with the call)

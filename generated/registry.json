@@ -6174,27 +6174,7 @@
           "type": "string"
         },
         "spaceKeys": {
-          "items": {
-            "properties": {
-              "epoch": {
-                "minimum": 0,
-                "type": "integer"
-              },
-              "wrapped": {
-                "description": "Base64 ciphertext; the server cannot open it",
-                "examples": [
-                  "d3JhcHBlZA=="
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "epoch",
-              "wrapped"
-            ],
-            "type": "object"
-          },
-          "type": "array"
+          "$ref": "#/$defs/s_e9725ed975"
         }
       },
       "required": [
@@ -16721,6 +16701,29 @@
         "field"
       ],
       "type": "object"
+    },
+    "s_e9725ed975": {
+      "items": {
+        "properties": {
+          "epoch": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "wrapped": {
+            "description": "Base64 ciphertext; the server cannot open it",
+            "examples": [
+              "d3JhcHBlZA=="
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "epoch",
+          "wrapped"
+        ],
+        "type": "object"
+      },
+      "type": "array"
     },
     "s_ea14ef3e3b": {
       "properties": {
@@ -89688,6 +89691,157 @@
         "mcp": {
           "toolset": "meta"
         }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "caller": "anonymous",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "auth.invalid_code",
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "username": "example"
+          },
+          "name": "example",
+          "output": {
+            "challenge": {
+              "ct": "example",
+              "eph": "example",
+              "iv": "example",
+              "tag": "example"
+            },
+            "context": "example",
+            "expiresAt": 1760000000000,
+            "keys": {
+              "personKeyByRecovery": "d3JhcHBlZA==",
+              "privateKeyWrapped": "d3JhcHBlZA==",
+              "publicKey": "example",
+              "spaceKeys": [
+                {
+                  "epoch": 1,
+                  "wrapped": "d3JhcHBlZA=="
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "username": {
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": [
+          "username"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "identity",
+      "name": "identity.recovery_fetch",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "challenge": {
+            "properties": {
+              "ct": {
+                "type": "string"
+              },
+              "eph": {
+                "type": "string"
+              },
+              "iv": {
+                "type": "string"
+              },
+              "tag": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "eph",
+              "iv",
+              "ct",
+              "tag"
+            ],
+            "type": "object"
+          },
+          "context": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "keys": {
+            "properties": {
+              "personKeyByRecovery": {
+                "description": "Base64 ciphertext; the server cannot open it",
+                "examples": [
+                  "d3JhcHBlZA=="
+                ],
+                "type": "string"
+              },
+              "privateKeyWrapped": {
+                "description": "Base64 ciphertext; the server cannot open it",
+                "examples": [
+                  "d3JhcHBlZA=="
+                ],
+                "type": "string"
+              },
+              "publicKey": {
+                "type": "string"
+              },
+              "spaceKeys": {
+                "$ref": "#/$defs/s_e9725ed975"
+              }
+            },
+            "required": [
+              "personKeyByRecovery",
+              "publicKey",
+              "privateKeyWrapped",
+              "spaceKeys"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "keys",
+          "challenge",
+          "context",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "rate": {
+        "n": 5,
+        "perSeconds": 60,
+        "scope": "principal"
+      },
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Fetch recovery-only encrypted keys and a short-lived sealed private-key possession challenge",
+      "surfaces": {
+        "http": "auto"
       },
       "v": 1
     },

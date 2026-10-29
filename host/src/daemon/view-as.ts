@@ -57,7 +57,7 @@ export function createViewAs(ports: PreviewPorts) {
     if (decisions.some(d => d.effect !== "allow")) return null;
     const hidden = new Set(decisions.flatMap(d => [...(d.scope?.hiddenFields ?? [])]));
     const ceiling = Math.min(...decisions.map(d => d.scope?.labelCeiling ?? -1));
-    const fields = Object.fromEntries(Object.entries(row.data).filter(([field]) => !hidden.has(field) && (labels[field]??0)<=ceiling && snap.fieldLabel(row.type, field) <= ceiling && snap.fieldLabel("record", field) <= ceiling));
+    const fields = Object.fromEntries(Object.entries(row.data).filter(([field]) => !hidden.has(field) && labels[field]!==undefined && labels[field]<=ceiling && snap.fieldLabel(row.type, field) <= ceiling && snap.fieldLabel("record", field) <= ceiling));
     return { id: row.id, type: row.type, version: row.version, label: resource.label, fields, createdAt: row.created_at, updatedAt: row.updated_at, holds: resource.holds };
   }
   return {
@@ -82,13 +82,13 @@ export function createViewAs(ports: PreviewPorts) {
       const input = raw as Record<string, unknown>;
       if (!input || typeof input !== "object" || typeof input["type"] !== "string") throw fail("validation.bad_input", trace);
       const type = input["type"];
-      const labels=await recordSensitivity(ports.store(),type);
+      const labels=await recordSensitivity(ports.store(),type,trace);
       if (cap === "records.get") {
         if (Object.keys(input).some(key => !["type", "recordId"].includes(key)) || typeof input["recordId"] !== "string") throw fail("validation.bad_input", trace);
         const row = await ports.store().get(type, input["recordId"]);
         const record = row && project(entry, row, trace, cap,labels);
         if (!record) return deny(trace);
-        return { finish: async () => { const labels=await recordSensitivity(ports.store(),type);const latest = project(entry, row, trace, cap,labels); if (!latest) return deny(trace); return { record: latest }; } };
+        return { finish: async () => { const labels=await recordSensitivity(ports.store(),type,trace);const latest = project(entry, row, trace, cap,labels); if (!latest) return deny(trace); return { record: latest }; } };
       }
       if (Object.keys(input).some(key => !["type", "limit", "cursor"].includes(key))) throw fail("validation.bad_input", trace, { message: "Preview queries support type, limit and cursor only." });
       const limit = input["limit"] ?? 25;
@@ -117,7 +117,7 @@ export function createViewAs(ports: PreviewPorts) {
         if (entry.cursors.size >= 100) entry.cursors.delete(entry.cursors.keys().next().value!);
         next = random(); entry.cursors.set(next, { type, cursor });
       }
-      return { finish: async () => { const labels=await recordSensitivity(ports.store(),type);live(entry, trace); return { rows: rows.map(row => project(entry, row, trace, cap,labels)).filter(row => row !== null), ...(next ? { next } : {}) }; } };
+      return { finish: async () => { const labels=await recordSensitivity(ports.store(),type,trace);live(entry, trace); return { rows: rows.map(row => project(entry, row, trace, cap,labels)).filter(row => row !== null), ...(next ? { next } : {}) }; } };
     },
   };
 }

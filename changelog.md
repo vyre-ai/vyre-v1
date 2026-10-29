@@ -1,8 +1,17 @@
+# Changelog
+
+- Verify sealed recovery over real daemon HTTP with client-encrypted legacy-format bundles: wrong code/cipher-hash, key substitution, replay, expiry and a post-hash password race fail safely; successful recovery preserves keys, changes password and revokes old sessions. Add actual SQLite rollback/CAS tests, membership/policy/bundle races and bounded challenge cleanup/quota regressions. Align fake initial Space-key epoch with canonical client epoch0.
+
+- Prevent a device session from replacing established account identity or recovery keys through generic key uploads. Preserve existing Space-key epoch wraps, reject duplicates and reserve password/recovery/reset replacement for their proof-verified flows.
+- Refuse partial template-file overwrites, link full folder management to Files, wait for Computer host health before provisioning, and register the grant controller test with the TSX runner used by CI.
 - Apply restricted Records read rate limits before row scans, charge indexed fallbacks once, and preserve only the trusted host’s pre-authorized collection reads. Add all verified integration lifecycle browsers to release evidence.
 - Wire the complete Connector/Connection controllers and typed Webhook object lifecycle into Console navigation. Verify webhook payload conditions, one-time signing-secret rotation, disable/enable, failed test/replay outcomes, reviewed deletion and real Graphite/phone layouts against a production export.
 - Preserve the trusted host’s internal record-read authority for validated shared project links, while retaining scoped projection checks for anonymous actors, tenant services and direct callers.
 - Add an isolated read-only shared Records preview to the Access checker, with memory-only expiring credentials, canceled pending requests, hidden-field redaction, explicit exit and preserved normal Owner session.
-# Changelog
+
+- Replace ciphertext-hash account recovery with a sealed, five-minute one-use nonce proving possession of the existing X25519 private key. Anonymous fetch returns recovery-only wrapped keys and never the password wrap; bounded fake bundles use a private durable Space seed. A narrow host transaction consumes the proven challenge, CASes the account/bundle, replaces the password wrap and revokes old identity/device sessions together. Preserve legacy encrypted recovery bundles, reject old cipher-hash proofs, retain keys and challenges on invalid replacement input, and prevent permanent recovery loss from public wrong attempts.
+
+- Fail closed when a Record type disappears between preparation and output. Ordinary and View-as projections exclude dropped or unknown schema fields instead of treating missing classification as public, while preserving record identity/version metadata. Regressions drop classified fields and types before final output in both paths.
 
 - Add typed Grant condition editing: pick a Record type by name, compose schema-field row predicates, hide named fields, choose a sensitivity ceiling and set validated UTC access windows. Preserve existing complex conditions until explicitly replaced and review changes before saving. Verify real grant creation/readback/reload in light, dark and phone layouts; fix stale success notices after a previous revocation.
 
@@ -29,7 +38,6 @@
 - Complete administrator-issued account resets from sign-in help with explicit private-data-loss acknowledgment, fresh local key generation, a saved recovery code, and verified session entry. Reset codes remain in component memory.
 - Desktop Personal Space creation starts a separate managed local profile, preserves the device daemon, and reuses the real owner claim flow inside the packaged app. Validated local handoff and single-flight startup prevent duplicate creation and remote endpoint injection. A persisted UUID keeps the Space identity across port changes, and authenticated HTTP shutdown now resolves the daemon entry point cleanly.
 - Allow only exact packaged desktop origins to reach capability/sync/local-key APIs across origins, with validated preflight headers and unchanged bearer authentication.
-# Changelog
 
 - Wired connector initialization/export to real Files folders through the original caller’s Files capabilities. Generated sources stay under the caller’s Personal root with validated paths and bounded contents. Missing Files permission refuses initialization before connector/draft persistence; synthetic folder IDs were removed. Added actual HTTP byte-read/privacy and missing-permission regressions.
 
