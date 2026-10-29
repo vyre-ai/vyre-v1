@@ -13,6 +13,7 @@ export const handlers: Record<string, Handler> = table as unknown as Record<stri
 export { setCaptureExtractor, heuristicExtract };
 export type { Candidate, CaptureMessage, Extractor };
 export { ensure } from "./projections.ts";
+export { periodic } from "./hooks.ts";
 
 /**
  * Host calls for the removal wizard (members.owned, host/src/seams/people.ts): what a person owns here and what happens to it (P-L7_21). The host runs them with this module's ctx, so no other module

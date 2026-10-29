@@ -11,7 +11,7 @@ import { buildCatalog, parseDefaultTools } from "../../agent/src/tools/catalog.t
 import type { AgentToolRow, McpToolRow, RegistryCapRow } from "../../agent/src/tools/types.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import type { SystemBlock } from "../../agent/src/drivers/api/types.ts";
-import type { SessionSpec } from "../../agent/src/turn-engine/types.ts";
+import type { SessionSpec, TurnInput } from "../../agent/src/turn-engine/types.ts";
 
 const read = (rel: string): string => readFileSync(new URL(`../../${rel}`, import.meta.url), "utf8");
 
@@ -19,7 +19,7 @@ export interface EngineApiToolsDeps {
   invoke: Invoke;
   space: string;
   /** The agent's role as system prompt blocks. */
-  system(spec: SessionSpec): Promise<SystemBlock[]>;
+  system(spec: SessionSpec, input: TurnInput): Promise<SystemBlock[]>;
 }
 
 let catalog: ReturnType<typeof buildCatalog> | null = null;
@@ -34,5 +34,5 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
   }
   // An Ask pane's scope level is not offered yet (the MCP endpoint answers the same): such a thread gets the narrowest set.
   const session = createToolSession({ invoke: d.invoke, catalog, defaults, levelFor: () => null, canEngineer: () => false });
-  return createApiTools({ session, space: d.space, system: (spec) => d.system(spec) });
+  return createApiTools({ session, space: d.space, system: (spec, input) => d.system(spec, input) });
 }
