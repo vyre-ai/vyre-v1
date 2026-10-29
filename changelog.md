@@ -1,5 +1,7 @@
 # Changelog
 
+
+- Make the agent Computer lifecycle a required release gate: host/tests/computers.live.test.ts now runs on real Docker in every check (job computer-lifecycle, part of the check aggregate) and in the release heavy stage, fails on any skip, and asserts that remove deletes the container.
 - Restore the layer boundaries gate: the daemon hashes the registry through the kernel helper instead of importing node:crypto, and three test-only interop proofs are listed as known exceptions with their reasons.
 - Checkpoint the saved-code recovery client and approved onboarding form: preserve existing identity/Space keys, answer the sealed challenge locally, verify the replacement session and wipe temporary key buffers. Crypto interoperability and orchestration tests pass; full production-browser recovery acceptance remains pending.
 - Verify that the internal identity recovery-noise seed never enters a shared Space archive, including decompressed ZIP contents.
