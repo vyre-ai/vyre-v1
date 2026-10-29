@@ -27,10 +27,10 @@ export function useResourceName(ref:{type:string;id:string}):string{
 /** Resolve only the visible page, through the caller's ordinary authorized read capabilities. */
 export function useObjectNames(refs:{identities:readonly {kind:string;id:string}[];resources:readonly {type:string;id:string}[]}){
  const data=useConsoleData();const[labels,setLabels]=useState<Record<string,string>>({});const key=JSON.stringify(refs);
- useEffect(()=>{let live=true;setLabels({});const current=JSON.parse(key) as typeof refs;const requests=new Map<string,{cap:string;input:unknown;field:string;label:string}>();
+ useEffect(()=>{let live=true;const current=JSON.parse(key) as typeof refs;const requests=new Map<string,{cap:string;input:unknown;field:string;label:string}>();
   for(const ref of current.identities){if(!["person","agent","actor","service","role","group"].includes(ref.kind))continue;const entity=ref.kind==="role"?"roles":ref.kind==="group"?"groups":"principals";requests.set(`i:${ref.kind}:${ref.id}`,{cap:`access.${entity}.get`,input:ref.kind==="role"?{roleId:ref.id}:ref.kind==="group"?{groupId:ref.id}:{principal:ref},field:entity==="roles"?"role":entity==="groups"?"group":"principal",label:"name"});}
   for(const ref of current.resources){const request=resourceNameRequest(ref);if(request)requests.set(`r:${ref.type}:${ref.id}`,request);}
-  void Promise.all([...requests].map(async([id,request])=>{try{const out=object(await data.call(request.cap,request.input));const title=object(out[request.field])[request.label];return typeof title==="string"&&title&&!/^(usr|agt|act|svc|grp|rol|fld|fil|prj)_[a-z0-9]+$/.test(title)?[id,title] as const:null;}catch{return null;}})).then(results=>{if(live)setLabels(Object.fromEntries(results.filter((row):row is readonly[string,string]=>row!==null)));});
+  void Promise.all([...requests].map(async([id,request])=>{try{const out=object(await data.call(request.cap,request.input));const title=object(out[request.field])[request.label];return typeof title==="string"&&title&&!/^(usr|agt|act|svc|grp|rol|fld|fil|prj)_[a-z0-9]+$/.test(title)?[id,title] as const:null;}catch{return null;}})).then(results=>{if(live)setLabels(prev=>({...prev,...Object.fromEntries(results.filter((row):row is readonly[string,string]=>row!==null))}));});
   return()=>{live=false;};
  },[data.call,data.me.id,data.space.id,key]);
  const known=(id:string,kind:string)=>id===data.me.id?data.me.name:data.name(id)!==id?data.name(id):typeName(kind);
