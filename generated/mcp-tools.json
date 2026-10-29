@@ -4311,6 +4311,62 @@
     },
     {
       "blocks": [],
+      "cap": "automations.connector_share",
+      "deferred": false,
+      "description": "Offer tested connector actions to another Space as a draft. The reply is the app name and the action names. A key is not stored.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "actions": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "appName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "appName",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "name": "automations_connector_share",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.connector_shares",
+      "deferred": false,
+      "description": "List connector actions another Space can start from. A key is not included.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "automations_connector_shares",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.create",
       "deferred": false,
       "description": "Create an Automation; it starts Personal",

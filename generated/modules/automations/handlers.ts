@@ -11,6 +11,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.connector_offer.accept": Handler<"automations.connector_offer.accept", X>;
   "automations.connector_offer.decline": Handler<"automations.connector_offer.decline", X>;
   "automations.connector_offers": Handler<"automations.connector_offers", X>;
+  "automations.connector_share": Handler<"automations.connector_share", X>;
+  "automations.connector_shares": Handler<"automations.connector_shares", X>;
   "automations.create": Handler<"automations.create", X>;
   "automations.delete": Handler<"automations.delete", X>;
   "automations.draft_connector": Handler<"automations.draft_connector", X>;

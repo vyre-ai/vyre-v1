@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (46)
+## Capabilities (48)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
@@ -12,6 +12,8 @@ Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, recor
 - [automations.connector_offer.accept](../capabilities/automations.connector_offer.accept.md): Accept a connector setup offer. Accepting is final for that Vault item.
 - [automations.connector_offer.decline](../capabilities/automations.connector_offer.decline.md): Decline a connector setup offer. Declining is final for that Vault item.
 - [automations.connector_offers](../capabilities/automations.connector_offers.md): Open connector setup offers. Each one names an app. A Vault value is not included.
+- [automations.connector_share](../capabilities/automations.connector_share.md): Offer tested connector actions to another Space as a draft. The reply is the app name and the action names. A key is not stored.
+- [automations.connector_shares](../capabilities/automations.connector_shares.md): List connector actions another Space can start from. A key is not included.
 - [automations.create](../capabilities/automations.create.md): Create an Automation; it starts Personal
 - [automations.delete](../capabilities/automations.delete.md): Move an Automation to Trash
 - [automations.draft_connector](../capabilities/automations.draft_connector.md): Draft actions from an OpenAPI document already in memory, or from the official OpenAPI directory for a named app. A docs URL the person supplies is stored and is not fetched. Nothing is promoted.

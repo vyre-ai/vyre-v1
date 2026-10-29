@@ -167,6 +167,8 @@ export function stubs(ctx: CallCtx) {
         decline: call("automations.connector_offer.decline"),
       },
       connector_offers: call("automations.connector_offers"),
+      connector_share: call("automations.connector_share"),
+      connector_shares: call("automations.connector_shares"),
       create: call("automations.create"),
       delete: call("automations.delete"),
       draft_connector: call("automations.draft_connector"),

@@ -560,6 +560,18 @@
     },
     {
       "deferred": false,
+      "name": "automations_connector_share",
+      "summary": "Offer tested connector actions to another Space as a draft. The reply is the app name and the action names. A key is not stored.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_connector_shares",
+      "summary": "List connector actions another Space can start from. A key is not included.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_create",
       "summary": "Create an Automation; it starts Personal",
       "toolset": "automations"

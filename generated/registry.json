@@ -5052,6 +5052,32 @@
       ],
       "type": "object"
     },
+    "s_39296e156c": {
+      "items": {
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "draft",
+              "tested"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "level"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
     "s_39a2155802": {
       "items": {
         "$ref": "#/$defs/s_6c1eb10d98"
@@ -18376,6 +18402,21 @@
       },
       "type": "array"
     },
+    "s_ff464e0cd1": {
+      "properties": {
+        "actions": {
+          "$ref": "#/$defs/s_39296e156c"
+        },
+        "appName": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "appName",
+        "actions"
+      ],
+      "type": "object"
+    },
     "s_ff7445c64f": {
       "properties": {
         "until": {
@@ -30130,6 +30171,163 @@
     },
     {
       "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "actions": [
+              {
+                "key": "example",
+                "title": "example"
+              }
+            ],
+            "appName": "example"
+          },
+          "name": "example",
+          "output": {
+            "actions": [
+              {
+                "key": "example",
+                "level": "draft",
+                "title": "example"
+              }
+            ],
+            "appName": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "actions": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "appName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "appName",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "automations",
+      "name": "automations.connector_share",
+      "output": {
+        "$ref": "#/$defs/s_ff464e0cd1"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Offer tested connector actions to another Space as a draft. The reply is the app name and the action names. A key is not stored.",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "connectors": [
+              {
+                "actions": [
+                  {
+                    "key": "example",
+                    "level": "draft",
+                    "title": "example"
+                  }
+                ],
+                "appName": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.connector_shares",
+      "output": {
+        "properties": {
+          "connectors": {
+            "items": {
+              "$ref": "#/$defs/s_ff464e0cd1"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "connectors"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "List connector actions another Space can start from. A key is not included.",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
       "emits": [
         "automation.created"
       ],
@@ -32810,30 +33008,7 @@
       "output": {
         "properties": {
           "actions": {
-            "items": {
-              "properties": {
-                "key": {
-                  "type": "string"
-                },
-                "level": {
-                  "enum": [
-                    "draft",
-                    "tested"
-                  ],
-                  "type": "string"
-                },
-                "title": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "key",
-                "title",
-                "level"
-              ],
-              "type": "object"
-            },
-            "type": "array"
+            "$ref": "#/$defs/s_39296e156c"
           },
           "ok": {
             "type": "boolean"

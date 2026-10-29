@@ -1978,6 +1978,32 @@ export type AutomationsConnectorOffersOut = {
       text: string;
     }>;
 };
+export type AutomationsConnectorShareIn = {
+  appName: string;
+  actions: Array<{
+      key: string;
+      title: string;
+    }>;
+};
+export type AutomationsConnectorShareOut = {
+  appName: string;
+  actions: Array<{
+      key: string;
+      title: string;
+      level: "draft" | "tested";
+    }>;
+};
+export type AutomationsConnectorSharesIn = Record<string, unknown>;
+export type AutomationsConnectorSharesOut = {
+  connectors: Array<{
+      appName: string;
+      actions: Array<{
+          key: string;
+          title: string;
+          level: "draft" | "tested";
+        }>;
+    }>;
+};
 export type AutomationsCreateIn = {
   name: string;
   description?: string;
@@ -27296,6 +27322,8 @@ export interface CapMap {
   "automations.connector_offer.accept": { in: AutomationsConnectorOfferAcceptIn; out: AutomationsConnectorOfferAcceptOut };
   "automations.connector_offer.decline": { in: AutomationsConnectorOfferDeclineIn; out: AutomationsConnectorOfferDeclineOut };
   "automations.connector_offers": { in: AutomationsConnectorOffersIn; out: AutomationsConnectorOffersOut };
+  "automations.connector_share": { in: AutomationsConnectorShareIn; out: AutomationsConnectorShareOut };
+  "automations.connector_shares": { in: AutomationsConnectorSharesIn; out: AutomationsConnectorSharesOut };
   "automations.create": { in: AutomationsCreateIn; out: AutomationsCreateOut };
   "automations.delete": { in: AutomationsDeleteIn; out: AutomationsDeleteOut };
   "automations.draft_connector": { in: AutomationsDraftConnectorIn; out: AutomationsDraftConnectorOut };

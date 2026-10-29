@@ -356,6 +356,18 @@ export default defineManifest({
       tool: 'automations',
       agent: { planMode: 'blocked' },
     }),
+    write('automations.connector_share', 'Offer tested connector actions to another Space as a draft. The reply is the app name and the action names. A key is not stored.', {
+      in: { appName: t.str(), actions: t.arr(t.obj({ key: t.str(), title: t.str() })) },
+      out: { appName: t.str(), actions: t.arr(t.obj({ key: t.str(), title: t.str(), level: t.enm('draft', 'tested') })) },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    read('automations.connector_shares', 'List connector actions another Space can start from. A key is not included.', {
+      in: {},
+      out: { connectors: t.arr(t.obj({ appName: t.str(), actions: t.arr(t.obj({ key: t.str(), title: t.str(), level: t.enm('draft', 'tested') })) })) },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
   ],
   triggers: [
     trigger('record_change', 'A record changes', { events: ['record.created', 'record.updated', 'record.deleted'], filter: recordFilter },

@@ -2056,6 +2056,42 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/automations/connector_share",
+    "cap": "automations.connector_share",
+    "v": 1,
+    "module": "automations",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/connector_shares",
+    "cap": "automations.connector_shares",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/automations/create",
     "cap": "automations.create",
     "v": 1,
