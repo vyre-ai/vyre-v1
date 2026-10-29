@@ -264,8 +264,12 @@ export function createLiveHub(o: LiveOptions): LiveHub {
     listen: (port = 0) => new Promise((resolve) => server.listen(port, "127.0.0.1", () => resolve((server.address() as { port: number }).port))),
     publish(space, events) {
       o.sync?.commit();
+      // A sync session is sent filtered row batches by its hub, never raw events. Rows are not everything a screen shows (chat messages, notifications, tasks and counts live in module tables), so the
+      // session also gets a bare `changed` tick: no payload, only the newest event number. The client answers by re-reading what is on screen through the normal, authorized calls.
+      const last = events[events.length - 1];
       for (const c of conns.values()) {
-        if (c.session.space !== space || c.link) continue;
+        if (c.session.space !== space) continue;
+        if (c.link) { if (last) send(c, { t: "changed", seq: last.seq }); continue; }
         for (const e of events) { c.pending.push(e); send(c, eventFrame(e)); }
       }
     },

@@ -1,6 +1,8 @@
 # Changelog
 
 
+- Keep every screen refreshing with sync live: the sync module's socket no longer gets raw event frames, and chat, notifications, tasks and counts live in module tables rather than synced rows, so the host now sends a sync session a bare `changed` tick (event number only, no payload) after each commit and the app re-reads what is on screen when it arrives. Proved in a real browser: with sync live a created record and a posted chat message each reach the open screen inside the poll interval. The release browser evidence list now requires sync.hub.live and the new browser test.
+
 - Prove a committed change reaches an open Records screen through the live socket: the production export in a real browser, a hello_ok live from the sync hub on the page's own socket, and a row created on the Space appearing in the open table inside the poll interval with an ev frame carrying it. Added to the release browser evidence command.
 
 - Test that a classification purge also resyncs a second device of the same person (the purge is the person's, stated in the code), and that a device reconnecting after a drop with its cursor gets exactly the rows it missed, none lost and none twice.

@@ -202,3 +202,19 @@ test("a device that drops and reconnects with its cursor is sent exactly what it
     assert.deepEqual(back.items().map(name).sort(), ["Charlie", "Delta", "Echo"], "and one live row, once");
   } finally { for (const s of open) s.close(); await w.d.stop(); }
 });
+
+test("a sync session is told that something changed when the event is not a synced row, with no payload, so screens built on module tables still refresh", async () => {
+  const w = await world();
+  const open: Array<{ close(): void }> = [];
+  try {
+    const guest = await socket(w.d, w.guest, "guest-tick"); open.push(guest);
+    await guest.until("hello_ok", () => guest.hello() !== undefined);
+    const made = await w.post("agents.create", { name: "Tick agent", role: "Watches", idempotencyKey: "hub-tick-agent" }, w.owner);
+    assert.equal(made.status, 200, JSON.stringify(made.data));
+    await guest.until("a changed tick", () => guest.frames.some((f) => f["t"] === "changed"));
+    const tick = guest.frames.find((f) => f["t"] === "changed")!;
+    assert.deepEqual(Object.keys(tick).sort(), ["seq", "t"], "the tick carries only the event number");
+    assert.ok(!guest.text().includes("Tick agent"), "and nothing of the event itself");
+    assert.ok(!guest.frames.some((f) => f["t"] === "ev"), "no raw event frame reaches a sync session");
+  } finally { for (const s of open) s.close(); await w.d.stop(); }
+});

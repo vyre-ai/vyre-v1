@@ -1,4 +1,4 @@
-// A change committed on the Space reaches an open Records screen through the sync module's live socket, not through polling: the production export, a freshly claimed Space, a real browser.
+// With the sync module's hub serving the socket, a change committed on the Space reaches an open Records screen through the sync module's live socket, not through polling: the production export, a freshly claimed Space, a real browser.
 // The session polls only while its link is not live (session.ts), so a table that updates inside the poll interval, with an `ev` frame carrying the new row on the page's own socket, was pushed.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -9,7 +9,7 @@ import { bootFreshSpace, edge, claimOnEdge } from "./real-app-harness.test.ts";
 
 const POLL_MS = 5000;
 
-test("a row committed on the Space shows on the open Records screen through the live socket, inside the poll interval", async (t) => {
+test("with sync live, a committed record and a chat message each reach the open screen through the live socket, inside the poll interval", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("production artifact required"); t.skip("VYRE_APP_DIST required"); return; }
   const { chromium } = await import("playwright-core");
@@ -43,5 +43,20 @@ test("a row committed on the Space shows on the open Records screen through the 
     await page.getByText(name).first().waitFor({ timeout: POLL_MS - 1000 });
     assert.ok(Date.now() - started < POLL_MS, "it appeared before any poll could have run");
     assert.ok(received.some((f) => f.includes('"ev"') && f.includes(name)), "and an ev frame on the page's own socket carried the row");
+
+    // a chat message is not a synced row (chat keeps its own tables): it reaches the open conversation through the server's `changed` tick, with the link live and nothing polling
+    const agent = (await api("agents.create", { name: "Live agent", role: "Replies", idempotencyKey: "live-update-agent" })) as { agent: { agentId: string } };
+    const thread = (await api("chat.start", { kind: "chat", agentIds: [agent.agent.agentId], title: "Live chat", idempotencyKey: "live-update-thread" })) as { thread: { threadId: string } };
+    await page.goto(web.origin + "/chat?skin=paper");
+    await page.getByTestId("chats-place").waitFor({ timeout: 20000 });
+    await page.getByText("Live chat", { exact: true }).first().click();
+    await page.getByTestId("composer-field").waitFor({ timeout: 15000 });
+    const before = received.length;
+    const reply = `Pushed reply ${Date.now()}`;
+    const sent = Date.now();
+    await api("chat.post", { threadId: thread.thread.threadId, body: reply, idempotencyKey: "live-update-reply" });
+    await page.getByText(reply).first().waitFor({ timeout: POLL_MS - 1000 });
+    assert.ok(Date.now() - sent < POLL_MS, "the message showed before any poll could have run");
+    assert.ok(received.slice(before).some((f) => f.includes('"changed"')), "the page's socket was told that something changed");
   } finally { await browser.close(); web.close(); await space.stop(); fs.rmSync(space.dir, { recursive: true, force: true }); }
 });
