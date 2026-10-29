@@ -23,7 +23,7 @@ export interface OnError {
   output?: unknown;
 }
 export interface Node {
-  id: string; key: string; title?: string; input: Record<string, unknown>; next?: string[]; branches?: Branch[]; onError?: OnError; ai?: AiBlock;
+  id: string; key: string; title?: string; input: Record<string, unknown>; next?: string[]; branches?: Branch[]; onError?: OnError; ai?: AiBlock; askBeforeSending?: boolean;
 }
 export interface TriggerRef { key: string; config?: Record<string, unknown>; filter?: unknown }
 export interface Definition { triggers: TriggerRef[]; nodes: Node[]; start?: string[]; allowSelfTrigger?: boolean }

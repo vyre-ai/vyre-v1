@@ -2128,6 +2128,7 @@ export type AutomationsCreateIn = {
             id: string;
           };
         };
+        askBeforeSending?: boolean;
       }>;
     start?: Array<string>;
     allowSelfTrigger?: boolean;
@@ -2194,6 +2195,7 @@ export type AutomationsCreateOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -2429,6 +2431,7 @@ export type AutomationsGetOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -2592,6 +2595,7 @@ export type AutomationsMakePersonalCopyOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -2715,6 +2719,7 @@ export type AutomationsMoveOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -2851,6 +2856,7 @@ export type AutomationsPackagesImportOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -2996,6 +3002,7 @@ export type AutomationsPromoteOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -3112,6 +3119,7 @@ export type AutomationsRestoreVersionOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -3244,6 +3252,7 @@ export type AutomationsSetEnabledOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -3377,6 +3386,7 @@ export type AutomationsTemplatesUseOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -3501,6 +3511,7 @@ export type AutomationsUndeleteOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -3583,6 +3594,7 @@ export type AutomationsUpdateIn = {
             id: string;
           };
         };
+        askBeforeSending?: boolean;
       }>;
     start?: Array<string>;
     allowSelfTrigger?: boolean;
@@ -3647,6 +3659,7 @@ export type AutomationsUpdateOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -3726,6 +3739,7 @@ export type AutomationsValidateIn = {
             id: string;
           };
         };
+        askBeforeSending?: boolean;
       }>;
     start?: Array<string>;
     allowSelfTrigger?: boolean;
@@ -10815,9 +10829,11 @@ export type GateEffectiveRuleIn = {
     id: string;
   };
   act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  adminOnly?: boolean;
 };
 export type GateEffectiveRuleOut = {
   hold: boolean;
+  adminRule: boolean;
   reason: string;
   approvers: string;
   peopleOnly: boolean;

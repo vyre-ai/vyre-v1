@@ -102,3 +102,12 @@ test("every template is built from catalogue steps and makes a Personal Draft", 
   assert.deepEqual(made.automation.definition.nodes.map((n: { key: string }) => n.key), ["approval", "if", "send_email", "stop"]);
   await assert.rejects(h.call("automations.templates.use", { templateKey: "nope" }, alice), (e) => codeOf(e) === "validation.not_found");
 });
+
+test("Ask before sending is accepted on a sending step and refused on one that does not send", async () => {
+  const h = harness();
+  const send = node("mail", "send_email", { mailboxId: "mbx_main1", to: ["a@b.c"], subject: "Hi", body: "Hi" }, { askBeforeSending: true });
+  const ok = await h.call("automations.validate", { definition: { triggers: [{ key: "manual" }], nodes: [send] } }, alice);
+  assert.deepEqual(ok.issues.filter((i: { message: string }) => /Ask before sending/.test(i.message)), []);
+  const bad = await h.call("automations.validate", { definition: { triggers: [{ key: "manual" }], nodes: [{ ...note, askBeforeSending: false }] } }, alice);
+  assert.ok(bad.issues.some((i: { message: string; nodeId?: string }) => /Ask before sending applies only/.test(i.message) && i.nodeId === "note"));
+});

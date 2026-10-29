@@ -71,7 +71,7 @@ export function createGateHook(d: GateHookDeps): GateHook {
       const act = cap.gate?.act;
       if (!act || act === "none") return null;
       if (!(await appliesWhen(d, cap.gate?.when, input, seed))) return null;
-      const r = (await d.call("gate.effective_rule", { principal: { kind: seed.principal.kind, id: seed.principal.id }, act })) as { hold?: unknown } | null;
+      const r = (await d.call("gate.effective_rule", { principal: { kind: seed.principal.kind, id: seed.principal.id }, act, ...(seed.gateMode === "admin_only" ? { adminOnly: true } : {}) })) as { hold?: unknown } | null;
       return r?.hold === true ? { act } : null;
     },
     async park(a) {

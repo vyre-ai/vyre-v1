@@ -116,7 +116,7 @@ test("the effective rule: agents wait, a person's own send does not, human-too a
   const h = harness();
   const rule = (principal: unknown, act: string, who = { id: alice.id }) => h.call("gate.effective_rule", { principal, act }, who);
   const a = await rule(bot, "send");
-  assert.deepEqual(a, { hold: true, reason: "Acts of this kind wait for approval.", approvers: "asker", peopleOnly: true, afterHours: 24, onTimeout: "escalate", sources: { space: "hold" } });
+  assert.deepEqual(a, { hold: true, adminRule: false, reason: "Acts of this kind wait for approval.", approvers: "asker", peopleOnly: true, afterHours: 24, onTimeout: "escalate", sources: { space: "hold" } });
   const p = await rule(alice, "send");
   assert.equal(p.hold, false, "ordinary human sends skip the Gate");
   assert.match(p.reason, /own act/);
@@ -331,4 +331,16 @@ test("a hold whose Approve task is still being made is not listed or readable: n
   const done = await parking;
   const after = (await h.call("gate.holds.list", { states: ["held"] }, svc)).holds as { id: string; taskId: string }[];
   assert.deepEqual(after.map((x) => [x.id, x.taskId]), [[done.holdId, "tsk_slow1"]], "once the task exists the hold is listed with it");
+});
+
+test("adminOnly: the default rule does not hold a service's send, a rule somebody wrote does", async () => {
+  const h = harness();
+  const svc = { kind: "service", id: "svc_job" };
+  const ask = (adminOnly: boolean) => h.call("gate.effective_rule", { principal: svc, act: "send", adminOnly }, { id: alice.id });
+  assert.equal((await ask(false)).hold, true);
+  const off = await ask(true);
+  assert.deepEqual([off.hold, off.adminRule], [false, false]);
+  await h.call("gate.rules.set", { act: "send", scope: "space", mode: "hold" }, { id: alice.id });
+  const on = await ask(true);
+  assert.deepEqual([on.hold, on.adminRule], [true, true]);
 });

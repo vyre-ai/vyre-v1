@@ -31,6 +31,7 @@ const node = t.obj({
     output: t.opt(anyJson),
   })),
   ai: t.opt(aiBlock),
+  askBeforeSending: t.opt(t.bool()),
 });
 const definition = t.obj({
   triggers: t.arr(triggerRef, { minItems: 1 }), nodes: t.arr(node), start: t.opt(t.arr(t.str())), allowSelfTrigger: t.opt(t.bool()),

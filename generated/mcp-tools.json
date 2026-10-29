@@ -4569,6 +4569,9 @@
                       },
                       "type": "object"
                     },
+                    "askBeforeSending": {
+                      "type": "boolean"
+                    },
                     "branches": {
                       "items": {
                         "properties": {
@@ -6083,6 +6086,9 @@
                       },
                       "type": "object"
                     },
+                    "askBeforeSending": {
+                      "type": "boolean"
+                    },
                     "branches": {
                       "items": {
                         "properties": {
@@ -6375,6 +6381,9 @@
                         }
                       },
                       "type": "object"
+                    },
+                    "askBeforeSending": {
+                      "type": "boolean"
                     },
                     "branches": {
                       "items": {
@@ -19789,6 +19798,9 @@
               "spend_raise"
             ],
             "type": "string"
+          },
+          "adminOnly": {
+            "type": "boolean"
           },
           "principal": {
             "properties": {
