@@ -12,6 +12,8 @@ export type { IdemRecord } from "./table.ts";
 export interface IdemBackend {
   get(key: string): Promise<IdemRecord | null> | IdemRecord | null;
   put(key: string, principal: string, cap: string, rec: IdemRecord): Promise<unknown> | unknown;
+  /** Replace a stored hold with the finished result. Optional: a backend without it keeps the hold. */
+  settle?(key: string, principal: string, cap: string, rec: IdemRecord): Promise<unknown> | unknown;
 }
 
 export function createIdempotency(backend: IdemBackend) {
@@ -39,6 +41,13 @@ export function createIdempotency(backend: IdemBackend) {
       })();
       inflight.set(k, { hash, p });
       try { return await p; } finally { inflight.delete(k); }
+    },
+    async settle(principal: string, cap: string, key: string | undefined | null, input: unknown, result: unknown): Promise<void> {
+      if (!backend.settle || key === undefined || key === null) return;
+      if (typeof key !== "string" || !key || key.length > 200) throw new LogError("bad_key", "an idempotency key is a short text");
+      const k = `${principal}|${cap}|${key}`;
+      const hash = sha256Hex(canonical(input ?? null));
+      await backend.settle(k, principal, cap, { hash, result: result === undefined ? null : result });
     },
   });
 }

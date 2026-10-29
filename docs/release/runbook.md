@@ -37,6 +37,8 @@ A tag whose name contains `dryrun` is a practice run: everything below runs exce
 7. `smoke`: a fresh runner fetches the published channel from the feed address, verifies the signature with the compiled-in key, downloads the server tarball, checks its sha256 against the signed manifest, and looks inside it for the files the installer needs and the version (`cli.ts smoke`). A failure is a release that cannot be installed.
 8. `deploy` (still a placeholder) and `budget-tag`.
 
+The desktop app updates itself from the same release (`scripts/release/updater.ts`). The desktop build leaves a BLAKE2b-512 digest line beside each update bundle (`Vyre.app.tar.gz` from the Mac leg, `VyreSetup.exe` from the Windows leg); only those lines travel through `desktop-release-files` and `sign`. In `sign`, `cli.ts updater dist <version> <channel> <tag> <pub>` signs each digest as a minisign signature with the same release key (so no second secret exists) and writes `desktop-<channel>.json`, Tauri's update feed, next to `<bundle>.sig`. `publish` checks the bundles against the signed digests (`cli.ts updater-check`) and attaches them. A release candidate build reads `desktop-beta.json` from `channel-beta`; a release reads `desktop-stable.json` from the newest release. `tauri.conf.json` pins the minisign form of `RELEASE_PUBLIC_KEY_HEX`; when the release key rotates, `scripts/release/updater.test.ts` fails until the config is regenerated (`minisignPublicKeyBase64`).
+
 ## If it goes wrong
 
 - A red check on a flake: rerun the failed jobs; do not retag. If the run must be redone at the same commit, delete and recreate the tag at the same sha.

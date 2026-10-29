@@ -212,6 +212,10 @@ test("the trigger and step palettes come from the catalogue", async () => {
   assert.ok(all.length > sheets.length);
   assert.ok(sheets.every((s: { category: string }) => s.category === "sheet"));
   assert.equal(all.find((s: { key: string }) => s.key === "send_email").effects, "outward");
+  assert.equal(all.find((s: { key: string }) => s.key === "ai"), undefined);
+  assert.equal(all.find((s: { key: string }) => s.key === "code"), undefined);
+  assert.ok(all.find((s: { key: string }) => s.key === "parallel"));
+  assert.ok(all.find((s: { key: string }) => s.key === "loop"));
 });
 
 // ---- Groups ----
