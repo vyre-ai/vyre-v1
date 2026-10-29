@@ -2,7 +2,8 @@
 // Trash, and an act that left the Space is listed as one that cannot be undone and is never run.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { OUTWARD, stepsOf } from "../handlers/undo.ts";
+import { OUTWARD, mustBeAsker, stepsOf } from "../handlers/undo.ts";
+import { codeOf } from "../fixtures/harness.ts";
 
 const ev = (type: string, payload: Record<string, unknown>, at = 1) => ({ type, at, payload });
 const run = async (events: ReturnType<typeof ev>[]) => {
@@ -49,4 +50,27 @@ test("an act that left the Space is listed once as one that cannot be undone, an
 
 test("a turn that changed nothing has nothing to undo", () => {
   assert.deepEqual(stepsOf([ev("memory.fact_proposed", {}), ev("chat.read", {})]), []);
+});
+
+test("something changed after the turn is left alone and says so; the rest still goes back", async () => {
+  const events = [
+    ev("record.updated", { recordId: "rec_1", type: "contact", fields: { phone: "2" }, prev: { phone: "1" } }),
+    ev("record.updated", { recordId: "rec_2", type: "contact", fields: { phone: "9" }, prev: { phone: "8" } }, 2),
+    ev("file.version_added", { fileId: "fil_e", versionId: "ver_2", n: 2 }, 3),
+  ];
+  const calls: string[] = [];
+  const steps = stepsOf(events, new Set(["record:rec_1", "file:fil_e"]));
+  for (const s of steps) if (s.change.undoable) await s.run({ call: async (cap: string) => { calls.push(cap); return {}; } } as never);
+  assert.deepEqual(steps.map((s) => s.change), [
+    { label: "Changed phone on a contact (changed since, left alone)", undoable: false },
+    { label: "Changed phone on a contact", undoable: true },
+    { label: "Edited a file (changed since, left alone)", undoable: false },
+  ]);
+  assert.deepEqual(calls, ["records.update"], "only the untouched record is put back");
+});
+
+test("only the person whose turn it was can undo it", () => {
+  const ctx = (id: string) => ({ trace: { traceId: "t" }, principal: { kind: "person" as const, id } });
+  assert.doesNotThrow(() => mustBeAsker(ctx("usr_maya"), "usr_maya", "trn_1"));
+  assert.throws(() => mustBeAsker(ctx("usr_ian"), "usr_maya", "trn_1"), (e) => codeOf(e) === "permission.no_grant");
 });
