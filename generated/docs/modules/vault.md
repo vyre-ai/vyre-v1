@@ -4,10 +4,13 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access.
 
-## Capabilities (43)
+## Capabilities (46)
 
 - [providers.add](../capabilities/providers.add.md): Connect a provider with a pasted API key (stored once, used by handle) or a local model address
 - [providers.catalog](../capabilities/providers.catalog.md): The provider gallery from the definition files: name, logo, connection kinds, model list source, engine
+- [providers.custom_add](../capabilities/providers.custom_add.md): Register an OpenAI-compatible endpoint (a gateway, vLLM, LiteLLM, a hosted model) by base address and connect it with my key, held in the Vault by handle
+- [providers.custom_list](../capabilities/providers.custom_list.md): The custom OpenAI-compatible endpoints this Space registered
+- [providers.custom_remove](../capabilities/providers.custom_remove.md): Remove a custom endpoint I registered, and my connections to it
 - [providers.list](../capabilities/providers.list.md): My connected AI providers: logo, how connected, Mine or Shared, agents using it, this month's usage
 - [providers.remove](../capabilities/providers.remove.md): Remove a provider and its key or sign-in
 - [providers.set_space_use](../capabilities/providers.set_space_use.md): Let the Space run work on my subscription, or stop it (stopping ends my sandbox)

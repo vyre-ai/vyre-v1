@@ -12,6 +12,7 @@ import { makeError } from "./errors.ts";
 import { sourceOf } from "../daemon/preauth.ts";
 
 export const MAX_WEBHOOK_BYTES = 1024 * 1024;
+const AUTOMATION_PATH = /^\/hooks\/automation\/(aut_[a-z0-9]+)\/([A-Za-z0-9_-]{8,200})$/;
 const PATH = /^\/hooks\/([a-z][a-z0-9_-]*)(?:\/([a-z]+))?$/;
 const TRACE = "0".repeat(32);
 
@@ -24,6 +25,9 @@ export interface WebhookAccept {
   kind?: string;
 }
 
+/** Most posts to one automation in a minute. A real sender is far under it; a flood stops here before it starts runs. */
+export const AUTOMATION_HOOKS_PER_MINUTE = 60;
+
 export interface WebhookBudget { perMinute: number; failuresPerMinute: number }
 /** 600 a minute covers a busy Space's Twilio status callbacks from a handful of provider addresses; 20 failures a minute is more than any provider retry policy produces. */
 export const DEFAULT_WEBHOOK_BUDGET: WebhookBudget = { perMinute: 600, failuresPerMinute: 20 };
@@ -35,6 +39,8 @@ export interface WebhookRouteDeps {
   has(connector: string): boolean;
   /** Runs the connector's host call; throws what the module throws. */
   accept(connector: string, a: WebhookAccept): Promise<unknown>;
+  /** An automation's own webhook: null for every refusal (unknown, off, wrong secret), else it accepted the payload. */
+  automation?(a: { automationId: string; secret: string; payload: unknown; idempotencyKey?: string }): Promise<unknown>;
   /** The address this Space is reached at, https://host, no trailing slash. */
   publicBase(): string | Promise<string>;
 }
@@ -99,6 +105,7 @@ export function createWebhookRoute(deps: WebhookRouteDeps): { handle(req: http.I
   const budget = deps.budget ?? DEFAULT_WEBHOOK_BUDGET;
   const all = createWindow(deps.now ?? Date.now);
   const failed = createWindow(deps.now ?? Date.now);
+  const perAutomation = createWindow(deps.now ?? Date.now);
   const tooMany = (res: http.ServerResponse): void => {
     res.setHeader("retry-after", "60");
     refuse(res, 429, "rate_limit.exceeded", "Too many requests from this address. Try again in a minute.");
@@ -127,9 +134,34 @@ export function createWebhookRoute(deps: WebhookRouteDeps): { handle(req: http.I
     }
   }
 
+  /** POST /hooks/automation/<id>/<secret>. Every refusal that could tell a guesser something is the same bare 404. */
+  async function serveAutomation(req: http.IncomingMessage, res: http.ServerResponse, automationId: string, secret: string): Promise<void> {
+    const source = sourceOf({ "x-vyre-remote": req.socket.remoteAddress ?? "", ...(typeof req.headers["x-forwarded-for"] === "string" ? { "x-forwarded-for": req.headers["x-forwarded-for"] } : {}) });
+    if (all.count(source) >= budget.perMinute || failed.count(source) >= budget.failuresPerMinute) return tooMany(res);
+    if (perAutomation.count(automationId) >= AUTOMATION_HOOKS_PER_MINUTE) return tooMany(res);
+    all.add(source);
+    perAutomation.add(automationId);
+    const body = await readRaw(req);
+    if (body === null) return refuse(res, 413, "validation.too_large", "That request is too large.");
+    let payload: unknown = body === "" ? null : body;
+    if (body !== "") { try { payload = JSON.parse(body); } catch { payload = { text: body }; } }
+    const key = req.headers["idempotency-key"];
+    const idempotencyKey = typeof key === "string" && key.trim() !== "" ? key.trim() : undefined;
+    let out: unknown = null;
+    try { out = await deps.automation!({ automationId, secret, payload, ...(idempotencyKey ? { idempotencyKey } : {}) }); } catch { return refuse(res, 500, "internal.unexpected", "Something went wrong on our side."); }
+    if (out === null || out === undefined) { failed.add(source); return send(res, 404, "", "text/plain; charset=utf-8"); }
+    send(res, 200, JSON.stringify({ accepted: true }));
+  }
+
   return {
     handle(req, res) {
       const url = new URL(req.url ?? "/", "http://vyred");
+      const hook = AUTOMATION_PATH.exec(url.pathname);
+      if (hook && deps.automation) {
+        if ((req.method ?? "GET").toUpperCase() !== "POST") { res.setHeader("allow", "POST"); refuse(res, 405, "validation.bad_input", "Webhooks are posted."); return true; }
+        void serveAutomation(req, res, hook[1] as string, hook[2] as string).catch(() => { if (!res.headersSent) refuse(res, 500, "internal.unexpected", "Something went wrong on our side."); else res.end(); });
+        return true;
+      }
       const m = PATH.exec(url.pathname);
       if (!m || !deps.has(m[1] as string)) return false;
       if ((req.method ?? "GET").toUpperCase() !== "POST") { res.setHeader("allow", "POST"); refuse(res, 405, "validation.bad_input", "Webhooks are posted."); return true; }

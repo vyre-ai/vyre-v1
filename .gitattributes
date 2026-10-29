@@ -4,3 +4,5 @@
 # removed from these files, and why docs/frozen/snapshots holds one file per manifest.
 generated/** merge=ours
 docs/frozen/snapshots/** merge=ours
+# the updater fixture is checked byte for byte (a signature over its bytes); no line-ending rewrite on Windows
+apps/desktop/src-tauri/fixtures/updater/* -text

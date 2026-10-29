@@ -14,8 +14,10 @@ fn profile(app:&AppHandle)->Result<PathBuf,String>{app.path().app_data_dir().map
 pub fn profile_exists(app:&AppHandle)->bool{profile(app).map(|p|p.join("events.db").is_file()).unwrap_or(false)}
 
 /// Stable non-secret Space identity, created before the daemon; never replace an existing profile.
-pub(crate) fn profile_space_id(data:&Path)->Result<String,String>{
- let marker=data.join("personal-profile.json");
+pub(crate) fn profile_space_id(data:&Path)->Result<String,String>{profile_space_id_in(data,"personal-profile.json")}
+/// The same identity rule for another managed profile (the Mac server keeps its own marker file in its own folder).
+pub(crate) fn profile_space_id_in(data:&Path,marker_name:&str)->Result<String,String>{
+ let marker=data.join(marker_name);
  let read=||->Result<String,String>{let value:serde_json::Value=serde_json::from_str(&std::fs::read_to_string(&marker).map_err(|_|"Couldn’t read Personal Space identity")?).map_err(|_|"Invalid Personal Space identity")?;value.get("spaceId").and_then(|s|s.as_str()).filter(|s|s.starts_with("spc_")&&s.len()<200&&s.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'_')).map(str::to_string).ok_or("Invalid Personal Space identity".into())};
  if marker.exists(){return read();}
  let existing=std::fs::read_to_string(data.join("vyred.json")).ok().and_then(|s|serde_json::from_str::<serde_json::Value>(&s).ok()).and_then(|v|v.get("space").and_then(|s|s.as_str()).map(str::to_string));
@@ -44,7 +46,7 @@ pub fn ensure(app:&AppHandle,shared:&Shared)->Result<PersonalSpace,String>{
  let data=profile(app)?;
  ensure_using(shared,&data,||sidecar::start(app,shared,0),sidecar::healthy,Duration::from_secs(25))
 }
-fn ensure_using(shared:&Shared,data:&Path,start:impl Fn(),healthy:impl Fn(&str)->bool,timeout:Duration)->Result<PersonalSpace,String>{
+pub(crate) fn ensure_using(shared:&Shared,data:&Path,start:impl Fn(),healthy:impl Fn(&str)->bool,timeout:Duration)->Result<PersonalSpace,String>{
  let _flight=shared.ensure.lock().map_err(|_|"Personal Space startup is unavailable")?;
  let initial=sidecar::current(shared);
  if initial.phase==Phase::Ready {if let Some(ref address)=initial.url {if healthy(address){return handoff(data,address);}}}

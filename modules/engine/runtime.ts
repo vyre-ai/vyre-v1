@@ -33,6 +33,8 @@ export interface EngineHostSeam {
   /** The host's invoke pipeline, for tools on API-key chats: each tool call is one capability invoke as the agent acting for the asker. Absent: an API chat answers in words only. */
   invoke?: Invoke;
   space?: string;
+  /** True when the person is on their own computer (a local model on this machine is then reachable). */
+  own?: (person: string) => boolean;
   /** CLI engines: swap a program for a command (a fake CLI in a test), and extra read-only folders the sandbox must expose for it. Default: the real CLI, nothing extra. */
   cli?: { command?: Readonly<Record<string, readonly string[]>>; programRead?: readonly string[] };
   /** The Space data directory. With it and no `sandbox`, the module builds the default sandbox for this platform on the first CLI turn (sandbox-default.ts). */
@@ -48,7 +50,7 @@ export interface EngineHostSeam {
   extend?: (engine: TurnEngine) => void;
 }
 
-interface AccountRow { ref: string; driver: string; kind: "api_key" | "subscription" }
+interface AccountRow { ref: string; driver: string; kind: "api_key" | "subscription"; base?: string; keyless?: boolean }
 interface ResolveOut { accountRef: string | null; payer: string | null; reason: ResolvedAccount["reason"]; allowed: boolean; itemId?: string }
 
 /** The provider a driver belongs to, for the session spec; the CLI engines run their vendor's models. */
@@ -79,7 +81,7 @@ async function accountFor(h: EngineHostSeam, q: AccountQuery): Promise<ResolvedA
   const list = (await h.call("engine.accounts.list", {}, res.payer)) as { accounts: AccountRow[] };
   const row = list.accounts.find((a) => a.ref === res.accountRef);
   if (!row) { h.log?.("the account the turn resolved is not in the payer's list", { threadId: q.threadId, accountRef: res.accountRef, payer: res.payer }); return null; }   // the key vanished between the two calls: treat as none, the next turn asks again
-  return { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(res.itemId ? { itemId: res.itemId } : {}) };
+  return { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(res.itemId ? { itemId: res.itemId } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}) };
 }
 
 async function unblock(h: EngineHostSeam, db: Db, info: { threadId: string; turnId: string; agentId: string; asker: string }): Promise<void> {
@@ -111,7 +113,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   if (!host || (!host.openSession && !host.session)) return Promise.resolve(null);   // no way to open a session: the control handlers keep answering internal.unavailable
   const h = host;
   const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, system: roleBlocks(h.call) }) : undefined;
-  const opener = host.openSession ? null : buildOpener({ ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, host.cli?.programRead) } : {}) });
+  const opener = host.openSession ? null : buildOpener({ ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, host.cli?.programRead) } : {}) });
   const openSession = host.openSession ?? (opener as NonNullable<typeof opener>).openSession;
   closeOpener = opener ? () => opener.close() : null;
   building ??= (async () => {

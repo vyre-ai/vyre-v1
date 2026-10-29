@@ -11,12 +11,12 @@ interface ProviderRow {
   engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing";
 }
 
-export const DRIVERS = ["anthropic", "openai", "openrouter", "google", "xai", "opencode_go", "local", "claude_code", "codex", "grok"] as const;
+export const DRIVERS = ["anthropic", "openai", "openrouter", "google", "xai", "opencode_go", "local", "custom", "claude_code", "codex", "grok"] as const;
 type Driver = (typeof DRIVERS)[number];
 const DRIVER_SET: ReadonlySet<string> = new Set(DRIVERS);
 const CLI: ReadonlySet<string> = new Set(["claude_code", "codex", "grok"]);
 const DRIVER_TITLE: Readonly<Record<Driver, string>> = {
-  anthropic: "Anthropic", openai: "OpenAI", openrouter: "OpenRouter", google: "Google", xai: "xAI", opencode_go: "OpenCode Go", local: "A local model",
+  anthropic: "Anthropic", openai: "OpenAI", openrouter: "OpenRouter", google: "Google", xai: "xAI", opencode_go: "OpenCode Go", local: "A local model", custom: "A custom endpoint",
   claude_code: "Claude Code", codex: "Codex", grok: "Grok",
 };
 const LABEL_WORDS: ReadonlySet<string> = new Set(["public", "internal", "confidential", "restricted"]);
