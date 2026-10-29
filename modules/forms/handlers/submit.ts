@@ -25,7 +25,7 @@ export function formPrincipal(formId: string): string {
   return `svc_form_${formId.replace(/^frm_/, "")}`;
 }
 
-type Answer = string | number | boolean | null | string[] | { fileId: string } | { __relate: string };
+type Answer = string | number | boolean | null | string[] | { fileId: string } | { __relate: string[] };
 
 function cleanAnswer(ctx: Ctx, key: string, v: unknown): Answer {
   const bad = (): never => fail(ctx, "validation.bad_input", "That answer is not valid.", { field: `answers.${key}` });
@@ -164,12 +164,20 @@ export async function typedAnswers(ctx: Ctx, form: Row, answers: Record<string, 
     if((field.type==='files'||field.type==='file')&&(!value||typeof value!=='object'||Array.isArray(value)||!('fileId' in value)))bad('Choose a file uploaded through this form.');
     if(field.type==='relation'||field.type==='person'){
       // only a choice the publisher published for this question: an opaque key, looked up here and checked again as the publisher who set it
-      const source=formsConfig().choiceSource,choice=typeof value==='string'?choiceByKey(ctx,str(form.id),key,value):null;
+      const source=formsConfig().choiceSource;
       if(!source)bad('This question requires publisher-approved record choices. Ask the form owner for help.');
-      if(!choice)bad('Choose one of the listed options.');
-      const info=await source!.describe(choice!.setBy,field,choice!.refId);
-      if(!info.ok)bad('That choice is no longer available.');
-      out[key]=field.type==='person'?choice!.refId:{[RELATE]:choice!.refId};
+      // a person is one pick; a relation may take several, each a published key, never more than the published list
+      const keys=field.type==='person'?(typeof value==='string'?[value]:[]):typeof value==='string'?[value]:Array.isArray(value)?[...new Set(value)]:[];
+      if(keys.length===0||keys.length>200)bad('Choose one of the listed options.');
+      const ids:string[]=[];
+      for(const k of keys){
+        const choice=choiceByKey(ctx,str(form.id),key,k);
+        if(!choice)bad('Choose one of the listed options.');
+        const info=await source!.describe(choice!.setBy,field,choice!.refId);
+        if(!info.ok)bad('That choice is no longer available.');
+        ids.push(choice!.refId);
+      }
+      out[key]=field.type==='person'?ids[0]!:{[RELATE]:ids};
       continue;
     }
     if(['number','integer','currency','percent','rating'].includes(field.type)){
@@ -303,13 +311,13 @@ async function digestOf(form: Row, link: Row | null, answers: Record<string, Ans
 
 /** A relation answer on its way to the write: the record to link, applied with records.relate after the record exists (it keeps both ends of a relation right, whatever the field's shape). */
 const RELATE = "__relate" as const;
-const relationPick = (v: unknown): string | null => (isRec(v) && typeof v[RELATE] === "string" ? (v[RELATE] as string) : null);
+const relationPick = (v: unknown): string[] | null => (isRec(v) && Array.isArray(v[RELATE]) ? (v[RELATE] as string[]) : null);
 /** A survey keeps what the visitor answered: a relation pick is stored as the label they saw, not the record id behind it, so results read naturally and carry no id. */
 function surveyAnswers(ctx: Ctx, formId: string, answers: Record<string, Answer>): Record<string, Answer> {
   const out: Record<string, Answer> = {};
   for (const [k, v] of Object.entries(answers)) {
-    const id = relationPick(v);
-    out[k] = id === null ? v : choicesOf(ctx, formId, k).find((c) => c.refId === id)?.label ?? "";
+    const ids = relationPick(v);
+    out[k] = ids === null ? v : ids.map((id) => choicesOf(ctx, formId, k).find((c) => c.refId === id)?.label ?? "");
   }
   return out;
 }
@@ -331,16 +339,16 @@ const unwrapId = (v: unknown): string => {
  */
 export async function writeAnswers(ctx: Ctx, form: Row, picked: Record<string, Answer>, link: Row | null, key: string): Promise<WriteResult> {
   const type = str(form.record_type);
-  const answers: Record<string, Answer> = {}, relations: [string, string][] = [];
-  for (const [k, v] of Object.entries(picked)) { const id = relationPick(v); if (id) relations.push([k, id]); else answers[k] = v; }
+  const answers: Record<string, Answer> = {}, relations: [string, string[]][] = [];
+  for (const [k, v] of Object.entries(picked)) { const ids = relationPick(v); if (ids) relations.push([k, ids]); else answers[k] = v; }
   // the link goes in with the create, so a required relation is satisfied; relate then fills the other end of a two-way relation
   const schema = relations.length > 0 ? await formsConfig().schemaFields?.(type) : undefined;
-  for (const [field, toId] of relations) {
+  for (const [field, toIds] of relations) {
     const target = schema?.find((f) => f.key === field)?.options?.["target"];
-    if (typeof target === "string") (answers as Record<string, unknown>)[field] = [{ urn: `vyre://${ctx.space}/${target}/${toId}` }];
+    if (typeof target === "string") (answers as Record<string, unknown>)[field] = toIds.map((toId) => ({ urn: `vyre://${ctx.space}/${target}/${toId}` }));
   }
   const written = await writeFields(ctx, form, type, answers, link, key);
-  for (const [field, toId] of relations) await ctx.call("records.relate", { type, recordId: written.recordId, field, toId });
+  for (const [field, toIds] of relations) for (const toId of toIds) await ctx.call("records.relate", { type, recordId: written.recordId, field, toId });
   return written;
 }
 

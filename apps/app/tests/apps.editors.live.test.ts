@@ -50,7 +50,7 @@ test("production Apps: create a form and campaign, reload their real editors, in
     await page.getByLabel('Preview answer',{exact:true}).fill('show');
     await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="email"]').waitFor();
     // the preview offers a relation question only what the publisher has published (nothing yet), never the record list behind it
-    assert.deepEqual(await page.frameLocator('iframe[title="Form preview"]').locator('select[data-field="company"] option').allTextContents(), ['Choose a record']);
+    assert.equal(await page.frameLocator('iframe[title="Form preview"]').locator('[data-field="company"] input').count(), 0);
     assert.ok(await page.frameLocator('iframe[title="Form preview"]').locator('select[data-field="deliverability"] option').count()>1);
     await page.getByLabel('Preview answer',{exact:true}).fill('hide');
     await page.frameLocator('iframe[title="Form preview"]').locator('input[data-field="email"]').waitFor({state:'detached'});
