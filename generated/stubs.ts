@@ -116,6 +116,7 @@ export function stubs(ctx: CallCtx) {
       routines: {
         list: call("agents.routines.list"),
       },
+      set_owner: call("agents.set_owner"),
       snapshot: {
         take: call("agents.snapshot.take"),
       },
@@ -1686,6 +1687,7 @@ export function stubs(ctx: CallCtx) {
         record: call("search.recent.record"),
       },
       related: call("search.related"),
+      resolve: call("search.resolve"),
     },
     sessions: {
       continue: call("sessions.continue"),

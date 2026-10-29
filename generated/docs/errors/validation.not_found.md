@@ -20,6 +20,7 @@ HTTP 404. Retryable: no.
 - agents.routine.delete
 - agents.routine.run_now
 - agents.routines.list
+- agents.set_owner
 - agents.snapshot.take
 - agents.status
 - agents.summary
@@ -30,4 +31,3 @@ HTTP 404. Retryable: no.
 - automations.delete
 - automations.fire
 - automations.followers.add
-- automations.followers.remove

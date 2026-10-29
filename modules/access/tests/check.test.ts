@@ -7,6 +7,7 @@ import { loadWorld } from "../fixtures/world.ts";
 import { actorsCreate, actorsEngineer, actorsRedeem, actorsRevoke, check, toReq } from "../handlers/check.ts";
 import { principalsEffective, putPrincipal, rolesAssign } from "../handlers/roles.ts";
 import { dropStore, storeOf } from "../projections.ts";
+import { hostCalls } from "../consumers.ts";
 
 const CASES = 200;
 const TEN_MINUTES = 10 * 60 * 1000;
@@ -92,6 +93,9 @@ test("an outside actor token works once, then expiry and revoke stick", async ()
   assert.equal(redeemed.actorId, made.actor.id);
   assert.ok(redeemed.credential.length > 10);
   await assert.rejects(() => actorsRedeem(h.ctx, { token: made.oneTimeToken }), (e: unknown) => codeOf(e) === "auth.invalid_code");
+  assert.ok(h.events.some((e) => e.name === "access.changed"), "redeeming tells the snapshot the actor is active");
+  assert.deepEqual(await hostCalls["access.actor_by_credential"](h.ctx as never, { credential: redeemed.credential }), { actorId: made.actor.id }, "the credential names its actor");
+  assert.equal(await hostCalls["access.actor_by_credential"](h.ctx as never, { credential: "not-a-credential" }), null);
   const on = await actorsEngineer(h.ctx, { actorId: made.actor.id, enabled: true });
   assert.equal(on.actor.engineerMcp, true);
   assert.equal(on.actor.status, "active");
@@ -100,6 +104,7 @@ test("an outside actor token works once, then expiry and revoke stick", async ()
   assert.ok(eff.permissions.includes("records.edit"));
   await actorsRevoke(h.ctx, { actorId: made.actor.id });
   assert.equal(store.actors.get(made.actor.id)?.status, "revoked");
+  assert.equal(await hostCalls["access.actor_by_credential"](h.ctx as never, { credential: redeemed.credential }), null, "a revoked credential names no one");
   const names = h.events.map((e) => e.name);
   assert.ok(names.includes("principal.created"));
   assert.ok(names.includes("token.revoked"));
@@ -151,4 +156,32 @@ test('grant label ceiling survives persisted projection and reaches the kernel s
  const restored=storeOf(h.ctx);
  const d=authorize(restored.snapshot(),{principal:'p_ceiling',action:{perm:'records.read',level:'view'},resource:{type:'record',id:'rec_ceiling'},now:NOW});
  assert.equal(d.effect,'deny');
+});
+
+test("a suspended actor cannot redeem its token, and stays suspended", async () => {
+  const h = harness(NOW);
+  const store = storeOf(h.ctx);
+  putPrincipal(store, { id: "usr_admin", kind: "person", name: "Admin" });
+  const made = await actorsCreate(h.ctx, { name: "Suspended tool", provider: "openai", roleIds: ["rol_member"], idempotencyKey: "actor-susp" });
+  const principal = store.principals.get(made.actor.id)!;
+  principal.status = "suspended";
+  await assert.rejects(() => actorsRedeem(h.ctx, { token: made.oneTimeToken }), (e: unknown) => codeOf(e) === "auth.invalid_code");
+  assert.equal(store.principals.get(made.actor.id)!.status, "suspended", "the refusal changes nothing");
+  assert.equal(store.actors.get(made.actor.id)!.status, "pending");
+  assert.equal(store.actors.get(made.actor.id)!.credHash, undefined, "no credential was issued");
+  principal.status = "invited";
+  assert.ok((await actorsRedeem(h.ctx, { token: made.oneTimeToken })).credential, "the same token works once the principal is live again");
+});
+
+test("a failed persist does not announce an active actor", async () => {
+  const h = harness(NOW);
+  const store = storeOf(h.ctx);
+  putPrincipal(store, { id: "usr_admin", kind: "person", name: "Admin" });
+  const made = await actorsCreate(h.ctx, { name: "Unlucky tool", provider: "openai", idempotencyKey: "actor-persist" });
+  const before = h.events.length;
+  const real = store.persist.bind(store);
+  store.persist = () => { throw new Error("disk full"); };
+  await assert.rejects(() => actorsRedeem(h.ctx, { token: made.oneTimeToken }), /disk full/);
+  store.persist = real;
+  assert.equal(h.events.slice(before).filter((e) => e.name === "access.changed").length, 0, "nothing was broadcast");
 });

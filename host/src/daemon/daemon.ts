@@ -622,6 +622,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           if (h && mod === "identity") return ((ctx, input) => h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown, opts?: unknown) => (name === "devices.register" ? system(name, callInput, ctx.trace) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
           // accepting an invite: the person proved the code, and the invite's role, groups and starting places were the inviter's to give. Those join effects run as the host, not as the signed-out caller.
           if (h && cap === "members.accept") return ((ctx, input) => h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown) => system(name, callInput, ctx.trace) } as typeof ctx, input)) as Handler;
+          // handing an agent to another person: ownership of the agent and its folder moves with the host's authority (ruling 88). The call itself was authorized (manage on the agent, and the Gate for a non-person);
+          // only this one call from this one capability is widened, and it is the host-only access.transfer_ownership
+          if (h && cap === "agents.set_owner") return ((ctx, input) => h({ ...ctx, call: (name: string, callInput: unknown, opts?: unknown) => (name === "access.transfer_ownership" ? hookRunner.call(name, callInput) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
           if (h && peopleExtras?.(mod, {})) return ((ctx, input) => h({ ...ctx, ...peopleExtras!(mod, ctx) } as typeof ctx, input)) as Handler;
           if (!h || !cap.startsWith("devices.")) return h;
           const wrapped: Handler = (ctx, input) => h({ ...ctx, call: (name, callInput, opts) => (name === "sync.epoch.bump" ? system(name, callInput, ctx.trace) : ctx.call(name, callInput, opts)) } as typeof ctx, input);
@@ -1004,7 +1007,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const session: GatewayDeps["session"] = o.session ?? ((headers) => {
         const token = bearer(headers["authorization"]);
         if (token?.startsWith("vas_")) { const preview = previews?.resolve(token); return preview ? { space: preview.space, principal: { kind: "person", id: preview.requester }, actingFor: preview.target, device: preview.device, sessionId: preview.sessionId, previewToken: token } : null; }
-        return identify(token);
+        const known = identify(token);
+        if (known || !token) return known;
+        // an outside tool's long-lived credential (issued by access.actors.redeem): the active actor holding it, only while the access snapshot still has that actor active
+        return (async (): Promise<(SessionInfo & { device: string }) | null> => {
+          const found = (await hookRunner.call("access.actor_by_credential", { credential: token }).catch(() => null)) as { actorId: string } | null;
+          if (!found || access.snap.principal(found.actorId)?.status !== "active") return null;
+          return { space: spaceId, principal: { kind: "actor", id: found.actorId }, device: "outside-actor" };
+        })();
       });
       ownerOfSpace = () => access.owner() ?? cfg.owner ?? null;
       callerOf = async (h) => {

@@ -108,6 +108,7 @@ Example: `send`.
 | signature_send | Send a document for signature | high | no | file |
 | site_promote | Promote a site to production | high | yes | deploy |
 | spend_raise | Raise a spend cap | medium | no | table |
+| transfer | Hand over ownership | high | no | record_card |
 
 ## Task kinds
 
