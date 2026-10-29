@@ -26,7 +26,7 @@ function fakeBundle(ctx:IdentityCtx,username:string):KeyBundle{
  const seed=noiseSeed(ctx);
  const bytes=(purpose:string,length:number):Buffer=>{const blocks:Buffer[]=[];for(let block=0;block<Math.ceil(length/32);block++)blocks.push(hkdf32(seed,ctx.space,`vyre/recovery-noise/v1|${username}|${purpose}|${block}`));return Buffer.concat(blocks).subarray(0,length);};
  const wrap=(purpose:string,length:number)=>{const value=bytes(purpose,length);value[0]=1;return value.toString("base64");};
- return{personKeyByPassword:wrap("password",77),personKeyByRecovery:wrap("recovery",77),publicKey:Buffer.from(x25519Public(bytes("private",32).toString("base64url")),"base64url").toString("base64"),privateKeyWrapped:wrap("wrapped-private",93),spaceKeys:[{epoch:1,wrapped:wrap("space",109)}]};
+ return{personKeyByPassword:wrap("password",77),personKeyByRecovery:wrap("recovery",77),publicKey:Buffer.from(x25519Public(bytes("private",32).toString("base64url")),"base64url").toString("base64"),privateKeyWrapped:wrap("wrapped-private",93),spaceKeys:[{epoch:0,wrapped:wrap("space",109)}]};
 }
 function quota(ctx:IdentityCtx,person:string):void{
  ctx.db.run("DELETE FROM identity_codes WHERE kind = ? AND used_at IS NOT NULL","recovery");
@@ -68,15 +68,16 @@ export async function recoveryRestore(ctx:IdentityCtx,input:Device&{username:str
  const proven=challenge(ctx,account,keys,input.recoveryProof);
  if(typeof input.newPassword!=="string"||input.newPassword.length<MIN_SECRET||!validBundle(input.keys))raise(ctx.trace.traceId,"validation.bad_input","Choose a valid new password and wrapped key bundle.");
  if(!sameIdentity(keys,input.keys))raise(ctx.trace.traceId,"validation.precondition_failed","Recovery must preserve this account’s existing identity, recovery wrap and Space keys.");
+ const passwordWrap=input.keys.personKeyByPassword,proof=input.recoveryProof,device={deviceName:input.deviceName,deviceClass:input.deviceClass};
  membership(ctx,account.person_id);assertSignInPolicy(ctx,account,"recovery");
  if(!ctx.recoveryCommit)raise(ctx.trace.traceId,"internal.unavailable","This host cannot complete account recovery.");
  const verifier=await makeVerifier(input.newPassword),current=accountByName(ctx,username),currentKeys=current?bundleOf(current):undefined;
  if(!current||!currentKeys||current.person_id!==account.person_id||current.keys_json!==account.keys_json||!sameMac(current.verifier,account.verifier)||current.epoch!==account.epoch||current.totp_secret!==account.totp_secret)raise(ctx.trace.traceId,"auth.invalid_code");
- challenge(ctx,current,currentKeys,input.recoveryProof);membership(ctx,current.person_id);assertSignInPolicy(ctx,current,"recovery");
- const next={...currentKeys,personKeyByPassword:input.keys.personKeyByPassword};
+ challenge(ctx,current,currentKeys,proof);membership(ctx,current.person_id);assertSignInPolicy(ctx,current,"recovery");
+ const next={...currentKeys,personKeyByPassword:passwordWrap};
  const committed=ctx.recoveryCommit({personId:current.person_id,username:current.username,oldVerifier:current.verifier,oldKeysJson:current.keys_json!,oldEpoch:current.epoch,oldTotpSecret:current.totp_secret,nonceHash:proven.hash,purpose:proven.purpose,verifier,keysJson:JSON.stringify(next),epoch:current.epoch});
  if(!committed)raise(ctx.trace.traceId,"auth.invalid_code");
  finishRecoverySessions(ctx,current.person_id,committed.sessions);
  ctx.emit("keys.stored",current.person_id,{personId:current.person_id,reason:"recovery"});ctx.emit("password.reset",current.person_id,{personId:current.person_id,by:current.person_id,recovered:true});
- return await issueSession(ctx,{...current,verifier,keys_json:JSON.stringify(next),recovery_hash:null,fails:0,locked_until:0},input,"recovery");
+ return await issueSession(ctx,{...current,verifier,keys_json:JSON.stringify(next),recovery_hash:null,fails:0,locked_until:0},device,"recovery");
 }
