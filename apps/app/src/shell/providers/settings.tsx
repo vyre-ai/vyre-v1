@@ -1,6 +1,6 @@
 // The Settings place in the shell (spec 3.9): ten pages over the Space's data. The open Space is the one Space the runtime knows; leaving Settings (Vault, Console, Connections) goes
 // out through the shell's door. Before the runtime exists the place draws its loading frame.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { desktopSessionImporter } from "../../../../../client/src/session-import/desktop.ts";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
@@ -10,11 +10,14 @@ import { SecuritySheet } from "../../places/settings/SecuritySheet.tsx";
 import type { SettingsNav } from "../../places/settings/data.tsx";
 import { SettingsPlace } from "../../places/settings/SettingsPlace.tsx";
 import { nameOf } from "./misc-common.ts";
+import { chooseProfilePhoto } from "./settings-photo.ts";
+import { loadSecurity } from "./settings-security.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
-export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["manageSecurity"]): SettingsData {
+export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["manageSecurity"], security?: SettingsData["security"]): SettingsData {
   return {
+    ...(security ? { security } : {}),
     screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name }, space: { id: rt.space.id, name: rt.space.name },
     spaces: rt.knownSpaces?.map(space=>({id:space.spaceId,name:space.name,addr:space.address,kind:space.kind,role:space.role,needsYou:space.needsYou?1:0,current:space.spaceId===rt.space.id}))??[{ id: rt.space.id, name: rt.space.name, addr: "", kind: rt.space.kind, role: "", needsYou: 0, current: true }],
     name: nameOf(rt),
@@ -29,7 +32,7 @@ export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["man
       openConsole: () => rt.open({ screen: "console.overview" }),
       openSpace: (id) => rt.open({ screen: "spaces.switcher", args: { id } }),
       connect: (kind) => rt.open({ screen: "mail.connections", args: { kind } }),
-      choosePhoto: () => Promise.resolve(null),
+      choosePhoto: () => chooseProfilePhoto(rt),
       ...(manageSecurity ? { manageSecurity } : {}),
     },
     clock: () => rt.clock(),
@@ -39,7 +42,15 @@ export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["man
 export default function SettingsShellPlace(_props: { place: string }): ReactElement {
   const rt = useOptionalShellRuntime();
   const [security, setSecurity] = useState<Parameters<NonNullable<SettingsNav["manageSecurity"]>>[0] | null>(null);
-  const data = useMemo(() => (rt ? settingsData(rt, (kind) => setSecurity(kind)) : null), [rt]);
+  // the sign-in this person has in the open Space: password, GitHub, authenticator app, passkeys, the second-factor floor, single sign-on and devices
+  const [signIn, setSignIn] = useState<SettingsData["security"] | undefined>(undefined);
+  useEffect(() => {
+    if (!rt) return undefined;
+    let live = true;
+    void loadSecurity(rt.call, rt.space, rt.clock().now).then((x) => { if (live) setSignIn(x); }, () => undefined);
+    return () => { live = false; };
+  }, [rt, security]);
+  const data = useMemo(() => (rt ? settingsData(rt, (kind) => setSecurity(kind), signIn) : null), [rt, signIn]);
   if (!data) return <View style={s.page} testID="settings-loading" />;
   return <SettingsDataProvider value={data}><SettingsPlace />{security ? <SecuritySheet key={security} action={security} call={rt!.call} onClose={() => setSecurity(null)} /> : null}</SettingsDataProvider>;
 }

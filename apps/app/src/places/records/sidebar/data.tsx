@@ -26,6 +26,8 @@ export interface RecordsData {
   /** One capability call as the signed-in person; rejects with the capability's error. */
   call(cap: string, input: unknown): Promise<unknown>;
   connection: Connection;
+  /** The screen the body shows instead of the views, when it is one of the two this place lists under Manage (records.types or records.schema-map): the sidebar marks its row. */
+  screen?: string;
   /** The name of a person, agent or group by id, for the person fields. */
   nameOf(id: string): string;
   nav: RecordsNav;

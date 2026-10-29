@@ -1,7 +1,7 @@
 // One handler per identity capability (26 including invites.accept_create_account). Passkeys answer internal.not_implemented until 1.1.0; SSO answers validation.unsupported until a Space has an SSO config.
 import {
   githubLink, githubSignIn, githubUnlink, pairCreate, pairRedeem, passkeyRegister, passkeyRemove, signIn, signInOptions, signOut, ssoSignIn, totpBegin, totpConfirm,
-  totpRemove, usernameAvailable, verifySecondFactor, whoami,
+  totpRemove, usernameAvailable, verifySecondFactor, whoami, securityGet,
 } from "./signin.ts";
 import { claimOwner } from "./claim.ts";
 import { acceptCreateAccount, changePassword, keysGet, keysPut, recoveryFetch, recoveryRestore, recoverySave, resetComplete, resetPreview, resetStart } from "./keys.ts";
@@ -25,6 +25,7 @@ export const handlers = {
   "identity.reset_complete": resetComplete,
   "identity.reset_preview": resetPreview,
   "identity.reset_start": resetStart,
+  "identity.security.get": securityGet,
   "identity.sign_in": signIn,
   "identity.sign_in_options": signInOptions,
   "identity.sign_out": signOut,

@@ -68,6 +68,9 @@ export default defineManifest({
     read('identity.whoami', 'Who the caller is here: person, roles, clearance, device, epoch', {
       ...V, out: { principal: principalRef, name: t.str(), roles: t.arr(id.role), groups: t.arr(id.group), deviceId: t.opt(id.device), epoch: t.int({ minimum: 0 }), spaceId: id.space, deferred: t.opt(t.arr(t.str())) }, tool: 'meta',
     }),
+    read('identity.security.get', 'My sign-in in this Space: when the password last changed, the linked GitHub account, whether an authenticator app is set and the passkeys (Settings > Sign-in and devices)', {
+      ...V, out: { passwordChangedAt: t.ts(), github: t.opt(t.str({ description: 'The linked GitHub login', examples: ['maya-chen'] })), totp: t.bool(), passkeys: t.arr(t.str()) }, tool: 'meta',
+    }),
 
     // ---- pairing (one stack for the app, the extension and the daemon)
     write('identity.pair_create', 'A signed-in device makes a short pair code for another device, the extension or the local daemon (valid 10 minutes)', {

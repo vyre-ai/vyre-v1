@@ -19,12 +19,19 @@ export function reviewData(rt: ShellRuntime): ReviewData {
     nameOf: nameLookup(rt),
     key: attemptKey,
     clock: () => ({ now: rt.clock().now }),
+    agents: [{ ...rt.assistant, assistant: true }],
     nav: {
       openChangeset: (changesetId) => rt.open({ screen: "files.diff", args: { changesetId } }),
       compare: (fileId, from, to) => rt.open({ screen: "files.diff", args: { fileId, from, to } }),
       openCommit: (folder, sha) => rt.open({ screen: "files.commit-diff", args: { folder, sha } }),
       settled: () => undefined,
       openHistory: (fileId) => rt.open({ screen: "files.history", args: { fileId } }),
+      // Ask about this file: a new Ask pane on it, opened as a thread
+      ask: (agentId, _mode, about) => {
+        void rt.call("chat.start", { kind: "ask", idempotencyKey: attemptKey(), agentIds: [agentId], scopeType: about.kind, scopeId: about.id, title: about.title })
+          .then((out: unknown) => rt.open({ subject: { type: "thread", id: (out as { thread: { threadId: string } }).thread.threadId } }))
+          .catch(() => undefined);
+      },
     },
   };
 }

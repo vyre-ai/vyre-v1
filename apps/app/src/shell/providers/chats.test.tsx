@@ -12,7 +12,10 @@ import { SidebarContent } from "../sidebar/index.ts";
 import type { SidebarSlotApi } from "../sidebar/index.ts";
 import type { Principal } from "../../places/home/sections-a/data.tsx";
 import ChatsPlace, { newestThread } from "./chats.tsx";
-import { conversationData } from "./chats-data.ts";
+import { conversationData, sidebarData } from "./chats-data.ts";
+import { createComposerFill } from "../../places/chats/conversation/data.tsx";
+import { chatsActions, agentPageData } from "../../places/chats/mounts/data.ts";
+import type { Go } from "../../places/chats/mounts/data.ts";
 import { ShellRuntimeProvider } from "./runtime.tsx";
 import type { ShellRuntime, ShellTarget } from "./runtime.tsx";
 
@@ -84,4 +87,45 @@ test("chats: clicking an agent's name or a card asks the shell to open it", () =
   data.nav.openAgent("agt_docs");
   data.nav.openBeside("file", "fil_1");
   assert.deepEqual(opened, [{ screen: "chats.agent-page", args: { agentId: "agt_docs" } }, { subject: { type: "file", id: "fil_1" } }]);
+});
+
+const GO: Go = new Proxy({} as Go, { get: () => () => undefined });
+
+test("chats: Ask about this puts the text in the composer; a waiting ask is taken once, and an open conversation takes it at once", () => {
+  const fill = createComposerFill();
+  const seen: string[] = [];
+  fill.set("About rivera.docx: ");
+  assert.equal(fill.take(), "About rivera.docx: ", "the ask waits for a conversation to open");
+  assert.equal(fill.take(), undefined, "and is taken once");
+  const off = fill.subscribe(() => { const t = fill.take(); if (t) seen.push(t); });
+  fill.set("Change the 9:00 routine: ");
+  assert.deepEqual(seen, ["Change the 9:00 routine: "], "an open conversation takes it at once");
+  off();
+  fill.set("later");
+  assert.equal(fill.take(), "later", "with nobody listening it waits again");
+});
+
+test("chats: the pane's Ask About This and the agent page's Change by Asking both reach the composer", () => {
+  const { rt } = runtime();
+  const fill = createComposerFill();
+  const actions = chatsActions(GO, fill);
+  actions.fillComposer("About notes.md: ");
+  assert.equal(fill.take(), "About notes.md: ");
+  const asked: string[] = [];
+  const go = { ...GO, agentChat: (id: string) => void asked.push(id) } as Go;
+  const page = agentPageData(rt, go, { agent: { agentId: "agt_docs", name: "Docs" }, canEdit: true, nameOf: (id) => id, fill });
+  page.nav.fillComposer("Change the weekly routine: ");
+  assert.deepEqual(asked, ["agt_docs"], "the agent's page opens the chat with that agent");
+  assert.equal(fill.take(), "Change the weekly routine: ", "and the text waits for it");
+  assert.equal(chatsActions(GO).fillComposer("x"), undefined, "without a store the ask is dropped, never thrown");
+});
+
+test("chats: the sidebar's dot says another Space needs you, from the Spaces the shell knows", () => {
+  const { rt } = runtime();
+  const space = (spaceId: string, needsYou: boolean) => ({ spaceId, name: spaceId, kind: "team", address: "", role: "Owner", tint: ["#000", "#111"], kit: "x", skinDefault: "system", starred: false, needsYou, console: false, terminal: false, counts: {}, dots: {} }) as never;
+  const actions = chatsActions(GO);
+  assert.equal(sidebarData(rt, actions).space.otherNeedsYou, false, "no other Spaces known");
+  assert.equal(sidebarData({ ...rt, knownSpaces: [space("northwind", true)] }, actions).space.otherNeedsYou, false, "this Space needing you is not another Space");
+  assert.equal(sidebarData({ ...rt, knownSpaces: [space("northwind", false), space("harbor", false)] }, actions).space.otherNeedsYou, false);
+  assert.equal(sidebarData({ ...rt, knownSpaces: [space("northwind", false), space("harbor", true)] }, actions).space.otherNeedsYou, true);
 });

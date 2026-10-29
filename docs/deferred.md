@@ -7,7 +7,7 @@ Ruling 93 (26 Oct): Sites and Vault import ship in v1.1, not v1. v1 counts golde
 | Module | Capability | Packet |
 |---|---|---|
 | vault | vault.import, vault.import_parse | P-L7_11; ships in v1.1 (ruling 93) |
-| reports-client | reports.get, reports.health, reports.list, reports.policy_get, reports.policy_set, reports.preview, reports.resolved, reports.send_to_vyre, reports.submit | Report a problem (polish pass); needs the reports.vyre.run client and the replay sandbox. Swap: one line in modules/reports-client/impl.ts |
+| reports-client | reports.resolved | The inbound webhook from reports.vyre.run (POST /hooks/reports): needs the service's signature check and a route to this module. The rest of Report a problem is real: the host wires the bundle sources and the signed client (host/src/seams/reports.ts); the replay sandbox is not wired |
 | sites | all 23 sites.* capabilities | Sites; ships in v1.1 (ruling 93), and golden flow 6 with it; needs the Docker runtime, Caddy router and DNS drivers. Swap: one line in modules/sites/impl.ts |
 
 The providers capabilities (list, add, remove, test, sign-in) are real, not deferred: the engine needs them for every turn.

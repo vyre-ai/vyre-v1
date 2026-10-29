@@ -91008,6 +91008,86 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "github": "maya-chen",
+            "passkeys": [
+              "example"
+            ],
+            "passwordChangedAt": 1760000000000,
+            "totp": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "identity",
+      "name": "identity.security.get",
+      "output": {
+        "properties": {
+          "github": {
+            "description": "The linked GitHub login",
+            "examples": [
+              "maya-chen"
+            ],
+            "type": "string"
+          },
+          "passkeys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "passwordChangedAt": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "totp": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "passwordChangedAt",
+          "totp",
+          "passkeys"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "My sign-in in this Space: when the password last changed, the linked GitHub account, whether an authenticator app is set and the passkeys (Settings > Sign-in and devices)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "meta"
+        }
+      },
+      "v": 1
+    },
+    {
       "audit": "sensitive",
       "caller": "anonymous",
       "effects": "write",
@@ -202468,6 +202548,53 @@
         "empty": {
           "line": "No campaigns yet",
           "primary": "New campaign"
+        },
+        "error": {
+          "line": "Couldn't load this",
+          "primary": "Try again"
+        },
+        "offline": {
+          "line": "Offline, showing your saved copy"
+        }
+      }
+    },
+    {
+      "actions": {
+        "save": {
+          "cap": "email_builder.save",
+          "input": {
+            "emailId": "/selected"
+          }
+        }
+      },
+      "builtin": "ui:EmailBuilder",
+      "id": "apps.email-builder",
+      "module": "email-builder-api",
+      "perf": {
+        "completeMs": 100,
+        "firstPaintMs": 50
+      },
+      "place": "apps",
+      "queries": {
+        "email": {
+          "cap": "email_builder.get",
+          "input": {
+            "emailId": "/selected"
+          },
+          "live": true
+        },
+        "versions": {
+          "cap": "email_builder.versions",
+          "input": {
+            "emailId": "/selected"
+          },
+          "live": true
+        }
+      },
+      "slot": "main",
+      "states": {
+        "empty": {
+          "line": "Nothing here yet"
         },
         "error": {
           "line": "Couldn't load this",

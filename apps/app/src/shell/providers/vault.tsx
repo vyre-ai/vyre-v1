@@ -6,6 +6,7 @@ import VaultLayout, { VaultLoading } from "../../places/vault/layout/index.tsx";
 import type { VaultData, VaultRoute } from "../../places/vault/layout/index.tsx";
 import { usePlaceHash } from "../hash/context.tsx";
 import type { HashTarget } from "../hash/hash.ts";
+import { attemptKey } from "./files-review.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
@@ -15,6 +16,7 @@ export function vaultRoute(target: HashTarget): VaultRoute {
   if (target.args["share"]) return { surface: "share", itemId: target.args["share"] };
   if (target.args["export"]) return { surface: "export", folderId: target.args["export"] };
   if (target.args["advanced"] === "true") return { surface: "advanced" };
+  if (target.args["policy"] === "true") return { surface: "policy" };
   return { surface: "layout" };
 }
 
@@ -28,8 +30,15 @@ export function vaultData(rt: ShellRuntime): VaultData {
       openBackups: () => rt.open({ screen: "console.backups" }),
       openDevices: () => rt.open({ screen: "devices.mine" }),
       openOutsideActors: () => rt.open({ screen: "console.outside-actors" }),
+      openPolicy: () => rt.open({ screen: "vault.layout", args: { policy: true } }),
       openRequests: () => rt.open({ screen: "vault_requests.list" }),
       openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
+      // Ask an agent about an item: a new Ask pane scoped to it, opened as a thread
+      ask: (agentId, _mode, about) => {
+        void rt.call("chat.start", { kind: "ask", idempotencyKey: attemptKey(), agentIds: [agentId], scopeType: about.kind, scopeId: about.id, title: about.title })
+          .then((out: unknown) => rt.open({ subject: { type: "thread", id: (out as { thread: { threadId: string } }).thread.threadId } }))
+          .catch(() => undefined);
+      },
     },
     clock: () => ({ now: rt.clock().now }),
   };

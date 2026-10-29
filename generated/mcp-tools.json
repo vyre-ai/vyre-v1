@@ -24051,6 +24051,21 @@
     },
     {
       "blocks": [],
+      "cap": "identity.security.get",
+      "deferred": false,
+      "description": "My sign-in in this Space: when the password last changed, the linked GitHub account, whether an authenticator app is set and the passkeys (Settings > Sign-in and devices)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "identity_security_get",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "identity.sign_out",
       "deferred": false,
       "description": "End this session; the device keeps nothing it should not",

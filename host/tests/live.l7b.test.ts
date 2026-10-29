@@ -2,6 +2,7 @@
 // each one answers a read and a write through the gateway with a real token; a member without the permission is refused. backup's source is the host's own (host/src/seams/backup.ts).
 // Path mapping: the packet owns __live__/L7b; this test sits in host/tests because it boots the daemon.
 import test from "node:test";
+import { deferredCaps } from "../src/routes/deferred.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -103,11 +104,11 @@ test("l7b live: each module answers a read and a write through the gateway as th
     ];
     for (const [cap, body] of writes) await ok(d, OWNER_TOKEN, cap, body);
 
-    // Report a problem is deferred (ruling 60): registered, live, and it refuses with the shared message
-    const deferred = await post(d, OWNER_TOKEN, "reports.list", {});
-    const deferredBody = (await deferred.json()) as { error?: { code?: string; message?: string } };
-    assert.equal(deferredBody.error?.code, "internal.unavailable");
-    assert.equal(deferredBody.error?.message, "Not in this version yet");
+    // Report a problem is real: the host wires its bundle sources and client (host/src/seams/reports.ts), so reports.list answers. Only the inbound webhook stays deferred (ruling 60)
+    const reports = (await ok(d, OWNER_TOKEN, "reports.list", {})) as { reports: unknown[] };
+    assert.deepEqual(reports.reports, []);
+    assert.ok(deferredCaps().includes("reports.resolved"), "the inbound webhook is registered and refuses until its signature check and route exist");
+    assert.ok(!deferredCaps().includes("reports.submit") && !deferredCaps().includes("reports.list"), "the rest of Report a problem is real");
 
     // the Console assistant needs an AI account behind it; a fresh Space has none, and the live handler says so (a typed precondition error, not a stub answer)
     const opened = await post(d, OWNER_TOKEN, "console.assistant_open", { page: "access.roles" });

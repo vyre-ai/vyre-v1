@@ -73,6 +73,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.apps.email-builder",
+      "place": "apps",
+      "screen": "apps.email-builder"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.apps.form-settings",
       "place": "apps",
       "screen": "apps.form-settings"

@@ -14,6 +14,7 @@ export function inboxData(rt: ShellRuntime, openConversation: (id: string) => vo
     openMatch: (conversationId) => rt.open({ screen: "inbox.unmatched", args: { conversationId } }),
     compose: () => rt.open({ screen: "mail.message-detail" }),
     connect: (kind) => rt.open({ screen: "mail.connections", args: { kind } }),
+    openEmailDesign: (emailId) => rt.open({ screen: "apps.email-builder", ...(emailId ? { args: { emailId } } : {}) }),
     openInboxSettings: (inboxId) => rt.open({ screen: "settings.page", args: { page: "inboxes", inboxId } }),
   };
   return { screens: rt.screens, call: rt.call, connection: rt.connection, clock: rt.clock, nav };

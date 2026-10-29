@@ -14,6 +14,9 @@ import { SCREENS, effectiveType, typeGroups } from "../../places/records/sidebar
 import type { CapMap } from "../../../../../generated/types.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 import { RecordViews } from "../../places/records/views-a/index.ts";
+import { EXTRA_KINDS } from "../../places/records/views-b/index.tsx";
+import { RecordTypesList, SchemaDataProvider, SchemaMap } from "../../places/records/schemamap/index.ts";
+import type { SchemaData } from "../../places/records/schemamap/index.ts";
 import { recordsData } from "./records-data.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 
@@ -22,24 +25,37 @@ const SIDEBAR_W = 240;
 function RecordsBody({ rt }: { rt: ShellRuntime }): ReactElement {
   const { target, opened } = usePlaceHash();
   const id = useOpenedId(["record", "contact", "project"], ["recordId", "projectId"]);
-  const { state } = useRecordsState();
+  const { state, dispatch } = useRecordsState();
+  // Record types and the Schema map are screens of this place: the sidebar's two rows write their screen id to the hash, and choosing a type in the sidebar gives the body back to the views.
+  const schemaView = target.screen === "records.types" ? "types" : target.screen === "records.schema-map" ? "map" : null;
   const previousType = useRef(state.type);
   useEffect(() => {
-    if (previousType.current !== state.type && id) opened({});
+    if (previousType.current !== state.type && (id || schemaView)) opened({});
     previousType.current = state.type;
-  }, [state.type, id, opened]);
+  }, [state.type, id, schemaView, opened]);
+  const schema = useMemo<SchemaData>(() => ({
+    screens: rt.screens,
+    call: rt.call,
+    nav: {
+      openType: (key) => { dispatch({ type: "open", key }); opened({}); },
+      // structure is edited in the Console, at Data > Schema
+      openConsole: (type) => rt.open({ screen: "console.schema", ...(type ? { args: { type } } : {}) }),
+    },
+    copy: (text) => { void (globalThis as { navigator?: { clipboard?: { writeText?(t: string): Promise<void> } } }).navigator?.clipboard?.writeText?.(text); },
+  }), [rt, dispatch, opened]);
   const types = useScreenQuery<CapMap["schema.types.list"]["out"]>(SCREENS.types, "types");
   const type = target.args.type ?? effectiveType(state, typeGroups(types.status === "ready" ? types.data.types : []));
   const data = useMemo(() => {
-    const base = recordsData(rt);
+    const base = recordsData(rt, target.screen);
     return { ...base, nav: { ...base.nav, openRecord: (recordId: string) => rt.open({ subject: { type: "record", id: recordId }, args: type ? { type } : {} }) } };
-  }, [rt, type]);
-  return <RecordsDataProvider value={data}><View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}><RecordsSidebarSlot />{id ? <RecordDetail key={`${id}:${target.args.type ?? ""}`} rt={rt} recordId={id} {...(target.args.type ? { type: target.args.type } : {})} fields={target.screen === "records.record-page" || target.args.recordView === "fields"} tab={target.screen === "records.project-plan" || target.args.tab === "plan" ? "plan" : target.args.tab === "files" ? "files" : target.args.tab === "chat" ? "chat" : "overview"} /> : <RecordViews {...(target.args.type ? { type: target.args.type } : {})} />}</View></RecordsDataProvider>;
+  }, [rt, type, target.screen]);
+  return <RecordsDataProvider value={data}><View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}><RecordsSidebarSlot />{id ? <RecordDetail key={`${id}:${target.args.type ?? ""}`} rt={rt} recordId={id} {...(target.args.type ? { type: target.args.type } : {})} fields={target.screen === "records.record-page" || target.args.recordView === "fields"} tab={target.screen === "records.project-plan" || target.args.tab === "plan" ? "plan" : target.args.tab === "files" ? "files" : target.args.tab === "chat" ? "chat" : "overview"} /> : schemaView ? <SchemaDataProvider value={schema}>{schemaView === "types" ? <RecordTypesList /> : <SchemaMap />}</SchemaDataProvider> : <RecordViews extraKinds={EXTRA_KINDS} {...(target.args.type ? { type: target.args.type } : {})} {...(target.args.kind ? { kind: target.args.kind } : {})} />}</View></RecordsDataProvider>;
 }
 
 export default function RecordsPlace(_props: { place: string }): ReactElement {
   const rt = useOptionalShellRuntime();
-  const data = useMemo(() => (rt ? recordsData(rt) : null), [rt]);
+  const screen = usePlaceHash().target.screen;
+  const data = useMemo(() => (rt ? recordsData(rt, screen) : null), [rt, screen]);
   const width = useWindowDimensions().width;
   const phone = width > 0 && width < 720;
   if (!data) {

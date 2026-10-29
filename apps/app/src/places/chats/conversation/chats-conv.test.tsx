@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Composer } from "../../../../../../ui/src/Composer/index.tsx";
 import { installComposerForTests } from "../../../../../../ui/src/Composer/Deferred.tsx";
 import { Conversation, ConversationLoading } from "./Conversation.tsx";
+import { createComposerFill } from "./data.tsx";
 import { HoverBar, MessageView } from "./MessageView.tsx";
 import * as act from "./actions.ts";
 import {
@@ -344,4 +345,14 @@ test("the hover bar draws Copy, Edit (yours only), Reply and More while the row 
   const idle = bar(m3, true, false);
   assert.ok(has(idle, 'data-testid="hover-m3"') && !has(idle, "act-copy-m3") && !has(idle, "<svg"));
   assert.ok(!has(html(s), 'data-testid="act-copy-m3"'), "a resting page draws no bar buttons");
+});
+
+test("a conversation opened with a waiting ask (Ask about this) holds that text in its composer, and takes it once", () => {
+  const s = createSample("idle");
+  const fill = createComposerFill();
+  fill.set("About rivera-engagement-letter.docx: ");
+  const out = clean(renderToStaticMarkup(<Conversation data={{ ...s.data, fill }} />));
+  assert.ok(out.includes("About rivera-engagement-letter.docx: "), "the text is in the composer");
+  assert.equal(fill.take(), undefined, "taken: another conversation does not get it again");
+  assert.ok(!html(createSample("idle")).includes("About rivera-engagement-letter.docx: "), "a conversation with nothing waiting starts empty");
 });

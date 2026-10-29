@@ -18,6 +18,8 @@ import { AgentPage, AgentPageLoading } from "../agentpage/AgentPage.tsx";
 import { ComputerPopup, ComputerPopupLoading } from "../computer/ComputerPopup.tsx";
 import { NO_CAPTURE } from "../computer/model.ts";
 import { Conversation, ConversationLoading } from "../conversation/Conversation.tsx";
+import { createComposerFill } from "../conversation/data.tsx";
+import type { ComposerFill } from "../conversation/data.tsx";
 import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { NeedsYou } from "../needsyou/NeedsYou.tsx";
 import { AGENT_PANE_W, AgentPane } from "../AgentPane.tsx";
@@ -65,6 +67,8 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const [shown, setShown] = useState<Shown>(() => initial ?? (hash === "" ? START : fromHash(hash)));
   const [line, setLine] = useState<string | null>(null);
   const [counter] = useState<CaptureCounter>(createCapture);
+  // what a pane or the agent's page asks the composer to hold (Ask about this file, Change by Asking)
+  const [fill] = useState<ComposerFill>(createComposerFill);
 
   const live = useSyncExternalStore(rt.principals.subscribe, rt.principals.getSnapshot, rt.principals.getSnapshot);
   const list = live.status === "ready" ? live.data : NO_PEOPLE;
@@ -98,10 +102,10 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const leadAgent = useMemo(() => ({ agentId: leadId, name: nameOf(leadId), ...(leadComputer ? { computerId: leadComputer } : {}) }), [leadId, nameOf, leadComputer]);
 
   const conv = useMemo(
-    () => (threadId === null ? null : wireConversation(rt, go, { threadId, list, nameOf, leadId })),
-    [rt, go, threadId, list, nameOf, leadId],
+    () => (threadId === null ? null : wireConversation(rt, go, { threadId, list, nameOf, leadId, fill })),
+    [rt, go, threadId, list, nameOf, leadId, fill],
   );
-  const paneCtx = useMemo(() => (threadId === null ? null : wirePane(rt, go, threadId, leadAgent)), [rt, go, threadId, leadAgent]);
+  const paneCtx = useMemo(() => (threadId === null ? null : wirePane(rt, go, threadId, leadAgent, fill)), [rt, go, threadId, leadAgent, fill]);
 
   /* ---------- the other pages ---------- */
   const needs = useMemo(() => needsData(rt, go, nameOf), [rt, go, nameOf]);
@@ -112,8 +116,8 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const agentRow = agentQ.status === "ready" && agentId !== "" ? agentQ.data.agent : null;
   const agentComputer = computerOf(agentId);
   const agentPage = useMemo(
-    () => agentPageData(rt, go, { agent: { agentId, name: agentRow?.name ?? nameOf(agentId), ...(agentComputer ? { computerId: agentComputer } : {}) }, canEdit: agentRow !== null && agentRow.ownerId === rt.me.id, nameOf }),
-    [rt, go, agentId, agentRow, agentComputer, nameOf],
+    () => agentPageData(rt, go, { agent: { agentId, name: agentRow?.name ?? nameOf(agentId), ...(agentComputer ? { computerId: agentComputer } : {}) }, canEdit: agentRow !== null && agentRow.ownerId === rt.me.id, nameOf, fill }),
+    [rt, go, agentId, agentRow, agentComputer, nameOf, fill],
   );
   const terminal = useMemo(() => terminalData(rt, go, { agent: leadAgent, newKey }), [rt, go, leadAgent]);
 

@@ -18,6 +18,8 @@ export interface VaultNav {
   openBackups(): void;
   openDevices(): void;
   openOutsideActors(): void;
+  /** Who may export, the longest a download link lasts, and whether a reveal asks why. */
+  openPolicy(): void;
   /** The Automation or agent that is asking for a key. */
   openRequests(): void;
   openAgent(agentId: string): void;

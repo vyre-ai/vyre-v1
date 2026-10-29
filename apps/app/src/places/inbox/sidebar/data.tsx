@@ -20,6 +20,8 @@ export interface InboxNav {
   compose(): void;
   /** The plus at the top: connect a mailbox or claim a number. */
   connect(kind: "gmail" | "outlook" | "imap" | "number"): void;
+  /** The email builder, where a template is designed: a new one, or the design with this id. */
+  openEmailDesign?(emailId?: string): void;
   /** "Mailbox Settings" or "Number Settings" from an inbox row's menu. */
   openInboxSettings(inboxId: string): void;
 }

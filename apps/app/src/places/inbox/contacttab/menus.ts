@@ -14,10 +14,12 @@ export function fromMenuEntries(choices: readonly InboxChoice[], current: string
 }
 
 /** The template button: each template inserts its text at the foot of the draft. */
-export function templateEntries(templates: readonly { t: string; body: string }[], insert: (body: string) => void): MenuEntry[] {
+export function templateEntries(templates: readonly { t: string; body: string }[], insert: (body: string) => void, design?: () => void): MenuEntry[] {
   const rows = templates;
-  if (rows.length === 0) return [{ label: "No templates yet" }];
-  return [{ head: "Templates" }, ...rows.map((r) => ({ label: r.t, onSelect: () => insert(r.body) }))];
+  // the last row opens the email builder, where a template is made or changed
+  const build: MenuEntry[] = design ? [{ separator: true }, { label: "Design a template…", onSelect: design }] : [];
+  if (rows.length === 0) return [{ label: "No templates yet" }, ...build];
+  return [{ head: "Templates" }, ...rows.map((r) => ({ label: r.t, onSelect: () => insert(r.body) })), ...build];
 }
 
 /** The quick-action button: the things a person does next with this contact. */

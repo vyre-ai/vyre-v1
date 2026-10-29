@@ -12594,6 +12594,13 @@ export type IdentityResetStartOut = {
   resetCode: string;
   expiresAt: number;
 };
+export type IdentitySecurityGetIn = Record<string, unknown>;
+export type IdentitySecurityGetOut = {
+  passwordChangedAt: number;
+  github?: string;
+  totp: boolean;
+  passkeys: Array<string>;
+};
 export type IdentitySignInIn = {
   username: string;
   password: string;
@@ -27689,6 +27696,7 @@ export interface CapMap {
   "identity.reset_complete": { in: IdentityResetCompleteIn; out: IdentityResetCompleteOut };
   "identity.reset_preview": { in: IdentityResetPreviewIn; out: IdentityResetPreviewOut };
   "identity.reset_start": { in: IdentityResetStartIn; out: IdentityResetStartOut };
+  "identity.security.get": { in: IdentitySecurityGetIn; out: IdentitySecurityGetOut };
   "identity.sign_in": { in: IdentitySignInIn; out: IdentitySignInOut };
   "identity.sign_in_options": { in: IdentitySignInOptionsIn; out: IdentitySignInOptionsOut };
   "identity.sign_out": { in: IdentitySignOutIn; out: IdentitySignOutOut };

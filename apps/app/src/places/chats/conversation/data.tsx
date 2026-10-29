@@ -46,8 +46,31 @@ export interface ConversationData {
   copy(text: string): void;
   /** A line the app shows for a moment ("Copied"). */
   toast(text: string): void;
+  /** Text another part of the place asks the composer to hold (Ask about this file, Change by Asking). Absent: the composer is only written in by its own person. */
+  fill?: ComposerFill;
   /** A line above the composer for work that waits in the background ("Waiting on: build 42"); the shell draws it from the thread's runs (P-L9b_23). */
   waitingLine?: ReactElement;
+}
+
+/**
+ * What a pane or a page asks the composer to hold. One value waits until a conversation takes it, so asking from a page that has no conversation open (the agent's page) still lands in the chat
+ * that opens next; a conversation that is open takes it at once and puts it after what the person had typed.
+ */
+export interface ComposerFill {
+  set(text: string): void;
+  /** The waiting text, once; undefined when nothing waits. */
+  take(): string | undefined;
+  subscribe(onChange: () => void): () => void;
+}
+
+export function createComposerFill(): ComposerFill {
+  let waiting: string | undefined;
+  const listeners = new Set<() => void>();
+  return {
+    set(text) { waiting = text; for (const l of [...listeners]) l(); },
+    take() { const t = waiting; waiting = undefined; return t; },
+    subscribe(onChange) { listeners.add(onChange); return () => { listeners.delete(onChange); }; },
+  };
 }
 
 const Ctx = createContext<ConversationData | null>(null);

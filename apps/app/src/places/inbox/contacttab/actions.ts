@@ -42,3 +42,29 @@ export async function setFollow(data: InboxData, contactId: string, follow: bool
 export async function markRead(data: InboxData, conversationId: string): Promise<void> {
   await data.call("inbox.mark_read", { conversationId, read: true });
 }
+
+/** The person's email designs, newest first: the Templates button lists them. */
+export async function listTemplates(data: InboxData): Promise<{ emailId: string; name: string }[]> {
+  const out = (await data.call("email_builder.list", {})) as CapMap["email_builder.list"]["out"];
+  return [...out.emails].sort((a, b) => b.updatedAt - a.updatedAt).map((e) => ({ emailId: e.emailId, name: e.name }));
+}
+
+/** The person's composer snippets, mine and the Space's: the / menu lists them. */
+export async function listSnippets(data: InboxData): Promise<{ name: string; body: string }[]> {
+  const out = (await data.call("email_builder.snippets.list", {})) as CapMap["email_builder.snippets.list"]["out"];
+  return out.snippets.map((x) => ({ name: x.name, body: x.body }));
+}
+
+const stripTags = (html: string): string => html.replace(/<(br|\/p|\/div|\/h[1-6]|\/li)\s*\/?>/gi, "\n").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\n{3,}/g, "\n\n").trim();
+
+/** What inserting a template puts in the draft: its subject and its text as plain words, with the contact's first name in place of {first}. A design written as blocks or HTML is read through its plain-text render. */
+export async function templateContent(data: InboxData, emailId: string, firstName: string): Promise<{ subject: string; text: string }> {
+  const got = (await data.call("email_builder.get", { emailId })) as CapMap["email_builder.get"]["out"];
+  const doc = got.email;
+  let text = doc.mode === "plain" ? doc.plain ?? "" : "";
+  if (text.trim() === "") {
+    const r = (await data.call("email_builder.render", { emailId, variant: "plain" })) as CapMap["email_builder.render"]["out"];
+    text = stripTags(r.html);
+  }
+  return { subject: doc.subject ?? "", text: text.replaceAll("{first}", firstName) };
+}

@@ -3614,6 +3614,12 @@
     },
     {
       "deferred": false,
+      "name": "identity_security_get",
+      "summary": "My sign-in in this Space: when the password last changed, the linked GitHub account, whether an authenticator app is set and the passkeys (Settings > Sign-in and devices)",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "identity_sign_out",
       "summary": "End this session; the device keeps nothing it should not",
       "toolset": "meta"

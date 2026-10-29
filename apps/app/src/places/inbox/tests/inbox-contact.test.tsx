@@ -9,6 +9,8 @@ import { Composer } from "../../../../../../ui/src/Composer/index.tsx";
 import { installComposerForTests } from "../../../../../../ui/src/Composer/Deferred.tsx";
 import { ContactTab, TabLoading, followMenuEntries, fromMenuEntries } from "../contacttab/index.ts";
 import { quickEntries, templateEntries } from "../contacttab/menus.ts";
+import { listSnippets, listTemplates, templateContent } from "../contacttab/actions.ts";
+import { cannedLists } from "../contacttab/model.ts";
 import {
   buildFeed, headerOf, canSend, choicesFor, dayLabel, deliveryNote, draftCards, emailTarget, fill, gateLine, initialDraft, pickInbox, replySubject, sendBlocker, sentNote, startChannel, textTarget,
 } from "../contacttab/model.ts";
@@ -354,4 +356,32 @@ test("menus: Follow offers Alert me on replies only while following, and the Fro
   assert.deepEqual(flat.map((x) => [x.label, x.checked]), [["Work Gmail (this thread)", false], ["Personal", false], ["hello@", true], ["support@", false], ["Client portal", false]]);
   flat[1]!.onSelect?.();
   assert.deepEqual(chosen, ["mbx_pers"]);
+});
+
+test("templates are the Space's email designs: listed newest first, read as plain words with the contact's first name, and the menu ends with the email builder", async () => {
+  const calls: string[] = [];
+  const data = { call: async (cap: string, input?: unknown) => {
+    calls.push(cap);
+    if (cap === "email_builder.list") return { emails: [{ emailId: "eml_old", name: "Old", updatedAt: 1 }, { emailId: "eml_new", name: "Book a call", updatedAt: 5 }] };
+    if (cap === "email_builder.get") return { email: (input as { emailId: string }).emailId === "eml_plain" ? { emailId: "eml_plain", name: "p", mode: "plain", plain: "Hi {first}, thanks.", subject: "Re: your question" } : { emailId: "eml_blocks", name: "b", mode: "blocks", subject: "" } };
+    if (cap === "email_builder.render") return { html: "<p>Hi {first},</p><p>Tuesday or Thursday?</p>", warnings: [] };
+    if (cap === "email_builder.snippets.list") return { snippets: [{ snippetId: "snp_1", name: "Thanks", body: "Thank you.", shared: false, updatedAt: 1 }] };
+    throw new Error(cap);
+  } } as never;
+  assert.deepEqual((await listTemplates(data)).map((t) => t.name), ["Book a call", "Old"]);
+  assert.deepEqual(await templateContent(data, "eml_plain", "Elena"), { subject: "Re: your question", text: "Hi Elena, thanks." });
+  const rendered = await templateContent(data, "eml_blocks", "Elena");
+  assert.equal(rendered.text, "Hi Elena,\nTuesday or Thursday?", "a block design is read through its plain-text render");
+  assert.deepEqual(await listSnippets(data), [{ name: "Thanks", body: "Thank you." }]);
+  const entries = templateEntries([{ t: "Book a call", body: "eml_new" }], () => undefined, () => undefined);
+  assert.deepEqual(entries.map((x) => ("label" in x ? x.label : "head" in x ? x.head : "-")), ["Templates", "Book a call", "-", "Design a template…"]);
+  assert.deepEqual(templateEntries([], () => undefined, () => undefined).map((x) => ("label" in x ? x.label : "-")), ["No templates yet", "-", "Design a template…"]);
+  assert.equal(templateEntries([{ t: "Thanks", body: "x" }], () => undefined).length, 2, "without the builder door the menu is just the templates");
+});
+
+test("the composer's / menu lists the person's snippets, and no templates are invented", () => {
+  const conv = { displayName: "Elena Rivera" } as never;
+  assert.deepEqual(cannedLists(conv).templates, []);
+  assert.deepEqual(cannedLists(conv).snippets, []);
+  assert.deepEqual(cannedLists(conv, [{ name: "Thanks", body: "Thank you." }]).snippets, [{ t: "Thanks", body: "Thank you.", kind: "Snippet" }]);
 });

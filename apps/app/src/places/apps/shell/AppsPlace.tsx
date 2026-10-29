@@ -26,7 +26,8 @@ export type { AppsData, AppsNav } from "./data.tsx";
 export type AppsRoute =
   | { kind: "list"; group?: GroupKey | undefined }
   | { kind: "detail"; group: Exclude<GroupKey, "sites">; id: string }
-  | { kind: "create"; group: "forms" | "campaigns" | "templates" | "domains" };
+  | { kind: "create"; group: "forms" | "campaigns" | "templates" | "domains" }
+  | { kind: "email"; group: "campaigns"; id?: string };
 
 const ROW_HEIGHT = 44;
 const DOUBLE_MS = 450;
@@ -97,6 +98,7 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
     const entries: MenuEntry[] = [];
     if (only === undefined || only === "templates") entries.push({ label: "Save as template", onSelect: () => d.nav.create("templates") });
     for (const g of groups) if ((only === undefined || only === g.key) && (g.key === "forms" || g.key === "campaigns" || g.key === "domains")) entries.push({ label: g.key === "domains" ? "Add sending domain" : `New ${g.one}`, onSelect: () => d.nav.create(g.key) });
+    if ((only === undefined || only === "campaigns") && d.nav.openEmailDesign) entries.push({ label: "New email design", onSelect: () => d.nav.openEmailDesign?.() });
     if (only === undefined || only === "templates") entries.push({ separator: true }, { label: "Build a Kit with an agent", onSelect: () => void openKitBuilder(d).catch((e: unknown) => setNote({ text: e instanceof Error ? e.message : "That did not work." })) });
     show(entries, x, y, "other");
   };

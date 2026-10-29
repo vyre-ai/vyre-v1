@@ -11,6 +11,8 @@ export interface AppsNav {
   create(group: string, kind?: string): void;
   /** Return to a group's list from a detail or create surface. */
   show(group: string): void;
+  /** One email design on its own, or a new one without an id: the builder Campaigns, Inbox templates and Automation email steps share. */
+  openEmailDesign?(emailId?: string): void;
   /** A Personal Space creates or joins a Team Space. */
   joinTeam(): void;
   /** The Gate task a held call is waiting on. */
