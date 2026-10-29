@@ -60,7 +60,9 @@ jobs:
           if-no-files-found: error
   release-evidence:
     # This starts beside the visual shards so release-critical PWA and real-app proof cannot wait behind the full prototype suite.
-    runs-on: [self-hosted, linux, v1]
+    # A GitHub-hosted VM of its own: on the self-hosted v1 hosts it shared eight cores with up to seven other jobs (load 12 to 18), real browsers and daemons ran four to five times slower than on an idle machine,
+    # and the same files that pass in 14 to 60 s alone hit their 120 s caps at random. Nothing here needs the v1 hosts.
+    runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4

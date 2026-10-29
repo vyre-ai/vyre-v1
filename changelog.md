@@ -1,6 +1,8 @@
 # Changelog
 
 
+- Run the release browser evidence on a GitHub-hosted VM of its own instead of a shared self-hosted v1 host: on the shared hosts it ran four to five times slower than on an idle machine (real-app 21 s vs 4.5 s for the same step) and a changing set of files hit the 120 s watchdog with no assertion failing.
+
 - Let the Computer lifecycle test wait up to 40 s for the Vyre for Chrome service worker to start before asserting it runs (it starts a moment after the browser, later on a loaded host); the assertion is unchanged.
 
 - Run the release browser evidence two files at a time instead of four: each file starts a daemon and a Chrome, and four at once beside the other runners on a host pushed the load past 12 on eight cores, so unrelated files (email Ask cancel, auth entry, Comms paging, Speed) hit their 120 s caps with no assertion failing. The same files pass in 14 to 22 s on an idle machine.
