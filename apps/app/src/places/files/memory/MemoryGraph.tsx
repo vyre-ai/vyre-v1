@@ -9,7 +9,7 @@
 import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { errorText, exportGraph, saveLayout } from "./actions.ts";
 import { useLive, useMemoryData, useOptionalMemoryData } from "./data.tsx";
@@ -353,7 +353,7 @@ function GraphBody(props: MemoryGraphProps): ReactElement {
                   return (
                     <Pressable
                       key={k} accessibilityRole="button" accessibilityState={{ pressed: !off }} accessibilityLabel={`${KIND_LABEL[k]}, ${drawn.get(k) ?? 0}`} testID={`legend-${k}`}
-                      onPress={() => toggleKind(k)} {...(web ? { onContextMenu: (e: { preventDefault(): void; clientX: number; clientY: number }) => { e.preventDefault(); menu.show(legendMenu(k, off, { toggle: () => toggleKind(k), only: () => setKinds(new Set([k])), all: () => setKinds(new Set()) }), e.clientX, e.clientY); } } : {})}
+                      onPress={() => toggleKind(k)} {...(web ? menuTrigger((x, y) => menu.show(legendMenu(k, off, { toggle: () => toggleKind(k), only: () => setKinds(new Set([k])), all: () => setKinds(new Set()) }), x, y)) : {})}
                       style={({ hovered }: { hovered?: boolean }) => [m.lrow, hovered === true && m.over, off && m.off]}
                     >
                       <View style={[m.ldot, k === "chat" && m.lsq, { backgroundColor: kindColor(k) as string }]} />

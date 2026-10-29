@@ -16,12 +16,13 @@ export const webProps = (props: Record<string, unknown>): Record<string, unknown
 export function ownMenu(open: (x: number, y: number) => void): Record<string, unknown> {
   const base = menuTrigger(open) as Record<string, unknown>;
   type Ev = { stopPropagation?: () => void; key?: string };
-  const wrap = (name: string, keep: (e: Ev) => boolean): void => {
+  // every handler the trigger gives stops the event reaching the message's own menu; a key handler only for the menu keys
+  for (const name of Object.keys(base)) {
     const f = base[name] as ((e: Ev) => void) | undefined;
-    if (f) base[name] = (e: Ev): void => { if (keep(e)) e.stopPropagation?.(); f(e); };
-  };
-  wrap("onContextMenu", () => true);
-  wrap("onKeyDown", (e) => e.key === "ContextMenu" || e.key === "F10");
+    if (typeof f !== "function") continue;
+    const keep = (e: Ev): boolean => name !== "onKeyDown" || (e.key ?? "").startsWith("Context") || e.key === "F10";
+    base[name] = (e: Ev): void => { if (keep(e)) e.stopPropagation?.(); f(e); };
+  }
   return base;
 }
 

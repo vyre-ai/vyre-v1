@@ -7,6 +7,7 @@
 import { createElement, useEffect, useRef } from "react";
 import type { ReactElement } from "react";
 import { Platform } from "react-native";
+import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import { KIND_LABEL, buildGrid, centreOn, edgeKey, fitCam, hitAt, kindHex, labelPlan, neighborsOf, nodeRadius, panBy, toWorld, zoomAt } from "./model.ts";
 import type { Cam, HitGrid, KGEdge, KGNode, Positions } from "./model.ts";
 
@@ -258,11 +259,12 @@ export function GraphSurface(p: SurfaceProps): ReactElement | null {
       else P.onClear();
     };
     const dbl = (e: MouseEvent): void => { const q = local(e), hit = hitAt(grid(), q.x, q.y); if (hit && "node" in hit) props.current.onOpen(hit.node); };
-    const menu = (e: MouseEvent): void => {
-      e.preventDefault();
-      const q = local(e), hit = hitAt(grid(), q.x, q.y);
-      props.current.onMenu(hit && "node" in hit ? { kind: "node", id: hit.node, x: e.clientX, y: e.clientY } : hit ? { kind: "edge", id: hit.edge, x: e.clientX, y: e.clientY } : { kind: "bg", x: e.clientX, y: e.clientY });
-    };
+    // the menu comes from ui/Menu's own trigger (right-click, long press, the menu key); its handlers are put on the canvas under the DOM event they are named for
+    const trigger = menuTrigger((x, y) => {
+      const q = local({ clientX: x, clientY: y }), hit = hitAt(grid(), q.x, q.y);
+      props.current.onMenu(hit && "node" in hit ? { kind: "node", id: hit.node, x, y } : hit ? { kind: "edge", id: hit.edge, x, y } : { kind: "bg", x, y });
+    });
+    const triggers = Object.entries(trigger).filter(([k, f]) => k !== "onKeyDown" && k !== "onLongPress" && typeof f === "function").map(([k, f]) => [k.slice(2).toLowerCase(), f as EventListener] as const);
     const wheel = (e: WheelEvent): void => {
       e.preventDefault();
       const q = local(e);
@@ -275,14 +277,14 @@ export function GraphSurface(p: SurfaceProps): ReactElement | null {
     canvas.addEventListener("pointerup", up);
     canvas.addEventListener("pointerleave", leave);
     canvas.addEventListener("dblclick", dbl);
-    canvas.addEventListener("contextmenu", menu);
+    for (const [name, f] of triggers) canvas.addEventListener(name, f);
     canvas.addEventListener("wheel", wheel, { passive: false });
     return () => {
       ro?.disconnect();
       if (s.raf) cancelAnimationFrame(s.raf);
       s.raf = 0;
       canvas.removeEventListener("pointerdown", down); canvas.removeEventListener("pointermove", move); canvas.removeEventListener("pointerup", up); canvas.removeEventListener("pointerleave", leave);
-      canvas.removeEventListener("dblclick", dbl); canvas.removeEventListener("contextmenu", menu); canvas.removeEventListener("wheel", wheel);
+      canvas.removeEventListener("dblclick", dbl); for (const [name, f] of triggers) canvas.removeEventListener(name, f); canvas.removeEventListener("wheel", wheel);
     };
   }, []);
 
