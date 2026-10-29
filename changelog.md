@@ -1,5 +1,6 @@
 # Changelog
 
+- Shots perf job reports the signed-in cold start too (scripts/shots/startup-signed-in.ts: a seeded Space on a real daemon, the owner's stored session, phone 4x CPU, median of seven, every run proven to reach the shell), next to the signed-out budget.
 - Startup probe steal guard: a size's runs count only when host CPU steal over them is at most 3%; a busy host is measured again up to twice, and a size never measured quietly fails as unmeasurable. Every rejected attempt is in the METRIC line with its steal. Same budgets, same seven-sample median.
 - Web startup: the browser hydrates the app root directly (apps/app/index.web.tsx, src/startup/AppRoot.tsx) instead of through expo-router's navigation container, linking and route tree, which the app never used at run time (the address follows the shell through window.history). The static export still renders every page through expo-router, the exported markup hydrates unchanged, and native keeps the expo-router entry. The first-load bundle drops from 1.4 MB to 0.75 MB.
 - Startup probe: each cold METRIC also carries median phases from app.start (scripts in, DOMContentLoaded, load, first contentful paint, usable).

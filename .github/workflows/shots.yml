@@ -172,6 +172,9 @@ jobs:
       - name: theme_flash probe (zero wrong frames)
         if: ${{ !cancelled() }}
         run: node scripts/shots/theme-flash.mjs --skip-export
+      - name: Signed-in cold start (reported next to the signed-out budget, phone 4x CPU, median of 7)
+        if: ${{ !cancelled() }}
+        run: node scripts/shots/startup-signed-in.ts --runs 7
       - name: Browser perf probes (ruling 43, warm-up discarded, median of 5, worst printed) desktop 1x and phone 4x CPU
         if: ${{ !cancelled() }}
         env:
