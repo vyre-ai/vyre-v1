@@ -7,7 +7,7 @@
 // DECISION: webhook triggers post to /hooks/automation/<automationId>/<secret>; they are Team Space only (personalOk false), as are the caps that read or rotate the URL.
 // DECISION: a schedule trigger stores one cron, a time zone and a missed policy. backfill_each_tick is capped at 30 days and 500 runs; a larger backlog pauses that schedule only.
 // Triggers that cover several events (record_change, spreadsheet_row, email_received) list them in TriggerDef.source.events.
-import { create, defineManifest, ev, list, read, screen, setting, t, trigger, write } from '../packages/contracts/src/index.ts';
+import { create, defineManifest, ev, list, outward, read, screen, setting, t, trigger, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, runStarted, subjectRef, versionRow } from './_common.ts';
 
 const groupId = t.id('agr');
@@ -20,6 +20,18 @@ const aiBlock = t.obj({
   timeoutMinutes: t.opt(t.int({ minimum: 1 })), nudgeMinutes: t.opt(t.int({ minimum: 1 })), escalateTo: t.opt(assignee),
 });
 const anyJson = t.json();
+// HTTP request step (spec 2.12): the same request shape for a read and for a send. The secret is a Vault handle; the host fills it for one call and it never reaches the definition, the log or the output.
+const httpAuth = t.obj({
+  kind: t.enm('bearer', 'basic', 'header'),
+  handle: t.str({ description: 'Vault handle of the key', pattern: '^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$', examples: ['#Acme_API'] }),
+  username: t.opt(t.str({ description: 'Basic only: the user name. The handle holds the password' })),
+  header: t.opt(t.str({ description: 'Header kind only: the header name', examples: ['x-api-key'] })),
+});
+const httpIn = {
+  url: t.str({ description: 'An https address', examples: ['https://api.example.com/v1/items'] }),
+  headers: t.opt(t.rec(t.str())), query: t.opt(t.rec()), json: t.opt(t.json()), text: t.opt(t.str()), auth: t.opt(httpAuth),
+};
+const httpOut = { status: t.int(), ok: t.bool(), headers: t.rec(t.str()), body: t.json() };
 const node = t.obj({
   id: t.str({ examples: ['step_1'] }), key: t.str({ description: 'A StepDef key', examples: ['records.update'] }), title: t.opt(t.str()), input: t.rec(),
   next: t.opt(t.arr(t.str())), branches: t.opt(t.arr(t.obj({ label: t.str(), to: t.str(), when: t.opt(t.str()) }))),
@@ -315,6 +327,16 @@ export default defineManifest({
       out: { ok: t.bool(), finalUrl: t.opt(t.str()), reason: t.opt(t.str()) },
       tool: 'automations',
       agent: { planMode: 'blocked' },
+    }),
+    read('automations.http_read', 'Make a GET or HEAD request to a public https address for an HTTP request step. A private address is refused. The key comes from a Vault handle and is never returned.', {
+      in: { method: t.enm('GET', 'HEAD'), ...httpIn }, out: httpOut, level: 'view',
+      errors: ['provider.network', 'validation.precondition_failed', 'validation.too_large', 'permission.no_grant'],
+      agent: false,
+    }),
+    outward('automations.http_send', 'Make a POST, PUT, PATCH or DELETE request to a public https address for an HTTP request step. Held by the Gate like any send. The key comes from a Vault handle and is never returned.', {
+      in: { method: t.enm('POST', 'PUT', 'PATCH', 'DELETE'), ...httpIn }, out: httpOut, level: 'view', gate: 'send',
+      errors: ['permission.needs_approval', 'provider.network', 'validation.precondition_failed', 'validation.too_large', 'permission.no_grant'],
+      agent: false,
     }),
     read('automations.connector_offers', 'Open connector setup offers. Each one names an app. A Vault value is not included.', {
       in: {},

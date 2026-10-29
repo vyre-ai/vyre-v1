@@ -11592,6 +11592,42 @@
       ],
       "type": "object"
     },
+    "s_9541245362": {
+      "properties": {
+        "handle": {
+          "description": "Vault handle of the key",
+          "examples": [
+            "#Acme_API"
+          ],
+          "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+          "type": "string"
+        },
+        "header": {
+          "description": "Header kind only: the header name",
+          "examples": [
+            "x-api-key"
+          ],
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "bearer",
+            "basic",
+            "header"
+          ],
+          "type": "string"
+        },
+        "username": {
+          "description": "Basic only: the user name. The handle holds the password",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "handle"
+      ],
+      "type": "object"
+    },
     "s_9746c1f86e": {
       "properties": {
         "thread": {
@@ -17317,6 +17353,32 @@
         "region",
         "postal",
         "country"
+      ],
+      "type": "object"
+    },
+    "s_ec25eef8cf": {
+      "properties": {
+        "body": {
+          "description": "Any JSON value"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "status",
+        "ok",
+        "headers",
+        "body"
       ],
       "type": "object"
     },
@@ -32196,6 +32258,221 @@
         "mcp": {
           "toolset": "automations"
         }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.network",
+        "validation.bad_input",
+        "validation.precondition_failed",
+        "validation.too_large"
+      ],
+      "examples": [
+        {
+          "input": {
+            "auth": {
+              "handle": "#Acme_API",
+              "header": "x-api-key",
+              "kind": "bearer",
+              "username": "example"
+            },
+            "headers": {},
+            "json": {},
+            "method": "GET",
+            "query": {},
+            "text": "example",
+            "url": "https://api.example.com/v1/items"
+          },
+          "name": "example",
+          "output": {
+            "body": {},
+            "headers": {},
+            "ok": true,
+            "status": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "auth": {
+            "$ref": "#/$defs/s_9541245362"
+          },
+          "headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "json": {
+            "description": "Any JSON value"
+          },
+          "method": {
+            "enum": [
+              "GET",
+              "HEAD"
+            ],
+            "type": "string"
+          },
+          "query": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "text": {
+            "type": "string"
+          },
+          "url": {
+            "description": "An https address",
+            "examples": [
+              "https://api.example.com/v1/items"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "url"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.http_read",
+      "output": {
+        "$ref": "#/$defs/s_ec25eef8cf"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Make a GET or HEAD request to a public https address for an HTTP request step. A private address is refused. The key comes from a Vault handle and is never returned.",
+      "surfaces": {
+        "agent": false,
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.needs_approval",
+        "permission.no_grant",
+        "provider.network",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.precondition_failed",
+        "validation.too_large"
+      ],
+      "examples": [
+        {
+          "input": {
+            "auth": {
+              "handle": "#Acme_API",
+              "header": "x-api-key",
+              "kind": "bearer",
+              "username": "example"
+            },
+            "headers": {},
+            "idempotencyKey": "idem_1",
+            "json": {},
+            "method": "POST",
+            "query": {},
+            "text": "example",
+            "url": "https://api.example.com/v1/items"
+          },
+          "name": "example",
+          "output": {
+            "body": {},
+            "headers": {},
+            "ok": true,
+            "status": 1
+          }
+        }
+      ],
+      "gate": {
+        "act": "send"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "auth": {
+            "$ref": "#/$defs/s_9541245362"
+          },
+          "headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "json": {
+            "description": "Any JSON value"
+          },
+          "method": {
+            "enum": [
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE"
+            ],
+            "type": "string"
+          },
+          "query": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "text": {
+            "type": "string"
+          },
+          "url": {
+            "description": "An https address",
+            "examples": [
+              "https://api.example.com/v1/items"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "url",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.http_send",
+      "output": {
+        "$ref": "#/$defs/s_ec25eef8cf"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Make a POST, PUT, PATCH or DELETE request to a public https address for an HTTP request step. Held by the Gate like any send. The key comes from a Vault handle and is never returned.",
+      "surfaces": {
+        "agent": false,
+        "http": "auto"
       },
       "v": 1
     },
@@ -201453,6 +201730,7 @@
       "kind": "module",
       "owner": "L6",
       "requires": [
+        "automations",
         "chat",
         "connectors",
         "esign",
@@ -219158,6 +219436,112 @@
         ]
       },
       "title": "Group by"
+    },
+    {
+      "cap": "automations.http_send",
+      "category": "data",
+      "editor": "ui:StepHttpRequest",
+      "effects": "outward",
+      "errors": [
+        "validation.bad_input",
+        "validation.too_large",
+        "validation.precondition_failed",
+        "internal.unexpected",
+        "provider.network",
+        "permission.no_grant",
+        "permission.needs_approval"
+      ],
+      "gateAct": "send",
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "auth": {
+            "properties": {
+              "handle": {
+                "description": "Vault handle of the key",
+                "examples": [
+                  "#Acme_API"
+                ],
+                "type": "string"
+              },
+              "header": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "bearer",
+                  "basic",
+                  "header"
+                ],
+                "type": "string"
+              },
+              "username": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "handle"
+            ],
+            "type": "object"
+          },
+          "headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "json": {
+            "description": "Any JSON value"
+          },
+          "method": {
+            "enum": [
+              "GET",
+              "HEAD",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE"
+            ],
+            "type": "string"
+          },
+          "query": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "text": {
+            "description": "Text body. Templating allowed: {{ trigger.x }}, {{ steps.name.out.y }}",
+            "type": "string"
+          },
+          "url": {
+            "description": "An https address. Templating allowed: {{ trigger.x }}, {{ steps.name.out.y }}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "url"
+        ],
+        "type": "object"
+      },
+      "key": "http_request",
+      "kind": "capability",
+      "module": "steps-core",
+      "output": {
+        "$ref": "#/$defs/s_ec25eef8cf"
+      },
+      "retry": {
+        "backoff": "exp",
+        "baseMs": 1000,
+        "max": 2
+      },
+      "sample": {
+        "body": {},
+        "headers": {},
+        "ok": true,
+        "status": 1
+      },
+      "title": "HTTP request"
     },
     {
       "category": "control",

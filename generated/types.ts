@@ -2447,6 +2447,47 @@ export type AutomationsGroupsRenameOut = {
     order: number;
   };
 };
+export type AutomationsHttpReadIn = {
+  method: "GET" | "HEAD";
+  url: string;
+  headers?: Record<string, string>;
+  query?: Record<string, unknown>;
+  json?: unknown;
+  text?: string;
+  auth?: {
+    kind: "bearer" | "basic" | "header";
+    handle: string;
+    username?: string;
+    header?: string;
+  };
+};
+export type AutomationsHttpReadOut = {
+  status: number;
+  ok: boolean;
+  headers: Record<string, string>;
+  body: unknown;
+};
+export type AutomationsHttpSendIn = {
+  method: "POST" | "PUT" | "PATCH" | "DELETE";
+  url: string;
+  headers?: Record<string, string>;
+  query?: Record<string, unknown>;
+  json?: unknown;
+  text?: string;
+  auth?: {
+    kind: "bearer" | "basic" | "header";
+    handle: string;
+    username?: string;
+    header?: string;
+  };
+  idempotencyKey: string;
+};
+export type AutomationsHttpSendOut = {
+  status: number;
+  ok: boolean;
+  headers: Record<string, string>;
+  body: unknown;
+};
 export type AutomationsListIn = {
   section?: "personal" | "shared" | "space";
   folder?: string;
@@ -27471,6 +27512,8 @@ export interface CapMap {
   "automations.groups.delete": { in: AutomationsGroupsDeleteIn; out: AutomationsGroupsDeleteOut };
   "automations.groups.list": { in: AutomationsGroupsListIn; out: AutomationsGroupsListOut };
   "automations.groups.rename": { in: AutomationsGroupsRenameIn; out: AutomationsGroupsRenameOut };
+  "automations.http_read": { in: AutomationsHttpReadIn; out: AutomationsHttpReadOut };
+  "automations.http_send": { in: AutomationsHttpSendIn; out: AutomationsHttpSendOut };
   "automations.list": { in: AutomationsListIn; out: AutomationsListOut };
   "automations.make_personal_copy": { in: AutomationsMakePersonalCopyIn; out: AutomationsMakePersonalCopyOut };
   "automations.migrate_runs": { in: AutomationsMigrateRunsIn; out: AutomationsMigrateRunsOut };

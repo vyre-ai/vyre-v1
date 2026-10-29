@@ -185,6 +185,8 @@ export function createClient(transport: Transport) {
         list: call("automations.groups.list", 1),
         rename: call("automations.groups.rename", 1),
       },
+      http_read: call("automations.http_read", 1),
+      http_send: call("automations.http_send", 1),
       list: call("automations.list", 1),
       make_personal_copy: call("automations.make_personal_copy", 1),
       migrate_runs: call("automations.migrate_runs", 1),

@@ -125,6 +125,27 @@ function connectorLevel(n: Node, db?: Db): "draft" | "tested" | undefined {
   return undefined;
 }
 
+const VAULT_HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
+/** The HTTP request step: an https address (a template is checked when it runs), a method that fits its body, and a key that is a Vault handle, never a value. */
+function httpIssues(id: string, have: Record<string, unknown>): Issue[] {
+  const out: Issue[] = [];
+  const method = typeof have["method"] === "string" ? have["method"].toUpperCase() : "";
+  const url = have["url"];
+  if (method !== "" && !["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"].includes(method)) out.push(issue("error", `${method} is not an HTTP request method this step sends.`, id));
+  if (typeof url === "string" && !url.includes("{{") && !/^https:\/\//i.test(url.trim())) out.push(issue("error", "An HTTP request address must start with https://.", id));
+  if ((method === "GET" || method === "HEAD") && (present(have["json"]) || present(have["text"]))) out.push(issue("error", `${method} cannot carry a body.`, id));
+  if (present(have["json"]) && present(have["text"])) out.push(issue("error", "An HTTP request carries a JSON body or a text body, not both.", id));
+  const auth = have["auth"];
+  if (auth !== undefined && auth !== null) {
+    const a = (typeof auth === "object" && !Array.isArray(auth) ? auth : {}) as Record<string, unknown>;
+    if (a["kind"] !== "bearer" && a["kind"] !== "basic" && a["kind"] !== "header") out.push(issue("error", "Auth is bearer, basic or a named header.", id));
+    if (typeof a["handle"] !== "string" || !VAULT_HANDLE.test(a["handle"])) out.push(issue("error", "Auth needs a Vault handle such as #Acme_API. Pick the key in the Vault; do not paste it.", id));
+    if (a["kind"] === "basic" && !present(a["username"])) out.push(issue("error", "Basic auth needs a user name.", id));
+    if (a["kind"] === "header" && !present(a["header"])) out.push(issue("error", "Auth by header needs the header name.", id));
+  }
+  return out;
+}
+
 /** The structural problems that make a definition unreadable: duplicate ids, references to nodes that do not exist, steps and triggers that are not in the catalogue. */
 export function structuralIssues(def: Definition): Issue[] {
   const out: Issue[] = [];
@@ -162,6 +183,7 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
     if (n.key === "connector_request" && !present(have["action"])) out.push(issue("error", "An authenticated request needs an action.", n.id));
     if (n.key === "connector_request" && !present(have["connectionId"])) out.push(issue("error", "An authenticated request needs a connection.", n.id));
     if (n.key === "connector_request" && containsSecret(have["input"])) out.push(issue("error", "An authenticated request cannot hold a secret. Use the connection.", n.id));
+    if (n.key === "http_request") out.push(...httpIssues(n.id, have));
     if (s.kind === "ai" && !n.ai?.agentId && !n.ai?.keyId && !present(have.agentId) && !present(have.keyId)) out.push(issue("error", `${s.title} needs an agent or a key.`, n.id));
     if (n.key === "loop") {
       const max = have["maxIterations"];

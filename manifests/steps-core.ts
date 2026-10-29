@@ -4,6 +4,7 @@
 // DECISION: control steps (if, paths, parallel, loop, stop) have no capability; the Run engine evaluates them. approval creates an Approve task and waits.
 // DECISION: Update rows and Delete rows call sheets.update_row and sheets.delete_row for one row (by row id or key column); many rows are Find rows plus Loop.
 //   Each write is a file version labelled with the automation and run, which is what lets "Undo this run" and the row trigger work.
+// DECISION: http_request is one step with two capabilities. GET and HEAD are reads (automations.http_read, they also run in a sandbox test); every other method is outward (automations.http_send, Gate act send, recorded in a sandbox test).
 // NOT EXPRESSIBLE: step input mapping and templating ({{ }} expressions over earlier outputs) are plain strings here; the schema cannot say "string or typed value".
 import { defineManifest, read, step, t } from '../packages/contracts/src/index.ts';
 import { id, expr } from './_common.ts';
@@ -181,6 +182,16 @@ export default defineManifest({
         dryRun: t.opt(t.bool()),
       },
       out: { output: t.json(), dryRun: t.bool() },
+    }),
+    step('http_request', 'HTTP request', 'data', 'capability', {
+      cap: 'automations.http_send', effects: 'outward', gateAct: 'send', idempotency: 'key', retry: { max: 2, backoff: 'exp', baseMs: 1000 },
+      errors: ['validation.bad_input', 'validation.too_large', 'validation.precondition_failed', 'internal.unexpected', 'provider.network', 'permission.no_grant', 'permission.needs_approval'],
+      in: {
+        method: t.enm('GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'), url: tpl('An https address'),
+        headers: t.opt(t.rec(t.str())), query: t.opt(t.rec()), json: t.opt(t.json()), text: t.opt(tpl('Text body')),
+        auth: t.opt(t.obj({ kind: t.enm('bearer', 'basic', 'header'), handle: t.str({ description: 'Vault handle of the key', examples: ['#Acme_API'] }), username: t.opt(t.str()), header: t.opt(t.str()) })),
+      },
+      out: { status: t.int(), ok: t.bool(), headers: t.rec(t.str()), body: t.json() },
     }),
     // code
     step('code', 'Run code', 'code', 'code', {

@@ -185,6 +185,8 @@ export function stubs(ctx: CallCtx) {
         list: call("automations.groups.list"),
         rename: call("automations.groups.rename"),
       },
+      http_read: call("automations.http_read"),
+      http_send: call("automations.http_send"),
       list: call("automations.list"),
       make_personal_copy: call("automations.make_personal_copy"),
       migrate_runs: call("automations.migrate_runs"),

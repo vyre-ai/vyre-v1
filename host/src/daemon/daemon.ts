@@ -917,6 +917,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setConnectorsHost: () => connectorPort,
         setDocumentNetwork: () => documentPin(),
         setConnectorReadSender: (d) => connectorReadSender(d),
+        // the HTTP request step's key: the Vault fills the handle for one call through the same per-execution port connectors use (access is checked by vault.fill as the Run's principal)
+        setHttpStepHost: () => ({ fill: (ctx: unknown, handle: string) => connectorPort.fill(ctx as Parameters<typeof connectorPort.fill>[0], { connector: "http_request", connectionId: "step", slot: "auth", handle }) }),
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
         setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open() }, now }),
         ...(o.seams?.drivers ?? {}),

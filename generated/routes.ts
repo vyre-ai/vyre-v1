@@ -2318,6 +2318,42 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/automations/http_read",
+    "cap": "automations.http_read",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/http_send",
+    "cap": "automations.http_send",
+    "v": 1,
+    "module": "automations",
+    "effects": "outward",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "send"
+  },
+  {
+    "method": "POST",
     "path": "/v1/automations/list",
     "cap": "automations.list",
     "v": 1,
