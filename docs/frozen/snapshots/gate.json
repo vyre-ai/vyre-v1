@@ -3,7 +3,7 @@
   "capabilities": {
     "gate.acts.list@1": "819e53779fbb13cfa0ff829e771a84fa9dfc5f5bc05e1c052f2768fd0e0f0748",
     "gate.deny@1": "14d821130834a364dc8f803e87b7cf4e1d146c64d74ca6eb1b86a51a3e088492",
-    "gate.effective_rule@1": "37e751d8d7c452053201b13e41e2202b0feb875eda43c8e9452a6d87689fe08a",
+    "gate.effective_rule@1": "b4c966a425a77b9fe73b46ba9b7ccb06f55ea2c946725aa5da87e6a2603d73f8",
     "gate.expire@1": "91f689719d3f782a1ae65243ee89a36225f5f89ce95db1a3d4f8728b88ee36db",
     "gate.holds.get@1": "b8beec85c937ed79fe55c120df01d45a0d44be65582854552e8ba558a2e25330",
     "gate.holds.list@1": "78ab0d45acaa1dd79e57cd107acf50f6fe883f48ed3cc96b317a24de4b7e1819",

@@ -29,6 +29,7 @@ import type { IconKey } from "./model.ts";
 import type { DefNode, DefTrigger, Definition, Issue, KeyChoice } from "./model.ts";
 import { LiveStepForm } from "./steps/LiveStepForm.tsx";
 import type { KeysStatus } from "./data.tsx";
+import { SendApproval, sendsOutward } from "./AskBeforeSending.tsx";
 import { IconButton, pointer, s as ps, webOnly } from "./parts.tsx";
 
 const humanize = (k: string): string => k.replace(/([A-Z])/g, " $1").replace(/[_.]+/g, " ").replace(/^./, (x) => x.toUpperCase());
@@ -289,6 +290,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
         ) : null}
         {jsonError ? <Text style={i.hint}>{jsonError}</Text> : null}
         {inputKeys.length === 0 && kind === "plain" && !advanced && !accountPick ? <Text style={i.hint}>Nothing is set on this step yet. Add what it needs in the fields the check names below.</Text> : null}
+        {sendsOutward(node.key) && !(node.key === "http_request" && (node.input?.["method"] === undefined || node.input["method"] === "GET" || node.input["method"] === "HEAD")) ? <SendApproval on={node.askBeforeSending === true} onSet={(next) => onChange(updateStep(def, node.id, { askBeforeSending: next }))} /> : null}
         <View style={i.group}>
           <Text style={i.groupHead}>If this step fails</Text>
           <Choice

@@ -96,6 +96,7 @@ type Out = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -225,6 +226,7 @@ type Out = {
               },
               "timeoutMinutes": 1
             },
+            "askBeforeSending": true,
             "branches": [
               {
                 "label": "example",

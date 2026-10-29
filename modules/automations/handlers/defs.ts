@@ -188,6 +188,7 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
       const max = have["maxIterations"];
       if (typeof max === "number" && max > 1000) out.push(issue("error", "A loop allows at most 1000 iterations.", n.id));
     }
+    if (n.askBeforeSending !== undefined && s.effects !== "outward") out.push(issue("error", "Ask before sending applies only to a step that sends.", n.id));
     if (n.onError?.mode === "route" && !n.onError.route) out.push(issue("error", "On error: route needs a step to go to.", n.id));
   }
   const nested = new Set<string>();

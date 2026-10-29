@@ -171,12 +171,12 @@ test("a private address, a rebinding name and plain http are refused by name and
   } finally { await d.stop(); }
 });
 
-test("a POST is held by the Gate, then released: it is sent once, with the attempt key as its Idempotency-Key", async () => {
+test("a POST with Ask before sending On is held by the Gate, then released: it is sent once, with the attempt key as its Idempotency-Key", async () => {
   const seen: Seen[] = [];
   const d = await boot(seededDir(), seen);
   try {
     const handle = await keyed(d);
-    const id = await promoted(d, "http-post", "Post order", [{ id: "order", key: "http_request", input: { method: "POST", url: "https://api.example.com/v1/orders", json: { sku: "A-1", qty: 2 }, auth: { kind: "bearer", handle } } }]);
+    const id = await promoted(d, "http-post", "Post order", [{ id: "order", key: "http_request", askBeforeSending: true, input: { method: "POST", url: "https://api.example.com/v1/orders", json: { sku: "A-1", qty: 2 }, auth: { kind: "bearer", handle } } }]);
     const runId = String((await ok(d, "/v1/automations/run", { automationId: id, idempotencyKey: "http-post-run" }))["runId"]);
     await until("the POST to wait for approval", 12_000, async () => {
       const run = (await ok(d, "/v1/runs/get", { runId }))["run"] as { status?: string };
@@ -242,5 +242,55 @@ test("an automation that was not given the key cannot use its handle: the reques
     assert.equal(failed.error?.code, "permission.no_grant");
     assert.equal(seen.length, 0);
     noSecret(await dump(d, runId, id), "the failed run");
+  } finally { await d.stop(); }
+});
+
+/** "sent" when the run finishes with no hold, "held" when it waits on the Gate. */
+async function sendOutcome(d: Daemon, id: string, key: string): Promise<"sent" | "held"> {
+  const runId = String((await ok(d, "/v1/automations/run", { automationId: id, idempotencyKey: key }))["runId"]);
+  return until("the run to send or hold", 15_000, async () => {
+    const run = (await ok(d, "/v1/runs/get", { runId }))["run"] as { status?: string };
+    if (run.status === "succeeded") return "sent" as const;
+    if (run.status === "waiting") return ((await ok(d, "/v1/gate/holds/list", { states: ["held"], runId }))["holds"] as HoldRow[]).length > 0 ? "held" as const : undefined;
+    if (run.status === "failed" || run.status === "stopped") assert.fail(`the run ${run.status}: ${JSON.stringify(await ok(d, "/v1/runs/steps", { runId }))}`);
+    return undefined;
+  });
+}
+const postNode = (handle: string, ask: boolean | undefined) => [{ id: "order", key: "http_request", ...(ask === undefined ? {} : { askBeforeSending: ask }), input: { method: "POST", url: "https://api.example.com/v1/orders", json: { n: 1 }, auth: { kind: "bearer", handle } } }];
+
+test("Ask before sending Off, or unset, sends a POST at once with no hold", async () => {
+  for (const [name, ask] of [["off", false], ["unset", undefined]] as const) {
+    const seen: Seen[] = [];
+    const d = await boot(seededDir(), seen);
+    try {
+      const handle = await keyed(d);
+      const id = await promoted(d, `http-ask-${name}`, `Ask ${name}`, postNode(handle, ask));
+      assert.equal(await sendOutcome(d, id, `http-ask-${name}-run`), "sent");
+      assert.equal(seen.length, 1, "sent exactly once");
+      assert.equal(seen[0]!.method, "POST");
+    } finally { await d.stop(); }
+  }
+});
+
+test("a Space rule that requires approval for sends holds a POST even when the step is Off", async () => {
+  const seen: Seen[] = [];
+  const d = await boot(seededDir(), seen);
+  try {
+    const handle = await keyed(d);
+    const id = await promoted(d, "http-ask-rule", "Ask rule", postNode(handle, false));
+    await ok(d, "/v1/gate/rules/set", { act: "send", scope: "space", mode: "hold" });
+    assert.equal(await sendOutcome(d, id, "http-ask-rule-run"), "held");
+    assert.equal(seen.length, 0, "nothing was sent while the rule held it");
+  } finally { await d.stop(); }
+});
+
+test("a GET is a read: it is never held, whatever the setting", async () => {
+  const seen: Seen[] = [];
+  const d = await boot(seededDir(), seen);
+  try {
+    const handle = await keyed(d);
+    const id = await promoted(d, "http-ask-get", "Ask get", [{ id: "look", key: "http_request", askBeforeSending: true, input: { method: "GET", url: "https://api.example.com/v1/items", auth: { kind: "bearer", handle } } }]);
+    assert.equal(await sendOutcome(d, id, "http-ask-get-run"), "sent");
+    assert.equal(seen.length, 1);
   } finally { await d.stop(); }
 });

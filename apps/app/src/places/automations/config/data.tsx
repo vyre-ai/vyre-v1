@@ -13,6 +13,8 @@ export interface ConfigDirectory {
   channels: readonly DirEntry[];
   /** Automations that can run when a record enters a Journey stage. */
   automations: readonly DirEntry[];
+  /** Automations that can run when a record leaves a Journey stage. Falls back to `automations` when the shell does not say. */
+  automationsLeaving?: readonly DirEntry[];
 }
 export type FieldType = "person" | "rel" | "date" | "choice" | "num" | "text" | "check" | "file" | "formula";
 export interface FieldEntry { name: string; type: FieldType }

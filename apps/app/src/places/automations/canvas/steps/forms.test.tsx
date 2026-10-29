@@ -176,3 +176,14 @@ test("with a run shown, the Test tab carries that run's log for the step, and a 
   ).replaceAll("<!-- -->", "");
   assert.ok(has(out, 'data-testid="run-step-io"') && has(out, "In the run shown"));
 });
+
+test("an HTTP send has Ask before sending, default Off; a read does not, because a read is never held", () => {
+  const post = panel({ id: "p", key: "http_request", input: { method: "POST", url: "https://a.example.com", json: {} } });
+  assert.ok(has(post, 'data-testid="ask-before-sending"'));
+  assert.match(tag(post, "choose-ask-before-sending"), /aria-label="[^"]*Off/);
+  assert.ok(has(post, "The send goes out as soon as the step runs."));
+  const on = panel({ id: "p", key: "http_request", askBeforeSending: true, input: { method: "DELETE", url: "https://a.example.com" } } as never);
+  assert.ok(has(on, "The send waits until someone approves it."));
+  assert.equal(has(panel({ id: "g", key: "http_request", input: { method: "GET", url: "https://a.example.com" } }), 'data-testid="ask-before-sending"'), false);
+  assert.equal(has(panel({ id: "a", key: "ai", input: { prompt: "p" } }), 'data-testid="ask-before-sending"'), false, "the AI step sends nothing");
+});

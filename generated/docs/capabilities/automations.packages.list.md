@@ -36,6 +36,15 @@ type Out = {
       name: string;
       sourceAutomationId: string;
       createdAt: number;
+      requires: {
+        connections: Array<{
+            slot: string;
+            label: string;
+            stepIds: Array<string>;
+          }>;
+        vault: Array<string>;
+        keys: Array<string>;
+      };
     }>;
 };
 ```
@@ -59,6 +68,23 @@ type Out = {
         "createdAt": 1760000000000,
         "id": "example",
         "name": "example",
+        "requires": {
+          "connections": [
+            {
+              "label": "example",
+              "slot": "example",
+              "stepIds": [
+                "example"
+              ]
+            }
+          ],
+          "keys": [
+            "example"
+          ],
+          "vault": [
+            "example"
+          ]
+        },
         "sourceAutomationId": "aut_a1b2c3"
       }
     ]

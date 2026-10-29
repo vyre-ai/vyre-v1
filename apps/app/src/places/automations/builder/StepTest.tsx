@@ -62,7 +62,7 @@ export function StepTest({ stepKey, nodeId, input, version, samples = {}, onUseO
         <Text style={t.btnText}>{phase === "running" ? "Testing" : "Test this step"}</Text>
       </Pressable>
       <Text testID="no-outward-effect" style={t.hint}>{NO_OUTWARD_EFFECT}</Text>
-      {phase === "unavailable" ? <Text style={t.err}>Step test is not available from this runtime.</Text> : null}
+      {phase === "unavailable" ? <Text style={t.err}>The step test did not answer. Check the connection to the server and try again.</Text> : null}
       {phase === "error" || phase === "unavailable" ? <Text style={t.err}>{error?.message ?? ""}</Text> : null}
       {phase === "done" ? (
         <View style={t.out}>

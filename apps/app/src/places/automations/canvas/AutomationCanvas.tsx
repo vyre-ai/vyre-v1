@@ -29,6 +29,7 @@ import { statesFromSteps, stepsFromCall } from "../runs/ledger.ts";
 import type { StepRowLite } from "../runs/ledger.ts";
 import { attemptLine, childRunLine, containerForChildren } from "../runs/lineage.ts";
 import { definitionLabel } from "../versions/cohorts.ts";
+import { CohortMigration } from "../versions/CohortMigration.tsx";
 import { AddDot, StepCard, TriggerCard } from "./Cards.tsx";
 import type { CardHandlers } from "./Cards.tsx";
 import { canvasScale, COMPACT_REGIONS, compactRegionLabel, frameFor, layoutForWidth } from "./frame.ts";

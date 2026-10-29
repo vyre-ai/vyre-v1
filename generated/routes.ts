@@ -2039,6 +2039,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/automations/analytics",
+    "cap": "automations.analytics",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/automations/connector_offer/accept",
     "cap": "automations.connector_offer.accept",
     "v": 1,
@@ -2165,6 +2183,24 @@ export const routes: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "delete"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/dependencies",
+    "cap": "automations.dependencies",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
   },
   {
     "method": "POST",
@@ -2740,6 +2776,44 @@ export const routes: Route[] = [
       "id": "/automationId"
     },
     "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/templates/list",
+    "cap": "automations.templates.list",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/templates/use",
+    "cap": "automations.templates.use",
+    "v": 1,
+    "module": "automations",
+    "effects": "write",
+    "permission": "automations.personal",
+    "level": "edit",
+    "resource": {
+      "type": "automation",
+      "create": true,
+      "parent": "/folderId"
+    },
+    "idempotency": "key",
     "risk": "medium",
     "offline": null,
     "teamOnly": false,

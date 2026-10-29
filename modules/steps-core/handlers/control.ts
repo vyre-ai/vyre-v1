@@ -21,7 +21,7 @@ type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-ex
 // ---- the shapes shared with the Run engine (structural: modules do not import each other) ----
 
 export interface Branch { label: string; to: string }
-export interface StepNode { id: string; key: string; input: Record<string, unknown>; branches?: Branch[]; next?: string[]; ai?: Record<string, unknown> }
+export interface StepNode { id: string; key: string; input: Record<string, unknown>; branches?: Branch[]; next?: string[]; ai?: Record<string, unknown>; askBeforeSending?: boolean }
 export interface WaitSpec {
   reason: "approval" | "background" | "key";
   taskId?: string;
@@ -514,7 +514,8 @@ async function capabilityStep(env: StepEnv, node: StepNode, i: In, call: StepCal
   // every capability that takes a key gets the step's own, so a retry of the same attempt is the same act
   if (!("idempotencyKey" in input) && "idempotencyKey" in ((CAPS.get(cap)?.input as { properties?: object } | undefined)?.properties ?? {})) input = { ...input, idempotencyKey: call.key };
   try {
-    const out = await env.ctx.call(cap, input);
+    // Ask before sending is Off unless the step says On: the Gate then holds only when a Space admin rule requires approval for this act
+    const out = await env.ctx.call(cap, input, def.effects === "outward" && node.askBeforeSending !== true ? { gate: "admin_only" } : undefined);
     return { output: ad?.output ? ad.output(out, i) : out };
   } catch (e) {
     const held = gateHold(e);

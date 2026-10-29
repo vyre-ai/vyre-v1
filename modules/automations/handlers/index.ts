@@ -13,11 +13,16 @@ import { connectorShares, shareConnector } from "./connector-share.ts";
 import { tryConnectorRead } from "./try-read.ts";
 import { migrateRuns, migrationPreview } from "./migrate.ts";
 import { exportPackage, importPackage, packagesList } from "./packages.ts";
+import { analytics, dependencies, templatesList, templatesUse } from "./studio.ts";
 import { scheduleChoose } from "./schedule.ts";
 import { fire, replay, retry, run, stop, test } from "./triggers.ts";
 
 export const handlers = {
   "automations.account_picks": accountPicks,
+  "automations.analytics": analytics,
+  "automations.dependencies": dependencies,
+  "automations.templates.list": templatesList,
+  "automations.templates.use": templatesUse,
   "automations.alerts.get": alertsGet,
   "automations.alerts.set": alertsSet,
   "automations.create": create,

@@ -99,7 +99,12 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
     ], x, y, "context", { label: g.name });
   };
   const plusMenu = (x: number, y: number): void => {
-    show([{ label: "New automation", onSelect: () => void create() }, { label: "New group", onSelect: () => void createGroup() }], x, y, "other");
+    show([
+      { label: "New blank automation", onSelect: () => void create() },
+      ...(data.nav.openTemplates ? [{ label: "New from a template", onSelect: () => { data.nav.openTemplates?.(); onChoose?.(); } } as MenuEntry] : []),
+      { separator: true },
+      { label: "New group", onSelect: () => void createGroup() },
+    ], x, y, "other");
   };
   const commitRename = async (): Promise<void> => {
     const r = renaming;

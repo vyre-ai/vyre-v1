@@ -96,8 +96,8 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
 // ---- reads ----
 
 export async function effectiveRuleOf(ctx: GateCtx, input: In): Promise<unknown> {
-  const e = effectiveRule(ctx.db, input.principal as PrincipalRef, input.act);
-  return { hold: e.hold, reason: e.reason, approvers: e.approvers, peopleOnly: e.peopleOnly, afterHours: e.afterHours, onTimeout: e.onTimeout, sources: e.sources };
+  const e = effectiveRule(ctx.db, input.principal as PrincipalRef, input.act, undefined, input.adminOnly === true);
+  return { hold: e.hold, adminRule: e.adminRule, reason: e.reason, approvers: e.approvers, peopleOnly: e.peopleOnly, afterHours: e.afterHours, onTimeout: e.onTimeout, sources: e.sources };
 }
 
 export async function actsList(_ctx: GateCtx, _input: In): Promise<unknown> {

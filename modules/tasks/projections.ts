@@ -311,6 +311,7 @@ export function involved(t: Task, who: Who): boolean {
 /** Group and role slots: the caller sees the task when the kernel grants view on it (the grant follows the group or role). */
 export function visibleTo(ctx: TasksCtx, t: Task): boolean {
   const who = whoIs(ctx);
+  if (isTrustedService(who)) return true;   // the host's own hooks (a Journey advancing a record on a finished task) read every task, as they act on every slot
   if (involved(t, who) || t.createdBy === who.id || t.followers.includes(who.id)) return true;
   if (!ctx.authorize) return false;
   return ctx.authorize({ perm: null, level: "view" }, { type: "task", id: t.id }).effect === "allow";

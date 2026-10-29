@@ -89,8 +89,10 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number): boolean
       return true;
     }
     case "principal.role_set": {
-      const holder = str(p["holder"]), role = str(p["role"]);
-      if (!holder || !role) return false;
+      const holder = str(p["holder"]), given = str(p["role"]);
+      if (!holder || !given) return false;
+      // older events name the built-in role ("member"); every later call (unassign, removal) wants the role id
+      const role = LEGACY_ROLE[given] ?? given;
       const have = store.assignments.get(holder) ?? [];
       if (have.includes(role)) return false;
       store.assignments.set(holder, [...have, role]);
@@ -182,6 +184,7 @@ function apply(ctx: AccessCtx, store: AccessStore, events: readonly LogEvent[]):
 
 const GRANTED = new WeakSet<AccessSnapshot>();
 /** the Space level each built-in role carries in a Space nothing was seeded in, the same as the seeded roles. Guest (and Temp) get nothing Space-wide: they only hold per-resource grants. */
+const LEGACY_ROLE: Readonly<Record<string, string>> = { owner: "rol_owner", admin: "rol_admin", manager: "rol_developer", member: "rol_member", temp: "rol_guest" };
 const BUILT_IN_LEVEL: Readonly<Record<string, "manage" | "edit">> = { rol_owner: "manage", rol_admin: "manage", rol_developer: "edit", rol_member: "edit" };
 
 /**

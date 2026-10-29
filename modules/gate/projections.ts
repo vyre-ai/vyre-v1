@@ -144,11 +144,13 @@ const minRisk = (a: Risk | undefined, b: Risk | undefined): Risk | undefined => 
 export interface Effective {
   hold: boolean; reason: string; approvers: string; peopleOnly: boolean; agentOkFor?: Risk; afterHours: number; onTimeout: "drop" | "escalate"; escalateTo: "delegate" | "role";
   emailBackstopHours: number; sources: { space: Mode; floor?: Mode; agent?: Mode };
+  /** a rule somebody wrote (not the default) asks for approval of this act */
+  adminRule: boolean;
 }
 
 /** The effective rule for a principal and an act: the strictest of the Space policy, the owner floor and the agent's own rule. An agent rule can only tighten; an `allow` anywhere cannot
  *  loosen a `hold` elsewhere; nothing here reads a local tool-prompt mode, so Auto cannot suppress a Gate hold (spec 2.14). A person's own act skips the Gate unless the act is a human-too kind. */
-export function effectiveRule(db: Db, p: PrincipalRef, actKey: string, policy: Policy = readPolicy(db)): Effective {
+export function effectiveRule(db: Db, p: PrincipalRef, actKey: string, policy: Policy = readPolicy(db), adminOnly = false): Effective {
   const a = actOf(actKey);
   const rows = allRules(db).filter((r) => r.act === a.key);
   const space = rows.find((r) => r.scope === "space");
@@ -156,7 +158,8 @@ export function effectiveRule(db: Db, p: PrincipalRef, actKey: string, policy: P
   const agent = p.kind === "agent" ? rows.find((r) => r.scope === "agent" && r.agentId === p.id) : undefined;
   const sSpace: Mode = space?.mode ?? "hold";
   const sources: Effective["sources"] = { space: sSpace, ...(floor ? { floor: floor.mode } : {}), ...(agent ? { agent: agent.mode } : {}) };
-  const wants = sSpace === "hold" || floor?.mode === "hold" || agent?.mode === "hold";
+  // adminOnly: the default rule (no row) does not ask; only a rule an admin or the owner wrote does
+  const wants = (sSpace === "hold" && (!adminOnly || space !== undefined)) || floor?.mode === "hold" || agent?.mode === "hold";
   const applies = p.kind !== "person" || a.humanToo;
   const hold = wants && applies;
   const reason = !applies ? "A person's own act does not wait for approval."
@@ -178,6 +181,7 @@ export function effectiveRule(db: Db, p: PrincipalRef, actKey: string, policy: P
   const e: Effective = {
     hold, reason, approvers, peopleOnly, afterHours, onTimeout: dropped ? "drop" : "escalate",
     escalateTo: space?.escalateTo ?? agent?.escalateTo ?? a.escalateTo, emailBackstopHours: Math.min(policy.emailBackstopHours, a.emailBackstopHours), sources,
+    adminRule: space?.mode === "hold" || floor?.mode === "hold" || agent?.mode === "hold",
   };
   if (okFor !== undefined) e.agentOkFor = okFor;
   return e;
@@ -217,7 +221,7 @@ function holdFrom(r: Raw): Hold {
   const er = str(r.error); if (er) h.error = er;
   return h;
 }
-const effectiveFallback = (): Effective => ({ hold: true, reason: "", approvers: "role:admin", peopleOnly: true, afterHours: 24, onTimeout: "escalate", escalateTo: "delegate", emailBackstopHours: 4, sources: { space: "hold" } });
+const effectiveFallback = (): Effective => ({ hold: true, reason: "", approvers: "role:admin", peopleOnly: true, afterHours: 24, onTimeout: "escalate", escalateTo: "delegate", emailBackstopHours: 4, sources: { space: "hold" }, adminRule: false });
 
 export function findHold(db: Db, id: string): Hold | undefined {
   const rows = db.all(`SELECT ${HOLD_COLS} FROM gate_holds WHERE id = ?`, id) as Raw[];

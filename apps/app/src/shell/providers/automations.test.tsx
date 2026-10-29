@@ -14,7 +14,7 @@ test("the Automations place draws the sidebar through the shell runtime", () => 
   const rt = sampleRuntime({ screens: s.data.screens, call: s.data.call });
   const out = renderToStaticMarkup(<ShellRuntimeProvider value={rt}><AutomationsPlace place="automations" /></ShellRuntimeProvider>);
   assert.ok(out.includes("automations-place"));
-  assert.ok(out.includes("Pick an Automation"));
+  assert.ok(out.includes("Pick an automation") && out.includes("Start from a template"));
   const el = AutomationsSidebarSlot({ selectedId: null, view: "automations", onView: () => undefined }) as ReactElement<{ title: string }>;
   assert.equal(el.type, SidebarContent, "the place registers its sidebar in the shared slot");
   assert.equal(el.props.title, "Automations");

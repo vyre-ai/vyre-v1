@@ -164,6 +164,7 @@ export function stubs(ctx: CallCtx) {
         get: call("automations.alerts.get"),
         set: call("automations.alerts.set"),
       },
+      analytics: call("automations.analytics"),
       connector_offer: {
         accept: call("automations.connector_offer.accept"),
         decline: call("automations.connector_offer.decline"),
@@ -173,6 +174,7 @@ export function stubs(ctx: CallCtx) {
       connector_shares: call("automations.connector_shares"),
       create: call("automations.create"),
       delete: call("automations.delete"),
+      dependencies: call("automations.dependencies"),
       draft_connector: call("automations.draft_connector"),
       fire: call("automations.fire"),
       followers: {
@@ -212,6 +214,10 @@ export function stubs(ctx: CallCtx) {
         list: call("automations.steps.list"),
       },
       stop: call("automations.stop"),
+      templates: {
+        list: call("automations.templates.list"),
+        use: call("automations.templates.use"),
+      },
       test: call("automations.test"),
       triggers: {
         list: call("automations.triggers.list"),

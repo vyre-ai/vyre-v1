@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useAutomationsData } from "../canvas/data.tsx";
 import { stepsFromCall } from "../runs/ledger.ts";
 import { MIGRATION_DISABLED, cohortGroupLabel, cohortPreview, cohortsOf, previewGroups, safeRunIds } from "./cohorts.ts";
-import type { CohortRun, CohortStep, PreviewGroup } from "./cohorts.ts";
+import type { Cohort, CohortRun, CohortStep, PreviewGroup } from "./cohorts.ts";
 
 export function CohortMigration({ automationId, currentVersion }: { automationId: string; currentVersion: number }): ReactElement {
   const data = useAutomationsData();
@@ -80,9 +80,11 @@ export function CohortMigration({ automationId, currentVersion }: { automationId
     setBusy(true);
     setApplyError(null);
     try {
-      await data.call("automations.migrate_runs", { automationId, toVersion: currentVersion, runIds: safeIds });
+      const out = await data.call("automations.migrate_runs", { automationId, toVersion: currentVersion, runIds: safeIds }) as { held?: unknown };
+      const held = Array.isArray(out?.held) ? out.held.length : 0;
       setConfirming(false);
       setReload((n) => n + 1);
+      if (held > 0) setApplyError(`${held} ${held === 1 ? "run was" : "runs were"} held back because a step started. Try again when it finishes.`);
     } catch (e) {
       setApplyError(e instanceof Error ? e.message : "Those runs were not moved.");
     } finally {
@@ -91,7 +93,20 @@ export function CohortMigration({ automationId, currentVersion }: { automationId
   }
 
   const cohorts = phase === "ready" ? cohortsOf(currentVersion, runs, steps) : [];
-  const canApply = phase === "ready" && safeIds.length > 0;
+  return (
+    <CohortView
+      currentVersion={currentVersion} phase={phase} message={message} cohorts={cohorts} groups={groups} safeCount={safeIds.length} previewNote={previewNote}
+      confirming={confirming} busy={busy} applyError={applyError} onApply={() => void apply()} onCancel={() => { setConfirming(false); setApplyError(null); }}
+    />
+  );
+}
+
+/** What the Versions tab draws once the runs and the preview are loaded. Apply asks once more before it moves anything. */
+export function CohortView({ currentVersion, phase, message = "", cohorts, groups, safeCount, previewNote = null, confirming, busy, applyError = null, onApply, onCancel }: {
+  currentVersion: number; phase: "loading" | "ready" | "error"; message?: string; cohorts: readonly Cohort[]; groups: readonly PreviewGroup[]; safeCount: number;
+  previewNote?: string | null; confirming: boolean; busy: boolean; applyError?: string | null; onApply(): void; onCancel(): void;
+}): ReactElement {
+  const canApply = phase === "ready" && safeCount > 0;
   return (
     <View testID="version-cohorts" style={c.wrap}>
       <Text style={c.head}>Pinned versions</Text>
@@ -112,14 +127,14 @@ export function CohortMigration({ automationId, currentVersion }: { automationId
         accessibilityState={{ disabled: !canApply || busy }}
         disabled={!canApply || busy}
         testID="apply-migration"
-        onPress={() => { if (canApply) void apply(); }}
+        onPress={() => { if (canApply) onApply(); }}
         style={canApply ? c.applyOn : c.apply}
       >
         <Text style={canApply ? c.applyOnText : c.applyText}>{confirming ? "Apply" : "Apply safe groups"}</Text>
       </Pressable>
-      {canApply && confirming ? <Text style={c.dim}>{`Move ${safeIds.length} runs to version ${currentVersion}. Finished steps stay finished.`}</Text> : null}
+      {canApply && confirming ? <Text testID="migration-confirm" style={c.dim}>{`Move ${safeCount} ${safeCount === 1 ? "run" : "runs"} to version ${currentVersion}. Finished steps stay finished, and a step that is running is never moved.`}</Text> : null}
       {canApply && confirming ? (
-        <Pressable accessibilityRole="button" disabled={busy} testID="cancel-migration" onPress={() => { setConfirming(false); setApplyError(null); }}>
+        <Pressable accessibilityRole="button" disabled={busy} testID="cancel-migration" onPress={onCancel}>
           <Text style={c.dim}>Cancel</Text>
         </Pressable>
       ) : null}
