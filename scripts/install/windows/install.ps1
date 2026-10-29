@@ -102,6 +102,9 @@ function Remove-VyreWindows {
     Write-Host "Uninstalling Vyre..."
     Get-Process -Name "vyre-desktop", "Vyre" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     schtasks /delete /tn "Vyre" /f 2>$null | Out-Null
+    # the installer's own uninstaller removes what it registered (the uninstall entry, shortcuts); _?= keeps it in place so -Wait waits, and the folder goes after
+    $uninstaller = Join-Path $InstallDir "uninstall.exe"
+    if (Test-Path $uninstaller) { Start-Process -FilePath $uninstaller -ArgumentList "/S", "_?=$InstallDir" -Wait }
     if (Test-Path $InstallDir) { Remove-Item -Path $InstallDir -Recurse -Force }
     Write-Host "Done. Your Spaces and their data stay on their servers."
 }

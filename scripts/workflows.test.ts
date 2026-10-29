@@ -260,3 +260,19 @@ test("the Windows setup program reaches the release as VyreSetup.exe with a SHA-
   assert.match(ps1, /"\$ReleaseBase\/VyreSetup\.exe"/);
   assert.match(ps1, /"\$ReleaseBase\/SHA256SUMS"/);
 });
+
+test("the Windows leg proves the install end to end, and it blocks release the way the Mac leg does", () => {
+  const desktop = wf("desktop");
+  const e2e = fs.readFileSync(path.resolve(dir, "../../scripts/install/windows/install.e2e.ps1"), "utf8");
+  for (const phase of ["silent-install", "nsis-uninstall", "via-script", "script-uninstall"]) {
+    assert.match(desktop.text, new RegExp(`-Phase ${phase}`), `the workflow runs ${phase}`);
+    assert.ok(e2e.includes(`"${phase}"`), `the script has ${phase}`);
+  }
+  assert.match(desktop.text, /run-shell\.sh "\$\(cygpath -u "\$APP"\)" "\$PWD\/out-installed"/, "the installed program gets the packaged smoke");
+  assert.match(desktop.text, /VYRE_SHELL_RELAUNCH: "1"/, "and the relaunch");
+  assert.match(desktop.text, /cp win-sum\/VyreSetup\.exe\.sha256 win-release\/SHA256SUMS/, "install.ps1 reads a local SHA256SUMS made from the build's own sidecar");
+  assert.match(e2e, /VYRE_RELEASE_BASE = "http:\/\/127\.0\.0\.1:8765"/, "never a published release");
+  assert.match(e2e, /Find-VyreApp/, "the path check is install.ps1's own");
+  // a red Windows leg fails the `desktop` workflow, and release's desktop-release-files needs it
+  assert.deepEqual(wf("release").jobs.find((j) => j.name === "desktop-release-files")!.needs, ["package", "desktop"]);
+});

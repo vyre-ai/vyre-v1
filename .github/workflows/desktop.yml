@@ -153,12 +153,33 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: runner.os == 'Windows'
         with: { name: desktop-Windows-exe, path: win-exe, if-no-files-found: error }
+      - name: Windows install, end to end - silent NSIS install, the program where install.ps1 looks, packaged smoke and relaunch, install.ps1 against this build, clean uninstall
+        if: runner.os == 'Windows'
+        env:
+          VYRE_SHELL_RELAUNCH: "1"
+        run: |
+          set -euo pipefail
+          E2E="powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install/windows/install.e2e.ps1"
+          # 1 and 2: VyreSetup.exe /S, and the program is where install.ps1 expects it
+          APP=$($E2E -Phase silent-install -SetupExe "$(cygpath -w "$PWD/win-exe/VyreSetup.exe")" | tee /dev/stderr | tail -n 1 | tr -d '\r')
+          # 3: the installed program launches, its sidecar answers, a vyre:// link is delivered, and it comes back after a clean exit
+          apps/desktop/src-tauri/ci/run-shell.sh "$(cygpath -u "$APP")" "$PWD/out-installed"
+          # 5 (first half): the installer's own uninstaller leaves nothing
+          $E2E -Phase nsis-uninstall
+          # 4: install.ps1 end to end against the just-built exe and a local SHA256SUMS, served on loopback
+          mkdir -p win-release
+          cp win-exe/VyreSetup.exe win-release/VyreSetup.exe
+          cp win-sum/VyreSetup.exe.sha256 win-release/SHA256SUMS
+          $E2E -Phase via-script -ReleaseDir "$(cygpath -w "$PWD/win-release")"
+          # 5: install.ps1 -Uninstall leaves nothing
+          $E2E -Phase script-uninstall
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: desktop-${{ runner.os }}
           path: |
             out
+            out-installed
             proof-codesign.txt
             proof-gatekeeper.txt
             apps/desktop/src-tauri/target/release/bundle/dmg
