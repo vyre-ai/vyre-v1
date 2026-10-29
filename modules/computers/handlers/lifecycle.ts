@@ -71,14 +71,18 @@ export async function health(ctx: CompCtx, _input: Record<string, never>) {
   const awake = rows.filter((s) => AWAKE.has(s)).length;
   const asleep = rows.filter((s) => s === "asleep").length;
   const host = boundHost();
-  if (!host) return { state: "down" as const, detail: "Agent computers are not running on this host.", awake, asleep };
+  // a Space that has no agent computer does not depend on the container runtime: its absence is a fact to show, not a failure to raise
+  const idle = rows.length === 0;
+  const NO_RUNTIME = "No agent computers yet, and no container runtime on this host. Install Docker to start one.";
+  if (!host) return idle ? { state: "healthy" as const, detail: NO_RUNTIME, runtime: "missing" as const, awake, asleep } : { state: "down" as const, detail: "Agent computers are not running on this host.", runtime: "missing" as const, awake, asleep };
   const t0 = Date.now();
   let h: { ok: boolean; detail?: string; latencyMs?: number };
   try { h = await host.health(); } catch (e) { h = { ok: false, detail: e instanceof Error ? e.message.slice(0, 200) : "The host did not answer." }; }
+  if (!h.ok && idle) return { state: "healthy" as const, detail: NO_RUNTIME, runtime: "missing" as const, latencyMs: h.latencyMs ?? Math.max(0, Date.now() - t0), awake, asleep };
   const broken = rows.filter((s) => s === "error").length;
   const state = !h.ok ? ("down" as const) : broken > 0 ? ("degraded" as const) : ("healthy" as const);
   const detail = !h.ok ? h.detail : broken > 0 ? `${broken} ${broken === 1 ? "computer is" : "computers are"} in an error state` : h.detail;
-  return { state, ...(detail ? { detail } : {}), latencyMs: h.latencyMs ?? Math.max(0, Date.now() - t0), awake, asleep };
+  return { state, ...(detail ? { detail } : {}), runtime: h.ok ? ("ready" as const) : ("missing" as const), latencyMs: h.latencyMs ?? Math.max(0, Date.now() - t0), awake, asleep };
 }
 
 // ---- provision, configure, remove

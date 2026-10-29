@@ -33,6 +33,7 @@ type In = Record<string, unknown>;
 type Out = {
   state: "healthy" | "degraded" | "down";
   detail?: string;
+  runtime?: "ready" | "missing";
   latencyMs?: number;
   awake: number;
   asleep: number;
@@ -58,6 +59,7 @@ type Out = {
     "awake": 1,
     "detail": "example",
     "latencyMs": 1,
+    "runtime": "ready",
     "state": "healthy"
   }
 }

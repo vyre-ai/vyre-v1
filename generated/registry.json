@@ -47921,6 +47921,7 @@
             "awake": 1,
             "detail": "example",
             "latencyMs": 1,
+            "runtime": "ready",
             "state": "healthy"
           }
         }
@@ -47946,6 +47947,13 @@
           },
           "latencyMs": {
             "type": "integer"
+          },
+          "runtime": {
+            "enum": [
+              "ready",
+              "missing"
+            ],
+            "type": "string"
           },
           "state": {
             "enum": [
