@@ -10,8 +10,8 @@ test('recovery failures are told apart: rate limit, outage, unreachable and a wr
  const keyError=(code:string)=>Object.assign(new Error('x'),{name:'KeyError',code});
  const lines=[recoveryFailureLine(cap(429,'rate_limit.exceeded')),recoveryFailureLine(cap(500,'internal.unexpected')),recoveryFailureLine(new TypeError('Failed to fetch')),recoveryFailureLine(cap(401,'auth.invalid_code')),recoveryFailureLine(keyError('bad_blob')),recoveryFailureLine(cap(404,'validation.unknown_capability'))];
  assert.equal(new Set(lines).size,lines.length);
- assert.match(lines[0]!,/Too many/);assert.match(lines[1]!,/problem on its side/);assert.match(lines[2]!,/reach the Space/);
+ assert.match(lines[0]!,/Too many/);assert.match(lines[1]!,/problem on its side/);assert.match(lines[2]!,/reach the Space/);for(const i of [1,2])assert.doesNotMatch(lines[i]!,/Nothing was changed/,'a 5xx or dropped connection can follow a committed recovery');assert.match(lines[1]!,/new password already works/);assert.match(recoveryFailureLine(keyError('bad_blob')),/Nothing was changed/,'bad_blob fails before anything is sent');
  assert.equal(recoveryFailureLine(keyError('bad_secret')),recoveryFailureLine(cap(401,'auth.invalid_code')),'a wrong code and a refused account read the same');
  assert.match(recoveryFailureLine(cap(401,'auth.invalid_code')),/username and saved code/);
- for(const line of [...lines,recoveryFailureLine(new Error('x'))])assert.ok(line.length<=110,'bounded line');
+ for(const line of [...lines,recoveryFailureLine(new Error('x'))])assert.ok(line.length<=130,'bounded line');
 });

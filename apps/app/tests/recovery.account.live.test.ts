@@ -71,7 +71,7 @@ test('saved-code recovery: same keys, private Vault data kept, old password and 
     await t.test('a dead connection gets its own honest line and sends nothing', async () => {
       await page.route('**/v1/identity/recovery_fetch', (route) => route.abort('failed'));
       await page.getByTestId('recovery-code').fill(code);await page.getByTestId('recovery-submit').click();
-      await page.getByText(/reach the Space/).waitFor({ timeout: 15000 });assert.match(await page.getByTestId('recovery-error').innerText(), /Nothing was changed/);
+      await page.getByText(/reach the Space/).waitFor({ timeout: 15000 });assert.match(await page.getByTestId('recovery-error').innerText(), /new password already works/);
       await page.unroute('**/v1/identity/recovery_fetch');assert.equal(restoreBodies.length, 0, 'an unreachable Space never produced a recovery commit');
     });
     let newToken = '';

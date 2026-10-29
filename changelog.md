@@ -1,5 +1,6 @@
 # Changelog
 
+- Stop the recovery 5xx, unreachable and fallback lines from claiming nothing was changed, since a failure can follow a committed recovery; they now tell the person to sign in with the new password if it already works. The expired-request line keeps the claim because it fails before anything is sent.
 - Raise the slow-test list cap from 40 to 48 so the booted live release-evidence tests each keep their own slow job; every entry still needs an owner, a reason and a 120 s cap.
 - Move golden flow 10 to the sealed one-use recovery challenge: Kay joins with real client-made keys, fetches the recovery-only bundle, opens her key with the saved code, unseals the nonce and replaces only the password wrap; the step asserts identical identity, private, recovery and Space-key wraps, a revoked old password and a working new one.
 - Add the Space switcher, sync endpoint and saved-code recovery browser tests to the release-evidence command with required-success assertions: under VYRE_REQUIRE_CHROME=1 a missing production artifact fails each test instead of skipping, and the step refuses any skip report.
