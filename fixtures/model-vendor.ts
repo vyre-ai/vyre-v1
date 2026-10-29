@@ -14,7 +14,8 @@ export async function vendor() {
       if (next.status && next.status !== 200) { res.writeHead(next.status, { "content-type": "application/json" }); res.end(JSON.stringify({ error: { message: "vendor says no", type: "invalid_request_error" } })); return; }
       res.writeHead(200, { "content-type": "text/event-stream" });
       const chunk = (o: unknown): void => { res.write(`data: ${JSON.stringify(o)}\n\n`); };
-      if (next.hold) { chunk({ id: "1", choices: [{ index: 0, delta: { role: "assistant", content: "thinking" } }] }); req.on("close", () => res.end()); return; }
+      // No assistant text while the socket stays open. A partial reply can be posted as the answer, and Cancel then finds nothing running.
+      if (next.hold) { req.on("close", () => res.end()); return; }
       chunk({ id: "1", choices: [{ index: 0, delta: { role: "assistant", content: next.text ?? "" } }] });
       chunk({ id: "1", choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 50, completion_tokens: 20, total_tokens: 70 } });
       res.write("data: [DONE]\n\n"); res.end();
