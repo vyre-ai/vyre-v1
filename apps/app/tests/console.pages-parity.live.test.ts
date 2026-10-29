@@ -95,6 +95,10 @@ test("production Console: every page draws at desktop and phone, light and graph
             await p.waitForFunction(() => !document.body.innerText.split("\n").some((line) => line.trim() === "Loading…"), null, { timeout: 15_000 }).catch(() => problems.push(`${where}: still loading after 15 s`));
             await p.waitForTimeout(300);
             if (await p.getByText("Couldn’t draw this page").count()) problems.push(`${where}: the page crashed`);
+            // the dot beside "Console" must tell the truth: it reads the server's own overall health (health.status), on every page and in every rendering
+            let dot: string | null = null, overall: string | undefined;
+            for (let i = 0; i < 30; i++) { overall = (await call("health.status", {})).data?.overall as string | undefined; dot = await p.getByTestId("console-health").getAttribute("aria-label").catch(() => null); if (dot === `Server ${overall}`) break; await p.waitForTimeout(500); }   // the dot catches up with a change within a few seconds
+            if (dot !== `Server ${overall}`) problems.push(`${where}: the health dot reads ${JSON.stringify(dot)} but the server reports ${JSON.stringify(overall)}`);
             const overflow = await p.evaluate(() => ({ doc: document.documentElement.scrollWidth - window.innerWidth, body: document.body.scrollWidth - window.innerWidth }));
             if (overflow.doc > 2 || overflow.body > 2) problems.push(`${where}: the page is ${Math.max(overflow.doc, overflow.body)} px wider than the screen`);
             await p.screenshot({ path: path.join(shots, `${id}-${size}-${skin === "paper" ? "light" : "graphite"}.png`), animations: "disabled" });

@@ -1,5 +1,6 @@
 # Changelog
 
+- Make the parity proof assert the Console health dot tells the truth: on every page and rendering it must read the server's own overall health (health.status). A freshly claimed Space legitimately turns amber or red after its first health cycle (no backup target, no audit checkpoint, and no container runtime on a machine without Docker).
 - Console polish: every Console menu picker shows the shared chevron so it no longer reads like a text field, and an access review is titled by day ("Access review, 29 Oct") instead of the raw locale timestamp.
 - Prove every Console page draws on a real Space at desktop and phone, light and graphite (apps/app/tests/console.pages-parity.live.test.ts, 44 pages by 4 renderings): reached through the real navigation, no crash card, nothing stuck loading, no sideways overflow, no page error; the 176 screenshots go to /tmp/vyre-console-parity-shots.
 - Fix the Console phone navigation: the Go to menu listed every page in one run taller than the screen and could not scroll, so the later pages (Numbers, Network, Server, Updates and more) were unreachable on a phone. Every shared menu is now capped to the screen height and scrolls, and the Console's Go to list is grouped under Access, Agents and actors, Data, AI, Comms, Integrations and Infrastructure.
