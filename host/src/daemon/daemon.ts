@@ -66,6 +66,7 @@ import { withGateNesting } from "./gate-nesting.ts";
 import { createComputersFillHost, createFillRoute } from "../seams/computers.ts";
 import { createComputersHost } from "../seams/computers-host.ts";
 import { createEngineHost } from "../seams/engine.ts";
+import { createEmailAskDriver } from "../seams/email-ask.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
 import { applyPendingRestore, clearRestoredTombstones, createBackupHost, readRestoredTombstones } from "../seams/backup.ts";
 import { createKitsHost } from "../seams/kits.ts";
@@ -838,6 +839,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }) : null,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
         setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
+        // Ask Vyre in the email builder is one real agent turn in a private Ask pane, run as the asker: their agent, model, account, spend limits and access (host/src/seams/email-ask.ts)
+        configureEmailBuilder: () => ({
+          ask: createEmailAskDriver({
+            now, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "email-builder", ...(attrs ? { attrs } : {}) }),
+            call: async (cap, input, person) => {
+              const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "email-ask" });
+              if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
+              return r.output;
+            },
+          }),
+        }),
         // the import module reads an Airtable or Notion key from the Vault by handle, for one call
         setImportHost: (d) => ({ secret: (_ctx: unknown, handle: string) => d.vault.secret(handle.startsWith("#") ? handle : `#${handle}`, d.space) }),
         setEventsHost: () => createEventsHost({
