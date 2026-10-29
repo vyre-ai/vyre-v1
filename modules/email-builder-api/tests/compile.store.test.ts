@@ -255,7 +255,7 @@ test("ask diff: the agent's proposal becomes per-change differences the author a
 });
 
 test("module: every capability the manifest names has a handler; seed and projections add nothing", () => {
-  const caps = ["create", "get", "list", "save", "versions", "restore_version", "render", "html_set", "ask_diff", "send_test", "merge_fields", "snippets.list", "snippets.save", "snippets.delete", "saved_blocks.list", "saved_blocks.save"].map((c) => `email_builder.${c}`);
+  const caps = ["create", "get", "list", "save", "versions", "restore_version", "render", "html_set", "ask_diff", "ask_cancel", "send_test", "merge_fields", "snippets.list", "snippets.save", "snippets.delete", "saved_blocks.list", "saved_blocks.save"].map((c) => `email_builder.${c}`);
   assert.deepEqual(Object.keys(handlers).sort(), caps.sort());
   assert.equal(seed.rows.length, 0);
   assert.deepEqual([inline, consumers], [{}, {}]);
@@ -270,4 +270,18 @@ test("create: emits email.created for the new design, with the folder it goes in
   const inFolder = (await run<{ email: EmailDoc }>(w.ctx, "email_builder.create", { name: "In a folder", mode: "plain", folderId: "fld_a1", idempotencyKey: "k-folder" })).email;
   assert.deepEqual(w.events.at(-1), { name: "email.created", subject: `email/${inFolder.emailId}`, payload: { emailId: inFolder.emailId, folderId: "fld_a1" } });
   assert.equal(w.events.filter((e) => e.name === "email.created").length, 2, "one event per design");
+});
+
+test("ask diff: the driver is told the exact principal and whom it acts for, so an agent is never taken for a person", async () => {
+  const w = harness();
+  const email = await newEmail(w);
+  const got: { principal: { kind: string; id: string }; actingFor?: string | undefined }[] = [];
+  configureEmailBuilder({ ask: { async propose(req) { got.push({ principal: req.principal, actingFor: req.actingFor }); return {}; }, cancel: (asker, emailId) => (asker === "usr_boss" && emailId === email.emailId ? 1 : 0) } });
+  try {
+    await run(w.ctx, "email_builder.ask_diff", { emailId: email.emailId, instruction: "x" });
+    const agentCtx = { ...w.ctx, principal: { kind: "agent" as const, id: "agt_caller" }, actingFor: "usr_boss" } as typeof w.ctx;
+    await run(agentCtx, "email_builder.ask_diff", { emailId: email.emailId, instruction: "x" });
+    assert.deepEqual(got, [{ principal: { kind: "person", id: "usr_alex" }, actingFor: undefined }, { principal: { kind: "agent", id: "agt_caller" }, actingFor: "usr_boss" }]);
+    assert.deepEqual(await run(agentCtx, "email_builder.ask_cancel", { emailId: email.emailId }), { cancelled: 1 }, "an agent cancels the Asks of the person it acts for");
+  } finally { configureEmailBuilder({ ask: null }); }
 });

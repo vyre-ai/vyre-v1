@@ -6,5 +6,6 @@ HTTP 502. Retryable: no.
 
 ## Raised by
 
+- connections.complete_auth
 - mailgun.send_email
 - resend.send_email

@@ -6,5 +6,6 @@ HTTP 401. Retryable: no.
 
 ## Raised by
 
+- connections.complete_auth
 - mcp.session.open
 - sources.ingest

@@ -13936,6 +13936,32 @@
     },
     {
       "blocks": [],
+      "cap": "email_builder.ask_cancel",
+      "deferred": false,
+      "description": "Stop my Ask Vyre request on a design that is still waiting for the agent",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "emailId": {
+            "examples": [
+              "eml_a1b2c3"
+            ],
+            "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "emailId"
+        ],
+        "type": "object"
+      },
+      "name": "email_builder_ask_cancel",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "email_builder.ask_diff",
       "deferred": false,
       "description": "Ask Vyre edit: returns a per-change diff the author accepts change by change",

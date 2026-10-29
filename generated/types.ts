@@ -6344,7 +6344,8 @@ export type ConflictsUndoOut = {
 };
 export type ConnectionsCompleteAuthIn = {
   state: string;
-  code: string;
+  code?: string;
+  error?: string;
 };
 export type ConnectionsCompleteAuthOut = {
   connectionId: string;
@@ -6526,6 +6527,7 @@ export type ConnectorsGetOut = {
         update?: string;
         delete?: string;
       }>;
+    sourceFolderId?: string;
   };
 };
 export type ConnectorsHealthIn = Record<string, unknown>;
@@ -6576,6 +6578,7 @@ export type ConnectorsListOut = {
           update?: string;
           delete?: string;
         }>;
+      sourceFolderId?: string;
     }>;
   next?: string;
   total?: number;
@@ -7469,6 +7472,12 @@ export type DropboxSignStatusIn = {
 };
 export type DropboxSignStatusOut = {
   status: string;
+};
+export type EmailBuilderAskCancelIn = {
+  emailId: string;
+};
+export type EmailBuilderAskCancelOut = {
+  cancelled: number;
 };
 export type EmailBuilderAskDiffIn = {
   emailId: string;
@@ -27163,6 +27172,7 @@ export interface CapMap {
   "dropbox_sign.fetch_signed": { in: DropboxSignFetchSignedIn; out: DropboxSignFetchSignedOut };
   "dropbox_sign.health": { in: DropboxSignHealthIn; out: DropboxSignHealthOut };
   "dropbox_sign.status": { in: DropboxSignStatusIn; out: DropboxSignStatusOut };
+  "email_builder.ask_cancel": { in: EmailBuilderAskCancelIn; out: EmailBuilderAskCancelOut };
   "email_builder.ask_diff": { in: EmailBuilderAskDiffIn; out: EmailBuilderAskDiffOut };
   "email_builder.create": { in: EmailBuilderCreateIn; out: EmailBuilderCreateOut };
   "email_builder.get": { in: EmailBuilderGetIn; out: EmailBuilderGetOut };
@@ -28938,6 +28948,11 @@ export type ConnectionNeedsReconnectPayload = {
 };
 export type ConnectionPausedPayload = {
   connectionId: string;
+};
+export type ConnectionPendingPayload = {
+  connectionId: string;
+  connector: string;
+  ownerKind: "person" | "space";
 };
 export type ConnectionReconnectedPayload = {
   connectionId: string;
@@ -31754,6 +31769,7 @@ export interface EventMap {
   "connection.deleted": ConnectionDeletedPayload;
   "connection.needs_reconnect": ConnectionNeedsReconnectPayload;
   "connection.paused": ConnectionPausedPayload;
+  "connection.pending": ConnectionPendingPayload;
   "connection.reconnected": ConnectionReconnectedPayload;
   "connection.resumed": ConnectionResumedPayload;
   "connector.built": ConnectorBuiltPayload;

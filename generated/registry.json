@@ -2036,6 +2036,146 @@
       ],
       "type": "object"
     },
+    "s_1c0da72715": {
+      "properties": {
+        "actions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "builtin": {
+          "type": "boolean"
+        },
+        "connections": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "domains": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "key": {
+          "examples": [
+            "hubspot"
+          ],
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "api",
+            "mcp",
+            "dwd",
+            "oauth_app",
+            "webhook_only"
+          ],
+          "type": "string"
+        },
+        "objects": {
+          "additionalProperties": {
+            "properties": {
+              "create": {
+                "type": "string"
+              },
+              "delete": {
+                "type": "string"
+              },
+              "list": {
+                "type": "string"
+              },
+              "listAfter": {
+                "description": "List the next page; takes { after }",
+                "type": "string"
+              },
+              "update": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "object"
+        },
+        "scope": {
+          "enum": [
+            "person",
+            "space"
+          ],
+          "type": "string"
+        },
+        "secrets": {
+          "items": {
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "description"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "sourceFolderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "state": {
+          "enum": [
+            "live",
+            "draft",
+            "failing_tests"
+          ],
+          "type": "string"
+        },
+        "syncedTypes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": "string"
+        },
+        "version": {
+          "examples": [
+            "1.0.0"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "mode",
+        "scope",
+        "builtin",
+        "version",
+        "state",
+        "domains",
+        "secrets",
+        "connections",
+        "syncedTypes",
+        "actions",
+        "sources"
+      ],
+      "type": "object"
+    },
     "s_1c6f35f590": {
       "properties": {
         "actor": {
@@ -9684,139 +9824,6 @@
       "required": [
         "kind",
         "id"
-      ],
-      "type": "object"
-    },
-    "s_807964c7e1": {
-      "properties": {
-        "actions": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "builtin": {
-          "type": "boolean"
-        },
-        "connections": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "domains": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "key": {
-          "examples": [
-            "hubspot"
-          ],
-          "type": "string"
-        },
-        "mode": {
-          "enum": [
-            "api",
-            "mcp",
-            "dwd",
-            "oauth_app",
-            "webhook_only"
-          ],
-          "type": "string"
-        },
-        "objects": {
-          "additionalProperties": {
-            "properties": {
-              "create": {
-                "type": "string"
-              },
-              "delete": {
-                "type": "string"
-              },
-              "list": {
-                "type": "string"
-              },
-              "listAfter": {
-                "description": "List the next page; takes { after }",
-                "type": "string"
-              },
-              "update": {
-                "type": "string"
-              }
-            },
-            "type": "object"
-          },
-          "type": "object"
-        },
-        "scope": {
-          "enum": [
-            "person",
-            "space"
-          ],
-          "type": "string"
-        },
-        "secrets": {
-          "items": {
-            "properties": {
-              "description": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "name",
-              "description"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "sources": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "state": {
-          "enum": [
-            "live",
-            "draft",
-            "failing_tests"
-          ],
-          "type": "string"
-        },
-        "syncedTypes": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "title": {
-          "type": "string"
-        },
-        "version": {
-          "examples": [
-            "1.0.0"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "key",
-        "title",
-        "mode",
-        "scope",
-        "builtin",
-        "version",
-        "state",
-        "domains",
-        "secrets",
-        "connections",
-        "syncedTypes",
-        "actions",
-        "sources"
       ],
       "type": "object"
     },
@@ -17905,6 +17912,36 @@
         "contactId",
         "kind",
         "addressId"
+      ],
+      "type": "object"
+    },
+    "s_fc0405d407": {
+      "properties": {
+        "connectionId": {
+          "examples": [
+            "con_a1b2c3"
+          ],
+          "pattern": "^con_[a-z0-9]+$",
+          "type": "string"
+        },
+        "connector": {
+          "examples": [
+            "hubspot"
+          ],
+          "type": "string"
+        },
+        "ownerKind": {
+          "enum": [
+            "person",
+            "space"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "connectionId",
+        "connector",
+        "ownerKind"
       ],
       "type": "object"
     },
@@ -51331,16 +51368,21 @@
       ],
       "errors": [
         "auth.invalid_code",
+        "auth.unauthenticated",
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
         "provider.auth_failed",
-        "validation.bad_input"
+        "provider.bad_response",
+        "provider.network",
+        "validation.bad_input",
+        "validation.precondition_failed"
       ],
       "examples": [
         {
           "input": {
             "code": "example",
+            "error": "example",
             "state": "example"
           },
           "name": "example",
@@ -51355,13 +51397,15 @@
           "code": {
             "type": "string"
           },
+          "error": {
+            "type": "string"
+          },
           "state": {
             "type": "string"
           }
         },
         "required": [
-          "state",
-          "code"
+          "state"
         ],
         "type": "object"
       },
@@ -51390,7 +51434,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Finish an OAuth sign-in from the callback (state and code)",
+      "summary": "Finish an OAuth sign-in from the callback: the state and the code, or the error the app sent back when the person declined. Only the person who started the sign-in can finish it",
       "surfaces": {
         "http": "auto"
       },
@@ -51400,7 +51444,8 @@
       "audit": "always",
       "effects": "write",
       "emits": [
-        "connection.created"
+        "connection.created",
+        "connection.pending"
       ],
       "errors": [
         "internal.unexpected",
@@ -52433,6 +52478,7 @@
                   "name": "example"
                 }
               ],
+              "sourceFolderId": "fld_a1b2c3",
               "sources": [
                 "example"
               ],
@@ -52467,7 +52513,7 @@
       "output": {
         "properties": {
           "connector": {
-            "$ref": "#/$defs/s_807964c7e1"
+            "$ref": "#/$defs/s_1c0da72715"
           }
         },
         "required": [
@@ -52717,6 +52763,7 @@
                     "name": "example"
                   }
                 ],
+                "sourceFolderId": "fld_a1b2c3",
                 "sources": [
                   "example"
                 ],
@@ -52762,7 +52809,7 @@
         "properties": {
           "connectors": {
             "items": {
-              "$ref": "#/$defs/s_807964c7e1"
+              "$ref": "#/$defs/s_1c0da72715"
             },
             "type": "array"
           },
@@ -59429,6 +59476,72 @@
       "summary": "Envelope status at Dropbox Sign",
       "surfaces": {
         "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "emailId": "eml_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "cancelled": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "emailId": {
+            "examples": [
+              "eml_a1b2c3"
+            ],
+            "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "emailId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "email-builder-api",
+      "name": "email_builder.ask_cancel",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "cancelled": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cancelled"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Stop my Ask Vyre request on a design that is still waiting for the agent",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "inbox"
+        }
       },
       "v": 1
     },
@@ -176077,34 +176190,7 @@
       "module": "connectors",
       "name": "connection.created",
       "payload": {
-        "properties": {
-          "connectionId": {
-            "examples": [
-              "con_a1b2c3"
-            ],
-            "pattern": "^con_[a-z0-9]+$",
-            "type": "string"
-          },
-          "connector": {
-            "examples": [
-              "hubspot"
-            ],
-            "type": "string"
-          },
-          "ownerKind": {
-            "enum": [
-              "person",
-              "space"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "connectionId",
-          "connector",
-          "ownerKind"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_fc0405d407"
       },
       "replay": "pure",
       "subject": {
@@ -176170,6 +176256,21 @@
         "type": "connection"
       },
       "summary": "The owner paused a connection",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "connectors",
+      "name": "connection.pending",
+      "payload": {
+        "$ref": "#/$defs/s_fc0405d407"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/connectionId",
+        "type": "connection"
+      },
+      "summary": "A connection was started and waits for its sign-in; it exists (so its owner can use it) but is not announced as made yet",
       "sv": 1,
       "vis": "space"
     },

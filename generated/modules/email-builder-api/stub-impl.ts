@@ -4,6 +4,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
+  "email_builder.ask_cancel": async () => ({"cancelled":1} as unknown) as never,
   "email_builder.ask_diff": async () => ({"changes":[{"after":{},"before":{},"path":"example"}]} as unknown) as never,
   "email_builder.create": async () => ({"email":{"blocks":[{"props":{},"type":"text"}],"emailId":"eml_a1b2c3","html":"example","mode":"blocks","name":"example","plain":"example","subject":"example"}} as unknown) as never,
   "email_builder.get": async () => ({"email":{"blocks":[{"props":{},"type":"text"}],"emailId":"eml_a1b2c3","html":"example","mode":"blocks","name":"example","plain":"example","subject":"example"}} as unknown) as never,

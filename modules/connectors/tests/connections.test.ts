@@ -200,7 +200,7 @@ test("OAuth: the sign-in address, the code exchange, tokens in the Vault and onl
 
   // the token is used as a bearer, and a probe works
   k.sent.length = 0;
-  assert.equal((await k.hs["connections.test"](k.ctx, { connectionId: done.connectionId })).state, "healthy");
+  { const probe = await k.hs["connections.test"](k.ctx, { connectionId: done.connectionId }); assert.equal(probe.state, "healthy", JSON.stringify(probe) + JSON.stringify(k.logs)); }
   assert.equal(k.sent[0]!.headers["Authorization"], "Bearer at_ACCESSTOKEN9");
 
   // the state is single use

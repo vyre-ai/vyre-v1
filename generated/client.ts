@@ -572,6 +572,7 @@ export function createClient(transport: Transport) {
       status: call("dropbox_sign.status", 1),
     },
     email_builder: {
+      ask_cancel: call("email_builder.ask_cancel", 1),
       ask_diff: call("email_builder.ask_diff", 1),
       create: call("email_builder.create", 1),
       get: call("email_builder.get", 1),

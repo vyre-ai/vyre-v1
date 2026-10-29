@@ -1,6 +1,6 @@
 # connections.complete_auth
 
-Finish an OAuth sign-in from the callback (state and code)
+Finish an OAuth sign-in from the callback: the state and the code, or the error the app sent back when the person declined. Only the person who started the sign-in can finish it
 
 | | |
 |---|---|
@@ -26,7 +26,8 @@ Finish an OAuth sign-in from the callback (state and code)
 ```ts
 type In = {
   state: string;
-  code: string;
+  code?: string;
+  error?: string;
 };
 ```
 
@@ -41,11 +42,15 @@ type Out = {
 ## Errors
 
 - auth.invalid_code
+- auth.unauthenticated
 - internal.unexpected
 - permission.above_clearance
 - permission.no_grant
 - provider.auth_failed
+- provider.bad_response
+- provider.network
 - validation.bad_input
+- validation.precondition_failed
 
 ## Example
 
@@ -54,6 +59,7 @@ type Out = {
   "name": "example",
   "input": {
     "code": "example",
+    "error": "example",
     "state": "example"
   },
   "output": {

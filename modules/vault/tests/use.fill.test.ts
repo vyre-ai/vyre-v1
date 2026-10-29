@@ -227,3 +227,36 @@ test('a use grant revoked during asynchronous field opening cannot reach a fill 
  h.ctx.authorize=()=>({effect:'deny',reason:'revoked',decisionId:'dec_fixture'});
  assert.equal(await refusedWith(filling),'permission.no_grant');assert.equal(got.length,0);u.configureVault(null);h.cleanup();
 });
+
+test("the host port reads the asker's own Mine item with their key, a Shared item for anyone, and never another person's Mine item", async () => {
+  const h = harness();
+  try {
+    const mineFolder = await folder(h, "mine"), sharedFolder = await folder(h, "shared");
+    await put(h, mineFolder, "Mine Engine Key", "mine-secret-value");
+    await put(h, sharedFolder, "Shared Engine Key", "shared-secret-value");
+    const port = u.secretPort(h.ctx.db);
+    assert.equal(await port.secret("#Mine_Engine_Key.api_key", "spc_vault", MAYA), "mine-secret-value");
+    assert.equal(await port.secret("#Shared_Engine_Key.api_key", "spc_vault"), "shared-secret-value");
+    await assert.rejects(() => port.secret("#Mine_Engine_Key.api_key", "spc_vault"), /no shared item/, "without an asker only Shared items come out");
+    await assert.rejects(() => port.secret("#Mine_Engine_Key.api_key", "spc_vault", ROB), /no shared item/, "another person's Mine item is never read");
+    h.lock(MAYA);
+    await assert.rejects(() => port.secret("#Mine_Engine_Key.api_key", "spc_vault", MAYA), /locked/, "a locked key opens nothing");
+  } finally { h.cleanup(); }
+});
+
+test("a Shared item with the same handle never shadows the asker's own Mine item", async () => {
+  const h = harness();
+  try {
+    const mineFolder = await folder(h, "mine"), sharedFolder = await folder(h, "shared");
+    const mine = await put(h, mineFolder, "Engine Key", "my-own-key");
+    const shared = await put(h, sharedFolder, "Engine Key", "attacker-key");   // another member's Shared item named alike
+    const handles = h.rows(`SELECT id, handle FROM vault_meta`).filter((r) => r["id"] === mine || r["id"] === shared);
+    assert.notEqual(handles[0]!["handle"], handles[1]!["handle"], "the Vault gives the second item a handle of its own");
+    // even if two rows ever carry one handle (an import, an old row), the person's own Mine item is the one a turn reads
+    h.ctx.db.run(`UPDATE vault_meta SET handle = ? WHERE id = ?`, String(handles.find((r) => r["id"] === mine)!["handle"]), shared);
+    const port = u.secretPort(h.ctx.db);
+    assert.equal(await port.secret("#Engine_Key.api_key", "spc_vault", MAYA), "my-own-key", "the asker's Mine item wins");
+    assert.equal(await port.secret("#Engine_Key.api_key", "spc_vault", ROB), "attacker-key", "someone with no Mine item of that name gets the Shared one");
+    assert.equal(await port.secret("#Engine_Key.api_key", "spc_vault"), "attacker-key", "with no asker only Shared is read");
+  } finally { h.cleanup(); }
+});

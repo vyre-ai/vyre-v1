@@ -10,6 +10,7 @@ HTTP 502. Retryable: yes.
 - campaigns.launch
 - computers.chrome.api
 - computers.chrome.send
+- connections.complete_auth
 - connectors.push
 - connectors.run
 - email_builder.send_test
@@ -30,4 +31,3 @@ HTTP 502. Retryable: yes.
 - github.pull_request.rerun_checks
 - github.pull_request.update
 - google.calendar.create_event
-- google.calendar.delete_event
