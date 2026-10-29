@@ -231,7 +231,7 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
   const schedule = (runId: string, at: number): void => {
     const prev = later.get(runId);
     if (prev) clearTimeout(prev);
-    const timer = setTimeout(() => { later.delete(runId); enqueue(runId); }, Math.max(0, at - Date.now()));
+    const timer = setTimeout(() => { later.delete(runId); enqueue(runId); }, Math.min(2_147_483_647, Math.max(0, at - Date.now())));  // a timer cannot hold more than ~24 days; an early call finds the retry not due and schedules again
     later.set(runId, timer);
   };
   const pump = (): void => {
