@@ -1,6 +1,8 @@
 # Changelog
 
 
+- Make the Comms paging test also check that the first 100 inbox rows stay whole for 3 s after they appear (a live refresh must never swap a paged list for a partial page).
+
 - Let the Comms Console paging test wait for the first 100 inbox rows to render before it counts them (it counted right after opening and could see the first row only); the count it asserts is unchanged.
 
 - Run l2-heavy (the real-engine chat turn, sandbox and computers proofs) on any branch that touches the daemon, the live socket, the sync module or the chat module, not only the sandbox, terminal and computers paths, so a change like the sync hub cannot skip the proof that a chat turn still runs.
