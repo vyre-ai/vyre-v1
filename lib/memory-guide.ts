@@ -13,8 +13,6 @@ const TOOLS = [
   "memory_quote: the exact words of an earlier chat message or run step, with who said it, when and a link; pass q to look for words or ref to read one line in full",
   "memory_remember: save a fact with where it came from",
   "memory_forget: close a fact that is wrong or no longer true",
-  "memory_open_page: read the living page of a person, record, project or topic",
-  "memory_restore: bring back a fact or note that was merged away or deleted",
 ];
 
 export function memoryGuide(agentName: string, mapBody: string | null | undefined): string {
