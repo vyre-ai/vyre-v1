@@ -14,7 +14,7 @@ Requires: nothing.
 - [forms.attribution_get](../capabilities/forms.attribution_get.md): First source and Latest source of a record
 - [forms.create](../capabilities/forms.create.md): Create a form on a record type; every input maps to a field
 - [forms.delete](../capabilities/forms.delete.md): Delete a form
-- [forms.design_set](../capabilities/forms.design_set.md): Set layout, theme, fonts, custom CSS, cover image, conditional logic and thank-you page or redirect
+- [forms.design_set](../capabilities/forms.design_set.md): Set layout, theme, fonts, the form source (custom HTML template, CSS and JavaScript), cover image, conditional logic and thank-you page or redirect
 - [forms.fields_set](../capabilities/forms.fields_set.md): Set Ask, Show or Hide per field, prefill keys and multi-step grouping
 - [forms.get](../capabilities/forms.get.md): Read a form with its field modes, layout, theme and logic
 - [forms.link_create](../capabilities/forms.link_create.md): Make a signed or one-use form link for one record that asks only for the missing fields (no emails in URLs)

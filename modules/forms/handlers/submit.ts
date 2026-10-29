@@ -3,7 +3,7 @@
 // records.create / records.update as that principal, so every value is counted as coming from the link holder.
 // Order of checks: form open, principal, rate limit, consent, captcha, link, answers (conditional logic), uploads (upload_policy), duplicate, then the write. A refused call writes nothing.
 // A single-use link is consumed before the write and released if the write fails, so one link can never make two records.
-// @reads ../migrations/0001_forms.sql ../migrations/0002_forms_uploads.sql
+// @reads ../migrations/0001_forms.sql ../migrations/0002_forms_uploads.sql ../migrations/0003_forms_source.sql
 
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { Attribution, FormKind, Row } from "../projections.ts";
@@ -443,6 +443,9 @@ export interface PublicFormView {
   fields: { field: string; hidden: boolean; prefillKey?: string; step: number; title?: string; type?: string; required?: boolean; choices?: { key: string; title: string }[] }[];
   theme?: Record<string, unknown>;
   css?: string;
+  /** the author's HTML template and script (lib/form-source.ts); the page checks them again before it serves them */
+  html?: string;
+  js?: string;
   consentText?: string;
   captcha: boolean;
   logic?: { rules: LogicRule[] };
@@ -474,6 +477,8 @@ export function publicFormView(ctx: Ctx, slug: string, page: "form" | "booking")
   const theme = parseJson(form.theme);
   if (isRec(theme)) view.theme = theme;
   if (typeof form.css === "string" && form.css.length > 0) view.css = form.css;
+  if (typeof form.html === "string" && form.html.length > 0) view.html = form.html;
+  if (typeof form.js === "string" && form.js.length > 0) view.js = form.js;
   if (str(form.consent_text).trim().length > 0) view.consentText = str(form.consent_text);
   const logic = rulesOf(parseJson(form.logic));
   if (logic.length > 0) view.logic = { rules: logic };

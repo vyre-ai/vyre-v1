@@ -58,6 +58,8 @@ type Out = {
     };
   };
   css?: string;
+  html?: string;
+  js?: string;
   theme?: Record<string, unknown>;
   logic?: unknown;
 };
@@ -98,6 +100,8 @@ type Out = {
       "state": "draft",
       "submissions": 1
     },
+    "html": "example",
+    "js": "example",
     "logic": {},
     "settings": {
       "captcha": true,

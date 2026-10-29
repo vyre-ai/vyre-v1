@@ -32349,6 +32349,8 @@ if (g2004 === 'object') { const o2004 = x2004 as Record<string, unknown>;
 }
 }
 if ("css" in o2003) lf(o2003["css"], p + "/css", e, L2);
+if ("html" in o2003) lf(o2003["html"], p + "/html", e, L2);
+if ("js" in o2003) lf(o2003["js"], p + "/js", e, L2);
 if ("thankYou" in o2003) {
 {
 const x2005 = o2003["thankYou"];
@@ -32468,6 +32470,8 @@ if ("redirect" in o2012) lf(o2012["redirect"], p + "/settings" + "/thankYou" + "
 }
 }
 if ("css" in o2010) lf(o2010["css"], p + "/css", e, L2);
+if ("html" in o2010) lf(o2010["html"], p + "/html", e, L2);
+if ("js" in o2010) lf(o2010["js"], p + "/js", e, L2);
 if ("theme" in o2010) {
 {
 const x2013 = o2010["theme"];

@@ -2757,7 +2757,7 @@
     {
       "deferred": false,
       "name": "forms_design_set",
-      "summary": "Set layout, theme, fonts, custom CSS, cover image, conditional logic and thank-you page or redirect",
+      "summary": "Set layout, theme, fonts, the form source (custom HTML template, CSS and JavaScript), cover image, conditional logic and thank-you page or redirect",
       "toolset": "automations"
     },
     {

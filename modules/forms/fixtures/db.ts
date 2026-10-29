@@ -19,7 +19,7 @@ interface TableDef {
 const here = dirname(fileURLToPath(import.meta.url));
 
 export function readMigration(): string {
-  return ["0001_forms.sql", "0002_forms_uploads.sql"].map((f) => readFileSync(join(here, "../migrations", f), "utf8")).join("\n");
+  return ["0001_forms.sql", "0002_forms_uploads.sql", "0003_forms_source.sql"].map((f) => readFileSync(join(here, "../migrations", f), "utf8")).join("\n");
 }
 
 function parseDefault(text: string): unknown {
@@ -56,6 +56,16 @@ export function parseSchema(sql: string): Map<string, TableDef> {
       if (/NOT NULL/.test(rest) || /PRIMARY KEY/.test(rest)) def.required.add(colName);
     }
     tables.set(name, def);
+  }
+  // columns added by a later migration (ALTER TABLE t ADD COLUMN c TYPE)
+  const alter = /ALTER TABLE (\w+) ADD COLUMN (\w+) (TEXT|INTEGER)\b([^;]*);/g;
+  for (let m = alter.exec(sql); m; m = alter.exec(sql)) {
+    const def = m[1] ? tables.get(m[1]) : undefined;
+    if (!def || !m[2]) throw new Error("ALTER TABLE on an unknown table");
+    def.columns.push(m[2]);
+    if (/NOT NULL/.test(m[4] ?? "")) def.required.add(m[2]);
+    const dflt = /DEFAULT (\S+)/.exec(m[4] ?? "");
+    if (dflt && dflt[1]) def.defaults.set(m[2], parseDefault(dflt[1]));
   }
   const idx = /CREATE UNIQUE INDEX IF NOT EXISTS \w+ ON (\w+) \(([^)]+)\);/g;
   for (let m = idx.exec(sql); m; m = idx.exec(sql)) {

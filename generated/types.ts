@@ -9961,6 +9961,8 @@ export type FormsDesignSetIn = {
   formId: string;
   theme?: Record<string, unknown>;
   css?: string;
+  html?: string;
+  js?: string;
   logic?: unknown;
   thankYou?: {
     text?: string;
@@ -10011,6 +10013,8 @@ export type FormsGetOut = {
     };
   };
   css?: string;
+  html?: string;
+  js?: string;
   theme?: Record<string, unknown>;
   logic?: unknown;
 };

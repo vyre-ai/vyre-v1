@@ -8,6 +8,7 @@ import type { FieldMode, FormKind } from "../projections.ts";
 import {
   fail, fieldsOf, formsConfig, formOut, insertForm, isNull, isRec, many, mustForm, num, one, optBool, optInt, optStr, pageOf, parseJson, publicUrl, rec, reqStr, str,
 } from "../projections.ts";
+import { checkFormHtml, checkFormJs } from "../../../lib/form-source.ts";
 import { bookingHandlers } from "./bookings.ts";
 import { linkHandlers } from "./links.ts";
 import { submitHandlers } from "./submit.ts";
@@ -53,6 +54,8 @@ async function get(ctx: Ctx, input: unknown) {
     }),
   };
   if (!isNull(form.css)) out.css = str(form.css);
+  if (!isNull(form.html)) out.html = str(form.html);
+  if (!isNull(form.js)) out.js = str(form.js);
   const theme = parseJson(form.theme);
   if (isRec(theme)) out.theme = theme;
   const logic = parseJson(form.logic);
@@ -171,6 +174,26 @@ async function designSet(ctx: Ctx, input: unknown) {
     if (css.length > CSS_MAX) fail(ctx, "validation.too_large", "The custom CSS is too large.", { field: "css" });
     if (/<\/?\s*style|<script|@import|javascript:|expression\s*\(/i.test(css)) fail(ctx, "validation.bad_input", "The custom CSS may not load other files or run script.", { field: "css" });
     sets.push(["css", css.length > 0 ? css : null]);
+  }
+  // The author's own source. A refusal names the line and the reason; nothing is cleaned up silently, so what is saved is exactly what the page serves.
+  const html = optStr(ctx, o, "html");
+  if (html !== undefined) {
+    if (html.length > 0) {
+      const checked = checkFormHtml(html);
+      if (!checked.ok) fail(ctx, "validation.bad_input", `The form HTML is not valid: ${checked.reason}`, { field: "html" });
+      const asked = new Set(fieldsOf(ctx, str(form.id)).filter((f) => f.mode === "ask").map((f) => str(f.field)));
+      const unknown = checked.fields.filter((name) => !asked.has(name));
+      if (unknown.length > 0) fail(ctx, "validation.bad_input", `${unknown.join(", ")} ${unknown.length === 1 ? "is not a question" : "are not questions"} on this form. Ask for ${unknown.length === 1 ? "it" : "them"} in Build first.`, { field: "html" });
+      const steps = new Set(fieldsOf(ctx, str(form.id)).filter((f) => f.mode === "ask").map((f) => (isNull(f.step) ? 0 : Number(f.step))));
+      if (steps.size > 1) fail(ctx, "validation.precondition_failed", "Custom HTML places every question on one page. Put all questions on one step first.", { field: "html" });
+    }
+    sets.push(["html", html.length > 0 ? html : null]);
+  }
+  const js = optStr(ctx, o, "js");
+  if (js !== undefined) {
+    const checked = js.length > 0 ? checkFormJs(js) : { ok: true as const };
+    if (!checked.ok) fail(ctx, "validation.bad_input", `The form JavaScript is not valid: ${checked.reason}`, { field: "js" });
+    sets.push(["js", js.length > 0 ? js : null]);
   }
   if (o.logic !== undefined) sets.push(["logic", o.logic === null ? null : JSON.stringify(o.logic)]);
   if (o.thankYou !== undefined && o.thankYou !== null) {

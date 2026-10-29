@@ -72869,6 +72869,8 @@
           "input": {
             "css": "example",
             "formId": "frm_a1b2c3",
+            "html": "example",
+            "js": "example",
             "logic": {},
             "thankYou": {
               "redirect": "example",
@@ -72893,6 +72895,12 @@
               "frm_a1b2c3"
             ],
             "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          },
+          "js": {
             "type": "string"
           },
           "logic": {
@@ -72940,7 +72948,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Set layout, theme, fonts, custom CSS, cover image, conditional logic and thank-you page or redirect",
+      "summary": "Set layout, theme, fonts, the form source (custom HTML template, CSS and JavaScript), cover image, conditional logic and thank-you page or redirect",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -73064,6 +73072,8 @@
               "state": "draft",
               "submissions": 1
             },
+            "html": "example",
+            "js": "example",
             "logic": {},
             "settings": {
               "captcha": true,
@@ -73107,6 +73117,12 @@
           },
           "form": {
             "$ref": "#/$defs/s_193ebba03a"
+          },
+          "html": {
+            "type": "string"
+          },
+          "js": {
+            "type": "string"
           },
           "logic": {
             "description": "Any JSON value"

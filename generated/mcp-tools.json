@@ -18535,7 +18535,7 @@
       "blocks": [],
       "cap": "forms.design_set",
       "deferred": false,
-      "description": "Set layout, theme, fonts, custom CSS, cover image, conditional logic and thank-you page or redirect",
+      "description": "Set layout, theme, fonts, the form source (custom HTML template, CSS and JavaScript), cover image, conditional logic and thank-you page or redirect",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -18547,6 +18547,12 @@
               "frm_a1b2c3"
             ],
             "pattern": "^frm_[a-z0-9]+$",
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          },
+          "js": {
             "type": "string"
           },
           "logic": {
