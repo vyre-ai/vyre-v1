@@ -1,5 +1,6 @@
 # Changelog
 
+- Prove saved-code account recovery in production Chromium against a fresh claimed daemon: wrong code fails without a server commit, the saved code and a new password recover the Owner with identical public, private, recovery and Space-key wraps, a private Mine Vault item still decrypts, the old password and old session are refused, the proof is single use, and no code, proof or password reaches storage, URLs, console or the Space data directory.
 - Restore the layer boundaries gate: the daemon hashes the registry through the kernel helper instead of importing node:crypto, and three test-only interop proofs are listed as known exceptions with their reasons.
 - Checkpoint the saved-code recovery client and approved onboarding form: preserve existing identity/Space keys, answer the sealed challenge locally, verify the replacement session and wipe temporary key buffers. Crypto interoperability and orchestration tests pass; full production-browser recovery acceptance remains pending.
 - Verify that the internal identity recovery-noise seed never enters a shared Space archive, including decompressed ZIP contents.
