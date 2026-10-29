@@ -216,7 +216,7 @@ test("tmux: a Vault value filled into a command is removed from the result, the 
     await h["terminal.input"]!(person, { terminalId, data: `${SECRET.slice(11)}\r` });
     await until("the scrubbed value in the stream", () => got.join("").includes("[#Dana_Api.key]"));
     const seen = got.join("");
-    assert.equal(seen.includes(SECRET), false, "the stream never shows the value");
+    assert.equal(seen.includes(SECRET), false, `the stream never shows the value; frames the tab was sent: ${JSON.stringify(got.map((g) => g.replaceAll(SECRET, "<SECRET>")))}`);
     assert.equal(seen.includes(SECRET.slice(0, 11) + SECRET.slice(11, 16)), false, "nor most of it");
     live!.close();
     const screenAfter = (await runTmux(["capture-pane", "-p", "-J", "-t", session, "-S", "-500"])).stdout;
