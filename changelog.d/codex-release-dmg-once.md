@@ -1,0 +1,1 @@
+- Release: the macOS DMG crosses the network once, into publish. The desktop build writes its SHA-256 sidecar as a small artifact; desktop-release-files and sign carry only that sidecar; publish downloads the DMG and checks it against the signed payload's SHA-256 before uploading. desktop-release-files has 30 minutes instead of 15.
