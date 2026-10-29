@@ -11,6 +11,7 @@ mod commands;
 mod links;
 mod native;
 mod sidecar;
+mod updater;
 mod personal;
 
 use commands::AppState;
@@ -97,6 +98,7 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
@@ -126,6 +128,8 @@ pub fn run() {
             commands::ensure_personal_space,
             commands::take_pending_link,
             commands::page_report,
+            updater::check_desktop_update,
+            updater::install_desktop_update,
             native::notify,
             native::discover_codex_sessions,
             native::discover_session_sources,
