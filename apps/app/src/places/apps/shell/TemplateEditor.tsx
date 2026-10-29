@@ -16,7 +16,9 @@ export function TemplateEditor({ route, back }: { route: AppsRoute; back(): void
   const sources = kind === "record_type" ? (sourceTypes.data?.types ?? []).filter((type) => !type.system && !type.syncedFrom && (!type.scope || type.scope === "space")).map((type) => ({ key: type.key, title: type.title })) : (sourceAutomations.data?.automations ?? []).map((automation) => ({ key: automation.id, title: automation.name }));
   const [confirm, setConfirm] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null), [notice, setNotice] = useState("");
   const [key, setKey] = useState(actionKey);
-  useEffect(() => setConfirm(false), [preview.data]);
+  // The gallery refetches this preview when the template list changes. Close the review only when what would be installed changed.
+  const installKey = preview.data ? JSON.stringify([preview.data.template.templateId, preview.data.template.version, preview.data.template.summary, preview.data.template.adds, preview.data.record_types, preview.data.domains, preview.data.vaultNames]) : "";
+  useEffect(() => setConfirm(false), [installKey]);
   const run = async (): Promise<void> => { setBusy(true); setError(null); try {
     if (route.id) {
       const out = await mutate(d, "templates.install", { templateId: route.id }, key);

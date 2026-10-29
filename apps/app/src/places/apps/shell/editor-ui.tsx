@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
@@ -15,7 +15,22 @@ export function useRead<T>(cap: string | null, input: object, group: AppsRoute["
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(cap !== null && data === null);
   const read = useMemo(() => ({ cap, key }), [cap, key]);
-  useEffect(() => { if (!read.cap) return; let live = true; setLoading(true); setError(null); void d.call(read.cap, JSON.parse(read.key)).then((out) => { if (live) { setData(out as T); setLoading(false); } }).catch((e) => { if (live) { setError(errorMessage(e)); setLoading(false); } }); return () => { live = false; }; }, [d, read, revision]);
+  const shownKey = useRef<string | null>(data === null ? null : key);
+  useEffect(() => {
+    if (!read.cap) return;
+    let live = true;
+    // A list refresh of the same object must not swap the screen for Loading. That unmounts a review the person already opened.
+    const background = shownKey.current === read.key;
+    if (!background) setLoading(true);
+    setError(null);
+    void d.call(read.cap, JSON.parse(read.key)).then((out) => {
+      if (!live) return;
+      shownKey.current = read.key;
+      setData((prev) => (background && prev !== null && JSON.stringify(prev) === JSON.stringify(out) ? prev : out as T));
+      setLoading(false);
+    }).catch((e) => { if (live) { setError(errorMessage(e)); setLoading(false); } });
+    return () => { live = false; };
+  }, [d, read, revision]);
   useEffect(() => {
     if (!cap) return;
     // Live list invalidation refreshes the selected object too. A read does not invalidate its list.

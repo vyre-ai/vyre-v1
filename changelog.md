@@ -1,5 +1,6 @@
 # Changelog
 
+- Keep an open template install review when the gallery refetches the same preview. The review was closing itself, so Confirm install left the page before it could be pressed.
 - Prove Parallel, Loop, and a killed host through the live daemon. The old in-process driver is gone. Publishing a later version leaves a waiting run on the version it started, and previewing a move answers that it is not available yet.
 - Keep a held model answer silent until the socket closes, so Cancel still finds that Ask running.
 - Expect AI and Code to be unavailable in the studio checks. The sample lead follow-up names its number and mailboxes, so that text step no longer blocks going live.
