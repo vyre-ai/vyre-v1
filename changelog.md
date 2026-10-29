@@ -1,5 +1,6 @@
 # Changelog
 
+- Make the telemetry live test find its own call's span by trace id: the span list is oldest first, and now that a booted Space indexes its seeded events for search, the call's span falls past the first page.
 - Record the new Gate act transfer in the frozen contract: contracts/tests/frozen-kinds.test.ts still asserts the exact act set (now with transfer) and the architecture spec lists it.
 - Give the Roles permission matrix a compact phone layout (pick a role from the Role menu, its permissions in one column with the toggle at the right; the desktop matrix is unchanged), capitalise section labels (Space, not space), use correct plurals in Roles, Groups and Reviews (1 holder, 1 member), and fold the responsible reviewer into each review grant row's secondary line.
 - Prove the hand-over hold itself: an outside actor's agents.set_owner is held by the Gate, a transfer Approve task waits for the owner, nothing moves until it is approved, and after approval the heir owns the agent and its folder; a hand-over rollback that itself fails is now logged at error level with the agent and resource so a half-moved state shows in diagnostics.
