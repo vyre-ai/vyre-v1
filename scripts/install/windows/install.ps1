@@ -82,6 +82,16 @@ function Get-VyreVerifiedInstaller {
     return $exePath
 }
 
+# Tauri installs the main program under the Cargo package name (vyre-desktop.exe); an older build used the product name (Vyre.exe). Take whichever the installer put there.
+function Find-VyreApp {
+    param([string]$LocalAppData)
+    foreach ($name in @("vyre-desktop.exe", "Vyre.exe")) {
+        $candidate = Join-Path (Join-Path $LocalAppData "Vyre") $name
+        if (Test-Path $candidate) { return $candidate }
+    }
+    return $null
+}
+
 function Register-VyreAutostart {
     param([string]$ExePath)
     schtasks /create /tn "Vyre" /tr "`"$ExePath`"" /sc onlogon /rl limited /f | Out-Null
@@ -90,7 +100,7 @@ function Register-VyreAutostart {
 function Remove-VyreWindows {
     param([string]$InstallDir)
     Write-Host "Uninstalling Vyre..."
-    Get-Process -Name "Vyre" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Get-Process -Name "vyre-desktop", "Vyre" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     schtasks /delete /tn "Vyre" /f 2>$null | Out-Null
     if (Test-Path $InstallDir) { Remove-Item -Path $InstallDir -Recurse -Force }
     Write-Host "Done. Your Spaces and their data stay on their servers."
@@ -127,8 +137,8 @@ function Invoke-VyreInstall {
     }
     $exe = Get-VyreVerifiedInstaller -ReleaseBase $base -Dest $installDir
     Start-Process -FilePath $exe -ArgumentList "/S" -Wait
-    $app = Join-Path $env:LOCALAPPDATA "Vyre\Vyre.exe"
-    if (-not (Test-Path $app)) { throw "The installer finished but $app is not there." }
+    $app = Find-VyreApp -LocalAppData $env:LOCALAPPDATA
+    if (-not $app) { throw "The installer finished but Vyre is not in $(Join-Path $env:LOCALAPPDATA 'Vyre')." }
     Register-VyreAutostart -ExePath $app
     if ($null -ne $env:VYRE_CODE) { Remove-Item Env:\VYRE_CODE -ErrorAction SilentlyContinue }
     Start-Process -FilePath $app
