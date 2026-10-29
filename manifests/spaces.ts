@@ -13,6 +13,8 @@ const spaceRow = t.obj({
   defaults: t.rec(), createdAt: t.ts(),
 });
 const stepKey = t.enm('photo_title', 'connect_mailbox', 'meet_assistant', 'first_project', 'import');
+const flowKind = t.enm('personal', 'team', 'member');
+const flowStep = t.str({ examples: ['ai'] });
 const featureKey = t.enm('apps_public', 'campaign_sending', 'console', 'agent_computers', 'webhooks', 'always_on_runs', 'sharing', 'members');
 
 export default defineManifest({
@@ -60,6 +62,11 @@ export default defineManifest({
       ...V, in: {}, out: { dismissed: t.bool(), steps: t.arr(t.obj({ key: stepKey, title: t.str(), done: t.bool() })) }, tool: 'meta',
     }),
     write('spaces.onboarding.complete', 'Mark a checklist step done (steps also complete themselves when the event happens)', { ...V, in: { step: stepKey }, out: ok, emits: ['onboarding.step_completed'], tool: 'meta', offline: 'queue' }),
+    read('spaces.onboarding.flow', 'My onboarding screen for one flow (personal, team or member): each step done or put off, and whether the screen has opened for me', {
+      ...V, in: { flow: flowKind }, out: { seen: t.bool(), steps: t.arr(t.obj({ key: flowStep, state: t.enm('done', 'later') })) }, tool: 'meta',
+    }),
+    write('spaces.onboarding.mark', 'Mark an onboarding step done, put it off, or open it again', { ...V, in: { flow: flowKind, step: flowStep, state: t.enm('done', 'later', 'open') }, out: ok, tool: 'meta', offline: 'queue' }),
+    write('spaces.onboarding.seen', 'Note that the onboarding screen has opened for me once, so it does not open by itself again', { ...V, in: { flow: flowKind }, out: ok, tool: 'meta', offline: 'queue' }),
     write('spaces.onboarding.dismiss', 'Hide the checklist', { ...V, in: {}, out: ok, emits: ['onboarding.dismissed'], tool: 'meta', offline: 'queue' }),
 
     // ---- export, leave, transfer, delete, address

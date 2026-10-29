@@ -36,3 +36,16 @@ test("a member and a Team owner get their own steps and greeting", () => {
 test("a card from the host replaces the placeholder", () => {
   assert.ok(html({ renderCard: (c) => <span data-card={c}>real card</span> }).includes('data-card="connect_ai"'));
 });
+
+test("the Connect AI card shows three subscription tiles and a secure key field", async () => {
+  const { ConnectAiCard } = await import("./ConnectAiCard.tsx");
+  const out = renderToStaticMarkup(<ConnectAiCard call={(async () => ({})) as never} onConnected={noop} />);
+  for (const id of ["ai-sub-claude-code", "ai-sub-codex", "ai-sub-grok", "ai-use-key"]) assert.ok(out.includes(`data-testid="${id}"`), id);
+  assert.ok(renderToStaticMarkup(<ConnectAiCard call={(async () => ({})) as never} connected onConnected={noop} />).includes("ai-connected"));
+});
+
+test("the host keeps the shell mounted and shows nothing extra before the session opens", async () => {
+  const { OnboardingHost } = await import("./OnboardingHost.tsx");
+  const out = renderToStaticMarkup(<OnboardingHost call={null} space={{ kind: "personal", name: "Personal" }}><span data-shell="1">shell</span></OnboardingHost>);
+  assert.ok(out.includes('data-shell="1"') && !out.includes('data-testid="onboarding"'));
+});
