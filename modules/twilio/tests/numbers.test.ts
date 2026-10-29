@@ -241,5 +241,5 @@ test("health reads the account: healthy, suspended, bad credentials, throttled, 
   h.on(get, { status: 0, throws: true });
   assert.equal((await health(h.ctx)).state, "down");
   setTwilioHost(null);
-  assert.deepEqual(await health(h.ctx), { state: "down", detail: "Twilio is not set up on this server." });
+  assert.deepEqual(await health(h.ctx), { state: "healthy", detail: "Twilio is not set up yet." });
 });

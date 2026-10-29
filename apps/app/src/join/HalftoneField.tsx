@@ -125,8 +125,8 @@ export function HalftoneField({ intensity, palette = defaultPalette, reducedMoti
     const ResizeObserver = (globalThis as unknown as { ResizeObserver?: new (callback: () => void) => ResizeObserverLike }).ResizeObserver;
     const resizeObserver = ResizeObserver ? new ResizeObserver(onResize) : null;
 
-    draw();
-    start();
+    // the first dots are drawn in the next frame, before it paints, not inside the commit that shows the sign-in screen: that draw and its measuring layout cost the phone cold start
+    frame = win.requestAnimationFrame((time) => { frame = 0; draw(time); start(); });
     doc.addEventListener("visibilitychange", onVisibility);
     win.addEventListener("pointermove", onPointer, { passive: true });
     win.addEventListener("resize", onResize);

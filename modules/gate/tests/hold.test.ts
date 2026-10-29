@@ -315,10 +315,13 @@ test("a hold whose Approve task is still being made is not listed or readable: n
   const h = harness();
   let release!: () => void;
   const slow = new Promise<void>((r) => { release = r; });
-  h.callee("tasks.create", async () => { await slow; return { task: { id: "tsk_slow1" } }; });
+  let reached!: () => void;
+  const taskCallReached = new Promise<void>((r) => { reached = r; });
+  h.callee("tasks.create", async () => { reached(); await slow; return { task: { id: "tsk_slow1" } }; });
   const parking = park(h);
-  // the hold row is written before the task call (so a retry of the same decision finds it); while the task is being made, it must not be visible
-  for (let i = 0; i < 5; i++) await new Promise<void>((r) => setImmediate(r));
+  // the hold row is written before the task call (so a retry of the same decision finds it); while the task is being made, it must not be visible.
+  // Wait for the task call itself, not for a number of event-loop turns: the row is written after an async hash that runs on the thread pool, so a turn count is no ordering at all.
+  await taskCallReached;
   assert.equal(holdsWhere(h.db).length, 1, "the row exists while the task is pending");
   const rows = (await h.call("gate.holds.list", { states: ["held"] }, svc)).holds as { id: string; taskId: string }[];
   assert.deepEqual(rows, [], "a hold with no task yet is not listed");

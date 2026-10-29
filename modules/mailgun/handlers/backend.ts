@@ -285,7 +285,8 @@ export async function health(ctx: MailgunCtx, input: { domain?: string }): Promi
     }
     return { state: "healthy", latencyMs };
   } catch (e) {
-    if (e instanceof HostError && e.error.code === "internal.unavailable") return { state: "down", detail: "Mailgun is not set up on this server." };
+    if (e instanceof HostError && e.error.code === "internal.unavailable") return { state: "healthy", detail: "Mailgun is not set up yet." };
+    if (e instanceof HostError && e.error.code === "provider.auth_failed") return { state: "healthy", detail: "Mailgun has no API key yet. Add Mailgun_Key to the Vault." };
     if (e instanceof HostError && e.error.code === "provider.network") return { state: "down", detail: "Mailgun could not be reached." };
     throw e;
   }

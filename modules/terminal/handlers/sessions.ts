@@ -360,7 +360,7 @@ export async function health(ctx: TermCtx, _input: Record<string, never>) {
   const t0 = Date.now();
   const sessions = Number((ctx.db.all("SELECT COUNT(*) AS n FROM terminal_sessions WHERE closed_at IS NULL") as Row[])[0]?.["n"] ?? 0);
   const host = boundHost();
-  if (!host) return { state: "down" as const, detail: "Terminals are not running on this host.", latencyMs: Date.now() - t0, sessions };
+  if (!host) return { state: "healthy" as const, detail: "Terminals are not running on this host. Install tmux to use them.", latencyMs: Date.now() - t0, sessions };
   try {
     const h = await host.health();
     return { state: h.ok ? ("healthy" as const) : ("degraded" as const), ...(h.detail === undefined ? {} : { detail: h.detail }), latencyMs: Date.now() - t0, sessions };

@@ -81,6 +81,16 @@ test("health: healthy when the account answers, down with a plain reason when it
   assert.equal(out(await z.health(h.ctx)).state, "down");
 });
 
+test("health: a server with no Zoom account in the Vault reads healthy with a hint; an account that is refused is still down", async () => {
+  const none = out(await z.health(harness({ noKey: true }).ctx));
+  assert.deepEqual(contractErrors("zoom.health", "out", none), []);
+  assert.equal(none.state, "healthy");
+  assert.match(String(none.detail), /not set up yet/);
+  const h = harness();
+  h.on("GET api.zoom.us/v2/users/me", { status: 403, body: {} });
+  assert.equal(out(await z.health(h.ctx)).state, "down");
+});
+
 test("meetings: create, list, get, update and delete map Zoom's fields to the contract", async () => {
   const h = harness();
   ok(h);

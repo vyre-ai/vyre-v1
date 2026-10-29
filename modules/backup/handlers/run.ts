@@ -676,9 +676,20 @@ export async function del(ctx: BackupCtx, input: { backupId: string }) {
   return { deleted: true };
 }
 
+/** A Space younger than this has nothing worth losing yet, so no backup target is not a problem. */
+export const FRESH_SPACE_MS = 24 * 3_600_000;
+
 export async function health(ctx: BackupCtx, _input: Record<string, unknown>) {
   const cfg = readConfig(ctx);
-  if (!cfg.target) return { state: "degraded" as const, detail: "No backup target is set." };
+  if (!cfg.target) {
+    // a Space that has just been set up has nothing worth losing yet: say plainly that there are no backups, and only start asking once it has been around for a day
+    const firstSeen = Number((ctx.db.all("SELECT value FROM backup_config WHERE key = ?", "health_first_seen")[0] as { value?: string } | undefined)?.value);
+    if (!Number.isFinite(firstSeen)) { writeConfig(ctx, "health_first_seen", String(ctx.now())); }
+    const age = ctx.now() - (Number.isFinite(firstSeen) ? firstSeen : ctx.now());
+    return age < FRESH_SPACE_MS
+      ? { state: "healthy" as const, detail: "No backups yet. Set up backups in Console, Infrastructure, Backups." }
+      : { state: "degraded" as const, detail: "No backup target is set. Set up backups in Console, Infrastructure, Backups." };
+  }
   const started = ctx.now();
   try {
     await (await openTarget(ctx, cfg.target)).ping();

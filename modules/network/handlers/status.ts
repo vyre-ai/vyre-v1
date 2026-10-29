@@ -108,7 +108,7 @@ export function statusOf(ctx: NetworkCtx) {
   const cfg = readConfig(ctx);
   const host = cfg?.address ?? "";
   const cert = certs(ctx).find((c) => c.host === host);
-  const certificate: { host: string; expiresAt?: number; state: State } = { host, state: cert?.state ?? "degraded" };
+  const certificate: { host: string; expiresAt?: number; state: State } = { host, state: cert?.state ?? (host.startsWith("http://") ? "healthy" : "degraded") };   // a plain http address has no certificate to lack
   if (cert?.expiresAt !== undefined) certificate.expiresAt = cert.expiresAt;
   const commands = ctx.db.all("SELECT kind, target, state, detail, at FROM network_result ORDER BY at DESC, id DESC LIMIT 10").map((raw) => {
     const row = asRow(raw)!;
@@ -191,6 +191,8 @@ export function servers(ctx: NetworkCtx): ServerRow[] {
 export function healthProbe(ctx: NetworkCtx): { state: State; detail?: string; daysToExpiry?: number } {
   const cfg = readConfig(ctx);
   if (!cfg) return { state: "degraded", detail: "The host has not reported its address yet." };
+  // A plain http address (this computer, or a private network) has no certificate to expire, and no relay endpoint reported means remote access is not set up yet.
+  if (cfg.address.startsWith("http://") && !endpoints(ctx).some((e) => e.kind === "relay")) return { state: "healthy", detail: "This server is only reachable from this computer or its network, and has no certificate. Set up remote access to reach it from outside." };
   const cert = certs(ctx).find((c) => c.host === cfg.address);
   const relay = endpoints(ctx).find((e) => e.kind === "relay");
   let state: State = cert?.state ?? "degraded";

@@ -2,6 +2,9 @@
 export function mark(name: "app.start" | "app.usable"): void {
   const p = (globalThis as { performance?: { mark?: (n: string) => unknown } }).performance;
   p?.mark?.(name);
+  // the boot script registers the service worker on this (startup/boot.ts)
+  const w = globalThis as { dispatchEvent?: (e: unknown) => boolean; Event?: new (type: string) => unknown };
+  if (name === "app.usable" && w.dispatchEvent && w.Event) w.dispatchEvent(new w.Event("vyre:usable"));
 }
 
 /** Milliseconds from app.start to app.usable, or null if either mark is missing. */

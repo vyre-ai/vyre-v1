@@ -434,6 +434,10 @@ test("health: healthy with every converter, degraded and named when one is missi
   const ok = await call(w, "previews.health", {});
   assert.deepEqual([ok["state"], ok["queued"], typeof ok["latencyMs"]], ["healthy", 0, "number"]);
   w.tools.pdftoppm = false;
+  const quiet = await call(w, "previews.health", {});
+  assert.equal(quiet["state"], "healthy", "a missing converter is a hint while no preview waits on it");
+  assert.match(String(quiet["detail"]), /pdftoppm/);
+  w.db.run("INSERT INTO previews_queue (file_id, version, queued_at) VALUES (?, ?, ?)", "fil_wait", 1, 1);
   const d1 = await call(w, "previews.health", {});
   assert.equal(d1["state"], "degraded");
   assert.match(String(d1["detail"]), /pdftoppm/);
@@ -443,6 +447,7 @@ test("health: healthy with every converter, degraded and named when one is missi
   const d3 = await call(w, "previews.health", {});
   assert.match(String(d3["detail"]), /pdftoppm.*soffice.*vipsthumbnail/);
   w.tools.pdftoppm = true; w.tools.soffice = true; w.tools.vips = true;
+  w.db.run("DELETE FROM previews_queue");
   for (let i = 0; i < 501; i++) w.db.run("INSERT INTO previews_queue (file_id, version, queued_at) VALUES (?, ?, ?)", `fil_q${i}`, 1, 1);
   const long = await call(w, "previews.health", {});
   assert.deepEqual([long["state"], long["queued"]], ["degraded", 501]);
