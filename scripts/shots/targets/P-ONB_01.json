@@ -1,0 +1,74 @@
+{
+  "targets": [
+    {
+      "id": "P-ONB_01-doors",
+      "route": "/m/P-ONB_01?view=doors",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='door-me']",
+      "note": "First launch: three doors. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-personal-ai",
+      "route": "/m/P-ONB_01?view=personal-ai",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='ai-tiles']",
+      "note": "Personal: connect your AI (scripted Assistant). The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-personal-interview",
+      "route": "/m/P-ONB_01?view=personal-interview",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='interview-card']",
+      "note": "Personal: how you work, saved to memory. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-personal-phone",
+      "route": "/m/P-ONB_01?view=personal-phone",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='pair-phone']",
+      "note": "Personal: pair your phone. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-personal-team",
+      "route": "/m/P-ONB_01?view=personal-team",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='team-bridge']",
+      "note": "Personal: add a team, with the Mac warning. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-team-org",
+      "route": "/m/P-ONB_01?view=team-org",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='onboarding-card']",
+      "note": "Team: your organisation and Kit. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-team-ai",
+      "route": "/m/P-ONB_01?view=team-ai",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='same-account']",
+      "note": "Team: AI for the Space with the same-account offer. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-member-own",
+      "route": "/m/P-ONB_01?view=member-own",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='onboarding-card']",
+      "note": "Member: your own mail, calendar, files. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-member-ai",
+      "route": "/m/P-ONB_01?view=member-ai",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='ai-tiles']",
+      "note": "Member: your own AI account. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-finished",
+      "route": "/m/P-ONB_01?view=finished",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='onboarding-finished']",
+      "note": "Finished: you are all set. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    }
+  ]
+}
