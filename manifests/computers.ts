@@ -17,7 +17,7 @@ import { id, pageIn, pageOut } from './_common.ts';
 const cmpState = t.enm('provisioning', 'asleep', 'waking', 'working', 'takeover', 'error');
 const computerRow = t.obj({
   computerId: id.computer, agentId: id.agent, state: cmpState, caption: t.opt(t.str({ description: 'What it is doing, shown under the live view' })), tabs: t.int(), tabLimit: t.int(),
-  host: t.enm('server', 'vm'), diskBytes: t.opt(t.int()), lastFrameAt: t.opt(t.ts()), lastActiveAt: t.opt(t.ts()), takeoverBy: t.opt(id.user), recording: t.bool(),
+  host: t.enm('server', 'vm'), nodeId: t.opt(t.str({ description: 'The computer that joined the Space and runs this one; absent when it runs on the Space server' })), diskBytes: t.opt(t.int()), lastFrameAt: t.opt(t.ts()), lastActiveAt: t.opt(t.ts()), takeoverBy: t.opt(id.user), recording: t.bool(),
 });
 const stepRow = t.obj({ stepId: t.id('stp'), idx: t.int(), at: t.ts(), caption: t.str(), tool: t.str(), frameFileId: t.opt(id.file), by: t.enm('agent', 'person'), runId: t.opt(id.run) });
 const recordingRow = t.obj({
@@ -49,7 +49,7 @@ export default defineManifest({
       in: comp, out: { computer: computerRow }, on: ['computer', '/computerId'], perm: 'computers.watch', team: true, tool: 'computer', errors: ['validation.not_found'],
     }),
     create('computers.provision', 'Give an agent a computer (none unless the agent needs one)', {
-      in: { agentId: id.agent, tabLimit: t.opt(t.int({ minimum: 1, maximum: 50 })) }, out: { computer: computerRow }, perm: 'computers.use', level: 'manage', team: true,
+      in: { agentId: id.agent, tabLimit: t.opt(t.int({ minimum: 1, maximum: 50 })), nodeId: t.opt(t.str({ description: 'Run it on a computer that joined the Space instead of the Space server' })) }, out: { computer: computerRow }, perm: 'computers.use', level: 'manage', team: true,
       emits: ['computer.provisioned'], tool: 'computer', audit: 'sensitive', errors: ['provider.unavailable', 'validation.duplicate'],
     }),
     write('computers.configure', 'Change the tab limit or idle sleep of a computer', {

@@ -8,7 +8,7 @@
 //   recording and every answer can be scrubbed; `frame` is the screen after the step (the timeline's picture); `caption` is its words.
 // Errors are only ones the capabilities declare: a person at the controls, a held item and a bad argument are validation.bad_input; Esc, a computer still starting and a silent agentd are provider.unavailable.
 // Handles are never resolved here: "agent computer logins stay on that computer" (ARCH 6.11), agentd substitutes them at the last moment and scrubs its own output. This module scrubs again.
-import { actorOf, addStep, agentFolder, boundHost, clean, ensure, mintId, needComputer, needTeam, raise, rememberSecrets, rowsOf, setComputer } from "../../projections.ts";
+import { actorOf, addStep, agentFolder, clean, hostFor, ensure, mintId, needComputer, needTeam, raise, rememberSecrets, rowsOf, setComputer } from "../../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, Secret } from "../../projections.ts";
 import { awaken } from "../lifecycle.ts";
 
@@ -46,8 +46,8 @@ export interface ToolSpec {
   asleep?: ToolAnswer;
 }
 
-function toolHost(ctx: CompCtx): ComputerHost & ToolHost {
-  const host = boundHost() as (ComputerHost & Partial<ToolHost>) | null;
+function toolHost(ctx: CompCtx, computerId: string): ComputerHost & ToolHost {
+  const host = hostFor(ctx, computerId) as (ComputerHost & Partial<ToolHost>) | null;
   if (!host) raise(ctx, "provider.unavailable", "Agent computers are not running on this host.");
   if (typeof host.tool !== "function") raise(ctx, "provider.unavailable", "This host cannot run tools on an agent computer.");
   return host as ComputerHost & ToolHost;
@@ -128,7 +128,7 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
   if (c.state === "asleep" && spec.noWake) return null;
   if (c.state === "asleep" || c.state === "error") c = await awaken(ctx, c, actorOf(ctx));
   if (c.state === "provisioning" || c.state === "waking") raise(ctx, "provider.unavailable", "This computer is still starting.");
-  return { computer: c, host: toolHost(ctx) };
+  return { computer: c, host: toolHost(ctx, c.computerId) };
 }
 
 /** One call to agentd and everything after it: scrub, remember what was filled, keep the frame, add the step. Returns the capability's output. */
