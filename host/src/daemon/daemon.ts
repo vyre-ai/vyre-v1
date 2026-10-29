@@ -220,6 +220,8 @@ export interface DaemonOptions {
   computersBaseUrl?: string;
   /** How often an agent computer mirrors its home with Files while it runs (tests set it long and trigger passes by waking and sleeping). Default 3 s. */
   computersHomeIntervalMs?: number;
+  /** The container engine socket the agent computers module talks to (default: the system one); tests point it somewhere nothing listens. */
+  computersSocketPath?: string;
   /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan). Omitted: a CLI engine refuses to start. */
   engineSandbox?: unknown;
   /** Tests: swap a CLI engine's program for a command, and expose extra read-only folders in its sandbox (modules/engine runtime `cli`). */
@@ -826,6 +828,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }),
         setComputerHost: () => createComputersHost({
           dataDir: paths.root,
+          ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : {}),
           // the home mirror runs as the agent: the same pipeline as any call, so access, review rules and the scrubber apply
           callAs: createAgentHomeCaller({ db: db!, spaceId, invoke }),
           // large files go to the Files module in process: the slot's one-time token from files.upload_url is the only authority, and no session or bearer is involved
@@ -1128,13 +1131,20 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     chainBroken = true;
     return probes.eventsDb({ ok: false, seq: verified.seq, why: `${v.why} at event ${v.at}`, latencyMs: now() - t0 });
   };
+  // Docker and Caddy matter once an agent computer exists. Before that, a Space without them has nothing waiting on them, so a miss is a hint, not a failure.
+  const unusedRuntime = (r: ProbeResult): ProbeResult => {
+    if (r.state !== "down") return r;
+    let used = true;
+    try { used = Number((db?.all("SELECT COUNT(*) AS n FROM computers_computers") as { n?: unknown }[] | undefined)?.[0]?.n ?? 0) > 0; } catch { used = false; }
+    return used ? r : { ...r, state: "healthy", detail: `${r.detail ?? "Not running."} Agent computers need it; none exist yet.` };
+  };
   const probeFns: Record<ProbeName, () => Promise<ProbeResult> | ProbeResult> = {
     disk_encrypted: () => (o.probes?.diskEncrypted ? o.probes.diskEncrypted() : probes.diskEncrypted(platform, paths.root)),
     events_db: events,
     index_db: () => probes.indexLag(o.probes?.indexLag ? o.probes.indexLag() : null),
     scheduler: () => probes.schedulerTick(scheduler.lastTickAt, now()),
-    docker: () => probes.docker(platform),
-    caddy: () => (fetchFn ? probes.caddy(fetchFn, cfg.caddyAdmin, now) : { state: "down", detail: "No HTTP client to reach the Caddy admin API." }),
+    docker: async () => unusedRuntime(await probes.docker(platform)),
+    caddy: async () => unusedRuntime(fetchFn ? await probes.caddy(fetchFn, cfg.caddyAdmin, now) : { state: "down", detail: "No HTTP client to reach the Caddy admin API." }),
     disk_space: () => probes.diskSpace(platform, paths.root),
     time_skew: () => probes.timeSkew(fetchFn, cfg.relayUrl, now),
   };

@@ -138,11 +138,11 @@ test("errors in the last day are counted by message; old ones are not", async ()
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("an unencrypted volume, a full disk, no Docker and no Caddy are down, each with its own next step", async () => {
+test("an unencrypted volume is degraded; a full disk, no Docker and no Caddy are down, each with its own next step", async () => {
   const dir = deadServerDir();
   try {
     const r = await runDoctor({ dataDir: dir, platform: machine(dir, { encrypted: false, docker: false, free: 3e8 }), fetch: caddyDown });
-    assert.equal(by(r, "host.disk_encrypted").state, "down");
+    assert.equal(by(r, "host.disk_encrypted").state, "degraded");
     assert.match(by(r, "host.disk_encrypted").next, /FileVault or LUKS/);
     assert.equal(by(r, "host.disk_space").state, "down");
     assert.match(by(r, "host.disk_space").next, /Free disk space/);
@@ -152,7 +152,7 @@ test("an unencrypted volume, a full disk, no Docker and no Caddy are down, each 
     assert.match(by(r, "host.caddy").next, /Restart Caddy/);
     assert.equal(r.ok, false);
     const text = formatDoctor(r);
-    assert.match(text, /down\s+host\.disk_encrypted/);
+    assert.match(text, /degraded\s+host\.disk_encrypted/);
     assert.match(text, /Some checks need attention\./);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

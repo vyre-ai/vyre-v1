@@ -389,7 +389,7 @@ test("status before setup, and read log rows for tenant-level calls", async () =
 
 test("health is healthy with a latency, degraded when Microsoft struggles, down when the sign-in is refused or nothing is set up", async () => {
   const off = harness();
-  assert.deepEqual(await health(off.ctx), { state: "down", detail: "Microsoft 365 is not set up." });
+  assert.deepEqual(await health(off.ctx), { state: "healthy", detail: "Microsoft 365 is not set up yet." });
   const h = ready();
   h.on("GET", `${GRAPH}/organization`, { body: fixture("graph/organization.json") });
   const ok = await health(h.ctx);

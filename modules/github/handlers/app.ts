@@ -204,9 +204,9 @@ export async function health(ctx: GithubCtx): Promise<{ state: "healthy" | "degr
     if (a.status === 429) return { state: "degraded", detail: "GitHub is asking us to slow down.", latencyMs };
     return { state: "degraded", detail: "GitHub is not answering well right now.", latencyMs };
   } catch (e) {
-    if (e instanceof HostError && e.error.code === "internal.unavailable") return { state: "down", detail: "GitHub is not set up on this server." };
+    if (e instanceof HostError && e.error.code === "internal.unavailable") return { state: "healthy", detail: "GitHub is not set up yet." };
     if (e instanceof HostError && e.error.code === "provider.network") return { state: "down", detail: "GitHub could not be reached." };
-    if (e instanceof HostError && e.error.code === "provider.auth_failed") return { state: "down", detail: "The GitHub App is not set up. Create it in Settings, Integrations." };
+    if (e instanceof HostError && e.error.code === "provider.auth_failed") return { state: "healthy", detail: "The GitHub App is not set up yet. Create it in Settings, Integrations." };
     throw e;
   }
 }

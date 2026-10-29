@@ -151,6 +151,13 @@ export async function archive(ctx: AuditCtx, input: { before: number }) {
   return { archived: old.length };
 }
 
+/** The chain's first row is younger than a day: a missing checkpoint is the scheduler not having run yet, not a fault. */
+export const FRESH_CHAIN_MS = 24 * 3_600_000;
+async function freshChain(ctx: AuditCtx): Promise<boolean> {
+  const first = ctx.db.all(`SELECT at FROM audit_row ORDER BY seq ASC LIMIT 1`)[0] as { at?: number } | undefined;
+  return typeof first?.at === "number" && ctx.now() - first.at < FRESH_CHAIN_MS;
+}
+
 export async function chainHealth(ctx: AuditCtx, _input: Record<string, never>): Promise<{ state: "healthy" | "degraded" | "down"; detail?: string; latencyMs: number }> {
   const t0 = performance.now();
   const ms = (): number => Math.max(0, Math.round(performance.now() - t0));
@@ -160,7 +167,9 @@ export async function chainHealth(ctx: AuditCtx, _input: Record<string, never>):
     const empty = head.seq === 0 || head.hash === genesis(ctx.space);
     return empty
       ? { state: "healthy", detail: "The audit log is empty.", latencyMs: ms() }
-      : { state: "degraded", detail: "No checkpoint has been signed yet.", latencyMs: ms() };
+      : await freshChain(ctx)
+        ? { state: "healthy", detail: "No checkpoint has been signed yet; the first is signed within minutes.", latencyMs: ms() }
+        : { state: "degraded", detail: "No checkpoint has been signed yet.", latencyMs: ms() };
   }
   const tail = verifyRange(ctx, cp.seq, undefined);
   if (!checkpointValid(ctx, cp) || !tail.ok) return { state: "down", detail: "The newest checkpoint or the chain after it does not verify.", latencyMs: ms() };
