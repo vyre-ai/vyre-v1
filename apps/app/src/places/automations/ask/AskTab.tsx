@@ -10,6 +10,10 @@ import {
   accountFromCreate, connectionCreateInput, firstFolderId, handleOf, itemIdOf, linesFor, linkAccount, planAsk, publicLine, savedLine, setupShape, vaultPutInput,
 } from "./plan.ts";
 import type { AskLine, AskStep, AskTurn, PasteSlot } from "./plan.ts";
+import { actionsFrom, proposalsFrom } from "./proposals.ts";
+import type { StepProposal } from "./proposals.ts";
+import { publicResult, readOffer } from "./read.ts";
+import type { ReadRequest } from "./read.ts";
 import type { AccountOption } from "../connect/accounts.ts";
 import type { ConnectTarget } from "../connect/route.ts";
 import type { Definition } from "../canvas/model.ts";
@@ -29,7 +33,11 @@ export function AskTab({ def, selectedId, accounts, steps, onChange, onOpenChat,
   const [lines, setLines] = useState<AskLine[]>([]);
   const [turn, setTurn] = useState<AskTurn | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
+  const [proposals, setProposals] = useState<StepProposal[]>([]);
+  const [linked, setLinked] = useState<AccountOption | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const accountNow = (): AccountOption | null => linked ?? (turn?.kind === "use" ? turn.account : null);
 
   const say = (line: string): void => {
     const safe = publicLine(line) || "That did not finish.";
@@ -45,9 +53,10 @@ export function AskTab({ def, selectedId, accounts, steps, onChange, onOpenChat,
   };
 
   const useAccount = (account: AccountOption, planned: Extract<AskTurn, { kind: "use" | "choose" | "paste" }>): boolean => {
-    const linked = linkAccount(def, { account, stepKey: planned.stepKey, nodeId: selectedId, action: planned.action });
-    if ("error" in linked) { say(linked.error); return false; }
-    onChange(linked.def);
+    const linkedResult = linkAccount(def, { account, stepKey: planned.stepKey, nodeId: selectedId, action: planned.action });
+    if ("error" in linkedResult) { say(linkedResult.error); return false; }
+    onChange(linkedResult.def);
+    setLinked(account);
     return true;
   };
 
@@ -91,6 +100,7 @@ export function AskTab({ def, selectedId, accounts, steps, onChange, onOpenChat,
     try {
       const out = await call("automations.draft_connector", { document: parsed });
       const shape = setupShape(out);
+      setProposals(proposalsFrom(actionsFrom(out)));
       const raw = text.trim() || "use this document";
       if (shape.fields.length === 0 && shape.actions.length === 0) say("This document does not say how to sign in.");
       else ask(raw, shape.fields, shape.actions[0] ?? null);
@@ -98,6 +108,31 @@ export function AskTab({ def, selectedId, accounts, steps, onChange, onOpenChat,
       say(err instanceof Error ? err.message : "That document was not read.");
     }
     setBusy(false);
+  };
+
+  const tryRead = async (req: ReadRequest): Promise<void> => {
+    if (busy) return;
+    const offer = readOffer(req);
+    if (offer.kind === "hold") { say(offer.say); return; }
+    setBusy(true);
+    say(offer.say);
+    try {
+      const out = await call(offer.cap, offer.input);
+      say(publicResult(out));
+    } catch (err) {
+      say(err instanceof Error ? err.message : "That read did not run.");
+    }
+    setBusy(false);
+  };
+
+  const addProposal = (proposal: StepProposal): void => {
+    const account = accountNow();
+    if (!account) { say("Link a connection before adding this step."); return; }
+    const placed = linkAccount(def, { account, stepKey: "connector_request", nodeId: selectedId, action: proposal.action });
+    if ("error" in placed) { say(placed.error); return; }
+    onChange(placed.def);
+    setLinked(account);
+    say(`Added ${proposal.title}. ${proposal.say}`);
   };
 
   const openChat = (): void => {
@@ -110,12 +145,26 @@ export function AskTab({ def, selectedId, accounts, steps, onChange, onOpenChat,
       <ScrollView style={s.scroll} contentContainerStyle={s.scrollInner}>
         {lines.length === 0 ? <Text style={s.copy}>Name an app and what the step should do. A connection already in Vault is linked. A new one is pasted into Vault, and these lines never keep the value.</Text> : null}
         {lines.map((line, i) => <Text key={`${line.who}-${i}`} style={line.who === "you" ? s.you : s.copy}>{line.say}</Text>)}
-        {turn?.kind === "use" ? <Pressable accessibilityRole="button" accessibilityLabel={`Use ${turn.account.title}`} testID="ask-use" onPress={() => { if (useAccount(turn.account, turn)) say(`Linked ${turn.account.title} to the step.`); }} style={s.btn}><Text style={s.btnText}>Use {turn.account.title}</Text></Pressable> : null}
+        {turn?.kind === "use" ? (
+          <View style={s.row}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Use ${turn.account.title}`} testID="ask-use" onPress={() => { if (useAccount(turn.account, turn)) say(`Linked ${turn.account.title} to the step.`); }} style={s.btn}><Text style={s.btnText}>Use {turn.account.title}</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Try this read" testID="ask-try-read" onPress={() => void tryRead({ stepKey: turn.stepKey, effect: turn.stepKey === "connector_request" ? (proposals.find((item) => item.action === turn.action)?.effect ?? null) : null, connectionId: turn.account.id, connector: turn.account.app, action: turn.action, input: {} })} style={s.btn}><Text style={s.btnText}>Try this read</Text></Pressable>
+          </View>
+        ) : null}
         {turn?.kind === "choose" ? turn.accounts.map((account) => (
           <Pressable key={account.id} accessibilityRole="button" accessibilityLabel={`Use ${account.title}`} testID={`ask-pick-${account.id}`} onPress={() => { if (useAccount(account, turn)) say(`Linked ${account.title} to the step.`); }} style={s.btn}><Text style={s.btnText}>{account.title}</Text></Pressable>
         )) : null}
         {turn?.kind === "sign_in" ? <Pressable accessibilityRole="button" accessibilityLabel="Sign in" testID="ask-sign-in" onPress={() => onConnect({ service: turn.service, kind: "connection" })} style={s.btn}><Text style={s.btnText}>Sign in</Text></Pressable> : null}
         {turn?.kind === "paste" ? <PasteBoxes slots={turn.slots} values={values} busy={busy} onChange={(key, value) => setValues((cur) => ({ ...cur, [key]: value }))} onSave={() => void save(turn)} /> : null}
+        {proposals.map((proposal) => (
+          <View key={proposal.action} testID={`ask-proposal-${proposal.action}`}>
+            <Text style={s.copy}>{proposal.title}. {proposal.say}</Text>
+            <View style={s.row}>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Add ${proposal.title}`} testID={`ask-add-${proposal.action}`} onPress={() => addProposal(proposal)} style={s.btn}><Text style={s.btnText}>Add {proposal.title}</Text></Pressable>
+              {proposal.check === "dry_run" ? <Pressable accessibilityRole="button" accessibilityLabel={`Try ${proposal.title}`} testID={`ask-try-${proposal.action}`} onPress={() => void tryRead({ stepKey: "connector_request", effect: "read", connectionId: accountNow()?.id ?? null, connector: accountNow()?.app ?? null, action: proposal.action, input: {} })} style={s.btn}><Text style={s.btnText}>Try this read</Text></Pressable> : null}
+            </View>
+          </View>
+        ))}
       </ScrollView>
       <TextInput accessibilityLabel="What should this Automation do" testID="ask-input" value={text} onChangeText={setText} placeholder="App and what you want done" placeholderTextColor="var(--ink-4)" style={s.input} />
       <View style={s.row}>

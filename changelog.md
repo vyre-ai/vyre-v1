@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Automations: Ask can try a catalog read with the saved connection through steps.test. A connector read is a dry-run preview and is not sent. An outward call is not given a capability. A document already on the tab becomes one step proposal per action. Secret fields stay out of the call and the line.
 - Automations: each Automation has an Ask tab. It uses the catalog and accounts already loaded. An existing Vault connection is linked onto the step. A missing one is pasted into Vault, then saved with vault.item.put and connections.create. The lines and the Chats tab never receive the pasted values. An OpenAPI document already on the tab is read through automations.draft_connector. A web address is not opened.
 - Automations: drafting a connector also returns the Vault paste fields and an Ask Vyre bundle. The bundle has field names only. A read may be tried later. An outward call waits until the person runs it. A webhook in the document becomes a draft trigger. Nothing is fetched or promoted.
 - Automations: `automations.draft_connector` drafts actions from an OpenAPI document already in memory. A docs URL is stored and not fetched. Nothing is saved or promoted.
