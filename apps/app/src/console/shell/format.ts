@@ -28,3 +28,9 @@ export function actionPhrase(action: string): string {
 export const count = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 /** A section label as a person reads it: "space" is "Space". */
 export const capital = (text: string): string => `${text[0]?.toUpperCase() ?? ""}${text.slice(1)}`;
+/** A day as a person reads it in a title: "29 Oct" (the year only when it is not this one). */
+export function dayLabel(at: number, now: number = Date.now()): string {
+  const d = new Date(at);
+  const same = d.getFullYear() === new Date(now).getFullYear();
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(same ? {} : { year: "numeric" }) });
+}

@@ -8,10 +8,10 @@ import { ObjectList } from "../objects/ObjectList.tsx";
 import { useIdentityName, useResourceName } from "../objects/names.ts";
 import { Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
-import { count } from "../shell/format.ts";
+import { count, dayLabel } from "../shell/format.ts";
 import { Actions, Button, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
 type Review=AccessReviewsListOut["reviews"][number];
-export const reviewTitle=(review:Review):string=>`Access review · ${new Date(review.openedAt).toLocaleString()}`;
+export const reviewTitle=(review:Review):string=>`Access review, ${dayLabel(review.openedAt)}`;
 export const closeReviewImpact=(review:Review):string=>`Close this review with ${review.items-review.decided} undecided grants? Undecided access stays unchanged and outstanding review tasks close.`;
 export function Reviews({initialId}:{initialId?:string}):ReactElement{
  const data=useConsoleData();const [selected,setSelected]=useState(initialId??"");const[search,setSearch]=useState("");const[filters,setFilters]=useState<ReadonlySet<string>>(new Set());const[picked,setPicked]=useState<ReadonlySet<string>>(new Set());const[more,setMore]=useState<AccessReviewsListOut|null>(null);const[bulk,setBulk]=useState<Review[]|null>(null);const[busy,setBusy]=useState(false);const[error,setError]=useState("");const[scope,setScope]=useState("all");const[starting,setStarting]=useState(false);
