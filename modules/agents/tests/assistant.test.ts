@@ -36,7 +36,7 @@ test("the assistant belongs to its person alone: another member's list does not 
   const get = handlers["agents.get"] as unknown as (c: unknown, i: unknown) => Promise<{ agent: { role?: string } }>;
   const hn = harness();
   const [id] = await run(hn.person(DANA), born(DANA, "Dana Reyes"));
-  hn.allowOnly(() => false);   // no grant on the assistant for anyone but its owner
+  hn.allowOnly(() => true);   // even a Space where everyone may view every agent, and an admin who sees all: the assistant stays its owner's
   // what the console assistant reads to find it: agentId, ownerId and role === "assistant"
   const mine = (await list(hn.person(DANA), { section: "personal", limit: 100 })).agents.find((a) => a.agentId === id);
   assert.deepEqual(mine && [mine.ownerId, mine.role], [DANA, "assistant"]);
