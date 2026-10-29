@@ -1501,6 +1501,43 @@ export type AgentsRoutinesListOut = {
       };
     }>;
 };
+export type AgentsSetOwnerIn = {
+  agentId: string;
+  ownerId: string;
+};
+export type AgentsSetOwnerOut = {
+  agent: {
+    agentId: string;
+    name: string;
+    face: string;
+    role?: string;
+    status: "awake" | "working" | "asleep" | "paused";
+    pausedReason?: string;
+    pausedBy?: string;
+    ownerId: string;
+    folderId: string;
+    model?: string;
+    fallbackModel?: string;
+    accountPolicy: "asker" | "key";
+    accountKey?: string;
+    toolsAllowed: Array<string>;
+    toolsDenied: Array<string>;
+    vaultKeys: Array<string>;
+    limits: {
+      runCostMicros?: number;
+      dayCostMicros?: number;
+      monthCostMicros?: number;
+      turnsPerDay?: number;
+      minutesPerRun?: number;
+      tokensPerDay?: number;
+    };
+    captureMode: "propose" | "auto_low_risk" | "off";
+    hasComputer: boolean;
+    templateVersion: number;
+    createdAt: number;
+    lastActiveAt?: number;
+  };
+};
 export type AgentsSnapshotTakeIn = {
   agentId: string;
   runId?: string;
@@ -26910,6 +26947,7 @@ export interface CapMap {
   "agents.routine.run_now": { in: AgentsRoutineRunNowIn; out: AgentsRoutineRunNowOut };
   "agents.routine.save": { in: AgentsRoutineSaveIn; out: AgentsRoutineSaveOut };
   "agents.routines.list": { in: AgentsRoutinesListIn; out: AgentsRoutinesListOut };
+  "agents.set_owner": { in: AgentsSetOwnerIn; out: AgentsSetOwnerOut };
   "agents.snapshot.take": { in: AgentsSnapshotTakeIn; out: AgentsSnapshotTakeOut };
   "agents.status": { in: AgentsStatusIn; out: AgentsStatusOut };
   "agents.suggestion.accept": { in: AgentsSuggestionAcceptIn; out: AgentsSuggestionAcceptOut };
@@ -28487,6 +28525,12 @@ export type AgentModelChangedPayload = {
   agentId: string;
   model: string;
   provider: string;
+  by: string;
+};
+export type AgentOwnerChangedPayload = {
+  agentId: string;
+  from: string;
+  to: string;
   by: string;
 };
 export type AgentPausedPayload = {
@@ -31741,6 +31785,7 @@ export interface EventMap {
   "agent.limit_hit": AgentLimitHitPayload;
   "agent.mode_changed": AgentModeChangedPayload;
   "agent.model_changed": AgentModelChangedPayload;
+  "agent.owner_changed": AgentOwnerChangedPayload;
   "agent.paused": AgentPausedPayload;
   "agent.restored": AgentRestoredPayload;
   "agent.resumed": AgentResumedPayload;

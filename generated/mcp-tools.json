@@ -3209,6 +3209,40 @@
     },
     {
       "blocks": [],
+      "cap": "agents.set_owner",
+      "deferred": false,
+      "description": "Hand an agent to another active person: its home folder and the agent change owner with it and the previous owner keeps nothing on them",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ownerId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "ownerId"
+        ],
+        "type": "object"
+      },
+      "name": "agents_set_owner",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.status",
       "deferred": false,
       "description": "Live status of an agent: Awake (idle 2 minutes), Working, Asleep or Paused with reason and who",

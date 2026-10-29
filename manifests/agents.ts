@@ -117,6 +117,9 @@ export default defineManifest({
     write('agents.delete', 'Move an agent to Trash (its folder and memory follow the folder rules)', {
       in: target, out: { deleted: t.bool() }, on: ['agent', '/agentId'], level: 'manage', emits: ['agent.deleted'], gate: { act: 'delete', when: "actor.kind != 'person'" }, tool: 'agents', audit: 'sensitive', errors: ['permission.on_hold'],
     }),
+    write('agents.set_owner', 'Hand an agent to another active person: its home folder and the agent change owner with it and the previous owner keeps nothing on them', {
+      in: { ...target, ownerId: id.user }, out: { agent: agentRow }, on: ['agent', '/agentId'], level: 'manage', emits: ['agent.owner_changed'], tool: 'agents', audit: 'sensitive', errors: ['validation.bad_input'],
+    }),
     write('agents.restore', 'Restore an agent from Trash', {
       in: target, out: { agent: agentRow }, on: ['agent', '/agentId'], level: 'manage', emits: ['agent.restored'], tool: 'agents',
     }),
@@ -203,6 +206,7 @@ export default defineManifest({
     ev('agent.created', 'An agent was created', { p: { agentId: id.agent, name: t.str(), ownerId: id.user, folderId: t.str(), templateVersion: t.int() }, subject: ['agent', '/agentId'], trigger: { title: 'An agent is created' } }),
     ev('agent.paused', 'An agent was paused', { p: { agentId: id.agent, reason: t.opt(t.str()), by: t.str() }, subject: ['agent', '/agentId'], trigger: { title: 'An agent is paused' } }),
     ev('agent.resumed', 'An agent was resumed', { p: { agentId: id.agent, by: t.str() }, subject: ['agent', '/agentId'] }),
+    ev('agent.owner_changed', 'An agent was handed to another person', { p: { agentId: id.agent, from: id.user, to: id.user, by: t.str() }, subject: ['agent', '/agentId'] }),
     ev('agent.deleted', 'An agent moved to Trash', { p: { agentId: id.agent, by: t.str() }, subject: ['agent', '/agentId'] }),
     ev('agent.restored', 'An agent came back from Trash', { p: { agentId: id.agent, by: t.str() }, subject: ['agent', '/agentId'] }),
     ev('agent.config_changed', 'AGENT.md, agent.toml or the agent record changed (a new version was saved)', {

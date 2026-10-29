@@ -116,6 +116,7 @@ export function stubs(ctx: CallCtx) {
       routines: {
         list: call("agents.routines.list"),
       },
+      set_owner: call("agents.set_owner"),
       snapshot: {
         take: call("agents.snapshot.take"),
       },

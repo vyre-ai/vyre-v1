@@ -116,6 +116,7 @@ export function createClient(transport: Transport) {
       routines: {
         list: call("agents.routines.list", 1),
       },
+      set_owner: call("agents.set_owner", 1),
       snapshot: {
         take: call("agents.snapshot.take", 1),
       },

@@ -27377,6 +27377,113 @@
       "v": 1
     },
     {
+      "audit": "sensitive",
+      "effects": "write",
+      "emits": [
+        "agent.owner_changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "ownerId": "usr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "agent": {
+              "accountKey": "#Team_Anthropic_Key",
+              "accountPolicy": "asker",
+              "agentId": "agt_a1b2c3",
+              "captureMode": "propose",
+              "createdAt": 1760000000000,
+              "face": "intake",
+              "fallbackModel": "example",
+              "folderId": "fld_a1b2c3",
+              "hasComputer": true,
+              "lastActiveAt": 1760000000000,
+              "limits": {
+                "dayCostMicros": 1,
+                "minutesPerRun": 1,
+                "monthCostMicros": 1,
+                "runCostMicros": 1,
+                "tokensPerDay": 1,
+                "turnsPerDay": 1
+              },
+              "model": "example",
+              "name": "example",
+              "ownerId": "usr_a1b2c3",
+              "pausedBy": "example",
+              "pausedReason": "example",
+              "role": "example",
+              "status": "awake",
+              "templateVersion": 1,
+              "toolsAllowed": [
+                "example"
+              ],
+              "toolsDenied": [
+                "example"
+              ],
+              "vaultKeys": [
+                "example"
+              ]
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ownerId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "ownerId"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "agents",
+      "name": "agents.set_owner",
+      "output": {
+        "$ref": "#/$defs/s_dd8211e1b7"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/agentId",
+        "type": "agent"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Hand an agent to another active person: its home folder and the agent change owner with it and the previous owner keeps nothing on them",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [],
       "errors": [
@@ -173076,6 +173183,53 @@
       "summary": "The model, provider, effort or account of an agent in a thread changed",
       "sv": 1,
       "vis": "participants"
+    },
+    {
+      "module": "agents",
+      "name": "agent.owner_changed",
+      "payload": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "by": {
+            "type": "string"
+          },
+          "from": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "to": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "from",
+          "to",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/agentId",
+        "type": "agent"
+      },
+      "summary": "An agent was handed to another person",
+      "sv": 1,
+      "vis": "space"
     },
     {
       "module": "agents",

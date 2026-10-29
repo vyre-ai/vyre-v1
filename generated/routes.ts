@@ -1525,6 +1525,25 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/agents/set_owner",
+    "cap": "agents.set_owner",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": null,
+    "level": "manage",
+    "resource": {
+      "type": "agent",
+      "id": "/agentId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/agents/snapshot/take",
     "cap": "agents.snapshot.take",
     "v": 1,

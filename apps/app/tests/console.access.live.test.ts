@@ -220,6 +220,45 @@ test("production Console Access: People directory, person object, groups, device
       assert.equal(((await api("access.actors.list", {})).actors as { id: string; status: string }[]).find((a) => a.id === actor.id)!.status, "revoked");
       assert.equal((await call("schema.types.list", {}, credential)).status, 401, "the revoked credential stops working");
     });
+    await t.test("an agent's lifecycle: create, edit model, account and tools, pause and resume, hand over, delete and undo", async () => {
+      await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
+      await goTo(page, "agents", "Agents register", "Agents and actors"); await page.getByTestId("console-agents").waitFor();
+      await page.getByTestId("agent-name").fill("Intake Bot"); await page.getByLabel("Role line", { exact: true }).fill("Use me when a new inquiry arrives.");
+      await page.getByLabel("Model (optional)", { exact: true }).fill("model-a");
+      await page.getByTestId("agent-create").click(); await page.getByText("Agent created").first().waitFor();
+      const agent = ((await api("agents.list", {})).agents as { agentId: string; name: string }[]).find((a) => a.name === "Intake Bot")!;
+      const read = async (): Promise<any> => (await api("agents.get", { agentId: agent.agentId })).agent; // eslint-disable-line @typescript-eslint/no-explicit-any
+      assert.equal((await read()).model, "model-a"); assert.equal((await read()).ownerId, (await api("identity.whoami", {})).principal.id);
+      const openAgent = async (p: Page = page): Promise<void> => { await p.getByTestId(`row-object-row-${agent.agentId}`).click(); await p.getByTestId("object-page-" + agent.agentId).waitFor(); };
+      await openAgent();
+      await page.getByTestId("object-action-edit").click(); await page.getByTestId("agent-edit-sheet").waitFor();
+      await page.getByTestId("agent-edit-model").fill("model-b"); await page.getByLabel("Fallback model", { exact: true }).fill("model-c");
+      await page.getByRole("button", { name: "Account", exact: true }).click(); await page.getByRole("menuitem", { name: "A shared key from the Vault", exact: true }).click();
+      await page.getByTestId("agent-edit-key").fill("#Team_Anthropic_Key");
+      await page.getByLabel("Tools allowed (comma separated)", { exact: true }).fill("records.read, files.read"); await page.getByLabel("Tools denied (comma separated)", { exact: true }).fill("terminal");
+      await page.getByTestId("agent-save").click(); await page.getByText("Agent updated").first().waitFor();
+      const saved = await read();
+      assert.deepEqual([saved.model, saved.fallbackModel, saved.accountPolicy, saved.accountKey, saved.toolsAllowed, saved.toolsDenied], ["model-b", "model-c", "key", "#Team_Anthropic_Key", ["records.read", "files.read"], ["terminal"]]);
+      await page.getByRole("tab", { name: /^Configuration/ }).click(); await page.getByTestId("agent-configuration").waitFor();
+      const config = await page.getByTestId("agent-configuration").innerText();
+      assert.match(config, /model-b/); assert.match(config, /#Team_Anthropic_Key/); assert.match(config, /records\.read, files\.read/); assert.match(config, /terminal/);
+      await matrix("agent-configuration", async (p) => { await goTo(p, "agents", "Agents register", "Agents and actors"); await p.getByTestId("console-agents").waitFor(); await openAgent(p); await p.getByRole("tab", { name: /^Configuration/ }).click(); await p.getByTestId("agent-configuration").waitFor(); });
+      await page.getByRole("tab", { name: /^Overview/ }).click(); await page.getByTestId("agent-pause-reason").fill("Cost review");
+      await page.getByTestId("object-action-pause").click(); await page.getByText("Agent paused").first().waitFor();
+      assert.equal((await read()).status, "paused"); assert.equal((await read()).pausedReason, "Cost review");
+      await page.getByTestId("object-action-pause").click(); await page.getByText("Agent resumed").first().waitFor();
+      assert.notEqual((await read()).status, "paused");
+      await page.getByTestId("object-action-edit").click();
+      await page.getByRole("button", { name: "Hand over to", exact: true }).click(); await page.getByRole("menuitem", { name: "Maya Lin", exact: true }).click();
+      await page.getByTestId("agent-handover-review").click(); await page.getByTestId("agent-handover-confirm").click(); await page.getByText("Agent handed over").first().waitFor();
+      assert.equal((await read()).ownerId, maya.personId);
+      await page.getByTestId("object-more").click(); await page.getByRole("menuitem", { name: "Delete agent", exact: true }).click(); await page.getByTestId("object-confirm-go").click();
+      await page.getByTestId(`row-agent-trashed-${agent.agentId}`).waitFor();
+      assert.equal(((await api("agents.list", {})).agents as { agentId: string }[]).some((a) => a.agentId === agent.agentId), false, "a deleted agent leaves the register");
+      await page.getByTestId(`agent-undo-${agent.agentId}`).click(); await page.getByText("Agent restored").first().waitFor();
+      assert.equal(((await api("agents.list", {})).agents as { agentId: string }[]).some((a) => a.agentId === agent.agentId), true);
+      assert.equal((await read()).ownerId, maya.personId, "the restored agent keeps its new owner");
+    });
     assert.deepEqual(errors, []);
   } catch (error) {
     await page.screenshot({ path: path.join(shots, "failure.png") }).catch(() => undefined);

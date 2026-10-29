@@ -214,3 +214,20 @@ test("delete still works when Files is down: the agent is gone from the lists an
   assert.deepEqual(await call(hn, "agents.delete", { agentId: a.agentId }), { deleted: true });
   assert.ok(hn.warned.some((w) => /neighbour/.test(w)));
 });
+
+test("set_owner hands the agent and its folder to an active person, and refuses a non-person or a person who is gone", async () => {
+  const hn = harness();
+  const a = (await h["agents.create"]!(hn.ctx, { name: "Handover", idempotencyKey: "so-1" })).agent;
+  hn.clear();
+  const out = await h["agents.set_owner"]!(hn.ctx, { agentId: a.agentId, ownerId: "usr_leo" });
+  assert.equal(out.agent.ownerId, "usr_leo");
+  const moved = hn.world.calls.filter((c) => c.cap === "access.transfer_ownership").map((c) => c.input as { resource: { type: string }; from: string; to: string });
+  assert.deepEqual(moved.map((m) => m.resource.type).sort(), ["agent", "folder"]);
+  assert.ok(moved.every((m) => m.to === "usr_leo" && m.from === a.ownerId));
+  assert.ok(hn.emitted.some((e) => e.name === "agent.owner_changed" && e.payload["to"] === "usr_leo"));
+  await assert.rejects(h["agents.set_owner"]!(hn.ctx, { agentId: a.agentId, ownerId: "agt_bot" }), (e: unknown) => /person/.test(String((e as Error).message)));
+  await assert.rejects(h["agents.set_owner"]!(hn.ctx, { agentId: a.agentId, ownerId: "usr_gone" }), (e: unknown) => /active person/.test(String((e as Error).message)));
+  hn.clear();
+  await h["agents.set_owner"]!(hn.ctx, { agentId: a.agentId, ownerId: "usr_leo" });
+  assert.equal(hn.world.calls.filter((c) => c.cap === "access.transfer_ownership").length, 0, "the same owner changes nothing");
+});

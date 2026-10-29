@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat, engine, mcp, memory, runs, terminal.
 
-## Capabilities (32)
+## Capabilities (33)
 
 - [agents.builtin_skills.list](../capabilities/agents.builtin_skills.list.md): Skills every agent carries, led by "Working in Vyre": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces
 - [agents.config.get](../capabilities/agents.config.get.md): Parsed agent.toml and AGENT.md metadata as the next run will see them, with the last good version and any error
@@ -25,6 +25,7 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [agents.routine.run_now](../capabilities/agents.routine.run_now.md): Run a routine now. The run starts as the routine owner, never as the caller, so its reach and its "Sent by <agent> on a routine <person> set" line are the owner's
 - [agents.routine.save](../capabilities/agents.routine.save.md): Create or change a routine, a schedule (cron) or a watcher (kind watch: runs on each new message in a channel); messages it causes carry "Sent by <agent> on a routine <person> set"
 - [agents.routines.list](../capabilities/agents.routines.list.md): Routines of an agent (schedules set by the owner)
+- [agents.set_owner](../capabilities/agents.set_owner.md): Hand an agent to another active person: its home folder and the agent change owner with it and the previous owner keeps nothing on them
 - [agents.snapshot.take](../capabilities/agents.snapshot.take.md): Take the file snapshot a run uses; changes to the files apply between runs
 - [agents.status](../capabilities/agents.status.md): Live status of an agent: Awake (idle 2 minutes), Working, Asleep or Paused with reason and who
 - [agents.suggestion.accept](../capabilities/agents.suggestion.accept.md): Accept a suggestion (shown to the owner and editors only); applies it through files.save as a version
@@ -39,12 +40,13 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [agents.versions](../capabilities/agents.versions.md): List versions of an agent definition (AGENT.md, agent.toml) for rollback
 - [agents.visibility.set](../capabilities/agents.visibility.set.md): Admin toggle "All in the Space" for agent lists (logged)
 
-## Events (13)
+## Events (14)
 
 - [agent.config_changed](../events/agent.config_changed.md): AGENT.md, agent.toml or the agent record changed (a new version was saved)
 - [agent.config_error](../events/agent.config_error.md): An agent.toml failed validation; the last good version keeps running
 - [agent.created](../events/agent.created.md): An agent was created
 - [agent.deleted](../events/agent.deleted.md): An agent moved to Trash
+- [agent.owner_changed](../events/agent.owner_changed.md): An agent was handed to another person
 - [agent.paused](../events/agent.paused.md): An agent was paused
 - [agent.restored](../events/agent.restored.md): An agent came back from Trash
 - [agent.resumed](../events/agent.resumed.md): An agent was resumed
