@@ -67,7 +67,7 @@ const ownerScope = (clearance: number): Scope => ({ level: "manage", rowFilter: 
 /** A subject's verdict: a Scope, or the ReasonCode it was denied with. */
 function evalSubject(snap: AccessSnapshot, s: SubjectInfo, req: Req, res: ResourceRow, chain: readonly ResourceRow[], label: number, steps: Step[] | null): Scope | ReasonCode {
   const p = s.p, perm = req.action.perm;
-  if (p.status !== "active") return p.status === "removed" ? "not_a_member" : "suspended";
+  if (p.status !== "active") return "suspended";
   // rule 1: a role of its own or of its groups carries the permission. Agents never hold owner or admin (stripped when the SubjectInfo is built).
   if (perm !== null && !s.perms.has(perm)) return "role_lacks_permission";
   if (steps) steps.push({ ok: true, text: `${p.name ?? p.id}: role ${s.roleNames} allows ${perm ?? "this action"}` });

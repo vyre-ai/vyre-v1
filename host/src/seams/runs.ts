@@ -53,7 +53,7 @@ function refusal(e: unknown): unknown {
   if (reason === undefined || !DENIED.has(reason)) return e;
   const why: Record<string, string> = {
     not_a_member: "The person this run acts as is no longer a member of this Space, so the run stopped.",
-    suspended: "The person this run acts as is suspended, so the run stopped.",
+    suspended: "The person this run acts as is suspended or no longer a member of this Space, so the run stopped.",
     revoked: "The person this run acts as has lost access, so the run stopped.",
   };
   return { error: { code: codeForReason(reason), message: why[reason], retryable: false, details: { reason } } };
