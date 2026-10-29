@@ -20,6 +20,6 @@ export function spanOf(s: Sample, device: string, now: number): Record<string, u
   return {
     traceId: s.traceId ?? hex(16), spanId: hex(8), name: s.budgetId, at,
     ...(unit === "ms" ? { durUs: Math.round(s.value * 1000) } : {}),
-    attrs: { ...(s.attrs ?? {}), value: s.value, source: "device", device },
+    attrs: { ...(s.attrs ?? {}), measured: s.value, source: "device", device },
   };
 }
