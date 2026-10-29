@@ -42,12 +42,13 @@ export function PluginsPage(): ReactElement {
   const market = markets.data.marketplaces.find((m) => m.marketplaceId === marketId) ?? null;
   const install = (m: string, plugin: string): void => void action.run("plugins.install", { marketplaceId: m, plugin, scope: target === "space" ? "space" : "agent", ...(target === "space" ? {} : { agentId: target }), idempotencyKey: attempt() }, (out: { plugin: Plugin }) => `${out.plugin.name} installed`).then((out) => { if (out) setOpenPlugin((out as { plugin: Plugin }).plugin.pluginId); });
   return <View testID="console-plugins">
+    {action.note ? <Note>{action.note}</Note> : null}
     <Note>A plugin brings skills, / commands, sub-agents and tool servers. Its code runs only in the agent's sandbox, never on this server. Secrets are Vault handles.</Note>
     <Section title="Marketplaces" count={markets.data.marketplaces.length}><Group>
       {markets.data.marketplaces.length === 0 ? <Row id="mk-none" title="No marketplace yet" note="Add a git address (https) or a folder on this server that holds .claude-plugin/marketplace.json." /> : markets.data.marketplaces.map((m) =>
         <Row key={m.marketplaceId} id={`mk-${m.name}`} title={m.name} note={`${n(m.plugins, "plugin")} · ${m.owner} · ${m.allowed ? "Allowed" : "Not allowed"}${m.warnings.length ? ` · ${n(m.warnings.length, "warning")}` : ""}`}
           onPress={() => setMarketId(marketId === m.marketplaceId ? null : m.marketplaceId)}
-          trailing={<Tick label={`Allow ${m.name}`} checked={m.allowed} disabled={action.busy} onChange={(on) => void action.run("plugins.allow.set", { kind: "marketplace", marketplace: m.name, allowed: on, idempotencyKey: attempt() }, on ? "Marketplace allowed" : "Marketplace no longer allowed")} />} />)}
+          trailing={<View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}><Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>{m.allowed ? "Allowed" : "Not allowed"}</Text><Tick label={`Allow ${m.name}`} checked={m.allowed} disabled={action.busy} onChange={(on) => void action.run("plugins.allow.set", { kind: "marketplace", marketplace: m.name, allowed: on, idempotencyKey: attempt() }, on ? "Marketplace allowed" : "Marketplace no longer allowed")} /></View>} />)}
     </Group>
       {market ? <Actions><Button label="Fetch again" disabled={action.busy} onPress={() => void action.run("plugins.marketplace.refresh", { marketplaceId: market.marketplaceId, idempotencyKey: attempt() }, "Marketplace updated")} /><Button label="Remove marketplace" danger disabled={action.busy} onPress={() => void action.run("plugins.marketplace.remove", { marketplaceId: market.marketplaceId, idempotencyKey: attempt() }, "Marketplace removed").then(() => setMarketId(null))} /></Actions> : null}
       <Group>
@@ -68,7 +69,7 @@ export function PluginsPage(): ReactElement {
       {installed.data.plugins.length === 0 ? <Row id="inst-none" title="No plugins installed" /> : installed.data.plugins.map((p) =>
         <Row key={p.pluginId} id={`plugin-${p.name}-${p.agentId ?? "space"}`} title={p.name} note={`${partsLine(p.parts)} · ${p.scope === "space" ? "Whole Space" : `One agent`}${p.enabled ? "" : " · Off"}`}
           onPress={() => { setOpenPlugin(openPlugin === p.pluginId ? null : p.pluginId); setConfig({}); }}
-          trailing={<Tick label={`${p.name} is on`} checked={p.enabled} disabled={action.busy} onChange={(on) => void action.run("plugins.set_enabled", { pluginId: p.pluginId, enabled: on, idempotencyKey: attempt() }, on ? "Plugin on" : "Plugin off")} />} />)}
+          trailing={<View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}><Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>{p.enabled ? "On" : "Off"}</Text><Tick label={`${p.name} is on`} checked={p.enabled} disabled={action.busy} onChange={(on) => void action.run("plugins.set_enabled", { pluginId: p.pluginId, enabled: on, idempotencyKey: attempt() }, on ? "Plugin on" : "Plugin off")} /></View>} />)}
     </Group></Section>
     {selected ? <Section title={selected.name}><Group>
       {selected.description ? <Note>{selected.description}</Note> : null}

@@ -1,4 +1,4 @@
-// The project page (spec 3.4, 2.12): a project is a record with four tabs. Overview is the brief, the status and its update, the next milestones, what is late or waiting, decisions, people,
+// The project page (spec 3.4, 2.12): a project is a record with five tabs (Teammates is the agents made for it). Overview is the brief, the status and its update, the next milestones, what is late or waiting, decisions, people,
 // linked records and pinned files. Plan is the shared Plan (Timeline, Board, List, Calendar); an edit writes projects.reschedule or tasks.update, and a slip asks to move the later tasks or keep
 // their dates. Files opens the project's folder. Chat is the project's one channel: every thread of it is listed, and the arrow-out mark opens a thread as its own chat. Status, Lead and Due sit
 // under the name; the channel and the folder are icon buttons. Each action is one capability call; a refusal shows as a quiet line.
@@ -14,6 +14,7 @@ import { useProjectPageData } from "./data.tsx";
 import { ROLE_WORDS, TAB_SPECS, ago, dateWords, dueWords, editsBetween, isoDay, planStages, planTasks, plural } from "./model.ts";
 import type { Overview, PlanOut, TabKey } from "./model.ts";
 import { ImportedHistory } from "./ImportedHistory.tsx";
+import { TeammatesTab } from "./TeammatesTab.tsx";
 
 export interface ProjectPageProps {
   projectId: string;
@@ -98,6 +99,7 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
       ) : null}
       {tab === "files" ? <FilesTab o={o} /> : null}
       {tab === "chat" ? <ChatTab o={o} projectId={projectId} channelName={`#${p.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`} now={now} /> : null}
+      {tab === "teammates" ? <TeammatesTab projectId={projectId} /> : null}
       {note ? <Text style={s.note} accessibilityLiveRegion="polite" testID="project-note">{note}</Text> : null}
     </View>
   );
