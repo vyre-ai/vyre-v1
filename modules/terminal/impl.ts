@@ -183,9 +183,11 @@ export async function openFrames(db: Db, ticket: string, now: number, send: (tex
     if (closed) return;
     const sc = scrubberFor(who.terminalId);
     if (!sc) { send(carry + frame); carry = ""; return; }
-    const text = carry + frame;
+    // Scrub first, hold back after: a value that is whole in what has arrived is removed whole. Holding the tail before scrubbing cut the value's last character off whenever it could itself start another
+    // spelling of the value (an s, a 7 for the hex form, a c for the base64 form) and the frame ended exactly on the value, which left the rest of the value in the stream.
+    const text = sc.scrub(carry + frame);
     const hold = partialSpellingAt(text, spellingsFor(who.terminalId));
-    const out = sc.scrub(text.slice(0, text.length - hold));
+    const out = text.slice(0, text.length - hold);
     carry = text.slice(text.length - hold);
     if (out !== "") send(out);
   });
