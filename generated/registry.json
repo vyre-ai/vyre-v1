@@ -217752,7 +217752,7 @@
             "type": "string"
           },
           "source": {
-            "description": "Async function body; receives input and log, awaits freely and returns a JSON value. Runs in the sandbox: no files, no Vault, no network unless hosts names it. 10 seconds of processor time, 96 MB heap, 1 MB out",
+            "description": "Async function body; receives input and log, awaits freely and returns a JSON value. Runs in the sandbox: no files, no Vault, no network unless hosts names it. 10 seconds of processor time, 128 MB of memory (a kernel limit), 1 MB out",
             "type": "string"
           }
         },
