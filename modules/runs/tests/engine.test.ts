@@ -344,15 +344,17 @@ test("a plan that names a step it does not have fails the Run with a clear error
   assert.equal(readExtra(h.db, id).errorCode, "run.unknown_step");
 });
 
-test("test mode records outward steps from their sample and never runs them; reads and writes still run", async () => {
+test("test mode records write and outward steps from their sample and never runs them; reads still run", async () => {
   const h = harness();
   const calls = tasksCreate(h);
   const id = await started(h, { kind: "automation_test" });
   const ran: string[] = [];
   const exec: Executor = async (s, c) => { ran.push(`${s.id}:${c.sandbox}`); return { output: s.id }; };
-  const plan = [step("read", { effects: "read" }), step("write", { effects: "write" }), step("mail", { effects: "outward", sample: { sent: "sample" } })];
+  const plan = [step("read", { effects: "read" }), step("write", { effects: "write", sample: { wrote: "sample" } }), step("mail", { effects: "outward", sample: { sent: "sample" } })];
   assert.equal((await h.engineRun(engine, (ctx) => drive(ctx, id, plan, exec))).status, "succeeded");
-  assert.deepEqual(ran, ["read:true", "write:true"]);
+  assert.deepEqual(ran, ["read:true"]);
+  assert.equal(allSteps(h.db, id)[0]!.outputJson, JSON.stringify("read"));
+  assert.equal(allSteps(h.db, id)[1]!.outputJson, JSON.stringify({ wrote: "sample" }));
   assert.equal(allSteps(h.db, id)[2]!.outputJson, JSON.stringify({ sent: "sample" }));
   assert.equal(calls.made.length, 0);
 });

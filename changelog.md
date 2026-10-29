@@ -6,6 +6,7 @@
 - Prove a retryable failure through the live daemon. The next attempt has its own key, and a step that already finished is not run again. The host queue drives the run again when that attempt is due.
 - Prove a live schedule tick starts one Run and does not start that fire again, and that 73 missed ticks start no Run on skip, one Run on run once, and no Run when backfill is over its cap.
 - A live rerun asks for confirmation before it starts, and the action is named as a live rerun. Sandbox replay stays a separate run and does not repeat the note.
+- A sandbox test reads for real and does not perform the write or the send. Replay still uses what the original run recorded.
 - Point the app release daemon at a computer socket that is not there. This runner's Docker engine answers the default socket, so Console was saying the host was ready. A down host still cannot provision a computer.
 - Keep an open template install review when the gallery refetches the same preview. The review was closing itself, so Confirm install left the page before it could be pressed.
 - Prove Parallel, Loop, and a killed host through the live daemon. The old in-process driver is gone. Publishing a later version leaves a waiting run on the version it started, and previewing a move answers that it is not available yet.
