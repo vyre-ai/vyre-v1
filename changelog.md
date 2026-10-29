@@ -1,5 +1,7 @@
 # Changelog
 
+- Verify sealed recovery over real daemon HTTP with client-encrypted legacy-format bundles: wrong code/cipher-hash, key substitution, replay, expiry and a post-hash password race fail safely; successful recovery preserves keys, changes password and revokes old sessions. Add actual SQLite rollback/CAS tests, membership/policy/bundle races and bounded challenge cleanup/quota regressions. Align fake initial Space-key epoch with canonical client epoch0.
+
 - Prevent a device session from replacing established account identity or recovery keys through generic key uploads. Preserve existing Space-key epoch wraps, reject duplicates and reserve password/recovery/reset replacement for their proof-verified flows.
 - Refuse partial template-file overwrites, link full folder management to Files, wait for Computer host health before provisioning, and register the grant controller test with the TSX runner used by CI.
 - Apply restricted Records read rate limits before row scans, charge indexed fallbacks once, and preserve only the trusted host’s pre-authorized collection reads. Add all verified integration lifecycle browsers to release evidence.
