@@ -59,6 +59,7 @@ type Out = {
           update?: string;
           delete?: string;
         }>;
+      sourceFolderId?: string;
     }>;
   next?: string;
   total?: number;
@@ -104,6 +105,7 @@ type Out = {
             "name": "example"
           }
         ],
+        "sourceFolderId": "fld_a1b2c3",
         "sources": [
           "example"
         ],

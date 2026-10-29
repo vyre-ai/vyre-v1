@@ -33,7 +33,7 @@ jobs:
           retention-days: 7
   shots:
     # Full runs use thirty-six bounded shards. Packet branches retain their single targeted capture.
-    runs-on: [self-hosted, linux, v1]
+    runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
       fail-fast: false

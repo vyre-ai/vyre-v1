@@ -33,3 +33,7 @@ Production Chromium runs against a freshly claimed daemon and a real production 
 ## Backlog: engine_turns is not written by the in-process engine
 
 `engine.turns.list` and `engine_turns` stay empty for a live in-process turn (the turn engine uses `engine_thread_queue`; only the worker capabilities `engine.turn.*` write turn rows). The Email Ask driver therefore reads completion from the thread (the agent reply, or a `turn_status` block). Fix later by having the in-process engine record turns, then read state from `engine.turns.list`.
+
+## Backlog: Member agent proposals into a connector source
+
+A Member's agent cannot stage a change into a connector source (the Files mutation guard refuses the write). A possible later loosening: allow proposals with normal Files access and guard only Approve.

@@ -395,13 +395,67 @@ test("health: all good, some failing, all failing", async () => {
 
 
 test('init refuses absent or denied Files output before connector or draft persistence',async()=>{
- const k=kit();k.deps.writeFolder=undefined as never;
+ const k=kit();k.deps.writeSource=undefined as never;
  await assert.rejects(k.hs['connectors.init'](k.ctx,{key:'no_files',title:'No Files',mode:'webhook_only'}),code('internal.unavailable'));
  assert.equal(k.tx.all('SELECT * FROM cn_connectors WHERE key = ?','no_files').length,0);assert.equal(k.tx.all('SELECT * FROM cn_drafts WHERE key = ?','no_files').length,0);
- k.deps.writeFolder=async()=>{throw new Error('fixture files denied');};await assert.rejects(k.hs['connectors.init'](k.ctx,{key:'denied_files',title:'Denied Files',mode:'webhook_only'}),/fixture files denied/);assert.equal(k.tx.all('SELECT * FROM cn_connectors WHERE key = ?','denied_files').length,0);assert.equal(k.tx.all('SELECT * FROM cn_drafts WHERE key = ?','denied_files').length,0);
+ k.deps.writeSource=async(_key,_files,register)=>{register('fld_half');throw new Error('fixture files denied');};await assert.rejects(k.hs['connectors.init'](k.ctx,{key:'denied_files',title:'Denied Files',mode:'webhook_only'}),/fixture files denied/);assert.equal(k.tx.all('SELECT * FROM cn_source_folders WHERE key = ?','denied_files').length,0,'a failed init leaves no mapping');assert.equal(k.tx.all('SELECT * FROM cn_connectors WHERE key = ?','denied_files').length,0);assert.equal(k.tx.all('SELECT * FROM cn_drafts WHERE key = ?','denied_files').length,0);
 });
 
 
 test('a Vault secret template cannot be placed in a query string',async()=>{
  const {k,id}=await withAcme({actions:[{name:'query_key',url:'https://api.acme.test/query',query:{key:'{secret.Acme_Key}'}}]});await assert.rejects(k.hs['connectors.run'](k.ctx,{key:'acme',action:'query_key',connectionId:id,input:{}}),code('validation.bad_input'));assert.equal(k.sent.length,0);
+});
+
+test("source mapping: init maps the key to its canonical folder before any file, export never replaces it, a legacy connector gets one only on an explicit Build", async () => {
+  const k = kit();
+  const made = await k.hs["connectors.init"](k.ctx, { key: "mapped", title: "Mapped", mode: "webhook_only" });
+  const row = k.tx.all("SELECT key, folder_id FROM cn_source_folders WHERE key = ?", "mapped") as { key: string; folder_id: string }[];
+  assert.deepEqual(row.map((r) => r.folder_id), [made.folderId], "the mapping is the folder init returned");
+  assert.equal((await k.hs["connectors.get"](k.ctx, { key: "mapped" })).connector.sourceFolderId, made.folderId);
+  const exported = await k.hs["connectors.export"](k.ctx, { key: "mapped" });
+  assert.notEqual(exported.folderId, made.folderId);
+  assert.equal((await k.hs["connectors.get"](k.ctx, { key: "mapped" })).connector.sourceFolderId, made.folderId, "an export never replaces the mapping");
+  // a connector from before sources were canonical: no mapping until an explicit Build, and a private export is never moved or searched for
+  const now = 1;
+  k.tx.run("INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES ('legacy', 'Legacy', 'webhook_only', 'space', 0, '1.0.0', 'live', ?, ?, ?)", JSON.stringify({ key: "legacy", title: "Legacy", mode: "webhook_only", scope: "space", version: "1.0.0", auth: { type: "none" }, domains: [], secrets: [], actions: [] }), now, now);
+  assert.equal((await k.hs["connectors.get"](k.ctx, { key: "legacy" })).connector.sourceFolderId, undefined);
+  await k.hs["connectors.export"](k.ctx, { key: "legacy" });
+  assert.equal(k.tx.all("SELECT * FROM cn_source_folders WHERE key = ?", "legacy").length, 0, "export alone makes no source");
+  await k.hs["connectors.build"](k.ctx, { key: "legacy" });
+  assert.equal(k.tx.all("SELECT * FROM cn_source_folders WHERE key = ?", "legacy").length, 1, "an explicit Build creates the source");
+  await k.hs["connectors.remove"](k.ctx, { key: "mapped" });
+  assert.equal(k.tx.all("SELECT * FROM cn_source_folders WHERE key = ?", "mapped").length, 0, "removing the connector ends its claim on the folder");
+});
+
+test("publish from a mapped source rechecks after the tests: a source or an authority that changed in between publishes nothing and keeps the last good version", async () => {
+  const k = kit();
+  await k.hs["connectors.init"](k.ctx, { key: "raced", title: "Raced", mode: "webhook_only" });
+  const def = (title: string) => ({ key: "raced", title, mode: "webhook_only" as const, scope: "space" as const, version: "0.0.0", auth: { type: "none" as const }, domains: [], secrets: [], actions: [], tests: [] });
+  let current = def("First");
+  k.deps.loadFolderDef = async () => current;
+  assert.equal((await k.hs["connectors.publish"](k.ctx, { key: "raced" })).published, true);
+  assert.equal((await k.hs["connectors.get"](k.ctx, { key: "raced" })).connector.title, "First");
+  // the source changes between the load that was tested and the recheck
+  let loads = 0;
+  k.deps.loadFolderDef = async () => (++loads === 1 ? def("Second") : def("Changed under the test"));
+  await assert.rejects(k.hs["connectors.publish"](k.ctx, { key: "raced" }), /changed while it was being tested/);
+  assert.equal((await k.hs["connectors.get"](k.ctx, { key: "raced" })).connector.title, "First", "the last good version stays live");
+  // the caller lost edit access while the tests ran
+  k.deps.loadFolderDef = async () => def("Third");
+  k.deps.assertCanPublish = async () => { throw Object.assign(new Error("access changed"), { error: { code: "permission.no_grant" } }); };
+  await assert.rejects(k.hs["connectors.publish"](k.ctx, { key: "raced" }), /access changed/);
+  assert.equal((await k.hs["connectors.get"](k.ctx, { key: "raced" })).connector.title, "First");
+  assert.equal(k.tx.all("SELECT * FROM cn_versions WHERE key = 'raced'").length, 1, "only the first publish made a version");
+});
+
+test("a mapped connector is tested and published straight from its source: no Build is needed for the next version", async () => {
+  const k = kit();
+  await k.hs["connectors.init"](k.ctx, { key: "direct", title: "Direct", mode: "webhook_only" });
+  const def = (title: string) => ({ key: "direct", title, mode: "webhook_only" as const, scope: "space" as const, version: "0.0.0", auth: { type: "none" as const }, domains: [], secrets: [], actions: [], tests: [] });
+  k.deps.loadFolderDef = async () => def("V1");
+  assert.equal((await k.hs["connectors.publish"](k.ctx, { key: "direct" })).version, "1.0.0");
+  k.deps.loadFolderDef = async () => def("V2");
+  assert.equal((await k.hs["connectors.test"](k.ctx, { key: "direct" })).result.failed, 0, "the live connector is tested from its source");
+  assert.equal((await k.hs["connectors.publish"](k.ctx, { key: "direct" })).version, "1.0.1");
+  assert.equal((await k.hs["connectors.get"](k.ctx, { key: "direct" })).connector.title, "V2");
 });

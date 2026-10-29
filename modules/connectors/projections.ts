@@ -1,6 +1,7 @@
 // connectors module state and shared helpers: tables (migrations/0001_connectors.sql), the ConnectorDef shape the runtime executes, egress by declared domain, request templates,
 // scrubbing of secret values from anything that leaves the runtime, and the per-connection rate limit.
 // @reads /modules/connectors/migrations/0001_connectors.sql
+// @reads /modules/connectors/migrations/0002_source_folders.sql
 import { readFileSync } from "node:fs";
 import { mintUuid } from "../../lib/ids.ts";
 import { fail } from "../../host/src/routes/errors.ts";
@@ -64,8 +65,12 @@ export interface ConnectorsDeps {
   storeSecret?: (name: string, value: string) => Promise<string>;
   /** The connector folder in Files: parsed into a def (connector.toml, tests). Drafts follow it. */
   loadFolderDef?: (key: string) => Promise<ConnectorDef | undefined>;
-  /** Write a connector folder to Files and return its folder id. */
+  /** Write a private export of a connector to the caller's Personal Files and return its folder id. Never the source. */
   writeFolder?: (key: string, files: { path: string; content: string }[]) => Promise<string>;
+  /** Create the canonical editable source (Shared knowledge > connectors > key, Review changes on) and write the files. `register` records the mapping once the folder exists and BEFORE any file is written. */
+  writeSource?: (key: string, files: { path: string; content: string }[], register: (folderId: string) => void) => Promise<string>;
+  /** Asks again, as the original caller, whether they may still edit this connector (a publish checks after its awaited tests). Throws when they may not. */
+  assertCanPublish?: (key: string) => void | Promise<void>;
   /** Connectors with synced types bound to them (they block removal). */
   boundSyncedTypes?: (key: string) => Promise<string[]>;
   publicBase?: string;
@@ -97,6 +102,7 @@ const ready = new WeakSet<object>();
 export function ensureTables(tx: Tx): void {
   if (ready.has(tx)) return;
   tx.exec(readFileSync(new URL("./migrations/0001_connectors.sql", import.meta.url), "utf8"));
+  tx.exec(readFileSync(new URL("./migrations/0002_source_folders.sql", import.meta.url), "utf8"));
   ready.add(tx);
 }
 

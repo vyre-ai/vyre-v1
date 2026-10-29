@@ -95,6 +95,8 @@ export interface GateHook {
 }
 
 export interface InvokeDeps {
+  /** The Files mutation guard for connector sources (host/src/daemon/connector-source-guard.ts): an extra check on top of normal Files authorization. */
+  sourceGuard?: { check(a: { cap: string; input: unknown; seed: CtxSeed; now: number }): { key: string; reason: string } | null };
   recordAccess?: {
     facts(cap:string,input:unknown,req:AuthReq,trace:string):Promise<AuthReq>;
     project(cap:string,input:unknown,seed:CtxSeed,output:unknown,trace:string):Promise<()=>unknown>;
@@ -298,6 +300,12 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       if (d.effect === "hold") {
         const g = d.obligations.find((o) => o.type === "gate");
         return park(c, input, seed, traceId, d.decisionId, g && g.type === "gate" ? g.act : (c.gate?.act ?? "approve"), audit("hold", d.reason));
+      }
+      // Files and connector authorization are separate questions: a call that reaches a connector's source folder must pass the connector's own check as well
+      const guarded = deps.sourceGuard?.check({ cap: c.name, input, seed, now: t });
+      if (guarded) {
+        await deps.audit?.(audit("deny", guarded.reason));
+        throw fail("permission.no_grant", traceId, { message: "This folder is the source of a connector. Changing it takes edit access to that connector as well.", details: { cap: c.name, reason: guarded.reason, connector: guarded.key } });
       }
     }
     // the capability's own Gate (spec 2.14): fail closed when a Gate is declared and nothing can park the call

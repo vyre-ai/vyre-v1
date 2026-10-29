@@ -109,6 +109,7 @@ import type { HookRunner, ModuleHooks } from "./consumers.ts";
 import { createSpaceStore, spaceStoreDrivers, spaceStorePath } from "./store.ts";
 import { createViewAs } from "./view-as.ts";
 import { createRecordAccess } from "./record-access.ts";
+import { createSourceGuard } from "./connector-source-guard.ts";
 import { coreOf, createSyncEngine } from "./syncengine.ts";
 import { collectProjections, createProjectionRunner } from "./projections.ts";
 import type { ProjectionRunner } from "./projections.ts";
@@ -592,6 +593,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           return authorize(access.snap, r);
         },
         membership: (principal, actingFor) => isMemberOrGuest(access.snap, principal) && (actingFor === undefined || isMemberOrGuest(access.snap, actingFor)),
+        sourceGuard: createSourceGuard({ db: { all: (sql, ...args) => db!.all(sql, ...args) }, connectors: { all: (sql, ...args) => spaceStore.open().tx.all(sql, ...args) }, authorize: (r) => authorize(access.snap, r), space: spaceId }),
         recordAccess: createRecordAccess({store:()=>spaceStore.open().store,snapshot:()=>access.snap,now,fresh:()=>!accessStale}),
         preview: { read: (token, cap, input, trace) => {
           if (!previews) throw fail("permission.no_grant", trace);
