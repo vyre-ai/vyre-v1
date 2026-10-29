@@ -78,6 +78,27 @@ const BANNER: &str = r#"(function () {
   tick();
 })();"#;
 
+/// CI only (VYRE_SHELL_PROOF_URL=http://127.0.0.1:<port>): drives the shell's commands from the page, over the real IPC, the way the Settings screens do, and posts what came back to the loopback
+/// collector the desktop job runs: ensure_personal_space, then discover_session_sources and read_session_source for each session found. The collector is the only address it talks to.
+const PROOF: &str = r#"(function () {
+  var inv = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+  if (!inv || window.__vyreProof) return;
+  window.__vyreProof = true;
+  var url = "__PROOF_URL__";
+  function post(body) { return fetch(url + "/proof", { method: "POST", headers: { "content-type": "text/plain" }, body: JSON.stringify(body) }); }
+  (async function () {
+    var out = { personal: null, sources: null, reads: [], errors: [] };
+    try { out.personal = await inv("ensure_personal_space"); } catch (e) { out.errors.push("ensure_personal_space: " + String(e)); }
+    try {
+      out.sources = await inv("discover_session_sources");
+      for (var i = 0; i < out.sources.length; i++) {
+        try { out.reads.push(await inv("read_session_source", { sessionKey: out.sources[i].sessionKey })); } catch (e) { out.errors.push("read " + out.sources[i].sessionKey + ": " + String(e)); }
+      }
+    } catch (e) { out.errors.push("discover_session_sources: " + String(e)); }
+    try { await post(out); } catch (e) { inv("page_report", { kind: "proof", text: "post failed: " + String(e) }); }
+  })();
+})();"#;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let shared: sidecar::Shared = Arc::new(sidecar::Sidecar::default());
@@ -111,6 +132,12 @@ pub fn run() {
                 let _ = webview.eval(PAGE_PROBE);
                 if std::env::var("VYRE_SHELL_BANNER").is_ok() {
                     let _ = webview.eval(BANNER);
+                }
+                // Only a loopback collector address is ever put into the script.
+                if let Ok(url) = std::env::var("VYRE_SHELL_PROOF_URL") {
+                    if url.starts_with("http://127.0.0.1:") && url[17..].bytes().all(|b| b.is_ascii_digit()) {
+                        let _ = webview.eval(PROOF.replace("__PROOF_URL__", &url));
+                    }
                 }
             }
         })

@@ -41,6 +41,8 @@ export function seatbeltProfile(checked: Checked, o: SeatbeltOptions): string {
     "(allow mach-lookup (global-name \"com.apple.system.opendirectoryd.libinfo\") (global-name \"com.apple.logd\") (global-name \"com.apple.system.notification_center\") (global-name \"com.apple.trustd.agent\"))",
     ";; the system, read only",
     `(allow file-read* ${[...new Set([...SYSTEM_READ, ...(o.programRead ?? [])])].map((p) => `(subpath ${sbplString(p)})`).join(" ")})`,
+    ";; node reads the root directory itself (not what is in it) when it resolves its own path; without this it aborts with SIGABRT before running a line",
+    "(allow file-read-data (literal \"/\"))",
     `(allow file-read* ${DEVICES_READ.map((p) => `(literal ${sbplString(p)})`).join(" ")})`,
     "(allow file-write* (literal \"/dev/null\") (literal \"/dev/tty\"))",
     ";; the person's folders",

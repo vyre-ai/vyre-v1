@@ -276,9 +276,12 @@ test("fuzz: of 600 awkward mount paths, those accepted name only the person's fo
 
     const allowed = new Set([...SYSTEM_READ, "/dev/null", "/dev/zero", "/dev/random", "/dev/urandom", "/dev/tty", m.host]);
     const profile = seatbeltProfile(checked, { proxyPort: 4040 });
+    // The one rule that names "/": reading the root directory entry itself (a literal, never a subpath), which node does on start. Nothing under it opens.
+    assert.ok(profile.includes('(allow file-read-data (literal "/"))'), "node needs to read the root directory entry");
+    assert.ok(!profile.includes('(subpath "/")'), "the root is never a subpath");
     for (const q of profile.matchAll(/\((?:subpath|literal) "((?:[^"\\]|\\.)*)"\)/g)) {
       const path = (q[1] as string).replace(/\\(.)/g, "$1");
-      if (path.startsWith("localhost:")) continue;
+      if (path.startsWith("localhost:") || path === "/") continue;
       assert.ok(allowed.has(path), `the profile names ${path}, which is neither the system nor this person's folder`);
     }
     const w = bwrapCommand(mountSpec(host), ROOTS, ["ls"], { proxyPort: 4040 });
