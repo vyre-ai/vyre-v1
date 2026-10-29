@@ -24262,9 +24262,9 @@ const b1460: string[] = []; lf(x1460, p, b1460, L0); if (b1460.length) e.push(..
 if (g1460 === "object") {
 if (g1460 === 'object') { const o1460 = x1460 as Record<string, unknown>;
 if (!("state" in o1460)) e.push(p + "/state" + ': required');
-if (!("code" in o1460)) e.push(p + "/code" + ': required');
 if ("state" in o1460) lf(o1460["state"], p + "/state", e, L2);
 if ("code" in o1460) lf(o1460["code"], p + "/code", e, L2);
+if ("error" in o1460) lf(o1460["error"], p + "/error", e, L2);
 }
 }
 }

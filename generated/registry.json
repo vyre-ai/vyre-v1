@@ -51338,16 +51338,21 @@
       ],
       "errors": [
         "auth.invalid_code",
+        "auth.unauthenticated",
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
         "provider.auth_failed",
-        "validation.bad_input"
+        "provider.bad_response",
+        "provider.network",
+        "validation.bad_input",
+        "validation.precondition_failed"
       ],
       "examples": [
         {
           "input": {
             "code": "example",
+            "error": "example",
             "state": "example"
           },
           "name": "example",
@@ -51362,13 +51367,15 @@
           "code": {
             "type": "string"
           },
+          "error": {
+            "type": "string"
+          },
           "state": {
             "type": "string"
           }
         },
         "required": [
-          "state",
-          "code"
+          "state"
         ],
         "type": "object"
       },
@@ -51397,7 +51404,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Finish an OAuth sign-in from the callback (state and code)",
+      "summary": "Finish an OAuth sign-in from the callback: the state and the code, or the error the app sent back when the person declined. Only the person who started the sign-in can finish it",
       "surfaces": {
         "http": "auto"
       },

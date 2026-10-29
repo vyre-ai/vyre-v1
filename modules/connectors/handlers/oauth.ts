@@ -1,7 +1,7 @@
 // OAuth 2 for connectors: the sign-in code exchange (with PKCE), where tokens live, refresh and revoke. Tokens exist only in Vault items, made and changed through the original caller's own Vault
 // capabilities; the connection keeps their handles and this module's tables keep the item ids and the expiry, never a value. Every message and log passes the scrubber with the code, the PKCE
 // verifier, the client secret and the tokens in it.
-import { createHash, randomBytes } from "node:crypto";
+import { sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { checkEgress, mintShort, nowOf, refuse, scrubber } from "../projections.ts";
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
 
@@ -18,8 +18,8 @@ export const refreshSlot = (def: ConnectorDef): string | undefined => {
 
 /** A PKCE pair (RFC 7636, S256): the challenge goes to the provider, the verifier stays here until the code is exchanged. */
 export function newPkce(): { verifier: string; challenge: string } {
-  const verifier = randomBytes(48).toString("base64url");
-  return { verifier, challenge: createHash("sha256").update(verifier).digest("base64url") };
+  const verifier = Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(48))).toString("base64url");
+  return { verifier, challenge: sha256b64(verifier).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "") };
 }
 
 export interface TokenSet { access: string; refresh?: string; expiresInS?: number }

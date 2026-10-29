@@ -38,6 +38,11 @@ test("generated connector.toml is valid TOML, escapes what needs it, and round-t
   }
 });
 
+test("an OAuth definition with a client secret slot and a revoke address round-trips", async () => {
+  const def = defOf({ auth: { type: "oauth2", secret: "Acme_Key", authUrl: "https://api.acme.test/a", tokenUrl: "https://api.acme.test/t", revokeUrl: "https://api.acme.test/r", clientId: "c", clientSecret: "Acme_Client", scopes: ["read"] }, secrets: [{ name: "Acme_Key", description: "token" }, { name: "Acme_Client", description: "client secret" }] });
+  assert.deepEqual((await readSource(ctxOf(files(def)), "acme", "fld_src")).def, def);
+});
+
 test("a legacy JSON connector.toml is still read, and the same definition reads identically from either form", async () => {
   const def = defOf();
   const legacy = { ...files(def), "connector.toml": JSON.stringify({ key: def.key, title: def.title, mode: def.mode, scope: def.scope, version: def.version, auth: def.auth, domains: def.domains, secrets: def.secrets, rate: def.rate, sources: def.sources, health: def.health }, null, 2) };
@@ -58,6 +63,8 @@ test("a bad source is refused with the file and the reason, and nothing is half-
     ["action method", { ...good, "actions/ping.json": JSON.stringify({ name: "ping", method: "TRACE" }) }, /method is one of/],
     ["test without responses", { ...good, "tests/t.json": JSON.stringify({ name: "t", action: "ping" }) }, /responses are recorded answers/],
     ["__proto__ key", { ...good, "connector.toml": `${good["connector.toml"]}\n[__proto__]\nx = 1\n` }, /not a key|not allowed/],
+    ["a literal client secret", { ...good, "connector.toml": generateMain(defOf({ auth: { type: "oauth2", secret: "Acme_Key", authUrl: "https://api.acme.test/a", tokenUrl: "https://api.acme.test/t", clientId: "c", clientSecret: "s3cr3t-literal-value" } })) }, /clientSecret must name one of the declared secrets, not hold the secret itself/],
+    ["an OAuth address off the declared domains", { ...good, "connector.toml": generateMain(defOf({ auth: { type: "oauth2", secret: "Acme_Key", authUrl: "https://evil.example/a", tokenUrl: "https://api.acme.test/t" } })) }, /auth\.authUrl must be an https address on one of the declared domains/],
     ["no main file", { "actions/ping.json": "{}" }, /has no connector\.toml/],
   ];
   for (const [name, f, why] of cases) await assert.rejects(() => readSource(ctxOf(f), "acme", "fld_src"), (e: unknown) => code("validation.bad_input")(e) || code("validation.not_found")(e) ? why.test(String((e as { error: { message: string } }).error.message)) : false, name);

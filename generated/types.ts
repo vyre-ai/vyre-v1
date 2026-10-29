@@ -6344,7 +6344,8 @@ export type ConflictsUndoOut = {
 };
 export type ConnectionsCompleteAuthIn = {
   state: string;
-  code: string;
+  code?: string;
+  error?: string;
 };
 export type ConnectionsCompleteAuthOut = {
   connectionId: string;

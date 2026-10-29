@@ -7,6 +7,7 @@ import { objectsOf } from "./get.ts";
 import type { ObjectActions } from "./get.ts";
 import { canonical } from "../../../lib/canonical.ts";
 import { generateMain } from "./source.ts";
+import { oauthOf, refreshSlot } from "./oauth.ts";
 import { ensureTables, mintShort, nowOf, pointerGet, refuse, scrubber, secretsIn, seedBuiltins, takeToken, checkEgress, fillString, fillValue, clone, PAGE } from "../projections.ts";
 import type { ActionDef, ConnectionDb, ConnectorDef, ConnectorState, ConnectorsCtx, ConnectorsDeps, Mode, Scope, TestCase } from "../projections.ts";
 
