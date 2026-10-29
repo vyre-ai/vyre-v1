@@ -52,7 +52,7 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
   const quietMs = o.quietMs ?? 90_000;
   const settleMs = o.settleMs ?? 10_000;
   const makeStore = o.makeStore ?? (() => createStreamStore());
-  const setT = o.setTimer ?? ((fn, ms) => setTimeout(fn, ms));
+  const setT = o.setTimer ?? ((fn, ms) => { const h = setTimeout(fn, ms) as unknown as { unref?: () => void }; h.unref?.(); return h; });   // unref: a quiet turn's timer never keeps a server-side render or a test process alive
   const clearT = o.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
   const turns = new Map<string, LiveTurn>();
   const timers = new Map<string, unknown>();
