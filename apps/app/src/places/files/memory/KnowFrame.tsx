@@ -7,7 +7,7 @@ import { useMemoryData } from "./data.tsx";
 import type { KnowRoute } from "./know.ts";
 import { Icon } from "./parts.tsx";
 
-export interface Crumb { t: string; route?: KnowRoute; icon?: "graph" }
+export interface Crumb { t: string; route?: KnowRoute; icon?: "graph"; /** A control drawn in place of the text (the Graph's subject chip). */ node?: ReactNode }
 
 /** Breadcrumb, right-hand slot, search. `q` is the search field's text (empty outside Search); `focusSearch` puts the caret in it, as Search does when a person types in any header. */
 export function KnowHeader({ crumbs, right, q = "", focusSearch = false }: { crumbs: readonly Crumb[]; right?: ReactNode; q?: string; focusSearch?: boolean }): ReactElement {
@@ -18,7 +18,9 @@ export function KnowHeader({ crumbs, right, q = "", focusSearch = false }: { cru
   for (let i = 0; i < crumbs.length; i++) {
     const c = crumbs[i]!, last = i === crumbs.length - 1;
     if (i > 0) parts.push(<Icon key={`s${i}`} name="chev" size={10} color="var(--ink-4)" />);
-    parts.push(last || !c.route ? (
+    parts.push(c.node ? (
+      <View key={`c${i}`} style={h.cur}>{c.node}</View>
+    ) : last || !c.route ? (
       <View key={`c${i}`} style={h.cur}>{c.icon ? <Icon name={c.icon} size={15} color="var(--ink-3)" /> : null}<Text accessibilityRole="header" aria-level={1} style={h.curText} numberOfLines={1}>{c.t}</Text></View>
     ) : (
       <Pressable key={`c${i}`} accessibilityRole="link" accessibilityLabel={c.t} testID={`know-crumb-${i}`} onPress={() => nav.go(c.route!)} style={({ hovered }: { hovered?: boolean }) => [h.crumb, hovered === true && h.over]}><Text style={h.crumbText}>{c.t}</Text></Pressable>
