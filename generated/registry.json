@@ -7191,41 +7191,6 @@
       ],
       "type": "object"
     },
-    "s_5b5f5d7449": {
-      "items": {
-        "properties": {
-          "at": {
-            "description": "Milliseconds since the Unix epoch",
-            "examples": [
-              1760000000000
-            ],
-            "minimum": 0,
-            "type": "integer"
-          },
-          "role": {
-            "enum": [
-              "user",
-              "assistant"
-            ],
-            "type": "string"
-          },
-          "sourceMessageId": {
-            "type": "string"
-          },
-          "text": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "sourceMessageId",
-          "role",
-          "text",
-          "at"
-        ],
-        "type": "object"
-      },
-      "type": "array"
-    },
     "s_5b5fd6f127": {
       "properties": {
         "fact": {
@@ -10745,6 +10710,71 @@
         "personId"
       ],
       "type": "object"
+    },
+    "s_9030b09264": {
+      "items": {
+        "properties": {
+          "at": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "type": "string"
+          },
+          "sourceMessageId": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "tools": {
+            "items": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "ok": {
+                  "type": "boolean"
+                },
+                "output": {
+                  "description": "The start of what the tool returned, credentials removed",
+                  "type": "string"
+                },
+                "summary": {
+                  "description": "One line a person reads, such as Edit src/app.ts or Run npm test",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "summary"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "sourceMessageId",
+          "role",
+          "text",
+          "at"
+        ],
+        "type": "object"
+      },
+      "type": "array"
     },
     "s_90ff7d13ee": {
       "properties": {
@@ -138112,7 +138142,16 @@
                 "at": 1760000000000,
                 "role": "user",
                 "sourceMessageId": "example",
-                "text": "example"
+                "text": "example",
+                "tools": [
+                  {
+                    "id": "example",
+                    "name": "example",
+                    "ok": true,
+                    "output": "example",
+                    "summary": "example"
+                  }
+                ]
               }
             ],
             "session": {
@@ -138151,7 +138190,7 @@
       "output": {
         "properties": {
           "messages": {
-            "$ref": "#/$defs/s_5b5f5d7449"
+            "$ref": "#/$defs/s_9030b09264"
           },
           "session": {
             "$ref": "#/$defs/s_22ee988823"
@@ -138211,7 +138250,16 @@
                     "at": 1760000000000,
                     "role": "user",
                     "sourceMessageId": "example",
-                    "text": "example"
+                    "text": "example",
+                    "tools": [
+                      {
+                        "id": "example",
+                        "name": "example",
+                        "ok": true,
+                        "output": "example",
+                        "summary": "example"
+                      }
+                    ]
                   }
                 ],
                 "repo": {
@@ -138304,7 +138352,7 @@
             "items": {
               "properties": {
                 "messages": {
-                  "$ref": "#/$defs/s_5b5f5d7449"
+                  "$ref": "#/$defs/s_9030b09264"
                 },
                 "repo": {
                   "properties": {
@@ -138444,7 +138492,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply only visible user and assistant text",
+      "summary": "Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply visible user and assistant text and, on assistant messages, the tool calls with their one-line summaries and the start of their results (credentials removed)",
       "surfaces": {
         "http": "auto",
         "mcp": {

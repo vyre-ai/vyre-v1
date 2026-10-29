@@ -10,7 +10,8 @@ const importId = t.id('imp');
 const fieldKey = t.str({ pattern: '^[a-z][a-z0-9_]*$', examples: ['email'] });
 const sourceKind = t.enm('csv', 'excel', 'airtable', 'notion', 'google_sheets');
 const sessionProvider = t.enm('codex', 'claude_code');
-const importedMessage = t.obj({ sourceMessageId: t.str(), role: t.enm('user', 'assistant'), text: t.str(), at: t.ts() });
+const importedTool = t.obj({ id: t.str(), name: t.str(), summary: t.str({ description: 'One line a person reads, such as Edit src/app.ts or Run npm test' }), ok: t.opt(t.bool()), output: t.opt(t.str({ description: 'The start of what the tool returned, credentials removed' })) });
+const importedMessage = t.obj({ sourceMessageId: t.str(), role: t.enm('user', 'assistant'), text: t.str(), at: t.ts(), tools: t.opt(t.arr(importedTool)) });
 const importedSession = t.obj({
   sourceSessionId: t.str(), title: t.opt(t.str()), startedAt: t.ts(),
   repo: t.opt(t.obj({ remote: t.opt(t.str()), root: t.opt(t.str()) })), messages: t.arr(importedMessage),
@@ -105,7 +106,7 @@ export default defineManifest({
     }),
     read('sessions.list', 'List the current owner private imported session archive in this Personal Space', { in: pageIn, out: { sessions: t.arr(archiveSession), next: t.opt(t.str()) }, perm: 'chats.private', tool: 'chats' }),
     read('sessions.get', 'Read an immutable imported session transcript owned by the signed-in person', { in: { conversationId: t.id('isc') }, out: { session: archiveSession, messages: t.arr(importedMessage) }, perm: 'chats.private', tool: 'chats', errors: ['validation.not_found'] }),
-    write('sessions.import', 'Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply only visible user and assistant text', {
+    write('sessions.import', 'Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply visible user and assistant text and, on assistant messages, the tool calls with their one-line summaries and the start of their results (credentials removed)', {
       in: { provider: sessionProvider, sourceKey: t.str(), consent: t.obj({ previewedAt: t.ts(), confirmedAt: t.ts() }), destination: t.opt(sessionDestination), sessions: t.arr(importedSession, { minItems: 1 }) },
       out: { imported: t.int(), updated: t.int(), sessions: t.arr(importedConversation) }, perm: 'chats.private', idem: 'key', audit: 'always', emits: ['sessions.imported'], tool: 'chats', errors: ['validation.precondition_failed', 'validation.bad_input'],
     }),

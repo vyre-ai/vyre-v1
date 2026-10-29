@@ -1,4 +1,5 @@
 // @reads /modules/import/migrations/0001_import.sql
+// @reads /modules/import/migrations/0002_tools.sql
 // Import: sessions, plans and the ports to the modules an import works through (spec 2.9 Lifecycle, 2.10; ARCH 7.4).
 // Flow: a parse stages the source as a session (importId) that expires after 24 hours; suggest_mapping proposes a mapping; preview checks the rows against a record type and keeps the plan it
 // checked under a token; commit writes the rows as an import Run through records.bulk_upsert. Nothing a parse or a preview does changes a record or a record type.
@@ -58,12 +59,16 @@ export const MAX_ROWS = 100_000;
 const SCHEMA = readFileSync(new URL("./migrations/0001_import.sql", import.meta.url), "utf8")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+const TOOLS = readFileSync(new URL("./migrations/0002_tools.sql", import.meta.url), "utf8")
+  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
+  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
 
 /** Make sure the import tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
   try { db.all("SELECT key FROM import_key WHERE key = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
+  try { db.all("SELECT messageId FROM import_message_tool WHERE messageId = ?", "probe"); } catch { for (const stmt of TOOLS) db.run(stmt); }
   ready.add(db);
 }
 

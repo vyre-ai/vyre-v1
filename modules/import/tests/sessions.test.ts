@@ -157,3 +157,44 @@ test("session project calls carry the required idempotency key in input and cont
   assert.equal(h.only("chat.start").length, 1, "continuation remains idempotent");
   assert.equal(h.only("projects.file_chat").length, 2, "reopening repairs Project filing if an earlier attempt was interrupted");
 });
+
+test("tool calls are stored with their message, cleaned and bounded, listed by sessions.get, and carried into a continued chat as lines", async () => {
+  const h = harness();
+  const secret = ["ghp_", "fixtureOnlyPrivateToken0123456789abcd"].join("");
+  const withTools = { ...payload, sessions: [{ ...payload.sessions[0]!, messages: [
+    { sourceMessageId: "u", role: "user" as const, text: "Fix it", at: 1 },
+    { sourceMessageId: "a", role: "assistant" as const, text: "", at: 2, tools: [{ id: "t1", name: "Bash", summary: `Run npm test TOKEN=${secret}`, ok: false, output: `FAIL\nAPI_KEY=${secret}` }, { id: "t2", name: "Edit", summary: "Edit src/a.ts" }, { nope: true } as never] },
+  ] }] };
+  await sessionsImport(h.ctx, withTools);
+  const stored = JSON.stringify(h.rows("SELECT * FROM import_message_tool"));
+  assert.ok(!stored.includes(secret));
+  assert.equal(h.rows("SELECT * FROM import_message_tool").length, 2, "the malformed entry is dropped");
+  const list = await sessionsList(h.ctx, {}) as { sessions: Array<{ conversationId: string }> };
+  const got = await sessionsGet(h.ctx, { conversationId: list.sessions[0]!.conversationId }) as { messages: Array<{ text: string; tools?: Array<{ name: string; ok?: boolean }> }> };
+  assert.equal(got.messages[1]!.text, "");
+  assert.deepEqual(got.messages[1]!.tools!.map((t) => [t.name, t.ok]), [["Bash", false], ["Edit", undefined]]);
+  assert.equal(got.messages[0]!.tools, undefined);
+  const cont = await sessionsContinue(h.ctx, { conversationId: list.sessions[0]!.conversationId, destinationSpaceId: h.ctx.space, destinationScope: "personal", agentId: "agt_x" }) as { threadId: string };
+  const start = h.only("chat.start")[0]!.input as { first: string };
+  assert.match(start.first, /\[tool Run npm test.*, failed\]/);
+  assert.match(start.first, /\[tool Edit src\/a\.ts\]/);
+  assert.ok(cont.threadId);
+});
+
+test("a later import fills in the tool calls of a message that was first imported as words only, and never rewrites ones it has", async () => {
+  const h = harness();
+  const base = { ...payload, sessions: [{ ...payload.sessions[0]!, messages: [{ sourceMessageId: "a", role: "assistant" as const, text: "Looking", at: 1 }] }] };
+  await sessionsImport(h.ctx, base);
+  assert.equal(h.rows("SELECT * FROM import_message_tool").length, 0);
+  const withTool = { ...base, sessions: [{ ...base.sessions[0]!, messages: [{ ...base.sessions[0]!.messages[0]!, tools: [{ id: "t", name: "Read", summary: "Read a.ts" }] }] }] };
+  await sessionsImport(h.ctx, withTool);
+  assert.equal(h.rows("SELECT summary FROM import_message_tool")[0]?.summary, "Read a.ts");
+  await sessionsImport(h.ctx, { ...withTool, sessions: [{ ...withTool.sessions[0]!, messages: [{ ...withTool.sessions[0]!.messages[0]!, tools: [{ id: "t", name: "Read", summary: "Changed" }] }] }] });
+  assert.equal(h.rows("SELECT summary FROM import_message_tool")[0]?.summary, "Read a.ts");
+});
+
+test("only an assistant message carries tool calls", async () => {
+  const h = harness();
+  const bad = { ...payload, sessions: [{ ...payload.sessions[0]!, messages: [{ sourceMessageId: "u", role: "user" as const, text: "hi", at: 1, tools: [{ id: "t", name: "Bash", summary: "x" }] }] }] };
+  await assert.rejects(sessionsImport(h.ctx, bad), (e: unknown) => /tool calls/.test(JSON.stringify(e)));
+});
