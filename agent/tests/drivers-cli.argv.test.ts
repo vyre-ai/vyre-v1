@@ -70,9 +70,9 @@ test("codex: a later turn continues the thread with resume <id>, ahead of the pr
   assert.equal(CLI_ADAPTERS.codex.encode("a\nb"), "a\nb");
 });
 
-test("grok: headless stream-json, resume by id, and the person's other MCP configs switched off", () => {
+test("grok: headless streaming-json, resume by id, and the person's other MCP configs switched off", () => {
   const argv = CLI_ADAPTERS.grok.command({ ...BASE, resume: "g1", model: "grok-4" });
-  assert.deepEqual(argv.slice(0, 4), ["grok", "-p", "--output-format", "stream-json"]);
+  assert.deepEqual(argv.slice(0, 4), ["grok", "-p", "--output-format", "streaming-json"]);
   assert.equal(after(argv, "--resume"), "g1");
   assert.equal(after(argv, "-m"), "grok-4");
   assert.deepEqual(CLI_ADAPTERS.grok.env(), { GROK_CLAUDE_MCPS_ENABLED: "0", GROK_CURSOR_MCPS_ENABLED: "0" });

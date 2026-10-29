@@ -1,0 +1,10 @@
+{
+  "order": 7,
+  "key": "google",
+  "name": "Google Gemini",
+  "connections": [
+    "api_key"
+  ],
+  "modelsSource": "https://generativelanguage.googleapis.com/v1beta/models",
+  "engine": "google"
+}

@@ -107,6 +107,9 @@ export default defineManifest({
       in: { ...target, reason: waitReason, taskId: t.opt(id.task), on: t.opt(t.str()) }, out: { run: runRow }, on: ['run', '/runId'], level: 'use', emits: ['run.waiting'],
     }),
     write('runs.resume', 'Continue a waiting Run', { in: { ...target, reason: waitReason }, out: { run: runRow }, on: ['run', '/runId'], level: 'use', emits: ['run.resumed'] }),
+    write('runs.pin_version', 'Move an active Run onto a definition version without replaying its steps', {
+      in: { ...target, definitionVersion: t.int({ minimum: 1 }) }, out: { run: runRow }, on: ['run', '/runId'], level: 'use',
+    }),
     write('runs.record_key', 'Record the key and model a step used, or a fallback to the backup key', {
       in: { ...target, step: t.opt(t.str()), keyUsed: t.str(), modelUsed: t.opt(t.str()), fellBackFrom: t.opt(t.str()), reason: t.opt(t.str()) }, out: { run: runRow },
       on: ['run', '/runId'], level: 'use', emits: ['run.key_fallback'],

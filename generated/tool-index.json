@@ -530,6 +530,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_account_picks",
+      "summary": "The last account this person picked for each app",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_alerts_get",
       "summary": "Read error alerts: who, when and where, and the escalation chain",
       "toolset": "automations"
@@ -542,6 +548,36 @@
     },
     {
       "deferred": false,
+      "name": "automations_connector_offer_accept",
+      "summary": "Accept a connector setup offer. Accepting is final for that Vault item.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_connector_offer_decline",
+      "summary": "Decline a connector setup offer. Declining is final for that Vault item.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_connector_offers",
+      "summary": "Open connector setup offers. Each one names an app. A Vault value is not included.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_connector_share",
+      "summary": "Offer tested connector actions to another Space as a draft. The reply is the app name and the action names. A key is not stored.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_connector_shares",
+      "summary": "List connector actions another Space can start from. A key is not included.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_create",
       "summary": "Create an Automation; it starts Personal",
       "toolset": "automations"
@@ -550,6 +586,12 @@
       "deferred": false,
       "name": "automations_delete",
       "summary": "Move an Automation to Trash",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_draft_connector",
+      "summary": "Draft actions from an OpenAPI document already in memory, or from the official OpenAPI directory for a named app. A docs URL the person supplies is stored and is not fetched. Nothing is promoted.",
       "toolset": "automations"
     },
     {
@@ -608,8 +650,50 @@
     },
     {
       "deferred": false,
+      "name": "automations_migrate_runs",
+      "summary": "Move selected active runs onto a definition version without replaying finished steps",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_migration_preview",
+      "summary": "Group active runs by the step they are on before moving them to a definition version",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_move",
       "summary": "Move an Automation into a Group, or out with null",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_open_document",
+      "summary": "Open one public https document. A private, loopback, link-local, or metadata address is refused. The page text is not returned.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_open_mcp",
+      "summary": "Read a public MCP server address and draft one action per tool name. The document text is not returned.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_packages_export",
+      "summary": "Save a portable copy of an Automation definition",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_packages_import",
+      "summary": "Create a draft Automation from a package this person exported",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_packages_list",
+      "summary": "List portable Automation packages this person has exported",
       "toolset": "automations"
     },
     {
@@ -627,7 +711,7 @@
     {
       "deferred": false,
       "name": "automations_replay",
-      "summary": "Run a past run again on the same definition version or the current one",
+      "summary": "Live rerun of a past run on the same definition version or the current one, not a sandbox replay",
       "toolset": "automations"
     },
     {
@@ -646,6 +730,12 @@
       "deferred": false,
       "name": "automations_run",
       "summary": "Run an Automation now with a payload (the manual trigger or a button)",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_schedule_choose",
+      "summary": "Apply one recovery choice to a schedule whose backlog is over its cap",
       "toolset": "automations"
     },
     {
@@ -676,6 +766,12 @@
       "deferred": false,
       "name": "automations_triggers_list",
       "summary": "The trigger palette: every trigger with its payload schema, sample and whether a Personal Space can use it",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_try_read",
+      "summary": "Try one read on a documented host. The Vault fills the key when the host sends it. The reply is only the level.",
       "toolset": "automations"
     },
     {
@@ -5260,6 +5356,24 @@
       "deferred": false,
       "name": "providers_catalog",
       "summary": "The provider gallery from the definition files: name, logo, connection kinds, model list source, engine",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "providers_custom_add",
+      "summary": "Register an OpenAI-compatible endpoint (a gateway, vLLM, LiteLLM, a hosted model) by base address and connect it with my key, held in the Vault by handle",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "providers_custom_list",
+      "summary": "The custom OpenAI-compatible endpoints this Space registered",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "providers_custom_remove",
+      "summary": "Remove a custom endpoint I registered, and my connections to it",
       "toolset": "vault"
     },
     {

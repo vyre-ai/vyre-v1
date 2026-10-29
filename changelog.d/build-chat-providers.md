@@ -1,0 +1,5 @@
+- Custom OpenAI-compatible endpoints: register a gateway, vLLM, LiteLLM or any hosted model by base address (`providers.custom_add`, `providers.custom_list`, `providers.custom_remove`). The key is held in the Vault and used by handle; an address passes the network guard (https for a key, no link-local, no private addresses off your own computer) and agents pick the endpoint's models like any provider.
+- The OpenCode Go and Local model drivers are real: OpenCode Go at its own address and model list, Local for Ollama, LM Studio or llama.cpp with no key (the address is enough and `/v1` is added). Streaming and tool calls are proven against a live stub server.
+- Provider definitions are files: the built-in providers load from `modules/vault/providers/*.json` (validated at load) instead of a list in code, and a Space adds its own.
+- Codex and Grok checked against the vendors' docs: the Grok output format is `streaming-json` (it was `stream-json`). What still needs a real account is written in `agent/src/drivers/cli/codex.ts` and `grok.ts`.
+- The address guard moved to `lib/net-guard.ts` and also covers streaming requests.

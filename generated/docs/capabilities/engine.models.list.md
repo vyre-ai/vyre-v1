@@ -39,7 +39,7 @@ type Out = {
       provider: string;
       model: string;
       title: string;
-      driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "claude_code" | "codex" | "grok";
+      driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "custom" | "claude_code" | "codex" | "grok";
       contextTokens?: number;
       allowed: boolean;
       reason?: "label_provider" | "policy_model" | "not_connected";

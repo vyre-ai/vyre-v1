@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createSampleAutomations } from "../../places/automations/sidebar/sample.ts";
+import { AutomationsSidebarSlot } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
+import { SidebarContent } from "../sidebar/index.ts";
 import { ShellRuntimeProvider } from "./runtime.tsx";
 import { sampleRuntime } from "./misc-test-runtime.tsx";
 import AutomationsPlace, { automationsData } from "./automations.tsx";
@@ -11,8 +14,10 @@ test("the Automations place draws the sidebar through the shell runtime", () => 
   const rt = sampleRuntime({ screens: s.data.screens, call: s.data.call });
   const out = renderToStaticMarkup(<ShellRuntimeProvider value={rt}><AutomationsPlace place="automations" /></ShellRuntimeProvider>);
   assert.ok(out.includes("automations-place"));
-  assert.ok(out.includes("Journeys"));
   assert.ok(out.includes("Pick an Automation"));
+  const el = AutomationsSidebarSlot({ selectedId: null, view: "automations", onView: () => undefined }) as ReactElement<{ title: string }>;
+  assert.equal(el.type, SidebarContent, "the place registers its sidebar in the shared slot");
+  assert.equal(el.props.title, "Automations");
 });
 
 test("without a runtime Automations draws its loading frame", () => {

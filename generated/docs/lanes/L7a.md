@@ -306,11 +306,14 @@ Events:
 
 ### vault
 
-Capabilities to implement: 43. Events to emit: 20. Contract tests that must go green: `generated/tests/vault/`.
+Capabilities to implement: 46. Events to emit: 20. Contract tests that must go green: `generated/tests/vault/`.
 
 Capabilities:
 - providers.add (write, grant only, level view)
 - providers.catalog (read, grant only, level view)
+- providers.custom_add (write, grant only, level view)
+- providers.custom_list (read, grant only, level view)
+- providers.custom_remove (write, grant only, level view, gate delete)
 - providers.list (read, grant only, level view)
 - providers.remove (write, grant only, level view, gate delete)
 - providers.set_space_use (write, grant only, level view)

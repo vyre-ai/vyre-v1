@@ -59,6 +59,8 @@ type Out = {
     engine: string;
     spaceMayUse: boolean;
     state: "ok" | "needs_sign_in" | "failing";
+    address?: string;
+    keyless?: boolean;
   };
 };
 ```
@@ -89,6 +91,7 @@ type Out = {
   },
   "output": {
     "provider": {
+      "address": "example",
       "agentsUsing": [
         "agt_a1b2c3"
       ],
@@ -97,6 +100,7 @@ type Out = {
       "handle": "#Dana_Lawmatics",
       "id": "prv_a1b2c3",
       "itemId": "vit_a1b2c3",
+      "keyless": true,
       "logo": "example",
       "name": "example",
       "providerKey": "anthropic",
