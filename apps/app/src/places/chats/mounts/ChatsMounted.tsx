@@ -32,7 +32,7 @@ import type { CaptureCounter, Go } from "./data.ts";
 import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
 import { START, fromHash, newestThread, step, workOf } from "./route.ts";
-import { Workspace } from "./Workspace.tsx";
+import { WORKSPACE_MIN_W, Workspace } from "./Workspace.tsx";
 import type { Act, Shown } from "./route.ts";
 
 type ThreadOut = CapMap["threads.get"]["out"];
@@ -141,7 +141,7 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   else if (route.view === "agent") main = agentId === "" ? <AgentPageLoading /> : <AgentPage key={agentId} data={agentPage} initialTab={route.tab ?? "chats"} {...(window ? { window } : {})} />;
   else if (conv) {
     const work = thread.status === "ready" ? workOf(thread.data.thread) : null;
-    main = work && !narrow ? <Workspace rt={rt} work={work}><Conversation key={conv.threadId} data={conv} /></Workspace> : <Conversation key={conv.threadId} data={conv} />;
+    main = work && width >= WORKSPACE_MIN_W ? <Workspace rt={rt} work={work}><Conversation key={conv.threadId} data={conv} /></Workspace> : <Conversation key={conv.threadId} data={conv} />;
   }
   else if (threadId === null && recent.status === "ready") {
     // A Space with no chats yet: the shared empty state with the way to start one, not a skeleton for ever.

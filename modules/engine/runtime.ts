@@ -12,7 +12,7 @@ import { buildOpener, roleBlocks } from "./session.ts";
 import { withRecall } from "./recall.ts";
 import { createContextBuilder, diskSkills, takeHandoff, withTurnContext } from "./context.ts";
 import { withTranscript } from "./transcript.ts";
-import { reviewAfter } from "./handlers/reviewer.ts";
+import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
 import { defaultSandbox } from "./sandbox-default.ts";
 import type { DefaultSandbox } from "./sandbox-default.ts";
 import type { SandboxPlan } from "./sandbox.ts";
@@ -120,7 +120,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   closeOpener = opener ? () => opener.close() : null;
   building ??= (async () => {
     const now = h.now ?? Date.now;
-    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
+    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, addressAsker: (threadId, agentId) => { const r = reviewerOf(ctx.db, threadId); return r?.kind === "agent" && r.id === agentId; }, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
     // The turn context is built as the asker before each turn (modules/engine/context.ts); what the agent waits on is read off the engine once it exists.
     let live: TurnEngine | null = null;
     const turnContext = createContextBuilder({

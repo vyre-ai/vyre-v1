@@ -219,6 +219,10 @@ test("the reviewer seat: an agent reviewer is asked in the chat after the lead's
     assert.ok(all.some((m) => m.author.id === lead && m.body === "Done: draft the letter"));
     assert.equal(all.filter((m) => /^Asking .* to check this\.$/.test(m.body) && m.author.id === lead).length, 1, "asked once, not again after the reviewer's own verdict");
     assert.match(all.find((m) => /^Asking /.test(m.body))!.body, /^Asking Checker to check this\.$/, "by name, in one quiet line");
+    await new Promise<void>((r) => setTimeout(r, 1500));
+    await d.hooks?.pump?.();
+    const later = (await call(d, "chat.messages.list", { threadId })).data.messages as Array<{ author: { id: string }; body: string }>;
+    assert.deepEqual(later.map((m) => m.body), all.map((m) => m.body), "the verdict is addressed to the person, so the lead does not answer it");
     // a person reviewer gets a task and the chat is not interrupted
     assert.equal((await call(d, "engine.reviewer.set", { threadId, reviewer: { kind: "person", id: "usr_mia" } })).status, 200);
     await post(d, threadId, lead, "draft the second letter", "rv2");

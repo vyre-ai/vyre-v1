@@ -6,7 +6,10 @@ import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import type { Work } from "./route.ts";
 
 /** The width the conversation keeps beside the work. */
-export const CHAT_BESIDE_W = 400;
+export const CHAT_BESIDE_W = 380;
+
+/** The record page is built for room (fields, then its Activity and Files pane): below this window width the chat stays conversation-first and the work is one click away. */
+export const WORKSPACE_MIN_W = 1500;
 
 export function Workspace({ rt, work, children }: { rt: ShellRuntime; work: Work; children: ReactNode }): ReactElement {
   return (

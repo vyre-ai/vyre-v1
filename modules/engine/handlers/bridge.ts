@@ -38,6 +38,8 @@ export interface BridgeOptions {
   callAs?: CallAs;
   log?: { warn(msg: string, attrs?: Record<string, unknown>): void };
   now?: () => number;
+  /** An agent whose reply is addressed to the person whose turn it was (an @mention), so it reaches them and no agent answers it: a reviewer's verdict. */
+  addressAsker?: (threadId: string, agentId: string) => boolean;
 }
 
 export interface BridgeEvent { name: string; subject?: string; payload: Record<string, unknown> }
@@ -72,6 +74,11 @@ export function createBridge(o: BridgeOptions): Bridge {
   const chains = new Map<string, Promise<void>>();       // per thread: posts go out one after another, in the order the events arrived
   const warn = (msg: string, attrs?: Record<string, unknown>): void => o.log?.warn(msg, attrs);
 
+  const askerMention = (threadId: string, agentId: string): AgentPost["mentions"] => {
+    const who = askerOf.get(threadId);
+    return who && o.addressAsker?.(threadId, agentId) ? [{ kind: "person", id: who }] : [];
+  };
+
   const enqueuePost = (threadId: string, agentId: string, post: AgentPost): void => {
     const prev = chains.get(threadId) ?? Promise.resolve();
     const next = prev.then(async () => {
@@ -105,7 +112,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         if (seg.text !== "" || seg.mentions > 0) {
           ready.set(`${e.threadId}:${e.agentId}`, { ...seg, routineOwner });   // the engine stores the reply right after this event; message.received below posts it
         } else if (seg.blocks.length > 0) {
-          enqueuePost(e.threadId, e.agentId, { threadId: e.threadId, body: "", blocks: seg.blocks, mentions: [], clientId: brgId(), ...(routineOwner ? { via: { routineOwner } } : {}) });
+          enqueuePost(e.threadId, e.agentId, { threadId: e.threadId, body: "", blocks: seg.blocks, mentions: askerMention(e.threadId, e.agentId), clientId: brgId(), ...(routineOwner ? { via: { routineOwner } } : {}) });
         }
         return;
       }
@@ -117,7 +124,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         const routineOwner = turns.get(e.turnId)?.routineOwner ?? null;
         if (!parked) { live.delete(e.turnId); turns.delete(e.turnId); }
         const blocks = [...(seg?.blocks ?? []), status(e)];
-        enqueuePost(e.threadId, e.agentId, { threadId: e.threadId, body: seg?.text ?? "", blocks, mentions: [], clientId: brgId(), ...(routineOwner ? { via: { routineOwner } } : {}) });
+        enqueuePost(e.threadId, e.agentId, { threadId: e.threadId, body: seg?.text ?? "", blocks, mentions: askerMention(e.threadId, e.agentId), clientId: brgId(), ...(routineOwner ? { via: { routineOwner } } : {}) });
         return;
       }
       case "message.received": {
