@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { bootFreshSpace, claimOnEdge, edge } from "./real-app-harness.test.ts";
 import os from "node:os";
-import { openDb } from "../../../host/src/daemon/sqlite.ts";
+import { DatabaseSync } from "node:sqlite";
 
 const MATRIX = [["paper", "desktop", 1280, 900], ["graphite", "desktop", 1280, 900], ["paper", "phone", 390, 844], ["graphite", "phone", 390, 844]] as const;
 
@@ -61,8 +61,9 @@ test("production Console: a fresh Space is Server healthy, a real failure is Ser
     await matrix("overview-fresh", "Server healthy", false);
 
     // A real failure: an agent computer exists and this host has no container runtime.
-    const db = openDb(path.join(space.dir, "modules.db"));
-    db.run("INSERT INTO computers_computers (computer_id, agent_id, state, tabs, tab_limit, idle_sleep_minutes, host, created_at) VALUES ('cmp_shot1', 'agt_shot1', 'asleep', 0, 5, 30, 'server', ?)", Date.now());
+    const db = new DatabaseSync(path.join(space.dir, "modules.db"));
+    db.exec("PRAGMA busy_timeout = 5000");
+    db.prepare("INSERT INTO computers_computers (computer_id, agent_id, state, tabs, tab_limit, idle_sleep_minutes, host, created_at) VALUES ('cmp_shot1', 'agt_shot1', 'asleep', 0, 5, 30, 'server', ?)").run(Date.now());
     db.close();
     await call("health.run");
     const broken = (await call("health.status")).data;
