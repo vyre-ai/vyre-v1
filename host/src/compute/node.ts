@@ -1,6 +1,7 @@
 // A computer that joins a Space for compute (`vyred --role compute --server <address> --join <code>`). It is a guest: it dials out, holds no event log, no replica and no Vault, and keeps only two small
 // files in its data directory, its own key and what the Space handed it. First run: make an Ed25519 key, ask to join with the one-time code, print the name and the 8-character fingerprint a person
 // compares when they approve, then wait. Once approved it holds one credential and reports in on a short cycle; a 401 means it was removed, so it forgets everything and stops.
+import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -19,8 +20,24 @@ export interface NodeDeps {
   signal: AbortSignal;
   /** how often an unapproved computer asks, and an admitted one reports, in milliseconds */
   pollMs?: number;
+  /** Makes what runs a job on this machine (the agent computers module's Docker host, behind its host seam). It gets the one door into an agent's home that a job's token opens. Without it the node takes no jobs. */
+  makeHost?(link: HomeLink): { run(kind: string, input: unknown): Promise<unknown> };
 }
 export type NodeEnd = "stopped" | "declined" | "removed";
+
+/** A job in a poll answer. The token is the job's own: it reaches this computer's home, as this agent, for the length of the job. */
+export interface NodeJob { jobId: string; computerId: string; agentId: string; kind: string; input: unknown; token: string }
+
+/** The home mirror's way back to the Space: a call on Files as the agent, and bytes to an upload slot. Both ride the token of the job being run, so neither works outside one. */
+export interface HomeLink {
+  call(agentId: string, cap: string, input: unknown): Promise<unknown>;
+  put(url: string, bytes: Uint8Array): Promise<void>;
+}
+
+/** What the node keeps about each job: it was started, and how it ended. A job it has an answer for is never run again; one it started and has no answer for is reported as interrupted, not repeated. */
+interface JobRecord { state: "started" | "done" | "failed"; result?: unknown; error?: string; reported: boolean; at: number }
+const JOB_KEEP_MS = 24 * 3_600_000;
+const JOB_KEEP_MAX = 500;
 
 const FP_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const b64 = (b: ArrayBuffer | Uint8Array): string => Buffer.from(b as ArrayBuffer).toString("base64");
@@ -92,12 +109,94 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
     await d.sleep(pollMs, d.signal).catch(() => undefined);
   }
 
-  // admitted: report in on a short cycle; a plain 401 means it was removed
+  // admitted: report in on a short cycle, take the jobs the Space has for this computer, answer them; a plain 401 means it was removed
+  const credential = state.credential as string;
+  const jobsFile = path.join(d.dataDir, "compute-jobs.json");
+  const records = new Map<string, JobRecord>(Object.entries(readJson<Record<string, JobRecord>>(jobsFile) ?? {}));
+  const saveRecords = (): void => {
+    const at = d.now();
+    for (const [id, r] of records) if (r.state !== "started" && r.reported && at - r.at > JOB_KEEP_MS) records.delete(id);
+    while (records.size > JOB_KEEP_MAX) records.delete(records.keys().next().value as string);
+    const tmp = `${jobsFile}.tmp`;
+    fs.mkdirSync(d.dataDir, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(tmp, JSON.stringify(Object.fromEntries(records)), { mode: 0o600 });
+    fs.renameSync(tmp, jobsFile);
+  };
+  const als = new AsyncLocalStorage<{ token: string; computerId: string }>();
+  const door = (): { token: string; computerId: string } => { const at = als.getStore(); if (!at) throw new Error("the home is reachable only from inside a job"); return at; };
+  const link: HomeLink = {
+    async call(_agentId, cap, input) {
+      const at = door();
+      const r = await post("/compute/home", { token: at.token, computerId: at.computerId, cap, input }, { authorization: `Bearer ${credential}` });
+      if (r.status !== 200) throw new Error(String(r.data?.error?.message ?? `the Space refused ${cap} (${r.status})`));
+      return r.data.output;
+    },
+    async put(url, bytes) {
+      const at = door();
+      const r = await post("/compute/home", { token: at.token, computerId: at.computerId, cap: "put_upload", input: { url, base64: Buffer.from(bytes).toString("base64") } }, { authorization: `Bearer ${credential}` });
+      if (r.status !== 200) throw new Error(String(r.data?.error?.message ?? `the Space refused the upload (${r.status})`));
+    },
+  };
+  const host = d.makeHost?.(link);
+  const wipeMirror = (agentId: string): void => {
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(agentId)) return;
+    try { fs.rmSync(path.join(d.dataDir, "computers", agentId), { recursive: true, force: true }); } catch { /* a copy that could not be wiped is wiped at the next sleep */ }
+  };
+  const forgetAll = (): void => { forget(); try { fs.rmSync(jobsFile, { force: true }); fs.rmSync(path.join(d.dataDir, "computers"), { recursive: true, force: true }); } catch { /* nothing left to wipe */ } };
+  const inflight = new Set<string>();
+  const lanes = new Map<string, Promise<void>>();   // one computer's jobs run one after another
+  let removed = false;
+
+  /** Tell the Space how a job ended. A reply that is lost leaves the record unreported; it is sent again next cycle, and the Space keeps the first answer only. */
+  async function report(jobId: string): Promise<void> {
+    const r = records.get(jobId);
+    if (!r || r.state === "started") return;
+    const sent = await post("/compute/result", { jobId, ok: r.state === "done", ...(r.state === "done" ? { result: r.result ?? null } : { error: r.error ?? "The computer could not do that." }) }, { authorization: `Bearer ${credential}` }).catch(() => null);
+    if (sent && sent.status === 401) { removed = true; return; }
+    if (sent && (sent.status === 200 || sent.status === 404)) { r.reported = true; saveRecords(); }
+  }
+  async function run(job: NodeJob): Promise<void> {
+    try {
+      if (!host) throw new Error("This computer does not take jobs yet.");
+      const result = await als.run({ token: job.token, computerId: job.computerId }, () => host.run(job.kind, job.input));
+      // The copy of an agent's home on this machine is a working mirror: Files holds the truth. It is wiped when the computer sleeps, but only after the sync that closed the session finished (a pass
+      // that left anything undone keeps it, and the next wake syncs it), and always when the computer is removed.
+      if ((job.kind === "stop" && (result as { homeSynced?: unknown } | null)?.homeSynced === true) || job.kind === "remove") wipeMirror(job.agentId);
+      records.set(job.jobId, { state: "done", result, reported: false, at: d.now() });
+    } catch (e) {
+      records.set(job.jobId, { state: "failed", error: (e instanceof Error ? e.message : "The computer could not do that.").slice(0, 400), reported: false, at: d.now() });
+    }
+    saveRecords();
+    inflight.delete(job.jobId);
+    await report(job.jobId);
+  }
+  function take(job: NodeJob): void {
+    if (inflight.has(job.jobId)) return;   // still running: this poll keeps its lease
+    const known = records.get(job.jobId);
+    if (known && known.state !== "started") { void report(job.jobId); return; }   // answered already (the reply was lost): say it again, never run it again
+    if (known && known.state === "started") {   // started and never answered: this process died in the middle; whatever it did is not done twice
+      records.set(job.jobId, { state: "failed", error: "This computer stopped in the middle of that, so it was not run again.", reported: false, at: d.now() });
+      saveRecords();
+      void report(job.jobId);
+      return;
+    }
+    records.set(job.jobId, { state: "started", reported: false, at: d.now() });
+    saveRecords();
+    inflight.add(job.jobId);
+    const lane = (lanes.get(job.computerId) ?? Promise.resolve()).then(() => run(job));
+    lanes.set(job.computerId, lane);
+    void lane.finally(() => { if (lanes.get(job.computerId) === lane) lanes.delete(job.computerId); });
+  }
+
   for (;;) {
-    if (d.signal.aborted) return "stopped";
+    if (d.signal.aborted || removed) { if (removed) { d.log("This computer was removed from the Space. Its credential no longer works."); forgetAll(); return "removed"; } return "stopped"; }
+    for (const [id, rec] of records) if (rec.state !== "started" && !rec.reported && !inflight.has(id)) await report(id);
     const f = d.facts();
-    const r = await post("/compute/poll", { docker: f.docker, version: f.version }, { authorization: `Bearer ${state.credential}` }).catch(() => null);
-    if (r && r.status === 401) { d.log("This computer was removed from the Space. Its credential no longer works."); forget(); return "removed"; }
-    await d.sleep(pollMs, d.signal).catch(() => undefined);
+    const r = await post("/compute/poll", { docker: f.docker, version: f.version, running: [...inflight] }, { authorization: `Bearer ${credential}` }).catch(() => null);
+    if (r && r.status === 401) { d.log("This computer was removed from the Space. Its credential no longer works."); forgetAll(); return "removed"; }
+    const jobs = r && r.status === 200 && Array.isArray(r.data.jobs) ? (r.data.jobs as NodeJob[]) : [];
+    for (const job of jobs) if (job && typeof job.jobId === "string" && typeof job.computerId === "string" && typeof job.kind === "string" && typeof job.token === "string") take(job);
+    const busy = jobs.length > 0 || inflight.size > 0;
+    await d.sleep(busy ? Math.min(pollMs, 400) : pollMs, d.signal).catch(() => undefined);
   }
 }
