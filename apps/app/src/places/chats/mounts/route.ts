@@ -92,12 +92,15 @@ export const SCREEN = {
   terminalRules: "chats.terminal-rules",
 } as const;
 
-/** What a chat is the workspace of: the record or the project it is tied to. DMs, channels and Ask panes (their own door) have none. */
-export interface Work { type: "record" | "project"; id: string }
+/** What a chat is the workspace of: the record, project, task or run it is tied to. DMs, channels and Ask panes (their own door) have none. */
+export interface Work { type: "record" | "project" | "task" | "run"; id: string }
 export function workOf(t: { kind?: string; recordId?: string; scopeType?: string; scopeId?: string }): Work | null {
   if (t.kind !== "chat" && t.kind !== "thread") return null;
-  const id = t.recordId ?? (t.scopeType === "record" || t.scopeType === "project" ? t.scopeId : undefined);
+  const id = t.recordId ?? (t.scopeType === "record" || t.scopeType === "project" || t.scopeType === "task" || t.scopeType === "run" ? t.scopeId : undefined);
   if (!id) return null;
+  // a task or a run keeps its own page; everything else is a record, or a project when it is one
+  if (t.scopeType === "task" || id.startsWith("tsk_")) return { type: "task", id };
+  if (t.scopeType === "run" || id.startsWith("run_")) return { type: "run", id };
   return { type: id.startsWith("prj_") || t.scopeType === "project" ? "project" : "record", id };
 }
 

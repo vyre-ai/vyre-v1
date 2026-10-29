@@ -147,7 +147,7 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   }
 
   const m = insertMessage(ctx, thread.id, {
-    ...(input.clientId !== undefined ? { id: input.clientId } : {}), author: author.id, kind: author.kind === "agent" ? "agent" : "text", body, blocks,
+    ...(input.clientId !== undefined ? { id: input.clientId } : {}), author: author.id, kind: author.kind === "agent" ? (input.quiet === true ? "quiet" : "agent") : "text", body, blocks,
     ...(input.replyTo !== undefined ? { replyTo: input.replyTo } : {}), ...(input.via ? { via: { routineOwner: input.via.routineOwner } } : {}), depth, attachments,
   });
   saveScreen(ctx, thread.id, m.id, input.screen);

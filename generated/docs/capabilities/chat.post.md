@@ -64,6 +64,7 @@ type In = {
     actions?: Array<string>;
     focus?: string;
   };
+  quiet?: boolean;
   idempotencyKey: string;
 };
 ```
@@ -143,6 +144,7 @@ type Out = {
         "kind": "person"
       }
     ],
+    "quiet": true,
     "replyTo": "msg_a1b2c3",
     "screen": {
       "actions": [

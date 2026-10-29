@@ -215,6 +215,12 @@ test("screen: on a wide window the sheet is two columns and the right pane start
   assert.ok(!has(shut, 'data-testid="record-pane"') && has(shut, 'data-testid="toggle-pane"'));
 });
 
+test("screen: beside a conversation (noPane) the page draws no side panel and no Details toggle, so its Chat tab does not repeat the conversation", () => {
+  const out = wrap(createSamplePage(), <RecordPage type="clients" recordId="cl_0" noPane />);
+  assert.ok(!has(out, 'data-testid="record-pane"') && !has(out, 'data-testid="toggle-pane"') && !has(out, 'data-testid="pane-chat"'));
+  assert.ok(has(out, 'data-testid="record-title-crumb"'), "the record itself is still drawn");
+});
+
 test("screen: the pane's tabs: Activity after an edit, Memory with the fact and its source, History in the shared tab, Chat and Files lead to their places", async () => {
   const s = createSamplePage();
   await saveField(s.data, "clients", row(s), field("phone"), "+1 415 555 0100");

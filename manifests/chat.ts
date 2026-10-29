@@ -164,7 +164,7 @@ export default defineManifest({
       in: {
         ...threadT, body: t.str(), blocks: t.opt(t.arr(t.obj({ type: t.str(), v: t.int({ minimum: 1 }), data: t.json() }))), attachments: t.opt(t.arr(id.file)),
         replyTo: t.opt(id.message), mentions: t.opt(t.arr(mention)), via: t.opt(t.obj({ routineOwner: id.user })), clientId: t.opt(id.message),
-        screen: t.opt(screenContext),
+        screen: t.opt(screenContext), quiet: t.opt(t.bool()),
       },
       out: { message: messageRow }, on: ['thread', '/threadId'], level: 'use', idem: 'key',
       emits: ['message.received', 'message.mentioned', 'message.direct', 'thread.replied'], tool: 'chats', offline: 'queue', hook: true, cli: 'vyre chat post',

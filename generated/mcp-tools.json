@@ -9492,6 +9492,9 @@
             },
             "type": "array"
           },
+          "quiet": {
+            "type": "boolean"
+          },
           "replyTo": {
             "examples": [
               "msg_a1b2c3"

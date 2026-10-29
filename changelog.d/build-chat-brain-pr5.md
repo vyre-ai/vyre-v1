@@ -1,0 +1,2 @@
+- The reviewer's hand-off is one quiet line in the chat ("Asking Checker to check this"), not a reply bubble.
+- A chat tied to a task or a run opens as a workspace, like a record or a project. The record page beside a conversation drops its own side panel and takes the whole main pane. Below 1500 px the conversation is a drawer over the work with one button, instead of the workspace being dropped.

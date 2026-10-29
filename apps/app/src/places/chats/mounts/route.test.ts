@@ -28,6 +28,10 @@ test("a chat tied to a record or a project is a workspace; a DM, a channel and a
   assert.deepEqual(workOf({ kind: "chat", recordId: "prj_1" }), { type: "project", id: "prj_1" });
   assert.deepEqual(workOf({ kind: "thread", scopeType: "project", scopeId: "prj_2" }), { type: "project", id: "prj_2" });
   assert.deepEqual(workOf({ kind: "chat", scopeType: "record", scopeId: "rec_3" }), { type: "record", id: "rec_3" });
+  assert.deepEqual(workOf({ kind: "chat", scopeType: "task", scopeId: "tsk_1" }), { type: "task", id: "tsk_1" });
+  assert.deepEqual(workOf({ kind: "thread", recordId: "tsk_2" }), { type: "task", id: "tsk_2" });
+  assert.deepEqual(workOf({ kind: "chat", scopeType: "run", scopeId: "run_1" }), { type: "run", id: "run_1" });
+  assert.equal(workOf({ kind: "ask", scopeType: "task", scopeId: "tsk_1" }), null);
   assert.equal(workOf({ kind: "chat" }), null);
   assert.equal(workOf({ kind: "channel", recordId: "rec_1" }), null);
   assert.equal(workOf({ kind: "ask", scopeType: "record", scopeId: "rec_1" }), null);

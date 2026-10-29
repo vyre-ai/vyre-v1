@@ -60,6 +60,7 @@ test("the reviewer seat: an agent reviewer is asked in the chat after the lead's
     assert.ok(all.some((m) => m.author.id === lead && m.body === "Done: draft the letter"));
     assert.equal(all.filter((m) => /^Asking .* to check this\.$/.test(m.body) && m.author.id === lead).length, 1, "asked once, not again after the reviewer's own verdict");
     assert.match(all.find((m) => /^Asking /.test(m.body))!.body, /^Asking Checker to check this\.$/, "by name, in one quiet line");
+    assert.equal((all.find((m) => /^Asking /.test(m.body)) as unknown as { kind: string }).kind, "quiet", "a quiet system line, not a reply");
     await new Promise<void>((r) => setTimeout(r, 1500));
     await d.hooks?.pump?.();
     const later = (await call(d, "chat.messages.list", { threadId })).data.messages as Array<{ author: { id: string }; body: string }>;

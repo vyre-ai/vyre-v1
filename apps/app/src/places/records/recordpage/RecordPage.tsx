@@ -31,7 +31,8 @@ export interface RecordPageStart {
   edit?: { key: string; text: string };
 }
 
-export interface RecordPageProps { type: string; recordId: string; start?: RecordPageStart }
+/** `noPane`: the page sits beside a conversation (a workspace), so its own side panel (its Chat tab would repeat that conversation) is not drawn and the record has the whole main pane. */
+export interface RecordPageProps { type: string; recordId: string; start?: RecordPageStart; noPane?: boolean }
 
 interface Flash { text: string; undo?: Undo; bad?: boolean }
 
@@ -211,7 +212,7 @@ function RelationMap({ nodes, edges, onOpen }: { nodes: readonly RelNode[]; edge
 
 // ---------------------------------------------------------------- the page
 
-function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement {
+function PageBody({ type, recordId, start = {}, noPane = false }: RecordPageProps): ReactElement {
   const data = usePageData();
   const rq = useLive("records.get", { type, recordId });
   const dq = useLive("schema.describe", { type });
@@ -250,7 +251,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const title = String(row.fields[def.titleField] ?? "") || "Untitled";
   const sf = def.summaryField ? def.fields.find((x) => x.key === def.summaryField) : undefined;
   const summary = sf ? valueText(sf, row.fields[sf.key], data.nameOf) : "";
-  const paneOpen = pane ?? wide;
+  const paneOpen = noPane ? false : pane ?? wide;
 
   const commit = (f: FieldDef, text: string): void => {
     if (busy.current) return;
@@ -312,7 +313,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
         <Text accessibilityRole="header" aria-level={1} style={p.h1} numberOfLines={1} testID="record-title-crumb">{title}</Text>
         <View style={p.grow} />
         {late ? <><Pressable accessibilityRole="button" accessibilityState={{ selected: map }} testID="toggle-map" onPress={() => setMap(!map)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, map && p.hbOn]}><Glyph name="map" size={14} color={map ? "var(--accent)" : "var(--ink-2)"} /><Text style={[p.hbText, map && p.lit]}>Relationships</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityState={{ selected: paneOpen }} testID="toggle-pane" onPress={() => setPane(!paneOpen)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, paneOpen && p.hbOn]}><Glyph name="expand" size={14} color={paneOpen ? "var(--accent)" : "var(--ink-2)"} /><Text style={[p.hbText, paneOpen && p.lit]}>Details</Text></Pressable></> : null}
+        {noPane ? null : <Pressable accessibilityRole="button" accessibilityState={{ selected: paneOpen }} testID="toggle-pane" onPress={() => setPane(!paneOpen)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, paneOpen && p.hbOn]}><Glyph name="expand" size={14} color={paneOpen ? "var(--accent)" : "var(--ink-2)"} /><Text style={[p.hbText, paneOpen && p.lit]}>Details</Text></Pressable>}</> : null}
       </View>
       {flash ? (
         <View style={[p.flash, flash.bad === true && p.flashBad]} accessibilityRole="alert" testID="record-flash">

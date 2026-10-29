@@ -25,6 +25,8 @@ export interface AgentPost {
   actingFor?: string;
   threadId: string; body: string; blocks: PostBlock[]; mentions: RouteMention[]; clientId: string;
   via?: { routineOwner: string };
+  /** one quiet line (a hand-off), not a reply */
+  quiet?: boolean;
 }
 /** Run chat.post as the agent (the host seam builds the call with the agent as principal; a person's ctx cannot speak for an agent). */
 export type PostAs = (agentId: string, post: AgentPost) => Promise<unknown>;
