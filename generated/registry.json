@@ -113451,17 +113451,12 @@
                 "factId",
                 "layer",
                 "ownerRef",
-                "noteId",
                 "text",
                 "validFrom",
-                "validTo",
                 "learnedAt",
-                "closedAt",
                 "sourceKind",
                 "sourceRef",
-                "sourceLink",
-                "status",
-                "lowRisk"
+                "status"
               ],
               "type": "object"
             },

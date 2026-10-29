@@ -13,11 +13,13 @@ import { id, pageIn, pageOut, versionRow } from './_common.ts';
 const layer = t.enm('person', 'agent', 'project', 'space');
 const factStatus = t.enm('proposed', 'current', 'closed', 'removed');
 const sourceKind = t.enm('chat', 'channel', 'task', 'record', 'run', 'journey', 'manual');
-const factRow = t.obj({
+const factFields = {
   factId: id.fact, layer, ownerRef: t.str({ description: 'Person, agent, project or Space the fact belongs to', examples: ['agt_a1b2c3'] }), agentId: t.opt(id.agent), noteId: t.opt(id.note),
   text: t.str(), validFrom: t.ts(), validTo: t.opt(t.ts()), learnedAt: t.ts(), closedAt: t.opt(t.ts()), sourceKind, sourceRef: t.str(),
   sourceLink: t.opt(t.str({ description: 'Link to the exact chat, task or record' })), status: factStatus, lowRisk: t.opt(t.bool()),
-});
+};
+const factRow = t.obj(factFields);
+
 const noteRow = t.obj({ noteId: id.note, path: t.str({ examples: ['Agents/Intake/memory/notes/clients.md'] }), title: t.str(), layer, agentId: t.opt(id.agent), updatedAt: t.ts() });
 const hit = t.obj({ kind: t.enm('note', 'fact'), noteId: t.opt(id.note), factId: t.opt(id.fact), title: t.str(), text: t.str(), path: t.opt(t.str()), trueSince: t.opt(t.ts()), layer, sourceLink: t.opt(t.str()), score: t.num() });
 const quoteRow = t.obj({
@@ -75,7 +77,7 @@ export default defineManifest({
       }, label: 'check',
     }),
     read('memory.used', 'What recall put in front of the agent for one message: the facts and the exact quotes, each read again now under your access (a fact since deleted, or a chat closed to you, is not shown); for the "Used N memories" line and "Show what the agent knew here"', {
-      in: { threadId: id.thread, messageId: id.message }, out: { messageId: id.message, at: t.opt(t.ts()), facts: t.arr(t.obj({ ...factRow.properties, agentId: t.opt(id.agent), sourceTitle: t.opt(t.str({ description: 'The chat the fact came from, by its title, when the reader may open it' })) })), quotes: t.arr(quoteRow) }, label: 'filter', tool: 'memory', agent: { planMode: 'allowed' },
+      in: { threadId: id.thread, messageId: id.message }, out: { messageId: id.message, at: t.opt(t.ts()), facts: t.arr(t.obj({ ...factFields, agentId: t.opt(id.agent), sourceTitle: t.opt(t.str({ description: 'The chat the fact came from, by its title, when the reader may open it' })) })), quotes: t.arr(quoteRow) }, label: 'filter', tool: 'memory', agent: { planMode: 'allowed' },
     }),
     read('memory.read_note', 'Read one memory note as Markdown', {
       in: { noteId: id.note }, out: { note: noteRow, markdown: t.str() }, on: ['note', '/noteId'], label: 'check', tool: 'memory', mcpName: 'read_note', agent: { planMode: 'allowed' },
