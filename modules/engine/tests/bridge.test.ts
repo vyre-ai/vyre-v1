@@ -175,3 +175,11 @@ test("a reply that is addressed to the asker (a reviewer's verdict) carries an @
   await plain.say("do this");
   assert.deepEqual(plain.chat.at(-1)?.mentions, []);
 });
+
+test("atNames: an @ followed by the display name of another agent in the chat is a mention; the agent itself, a longer word and a stranger are not", async () => {
+  const { atNames } = await import("../handlers/bridge.ts");
+  const input = { agent: { id: "agt_desk", mode: "lead" as const }, listeners: [{ id: "agt_bill" }, { id: "agt_ops" }], context: { sections: [], names: { agt_desk: "Desk", agt_bill: "Billing", agt_ops: "Ops" } } } as never;
+  assert.deepEqual(atNames("@Billing can you look? thanks @ops", input), [{ kind: "agent", id: "agt_bill" }, { kind: "agent", id: "agt_ops" }]);
+  assert.deepEqual(atNames("mail me at a@billing.example and @Billings", input), []);
+  assert.deepEqual(atNames("@Desk @Nobody", input), []);
+});
