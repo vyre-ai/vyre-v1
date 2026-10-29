@@ -162,6 +162,13 @@ export function stubs(ctx: CallCtx) {
         get: call("automations.alerts.get"),
         set: call("automations.alerts.set"),
       },
+      connector_offer: {
+        accept: call("automations.connector_offer.accept"),
+        decline: call("automations.connector_offer.decline"),
+      },
+      connector_offers: call("automations.connector_offers"),
+      connector_share: call("automations.connector_share"),
+      connector_shares: call("automations.connector_shares"),
       create: call("automations.create"),
       delete: call("automations.delete"),
       draft_connector: call("automations.draft_connector"),
@@ -182,6 +189,8 @@ export function stubs(ctx: CallCtx) {
       migrate_runs: call("automations.migrate_runs"),
       migration_preview: call("automations.migration_preview"),
       move: call("automations.move"),
+      open_document: call("automations.open_document"),
+      open_mcp: call("automations.open_mcp"),
       packages: {
         export: call("automations.packages.export"),
         import: call("automations.packages.import"),
@@ -203,6 +212,7 @@ export function stubs(ctx: CallCtx) {
       triggers: {
         list: call("automations.triggers.list"),
       },
+      try_read: call("automations.try_read"),
       undelete: call("automations.undelete"),
       update: call("automations.update"),
       validate: call("automations.validate"),

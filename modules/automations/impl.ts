@@ -1,14 +1,19 @@
 // Automations module (lane L6). The host loads these handlers once the manifest status is live (ARCH 12.4).
 // `consumeEvent` is the trigger consumer the host runs for every event; `loadRunPlan` is what the executor reads for a Run of an Automation.
+import { setDocumentNetwork } from "./document-network.ts";
 import { handlers } from "./handlers/index.ts";
+import { setConnectorReadSender } from "./handlers/try-read.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import { chooseScheduleRecovery, runDueSchedules, SCHEDULE_EVERY_MS } from "./schedule/live.ts";
 import type { ChoiceLimits, ScheduleChoiceKey } from "./schedule/schedule.ts";
 
 export { handlers };
+export const hostSeams = { setDocumentNetwork, setConnectorReadSender };
 export { accessDiff, canView, structuralIssues, validateDefinition, webhookSecretMatches } from "./handlers/defs.ts";
 import { loadRunPlan, startRun } from "./handlers/triggers.ts";
 export { consumeEvent, dropReason, fireOne, loadRunPlan, matches, startRun, triggerPayload } from "./handlers/triggers.ts";
+import { recordSavedItem } from "./offer-store.ts";
+import type { OfferDb } from "./offer-store.ts";
 import { findAutomation, findRunLink, listChildLinks, listScopedChildren, saveRunLink } from "./projections.ts";
 import type { AutoCtx, RunScope } from "./projections.ts";
 
@@ -19,6 +24,18 @@ import type { AutoCtx, RunScope } from "./projections.ts";
 type Row = Record<string, unknown>;
 const rows = (ctx: Ctx, sql: string, ...a: unknown[]): Row[] => { try { return ctx.db.all(sql, ...a) as Row[]; } catch { return []; } };
 const kept = (r: Row[], type: string, title: string) => ({ count: r.length, sample: r.slice(0, 5).map((x) => ({ type, id: String(x["id"]), title: String(x[title] ?? x["id"]) })), ids: r.slice(0, 500).map((x) => String(x["id"])) });
+export const consumers = {
+  "automations.connector_offer": {
+    on: ["vault.item_created"],
+    run(ctx: Ctx, event: { payload?: Record<string, unknown> }): void {
+      const payload = event.payload ?? {};
+      const itemId = typeof payload["itemId"] === "string" ? payload["itemId"] : "";
+      const name = typeof payload["name"] === "string" ? payload["name"] : "";
+      if (itemId === "") return;
+      recordSavedItem(ctx.db as OfferDb, { itemId, name, fieldKeys: [] }, ctx.now());
+    },
+  },
+};
 export const periodic = {
   "automations.schedule_tick": { everyMs: SCHEDULE_EVERY_MS, run: (ctx: Ctx) => runDueSchedules(ctx as AutoCtx) },
 };

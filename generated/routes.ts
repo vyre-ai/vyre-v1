@@ -2002,6 +2002,96 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/automations/connector_offer/accept",
+    "cap": "automations.connector_offer.accept",
+    "v": 1,
+    "module": "automations",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/connector_offer/decline",
+    "cap": "automations.connector_offer.decline",
+    "v": 1,
+    "module": "automations",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/connector_offers",
+    "cap": "automations.connector_offers",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/connector_share",
+    "cap": "automations.connector_share",
+    "v": 1,
+    "module": "automations",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/connector_shares",
+    "cap": "automations.connector_shares",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/automations/create",
     "cap": "automations.create",
     "v": 1,
@@ -2304,6 +2394,42 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/automations/open_document",
+    "cap": "automations.open_document",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/open_mcp",
+    "cap": "automations.open_mcp",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/automations/packages/export",
     "cap": "automations.packages.export",
     "v": 1,
@@ -2569,6 +2695,24 @@ export const routes: Route[] = [
     "method": "POST",
     "path": "/v1/automations/triggers/list",
     "cap": "automations.triggers.list",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/try_read",
+    "cap": "automations.try_read",
     "v": 1,
     "module": "automations",
     "effects": "read",

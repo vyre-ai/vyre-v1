@@ -162,6 +162,13 @@ export function createClient(transport: Transport) {
         get: call("automations.alerts.get", 1),
         set: call("automations.alerts.set", 1),
       },
+      connector_offer: {
+        accept: call("automations.connector_offer.accept", 1),
+        decline: call("automations.connector_offer.decline", 1),
+      },
+      connector_offers: call("automations.connector_offers", 1),
+      connector_share: call("automations.connector_share", 1),
+      connector_shares: call("automations.connector_shares", 1),
       create: call("automations.create", 1),
       delete: call("automations.delete", 1),
       draft_connector: call("automations.draft_connector", 1),
@@ -182,6 +189,8 @@ export function createClient(transport: Transport) {
       migrate_runs: call("automations.migrate_runs", 1),
       migration_preview: call("automations.migration_preview", 1),
       move: call("automations.move", 1),
+      open_document: call("automations.open_document", 1),
+      open_mcp: call("automations.open_mcp", 1),
       packages: {
         export: call("automations.packages.export", 1),
         import: call("automations.packages.import", 1),
@@ -203,6 +212,7 @@ export function createClient(transport: Transport) {
       triggers: {
         list: call("automations.triggers.list", 1),
       },
+      try_read: call("automations.try_read", 1),
       undelete: call("automations.undelete", 1),
       update: call("automations.update", 1),
       validate: call("automations.validate", 1),

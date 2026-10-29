@@ -5052,6 +5052,32 @@
       ],
       "type": "object"
     },
+    "s_39296e156c": {
+      "items": {
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "draft",
+              "tested"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "level"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
     "s_39a2155802": {
       "items": {
         "$ref": "#/$defs/s_6c1eb10d98"
@@ -18376,6 +18402,21 @@
       },
       "type": "array"
     },
+    "s_ff464e0cd1": {
+      "properties": {
+        "actions": {
+          "$ref": "#/$defs/s_39296e156c"
+        },
+        "appName": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "appName",
+        "actions"
+      ],
+      "type": "object"
+    },
     "s_ff7445c64f": {
       "properties": {
         "until": {
@@ -29902,6 +29943,391 @@
     },
     {
       "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "itemId": "vit_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "decision": "accepted"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "automations",
+      "name": "automations.connector_offer.accept",
+      "output": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "accepted",
+              "absent"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Accept a connector setup offer. Accepting is final for that Vault item.",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "itemId": "vit_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "decision": "declined"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "automations",
+      "name": "automations.connector_offer.decline",
+      "output": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "declined",
+              "absent"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Decline a connector setup offer. Declining is final for that Vault item.",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "offers": [
+              {
+                "appName": "example",
+                "itemId": "vit_a1b2c3",
+                "text": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.connector_offers",
+      "output": {
+        "properties": {
+          "offers": {
+            "items": {
+              "properties": {
+                "appName": {
+                  "type": "string"
+                },
+                "itemId": {
+                  "examples": [
+                    "vit_a1b2c3"
+                  ],
+                  "pattern": "^vit_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "itemId",
+                "appName",
+                "text"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "offers"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Open connector setup offers. Each one names an app. A Vault value is not included.",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "actions": [
+              {
+                "key": "example",
+                "title": "example"
+              }
+            ],
+            "appName": "example"
+          },
+          "name": "example",
+          "output": {
+            "actions": [
+              {
+                "key": "example",
+                "level": "draft",
+                "title": "example"
+              }
+            ],
+            "appName": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "actions": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "appName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "appName",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "automations",
+      "name": "automations.connector_share",
+      "output": {
+        "$ref": "#/$defs/s_ff464e0cd1"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Offer tested connector actions to another Space as a draft. The reply is the app name and the action names. A key is not stored.",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "connectors": [
+              {
+                "actions": [
+                  {
+                    "key": "example",
+                    "level": "draft",
+                    "title": "example"
+                  }
+                ],
+                "appName": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.connector_shares",
+      "output": {
+        "properties": {
+          "connectors": {
+            "items": {
+              "$ref": "#/$defs/s_ff464e0cd1"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "connectors"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "List connector actions another Space can start from. A key is not included.",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
       "emits": [
         "automation.created"
       ],
@@ -32460,6 +32886,161 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "url": "example"
+          },
+          "name": "example",
+          "output": {
+            "finalUrl": "example",
+            "ok": true,
+            "reason": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.open_document",
+      "output": {
+        "properties": {
+          "finalUrl": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Open one public https document. A private, loopback, link-local, or metadata address is refused. The page text is not returned.",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "app": "example",
+            "url": "example"
+          },
+          "name": "example",
+          "output": {
+            "actions": [
+              {
+                "key": "example",
+                "level": "draft",
+                "title": "example"
+              }
+            ],
+            "ok": true,
+            "reason": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "app": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "app",
+          "url"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.open_mcp",
+      "output": {
+        "properties": {
+          "actions": {
+            "$ref": "#/$defs/s_39296e156c"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Read a public MCP server address and draft one action per tool name. The document text is not returned.",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [],
       "errors": [
@@ -34292,6 +34873,106 @@
       "since": "1.0.0",
       "summary": "The trigger palette: every trigger with its payload schema, sample and whether a Personal Space can use it",
       "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "actionKey": "example",
+            "domains": [
+              "example"
+            ],
+            "markedSafe": true,
+            "method": "example",
+            "path": "example",
+            "vaultItemId": "example"
+          },
+          "name": "example",
+          "output": {
+            "level": "tested",
+            "reason": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "actionKey": {
+            "type": "string"
+          },
+          "domains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "markedSafe": {
+            "type": "boolean"
+          },
+          "method": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "vaultItemId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "path",
+          "domains",
+          "vaultItemId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.try_read",
+      "output": {
+        "properties": {
+          "level": {
+            "enum": [
+              "tested",
+              "draft"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "level"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Try one read on a documented host. The Vault fills the key when the host sends it. The reply is only the level.",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
         "http": "auto",
         "mcp": {
           "toolset": "automations"
@@ -195580,6 +196261,9 @@
               "ai_subscription",
               "other"
             ],
+            "type": "string"
+          },
+          "name": {
             "type": "string"
           },
           "scope": {

@@ -310,6 +310,65 @@ export default defineManifest({
     write('automations.groups.delete', 'Delete a Group; its Automations become ungrouped', {
       in: { groupId }, out: { deleted: t.bool() }, on: ['automation_group', '/groupId'], level: 'manage', emits: ['automation.group_deleted'], tool: 'automations',
     }),
+    read('automations.open_document', 'Open one public https document. A private, loopback, link-local, or metadata address is refused. The page text is not returned.', {
+      in: { url: t.str() },
+      out: { ok: t.bool(), finalUrl: t.opt(t.str()), reason: t.opt(t.str()) },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    read('automations.connector_offers', 'Open connector setup offers. Each one names an app. A Vault value is not included.', {
+      in: {},
+      out: { offers: t.arr(t.obj({ itemId: id.vaultItem, appName: t.str(), text: t.str() })) },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    write('automations.connector_offer.decline', 'Decline a connector setup offer. Declining is final for that Vault item.', {
+      in: { itemId: id.vaultItem },
+      out: { decision: t.enm('declined', 'absent') },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    write('automations.connector_offer.accept', 'Accept a connector setup offer. Accepting is final for that Vault item.', {
+      in: { itemId: id.vaultItem },
+      out: { decision: t.enm('accepted', 'absent') },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    read('automations.open_mcp', 'Read a public MCP server address and draft one action per tool name. The document text is not returned.', {
+      in: { app: t.str(), url: t.str() },
+      out: {
+        ok: t.bool(),
+        reason: t.opt(t.str()),
+        actions: t.opt(t.arr(t.obj({ key: t.str(), title: t.str(), level: t.enm('draft', 'tested') }))),
+      },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    read('automations.try_read', 'Try one read on a documented host. The Vault fills the key when the host sends it. The reply is only the level.', {
+      in: {
+        method: t.str(),
+        path: t.str(),
+        domains: t.arr(t.str()),
+        markedSafe: t.opt(t.bool()),
+        vaultItemId: t.str(),
+        actionKey: t.opt(t.str()),
+      },
+      out: { level: t.enm('tested', 'draft'), reason: t.opt(t.str()) },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    write('automations.connector_share', 'Offer tested connector actions to another Space as a draft. The reply is the app name and the action names. A key is not stored.', {
+      in: { appName: t.str(), actions: t.arr(t.obj({ key: t.str(), title: t.str() })) },
+      out: { appName: t.str(), actions: t.arr(t.obj({ key: t.str(), title: t.str(), level: t.enm('draft', 'tested') })) },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    read('automations.connector_shares', 'List connector actions another Space can start from. A key is not included.', {
+      in: {},
+      out: { connectors: t.arr(t.obj({ appName: t.str(), actions: t.arr(t.obj({ key: t.str(), title: t.str(), level: t.enm('draft', 'tested') })) })) },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
   ],
   triggers: [
     trigger('record_change', 'A record changes', { events: ['record.created', 'record.updated', 'record.deleted'], filter: recordFilter },

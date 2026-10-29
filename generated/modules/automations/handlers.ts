@@ -8,6 +8,11 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.account_picks": Handler<"automations.account_picks", X>;
   "automations.alerts.get": Handler<"automations.alerts.get", X>;
   "automations.alerts.set": Handler<"automations.alerts.set", X>;
+  "automations.connector_offer.accept": Handler<"automations.connector_offer.accept", X>;
+  "automations.connector_offer.decline": Handler<"automations.connector_offer.decline", X>;
+  "automations.connector_offers": Handler<"automations.connector_offers", X>;
+  "automations.connector_share": Handler<"automations.connector_share", X>;
+  "automations.connector_shares": Handler<"automations.connector_shares", X>;
   "automations.create": Handler<"automations.create", X>;
   "automations.delete": Handler<"automations.delete", X>;
   "automations.draft_connector": Handler<"automations.draft_connector", X>;
@@ -24,6 +29,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.migrate_runs": Handler<"automations.migrate_runs", X>;
   "automations.migration_preview": Handler<"automations.migration_preview", X>;
   "automations.move": Handler<"automations.move", X>;
+  "automations.open_document": Handler<"automations.open_document", X>;
+  "automations.open_mcp": Handler<"automations.open_mcp", X>;
   "automations.packages.export": Handler<"automations.packages.export", X>;
   "automations.packages.import": Handler<"automations.packages.import", X>;
   "automations.packages.list": Handler<"automations.packages.list", X>;
@@ -39,6 +46,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.stop": Handler<"automations.stop", X>;
   "automations.test": Handler<"automations.test", X>;
   "automations.triggers.list": Handler<"automations.triggers.list", X>;
+  "automations.try_read": Handler<"automations.try_read", X>;
   "automations.undelete": Handler<"automations.undelete", X>;
   "automations.update": Handler<"automations.update", X>;
   "automations.validate": Handler<"automations.validate", X>;

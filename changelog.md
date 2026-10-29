@@ -10,6 +10,24 @@
 - Prove a self-trigger and chain depth on the live daemon. A fire from the automation itself is dropped, depth 8 is dropped and recorded, and the same event starts one run.
 - The loop catalogue, validation, and the runtime all stop at 1000 iterations. A loop inside a loop is refused. Moving runs onto a new version still answers that it is not available yet.
 - A revoked Google account fails the Gmail step with provider.auth_failed. The token stays out of the step, and a retry uses the same connection.
+- The host binds a public document fetch to the addresses that passed the check.
+- Fetch a documentation page only when a connector draft has no pasted document and no app name. The page is data. An OpenAPI document becomes drafted actions, and any other page becomes no actions. The page text is not returned.
+- Offer a tested connector to another Space as a draft. The copy keeps the app name and the action names, and it does not keep a key.
+- Draft actions from a pasted OpenAPI document, then mark one of them tested with a Vault read. The document text and the key stay out of the reply.
+- Try one connector read on the documented host. The host fills the Vault key onto that request and returns only whether it was tested.
+- Read a public MCP address and draft one action per tool name. The document text is not returned.
+- Refuse a document that redirects to a private, loopback, link-local, or metadata address. The host installs the fetch. The caller does not.
+- A connector action is tested only when a stored row says so. Claiming tested on the step is still a draft, and that draft cannot be turned on.
+- An agent reveal, an agent fill, and the turn that stores that reveal do not contain the Vault key.
+- Offer to set up Automations once when a Vault item is saved, and keep that decision on the item.
+- Keep a drafted connector action on a draft, and refuse to turn that Automation on.
+- Open a public document through Automations and refuse a private, loopback, link-local, or metadata address. The page text is not returned.
+- Try a connector read only on the document host, and keep the key value off the test plan.
+- Read an MCP server address through the public document fetcher and turn each tool name into a drafted action.
+- Bind a public document fetch to the addresses that passed the check when the caller supplies the connect function.
+- Open a document address only over https, and refuse a private, loopback, link-local, or metadata host, including after lookup and on every redirect. The body is text, capped, and not treated as instructions.
+- Offer to set up Automations once when a Vault item is saved. Declining or accepting is final for that item. A key in the item name is not repeated in the offer.
+- Keep connector actions inside the parsed schema. An MCP tool list becomes one drafted action per tool. A shared copy drops the vault id and the key. A drafted action cannot be published.
 - Point the app release daemon at a computer socket that is not there. This runner's Docker engine answers the default socket, so Console was saying the host was ready. A down host still cannot provision a computer.
 - Keep an open template install review when the gallery refetches the same preview. The review was closing itself, so Confirm install left the page before it could be pressed.
 - Prove Parallel, Loop, and a killed host through the live daemon. The old in-process driver is gone. Publishing a later version leaves a waiting run on the version it started, and previewing a move answers that it is not available yet.

@@ -4244,6 +4244,129 @@
     },
     {
       "blocks": [],
+      "cap": "automations.connector_offer.accept",
+      "deferred": false,
+      "description": "Accept a connector setup offer. Accepting is final for that Vault item.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_connector_offer_accept",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.connector_offer.decline",
+      "deferred": false,
+      "description": "Decline a connector setup offer. Declining is final for that Vault item.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_connector_offer_decline",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.connector_offers",
+      "deferred": false,
+      "description": "Open connector setup offers. Each one names an app. A Vault value is not included.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "automations_connector_offers",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.connector_share",
+      "deferred": false,
+      "description": "Offer tested connector actions to another Space as a draft. The reply is the app name and the action names. A key is not stored.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "actions": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "appName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "appName",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "name": "automations_connector_share",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.connector_shares",
+      "deferred": false,
+      "description": "List connector actions another Space can start from. A key is not included.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "automations_connector_shares",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.create",
       "deferred": false,
       "description": "Create an Automation; it starts Personal",
@@ -5021,6 +5144,54 @@
     },
     {
       "blocks": [],
+      "cap": "automations.open_document",
+      "deferred": false,
+      "description": "Open one public https document. A private, loopback, link-local, or metadata address is refused. The page text is not returned.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      },
+      "name": "automations_open_document",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.open_mcp",
+      "deferred": false,
+      "description": "Read a public MCP server address and draft one action per tool name. The document text is not returned.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "app": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "app",
+          "url"
+        ],
+        "type": "object"
+      },
+      "name": "automations_open_mcp",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.packages.export",
       "deferred": false,
       "description": "Save a portable copy of an Automation definition",
@@ -5547,6 +5718,49 @@
       },
       "name": "automations_triggers_list",
       "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.try_read",
+      "deferred": false,
+      "description": "Try one read on a documented host. The Vault fills the key when the host sends it. The reply is only the level.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "actionKey": {
+            "type": "string"
+          },
+          "domains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "markedSafe": {
+            "type": "boolean"
+          },
+          "method": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "vaultItemId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "path",
+          "domains",
+          "vaultItemId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_try_read",
+      "planMode": "blocked",
       "toolset": "automations",
       "v": 1
     },

@@ -1958,6 +1958,52 @@ export type AutomationsAlertsSetOut = {
       }>;
   };
 };
+export type AutomationsConnectorOfferAcceptIn = {
+  itemId: string;
+};
+export type AutomationsConnectorOfferAcceptOut = {
+  decision: "accepted" | "absent";
+};
+export type AutomationsConnectorOfferDeclineIn = {
+  itemId: string;
+};
+export type AutomationsConnectorOfferDeclineOut = {
+  decision: "declined" | "absent";
+};
+export type AutomationsConnectorOffersIn = Record<string, unknown>;
+export type AutomationsConnectorOffersOut = {
+  offers: Array<{
+      itemId: string;
+      appName: string;
+      text: string;
+    }>;
+};
+export type AutomationsConnectorShareIn = {
+  appName: string;
+  actions: Array<{
+      key: string;
+      title: string;
+    }>;
+};
+export type AutomationsConnectorShareOut = {
+  appName: string;
+  actions: Array<{
+      key: string;
+      title: string;
+      level: "draft" | "tested";
+    }>;
+};
+export type AutomationsConnectorSharesIn = Record<string, unknown>;
+export type AutomationsConnectorSharesOut = {
+  connectors: Array<{
+      appName: string;
+      actions: Array<{
+          key: string;
+          title: string;
+          level: "draft" | "tested";
+        }>;
+    }>;
+};
 export type AutomationsCreateIn = {
   name: string;
   description?: string;
@@ -2610,6 +2656,27 @@ export type AutomationsMoveOut = {
     updatedAt: number;
   };
 };
+export type AutomationsOpenDocumentIn = {
+  url: string;
+};
+export type AutomationsOpenDocumentOut = {
+  ok: boolean;
+  finalUrl?: string;
+  reason?: string;
+};
+export type AutomationsOpenMcpIn = {
+  app: string;
+  url: string;
+};
+export type AutomationsOpenMcpOut = {
+  ok: boolean;
+  reason?: string;
+  actions?: Array<{
+      key: string;
+      title: string;
+      level: "draft" | "tested";
+    }>;
+};
 export type AutomationsPackagesExportIn = {
   automationId: string;
   name?: string;
@@ -3132,6 +3199,18 @@ export type AutomationsTriggersListOut = {
       personalOk: boolean;
       allowSelfTrigger: boolean;
     }>;
+};
+export type AutomationsTryReadIn = {
+  method: string;
+  path: string;
+  domains: Array<string>;
+  markedSafe?: boolean;
+  vaultItemId: string;
+  actionKey?: string;
+};
+export type AutomationsTryReadOut = {
+  level: "tested" | "draft";
+  reason?: string;
 };
 export type AutomationsUndeleteIn = {
   automationId: string;
@@ -27241,6 +27320,11 @@ export interface CapMap {
   "automations.account_picks": { in: AutomationsAccountPicksIn; out: AutomationsAccountPicksOut };
   "automations.alerts.get": { in: AutomationsAlertsGetIn; out: AutomationsAlertsGetOut };
   "automations.alerts.set": { in: AutomationsAlertsSetIn; out: AutomationsAlertsSetOut };
+  "automations.connector_offer.accept": { in: AutomationsConnectorOfferAcceptIn; out: AutomationsConnectorOfferAcceptOut };
+  "automations.connector_offer.decline": { in: AutomationsConnectorOfferDeclineIn; out: AutomationsConnectorOfferDeclineOut };
+  "automations.connector_offers": { in: AutomationsConnectorOffersIn; out: AutomationsConnectorOffersOut };
+  "automations.connector_share": { in: AutomationsConnectorShareIn; out: AutomationsConnectorShareOut };
+  "automations.connector_shares": { in: AutomationsConnectorSharesIn; out: AutomationsConnectorSharesOut };
   "automations.create": { in: AutomationsCreateIn; out: AutomationsCreateOut };
   "automations.delete": { in: AutomationsDeleteIn; out: AutomationsDeleteOut };
   "automations.draft_connector": { in: AutomationsDraftConnectorIn; out: AutomationsDraftConnectorOut };
@@ -27257,6 +27341,8 @@ export interface CapMap {
   "automations.migrate_runs": { in: AutomationsMigrateRunsIn; out: AutomationsMigrateRunsOut };
   "automations.migration_preview": { in: AutomationsMigrationPreviewIn; out: AutomationsMigrationPreviewOut };
   "automations.move": { in: AutomationsMoveIn; out: AutomationsMoveOut };
+  "automations.open_document": { in: AutomationsOpenDocumentIn; out: AutomationsOpenDocumentOut };
+  "automations.open_mcp": { in: AutomationsOpenMcpIn; out: AutomationsOpenMcpOut };
   "automations.packages.export": { in: AutomationsPackagesExportIn; out: AutomationsPackagesExportOut };
   "automations.packages.import": { in: AutomationsPackagesImportIn; out: AutomationsPackagesImportOut };
   "automations.packages.list": { in: AutomationsPackagesListIn; out: AutomationsPackagesListOut };
@@ -27272,6 +27358,7 @@ export interface CapMap {
   "automations.stop": { in: AutomationsStopIn; out: AutomationsStopOut };
   "automations.test": { in: AutomationsTestIn; out: AutomationsTestOut };
   "automations.triggers.list": { in: AutomationsTriggersListIn; out: AutomationsTriggersListOut };
+  "automations.try_read": { in: AutomationsTryReadIn; out: AutomationsTryReadOut };
   "automations.undelete": { in: AutomationsUndeleteIn; out: AutomationsUndeleteOut };
   "automations.update": { in: AutomationsUpdateIn; out: AutomationsUpdateOut };
   "automations.validate": { in: AutomationsValidateIn; out: AutomationsValidateOut };
@@ -31874,6 +31961,7 @@ export type VaultItemCreatedPayload = {
   kind: "login" | "api_key" | "env" | "card" | "note" | "totp" | "ssh_key" | "ai_subscription" | "other";
   folderId: string;
   scope: "mine" | "shared";
+  name?: string;
 };
 export type VaultItemDeletedPayload = {
   itemId: string;
