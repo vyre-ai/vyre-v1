@@ -3,7 +3,7 @@
 // compiled; the read is bounded and checked for races, and a failure says which file and why. Nothing here writes: publishing is a separate, rechecked step.
 import { parseToml, TomlError } from "../../../lib/toml.ts";
 import type { TomlTable, TomlValue } from "../../../lib/toml.ts";
-import { refuse } from "../projections.ts";
+import { checkEgress, refuse } from "../projections.ts";
 import type { ActionDef, ConnectorDef, ConnectorsCtx, Method, Mode, Scope, TestCase } from "../projections.ts";
 
 const MODES: readonly Mode[] = ["api", "mcp", "dwd", "oauth_app", "webhook_only"];
@@ -75,7 +75,7 @@ export function buildDef(ctx: ConnectorsCtx, key: string, main: Json, actionDocs
   const auth = main["auth"] ?? { type: "none" };
   if (!isObj(auth) || !AUTH_TYPES.includes(auth["type"] as never)) bad(ctx, where, `auth.type is one of ${AUTH_TYPES.join(", ")}.`);
   const a = auth as Json;
-  for (const k of ["secret", "header", "prefix", "authUrl", "tokenUrl", "clientId", "clientSecret"]) if (a[k] !== undefined && typeof a[k] !== "string") bad(ctx, where, `auth.${k} is text.`);
+  for (const k of ["secret", "header", "prefix", "authUrl", "tokenUrl", "clientId", "clientSecret", "revokeUrl"]) if (a[k] !== undefined && typeof a[k] !== "string") bad(ctx, where, `auth.${k} is text.`);
   if (a["scopes"] !== undefined && !strs(a["scopes"])) bad(ctx, where, "auth.scopes is a list of text.");
   if (a["type"] !== "none" && typeof a["secret"] !== "string") bad(ctx, where, "auth.secret names the declared secret that holds the key or token.");
   const secrets = main["secrets"] ?? [];
@@ -83,6 +83,9 @@ export function buildDef(ctx: ConnectorsCtx, key: string, main: Json, actionDocs
   const slots = (secrets as { name: string; description: string }[]).map((s) => ({ name: s.name, description: s.description }));
   if (new Set(slots.map((s) => s.name)).size !== slots.length) bad(ctx, where, "two secrets share a name.");
   if (a["type"] !== "none" && !slots.some((s) => s.name === a["secret"])) bad(ctx, where, `auth.secret ${String(a["secret"])} is not one of the declared secrets.`);
+  // a client secret is the NAME of a declared secret (kept in the Vault), never its value: a value here would sit in Files readable by everyone who reads the source
+  if (a["clientSecret"] !== undefined && !slots.some((s) => s.name === a["clientSecret"])) bad(ctx, where, "auth.clientSecret must name one of the declared secrets, not hold the secret itself.");
+  if (a["type"] === "oauth2") for (const k of ["authUrl", "tokenUrl", "revokeUrl"]) if (typeof a[k] === "string" && !checkEgress(a[k] as string, domains).ok) bad(ctx, where, `auth.${k} must be an https address on one of the declared domains.`);
   if (main["rate"] !== undefined && !(isObj(main["rate"]) && Number.isFinite(main["rate"]["rps"]) && Number.isFinite(main["rate"]["burst"]))) bad(ctx, where, "rate needs rps and burst as numbers.");
   for (const k of ["sources", "syncedTypes"]) if (main[k] !== undefined && !strs(main[k])) bad(ctx, where, `${k} is a list of text.`);
   if (main["health"] !== undefined && typeof main["health"] !== "string") bad(ctx, where, "health is text.");

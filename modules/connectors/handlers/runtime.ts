@@ -7,6 +7,7 @@ import { objectsOf } from "./get.ts";
 import type { ObjectActions } from "./get.ts";
 import { canonical } from "../../../lib/canonical.ts";
 import { generateMain } from "./source.ts";
+import { oauthOf, refreshSlot } from "./oauth.ts";
 import { ensureTables, mintShort, nowOf, pointerGet, refuse, scrubber, secretsIn, seedBuiltins, takeToken, checkEgress, fillString, fillValue, clone, PAGE } from "../projections.ts";
 import type { ActionDef, ConnectionDb, ConnectorDef, ConnectorState, ConnectorsCtx, ConnectorsDeps, Mode, Scope, TestCase } from "../projections.ts";
 
@@ -41,6 +42,8 @@ export interface ExecOpts {
   /** Secret values by declared name (the harness and tests); otherwise they are resolved from the connection. */
   secrets?: Record<string, string>;
   http?: Http; persist?: boolean; actor?: string;
+  /** Set on the one retry after a refresh, so a token the app still rejects ends in a reconnect instead of a loop. */
+  refreshed?: boolean;
 }
 export interface ExecResult { output: unknown; dryRun: boolean; status?: number; ms?: number }
 
@@ -74,6 +77,8 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
     if (conn.owner_kind === "person" && conn.owner_id !== actor) refuse(ctx, "permission.no_grant", "This connection belongs to someone else.");
   }
   if (secretsIn(a.url).size || secretsIn(a.query).size) refuse(ctx, "validation.bad_input", "A secret cannot be part of the address.");
+  // an access token that ends within a minute is refreshed before the call that would use it (calls for one connection share one refresh)
+  if (conn && def.auth.type === "oauth2" && o.persist !== false && oauthOf(deps).dueSoon(conn, def)) await oauthOf(deps).refresh(ctx, def, conn);
 
   // secrets, by name, at call time
   const needed = new Set<string>([...secretsIn(a.headers), ...secretsIn(a.body)]);
@@ -152,6 +157,8 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
   const ms = nowOf(deps) - started;
   if (res.status === 401 || res.status === 403) {
     logRow(res.status, "rejected the sign-in");
+    // an OAuth token the app rejects is refreshed once and the call repeated; only a refresh that fails (or a repeat that is rejected again) asks the person to reconnect
+    if (conn && persist && !o.refreshed && def.auth.type === "oauth2" && refreshSlot(def) && await oauthOf(deps).refresh(ctx, def, conn)) return executeAction(deps, ctx, def, actionName, { ...o, refreshed: true });
     if (conn && persist) markReconnect(deps, ctx, conn);
     return refuse(ctx, "provider.auth_failed", "The app rejected the key or sign-in.", { status: res.status });
   }
@@ -462,6 +469,8 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       const bound = deps.boundSyncedTypes ? await deps.boundSyncedTypes(c.key) : [];
       if (bound.length) refuse(ctx, "validation.precondition_failed", `${bound.join(", ")} still sync through ${c.key}: detach them first.`, { syncedTypes: bound });
       for (const conn of tx.all<{ connection_id: string }>("SELECT connection_id FROM cn_connections WHERE connector = ?", c.key)) {
+        await oauthOf(deps).revoke(ctx, JSON.parse(c.def) as ConnectorDef, tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", conn.connection_id)!);
+        tx.run("DELETE FROM cn_oauth_flow WHERE state IN (SELECT state FROM cn_oauth WHERE connection_id = ?)", conn.connection_id);
         tx.run("DELETE FROM cn_oauth WHERE connection_id = ?", conn.connection_id);
         tx.run("DELETE FROM cn_connections WHERE connection_id = ?", conn.connection_id);
         ctx.emit("connection.deleted", `connection/${conn.connection_id}`, { connectionId: conn.connection_id, connector: c.key });

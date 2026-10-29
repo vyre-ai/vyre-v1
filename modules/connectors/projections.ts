@@ -2,6 +2,7 @@
 // scrubbing of secret values from anything that leaves the runtime, and the per-connection rate limit.
 // @reads /modules/connectors/migrations/0001_connectors.sql
 // @reads /modules/connectors/migrations/0002_source_folders.sql
+// @reads /modules/connectors/migrations/0003_oauth.sql
 import { readFileSync } from "node:fs";
 import { mintUuid } from "../../lib/ids.ts";
 import { fail } from "../../host/src/routes/errors.ts";
@@ -22,7 +23,11 @@ export interface AuthDef {
   header?: string;
   prefix?: string;
   /** oauth2 */
-  authUrl?: string; tokenUrl?: string; clientId?: string; clientSecret?: string; scopes?: string[];
+  authUrl?: string; tokenUrl?: string; clientId?: string; scopes?: string[];
+  /** The NAME of a declared secret that holds the client secret (never the secret itself). */
+  clientSecret?: string;
+  /** Where a token is revoked when a connection is deleted; optional, best effort. */
+  revokeUrl?: string;
 }
 
 /** One call the connector makes. `{input.x}`, `{secret.Name}` and `{connection.id}` are filled in at call time; secrets only in headers and body. */
@@ -99,6 +104,7 @@ export function ensureTables(tx: Tx): void {
   if (ready.has(tx)) return;
   tx.exec(readFileSync(new URL("./migrations/0001_connectors.sql", import.meta.url), "utf8"));
   tx.exec(readFileSync(new URL("./migrations/0002_source_folders.sql", import.meta.url), "utf8"));
+  tx.exec(readFileSync(new URL("./migrations/0003_oauth.sql", import.meta.url), "utf8"));
   ready.add(tx);
 }
 
