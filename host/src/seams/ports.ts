@@ -13,7 +13,8 @@ export interface SeamCtx {
 /** The Vault, as the seams need it. Values are released at the last moment, one call at a time, and never logged or stored by a seam. */
 export interface VaultPort {
   /** The item's value as text (a password, or the JSON of a service-account key). */
-  secret(handle: string, space: string): Promise<string>;
+  /** `asker` is the person a turn runs for: with it a Mine item of theirs can be read too, opened by their own key on this node. Without it, Shared items only. */
+  secret(handle: string, space: string, asker?: string): Promise<string>;
   /** Sign `data` with the RSA private key held in the item (the JSON field private_key), RS256, returned base64url. The key never leaves the Vault. */
   signRs256(handle: string, space: string, data: string): Promise<string>;
 }

@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { fail } from "../../../host/src/routes/errors.ts";
 import type { Field } from "./crypto.ts";
-import { currentFiller } from "./crypto.ts";
+import { ENC_MINE, currentFiller, currentKeyPort, openMine, wrapKeyFromPersonKey } from "./crypto.ts";
 import { filler, live, openFields, reachable, turnFor, visible } from "./items.ts";
 import {
   atLeast, bad, denied, ensure, first, isId, levelOn, liveFolder, newId, num, obj, parseJson, patchMeta, record, rowsOf, statements, str,
@@ -29,7 +29,8 @@ const EXPIRIES: readonly Expiry[] = ["1h", "1d", "7d"];
 export interface FillSink { (f: { value: string; ref: string; handle: string; field: string; itemId: string }, execution?: { space:string; principal:{kind:string;id:string}; actingFor?:string; traceId:string; parentSpanId?:string; depth:number }): Promise<void> | void }
 /** What the host's seams (connectors, sources, import) read: a Shared item's value by handle, for one call, and RS256 signing with a key that never leaves the vault. */
 export interface SecretPort {
-  secret(handle: string, space: string): Promise<string>;
+  /** `asker`: the person a turn runs for; their own Mine item is read with their key on this node. Without it, Shared items only. */
+  secret(handle: string, space: string, asker?: string): Promise<string>;
   signRs256(handle: string, space: string, data: string): Promise<string>;
   /** The .env text of an export link, once (the route at /exports/<id>?token= calls this; the link is the credential). Throws for every refusal. */
   pullExport(exportId: string, token: string): string;
@@ -55,16 +56,28 @@ export function configureVault(h: VaultHost | null): void {
 
 /** A Shared item's field for the host, by handle. Mine items never come out this way: they open only for their owner's session. */
 export function secretPort(db: VaultDb): SecretPort {
-  const read = (handle: string): string => {
+  const read = async (handle: string, asker?: string): Promise<string> => {
     ensure({ db });
     const m = HANDLE.exec(handle.startsWith("#") ? handle : `#${handle}`);
     if (!m) throw new Error("A handle looks like #Name or #Name.field.");
-    const meta = rowsOf(db.all(`SELECT * FROM vault_meta`)).find((r) => r["deleted_at"] == null && str(r, "scope") === "shared" && str(r, "handle").toLowerCase() === `#${m[1]!}`.toLowerCase());
+    const named = rowsOf(db.all(`SELECT * FROM vault_meta`)).filter((r) => r["deleted_at"] == null && str(r, "handle").toLowerCase() === `#${m[1]!}`.toLowerCase());
+    // the asker's own Mine item wins: a Shared item that takes the same handle must never shadow it (that would send the person's turns to whoever made the Shared item). Shared only when they have no Mine item of that name.
+    // The caller has already passed vault.use, and a Mine item opens only for its owner with the key they unlocked on this node.
+    const meta = (asker ? named.find((r) => str(r, "scope") === "mine" && str(r, "owner") === asker) : undefined) ?? named.find((r) => str(r, "scope") === "shared");
     if (!meta) throw new Error(`The Vault has no shared item ${handle}.`);
     const row = first(db.all(`SELECT * FROM vault_secret WHERE "itemId" = ?`, str(meta, "id")));
-    const f = currentFiller();
-    if (!row || !f) throw new Error("The vault service is not running.");
-    const fields = f.open(str(meta, "id"), { enc: 1, keyId: str(row, "keyId"), box: parseJson(row["box"], { iv: "", ct: "", tag: "" }), rev: num(row, "rev") });
+    if (!row) throw new Error("The vault service is not running.");
+    const box = parseJson(row["box"], { iv: "", ct: "", tag: "" });
+    let fields: Field[];
+    if (str(meta, "scope") === "mine") {
+      const key = await currentKeyPort()?.personKey(str(meta, "owner"));
+      if (!key) throw new Error("Your vault key is locked on this computer.");
+      fields = openMine(str(meta, "id"), { enc: ENC_MINE, keyId: str(row, "keyId"), box, rev: num(row, "rev"), wrapped: parseJson(row["wrapped"], { iv: "", ct: "", tag: "" }) }, wrapKeyFromPersonKey(key));
+    } else {
+      const f = currentFiller();
+      if (!f) throw new Error("The vault service is not running.");
+      fields = f.open(str(meta, "id"), { enc: 1, keyId: str(row, "keyId"), box, rev: num(row, "rev") });
+    }
     const hit = m[2] ? fields.find((x) => x.key === m[2]) : fields.length === 1 ? fields[0] : fields.filter((x) => x.secret).length === 1 ? fields.find((x) => x.secret) : undefined;
     if (!hit) throw new Error(`Name a field after ${handle}.`);
     return hit.value;
@@ -76,9 +89,9 @@ export function secretPort(db: VaultDb): SecretPort {
   });
   return {
     pullExport: (exportId, token) => exportPull(edge(), { exportId, token }),
-    secret: async (handle) => read(handle),
+    secret: async (handle, _space, asker) => read(handle, asker),
     signRs256: async (handle, _space, data) => {
-      const raw = read(handle);
+      const raw = await read(handle);
       let key = raw;
       try { const j = JSON.parse(raw) as { private_key?: unknown }; if (typeof j.private_key === "string") key = j.private_key; } catch { /* the field is the PEM itself */ }
       return crypto.createSign("RSA-SHA256").update(data).sign(key).toString("base64url");

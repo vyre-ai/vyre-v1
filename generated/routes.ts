@@ -7648,6 +7648,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/email_builder/ask_cancel",
+    "cap": "email_builder.ask_cancel",
+    "v": 1,
+    "module": "email-builder-api",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/email_builder/ask_diff",
     "cap": "email_builder.ask_diff",
     "v": 1,
