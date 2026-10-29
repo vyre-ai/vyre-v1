@@ -1,6 +1,6 @@
 # network.servers
 
-Servers in the Space: grey rows when offline, with Reconnect and Remove
+Computers in the Space (the Space server and the computers that joined for compute, waiting ones included): grey rows when offline, with Reconnect and Remove
 
 | | |
 |---|---|
@@ -37,6 +37,16 @@ type Out = {
       state: "healthy" | "degraded" | "down";
       role: "space" | "compute";
       lastSeenAt?: number;
+      enrollment?: "pending" | "approved";
+      fingerprint?: string;
+      owner?: string;
+      facts?: {
+        os: string;
+        arch: string;
+        docker: boolean;
+        version: string;
+      };
+      requestedAt?: number;
     }>;
 };
 ```
@@ -58,8 +68,18 @@ type Out = {
   "output": {
     "servers": [
       {
+        "enrollment": "pending",
+        "facts": {
+          "arch": "example",
+          "docker": true,
+          "os": "example",
+          "version": "example"
+        },
+        "fingerprint": "example",
         "lastSeenAt": 1760000000000,
         "name": "example",
+        "owner": "example",
+        "requestedAt": 1760000000000,
         "role": "space",
         "serverId": "srv_a1b2c3",
         "state": "healthy"

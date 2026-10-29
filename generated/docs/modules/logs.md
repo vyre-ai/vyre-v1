@@ -6,7 +6,7 @@ Requires: nothing.
 
 ## Capabilities (11)
 
-- [logs.client_upload](../capabilities/logs.client_upload.md): Upload the device ring-buffer log keyed by trace id (queued while offline, sent on reconnect)
+- [logs.client_upload](../capabilities/logs.client_upload.md): Upload the device ring-buffer log keyed by trace id, with the timing samples the device measured against the performance budgets (queued while offline, sent on reconnect)
 - [logs.export](../capabilities/logs.export.md): Export a log search as a file
 - [logs.purge](../capabilities/logs.purge.md): Remove log rows older than a time, a batch at a time (retention)
 - [logs.query](../capabilities/logs.query.md): Search logs by person, agent, place, record, run or trace (ids and metadata only)

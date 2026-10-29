@@ -333,7 +333,7 @@ export function Menu(props: MenuViewProps): ReactElement | null {
           const { width, height } = event.nativeEvent.layout;
           if (width !== size.w || height !== size.h) setSize({ w: width, h: height });
         }}
-        style={[styles.panel, { left, top }]}
+        style={[styles.panel, { left, top, maxHeight: Math.max(120, window.height - 12) }, webProps({ style: { overflowY: "auto" } }).style as object | undefined]}
         {...webProps({ onKeyDown })}
       >
         {rows}

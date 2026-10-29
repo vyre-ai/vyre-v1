@@ -60,6 +60,9 @@ export function parseMigration(sql: string): Map<string, Table> {
     }
     tables.set(t.name, t);
   }
+  // columns added later by ALTER TABLE ... ADD COLUMN (nullable or defaulted, so an insert that leaves them out is fine)
+  const alter = /ALTER TABLE (\w+) ADD COLUMN (\w+)/g;
+  for (let m = alter.exec(text); m; m = alter.exec(text)) tables.get(m[1]!)?.cols.push({ name: m[2]!, notNull: false });
   return tables;
 }
 
@@ -173,7 +176,7 @@ export class FakeNetworkDb implements RawDb {
   readonly log: string[] = [];
 
   constructor(migrationPath: string = MIGRATION) {
-    this.tables = parseMigration(readFileSync(migrationPath, "utf8") + "\n" + readFileSync(new URL("../migrations/0002_command_results.sql", import.meta.url), "utf8"));
+    this.tables = parseMigration(readFileSync(migrationPath, "utf8") + "\n" + readFileSync(new URL("../migrations/0002_command_results.sql", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../migrations/0003_compute_enrollment.sql", import.meta.url), "utf8"));
   }
 
   rows(table: string): Row[] { return this.table(table).rows.map((r) => ({ ...r })); }

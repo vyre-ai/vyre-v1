@@ -18669,6 +18669,42 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/network/enroll",
+    "cap": "network.enroll",
+    "v": 1,
+    "module": "network",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/enroll_status",
+    "cap": "network.enroll_status",
+    "v": 1,
+    "module": "network",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/network/health",
     "cap": "network.health",
     "v": 1,
@@ -18699,6 +18735,60 @@ export const routes: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/my_computer_approve",
+    "cap": "network.my_computer_approve",
+    "v": 1,
+    "module": "network",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "enroll_node"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/my_computer_code",
+    "cap": "network.my_computer_code",
+    "v": 1,
+    "module": "network",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/my_computer_decline",
+    "cap": "network.my_computer_decline",
+    "v": 1,
+    "module": "network",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -18737,6 +18827,42 @@ export const routes: Route[] = [
     "risk": "high",
     "offline": null,
     "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/server_approve",
+    "cap": "network.server_approve",
+    "v": 1,
+    "module": "network",
+    "effects": "write",
+    "permission": "server.network",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": true,
+    "gate": "enroll_node"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/server_decline",
+    "cap": "network.server_decline",
+    "v": 1,
+    "module": "network",
+    "effects": "write",
+    "permission": "server.network",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": true,
     "gate": null
   },
   {

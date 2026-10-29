@@ -162,17 +162,26 @@ export function endpoints(ctx: NetworkCtx): EndpointRow[] {
   return out.sort((a, b) => (ORDER[a.kind] ?? 9) - (ORDER[b.kind] ?? 9));
 }
 
-export interface ServerRow { serverId: string; name: string; state: State; role: "space" | "compute"; lastSeenAt?: number }
+export interface ServerRow { serverId: string; name: string; state: State; role: "space" | "compute"; lastSeenAt?: number; enrollment?: "pending" | "approved"; fingerprint?: string; owner?: string; facts?: { os: string; arch: string; docker: boolean; version: string }; requestedAt?: number }
 
 export function servers(ctx: NetworkCtx): ServerRow[] {
   const out: ServerRow[] = [];
-  for (const raw of ctx.db.all("SELECT server_id, name, role, state, heartbeat_at FROM network_server ORDER BY name, server_id")) {
+  for (const raw of ctx.db.all("SELECT server_id, name, role, state, heartbeat_at, enrollment, fingerprint, facts_json, owner, requested_at FROM network_server ORDER BY name, server_id")) {
     const r = asRow(raw);
     const serverId = r ? str(r["server_id"]) : undefined, name = r ? str(r["name"]) : undefined;
     if (!r || !serverId || !name) continue;
+    const enrollment = r["enrollment"] === "pending" ? "pending" : r["enrollment"] === "declined" || r["enrollment"] === "revoked" ? null : "approved";
+    if (enrollment === null) continue;   // a declined or removed computer is not listed
     const beat = num(r["heartbeat_at"]);
-    const s: ServerRow = { serverId, name, role: r["role"] === "space" ? "space" : "compute", state: believed(isState(r["state"]) ? r["state"] : "down", beat, ctx.now()) };
+    const s: ServerRow = { serverId, name, role: r["role"] === "space" ? "space" : "compute", state: enrollment === "pending" ? "down" : believed(isState(r["state"]) ? r["state"] : "down", beat, ctx.now()) };
     if (beat !== undefined) s.lastSeenAt = beat;
+    if (s.role === "compute") {
+      s.enrollment = enrollment;
+      const fp = str(r["fingerprint"]); if (fp) s.fingerprint = fp;
+      const owner = str(r["owner"]); if (owner) s.owner = owner;
+      const at = num(r["requested_at"]); if (at !== undefined) s.requestedAt = at;
+      if (typeof r["facts_json"] === "string") { try { const f = JSON.parse(r["facts_json"]) as Record<string, unknown>; s.facts = { os: String(f["os"] ?? "unknown"), arch: String(f["arch"] ?? "unknown"), docker: f["docker"] === true, version: String(f["version"] ?? "unknown") }; } catch { /* a facts blob that does not parse is left out */ } }
+    }
     out.push(s);
   }
   return out;

@@ -83,7 +83,7 @@ test("the window drops older spans, non-ms budgets read the value attribute, and
   let pages = 0;
   const w = world({
     "logs.spans": (i: Record<string, unknown>) => {
-      if (i["name"] === "scroll_fps") return { spans: [{ ...span("scroll_fps", 0, 1), attrs: { value: 58 } }, { ...span("scroll_fps", 0, 2), attrs: { value: 41 } }, span("scroll_fps", 5, 3)] };
+      if (i["name"] === "scroll_fps") return { spans: [{ ...span("scroll_fps", 0, 1), attrs: { value: 58 } }, { ...span("scroll_fps", 0, 2), attrs: { measured: 41 } }, span("scroll_fps", 5, 3)] };
       pages++;
       return i["cursor"] === undefined
         ? { spans: [span("navigate", 500, 1, NOW - 120 * 60_000), span("navigate", 40, 2)], next: "2" }

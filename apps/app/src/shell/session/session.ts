@@ -20,6 +20,7 @@ import type { Dial, Scheduler } from "../../../../../client/src/connection/index
 import { PLACE_QUERIES, WARM_ORDER } from "./prefetch.ts";
 import { createRemoteScreenHooks } from "./remote-hooks.ts";
 import type { RemoteHooks } from "./remote-hooks.ts";
+import { speed } from "../../speed/recorder.ts";
 
 export interface OpenSessionOptions {
   /** The Space's address, e.g. https://northwind.vyre.run. */
@@ -173,6 +174,12 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     ...(o.scheduler ? { scheduler: o.scheduler } : {}),
   });
   link.start();
+  // this Space's own door for the timing samples the app measured in it (apps/app/src/speed): only this session, with this Space's token, ever sends them
+  const detachSpeed = speed.attach({
+    spaceId: space.id,
+    ready: () => !closed && token !== null && reachable,
+    upload: async (samples) => { await reach("logs.client_upload", { device: who.deviceId ?? "web", entries: [], samples }); },
+  });
   const poll = setInterval(() => { if (!closed && live !== "live" && hooks.watching() > 0) hooks.invalidate(); }, o.pollMs ?? 5000);
 
   const prefetchPlace = (place: PlaceId): void => {
@@ -274,6 +281,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     close(why = "unspecified") {
       if (closed) return;
       closed = true;
+      detachSpeed();
       console.info(`vyre session closed: ${why}`);
       clearInterval(poll);
       for (const t of warmTimers) clearTimeout(t);

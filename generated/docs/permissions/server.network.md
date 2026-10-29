@@ -19,6 +19,8 @@ Area: server. Risk: high. Applies to: space.
 - network.ingress_check
 - network.public_hostnames
 - network.relay_set
+- network.server_approve
+- network.server_decline
 - network.server_join_code
 - network.server_reconnect
 - network.server_remove
