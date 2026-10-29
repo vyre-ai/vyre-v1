@@ -9,6 +9,7 @@
 - A sandbox test reads for real and does not perform the write or the send. Replay still uses what the original run recorded.
 - Prove a self-trigger and chain depth on the live daemon. A fire from the automation itself is dropped, depth 8 is dropped and recorded, and the same event starts one run.
 - The loop catalogue, validation, and the runtime all stop at 1000 iterations. A loop inside a loop is refused. Moving runs onto a new version still answers that it is not available yet.
+- A revoked Google account fails the Gmail step with provider.auth_failed. The token stays out of the step, and a retry uses the same connection.
 - Point the app release daemon at a computer socket that is not there. This runner's Docker engine answers the default socket, so Console was saying the host was ready. A down host still cannot provision a computer.
 - Keep an open template install review when the gallery refetches the same preview. The review was closing itself, so Confirm install left the page before it could be pressed.
 - Prove Parallel, Loop, and a killed host through the live daemon. The old in-process driver is gone. Publishing a later version leaves a waiting run on the version it started, and previewing a move answers that it is not available yet.
