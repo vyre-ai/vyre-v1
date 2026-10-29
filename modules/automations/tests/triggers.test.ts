@@ -4,9 +4,9 @@ import assert from "node:assert/strict";
 import { harness, codeOf, reasonOf } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { alice, create, engine, goodDefinition, node } from "../fixtures/seed.ts";
-import { consumeEvent, loadRunPlan } from "../impl.ts";
+import { consumeEvent, loadRunPlan, startRun } from "../impl.ts";
 import type { LoggedEvent } from "../handlers/triggers.ts";
-import { findRunLink } from "../projections.ts";
+import { findRunLink, getAutomation } from "../projections.ts";
 
 async function refused(p: Promise<unknown>, code: string, reason?: string): Promise<void> {
   await assert.rejects(p, (e) => { assert.equal(codeOf(e), code); if (reason) assert.equal(reasonOf(e), reason); return true; });
@@ -260,6 +260,29 @@ test("stop ends one Run, or every active Run and pauses the Automation", async (
   assert.equal(a.status, "paused");
   assert.equal(a.pausedReason, `Stopped by ${alice.id}`);
   await refused(h.call("automations.stop", { automationId: id, runId: "run_t99" }, alice), "validation.precondition_failed", "not_a_run_of_this");
+});
+
+test("stopping one run also stops an unfinished child and leaves a finished child", async () => {
+  const h = harness();
+  const id = await live(h);
+  const parent = await h.call("automations.run", { automationId: id }, alice);
+  const startChild = (key: string) => h.consumer(engine, (ctx) => {
+    const a = getAutomation(ctx, id);
+    return startRun(ctx, a, {
+      trigger: "manual", payload: { startedBy: alice.id }, test: false, depth: 0, parentRun: parent.runId, key,
+      principal: { kind: "person", id: alice.id },
+    });
+  });
+  const waitingId = await startChild("child-wait");
+  const doneId = await startChild("child-done");
+  h.runs.find((r) => r.id === waitingId)!.status = "waiting";
+  h.runs.find((r) => r.id === doneId)!.status = "succeeded";
+  const one = await h.call("automations.stop", { automationId: id, runId: parent.runId }, alice);
+  assert.equal(one.stopped, 2);
+  assert.equal(h.runs.find((r) => r.id === parent.runId)!.status, "stopped");
+  assert.equal(h.runs.find((r) => r.id === waitingId)!.status, "stopped");
+  assert.equal(h.runs.find((r) => r.id === doneId)!.status, "succeeded");
+  assert.equal((await h.call("automations.get", { automationId: id }, alice)).automation.status, "on");
 });
 
 test("stop with pause false only stops the Runs; the event for a pause says why", async () => {

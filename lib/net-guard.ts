@@ -5,9 +5,12 @@ import dns from "node:dns/promises";
 import http from "node:http";
 import https from "node:https";
 import net from "node:net";
+import { refusesAddress, reservedAddress } from "./address-guard.ts";
 
 /** An address the probe may not reach (SSRF): link-local always (cloud metadata is 169.254.169.254); loopback, private, unique-local and unspecified unless this is the caller's own computer. */
 export function blockedAddress(ip: string, own: boolean): string | null {
+  // The shared address list first: it covers the forms the lines below do not (multicast, reserved, benchmarking, NAT64, 6to4, a mapped address written in hex).
+  if (own ? reservedAddress(ip) : net.isIP(ip) !== 0 && refusesAddress(ip)) return "a reserved address";
   const v4 = (a: number, b: number): string | null => {
     if (a === 169 && b === 254) return "a link-local address";
     if (own) return null;

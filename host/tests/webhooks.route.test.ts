@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { createWebhookRoute, DEFAULT_WEBHOOK_BUDGET, MAX_WEBHOOK_BYTES } from "../src/routes/webhooks.ts";
+import { AUTOMATION_HOOKS_PER_MINUTE, createWebhookRoute, DEFAULT_WEBHOOK_BUDGET, MAX_WEBHOOK_BYTES } from "../src/routes/webhooks.ts";
 
 type Accept = (connector: string, a: { headers: Readonly<Record<string, string | undefined>>; body: string; url: string; kind?: string }) => Promise<unknown>;
 
@@ -67,4 +67,41 @@ test("Microsoft's subscription handshake is answered with its token as plain tex
     assert.equal(r.headers.get("content-type"), "text/plain; charset=utf-8");
     assert.equal(await r.text(), "Validation: abc");
   } finally { await s.close(); }
+});
+
+test("an automation's webhook: a bare 404 for a refusal, a cap per automation that other automations do not share, and the key and payload reach the module", async () => {
+  const seen: { automationId: string; secret: string; payload: unknown; idempotencyKey?: string }[] = [];
+  const route = createWebhookRoute({
+    has: () => false, accept: async () => ({}), publicBase: () => "https://space.example/",
+    automation: async (a) => { seen.push(a); return a.secret === "goodsecret1" ? { accepted: true } : null; },
+  });
+  const server = http.createServer((req, res) => { if (!route.handle(req, res)) { res.writeHead(404); res.end("{}"); } });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  try {
+    const ok = await fetch(`${url}/hooks/automation/aut_one/goodsecret1`, { method: "POST", body: '{"a":1}', headers: { "idempotency-key": "k-1" } });
+    assert.equal(ok.status, 200);
+    assert.deepEqual(seen[0], { automationId: "aut_one", secret: "goodsecret1", payload: { a: 1 }, idempotencyKey: "k-1" });
+    const text = await fetch(`${url}/hooks/automation/aut_one/goodsecret1`, { method: "POST", body: "plain words" });
+    assert.equal(text.status, 200);
+    assert.deepEqual(seen[1]!.payload, { text: "plain words" });
+    const no = await fetch(`${url}/hooks/automation/aut_one/wrongsecret`, { method: "POST", body: "{}" });
+    assert.equal(no.status, 404);
+    assert.equal(await no.text(), "");
+    assert.equal((await fetch(`${url}/hooks/automation/aut_one/goodsecret1`)).status, 405);
+    assert.equal((await fetch(`${url}/hooks/automation/aut_one/goodsecret1`, { method: "POST", body: "x".repeat(MAX_WEBHOOK_BYTES + 1) })).status, 413);
+  } finally { await new Promise<void>((r) => server.close(() => r())); }
+
+  let clock = 5_000_000;
+  const quiet = createWebhookRoute({ has: () => false, accept: async () => ({}), publicBase: () => "https://space.example/", now: () => clock, budget: { perMinute: 100_000, failuresPerMinute: 100_000 }, automation: async () => ({ accepted: true }) });
+  const s2 = http.createServer((req, res) => { if (!quiet.handle(req, res)) { res.writeHead(404); res.end("{}"); } });
+  await new Promise<void>((r) => s2.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${(s2.address() as { port: number }).port}`;
+  try {
+    for (let i = 0; i < AUTOMATION_HOOKS_PER_MINUTE; i++) assert.equal((await fetch(`${base}/hooks/automation/aut_busy/goodsecret1`, { method: "POST", body: "{}" })).status, 200);
+    assert.equal((await fetch(`${base}/hooks/automation/aut_busy/goodsecret1`, { method: "POST", body: "{}" })).status, 429);
+    assert.equal((await fetch(`${base}/hooks/automation/aut_calm/goodsecret1`, { method: "POST", body: "{}" })).status, 200, "another automation is not held back");
+    clock += 61_000;
+    assert.equal((await fetch(`${base}/hooks/automation/aut_busy/goodsecret1`, { method: "POST", body: "{}" })).status, 200, "a minute later it is let in again");
+  } finally { await new Promise<void>((r) => s2.close(() => r())); }
 });
