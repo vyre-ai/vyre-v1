@@ -247,4 +247,8 @@ test("a release skips only what a reused green whole-suite run covers, and says 
   for (const n of ["guard", "reuse", "package", "heavy", "security"]) assert.match(live.text, new RegExp(`needs\\.${n}\\.result == 'success'`), `live requires ${n} to pass`);
   assert.match(live.text, /needs\.reuse\.outputs\.run != '' \|\| \(needs\.suite\.result == 'success' && needs\.client\.result == 'success' && needs\.kits\.result == 'success' && needs\.images\.result == 'success'\)/, "without a reused run the suite must pass here");
   assert.match(job("publish").text, /RELEASE_TESTS: \$\{\{ needs\.reuse\.outputs\.tests \}\}/, "the release notes say where the tests ran");
+  // a job below live with the implied success() would be skipped by live's skipped ancestors when a run is reused (dryrun.18 skipped deploy that way): sign and deploy test live's result
+  assert.match(job("sign").text, /if: always\(\) && needs\.guard\.result == 'success' && needs\.guard\.outputs\.dryrun != 'true' && needs\.desktop-release-files\.result == 'success' && needs\.live\.result == 'success'/);
+  assert.match(job("deploy").text, /if: always\(\) && needs\.live\.result == 'success'/);
+  for (const j of rel.jobs) if (j.needs.includes("live")) assert.match(j.text, /if: always\(\)/, `${j.name} runs on live's result, not on the implied success() of live's ancestors`);
 });

@@ -187,7 +187,8 @@ jobs:
       - run: echo "live gate passed"
   sign:
     needs: [guard, desktop-release-files, live]
-    if: needs.guard.outputs.dryrun != 'true'
+    # explicit results, not the implied success(): with a reused whole-suite run, live's own skipped ancestors (select, suite) would otherwise skip the real signing too
+    if: always() && needs.guard.result == 'success' && needs.guard.outputs.dryrun != 'true' && needs.desktop-release-files.result == 'success' && needs.live.result == 'success'
     # The only job that ever holds the real key. It has a runner label of its own that no other workflow names (scripts/release/runner-label.test.ts fails if one does), on a host that runs
     # nothing else, and it runs in a container that is removed when the job ends. Never on the shared CI runners: code from an earlier PR job could have changed them.
     runs-on: [self-hosted, linux, release-sign]
@@ -323,6 +324,7 @@ jobs:
         run: node scripts/release/cli.ts unpublish "$TAG"
   deploy:
     needs: live
+    if: always() && needs.live.result == 'success'
     uses: ./.github/workflows/deploy.yml
   budget-tag:
     permissions: { contents: read, actions: read }
