@@ -167,6 +167,7 @@
 - Restored Records and Files item routes: real record/project pages and plans, file previews, folder links, and browser URL history now follow the selected item, including copied links, project tabs and reloads. Removed an unused viewer barrel so every restored production file has executable coverage.
 
 ## Unreleased
+- Automations: a SIGKILL while a Run is waiting resumes that same Run on the next daemon, and the record after the wait is written once.
 - Automations: naming an app asks the host for that provider in the official OpenAPI directory. The directory host is fixed. A web address the person types is not opened. A pasted document still wins.
 - Automations: naming Stripe asks the host for the allowlisted official document. A web address the person types is not opened. Matching paths become steps, and a webhook in that document becomes the catalog webhook trigger once. An outward call is still not sent. Other apps still need a document already in hand.
 - Automations: Ask can try a catalog read with the saved connection through steps.test. A connector read is a dry-run preview and is not sent. An outward call is not given a capability. A document already on the tab becomes one step proposal per action. Secret fields stay out of the call and the line.
