@@ -171,8 +171,10 @@ export class FakeIdentityDb implements RawDb {
   readonly log: string[] = [];
 
   constructor(migrationPath: string = MIGRATION) {
-    this.tables = parseMigration(readFileSync(migrationPath, "utf8"));
+    this.tables = parseMigration(readFileSync(migrationPath, "utf8")+(migrationPath===MIGRATION?readFileSync(new URL("../migrations/0002_recovery_challenges.sql",import.meta.url),"utf8"):""));
   }
+  addSchema(sql:string):void{for(const[name,table]of parseMigration(sql))if(!this.tables.has(name))this.tables.set(name,table);}
+  tx<T>(work:()=>T):T{const snapshot=structuredClone(this.tables);try{return work();}catch(error){this.tables.clear();for(const[name,table]of snapshot)this.tables.set(name,table);throw error;}}
 
   rows(table: string): Row[] { return this.table(table).rows.map((r) => ({ ...r })); }
 
@@ -320,6 +322,7 @@ export function harness(now = NOW) {
   let clock = now;
   const base = {
     space: SPACE,
+    spaceOwner:()=>"usr_owner",
     trace: { traceId: TRACE },
     now: () => clock,
     db,

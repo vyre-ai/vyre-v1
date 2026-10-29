@@ -292,5 +292,27 @@
       ]
     }
   ],
-  "known": []
+  "known": [
+    {
+      "rule": "layer",
+      "file": "apps/app/tests/sync.endpoint.live.test.ts",
+      "spec": "../../../scripts/lib/registry-hash.mjs",
+      "reason": "test-only: the live test must compute the registry hash exactly as the build and server do, from the one shared script",
+      "until": "2027-01-31"
+    },
+    {
+      "rule": "forbidden",
+      "file": "client/tests/crypto/recovery.test.ts",
+      "spec": "../../../kernel/src/seal/box.ts",
+      "reason": "test-only interop proof: it must use the other side's real implementation to show both speak the same bytes; no production code crosses this edge",
+      "until": "2027-01-31"
+    },
+    {
+      "rule": "layer",
+      "file": "host/tests/recovery.challenge.live.test.ts",
+      "spec": "../../client/src/crypto/keys.ts",
+      "reason": "test-only interop proof: it must use the other side's real implementation to show both speak the same bytes; no production code crosses this edge",
+      "until": "2027-01-31"
+    }
+  ]
 }

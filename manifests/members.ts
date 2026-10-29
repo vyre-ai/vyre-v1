@@ -68,7 +68,7 @@ export default defineManifest({
     }),
 
     // ---- sign-in policy, second factor, SSO
-    read('members.sign_in_policy.get', 'The Space sign-in policy: second-factor floor, SSO required, allowed methods', { ...V, in: {}, out: { policy }, perm: 'policy.manage', tool: 'engineer', team: true }),
+    read('members.sign_in_policy.get', 'The Space sign-in policy: second-factor floor, SSO required, allowed methods', { ...V, in: {}, out: { policy, capabilities: t.opt(t.obj({password:t.bool(),github:t.bool(),sso:t.arr(t.str()),newMemberMfaEnrollment:t.bool(),ownerHasSecondFactor:t.bool(),currentHasSecondFactor:t.bool()})) }, perm: 'policy.manage', tool: 'engineer', team: true }),
     write('members.sign_in_policy.set', 'Set the sign-in policy (owner floor: nobody goes below it)', { ...V, in: { policy }, out: { policy }, perm: 'policy.manage', emits: ['policy.changed'], audit: 'always', risk: 'high', tool: 'engineer', team: true }),
     read('members.second_factor.report', 'Who has a second factor and who does not (when the floor is on, the ones locked out soon)', {
       ...V, in: { ...pageIn }, out: { people: t.arr(t.obj({ person: principalRef, name: t.str(), factors: t.arr(t.enm('totp', 'passkey')) })), ...pageOut }, perm: 'policy.manage', tool: 'engineer', team: true,

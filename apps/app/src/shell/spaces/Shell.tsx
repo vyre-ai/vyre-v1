@@ -1,16 +1,14 @@
 // The shell (spec 3.0, 2.1, ARCH 7.0): title bar on top; under it the rail, then the main view with its tab strip and the open place. One Space is open at a time:
 // a switch shows the skeleton as its first frame, unmounts every place, and keys the next place by the new Space, so two Spaces' rows never meet on screen.
 // Places are drawn by `renderPlace`; the shell owns the frame, the tabs, the keys and the Space.
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, StyleSheet, View, useWindowDimensions } from "react-native";
 import { reportProblem } from "../../../../../ui/src/Menu/index.tsx";
 import { NeedsTeamSpace } from "../../../../../ui/src/NeedsTeamSpace/index.tsx";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import type { PhoneDeviceLike } from "../../../../../ui/src/Softphone/index.tsx";
-import { InboxDataProvider } from "../../places/inbox/sidebar/index.ts";
-import type { InboxData } from "../../places/inbox/sidebar/index.ts";
-import { CallTitlePill, InboxPhoneDock } from "../../places/inbox/softphone/index.ts";
+import type { InboxData } from "../../places/inbox/sidebar/data.tsx";
 import { Rail } from "../rail/Rail.tsx";
 import { SidebarBack, SidebarExpand, SidebarSlot, SidebarSlotProvider, useSidebarSlot } from "../sidebar/index.ts";
 import type { SidebarStorage } from "../sidebar/index.ts";
@@ -27,6 +25,9 @@ import { watchPurge } from "./purge.ts";
 import type { ShellPurge } from "./purge.ts";
 import { SpaceTile } from "./SpaceSwitcher.tsx";
 import type { SpaceAction } from "./SpaceSwitcher.tsx";
+
+const InboxPhoneShell = lazy(() => import("../providers/inbox.tsx").then((m) => ({ default: m.InboxPhoneShell })));
+const InboxCallTitlePill = lazy(() => import("../providers/inbox.tsx").then((m) => ({ default: m.InboxCallTitlePill })));
 
 /** What a place needs to know to draw: which Space, which place, which item. Places key every query by `spaceId`. */
 export interface PlaceContext {
@@ -49,6 +50,8 @@ export interface ShellProps {
   onOpenWaiting?: () => void;
   /** Sign out, Add a Space and the like leave the shell; it tells you. */
   onSpaceAction?: (action: SpaceAction) => void;
+  /** Production activates the target server session; sample hubs can switch locally. */
+  onSwitchSpace?: (spaceId:string) => void;
   /** Called when a person points at or focuses a place in the rail or a tab: the session reads that place's first queries ahead of the click. */
   onPrefetchPlace?: (place: PlaceId) => void;
   /** Who and where, for remembering a collapsed sidebar on this device. Without it the choice lasts for the session. */
@@ -117,6 +120,7 @@ export function Shell(props: ShellProps): ReactElement {
   };
 
   const switchBy = (spaceId: string): void => {
+    if(props.onSwitchSpace){props.onSwitchSpace(spaceId);return;}
     const to = hub.spaces().find((s) => s.spaceId === spaceId);
     if (hub.switchTo(spaceId) && to !== undefined) hub.flash(`Switched to ${to.name}`);
   };
@@ -191,7 +195,7 @@ export function Shell(props: ShellProps): ReactElement {
             hub.flash("Skin saved for this Space");
           }}
           compact={compact}
-          call={<CallTitlePill />}
+          call={props.phone ? <Suspense fallback={null}><InboxCallTitlePill /></Suspense> : null}
         />
         <View style={compact ? styles.bodyPhone : styles.body}>
           {compact ? null : <Rail
@@ -225,7 +229,7 @@ export function Shell(props: ShellProps): ReactElement {
   );
   return (
     <HubProvider hub={hub}>
-      {props.phone ? <InboxDataProvider value={props.phone.data}><InboxPhoneDock device={props.phone.device}>{frame}</InboxPhoneDock></InboxDataProvider> : frame}
+      {props.phone ? <Suspense fallback={frame}><InboxPhoneShell device={props.phone.device} data={props.phone.data}>{frame}</InboxPhoneShell></Suspense> : frame}
     </HubProvider>
   );
 }

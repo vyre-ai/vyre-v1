@@ -126,6 +126,7 @@ async function titleOf(ctx: GovCtx, kind: HoldKind, id: string): Promise<string>
     if (kind === "file") return text(obj(obj(await ctx.call("files.get", { fileId: id }))["file"])["name"]) || id;
     if (kind === "folder") return text(obj(obj(await ctx.call("files.folder.get", { folderId: id }))["folder"])["name"]) || id;
     if (kind === "channel") return text(obj(obj(await ctx.call("channels.get", { channelId: id }))["channel"])["name"]) || id;
+    if (kind === "person") return text(obj(obj(await ctx.call("access.principals.get", { principal: { kind: "person", id } }))["principal"])["name"]) || id;
   } catch {
     // a title that cannot be read does not hide the hold
   }

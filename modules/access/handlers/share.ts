@@ -11,7 +11,7 @@ import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { ladderFor, levelIncludes } from "../../../packages/contracts/src/levels.ts";
 import type { ResourceType } from "../../../packages/contracts/src/types.ts";
 import type { AccessCtx, AccessStore, Cond, Db, GrantRec, Level, Ref, ResourceRec, ResourceRef, SubjectRef } from "../projections.ts";
-import { changed, EVERYONE, fnv, grantView, isExpr, nid, page, pkey, raise, storeOf } from "../projections.ts";
+import { changed, EVERYONE, fnv, grantView, isExpr, labelRank, nid, page, pkey, raise, storeOf } from "../projections.ts";
 
 export type Via = "owner" | "grant" | "folder" | "space";
 export type Section = "personal" | "shared" | "space" | "starred" | "following";
@@ -356,7 +356,10 @@ function checkConditions(ctx: AccessCtx, c: Cond | undefined): Cond {
   }
   if (c.hiddenFields) out.hiddenFields = [...c.hiddenFields];
   if (c.labelCeiling) out.labelCeiling = c.labelCeiling;
-  if (c.window) out.window = { from: c.window.from, to: c.window.to };
+  if (c.window) {
+    if(c.window.from>=c.window.to||c.window.to<=ctx.now())raise(ctx.trace.traceId,"validation.precondition_failed","the access window must end after its start and after now");
+    out.window = { from: c.window.from, to: c.window.to };
+  }
   if (c.expiresAt !== undefined) {
     if (c.expiresAt <= ctx.now()) raise(ctx.trace.traceId, "validation.precondition_failed", "the expiry is already past");
     out.expiresAt = c.expiresAt;
@@ -381,6 +384,46 @@ function checkLink(ctx: ShareCtx, store: AccessStore, subject: SubjectRef, level
   return out;
 }
 
+/** A conservative proof: a narrower conjunction may retain the exact parent predicate. */
+export function filterContained(parent: unknown, child: unknown): boolean {
+  if(parent===undefined||parent===null)return true;
+  if(child===undefined||child===null)return false;
+  const stable=(value:unknown):string=>JSON.stringify(value&&typeof value==="object"&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b)).map(([key,item])=>[key,JSON.parse(stable(item))])):Array.isArray(value)?value.map(item=>JSON.parse(stable(item))):value);
+  if(stable(parent)===stable(child))return true;
+  const p=parent as {op?:string;args?:unknown[]},c=child as {op?:string;args?:unknown[]};
+  if(p.op==="and"&&p.args)return p.args.every(part=>filterContained(part,child));
+  return c.op==="and"&&!!c.args?.some(part=>filterContained(parent,part));
+}
+function hasOwnerPredicate(value:unknown):boolean {if(!value||typeof value!=="object")return false;const row=value as {op?:string;args?:unknown[]};return row.op==="owner_me"||!!row.args?.some(hasOwnerPredicate);}
+/** Every acting subject must delegate through an independent, live path. The grant being edited cannot renew itself. */
+function assertDelegation(ctx:ShareCtx,store:AccessStore,res:ResourceRec,subject:SubjectRef,level:Level,conditions:Cond,exclude?:string):void {
+ const have=must(ctx,store,res,"edit","sharing");if(rank(res.type,level)>rank(res.type,have))raise(ctx.trace.traceId,"permission.not_contained",`you hold ${have} here and cannot give ${level}`);
+ const snap=store.snapshot(),me=snap.info(ctx.principal.id);if(!me)raise(ctx.trace.traceId,"permission.no_grant");const subjects:Info[]=[me];
+ const add=(id:string|null|undefined)=>{const who=id?snap.info(id):null;if(who&&!subjects.includes(who))subjects.push(who);};if(me.p.kind==="svc")add(me.p.owner);if(ctx.actingFor)add(ctx.actingFor.id);
+ for(const who of subjects){if(res.ownerId===who.p.id)continue;
+  const contained=matched(snap,store,who,res,ctx.now()).some(parent=>{
+   if(parent.row.id===exclude||rank(res.type,parent.row.level)<rank(res.type,level)||!atLeast(res.type,parent.row.level,"edit"))return false;
+   const original=store.grants.get(parent.row.id)?.conditions;
+   if(Math.min(conditions.expiresAt??Infinity,conditions.window?.to??Infinity)>Math.min(parent.exp,parent.na)||(conditions.window?.from??-Infinity)<parent.nb)return false;
+   if(parent.hidden.some(field=>!conditions.hiddenFields?.includes(field)))return false;
+   if(!filterContained(parent.filter,conditions.rowFilter))return false;
+   if(hasOwnerPredicate(parent.filter)&&(subject.kind!=="person"||subject.id!==who.p.id))return false;
+   const ceiling=original?.labelCeiling;
+   return !ceiling||labelRank(conditions.labelCeiling??"restricted")<=labelRank(ceiling);
+  });
+  if(!contained)raise(ctx.trace.traceId,"permission.not_contained","The new grant must stay inside an independent current grant, including its expiry, time window, row filter, hidden fields and sensitivity ceiling.");
+ }
+}
+export async function updateGrant(ctx:ShareCtx,input:{grantId:string;level?:Level;conditions?:Cond}) {
+ const store=storeOf(ctx),grant=store.grants.get(input.grantId);if(!grant)raise(ctx.trace.traceId,"validation.not_found","no such grant");
+ const res=resourceOf(ctx,store,grant.resource),level=input.level??grant.level;let conditions=checkConditions(ctx,input.conditions??grant.conditions);checkSubject(ctx,store,grant.subject);
+ if(grant.subject.kind==="link")conditions=checkLink(ctx,store,grant.subject,level,conditions);
+ assertDelegation(ctx,store,res,grant.subject,level,conditions,grant.id);
+ const ss=shareOf(ctx),wasFresh=isFresh(ctx,store,ss);grant.level=level;grant.conditions=conditions;
+ const updated:{grantId:string;level:Level;expiresAt?:number}={grantId:grant.id,level};if(conditions.expiresAt!==undefined)updated.expiresAt=conditions.expiresAt;
+ ctx.emit("grant.updated",grant.id,updated);changed(ctx,store,"assignment");commit(ctx,store,ss,wasFresh,[res.id],false);return {grant:grantView(grant)};
+}
+
 export async function share(ctx: ShareCtx, input: {
   resource: ResourceRef; subject: SubjectRef; level: Level; conditions?: Cond; source?: string; idempotencyKey?: string;
 }) {
@@ -392,14 +435,12 @@ export async function share(ctx: ShareCtx, input: {
   const res = resourceOf(ctx, store, input.resource);
   checkSubject(ctx, store, input.subject);
   let cond = checkConditions(ctx, input.conditions);
-  // sharing needs Edit; you may hand out at most the level you hold (a delegated grant stays inside its parent)
-  const have = must(ctx, store, res, "edit", "sharing");
-  if (rank(res.type, input.level) > rank(res.type, have)) raise(trace, "permission.not_contained", `you hold ${have} here and cannot give ${input.level}`);
   if (input.subject.kind === "link") cond = checkLink(ctx, store, input.subject, input.level, cond);
   const wasFresh = isFresh(ctx, store, ss);
   const sameSource = input.source ?? undefined;
   let grant = [...store.grants.values()].find((g) =>
     g.subject.kind === input.subject.kind && g.subject.id === input.subject.id && g.resource.type === res.type && g.resource.id === res.id && g.source === sameSource);
+  assertDelegation(ctx,store,res,input.subject,input.level,cond,grant?.id);
   const created = !grant;
   if (grant) { grant.level = input.level; grant.conditions = cond; }
   else {

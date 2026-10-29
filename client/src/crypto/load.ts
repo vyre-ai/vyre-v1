@@ -2,3 +2,5 @@
 // imports make Metro hoist hash-wasm into the startup common chunk; callers reach it only when a
 // person unlocks or creates key material.
 export const loadCryptoKeys = () => import("./keys.ts");
+
+export const loadRecoveryCrypto = () => import("./recovery.ts");

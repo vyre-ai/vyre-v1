@@ -18,5 +18,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "import.suggest_mapping": async (ctx) => { throw new VyreErr(notImplemented("import.suggest_mapping", ctx.trace)); },
   "import.template": async (ctx) => { throw new VyreErr(notImplemented("import.template", ctx.trace)); },
   "sessions.continue": async (ctx) => { throw new VyreErr(notImplemented("sessions.continue", ctx.trace)); },
+  "sessions.get": async (ctx) => { throw new VyreErr(notImplemented("sessions.get", ctx.trace)); },
   "sessions.import": async (ctx) => { throw new VyreErr(notImplemented("sessions.import", ctx.trace)); },
+  "sessions.list": async (ctx) => { throw new VyreErr(notImplemented("sessions.list", ctx.trace)); },
 };

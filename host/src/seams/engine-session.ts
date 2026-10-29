@@ -59,7 +59,7 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
           if (r.status !== "ok") return { kind: "denied", reason: "no_access" };
           const itemId = (r.output as { itemId?: unknown } | null)?.itemId;
           if (typeof itemId !== "string") return { kind: "unknown" };
-          const value = await d.vault.secret(handle, d.space);
+          const value = await d.vault.secret(handle, d.space, who.asker);
           return { kind: "value", itemId, value, spaceOnly: false, injectIntoDeployments: false };
         } catch (e) {
           const code = codeOf(e);

@@ -50,11 +50,12 @@ export function buildWorld(seed: number, opts: { agentElevated?: boolean } = {})
   snap.putPrincipal({ id: AGENT, kind: "agent", owner: "p1", status: r.chance(0.05) ? "suspended" : "active", name: AGENT });
   snap.putPrincipal({ id: SVC, kind: "svc", owner: "p2", status: "active", name: SVC });
   const roleNames = ["member", "guest", "none", "owner", "admin"];
+  // Keep legacy Owner assignments in the worlds, and include valid direct Admin roles for people/services.
   const holders = [...PERSONS, AGENT, SVC, "g1", "g2"];
   for (const h of holders) {
     const n = r.int(3);
     for (let i = 0; i < n; i++) {
-      const role = h === AGENT && !opts.agentElevated ? r.pick(["member", "guest", "none"]) : h === AGENT || h.startsWith("g") ? r.pick(roleNames) : r.pick(["member", "guest", "none", "owner"]);
+      const role = h === AGENT && !opts.agentElevated ? r.pick(["member", "guest", "none"]) : h === AGENT || h.startsWith("g") ? r.pick(roleNames) : r.pick(["member", "guest", "none", "owner", "admin"]);
       snap.addPrincipalRole({ holder: h, role });
     }
   }
@@ -81,6 +82,7 @@ export function buildWorld(seed: number, opts: { agentElevated?: boolean } = {})
     const w4 = r.int(10), where = w4 < 4 ? 0 : w4 < 6 ? 1 : w4 < 8 ? 2 : 3;
     const [resource_type, resource_id] = where === 0 ? ["deal", null] as const : where === 1 ? ["deal", `r${r.int(12)}`] as const : where === 2 ? ["folder", r.pick(["root", "f1", "f2"])] as const : ["record_type", "rt_deal"] as const;
     const c: Conditions = {};
+    if (r.chance(0.4)) c.labelCeiling = r.int(4);
     if (r.chance(0.55)) c.rowFilter = expr(r, 2);
     if (r.chance(0.15)) c.notBefore = r.pick([500, 1500]);
     if (r.chance(0.1)) c.notAfter = r.pick([500, 1500]);

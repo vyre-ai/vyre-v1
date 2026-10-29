@@ -36,12 +36,12 @@ const writeEmptyIndex = () => {
 // head commit with [perf], ruling 66) the report runs first and the scroll probe follows, so a packet that changes what the app loads (P-L9_17) gets its startup number from its own branch.
 if ((want === "P-UI_14" || args["probes-only"]) && !args["skip-startup"]) {
   const { main } = await import("./startup.mjs");
-  await main(args["skip-export"] ? ["--skip-export"] : []);
+  await main(["--enforce", ...(args["skip-export"] ? ["--skip-export"] : [])]);
 }
 if (want === "P-UI_14") {
   writeEmptyIndex();
   console.log("P-UI_14 carries startup evidence only: wrote an empty screenshot index");
-  process.exit(0);
+  process.exit(process.exitCode ?? 0);
 }
 
 // A packet id (P-L9b_02) selects that packet's targets, whose ids start with it; "all" runs everything.
@@ -51,7 +51,7 @@ const targets = shardTargets(selectedTargets, shardIndex, shardTotal);
 if (!targets.length && want.startsWith("P-")) {
   writeEmptyIndex();
   console.log(`no targets for ${want}: wrote an empty screenshot index`);
-  process.exit(0);
+  process.exit(process.exitCode ?? 0);
 }
 if (!targets.length) { console.error(`no target ${want}`); process.exit(1); }
 

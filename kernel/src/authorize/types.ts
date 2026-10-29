@@ -11,7 +11,7 @@ export type ReasonCode =
 
 export type PrincipalKind = "person" | "agent" | "svc";
 export interface PrincipalRow { id: string; kind: PrincipalKind; owner?: string | null; status: "active" | "suspended" | "removed"; name?: string }
-export interface RoleRow { id: string; clearance: number; perms: readonly string[]; name?: string }
+export interface RoleRow { id: string; clearance: number; perms: readonly string[]; name?: string; assignableToAgents?: boolean }
 export interface GroupMemberRow { group: string; member: string }
 /** `holder` is a person, an agent, a svc or a group id. */
 export interface PrincipalRoleRow { holder: string; role: string }
@@ -24,6 +24,8 @@ export type Expr =
   | { op: "and" | "or"; args: readonly Expr[] };
 
 export interface Conditions {
+  /** Maximum resource/field classification this grant permits. */
+  labelCeiling?: number | undefined;
   rowFilter?: Expr | undefined;
   hiddenFields?: readonly string[] | undefined;
   notBefore?: number | undefined;

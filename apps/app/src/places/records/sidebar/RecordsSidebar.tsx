@@ -60,7 +60,7 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
   const types = useScreenQuery<TypesOut>(SCREENS.types, "types");
   const groups = typeGroups(types.status === "ready" ? types.data.types : []);
   const open = effectiveType(state, groups);
-  const views = useScreenQuery<ViewsOut>(SCREENS.views, "views", open ? { type: open } : {});
+  const views = useScreenQuery<ViewsOut>(SCREENS.views, "views", open ? { type: open } : {}, open !== null);
   const allSaved = sortedViews(views.status === "ready" && open ? views.data.views : [], null);
   // The slot's search field: rows keep when every word of it is in their title, and a search opens every section it has a match in.
   const q = query.trim();

@@ -15,7 +15,7 @@ const toolset = t.enm('records', 'files', 'memory', 'vault', 'automations', 'cha
 const toolInfo = t.obj({ name: t.str({ examples: ['records_query'] }), summary: t.str(), toolset, deferred: t.bool(), input: t.opt(t.json()) });
 const sessionRow = t.obj({
   sessionId: id.session, kind: t.enm('outside', 'driver'), principal: t.str(), actingFor: t.opt(t.str()), threadId: t.opt(id.thread), runId: t.opt(id.run), name: t.opt(t.str()),
-  scopes: t.opt(scopes), startedAt: t.ts(), lastCallAt: t.opt(t.ts()), calls: t.int(),
+  scopes: t.opt(scopes), startedAt: t.ts(), lastCallAt: t.opt(t.ts()), calls: t.int(), closedAt: t.opt(t.ts()), expiresAt: t.opt(t.ts()),
 });
 const tokenId = t.id('tok');
 

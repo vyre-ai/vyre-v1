@@ -9,6 +9,7 @@ import { DEFAULT_PULL_LIMIT, MAX_PULL_LIMIT } from "../../protocol.ts";
 import type { Change, FieldVal, Hide, PullReq, PullRes } from "../../protocol.ts";
 import type { Catalog } from "./catalog.ts";
 import type { Cell, Cells } from "./fold.ts";
+import { purgeIfNarrowed } from "./classify.ts";
 import { ScopeCache, Viewer, Window } from "./scope.ts";
 import type { RowRec, Who } from "./scope.ts";
 
@@ -195,6 +196,8 @@ export function pullChanges(d: PullDeps, who: Who, req: PullReq, trace = "0".rep
   const now = d.now();
   const viewer = new Viewer({ cache: d.cache, who, now, phoneCeiling: d.phoneCeiling() });
   const window = new Window(db, now, (entity, id) => d.keep(who.person, entity, id));
+  // a field this device cached and may no longer hold is not removed by any patch: purge it and let it resnapshot, before any data goes back
+  if (purgeIfNarrowed(d, who, viewer)) return { epoch: deviceEpochOf(db, who.person, who.device), changes: [], hide: [], next: req.cursor, more: false, serverHlc, reset: "purge" };
   rescanChanged(d, who, viewer, window, cursor, trace, onScope);
   const scanLimit = limit * 4;
   const scan = db.all<ChangeRec>(`SELECT seq, entity, id, op, fields FROM sync_changes WHERE ${where.join(" AND ")} ORDER BY seq LIMIT ${scanLimit}`, ...args);

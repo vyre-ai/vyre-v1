@@ -200,7 +200,7 @@ test("OAuth: the sign-in address, the code exchange, tokens in the Vault and onl
 
   // the token is used as a bearer, and a probe works
   k.sent.length = 0;
-  assert.equal((await k.hs["connections.test"](k.ctx, { connectionId: done.connectionId })).state, "healthy");
+  { const probe = await k.hs["connections.test"](k.ctx, { connectionId: done.connectionId }); assert.equal(probe.state, "healthy", JSON.stringify(probe) + JSON.stringify(k.logs)); }
   assert.equal(k.sent[0]!.headers["Authorization"], "Bearer at_ACCESSTOKEN9");
 
   // the state is single use
@@ -312,4 +312,10 @@ test("the harness refuses a definition that breaks the rules before any call", a
   assert.equal(oauth.failed, 0);
   assert.match(bad(await result({ ...OAUTHAPP, tests: [], auth: { ...OAUTHAPP.auth, tokenUrl: "https://evil.example.com/t" } }), /auth/), /evil\.example\.com/);
   assert.match(bad(await result({ ...OAUTHAPP, tests: [], auth: { ...OAUTHAPP.auth, tokenUrl: undefined } }), /auth/), /missing/);
+});
+
+test('another person cannot consume a personal OAuth state or exchange its code',async()=>{
+ const k=kit();k.install(OAUTHAPP);const made=await k.hs['connections.create'](k.ctx,{connector:'oauthapp',title:'Fixture OAuth',ownerKind:'person'});const state=new URL(made.authUrl!).searchParams.get('state')!;const actor=k.ctx.actor??'usr_dana';k.ctx.actor='usr_unrelated';
+ await assert.rejects(k.hs['connections.complete_auth'](k.ctx,{state,code:'fixture-code'}),code('permission.no_grant'));assert.equal(k.sent.length,0);assert.ok(k.tx.get('SELECT state FROM cn_oauth WHERE state = ?',state));k.ctx.actor=actor;
+ k.state.reply=()=>({status:200,body:{access_token:'fixture-token'}});assert.equal((await k.hs['connections.complete_auth'](k.ctx,{state,code:'fixture-code'})).connectionId,made.connection.connectionId);
 });

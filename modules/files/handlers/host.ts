@@ -1,6 +1,6 @@
 export interface FilesHost {
   resources: {
-    ensure(r: { id: string; type: "folder"; parentId: string | null; ownerId?: string }): Promise<void>;
+    ensure(r: { id: string; type: "folder"; parentId: string | null; ownerId?: string; privateRoot?: boolean }): Promise<void>;
     setLabel(r: { id: string; type: "folder"; label: "public" | "internal" | "confidential" | "restricted" }): Promise<void>;
   };
 }

@@ -19,7 +19,7 @@ export interface VaultCtx {
   space: string;
   principal: { kind: "person" | "agent" | "actor" | "service"; id: string };
   actingFor?: string;
-  trace: { traceId: string };
+  trace: { traceId: string; spanId?:string; parent?:string };
   now(): number;
   db: VaultDb;
   emit(name: string, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;

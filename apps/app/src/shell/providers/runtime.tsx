@@ -1,3 +1,5 @@
+import type{SpaceDef}from'../spaces/model.ts';
+import type {RecordsPreviewTicket,RecordsPreviewReader} from "../../../../../client/src/gateway/records-preview.ts";
 // What the shell hands every place: one runtime per open Space. It carries the client replica's screen hooks (every list a place draws is a live query over the kept copy),
 // the capability caller, the connection state, the signed-in person, and one door for opening things. Places never open the network and never decide where a thing opens.
 // The shell builds one runtime per Space and keeps it stable while that Space is open, so the providers below memoise on its identity.
@@ -15,7 +17,9 @@ export interface ShellTarget {
 export type SpaceKind = "team" | "personal";
 
 export interface ShellRuntime extends Omit<HomeData, "nav"> {
+  createRecordsPreview?(ticket:RecordsPreviewTicket):RecordsPreviewReader;
   space: { id: string; kind: SpaceKind; name: string };
+  knownSpaces?: readonly SpaceDef[];
   assistant: { id: string; name: string };
   /** Without an AI account the assistant is locked (the Ask box says so). Read at render, so a connection made in Settings shows at once. */
   readonly aiConnected: boolean;

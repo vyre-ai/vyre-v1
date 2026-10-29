@@ -21,6 +21,7 @@ const conditions = t.obj({
   window: t.opt(t.obj({ from: t.ts(), to: t.ts() })),
   expiresAt: t.opt(t.ts()),
 });
+const roleHolderRef = t.obj({ kind: t.enm('person', 'agent', 'actor', 'service', 'group'), id: t.str({ pattern: '^(usr|agt|act|svc|grp)_[a-z0-9]+$', examples: ['usr_a1b2c3'] }) });
 const principalRow = t.obj({
   id: pid, kind: t.enm('person', 'agent', 'actor', 'service'), name: t.str(), owner: t.opt(pid),
   status: t.enm('invited', 'active', 'suspended', 'removed'), roles: t.arr(id.role), groups: t.arr(id.group),
@@ -71,7 +72,7 @@ export default defineManifest({
     ev('access.everyone_defaults_changed', 'The default grants of the Everyone group changed', { p: { grants: t.int({ minimum: 0 }), by: t.str() }, subject: ['entity', '/by'], retention: 'audit' }),
     ev('grant.revoked', 'A grant was removed', { p: { grantId: id.grant, subject: subjectRef, resource: resourceRef, reason: t.opt(t.str()) }, subject: ['entity', '/grantId'], retention: 'audit' }),
     ev('policy.changed', 'A Space policy was set or reset (Gate rule, spend, label rule, sign-in, sharing, retention, vault)', { p: { key: t.str(), scope: t.str(), kind: t.str(), by: t.str() }, subject: ['entity', '/key'], retention: 'audit' }),
-    ev('principal.created', 'A person, agent, outside actor or service came to exist', { p: { principalId: pid, kind: t.enm('person', 'agent', 'actor', 'service'), owner: t.opt(pid) }, subject: ['entity', '/principalId'], retention: 'audit' }),
+    ev('principal.created', 'A person, agent, outside actor or service came to exist', { p: { principalId: pid, kind: t.enm('person', 'agent', 'actor', 'service'), name: t.opt(t.str()), owner: t.opt(pid) }, subject: ['entity', '/principalId'], retention: 'audit' }),
     ev('principal.suspended', 'A principal was suspended', { p: { principalId: pid, reason: t.opt(t.str()) }, subject: ['entity', '/principalId'], retention: 'audit' }),
     ev('principal.reactivated', 'A suspended principal was reactivated', { p: { principalId: pid }, subject: ['entity', '/principalId'], retention: 'audit' }),
     ev('token.revoked', 'An outside actor token was revoked', { p: { actorId: id.actor, by: t.str() }, subject: ['entity', '/actorId'], retention: 'audit' }),
@@ -93,15 +94,15 @@ export default defineManifest({
     read('access.principals.effective', 'Effective permissions, grants held and things owned for one principal (computed)', { ...V, in: { principal: principalRef }, out: { permissions: t.arr(t.str()), roles: t.arr(id.role), grants: t.arr(grantRow), owns: t.arr(resourceRef) }, perm: 'access.manage', tool: 'engineer' }),
 
     // ---- roles
-    read('access.roles.list', 'List roles with their permissions, clearance and holder counts', { ...V, in: { ...pageIn }, out: { roles: t.arr(roleRow), ...pageOut }, tool: 'meta' }),
-    read('access.roles.get', 'Read one role with holders and where it is granted', { ...V, in: { roleId: id.role }, out: { role: roleRow, holders: t.arr(principalRef) }, tool: 'meta' }),
+    read('access.roles.list', 'List roles with their permissions, clearance and holder counts', { ...V, in: { q: t.opt(t.str()), ...pageIn }, out: { roles: t.arr(roleRow), ...pageOut }, tool: 'meta' }),
+    read('access.roles.get', 'Read one role with holders and where it is granted', { ...V, in: { roleId: id.role }, out: { role: roleRow, holders: t.arr(principalRef), directHolders: t.opt(t.arr(roleHolderRef)), lastChange: t.opt(t.obj({ before: t.arr(t.str()), after: t.arr(t.str()), by: principalRef, at: t.int() })) }, tool: 'meta' }),
     write('access.roles.create', 'Create a custom role, usually by cloning a built-in one', { ...V, idem: 'key', in: { name: t.str(), cloneFrom: t.opt(id.role), clearance: t.opt(label), assignableToAgents: t.opt(t.bool()) }, out: { role: roleRow }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.duplicate'] }),
     write('access.roles.update', 'Rename a custom role or change its clearance; built-in roles are locked', { ...V, in: { roleId: id.role, name: t.opt(t.str()), clearance: t.opt(label), assignableToAgents: t.opt(t.bool()) }, out: { role: roleRow }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.field_locked', 'validation.duplicate'] }),
     read('access.roles.preview', 'Stage a change to the permissions of a role as a diff: who gains and who loses what', { ...V, in: { roleId: id.role, permissions: t.arr(t.str()) }, out: { gains: t.arr(t.obj({ principal: principalRef, permission: t.str() })), losses: t.arr(t.obj({ principal: principalRef, permission: t.str() })), previewHash: t.str() }, perm: 'access.manage', tool: 'engineer' }),
     write('access.roles.apply', 'Apply a staged role permission change (the diff from preview)', { ...V, in: { roleId: id.role, permissions: t.arr(t.str()), previewHash: t.str() }, out: { role: roleRow }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.field_locked', 'validation.precondition_failed'] }),
     write('access.roles.delete', 'Delete a custom role; blocked while anyone holds it', { ...V, in: { roleId: id.role }, out: { deleted: t.bool() }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.field_locked', 'validation.precondition_failed'] }),
-    write('access.roles.assign', 'Give a role to a person, group or agent (agents never get Owner or Admin)', { ...V, in: { subject: principalRef, roleId: id.role }, out: { roles: t.arr(id.role) }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.precondition_failed'] }),
-    write('access.roles.unassign', 'Take a role away from a person, group or agent', { ...V, in: { subject: principalRef, roleId: id.role }, out: { roles: t.arr(id.role) }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.precondition_failed'] }),
+    write('access.roles.assign', 'Give a role to a person, group or agent (agents never get Owner or Admin)', { ...V, in: { subject: roleHolderRef, roleId: id.role }, out: { roles: t.arr(id.role) }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.precondition_failed'] }),
+    write('access.roles.unassign', 'Take a role away from a person, group or agent', { ...V, in: { subject: roleHolderRef, roleId: id.role }, out: { roles: t.arr(id.role) }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.precondition_failed'] }),
 
     // ---- groups (one level, no nesting)
     read('access.groups.list', 'List groups', { ...V, in: { q: t.opt(t.str()), ...pageIn }, out: { groups: t.arr(groupRow), ...pageOut }, tool: 'meta' }),
@@ -168,7 +169,7 @@ export default defineManifest({
 
     // ---- access reviews (quarterly job makes review tasks)
     read('access.reviews.list', 'List access reviews', { ...V, in: { state: t.opt(t.enm('open', 'closed')), ...pageIn }, out: { reviews: t.arr(reviewRow), ...pageOut }, perm: 'access.manage', tool: 'engineer' }),
-    read('access.reviews.get', 'Items of one review: who holds what, last used, decision so far', { ...V, in: { reviewId: t.id('rvw') }, out: { review: reviewRow, items: t.arr(t.obj({ grant: grantRow, lastUsedAt: t.opt(t.ts()), decision: t.opt(t.enm('keep', 'remove')) })) }, perm: 'access.manage', tool: 'engineer' }),
+    read('access.reviews.get', 'Items of one review: who holds what, last used, decision so far', { ...V, in: { reviewId: t.id('rvw') }, out: { review: reviewRow, items: t.arr(t.obj({ grant: grantRow, reviewer: t.opt(id.user), taskId: t.opt(id.task), lastUsedAt: t.opt(t.ts()), decision: t.opt(t.enm('keep', 'remove')) })) }, perm: 'access.manage', tool: 'engineer' }),
     write('access.reviews.start', 'Open an access review now (the quarterly job calls this too)', { ...V, idem: 'key', in: { scope: t.opt(t.arr(resourceType)) }, out: { review: reviewRow }, perm: 'access.manage', emits: ['access_review.opened'], tool: 'engineer', team: true }),
     write('access.reviews.decide', 'Keep a grant or remove it in one click', { ...V, in: { reviewId: t.id('rvw'), grantId: id.grant, decision: t.enm('keep', 'remove') }, out: ok, perm: 'access.manage', emits: ['grant.revoked', 'access.changed'], audit: 'always', tool: 'engineer', team: true }),
     write('access.reviews.close', 'Close a review', { ...V, in: { reviewId: t.id('rvw') }, out: { review: reviewRow }, perm: 'access.manage', emits: ['access_review.closed'], tool: 'engineer', team: true }),

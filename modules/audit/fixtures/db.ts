@@ -145,6 +145,11 @@ class Parser {
       this.need("NULL");
       return (row) => (row[col] === null || row[col] === undefined) !== not;
     }
+    if (this.word("IN")) {
+      this.needP("("); const values = [this.value()];
+      while (this.p(",")) values.push(this.value());
+      this.needP(")"); return (row) => values.includes(row[col] ?? null);
+    }
     const op = this.toks[this.i++];
     if (!op || op.k !== "p") throw new Error(`expected an operator after ${col}`);
     const v = this.value();
@@ -170,7 +175,7 @@ export class FakeAuditDb implements RawDb {
   readonly log: string[] = [];
 
   constructor(migrationPath: string = MIGRATION) {
-    this.tables = parseMigration(readFileSync(migrationPath, "utf8"));
+    this.tables = parseMigration(readFileSync(migrationPath, "utf8") + (migrationPath === MIGRATION ? readFileSync(new URL("../migrations/0002_audit_targets.sql", import.meta.url), "utf8") : ""));
   }
 
   rows(table: string): Row[] { return this.table(table).rows.map((r) => ({ ...r })); }

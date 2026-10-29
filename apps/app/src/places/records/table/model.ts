@@ -16,9 +16,10 @@ export const WINDOW = 200;
 /** A grouped table loads this many rows at once so the groups are whole. */
 export const GROUP_LIMIT = 1000;
 const OVERSCAN = 6;
-/** The rows drawn beyond the screen above and below while scrolling, and the rows the scroll position is rounded to: a fast fling (120 px a frame) never outruns the drawn rows, and a render happens every few frames, not every frame. */
+/** The rows drawn beyond the screen above and below while scrolling. */
 export const FLING_OVERSCAN = 12;
-export const SCROLL_BLOCK = 8;
+/** The row boundary for continuous scrolling. Four bounds a 120 px fling frame's rich-cell reconciliation while overscan keeps jumps covered. */
+export const SCROLL_BLOCK = 4;
 
 // ---------------------------------------------------------------- columns
 
@@ -73,6 +74,12 @@ export function rowWindow(scrollTop: number, viewport: number, total: number, ov
   const first = Math.max(0, Math.floor(scrollTop / ROW_H) - overscan);
   const last = Math.min(total, Math.ceil((scrollTop + viewport) / ROW_H) + overscan);
   return { first, last };
+}
+
+/** Round scroll state down to a small row boundary without ever moving it ahead of the real viewport. */
+export function scrollBlockTop(scrollTop: number): number {
+  const block = ROW_H * SCROLL_BLOCK;
+  return Math.floor(Math.max(0, scrollTop) / block) * block;
 }
 
 /** The slice the query asks for so the drawn rows are inside it: 200 rows, starting a little above the first drawn one, on a 100 row grid so small scrolls ask nothing new. */

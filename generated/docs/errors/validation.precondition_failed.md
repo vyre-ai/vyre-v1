@@ -29,5 +29,5 @@ HTTP 422. Retryable: no.
 - conflicts.redo
 - conflicts.resolve
 - conflicts.undo
+- connections.complete_auth
 - connectors.remove
-- console.diff_apply

@@ -19,7 +19,24 @@ export interface CaptchaVerifier {
   verify(token: string, ctx: Ctx): Promise<boolean>;
 }
 
+export interface FormSchemaField { key: string; title: string; type: string; required?: boolean; options?: Record<string, unknown> }
+
+/** What the host says about one record or person offered as a public choice, asked as the publisher: the display label only, or why it cannot be offered. */
+export type ChoiceInfo = { ok: true; label: string } | { ok: false; reason: string };
+export interface ChoiceSource {
+  /** The label of one record (relation) or member (person), as the publisher may see it. Refuses a record above the public ceiling, one the publisher cannot see, a missing one and a wrong type. */
+  describe(publisherId: string, field: FormSchemaField, refId: string): Promise<ChoiceInfo>;
+  /** What the publisher could offer for this question: records they can see (or members), label only, bounded. */
+  candidates(publisherId: string, field: FormSchemaField, q: string | undefined): Promise<{ refId: string; label: string }[]>;
+}
+
 export interface FormsConfig {
+  /** Public record and person choices: asked as the publisher, label only (ruling: a visitor learns nothing the publisher did not choose to publish). */
+  choiceSource?: ChoiceSource;
+  /** Host reads actual schema; public views expose metadata only for this form's selected fields. */
+  schemaFields?(recordType: string): Promise<readonly FormSchemaField[]>;
+  /** Current grant/status and live-folder check, scoped to this stored form owner. */
+  canUpload?(publisherId: string, formId: string, folderId: string): boolean;
   captcha?: CaptchaVerifier;
   /** Public origin of the Space edge, for example https://harbor.vyre.run. Links are relative when absent. */
   publicBase?: string;

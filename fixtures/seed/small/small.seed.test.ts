@@ -80,14 +80,24 @@ test("the access module knows the seed: View as and a folder share work on seede
   const s = await bootSmall({ cache, scratch: scratch() });
   const d = await startSeeded(s.dir);
   try {
-    const post = async (cap: string, body: unknown): Promise<{ status: number; data: any }> => {
+    const post = async (cap: string, body: unknown, token: string | null = d.token): Promise<{ status: number; data: any }> => {
       const r = routes.find((x) => x.cap === cap)!;
-      const res = await fetch(`${d.url}${r.path}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify(body) });
+      const res = await fetch(`${d.url}${r.path}`, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
       const reply = (await res.json()) as { data?: unknown; error?: unknown };
       return { status: res.status, data: reply.data ?? reply.error ?? null };
     };
-    const view = await post("access.view_as", { person: "usr_noah" });
+    assert.equal((await post("access.view_as", { person: "usr_noah" })).status, 403, "bootstrap authority is not a source device session");
+    const signed = await post("identity.sign_in", { username: "olivia", password: SEED_TEST_PASSWORD, deviceName: "Seed preview source", deviceClass: "desktop" }, null);
+    assert.equal(signed.status, 200, JSON.stringify(signed.data));
+    const sourceToken = signed.data.session.token as string;
+    const view = await post("access.view_as", { person: "usr_noah" }, sourceToken);
     assert.equal(view.status, 200, JSON.stringify(view.data));
+    const preview = await post("records.query", { type: "contact", limit: 1 }, view.data.previewToken);
+    assert.equal(preview.status, 200, JSON.stringify(preview.data));
+    assert.ok(Array.isArray(preview.data.rows));
+    const audit = await post("audit.list", { q: "access.view_as", limit: 100 }, sourceToken);
+    assert.equal(audit.status, 200, JSON.stringify(audit.data));
+    assert.ok(audit.data.rows.some((row: { action: string }) => row.action === "access.view_as"), "the source device's real preview is audited");
     const who = await post("access.principals.get", { principal: { kind: "person", id: "usr_tess" } });
     assert.equal(who.status, 200, JSON.stringify(who.data));
     const shared = await post("access.share", { idempotencyKey: "small-share", resource: { type: "folder", id: "fld_clients" }, subject: { kind: "person", id: "usr_tess" }, level: "view" });
@@ -132,14 +142,24 @@ test("the access module knows the seed: View as and a folder share work on seede
   const s = await bootSmall({ cache, scratch: scratch() });
   const d = await startSeeded(s.dir);
   try {
-    const post = async (cap: string, body: unknown): Promise<{ status: number; data: any }> => {
+    const post = async (cap: string, body: unknown, token: string | null = d.token): Promise<{ status: number; data: any }> => {
       const r = routes.find((x) => x.cap === cap)!;
-      const res = await fetch(`${d.url}${r.path}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify(body) });
+      const res = await fetch(`${d.url}${r.path}`, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
       const reply = (await res.json()) as { data?: unknown; error?: unknown };
       return { status: res.status, data: reply.data ?? reply.error ?? null };
     };
-    const view = await post("access.view_as", { person: "usr_noah" });
+    assert.equal((await post("access.view_as", { person: "usr_noah" })).status, 403, "bootstrap authority is not a source device session");
+    const signed = await post("identity.sign_in", { username: "olivia", password: SEED_TEST_PASSWORD, deviceName: "Seed preview source", deviceClass: "desktop" }, null);
+    assert.equal(signed.status, 200, JSON.stringify(signed.data));
+    const sourceToken = signed.data.session.token as string;
+    const view = await post("access.view_as", { person: "usr_noah" }, sourceToken);
     assert.equal(view.status, 200, JSON.stringify(view.data));
+    const preview = await post("records.query", { type: "contact", limit: 1 }, view.data.previewToken);
+    assert.equal(preview.status, 200, JSON.stringify(preview.data));
+    assert.ok(Array.isArray(preview.data.rows));
+    const audit = await post("audit.list", { q: "access.view_as", limit: 100 }, sourceToken);
+    assert.equal(audit.status, 200, JSON.stringify(audit.data));
+    assert.ok(audit.data.rows.some((row: { action: string }) => row.action === "access.view_as"), "the source device's real preview is audited");
     const who = await post("access.principals.get", { principal: { kind: "person", id: "usr_tess" } });
     assert.equal(who.status, 200, JSON.stringify(who.data));
     const shared = await post("access.share", { idempotencyKey: "small-share", resource: { type: "folder", id: "fld_clients" }, subject: { kind: "person", id: "usr_tess" }, level: "view" });

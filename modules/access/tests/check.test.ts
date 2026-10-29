@@ -124,7 +124,7 @@ test("a restricted record is refused to an outside actor on a disallowed provide
   const store = storeOf(h.ctx);
   const made = await actorsCreate(h.ctx, { name: "Claude Code", provider: "anthropic", idempotencyKey: "actor-label" });
   await actorsRedeem(h.ctx, { token: made.oneTimeToken });
-  await rolesAssign(h.ctx, { subject: { kind: "actor", id: made.actor.id }, roleId: "rol_owner" });
+  await rolesAssign(h.ctx, { subject: { kind: "actor", id: made.actor.id }, roleId: "rol_admin" });
   store.resources.set("rec_sec", {
     id: "rec_sec", type: "record", parentId: null, label: "restricted", ownerId: made.actor.id, holds: 0,
   });
@@ -138,4 +138,17 @@ test("a restricted record is refused to an outside actor on a disallowed provide
   assert.equal(d.decision.reason, "provider_label");
   assert.ok(d.decision.steps.some((s) => s.ok === false && s.text.includes("Restricted")));
   dropStore(h.db);
+});
+
+test('grant label ceiling survives persisted projection and reaches the kernel snapshot',()=>{
+ const h=harness(NOW),store=storeOf(h.ctx);
+ store.principals.set('p_ceiling',{id:'p_ceiling',kind:'person',name:'Ceiling Guest',status:'active',createdAt:NOW});
+ store.roles.set('rol_ceiling',{id:'rol_ceiling',name:'Scoped reader',builtIn:false,clearance:'restricted',assignableToAgents:true,permissions:['records.read']});
+ store.setRoles('p_ceiling',['rol_ceiling']);
+ store.resources.set('rec_ceiling',{id:'rec_ceiling',type:'record',parentId:null,label:'confidential',ownerId:null,holds:0});
+ store.grants.set('gnt_ceiling',{id:'gnt_ceiling',subject:{kind:'person',id:'p_ceiling'},resource:{type:'record',id:'*'},level:'view',conditions:{labelCeiling:'internal'},by:'usr_admin',createdAt:NOW});
+ store.bump();store.persist(h.ctx.db);dropStore(h.ctx.db);
+ const restored=storeOf(h.ctx);
+ const d=authorize(restored.snapshot(),{principal:'p_ceiling',action:{perm:'records.read',level:'view'},resource:{type:'record',id:'rec_ceiling'},now:NOW});
+ assert.equal(d.effect,'deny');
 });

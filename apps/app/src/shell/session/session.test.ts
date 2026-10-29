@@ -9,7 +9,7 @@ import { fakeServer, settle } from "../../../../../client/src/connection/testing
 import { createLiveLink, socketBase, socketPath } from "./live.ts";
 import { createRemoteScreenHooks, stableJson } from "./remote-hooks.ts";
 import { openRealSession, targetHash } from "./session.ts";
-import { clearStored, openVerifiedSession, phaseForStoredAddress, readStored, signInAndVerify, spaceAddress, verifyStoredSession, writeStored } from "./stored.ts";
+import { clearStored, openVerifiedSession, phaseForStoredAddress, readStored, readStoredSpace, signInAndVerify, spaceAddress, verifyStoredSession, writeStored } from "./stored.ts";
 import { hydrationBaseUrl } from "./hydration.ts";
 import { acceptDesktopJoin, consumeDesktopBootstrap, consumeDesktopRoute, previewDesktopJoin, redeemDesktopPair, routeDesktopLink } from "./desktop.ts";
 import type { DesktopDeepLink } from "./desktop.ts";
@@ -554,7 +554,7 @@ test("desktop joining previews first and accepts with a real Space-key bundle", 
   const anonymous = async (cap: string, input: unknown): Promise<unknown> => {
     calls.push({ cap, input: input as Record<string, unknown> });
     if (cap === "members.invites.preview") return { spaceId: "spc_nw", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 1, fingerprint: "server-display-marker" };
-    return { status: "ok", session: { token: "vst_join", epoch: 2 } };
+    return { personId: "usr_dana", token: "vst_join", sessionId: "ses_join", epoch: 2 };
   };
   const invite = await previewDesktopJoin(route, anonymous);
   const stored = await acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", trustDevice: true, ai: { choice: "none" } }, {
@@ -564,7 +564,7 @@ test("desktop joining previews first and accepts with a real Space-key bundle", 
     persist: () => undefined,
   });
   assert.equal(invite.preview.fingerprint, "server-display-marker", "the link fingerprint is never a trust pin");
-  const accept = calls.find((c) => c.cap === "invites.accept_create_account")!;
+  const accept = calls.find((c) => c.cap === "members.accept")!;
   assert.equal(accept.input["code"], "invite-code");
   assert.equal((accept.input["keys"] as { spaceKeys: unknown[] }).spaceKeys.length, 1);
   assert.equal("personKey" in (accept.input["keys"] as object), false, "only wrapped key material leaves the client");
@@ -578,7 +578,7 @@ test("desktop joining never persists when the post-accept authenticated Space di
   const invite = await previewDesktopJoin(route, async () => ({ spaceId: "spc_preview", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 1, fingerprint: "server-display-marker" }));
   let writes = 0;
   await assert.rejects(acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", trustDevice: true, ai: { choice: "none" } }, {
-    anonymous: async () => ({ status: "ok", session: { token: "vst_join" } }),
+    anonymous: async () => ({ personId: "usr_dana", token: "vst_join", sessionId: "ses_join", epoch: 2 }),
     open: async () => ({ def: { spaceId: "spc_authenticated", name: "Elsewhere" }, me: { id: "usr_dana" }, close: () => undefined } as never),
     getSpace: async () => ({ id: "spc_authenticated", marker: "authenticated-marker" }),
     persist: () => { writes++; },
@@ -595,7 +595,7 @@ test("desktop join persists the verified session by default, never the identity 
     assert.ok(route && route.kind === "join");
     const anonymous = async (cap: string): Promise<unknown> => cap === "members.invites.preview"
       ? { spaceId: "spc_nw", spaceName: "Northwind", invitedBy: "Maya", role: "Member", expiresAt: 1, fingerprint: "server-display-marker" }
-      : { status: "ok", session: { token: "vst_join", epoch: 11 } };
+      : { personId: "usr_dana", token: "vst_join", sessionId: "ses_join", epoch: 11 };
     const invite = await previewDesktopJoin(route, anonymous);
     const stored = await acceptDesktopJoin(invite, { username: "dana", displayName: "Dana", password: "a good password", deviceName: "Dana's Mac", trustDevice: true, ai: { choice: "none" } }, {
       anonymous,
@@ -783,3 +783,14 @@ test("session: after a 401 the session makes no further calls to the Space, and 
   assert.equal(renameCalls, 0, "no call reaches the Space after the session ended");
   s.close();
 });
+
+test('browser invite acceptance registers a web device instead of a native desktop',async()=>{
+ const route=routeDesktopLink({action:'join',params:{address:'https://northwind.vyre.run',code:'invite-code',fp:'display-only'}});assert.ok(route&&route.kind==='join');
+ let accepted:Record<string,unknown>|undefined;
+ const anonymous=async(cap:string,input:unknown)=>{if(cap==='members.invites.preview')return{spaceId:'spc_nw',spaceName:'Northwind',invitedBy:'Maya',role:'Member',expiresAt:1,fingerprint:'server-display'};accepted=input as Record<string,unknown>;return{token:'vst_webjoin'};};
+ const join=await previewDesktopJoin(route,anonymous);
+ await acceptDesktopJoin(join,{username:'webmember',displayName:'Web member',password:'fixture browser password',deviceName:'',trustDevice:true,ai:{choice:'none'}},{deviceClass:'web',anonymous,open:async()=>({def:{spaceId:'spc_nw',name:'Northwind'},me:{id:'usr_web'},close:()=>undefined} as never),getSpace:async()=>({id:'spc_nw',marker:'display'}),persist:()=>undefined});
+ assert.equal(accepted?.['deviceClass'],'web');assert.equal(accepted?.['deviceName'],'Web browser');
+});
+
+test('Stored Personal Space identity survives loopback endpoint changes without selecting another Space',()=>{const store=memoryStore();const def={spaceId:'spc_personal',name:'Personal',kind:'personal'} as never;writeStored({baseUrl:'http://127.0.0.1:41000',token:'fixture-bearer',def,personId:'usr_fixture',marker:'fixture-marker'},store);assert.equal(readStoredSpace('spc_personal',store)?.baseUrl,'http://127.0.0.1:41000');assert.equal(readStoredSpace('spc_other',store),null);});

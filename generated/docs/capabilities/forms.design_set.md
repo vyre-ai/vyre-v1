@@ -1,6 +1,6 @@
 # forms.design_set
 
-Set layout, theme, fonts, custom CSS, cover image, conditional logic and thank-you page or redirect
+Set layout, theme, fonts, the form source (custom HTML template, CSS and JavaScript), cover image, conditional logic and thank-you page or redirect
 
 | | |
 |---|---|
@@ -28,6 +28,8 @@ type In = {
   formId: string;
   theme?: Record<string, unknown>;
   css?: string;
+  html?: string;
+  js?: string;
   logic?: unknown;
   thankYou?: {
     text?: string;
@@ -61,6 +63,8 @@ type Out = {
   "input": {
     "css": "example",
     "formId": "frm_a1b2c3",
+    "html": "example",
+    "js": "example",
     "logic": {},
     "thankYou": {
       "redirect": "example",

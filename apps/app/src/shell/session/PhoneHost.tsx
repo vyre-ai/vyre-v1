@@ -21,12 +21,16 @@ function useLive<T>(q: LiveQuery<T> | null): QueryState<T> {
   return useSyncExternalStore(live.subscribe, live.getSnapshot, live.getSnapshot);
 }
 
-function You({ session, nav, onSignOut }: { session: RealSession; nav: MobileNav; onSignOut(): void }): ReactElement {
+function You({ session, nav, onSignOut, onAddSpace, onLock, onSwitchSpace }: { session: RealSession; nav: MobileNav; onSignOut(): void;onAddSpace?:()=>void;onLock?:()=>void;onSwitchSpace?:(id:string)=>void }): ReactElement {
   const work = useLive(session.hooks.capQuery<CapMap["tasks.my_work"]["out"]>("tasks.my_work", {}));
   const stars = useLive(session.hooks.capQuery<CapMap["stars.list"]["out"]>("stars.list", {}));
   return (
     <View style={{ flex: 1 }}>
       <YouScreen nav={nav} data={{ name: session.me.name, space: session.def.name, workOpen: work.status === "ready" ? work.data.tasks.length : 0, starred: stars.status === "ready" ? stars.data.stars.length : 0 }} />
+      {session.runtime.space.kind === "team" ? <Row id="you-apps" title="Apps" note="Forms, campaigns and templates" onPress={() => nav.open(entryFor("apps", "")!)} /> : null}
+      {onSwitchSpace?session.runtime.knownSpaces?.filter(space=>space.spaceId!==session.def.spaceId).map(space=><Row key={space.spaceId} id={'you-switch-'+space.spaceId} title={space.name} note={space.kind==='personal'?'Personal Space':'Team Space'} onPress={()=>onSwitchSpace(space.spaceId)}/>):null}
+      {onAddSpace?<Row id="you-add-space" title="Add a Space" note="Create or join another Space" onPress={onAddSpace}/>:null}
+      {onLock?<Row id="you-lock" title="Lock Vyre" note="Sign in again to continue" onPress={onLock}/>:null}
       <Row id="you-sign-out" title="Sign out" note={`Of ${session.def.name} on this device`} onPress={onSignOut} />
     </View>
   );
@@ -34,15 +38,19 @@ function You({ session, nav, onSignOut }: { session: RealSession; nav: MobileNav
 
 export interface PhoneHostProps {
   session: RealSession | null;
+  location?: { place: PlaceId; hash: string };
   /** What waits on you: the badge on the Chats tab. */
   needsYou: number;
   /** The shell's one door for opening a place and hash (rt.open): the host hands it the function that moves the phone's history. */
   registerGo(go: ((place: PlaceId, hash: string) => void) | null): void;
   /** Sign out of this Space on this device: lock the key on this computer, end the session, return to sign-in. */
   onSignOut(): void;
+  onAddSpace?:()=>void;
+  onLock?:()=>void;
+  onSwitchSpace?:(id:string)=>void;
 }
 
-export function PhoneHost({ session, needsYou, registerGo, onSignOut }: PhoneHostProps): ReactElement {
+export function PhoneHost({ session, location, needsYou, registerGo, onSignOut, onAddSpace, onLock, onSwitchSpace }: PhoneHostProps): ReactElement {
   const navRef = useRef<MobileNav | null>(null);
 
   const go = useCallback((place: PlaceId, hash: string): void => {
@@ -56,7 +64,7 @@ export function PhoneHost({ session, needsYou, registerGo, onSignOut }: PhoneHos
 
   const render = (e: Entry, nav: MobileNav): ReactNode => {
     navRef.current = nav;
-    if (e.screen === "you") return session ? <You session={session} nav={nav} onSignOut={onSignOut} /> : null;
+    if (e.screen === "you") return session ? <You session={session} nav={nav} onSignOut={onSignOut} {...(onSwitchSpace?{onSwitchSpace}:{})} {...(onAddSpace?{onAddSpace}:{})} {...(onLock?{onLock}:{})} /> : null;
     const where = placeOf(e);
     if (!where) return null;
     const opened: PlaceHash["opened"] = (t) => {
@@ -65,5 +73,6 @@ export function PhoneHost({ session, needsYou, registerGo, onSignOut }: PhoneHos
     };
     return <PlaceHost place={where.place} runtime={session?.runtime ?? null} hash={where.hash} opened={opened} />;
   };
-  return <MobileShell renderScreen={render} needsYou={needsYou} initialTab="chats" />;
+  const initialEntry = location?.hash ? entryFor(location.place, location.hash) : null;
+  return <MobileShell {...(initialEntry ? { initialEntry } : {})} renderScreen={render} needsYou={needsYou} initialTab="chats" ownsHeader={(entry) => entry.screen.startsWith("apps:") && placeOf(entry)?.hash !== ""} />;
 }

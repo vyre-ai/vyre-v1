@@ -18,6 +18,7 @@ Area: server. Risk: high. Applies to: space.
 - backup.config_set
 - backup.delete
 - backup.export_start
+- backup.export_status
 - backup.list
 - backup.restore
 - backup.restore_preview

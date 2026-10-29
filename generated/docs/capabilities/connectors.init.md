@@ -10,7 +10,7 @@ Scaffold a connector folder: connector.toml, transforms.js, tests, README
 | Permission | connectors.manage |
 | Grant level | edit |
 | Risk | medium |
-| Resource | connector (create under /key) |
+| Resource | space |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |

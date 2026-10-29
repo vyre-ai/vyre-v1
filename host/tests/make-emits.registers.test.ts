@@ -92,3 +92,9 @@ test("forms.submit and bookings.book do not claim to make a record: the records.
   const rows = registered("records.create", { type: "contact" }, { "record.created": { recordId: "rec_sub1" } }, ["contact"]);
   assert.deepEqual(rows.map((r) => [r.id, r.type]), [["rec_sub1", "record"]]);
 });
+
+
+test("connectors.init authorizes the Space and registers the newly named connector under it",()=>{
+ const c=cap("connectors.init");assert.deepEqual(c.resource,{type:"space"});assert.equal(c.permission,"connectors.manage");assert.equal(c.level,"edit");
+ const rows=registered("connectors.init",{key:"fixture_new"},{"connector.created":{key:"fixture_new"}});assert.deepEqual(rows.map(row=>[row.id,row.type,row.parent_id]),[["fixture_new","connector",SPACE]]);
+});

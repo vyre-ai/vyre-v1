@@ -13,12 +13,12 @@ import { fingerprintOf, spaceIdOf, spaceNameOf } from "./logic.ts";
 import { storeClaimedOwnerSession } from "./session.ts";
 import { ClaimOwner } from "./ClaimOwner.tsx";
 
-export function ClaimRoute({ token, onDone, onSignIn }: { token: string; onDone(): void; onSignIn(): void }): ReactElement | null {
-  const baseUrl = spaceAddress();
+export function ClaimRoute({ token, onDone, onSignIn, address, fragment, deviceClass="web" }: { token: string; onDone(): void; onSignIn(): void; address?:string; fragment?:string;deviceClass?:"web"|"desktop" }): ReactElement | null {
+  const baseUrl = address ?? spaceAddress();
   const call = useMemo(() => (baseUrl ? createCapCaller({ baseUrl, token: () => null }) : null), [baseUrl]);
 
   if (!call || !baseUrl) return null;
-  const hash = (globalThis as { location?: { hash?: string } }).location?.hash ?? "";
+  const hash = fragment ?? (globalThis as { location?: { hash?: string } }).location?.hash ?? "";
   const spaceId = spaceIdOf(hash);
   // A link without the Space id (#s=) is not the link the server printed.
   if (!spaceId) return <ClaimOwner space={spaceNameOf(hash)} newCode={makeRecoveryCode} onClaim={async () => undefined} dead="invalid" onSignIn={onSignIn} />;
@@ -26,7 +26,7 @@ export function ClaimRoute({ token, onDone, onSignIn }: { token: string; onDone(
     const { makeBundle, wipe } = await loadCryptoKeys();
     const claimed = await claimOwner(
       { call, makeBundle: (password, recoveryCode, id) => makeBundle(password, recoveryCode, { spaceId: id }), holdKey: (t, key) => holdKeyOnOwnNode(baseUrl, t, key), wipe },
-      { token, spaceId, name: v.name, username: v.username, password: v.password, recoveryCode: v.recoveryCode, deviceName: "Web browser" },
+      { token, spaceId, name: v.name, username: v.username, password: v.password, recoveryCode: v.recoveryCode, deviceName: deviceClass==="desktop"?"Vyre desktop":"Web browser", deviceClass },
     );
     const authenticated = createCapCaller({ baseUrl, token: () => claimed.token });
     await storeClaimedOwnerSession({ baseUrl, token: claimed.token, spaceId }, {

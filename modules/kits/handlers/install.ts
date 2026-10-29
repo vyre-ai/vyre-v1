@@ -472,9 +472,35 @@ async function get(ctx: Ctx, input: unknown): Promise<{ kit: KitOut }> {
   return { kit: kitOut(ctx, mustKit(ctx, reqStr(ctx, rec(ctx, input), "kitId"))) };
 }
 
+const sameJson = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+
+/** The record type as the Space has it now, or null when there is none (or the caller may not read it: the install then says). */
+async function existingType(ctx: Ctx, type: string): Promise<Record<string, unknown> | null> {
+  try {
+    const got = (await ctx.call("schema.types.get" as never, { type } as never)) as { type?: unknown };
+    return isObj(got?.type) ? got.type : {};
+  } catch { return null; }
+}
+
+/** What differs between the type a Kit declares and the one the Space has, or null when the Space's type already carries everything the Kit declares (a seeded or earlier-installed copy). Extra fields the Space added are fine. */
+function typeDiffers(def: Record<string, unknown>, have: Record<string, unknown>): string | null {
+  for (const [k, v] of Object.entries(def)) {
+    if (k === "fields") continue;
+    if (!sameJson(v, have[k])) return `${k} is ${JSON.stringify(have[k]) ?? "unset"}, the Kit wants ${JSON.stringify(v)}`;
+  }
+  const haveFields = Array.isArray(have["fields"]) ? (have["fields"] as unknown[]).filter(isObj) : [];
+  for (const f of Array.isArray(def["fields"]) ? def["fields"] : []) {
+    if (!isObj(f)) continue;
+    const h = haveFields.find((x) => x["key"] === f["key"]);
+    if (!h) return `field ${String(f["key"])} is missing`;
+    for (const [k, v] of Object.entries(f)) if (!sameJson(v, h[k])) return `field ${String(f["key"])} ${k} is ${JSON.stringify(h[k]) ?? "unset"}, the Kit wants ${JSON.stringify(v)}`;
+  }
+  return null;
+}
+
 /**
  * The sheet check: every apply and undo step against the contract it will call, before anyone presses Install. A step is a problem when the capability does not exist, its input does not
- * fit the capability's input schema, or it creates a record type the Space already has (a Kit that was installed from the same source, or one the manifests seed).
+ * fit the capability's input schema, or it creates a record type the Space already has with a different definition (an identical one, seeded by the manifests or left by an earlier install, is accepted).
  */
 async function sheetProblems(ctx: Ctx, kit: KitManifest): Promise<SheetProblem[]> {
   const caps = new Map<string, (typeof registry.capabilities)[number]>();
@@ -496,9 +522,9 @@ async function sheetProblems(ctx: Ctx, kit: KitManifest): Promise<SheetProblem[]
         const type = op["type"];
         if (seenTypes.has(type)) { add(`Record type ${type} is created twice in this Kit.`); continue; }
         seenTypes.add(type);
-        let exists = false;
-        try { await ctx.call("schema.types.get" as never, { type } as never); exists = true; } catch { /* not there, or the caller may not read it: the install will say */ }
-        if (exists) add(`Record type ${type} already exists in this Space.`);
+        const have = await existingType(ctx, type);
+        const why = have === null ? null : typeDiffers(isObj(op["def"]) ? op["def"] : {}, have);
+        if (why !== null) add(`Record type ${type} already exists in this Space and differs from the Kit's: ${why}`);
       }
     }
   }
@@ -607,26 +633,63 @@ async function preview(ctx: Ctx, input: unknown): Promise<{ changes: { kind: str
   return { changes: changes.map((c) => { const full = c.op === "remove" ? titles.get(c.item.key) ?? c.item : c.item; return { kind: full.type, title: `${VERB[c.op]} ${full.title}` }; }) };
 }
 
-async function runStep(ctx: Ctx, step: KitStep): Promise<void> {
-  await ctx.call(step.cap as never, step.input);
+/**
+ * A schema.apply step ensures its record types: a type.create for a type the Space already has is dropped when the Space's type carries everything the Kit declares (a manifest seeds the Default Kit's note_board,
+ * so the Kit's own step would create it twice), and fails with the difference when it does not. A step left with no ops is not called.
+ */
+async function ensureTypes(ctx: Ctx, step: KitStep): Promise<{ step: KitStep | null; reused: string[] }> {
+  const ops = step.input["ops"];
+  if (step.cap !== "schema.apply" || !Array.isArray(ops)) return { step, reused: [] };
+  const keep: unknown[] = [];
+  const reused: string[] = [];
+  for (const op of ops) {
+    if (!isObj(op) || op["op"] !== "type.create" || typeof op["type"] !== "string") { keep.push(op); continue; }
+    const have = await existingType(ctx, op["type"]);
+    if (have === null) { keep.push(op); continue; }
+    const why = typeDiffers(isObj(op["def"]) ? op["def"] : {}, have);
+    if (why !== null) fail(ctx, "validation.precondition_failed", `Record type ${op["type"]} already exists in this Space and differs from the Kit's: ${why}`, { type: op["type"] });
+    reused.push(op["type"]);
+  }
+  return { step: keep.length === 0 ? null : keep.length === ops.length ? step : { cap: step.cap, input: { ...step.input, ops: keep } }, reused };
+}
+
+/** The record types an apply step found already there (the manifest seeds the Default Kit's note_board). */
+async function runStep(ctx: Ctx, step: KitStep): Promise<string[]> {
+  const { step: run, reused } = await ensureTypes(ctx, step);
+  if (run !== null) await ctx.call(run.cap as never, run.input);
+  return reused;
+}
+
+/** The undo that is safe to store: a Kit's undo never drops a record type the install did not create (seeded by a manifest, or there before the Kit), so those drops are removed from it, and with nothing left there is no undo. */
+function undoWithout(undo: KitStep | undefined, reused: string[]): KitStep | null {
+  if (!undo) return null;
+  if (reused.length === 0 || undo.cap !== "schema.apply" || !Array.isArray(undo.input["ops"])) return undo;
+  const ops = (undo.input["ops"] as unknown[]).filter((o) => !(isObj(o) && o["op"] === "type.drop" && typeof o["type"] === "string" && reused.includes(o["type"])));
+  if (ops.length === 0) return null;
+  const confirm = Array.isArray(undo.input["confirm"]) ? (undo.input["confirm"] as unknown[]).filter((t) => typeof t !== "string" || !reused.includes(t)) : undefined;
+  return { cap: undo.cap, input: { ...undo.input, ops, ...(confirm !== undefined ? { confirm } : {}) } };
 }
 
 /** Applies a diff. Adds and changes run in manifest order, removals after them in reverse order of installing. A failure undoes the items added in this run. */
 async function applyChanges(ctx: Ctx, kitId: string, target: KitManifest, verb: string): Promise<void> {
   const { changes, hashes } = await diffTo(ctx, kitId, target);
+  const appliedBefore = new Map(appliedOf(ctx, kitId).map((a) => [a.key, a.undo] as const));
   const done: Change[] = [];
+  const undoOf = new Map<string, KitStep | null>();   // the undo each added item stores: it never drops a record type this run did not create
   for (const c of changes) {
     try {
       if (c.op === "remove") {
         if (c.item.undo) await runStep(ctx, c.item.undo);
       } else if (c.item.apply) {
-        await runStep(ctx, c.item.apply);
+        const reused = await runStep(ctx, c.item.apply);
+        if (c.op === "add") undoOf.set(c.item.key, undoWithout(c.item.undo, reused));
       }
       done.push(c);
     } catch (e) {
       for (const d of [...done].reverse()) {
-        if (d.op !== "add" || !d.item.undo) continue;
-        try { await runStep(ctx, d.item.undo); } catch (u) { ctx.log.warn("kits: undo after a failed install failed", { item: d.item.key, error: u instanceof Error ? u.message : String(u) }); }
+        const u = undoOf.get(d.item.key) ?? d.item.undo;
+        if (d.op !== "add" || !u) continue;
+        try { await runStep(ctx, u); } catch (u) { ctx.log.warn("kits: undo after a failed install failed", { item: d.item.key, error: u instanceof Error ? u.message : String(u) }); }
       }
       // the ledger is written only after every step worked, so a failed run leaves it as it was: a retry re-applies what this run already did
       const msg = (e as { error?: { message?: unknown } } | null)?.error?.message ?? (e instanceof Error ? e.message : "The step failed.");
@@ -639,7 +702,14 @@ async function applyChanges(ctx: Ctx, kitId: string, target: KitManifest, verb: 
   const now = ctx.now();
   for (const c of changes) {
     if (c.op === "remove") { ctx.db.run("DELETE FROM kits_applied WHERE kit_id = ? AND item_key = ?", kitId, c.item.key); continue; }
-    const undo = c.item.undo ? JSON.stringify(c.item.undo) : null;
+    let stored = undoOf.has(c.item.key) ? undoOf.get(c.item.key) : c.item.undo;
+    if (c.op === "change") {
+      // a changed item keeps not owning the types its first install did not create: drops the stored undo never had stay out of the new one
+      const dropped = (u: KitStep | null | undefined): string[] => (u && Array.isArray(u.input["ops"]) ? (u.input["ops"] as unknown[]).flatMap((o) => (isObj(o) && o["op"] === "type.drop" && typeof o["type"] === "string" ? [o["type"]] : [])) : []);
+      const before = dropped(appliedBefore.get(c.item.key));
+      stored = undoWithout(c.item.undo, dropped(c.item.undo).filter((t) => !before.includes(t)));
+    }
+    const undo = stored ? JSON.stringify(stored) : null;
     const hash = hashes.get(c.item.key) ?? "";
     if (c.op === "add") ctx.db.run("INSERT INTO kits_applied (kit_id, item_key, item_hash, undo, at) VALUES (?, ?, ?, ?, ?)", kitId, c.item.key, hash, undo, now);
     else ctx.db.run("UPDATE kits_applied SET item_hash = ?, undo = ?, at = ? WHERE kit_id = ? AND item_key = ?", hash, undo, now, kitId, c.item.key);

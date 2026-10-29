@@ -16,6 +16,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "identity.pair_redeem": Handler<"identity.pair_redeem", X>;
   "identity.passkey_register": Handler<"identity.passkey_register", X>;
   "identity.passkey_remove": Handler<"identity.passkey_remove", X>;
+  "identity.recovery_fetch": Handler<"identity.recovery_fetch", X>;
   "identity.recovery_restore": Handler<"identity.recovery_restore", X>;
   "identity.recovery_save": Handler<"identity.recovery_save", X>;
   "identity.reset_complete": Handler<"identity.reset_complete", X>;

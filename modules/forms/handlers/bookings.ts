@@ -10,7 +10,7 @@ import type { Row } from "../projections.ts";
 import {
   fail, formOut, insertForm, isNull, isRec, many, mustForm, nid, num, one, pageOf, parseJson, publishedBySlug, rec, reqInt, reqStr, str, strList,
 } from "../projections.ts";
-import { checkAnswers, formPrincipal, principalOk, publicChecks, writeAnswers } from "./submit.ts";
+import { checkAnswers, typedAnswers, formPrincipal, principalOk, publicChecks, writeAnswers } from "./submit.ts";
 
 const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
@@ -245,7 +245,7 @@ async function book(ctx: Ctx, input: unknown): Promise<{ booking: BookingOut }> 
   const page = mustPage(ctx, formId);
 
   const consent = await publicChecks(ctx, form, rawAnswers, o, "book");
-  const answers = checkAnswers(ctx, form, null, rawAnswers);
+  const answers = await typedAnswers(ctx, form, checkAnswers(ctx, form, null, rawAnswers));
   const email = typeof answers.email === "string" ? answers.email : "";
   if (email.length === 0) fail(ctx, "validation.bad_input", "An email address is needed to book.", { field: "answers.email" });
 

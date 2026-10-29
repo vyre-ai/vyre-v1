@@ -19,7 +19,7 @@ Claim a fresh Space as its owner with the one-time link: pick a username and pas
 | HTTP | POST /v1/identity/claim_owner |
 | MCP tool | none |
 | CLI | none |
-| Emits | keys.stored, signin.succeeded |
+| Emits | principal.created, keys.stored, signin.succeeded |
 
 ## Input
 

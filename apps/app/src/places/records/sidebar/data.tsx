@@ -48,11 +48,14 @@ export function useRecordsData(): RecordsData {
   return v;
 }
 
-/** A live screen query (generated/screens.ts). Re-subscribes only when the screen, query or state changes. */
-export function useScreenQuery<T>(screenId: string, name: string, state: Record<string, unknown> = {}): QueryState<T> {
+const waitingState: QueryState<never> = { status: "loading" };
+const waitingQuery: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: () => waitingState };
+
+/** A live screen query. Disabled queries hold a stable loading snapshot without sending an incomplete request. */
+export function useScreenQuery<T>(screenId: string, name: string, state: Record<string, unknown> = {}, enabled = true): QueryState<T> {
   const { screens } = useRecordsData();
   const key = JSON.stringify(state);
-  const q = useMemo(() => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>, [screens, screenId, name, key]);
+  const q = useMemo(() => enabled ? screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T> : waitingQuery, [screens, screenId, name, key, enabled]);
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 

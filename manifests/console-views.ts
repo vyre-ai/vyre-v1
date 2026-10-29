@@ -25,7 +25,7 @@ export default defineManifest({
     read('console.usage', 'Usage and limits by agent, person and model for a period, plus the design-beta sentence', { in: { period: t.enm('day', 'week', 'month'), by: t.enm('agent', 'person', 'model') }, out: { rows: t.arr(usageRow), note: t.str({ examples: ['Vyre is in design beta. Contact Clearfield Labs for more information on plans and pricing.'] }) }, perm: 'console.access', tool: 'engineer' }),
     read('console.speed', 'Speed page: spans rolled up per budget id, p50 and p95 against perf/budgets.json, link to the worst trace', {
       in: { windowMinutes: t.opt(t.int({ minimum: 1 })) },
-      out: { rows: t.arr(t.obj({ budgetId: t.str(), p50: t.num(), p95: t.num(), budgetP95: t.num(), worstTraceId: t.opt(id.trace), over: t.bool() })) },
+      out: { rows: t.arr(t.obj({ budgetId: t.str(), unit: t.str(), sense: t.enm('min', 'max', 'exact'), p50: t.num(), p95: t.num(), budgetP95: t.num(), worstTraceId: t.opt(id.trace), over: t.bool() })) },
       perm: 'console.access', tool: 'engineer',
     }),
     read('console.nav', 'Console navigation pruned by what the caller may open (pages hide by permission)', { out: { groups: t.arr(t.obj({ key: t.str(), title: t.str(), pages: t.arr(t.obj({ key: t.str(), title: t.str() })) })) }, perm: 'console.access', tool: 'engineer' }),

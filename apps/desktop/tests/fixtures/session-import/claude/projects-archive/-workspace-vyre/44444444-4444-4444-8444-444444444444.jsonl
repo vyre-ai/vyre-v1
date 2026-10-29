@@ -1,0 +1,2 @@
+{"type":"user","uuid":"archive-u","sessionId":"44444444-4444-4444-8444-444444444444","timestamp":"2026-10-01T08:00:00.000Z","message":{"role":"user","content":"Archived request"}}
+{"type":"assistant","uuid":"archive-a","parentUuid":"archive-u","sessionId":"44444444-4444-4444-8444-444444444444","timestamp":"2026-10-01T08:00:01.000Z","message":{"role":"assistant","content":"Archived answer"}}

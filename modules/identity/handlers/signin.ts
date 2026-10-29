@@ -1,3 +1,4 @@
+import {currentSignInPolicy,assertSignInPolicy} from "../policy.ts";
 // Sign-in, second factor, GitHub, pairing, sessions and the TOTP factor (spec 3.13, 2.25). Passkeys are deferred (fork F-A); SSO is reserved.
 import type { Account, Device, IdentityCtx, SignInOut } from "../projections.ts";
 import {
@@ -11,14 +12,15 @@ const ok = { ok: true } as const;
 export async function signInOptions(ctx: IdentityCtx, _input: Record<string, never>) {
   const row = ctx.db.all(`SELECT name, logo_file_id, fingerprint, github, second_factor_required, sso_json FROM identity_space WHERE id = ?`, ctx.space)[0] as SpaceRow | undefined;
   if (!row) raise(ctx.trace.traceId, "validation.not_found", "this Space is not set up");
+  const policy=currentSignInPolicy(ctx);
   return {
     name: row.name,
     ...(row.logo_file_id ? { logoFileId: row.logo_file_id } : {}),
     fingerprint: row.fingerprint,
-    password: true,
-    github: row.github === 1,
-    sso: JSON.parse(row.sso_json) as { key: string; title: string }[],
-    secondFactorRequired: row.second_factor_required === 1,
+    password: policy.allowPassword&&!policy.requireSso,
+    github: !!ctx.github&&policy.allowGithub&&!policy.requireSso,
+    sso: [],
+    secondFactorRequired: policy.secondFactor === "required",
   };
 }
 
@@ -29,6 +31,7 @@ export async function usernameAvailable(ctx: IdentityCtx, input: { username: str
 
 /** After the first factor: a second factor is owed when the person has TOTP set. */
 async function afterFirstFactor(ctx: IdentityCtx, a: Account, dev: Device, method: "password" | "github"): Promise<SignInOut> {
+  assertSignInPolicy(ctx,a,method);
   if (a.totp_secret) return { status: "second_factor_required", challengeId: newChallenge(ctx, a.person_id, method) };
   return await issueSession(ctx, a, dev, method);
 }
@@ -190,8 +193,7 @@ export async function totpRemove(ctx: IdentityCtx, input: { password: string }) 
     noteFail(ctx, a, a.username, "bad_credentials");
     raise(ctx.trace.traceId, "auth.bad_credentials");
   }
-  const space = ctx.db.all(`SELECT second_factor_required FROM identity_space WHERE id = ?`, ctx.space)[0] as { second_factor_required: number } | undefined;
-  if (space?.second_factor_required === 1) raise(ctx.trace.traceId, "validation.precondition_failed", "this Space requires a second factor");
+  if (currentSignInPolicy(ctx).secondFactor === "required") raise(ctx.trace.traceId, "validation.precondition_failed", "this Space requires a second factor");
   if (!a.totp_secret) raise(ctx.trace.traceId, "validation.precondition_failed", "no second factor is set");
   ctx.db.run(`UPDATE identity_accounts SET totp_secret = NULL, totp_last_step = 0 WHERE person_id = ?`, a.person_id);
   ctx.emit("factor.removed", a.person_id, { personId: a.person_id, kind: "totp" });

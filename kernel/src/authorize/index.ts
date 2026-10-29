@@ -48,13 +48,14 @@ function denied(snap: AccessSnapshot, reason: ReasonCode, name: string, steps: S
 const scratch: GrantRec[] = [];
 let sawExpired = false, max = 0;
 /** Grants in `list` that name this subject, reach the needed level, are live, and whose conditions hold for this request (module state, not a closure: the hot path allocates nothing here). */
-function collect(list: readonly GrantRec[], s: SubjectInfo, need: number, req: Req, res: ResourceRow): void {
+function collect(list: readonly GrantRec[], s: SubjectInfo, need: number, req: Req, res: ResourceRow, label: number): void {
   const now = req.now, fields = req.fields;
   for (let j = 0; j < list.length; j++) {
     const g = list[j]!;
     if (g.rank < need || !s.keys.has(g.key)) continue;
     if (g.exp <= now) { sawExpired = true; continue; }
     if (now < g.nb || now > g.na) continue;
+    if (label > g.ceiling) continue;
     if (g.hasHidden && fields) { let hit = false; for (const f of fields) if (g.hidden.includes(f)) { hit = true; break; } if (hit) continue; }
     if (g.filter !== null && (!req.row || !evalExpr(g.filter, req.row, res.owner_id, s.p.id))) continue;
     scratch.push(g);
@@ -75,9 +76,9 @@ function evalSubject(snap: AccessSnapshot, s: SubjectInfo, req: Req, res: Resour
   // rule 2: grants on the resource, an ancestor, or the whole type
   const need = rankOf(req.action.level);
   scratch.length = 0; sawExpired = false; max = 0;
-  for (let i = 0; i < chain.length; i++) { const l = snap.grantsOn(chain[i]!.id); if (l) collect(l, s, need, req, res); }
+  for (let i = 0; i < chain.length; i++) { const l = snap.grantsOn(chain[i]!.id); if (l) collect(l, s, need, req, res, label); }
   const tw = snap.typeWide(res.type);
-  if (tw) collect(tw, s, need, req, res);
+  if (tw) collect(tw, s, need, req, res, label);
   const matched = scratch.length;
   const clearance = s.clearance;
   const ownerOk = isOwner && label <= clearance;
@@ -91,17 +92,18 @@ function evalSubject(snap: AccessSnapshot, s: SubjectInfo, req: Req, res: Resour
   if (isOwner) return ownerScope(clearance);
   if (matched === 1) {
     const g = scratch[0]!;
-    return { level: LEVEL_BY_RANK[max]!, rowFilter: g.filter, hiddenFields: g.hidden, labelCeiling: clearance };
+    return { level: LEVEL_BY_RANK[max]!, rowFilter: g.filter, hiddenFields: g.hidden, labelCeiling: Math.min(clearance, g.ceiling) };
   }
   // several grants: levels max, filters OR (a grant without a filter means all rows), hidden only if hidden by every matching grant
   let rowFilter: Expr | null;
   const filters: Expr[] = [];
-  let open = false;
+  let open = false, ceiling = -1;
+  for (let i = 0; i < matched; i++) ceiling = Math.max(ceiling, scratch[i]!.ceiling);
   for (let i = 0; i < matched; i++) { const f = scratch[i]!.filter; if (f === null) { open = true; break; } filters.push(f); }
   rowFilter = open ? null : { op: "or", args: filters };
   let hidden: readonly string[] = scratch[0]!.hidden;
   for (let i = 1; i < matched && hidden.length; i++) { const h = scratch[i]!.hidden; hidden = hidden.filter((f) => h.includes(f)); }
-  return { level: LEVEL_BY_RANK[max]!, rowFilter, hiddenFields: hidden, labelCeiling: clearance };
+  return { level: LEVEL_BY_RANK[max]!, rowFilter, hiddenFields: hidden, labelCeiling: Math.min(clearance, ceiling) };
 }
 
 function intersect(scopes: Scope[]): Scope {

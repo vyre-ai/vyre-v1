@@ -125,6 +125,7 @@ export function loadWorld(store: AccessStore, seed: number, now: number): Case[]
         ? { type: "folder", id: r.pick(["fld_root", "fld_a", "fld_b"] as const) }
         : { type: "record", id: r.pick(records) };
     const conditions: Cond = {};
+    if (r.chance(0.4)) conditions.labelCeiling = r.pick(LABELS);
     if (r.chance(0.45)) conditions.rowFilter = expr(r, 1);
     if (r.chance(0.2)) conditions.expiresAt = r.chance(0.5) ? now - 1 : now + 50_000;
     if (r.chance(0.15)) conditions.window = r.chance(0.5) ? { from: now + 5_000, to: now + 9_000 } : { from: now - 5_000, to: now + 5_000 };

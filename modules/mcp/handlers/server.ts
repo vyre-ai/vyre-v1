@@ -31,6 +31,7 @@ function sessionOut(s: SessionRow) {
     ...(s.actingFor === undefined ? {} : { actingFor: s.actingFor }), ...(s.threadId === undefined ? {} : { threadId: s.threadId }), ...(s.runId === undefined ? {} : { runId: s.runId }),
     ...(s.name === undefined ? {} : { name: s.name }), ...(s.scopes === undefined ? {} : { scopes: s.scopes }),
     startedAt: s.startedAt, ...(s.lastCallAt === undefined ? {} : { lastCallAt: s.lastCallAt }), calls: s.calls,
+    ...(s.closedAt===undefined?{}:{closedAt:s.closedAt}),...(s.expiresAt===undefined?{}:{expiresAt:s.expiresAt}),
   };
 }
 

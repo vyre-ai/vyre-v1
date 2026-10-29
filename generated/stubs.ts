@@ -207,6 +207,7 @@ export function stubs(ctx: CallCtx) {
       config_set: call("backup.config_set"),
       delete: call("backup.delete"),
       export_start: call("backup.export_start"),
+      export_status: call("backup.export_status"),
       health: call("backup.health"),
       list: call("backup.list"),
       restore: call("backup.restore"),
@@ -571,6 +572,7 @@ export function stubs(ctx: CallCtx) {
       status: call("dropbox_sign.status"),
     },
     email_builder: {
+      ask_cancel: call("email_builder.ask_cancel"),
       ask_diff: call("email_builder.ask_diff"),
       create: call("email_builder.create"),
       get: call("email_builder.get"),
@@ -779,7 +781,11 @@ export function stubs(ctx: CallCtx) {
       toggle: call("follows.toggle"),
     },
     forms: {
+      ask_cancel: call("forms.ask_cancel"),
+      ask_diff: call("forms.ask_diff"),
       attribution_get: call("forms.attribution_get"),
+      choices_candidates: call("forms.choices_candidates"),
+      choices_set: call("forms.choices_set"),
       create: call("forms.create"),
       delete: call("forms.delete"),
       design_set: call("forms.design_set"),
@@ -1025,6 +1031,7 @@ export function stubs(ctx: CallCtx) {
       pair_redeem: call("identity.pair_redeem"),
       passkey_register: call("identity.passkey_register"),
       passkey_remove: call("identity.passkey_remove"),
+      recovery_fetch: call("identity.recovery_fetch"),
       recovery_restore: call("identity.recovery_restore"),
       recovery_save: call("identity.recovery_save"),
       reset_complete: call("identity.reset_complete"),
@@ -1682,7 +1689,9 @@ export function stubs(ctx: CallCtx) {
     },
     sessions: {
       continue: call("sessions.continue"),
+      get: call("sessions.get"),
       import: call("sessions.import"),
+      list: call("sessions.list"),
     },
     settings: {
       copy_profile: call("settings.copy_profile"),

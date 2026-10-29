@@ -24,6 +24,8 @@ export interface GatewayRes {
 export interface SessionInfo {
   space: string; principal: PrincipalSeed; actingFor?: string | undefined; device?: string | undefined; provider?: string | undefined;
   run?: string | undefined; thread?: string | undefined; origin?: string | undefined;
+  sessionId?: string | undefined;
+  previewToken?: string | undefined;
 }
 export interface GatewayDeps {
   invoke: Invoke;
@@ -63,6 +65,8 @@ export function createGateway(deps: GatewayDeps): (req: GatewayReq) => Promise<G
       if (!cap) return errRes(makeError("validation.unknown_capability", traceId, { details: { cap: route.cap, v: route.v } }), 404);
 
       const caller = cap.caller ?? "principal";
+      // Preview credentials never authorize anonymous/pending entry points.
+      if (caller !== "principal" && /^Bearer vas_/i.test(req.headers["authorization"] ?? "")) return errRes(makeError("permission.no_grant", traceId));
       const session = caller === "principal" ? await deps.session(req.headers) : ((await deps.preAuth?.(caller, req.headers, req)) ?? null);
       if (!session) return errRes(makeError("auth.unauthenticated", traceId));
 
@@ -74,6 +78,7 @@ export function createGateway(deps: GatewayDeps): (req: GatewayReq) => Promise<G
       const seed: CtxSeed = {
         space: session.space, principal: session.principal, actingFor: session.actingFor, device: session.device, provider: session.provider,
         run: session.run, thread: session.thread, origin: session.origin === "mcp" ? "mcp" : "user", v: route.v, preAuth: caller !== "principal",
+        sessionId: session.sessionId, previewToken: session.previewToken,
         ...(incoming ? { trace: incoming } : {}),
       };
       const r = await deps.invoke(route.cap, input, seed);

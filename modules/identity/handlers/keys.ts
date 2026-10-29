@@ -1,9 +1,10 @@
+import {assertNewMemberPolicy,assertSignInPolicy} from "../policy.ts";
 // Wrapped key storage, password change, recovery and admin reset (spec 3.13, 2.25). The server holds ciphertext only: it checks that a bundle is base64 and stores it,
 // it never receives a personKey and never returns a key to anyone but the signed-in person.
 import type { Device, IdentityCtx, KeyBundle, SignInOut } from "../projections.ts";
 import {
   MIN_SECRET, RESET_TTL_MS, USERNAME, nid, provisionAccount, randomBytes, validBundle, accountById, accountByName, bundleOf, burnVerify, checkVerifier, issueSession, lockedFor, makeVerifier, me, mustAccount, noteFail, raise,
-  revokeSessions, setKeys, spendCode, putCode, clearFails, LOCK_AFTER,
+  currentSessionId, revokeSessions, setKeys, peekCode, spendCode, putCode, clearFails, LOCK_AFTER,
 } from "../projections.ts";
 
 const ok = { ok: true } as const;
@@ -21,6 +22,15 @@ export async function keysPut(ctx: IdentityCtx, input: { keys: KeyBundle; reason
   const have = bundleOf(a);
   if (input.reason === "first_device" && have) raise(ctx.trace.traceId, "validation.precondition_failed", "keys are already stored; use new_device or a password change");
   if (input.reason !== "first_device" && !have) raise(ctx.trace.traceId, "validation.precondition_failed", "no keys are stored yet; use first_device");
+  if(!validBundle(input.keys))raise(ctx.trace.traceId,"validation.bad_input","keys must be base64 ciphertext");
+  const epochs=input.keys.spaceKeys.map(key=>key.epoch);
+  if(new Set(epochs).size!==epochs.length)raise(ctx.trace.traceId,"validation.bad_input","Each Space key epoch must occur once.");
+  if(have){
+    if(["password_change","recovery","reset"].includes(input.reason))raise(ctx.trace.traceId,"validation.precondition_failed","Use the verified password change, recovery or administrator reset flow.");
+    if(input.keys.personKeyByPassword!==have.personKeyByPassword||input.keys.personKeyByRecovery!==have.personKeyByRecovery||input.keys.publicKey!==have.publicKey||input.keys.privateKeyWrapped!==have.privateKeyWrapped)raise(ctx.trace.traceId,"permission.no_grant","A device session cannot replace existing account identity keys.");
+    if(have.spaceKeys.some(old=>!input.keys.spaceKeys.some(next=>next.epoch===old.epoch&&next.wrapped===old.wrapped)))raise(ctx.trace.traceId,"validation.version_conflict","Existing Space key epochs must remain unchanged.");
+    if(input.reason!=="space_key_epoch"&&(input.keys.spaceKeys.length!==have.spaceKeys.length))raise(ctx.trace.traceId,"validation.precondition_failed","Add a new Space key epoch through its dedicated key update reason.");
+  }
   // a Space key epoch only moves forward
   if (have && input.reason === "space_key_epoch") {
     const top = (k: KeyBundle) => k.spaceKeys.reduce((m, s) => Math.max(m, s.epoch), 0);
@@ -45,7 +55,7 @@ export async function changePassword(ctx: IdentityCtx, input: { currentPassword:
   const verifier = await makeVerifier(input.newPassword);
   ctx.db.run(`UPDATE identity_accounts SET verifier = ? WHERE person_id = ?`, verifier, a.person_id);
   setKeys(ctx, a.person_id, input.keys, "password_change");
-  revokeSessions(ctx, a.person_id, ctx.session?.id);
+  revokeSessions(ctx, a.person_id, currentSessionId(ctx, a.person_id));
   ctx.emit("password.changed", a.person_id, { personId: a.person_id });
   return ok;
 }
@@ -59,68 +69,55 @@ export async function recoverySave(ctx: IdentityCtx, input: { personKeyByRecover
   return ok;
 }
 
-/**
- * Recovery proof: base64url(sha256(personKeyByRecovery)), which the client can recompute from the recovery code because the recovery wrap is deterministic.
- * CONTRACT-CHANGE request to the lead: a signed-out client cannot fetch the stored ciphertext to unwrap it; a pre-auth `identity.recovery_fetch` (username + proof returns the ciphertext) is needed.
- */
-export async function recoveryRestore(ctx: IdentityCtx, input: Device & { username: string; recoveryProof: string; newPassword: string; keys: KeyBundle }): Promise<SignInOut> {
-  const name = input.username.trim().toLowerCase();
-  const a = accountByName(ctx, name);
-  if (!a || !a.recovery_hash || lockedFor(a, ctx.now()) > 0) {
-    await burnVerify(input.newPassword);
-    noteFail(ctx, a, name, a && lockedFor(a, ctx.now()) > 0 ? "locked" : "bad_code");
-    raise(ctx.trace.traceId, "auth.invalid_code");
-  }
-  if (input.recoveryProof !== a.recovery_hash) {
-    noteFail(ctx, a, name, "bad_code");
-    // the recovery code is burned after LOCK_AFTER wrong tries, whoever made them: it guards the person's keys, and a new one is saved from a signed-in device
-    if (a.fails + 1 >= LOCK_AFTER) ctx.db.run(`UPDATE identity_accounts SET recovery_hash = NULL WHERE person_id = ?`, a.person_id);
-    raise(ctx.trace.traceId, "auth.invalid_code");
-  }
-  checkNewSecret(ctx, input.newPassword);
-  const verifier = await makeVerifier(input.newPassword);
-  ctx.db.run(`UPDATE identity_accounts SET verifier = ? WHERE person_id = ?`, verifier, a.person_id);
-  setKeys(ctx, a.person_id, input.keys, "recovery");
-  revokeSessions(ctx, a.person_id);
-  clearFails(ctx, a);
-  ctx.emit("password.reset", a.person_id, { personId: a.person_id, by: a.person_id, recovered: true });
-  return await issueSession(ctx, mustAccount(ctx, a.person_id), input, "recovery");
-}
+export {recoveryRestore,recoveryFetch} from "./recovery.ts";
 
 export async function resetPreview(ctx: IdentityCtx, input: { personId: string }) {
   const a = mustAccount(ctx, input.personId);
   const n = ctx.losses?.of(a.person_id) ?? { vault_mine: 0, private_chats: 0, personal_memory: 0 };
   const losses = (["vault_mine", "private_chats", "personal_memory"] as const).map((kind) => ({ kind, count: n[kind] })).filter((l) => l.count > 0);
-  return { hasRecoveryCode: !!a.recovery_hash, losses };
+  return { hasRecoveryCode: !!bundleOf(a)?.personKeyByRecovery, losses };
 }
 
+function resetOwner(ctx:IdentityCtx):string {
+  const owner=ctx.spaceOwner?.();if(!owner)raise(ctx.trace.traceId,"internal.unavailable","The server cannot verify the current Space owner for account reset.");return owner;
+}
+function assertResetTarget(ctx:IdentityCtx,personId:string):void {
+  if(resetOwner(ctx)===personId)raise(ctx.trace.traceId,"permission.role_lacks_permission","The current Space owner cannot be reset by an administrator. Use the owner's signed-in password change or saved recovery code.");
+}
 export async function resetStart(ctx: IdentityCtx, input: { personId: string }) {
+  if(!ctx.principal)raise(ctx.trace.traceId,"auth.unauthenticated");
+  if(ctx.principal.kind!=="person")raise(ctx.trace.traceId,"permission.needs_approval","A person must review and issue an account reset.");
+  if(ctx.principal.id===input.personId)raise(ctx.trace.traceId,"validation.precondition_failed","Change your own password in account settings instead of signing yourself out through an administrator reset.");
+  assertResetTarget(ctx,input.personId);
   const a = mustAccount(ctx, input.personId);
   const resetCode = `rst_${randomBytes(24).toString("base64url")}`;
-  const expiresAt = putCode(ctx, "reset", a.person_id, resetCode, RESET_TTL_MS);
+  const expiresAt = putCode(ctx, "reset", a.person_id, resetCode, RESET_TTL_MS,`reset_by:${ctx.principal.id}`);
   revokeSessions(ctx, a.person_id);
   return { resetCode, expiresAt };
 }
 
 export async function resetComplete(ctx: IdentityCtx, input: Device & { resetCode: string; newPassword: string; keys: KeyBundle }): Promise<SignInOut> {
-  const spent = spendCode(ctx, "reset", input.resetCode.trim());
-  const a = accountById(ctx, spent.personId);
+  const code=input.resetCode.trim();const pending=peekCode(ctx,"reset",code);
+  const a = accountById(ctx, pending.personId);
   if (!a) raise(ctx.trace.traceId, "auth.invalid_code");
+  assertResetTarget(ctx,a.person_id);assertSignInPolicy(ctx,a,"recovery");
   checkNewSecret(ctx, input.newPassword);
+  if(!validBundle(input.keys))raise(ctx.trace.traceId,"validation.bad_input","keys must be base64 ciphertext");
   const verifier = await makeVerifier(input.newPassword);
+  // Recheck authority/policy after hashing; ownership can change while the verifier is prepared.
+  assertResetTarget(ctx,a.person_id);assertSignInPolicy(ctx,a,"recovery");
+  const spent=spendCode(ctx,"reset",code);
   // fresh keys replace the old bundle: Mine items stay sealed under the old key unless a recovery code was saved
   ctx.db.run(`UPDATE identity_accounts SET verifier = ?, keys_json = NULL, recovery_hash = NULL WHERE person_id = ?`, verifier, a.person_id);
   setKeys(ctx, a.person_id, input.keys, "reset");
   revokeSessions(ctx, a.person_id);
   clearFails(ctx, a);
-  ctx.emit("password.reset", a.person_id, { personId: a.person_id, by: "admin", recovered: false });
+  const by=spent.purpose?.match(/^reset_by:(usr_[a-z0-9]+)$/)?.[1]??"admin";
+  ctx.emit("password.reset", a.person_id, { personId: a.person_id, by, recovered: false });
   return await issueSession(ctx, mustAccount(ctx, a.person_id), input, "recovery");
 }
 
-/**
- * Ruling 23, pre-auth: join by invite with no account yet. Everything that can be refused is checked before the person exists
- * (code, username, password, key bundle), so a refused call leaves nothing behind and the invite stays open.
- */
+
 export async function acceptCreateAccount(
   ctx: IdentityCtx, input: Device & { code: string; username: string; displayName?: string; password: string; keys: KeyBundle },
 ): Promise<SignInOut> {
@@ -135,10 +132,11 @@ export async function acceptCreateAccount(
   checkNewSecret(ctx, input.password);
   if (!validBundle(input.keys)) raise(tid, "validation.bad_input", "keys must be base64 ciphertext");
   const personId = nid("usr");
+  assertNewMemberPolicy(ctx);
   await provisionAccount(ctx, { personId, username, name: input.displayName?.trim() || username, secret: input.password });
   setKeys(ctx, personId, input.keys, "first_device");
   await ctx.invites.accept(invite.inviteId, personId);
-  ctx.emit("principal.created", personId, { principalId: personId, kind: "person" });
+  ctx.emit("principal.created", personId, { principalId: personId, kind: "person", name: input.displayName?.trim() || username });
   ctx.emit("member.joined", personId, { personId, inviteId: invite.inviteId, role: invite.role, invitedBy: invite.invitedBy });
   return await issueSession(ctx, mustAccount(ctx, personId), input, "password", { joining: true });
 }

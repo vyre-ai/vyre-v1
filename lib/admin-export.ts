@@ -1,0 +1,3 @@
+// Generated administrative metadata only. The host supplies ports to approved export handlers, never to ordinary capabilities.
+export interface AdminLogEntry { at:number; level:string; msg:string; id?:number; traceId?:string; spanId?:string; actor?:string; onBehalf?:string; runId?:string; place?:string; cap?:string; entity?:string; entityId?:string; result?:string; durMs?:number; costMicros?:number; label?:number; attrs?:Record<string,unknown> }
+export interface SupportExportContent { bundleId:string;createdAt:number;space:string;by:string;health:{overall:string;checks:readonly unknown[]};paused:readonly unknown[];services:readonly {name:string;state:string;uptimeSeconds:number;restarts:number}[];parts:Record<string,unknown>;missing:string[] }

@@ -16,6 +16,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "identity.pair_redeem": async (ctx) => { throw new VyreErr(notImplemented("identity.pair_redeem", ctx.trace)); },
   "identity.passkey_register": async (ctx) => { throw new VyreErr(notImplemented("identity.passkey_register", ctx.trace)); },
   "identity.passkey_remove": async (ctx) => { throw new VyreErr(notImplemented("identity.passkey_remove", ctx.trace)); },
+  "identity.recovery_fetch": async (ctx) => { throw new VyreErr(notImplemented("identity.recovery_fetch", ctx.trace)); },
   "identity.recovery_restore": async (ctx) => { throw new VyreErr(notImplemented("identity.recovery_restore", ctx.trace)); },
   "identity.recovery_save": async (ctx) => { throw new VyreErr(notImplemented("identity.recovery_save", ctx.trace)); },
   "identity.reset_complete": async (ctx) => { throw new VyreErr(notImplemented("identity.reset_complete", ctx.trace)); },

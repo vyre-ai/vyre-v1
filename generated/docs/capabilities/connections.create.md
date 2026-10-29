@@ -19,7 +19,7 @@ Plug an account into a connector; secrets are named Vault items, never values
 | HTTP | POST /v1/connections/create |
 | MCP tool | connections_create (engineer) |
 | CLI | none |
-| Emits | connection.created |
+| Emits | connection.created, connection.pending |
 
 ## Input
 

@@ -12,6 +12,7 @@ test("the policy starts permissive, stores what is set, and names each changed r
   const a = h.as("usr_admin");
   assert.deepEqual((await handlers["members.sign_in_policy.get"](a, {})).policy, OFF);
   h.world.factors.set("usr_admin", ["totp"]);
+  h.world.factors.set("usr_owner", ["totp"]);
   h.events.length = 0;
   const out = await handlers["members.sign_in_policy.set"](a, { policy: { ...OFF, secondFactor: "required", allowGithub: false } });
   assert.deepEqual(out.policy, { secondFactor: "required", requireSso: false, allowPassword: true, allowGithub: false });
@@ -30,6 +31,7 @@ test("the owner floor: only the owner lowers a requirement, and nobody is locked
   const admin = h.as("usr_admin");
   await assert.rejects(handlers["members.sign_in_policy.set"](admin, { policy: { ...OFF, secondFactor: "required" } }), (e) => codeOf(e) === "validation.precondition_failed", "no factor of your own yet");
   h.world.factors.set("usr_admin", ["totp"]);
+  h.world.factors.set("usr_owner", ["totp"]);
   await handlers["members.sign_in_policy.set"](admin, { policy: { ...OFF, secondFactor: "required" } });
   await assert.rejects(handlers["members.sign_in_policy.set"](admin, { policy: OFF }), (e) => codeOf(e) === "permission.role_lacks_permission");
   assert.equal((await handlers["members.sign_in_policy.get"](admin, {})).policy.secondFactor, "required");

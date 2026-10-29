@@ -2,6 +2,7 @@
 // It turns native links into the same URL-backed flows used by the browser.
 import { shellDesktopLinkBridge } from "../../../../../client/src/connection/desktop-link.ts";
 import type { DesktopDeepLink, DesktopLinkBridge, Unlisten } from "../../../../../client/src/connection/desktop-link.ts";
+import { holdKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
 import { loadCryptoKeys } from "../../../../../client/src/crypto/load.ts";
 import type { JoinValues } from "../../join/JoinFlow.tsx";
 import { openVerifiedSession, writeStored } from "./stored.ts";
@@ -28,6 +29,8 @@ export interface DesktopSessionDeps {
   open: Open;
   getSpace: (token: string) => Promise<VerifiedSpace>;
   persist?: Persist;
+  /** Browser invite links share the verified acceptance path without pretending to be native devices. */
+  deviceClass?: "web" | "desktop";
 }
 
 export interface DesktopInvitePreview {
@@ -149,16 +152,20 @@ export async function acceptDesktopJoin(join: PreviewedDesktopJoin, values: Join
   try {
     if (!made.spaceKeys?.length) throw new Error("This device could not create the Space key. Try again.");
     const { personKey: _personKey, personKeyByRecovery, spaceKeys, ...wrappedKeys } = made;
-    const answer = await preauth(deps.anonymous, "invites.accept_create_account", {
+    const answer = await preauth(deps.anonymous, "members.accept", {
       code: join.route.code,
       username: values.username,
       displayName: values.displayName,
       password: values.password,
-      deviceName: values.deviceName || "Vyre desktop",
-      deviceClass: "desktop",
+      deviceName: values.deviceName || (deps.deviceClass === "web" ? "Web browser" : "Vyre desktop"),
+      deviceClass: deps.deviceClass ?? "desktop",
       keys: { ...wrappedKeys, ...(values.recoveryCode ? { personKeyByRecovery } : {}), spaceKeys },
     }, "Could not finish joining this Space. Try again.");
-    return verifyAndPersist(join.route.address, answer, join.preview.spaceId, deps);
+    const accepted = object(answer);
+    const stored = await verifyAndPersist(join.route.address, { status: "ok", session: { token: accepted?.["token"] } }, join.preview.spaceId, deps);
+    // This helper sends nothing to a remote Space. Only the person's own loopback node may hold their Mine key.
+    try { await holdKeyOnOwnNode(join.route.address, stored.token, made.personKey); } catch { /* setup reports a locked Vault if the own node is unavailable */ }
+    return stored;
   } finally {
     wipe(made.personKey);
   }

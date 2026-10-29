@@ -46,6 +46,7 @@ test("the screen query input comes from /state pointers", () => {
   const q = hooks.query("access.groups", "groups", { query: "part" });
   assert.deepEqual((q.getSnapshot() as any).data.groups.map((g: Group) => g.id), ["g1"]);
   assert.deepEqual(resolveInput({ q: "/state/query", kind: "/state/kind" }, { query: "x" }), { q: "x" });
+  assert.deepEqual(resolveInput({ taskId: "/route/taskId", limit: "/state/limit", missing: "/route/absent" }, { route: { taskId: "tsk_fixture" }, limit: 20 }), { taskId: "tsk_fixture", limit: 20 });
 });
 
 test("the snapshot is the same object until a write, so a UI binding does not re-render", () => {

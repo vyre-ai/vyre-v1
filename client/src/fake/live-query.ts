@@ -22,13 +22,14 @@ export function liveQuery<C extends keyof CapMap>(replica: FakeReplica, cap: C, 
   };
 }
 
-/** Resolves a screen query's input pointers ("/state/query") against the screen state. A missing key is left out, not sent as undefined. */
+/** State pointers read the flat screen state; route/draft/filter pointers read their named section. Same contract on replica and gateway. */
 export function resolveInput(pointers: Record<string, string>, state: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, p] of Object.entries(pointers)) {
-    const m = /^\/state\/(.+)$/.exec(p);
+    const m = /^\/([a-z]+)\/(.+)$/.exec(p);
     if (!m) continue;
-    const v = state[m[1]!];
+    const holder = m[1] === "state" ? state : state[m[1]!];
+    const v = holder !== null && typeof holder === "object" ? (holder as Record<string, unknown>)[m[2]!] : undefined;
     if (v !== undefined) out[k] = v;
   }
   return out;

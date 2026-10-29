@@ -310,3 +310,22 @@ test("gate.park from the Gate hook (origin gate, depth zero) and from the host p
   await park(h, { decisionId: "dec_b" }, { ...svc, depth: 0, origin: "user" });
   assert.equal(holdsWhere(h.db, "1 = 1").length, 2);
 });
+
+test("a hold whose Approve task is still being made is not listed or readable: nobody is handed a held hold with no task", async () => {
+  const h = harness();
+  let release!: () => void;
+  const slow = new Promise<void>((r) => { release = r; });
+  h.callee("tasks.create", async () => { await slow; return { task: { id: "tsk_slow1" } }; });
+  const parking = park(h);
+  // the hold row is written before the task call (so a retry of the same decision finds it); while the task is being made, it must not be visible
+  for (let i = 0; i < 5; i++) await new Promise<void>((r) => setImmediate(r));
+  assert.equal(holdsWhere(h.db).length, 1, "the row exists while the task is pending");
+  const rows = (await h.call("gate.holds.list", { states: ["held"] }, svc)).holds as { id: string; taskId: string }[];
+  assert.deepEqual(rows, [], "a hold with no task yet is not listed");
+  assert.ok(rows.every((x) => x.taskId !== ""), "no listed hold has an empty taskId");
+  await refused(h.call("gate.holds.get", { holdId: holdsWhere(h.db)[0]!.id }, svc), "permission.not_found");
+  release();
+  const done = await parking;
+  const after = (await h.call("gate.holds.list", { states: ["held"] }, svc)).holds as { id: string; taskId: string }[];
+  assert.deepEqual(after.map((x) => [x.id, x.taskId]), [[done.holdId, "tsk_slow1"]], "once the task exists the hold is listed with it");
+});
