@@ -1,6 +1,8 @@
 # Changelog
 
 
+- Restore one live socket per device on the sync-served WebSocket: a newer connection from a device closes the older with 4000, as before the hub, so the connection_count perf budget holds.
+
 - Extend the live-update browser proof to a real agent turn: the model vendor stand-in answers a mentioned agent through the real chat, engine and driver, and the agent's reply reaches the open conversation through the live socket with sync live.
 - Make Console People a full directory and person object: filter by status, role and group together, search, select several people and assign a role, add to a group or suspend them in one reviewed step (owner and yourself skipped, per-person results reported); a person opens to Overview (roles, account lifecycle), Access (roles, permissions by area, direct grants, owned things), Groups (add and remove), Devices (revoke) and Activity. Proven in Chromium at desktop and phone, light and graphite (apps/app/tests/console.access.live.test.ts).
 - Let a public relation question take several published choices (a multi-select on the public page, the Build preview as a checklist), each key checked against this form and question and re-checked as the publisher, never more than 200 and never outside the published list; a person question stays one pick. Test data now uses neutral company names.

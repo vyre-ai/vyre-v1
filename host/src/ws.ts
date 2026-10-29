@@ -136,7 +136,7 @@ export function createLiveHub(o: LiveOptions): LiveHub {
   const conns = new Map<string, Conn>();   // key: space + device
   const spans: SpanSink = o.spans ?? o.sink ?? { span: () => {} };
   const key = (s: LiveSession): string => `${s.space}\u0000${s.device}`;
-  const connKey = (c: Conn): string => (c.link ? `${key(c.session)}\u0000${c.id}` : key(c.session));   // a sync socket may race two per device; the hub caps them
+  const connKey = (c: Conn): string => key(c.session);   // one live socket per device, whichever protocol it speaks
 
   const server = http.createServer((_req, res) => { res.writeHead(426, { "content-type": "text/plain" }).end("upgrade required"); });
 
@@ -221,6 +221,9 @@ export function createLiveHub(o: LiveOptions): LiveHub {
       const accept = crypto.createHash("sha1").update(wsKey + GUID).digest("base64");
       socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
       const c: Conn = { id: crypto.randomUUID(), session, socket, reader: new FrameReader(), lastSeen: now(), acked: 0, pending: [], closed: false };
+      // a device holds one live socket: a newer connection replaces the older (the perf budget connection_count), before the hub is told about the new one
+      const old = conns.get(key(session));
+      if (old) close(old, 4000, "replaced by a newer connection from this device");
       if (o.sync) {
         const frameCbs: Array<(f: unknown) => void> = [], closeCbs: Array<(r: string) => void> = [];
         const sess = o.sync.accept({
@@ -230,9 +233,6 @@ export function createLiveHub(o: LiveOptions): LiveHub {
           onClose: (cb) => { closeCbs.push(cb); },
         }, { person: session.principal.id, device: session.device, deviceClass: deviceClassOf(req.url) });
         c.link = { frame: (f) => { for (const cb of frameCbs) cb(f); }, gone: (r) => { for (const cb of closeCbs) cb(r); }, session: sess };
-      } else {
-        const old = conns.get(key(session));
-        if (old) close(old, 4000, "replaced by a newer connection from this device");
       }
       if (!c.closed) conns.set(connKey(c), c);   // a revoked device was already told and closed inside accept
       o.sink?.log({ space: session.space, level: 20, msg: "live.opened", device: session.device, actor: session.principal.id });
