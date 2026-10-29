@@ -39,8 +39,10 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "memory.propose_fact": Handler<"memory.propose_fact", X>;
   "memory.quote": Handler<"memory.quote", X>;
   "memory.read_note": Handler<"memory.read_note", X>;
+  "memory.recall.record": Handler<"memory.recall.record", X>;
   "memory.remember": Handler<"memory.remember", X>;
   "memory.restore_version": Handler<"memory.restore_version", X>;
   "memory.search": Handler<"memory.search", X>;
+  "memory.used": Handler<"memory.used", X>;
   "memory.versions": Handler<"memory.versions", X>;
 }

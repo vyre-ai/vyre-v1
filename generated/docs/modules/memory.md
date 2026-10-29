@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: projects.
 
-## Capabilities (38)
+## Capabilities (40)
 
 - [memory.capture](../capabilities/memory.capture.md): Capture at chat end: a cheap-model pass proposes facts to the person layer; channel facts go to the project layer, Automation facts to proposed/
 - [memory.counts](../capabilities/memory.counts.md): Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own
@@ -40,9 +40,11 @@ Requires: projects.
 - [memory.propose_fact](../capabilities/memory.propose_fact.md): Propose a fact for the asker layer of the agent memory, with its source; low-risk kinds merge on their own
 - [memory.quote](../capabilities/memory.quote.md): Exact words of a chat message or run step, word for word, with author, time and a link that opens the chat at that line; only chats, channels and runs the asker could open themselves
 - [memory.read_note](../capabilities/memory.read_note.md): Read one memory note as Markdown
+- [memory.recall.record](../capabilities/memory.recall.record.md): Record which facts and quotes recall handed the agent for one message (ids only), for memory.used; the engine writes this as the person whose message it was
 - [memory.remember](../capabilities/memory.remember.md): Remember something, with where it came from; in your own layer it is current at once, a shared layer follows its review rule
 - [memory.restore_version](../capabilities/memory.restore_version.md): Restore a shared memory note to an earlier version (owners and admins)
 - [memory.search](../capabilities/memory.search.md): Search notes and current facts the asker may read; BM25, vectors and recency; snippets carry the source link
+- [memory.used](../capabilities/memory.used.md): What recall put in front of the agent for one message: the facts and the exact quotes, each read again now under your access (a fact since deleted, or a chat closed to you, is not shown); for the "Used N memories" line and "Show what the agent knew here"
 - [memory.versions](../capabilities/memory.versions.md): List versions of a shared memory note (One History)
 
 ## Events (15)

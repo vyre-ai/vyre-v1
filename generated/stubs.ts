@@ -1339,9 +1339,13 @@ export function stubs(ctx: CallCtx) {
       propose_fact: call("memory.propose_fact"),
       quote: call("memory.quote"),
       read_note: call("memory.read_note"),
+      recall: {
+        record: call("memory.recall.record"),
+      },
       remember: call("memory.remember"),
       restore_version: call("memory.restore_version"),
       search: call("memory.search"),
+      used: call("memory.used"),
       versions: call("memory.versions"),
     },
     mounts: {

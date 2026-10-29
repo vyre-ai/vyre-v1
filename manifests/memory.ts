@@ -74,6 +74,9 @@ export default defineManifest({
         key: t.opt(t.obj({ accountRef: t.str(), provider: t.opt(t.str()), kind: t.opt(t.str()), source: t.enm('agent', 'project', 'space', 'person'), model: t.opt(t.str()) })),
       }, label: 'check',
     }),
+    read('memory.used', 'What recall put in front of the agent for one message: the facts and the exact quotes, each read again now under your access (a fact since deleted, or a chat closed to you, is not shown); for the "Used N memories" line and "Show what the agent knew here"', {
+      in: { threadId: id.thread, messageId: id.message }, out: { messageId: id.message, at: t.opt(t.ts()), facts: t.arr(factRow), quotes: t.arr(quoteRow) }, label: 'filter', tool: 'memory', agent: { planMode: 'allowed' },
+    }),
     read('memory.read_note', 'Read one memory note as Markdown', {
       in: { noteId: id.note }, out: { note: noteRow, markdown: t.str() }, on: ['note', '/noteId'], label: 'check', tool: 'memory', mcpName: 'read_note', agent: { planMode: 'allowed' },
     }),
@@ -126,6 +129,10 @@ export default defineManifest({
     write('memory.forget', 'Forget facts by id: they stop being recalled and stay in history', {
       in: { factIds: t.arr(id.fact, { minItems: 1 }) }, out: { removed: t.int() }, emits: ['memory.removed'], tool: 'memory', mcpName: 'memory_forget', agent: { planMode: 'blocked' }, audit: 'sensitive', risk: 'medium',
       cli: 'vyre memory forget', idem: 'natural',
+    }),
+    write('memory.recall.record', 'Record which facts and quotes recall handed the agent for one message (ids only), for memory.used; the engine writes this as the person whose message it was', {
+      in: { threadId: id.thread, messageId: id.message, agentId: t.opt(id.agent), lines: t.arr(t.obj({ kind: t.enm('fact', 'quote'), ref: t.str() }), { maxItems: 50 }) },
+      out: { recorded: t.int() }, idem: 'natural', risk: 'low',
     }),
     write('memory.key.set', 'Pick the account that pays for memory upkeep: yours for personal memory, or (admins) the Space\'s or a project\'s; null clears it and upkeep stays rule-based', {
       in: { layer: t.enm('space', 'project', 'person'), projectId: t.opt(id.project), accountRef: t.nullable(t.str()) }, out: { layer: t.enm('space', 'project', 'person'), accountRef: t.nullable(t.str()) },

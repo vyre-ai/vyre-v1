@@ -39,8 +39,10 @@ export const handlers: Handlers<HandlerCtx> = {
   "memory.propose_fact": async (ctx) => { throw new VyreErr(notImplemented("memory.propose_fact", ctx.trace)); },
   "memory.quote": async (ctx) => { throw new VyreErr(notImplemented("memory.quote", ctx.trace)); },
   "memory.read_note": async (ctx) => { throw new VyreErr(notImplemented("memory.read_note", ctx.trace)); },
+  "memory.recall.record": async (ctx) => { throw new VyreErr(notImplemented("memory.recall.record", ctx.trace)); },
   "memory.remember": async (ctx) => { throw new VyreErr(notImplemented("memory.remember", ctx.trace)); },
   "memory.restore_version": async (ctx) => { throw new VyreErr(notImplemented("memory.restore_version", ctx.trace)); },
   "memory.search": async (ctx) => { throw new VyreErr(notImplemented("memory.search", ctx.trace)); },
+  "memory.used": async (ctx) => { throw new VyreErr(notImplemented("memory.used", ctx.trace)); },
   "memory.versions": async (ctx) => { throw new VyreErr(notImplemented("memory.versions", ctx.trace)); },
 };

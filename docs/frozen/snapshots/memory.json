@@ -35,9 +35,11 @@
     "memory.propose_fact@1": "49d159e11d6872287a813377d67309677d1380438edd46f9906fdab21a920929",
     "memory.quote@1": "516a38a73287ce79c8be7dfe5eea84390b893eedae15db6ca9a3dd7fb1941507",
     "memory.read_note@1": "5552e3f104e30add5b3f2cc28640111825816be8aac7be43a6f8ae942d4d745b",
+    "memory.recall.record@1": "d536dfe04f4d92c5699de9d8ada9e7dd3420132040aa6cf8230d5c472bf9cb2e",
     "memory.remember@1": "e2f5c1f8656ee513e960edd475ce6419a50de9d9d08af8b5abce85e4f008239c",
     "memory.restore_version@1": "8e397e6562644b48f17a0bbc2cf6b80381ee1610f3be54f59ccc8eaf5fb665aa",
     "memory.search@1": "f191bf31a368f07ecace57896d8cb80daecc2672fab7805d29c7d370a4ad2eac",
+    "memory.used@1": "0cbc6cd0daa241c2bb27abf36c29e1c08c7592531966646f061df8e9ca3c15af",
     "memory.versions@1": "6341c924297b55b68ca8fcbf15cdecc5cac2247b6017d4fda5a5f103230b20ca"
   },
   "events": {

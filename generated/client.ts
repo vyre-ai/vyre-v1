@@ -1339,9 +1339,13 @@ export function createClient(transport: Transport) {
       propose_fact: call("memory.propose_fact", 1),
       quote: call("memory.quote", 1),
       read_note: call("memory.read_note", 1),
+      recall: {
+        record: call("memory.recall.record", 1),
+      },
       remember: call("memory.remember", 1),
       restore_version: call("memory.restore_version", 1),
       search: call("memory.search", 1),
+      used: call("memory.used", 1),
       versions: call("memory.versions", 1),
     },
     mounts: {

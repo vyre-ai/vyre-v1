@@ -34,6 +34,9 @@ export async function recallFor(call: Call, input: TurnInput): Promise<RecallLin
     } catch { return []; }
   })();
   const [f, q] = await Promise.all([facts, quotes]);
+  // What was handed to the model is written down by source id, so the chat can say "Used N memories" and show them. A failing record never holds the turn up.
+  const lines = [...f.filter((l) => l.ref).map((l) => ({ kind: "fact" as const, ref: l.ref as string })), ...q.filter((l) => l.ref).map((l) => ({ kind: "quote" as const, ref: l.ref as string }))];
+  if (lines.length > 0) await call("memory.recall.record", { threadId: input.threadId, messageId: t.id, agentId: input.agent.id, lines }, input.asker).catch(() => undefined);
   return [...f, ...q];
 }
 

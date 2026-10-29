@@ -30868,6 +30868,40 @@
     },
     {
       "blocks": [],
+      "cap": "memory.used",
+      "deferred": false,
+      "description": "What recall put in front of the agent for one message: the facts and the exact quotes, each read again now under your access (a fact since deleted, or a chat closed to you, is not shown); for the \"Used N memories\" line and \"Show what the agent knew here\"",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "messageId"
+        ],
+        "type": "object"
+      },
+      "name": "memory_used",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.versions",
       "deferred": false,
       "description": "List versions of a shared memory note (One History)",

@@ -17585,6 +17585,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/memory/recall/record",
+    "cap": "memory.recall.record",
+    "v": 1,
+    "module": "memory",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/memory/remember",
     "cap": "memory.remember",
     "v": 1,
@@ -17624,6 +17642,24 @@ export const routes: Route[] = [
     "method": "POST",
     "path": "/v1/memory/search",
     "cap": "memory.search",
+    "v": 1,
+    "module": "memory",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/used",
+    "cap": "memory.used",
     "v": 1,
     "module": "memory",
     "effects": "read",

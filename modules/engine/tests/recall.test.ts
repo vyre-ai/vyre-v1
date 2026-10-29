@@ -18,7 +18,7 @@ test("recall asks memory.pointer as the asker with the message text, and keeps i
   const calls: Array<{ cap: string; input: unknown; as?: string | undefined }> = [];
   const lines = await recallFor(async (cap, i, as) => { calls.push({ cap, input: i, as }); return { lines: [LINE] }; }, input());
   assert.deepEqual(lines, [LINE]);
-  assert.deepEqual(calls.map((c) => [c.cap, c.as]), [["memory.pointer", "usr_dana"], ["memory.quote", "usr_dana"]]);
+  assert.deepEqual(calls.map((c) => [c.cap, c.as]), [["memory.pointer", "usr_dana"], ["memory.quote", "usr_dana"]], "nothing to record when nothing carried a source id");
   assert.deepEqual(calls[0]!.input, { threadId: "thr_two", agentId: "agt_intake", text: "how long should answers be?" });
   // the quote lookup leaves out the chat the asker is in: the model already has it
   assert.deepEqual(calls[1]!.input, { q: "how long should answers be?", excludeThreadId: "thr_two", limit: 3, minCoverage: 0.6 });
@@ -86,4 +86,20 @@ test("a CLI engine's prompt carries the recalled lines with their source, before
   assert.match(p, /\(source: \/chats\/thr_one/);
   assert.ok(p.indexOf("From memory") < p.indexOf("how long should answers be?"));
   assert.doesNotMatch(defaultPrompt(input(), true), /From memory/);
+});
+
+test("what recall handed the model is recorded by source id, as the asker, for the message that caused the turn", async () => {
+  const calls: Array<{ cap: string; input: unknown; as?: string | undefined }> = [];
+  await recallFor(async (cap, i, as) => {
+    calls.push({ cap, input: i, as });
+    if (cap === "memory.pointer") return { lines: [{ ...LINE, ref: "fct_1" }] };
+    if (cap === "memory.quote") return { quotes: [{ ref: "msg_9", text: "hi there", author: { id: "usr_maya" }, at: 1, threadId: "thr_one", link: "vyre://thread/thr_one?m=msg_9" }] };
+    return {};
+  }, input());
+  const rec = calls.find((c) => c.cap === "memory.recall.record")!;
+  assert.equal(rec.as, "usr_dana");
+  assert.deepEqual(rec.input, { threadId: "thr_two", messageId: "msg_1", agentId: "agt_intake", lines: [{ kind: "fact", ref: "fct_1" }, { kind: "quote", ref: "msg_9" }] });
+  // a record that fails never holds the turn up
+  const lines = await recallFor(async (cap) => { if (cap === "memory.recall.record") throw new Error("down"); return cap === "memory.pointer" ? { lines: [{ ...LINE, ref: "fct_1" }] } : {}; }, input());
+  assert.equal(lines.length, 1);
 });

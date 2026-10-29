@@ -4580,6 +4580,12 @@
     },
     {
       "deferred": false,
+      "name": "memory_used",
+      "summary": "What recall put in front of the agent for one message: the facts and the exact quotes, each read again now under your access (a fact since deleted, or a chat closed to you, is not shown); for the \"Used N memories\" line and \"Show what the agent knew here\"",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_versions",
       "summary": "List versions of a shared memory note (One History)",
       "toolset": "memory"

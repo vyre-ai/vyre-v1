@@ -218,6 +218,14 @@ test("recall live: the words from chat 1 come back exactly in chat 2 with who sa
     assert.equal(quoted.sourceLink, `vyre://thread/${first.threadId}?m=${first.messageId}`);
     assert.equal(quoted.by, "you");
 
+    // "Used N memories": the recall for chat 2 is on record, by id, and reads back with the exact words and a link
+    const msgs = (await call(d, "chat.messages.list", { threadId: second.threadId })).data.messages as Array<{ messageId: string; author: { kind: string } }>;
+    const replyId = msgs.find((m) => m.author.kind === "agent")!.messageId;
+    const usedBy = await call(d, "memory.used", { threadId: second.threadId, messageId: replyId });
+    assert.equal(usedBy.status, 200, JSON.stringify(usedBy.data));
+    assert.equal(usedBy.data.quotes.find((x: { ref: string }) => x.ref === first.messageId)?.text, WORDS);
+    assert.deepEqual((await call(d, "memory.used", { threadId: second.threadId, messageId: replyId }, "usr_adam")).data.quotes, [], "another person has no record of this recall");
+
     // a fact saved through memory.remember is recalled by the same question in a new chat, with its id for memory_forget
     const saved = await call(d, "memory.remember", { text: FACT, kind: "preference", threadId: first.threadId, agentId: helper });
     assert.equal(saved.status, 200, JSON.stringify(saved.data));

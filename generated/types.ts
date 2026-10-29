@@ -16524,6 +16524,18 @@ export type MemoryReadNoteOut = {
   };
   markdown: string;
 };
+export type MemoryRecallRecordIn = {
+  threadId: string;
+  messageId: string;
+  agentId?: string;
+  lines: Array<{
+      kind: "fact" | "quote";
+      ref: string;
+    }>;
+};
+export type MemoryRecallRecordOut = {
+  recorded: number;
+};
 export type MemoryRememberIn = {
   text: string;
   layer?: "person" | "agent" | "project" | "space";
@@ -16589,6 +16601,48 @@ export type MemorySearchOut = {
       score: number;
     }>;
   tookMs: number;
+};
+export type MemoryUsedIn = {
+  threadId: string;
+  messageId: string;
+};
+export type MemoryUsedOut = {
+  messageId: string;
+  at?: number;
+  facts: Array<{
+      factId: string;
+      layer: "person" | "agent" | "project" | "space";
+      ownerRef: string;
+      agentId?: string;
+      noteId?: string;
+      text: string;
+      validFrom: number;
+      validTo?: number;
+      learnedAt: number;
+      closedAt?: number;
+      sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+      sourceRef: string;
+      sourceLink?: string;
+      status: "proposed" | "current" | "closed" | "removed";
+      lowRisk?: boolean;
+    }>;
+  quotes: Array<{
+      ref: string;
+      source: "message" | "step";
+      text: string;
+      truncated?: boolean;
+      author: {
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+        name?: string;
+      };
+      role: string;
+      at: number;
+      threadId: string;
+      threadTitle?: string;
+      link: string;
+      score: number;
+    }>;
 };
 export type MemoryVersionsIn = {
   noteId: string;
@@ -28080,9 +28134,11 @@ export interface CapMap {
   "memory.propose_fact": { in: MemoryProposeFactIn; out: MemoryProposeFactOut };
   "memory.quote": { in: MemoryQuoteIn; out: MemoryQuoteOut };
   "memory.read_note": { in: MemoryReadNoteIn; out: MemoryReadNoteOut };
+  "memory.recall.record": { in: MemoryRecallRecordIn; out: MemoryRecallRecordOut };
   "memory.remember": { in: MemoryRememberIn; out: MemoryRememberOut };
   "memory.restore_version": { in: MemoryRestoreVersionIn; out: MemoryRestoreVersionOut };
   "memory.search": { in: MemorySearchIn; out: MemorySearchOut };
+  "memory.used": { in: MemoryUsedIn; out: MemoryUsedOut };
   "memory.versions": { in: MemoryVersionsIn; out: MemoryVersionsOut };
   "mounts.add": { in: MountsAddIn; out: MountsAddOut };
   "mounts.browse": { in: MountsBrowseIn; out: MountsBrowseOut };
