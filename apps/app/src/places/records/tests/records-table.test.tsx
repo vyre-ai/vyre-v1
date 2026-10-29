@@ -9,8 +9,8 @@ import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import { RecordsDataProvider, RecordsSidebar, RecordsSidebarSlot, RecordsStateProvider, SidebarLoading, compact, effectiveType, reduce, sortedViews, typeGroups, INITIAL_STATE } from "../sidebar/index.ts";
 import type { RecordsState } from "../sidebar/index.ts";
 import {
-  FLING_OVERSCAN, GUTTER, PLAIN, ROW_H, SCROLL_BLOCK, TableLoading, TableView, cellText, chosen, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, isEdited,
-  optionsOf, queryOffset, querySpec, rowWindow, scrollBlockTop, setSort, toSaved, toggleHidden, toggleOption, totalWidth,
+  FLING_BEHIND, FLING_OVERSCAN, GUTTER, PLAIN, ROW_H, SCROLL_BLOCK, TableLoading, TableView, cellText, chosen, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, isEdited,
+  flingWindow, optionsOf, queryOffset, querySpec, rowWindow, scrollBlockTop, setSort, toSaved, toggleHidden, toggleOption, totalWidth,
 } from "../table/index.ts";
 import type { RecordRow, TableViewState } from "../table/index.ts";
 import { SAMPLE_NOW, client, createSampleRecords, harbor, northwind } from "../table/sample.ts";
@@ -133,6 +133,19 @@ test("scroll batching advances a 120 px fling by at most four rows while coverin
     }
   }
   for (const position of [0, ROW_H * 5_000 + 17, maxTop]) cover(position);
+  // the directional window a scroll draws: it covers the screen in both directions, reaches FLING_OVERSCAN ahead and keeps only a few rows behind
+  for (const [positions, dir] of [[forward, 1], [reverse, -1]] as const) {
+    for (const actualTop of positions) {
+      const drawn = flingWindow(scrollBlockTop(actualTop), viewport, total, dir);
+      const visible = rowWindow(actualTop, viewport, total, 0);
+      assert.ok(drawn.first <= visible.first && drawn.last >= visible.last, `${dir} at ${actualTop}`);
+      const behind = dir > 0 ? visible.first - drawn.first : drawn.last - visible.last;
+      assert.ok(behind <= SCROLL_BLOCK + FLING_BEHIND, `few rows kept behind (${behind})`);
+    }
+  }
+  const ahead = flingWindow(ROW_H * 5_000, viewport, total, 1);
+  assert.equal(ahead.last, 5_000 + Math.ceil(viewport / ROW_H) + FLING_OVERSCAN, "a fling never outruns the drawn rows");
+  assert.equal(ahead.first, 5_000 - FLING_BEHIND);
 });
 
 test("a saved view applies its filter, sort and hidden fields, and the header names it", () => {
