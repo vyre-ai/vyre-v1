@@ -11,9 +11,9 @@ const version = process.env["VYRE_VERSION"] ?? "0.0.0-dev";
 /** `vyred --role compute --server <address> --join <code>`: a guest computer for a Space (host/src/compute/node.ts). It holds no Space of its own. */
 async function runCompute(config: DaemonConfig): Promise<number> {
   let host: unknown;
-  const { fileSeamImporter } = await import("../loader.ts");
+  const { fileExportsImporter } = await import("../loader.ts");
   const { createComputersHost } = await import("../seams/computers-host.ts");
-  const importSeams = (root: string): Promise<unknown> => fileSeamImporter(root)("computers");
+  const importSeams = (root: string): Promise<unknown> => fileExportsImporter(root)("computers");
   const { runComputeNode } = await import("../compute/node.ts");
   const os = await import("node:os");
   if (!config.server) { process.stderr.write("vyred: --role compute needs --server <the Space address>\n"); return 2; }

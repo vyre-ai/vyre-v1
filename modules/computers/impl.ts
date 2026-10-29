@@ -373,7 +373,9 @@ export function setComputerHost(c: ComputersHostConfig | null): void {
   bindHost(c === null ? null : buildComputerHost(c));
 }
 
-export const hostSeams = { setComputersFill, setComputerHost, buildComputerHost, nodeRun };
+// Only the setters the daemon wires are host seams (the loader reports any other function here as a driver left unwired); what a computer that joined needs is exported beside them.
+export const hostSeams = { setComputersFill, setComputerHost };
+export { nodeRun };
 
 /** What the host asks of this module on behalf of a computer that joined (host/src/routes/compute.ts): never a capability, never reachable from a session. */
 export const hostCalls = { "computers.node_jobs": nodeJobs, "computers.node_result": nodeResult, "computers.node_home_check": nodeHomeCheck };
