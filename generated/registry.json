@@ -1588,89 +1588,6 @@
       ],
       "type": "object"
     },
-    "s_0fe7dc663b": {
-      "properties": {
-        "act": {
-          "$ref": "#/$defs/s_75dff07a61"
-        },
-        "actingFor": {
-          "type": "string"
-        },
-        "capName": {
-          "examples": [
-            "mail.send"
-          ],
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "expiresAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "hld_a1b2c3"
-          ],
-          "pattern": "^hld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "payloadHash": {
-          "type": "string"
-        },
-        "principal": {
-          "$ref": "#/$defs/s_6c1eb10d98"
-        },
-        "result": {
-          "description": "Any JSON value"
-        },
-        "runId": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "state": {
-          "enum": [
-            "held",
-            "approved",
-            "denied",
-            "expired"
-          ],
-          "type": "string"
-        },
-        "taskId": {
-          "examples": [
-            "tsk_a1b2c3"
-          ],
-          "pattern": "^tsk_[a-z0-9]+$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "act",
-        "capName",
-        "taskId",
-        "principal",
-        "state",
-        "payloadHash",
-        "createdAt",
-        "expiresAt"
-      ],
-      "type": "object"
-    },
     "s_101a8e8ab2": {
       "properties": {
         "activeSec": {
@@ -13094,6 +13011,86 @@
         "$ref": "#/$defs/s_38b6d47dbd"
       },
       "type": "array"
+    },
+    "s_a7a9bf3d71": {
+      "properties": {
+        "act": {
+          "$ref": "#/$defs/s_75dff07a61"
+        },
+        "actingFor": {
+          "type": "string"
+        },
+        "capName": {
+          "examples": [
+            "mail.send"
+          ],
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expiresAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "hld_a1b2c3"
+          ],
+          "pattern": "^hld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "payloadHash": {
+          "type": "string"
+        },
+        "principal": {
+          "$ref": "#/$defs/s_6c1eb10d98"
+        },
+        "runId": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "held",
+            "approved",
+            "denied",
+            "expired"
+          ],
+          "type": "string"
+        },
+        "taskId": {
+          "examples": [
+            "tsk_a1b2c3"
+          ],
+          "pattern": "^tsk_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "act",
+        "capName",
+        "taskId",
+        "principal",
+        "state",
+        "payloadHash",
+        "createdAt",
+        "expiresAt"
+      ],
+      "type": "object"
     },
     "s_a803997f5b": {
       "properties": {
@@ -78554,7 +78551,6 @@
                 "id": "usr_a1b2c3",
                 "kind": "person"
               },
-              "result": {},
               "runId": "run_a1b2c3",
               "state": "held",
               "taskId": "tsk_a1b2c3"
@@ -78585,7 +78581,7 @@
       "output": {
         "properties": {
           "hold": {
-            "$ref": "#/$defs/s_0fe7dc663b"
+            "$ref": "#/$defs/s_a7a9bf3d71"
           }
         },
         "required": [
@@ -78643,7 +78639,6 @@
                   "id": "usr_a1b2c3",
                   "kind": "person"
                 },
-                "result": {},
                 "runId": "run_a1b2c3",
                 "state": "held",
                 "taskId": "tsk_a1b2c3"
@@ -78698,7 +78693,7 @@
         "properties": {
           "holds": {
             "items": {
-              "$ref": "#/$defs/s_0fe7dc663b"
+              "$ref": "#/$defs/s_a7a9bf3d71"
             },
             "type": "array"
           },
@@ -78957,6 +78952,72 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Re-invoke the parked capability with an approval token bound to the payload hash, then resume the turn or step",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "holdId": "hld_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "found": true,
+            "result": {}
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "holdId": {
+            "examples": [
+              "hld_a1b2c3"
+            ],
+            "pattern": "^hld_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "holdId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "gate",
+      "name": "gate.result.take",
+      "output": {
+        "properties": {
+          "found": {
+            "type": "boolean"
+          },
+          "result": {
+            "description": "Any JSON value"
+          }
+        },
+        "required": [
+          "found"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "System: hand the engine the answer of an approved call for a chat turn parked on it, once, and clear it. Only the server may call it; a requester or approver never reads the answer here.",
       "surfaces": {
         "http": "auto"
       },

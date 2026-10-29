@@ -841,6 +841,9 @@ export function createClient(transport: Transport) {
       },
       park: call("gate.park", 1),
       release: call("gate.release", 1),
+      result: {
+        take: call("gate.result.take", 1),
+      },
       rules: {
         list: call("gate.rules.list", 1),
         set: call("gate.rules.set", 1),

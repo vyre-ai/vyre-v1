@@ -257,7 +257,7 @@ export function saveHold(db: Db, h: Hold): void {
 export function holdOut(h: Hold): Record<string, unknown> {
   return clean({
     id: h.id, act: h.act, capName: h.capName, taskId: h.taskId, runId: h.runId, principal: h.principal, actingFor: h.actingFor, state: h.state, payloadHash: h.payloadHash,
-    createdAt: h.createdAt, expiresAt: h.expiresAt, result: h.result,
+    createdAt: h.createdAt, expiresAt: h.expiresAt,
   });
 }
 

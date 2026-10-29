@@ -10730,7 +10730,6 @@ export type GateHoldsGetOut = {
     payloadHash: string;
     createdAt: number;
     expiresAt: number;
-    result?: unknown;
   };
 };
 export type GateHoldsListIn = {
@@ -10756,7 +10755,6 @@ export type GateHoldsListOut = {
       payloadHash: string;
       createdAt: number;
       expiresAt: number;
-      result?: unknown;
     }>;
   next?: string;
   total?: number;
@@ -10789,6 +10787,13 @@ export type GateReleaseIn = {
 };
 export type GateReleaseOut = {
   result: unknown;
+};
+export type GateResultTakeIn = {
+  holdId: string;
+};
+export type GateResultTakeOut = {
+  found: boolean;
+  result?: unknown;
 };
 export type GateRulesListIn = {
   scope?: "space" | "floor" | "agent";
@@ -28661,6 +28666,7 @@ export interface CapMap {
   "gate.holds.list": { in: GateHoldsListIn; out: GateHoldsListOut };
   "gate.park": { in: GateParkIn; out: GateParkOut };
   "gate.release": { in: GateReleaseIn; out: GateReleaseOut };
+  "gate.result.take": { in: GateResultTakeIn; out: GateResultTakeOut };
   "gate.rules.list": { in: GateRulesListIn; out: GateRulesListOut };
   "gate.rules.set": { in: GateRulesSetIn; out: GateRulesSetOut };
   "git.branch": { in: GitBranchIn; out: GitBranchOut };

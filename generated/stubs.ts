@@ -841,6 +841,9 @@ export function stubs(ctx: CallCtx) {
       },
       park: call("gate.park"),
       release: call("gate.release"),
+      result: {
+        take: call("gate.result.take"),
+      },
       rules: {
         list: call("gate.rules.list"),
         set: call("gate.rules.set"),

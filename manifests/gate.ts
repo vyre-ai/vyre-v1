@@ -17,7 +17,6 @@ const ruleRow = t.obj({
 const holdRow = t.obj({
   id: t.id('hld'), act: actKey, capName: t.str({ examples: ['mail.send'] }), taskId: id.task, runId: t.opt(id.run), principal: principalRef,
   actingFor: t.opt(t.str()), state: holdState, payloadHash: t.str(), createdAt: t.ts(), expiresAt: t.ts(),
-  result: t.opt(t.json()),
 });
 const holdId = t.id('hld');
 
@@ -86,6 +85,9 @@ export default defineManifest({
     }),
     read('gate.holds.list', 'List holds with their state, act and task', {
       in: { states: t.opt(t.arr(holdState)), act: t.opt(actKey), runId: t.opt(id.run), ...pageIn }, out: { holds: t.arr(holdRow), ...pageOut }, tool: 'meta', label: 'filter',
+    }),
+    write('gate.result.take', 'System: hand the engine the answer of an approved call for a chat turn parked on it, once, and clear it. Only the server may call it; a requester or approver never reads the answer here.', {
+      in: { holdId }, out: { found: t.bool(), result: t.opt(t.json()) }, perm: null, level: 'view', idem: 'natural',
     }),
     read('gate.holds.get', 'Read one hold', { in: { holdId }, out: { hold: holdRow }, tool: 'meta', label: 'check' }),
   ],

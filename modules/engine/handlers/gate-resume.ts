@@ -15,8 +15,8 @@ export const gateResumeConsumers = {
       let result: { ok: boolean; content: unknown } | undefined;
       if (approved) {
         try {
-          const got = (await ctx.call("gate.holds.get", { holdId: event.payload.holdId })) as { hold?: { result?: unknown } };
-          if (got.hold?.result !== undefined) result = { ok: true, content: { data: got.hold.result } };
+          const got = (await ctx.call("gate.result.take", { holdId: event.payload.holdId })) as { found?: boolean; result?: unknown };
+          if (got.found === true) result = { ok: true, content: { data: got.result } };
         } catch (e) {
           ctx.log.warn("the hold's answer could not be read, so the turn is told only that it was approved", { holdId: event.payload.holdId, error: e instanceof Error ? e.message : String(e) });
         }

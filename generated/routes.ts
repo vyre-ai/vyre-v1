@@ -11045,6 +11045,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/gate/result/take",
+    "cap": "gate.result.take",
+    "v": 1,
+    "module": "gate",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/gate/rules/list",
     "cap": "gate.rules.list",
     "v": 1,
