@@ -43,6 +43,7 @@ type Out = {
     tabs: number;
     tabLimit: number;
     host: "server" | "vm";
+    nodeId?: string;
     diskBytes?: number;
     lastFrameAt?: number;
     lastActiveAt?: number;
@@ -81,6 +82,7 @@ type Out = {
       "host": "server",
       "lastActiveAt": 1760000000000,
       "lastFrameAt": 1760000000000,
+      "nodeId": "example",
       "recording": true,
       "state": "provisioning",
       "tabLimit": 1,

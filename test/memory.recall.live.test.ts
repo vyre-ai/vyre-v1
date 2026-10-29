@@ -9,16 +9,16 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { memoryGuide } from "../../lib/memory-guide.ts";
-import { CORE_SPACE, bootCore } from "../../fixtures/seed/core/index.ts";
-import { fakePlatform } from "../src/platform/index.ts";
-import type { FetchFn } from "../src/platform/probes.ts";
-import { loadConfig } from "../src/daemon/config.ts";
-import { CODE_ROOT, startDaemon } from "../src/daemon/daemon.ts";
-import type { Daemon } from "../src/daemon/daemon.ts";
+import { memoryGuide } from "../lib/memory-guide.ts";
+import { CORE_SPACE, bootCore } from "../fixtures/seed/core/index.ts";
+import { fakePlatform } from "../host/src/platform/index.ts";
+import type { FetchFn } from "../host/src/platform/probes.ts";
+import { loadConfig } from "../host/src/daemon/config.ts";
+import { CODE_ROOT, startDaemon } from "../host/src/daemon/daemon.ts";
+import type { Daemon } from "../host/src/daemon/daemon.ts";
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
-const FAKE_CLI = fileURLToPath(new URL("./fixtures/fake-cli-driver/fake-cli.mjs", import.meta.url));
+const FAKE_CLI = fileURLToPath(new URL("../host/tests/fixtures/fake-cli-driver/fake-cli.mjs", import.meta.url));
 const KEY = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ"; // secret-scan: fake
 const HEAVY = process.env["VYRE_HEAVY_DOCKER"] === "1";
 const WORDS = "The Henderson retainer is capped at 4,500 dollars per month, no exceptions.";
@@ -68,7 +68,7 @@ function seededDir(): string {
   return dir;
 }
 
-// The engine's session contract, as far as the stand-in needs it (host tests may not import the agent package, which sits above the host).
+// The engine's session contract, as far as the stand-in needs it (kept local so this file imports only the daemon and lib).
 interface RecallLine { title: string; fact?: string; path: string; sourceLink?: string; kind?: string; ref?: string; by?: string }
 interface TurnInput { turnId: string; trigger: { body: string } | null; recall?: readonly RecallLine[] }
 type ToolResult = { ok: boolean; content: unknown };

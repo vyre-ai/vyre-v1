@@ -118,7 +118,7 @@ export async function recordStart(ctx: CompCtx, input: { computerId: string }) {
   const recordingId = mintId("rcd", ctx.now());
   const folderPath = `work/recordings/${recordingId}`;
   try {
-    await hostOf(ctx).record({ computerId: c.computerId, recordingId, action: "start" });
+    await hostOf(ctx, c.computerId).record({ computerId: c.computerId, recordingId, action: "start" });
   } catch {
     raise(ctx, "internal.unexpected", "The computer could not start recording. Try again.");
   }
@@ -136,7 +136,7 @@ export async function finishRecording(ctx: CompCtx, c: ComputerRow): Promise<Rec
   const id = c.recordingId;
   const rec = id ? recordingBy(ctx.db, id) : null;
   if (!id || !rec) raise(ctx, "validation.bad_input", "No recording is running on this computer.");
-  const host = hostOf(ctx);
+  const host = hostOf(ctx, c.computerId);
   let got: RecordResult;
   try {
     got = await host.record({ computerId: c.computerId, recordingId: id, action: "stop" });
@@ -248,7 +248,7 @@ export async function recordingDelete(ctx: CompCtx, input: { recordingId: string
   await mayOpen(ctx, r.agentId);
   if (r.state === "recording") raise(ctx, "validation.bad_input", "The recording is still running.");
   try {
-    await hostOf(ctx).removeRecording({ computerId: r.computerId, recordingId: r.recordingId, folderPath: r.folderPath });
+    await hostOf(ctx, r.computerId).removeRecording({ computerId: r.computerId, recordingId: r.recordingId, folderPath: r.folderPath });
   } catch {
     raise(ctx, "internal.unexpected", "The recording could not be deleted. Try again.");
   }
@@ -273,7 +273,7 @@ export async function screenshot(ctx: CompCtx, input: { computerId: string }) {
   if (!folderId) raise(ctx, "validation.bad_input", "The agent has no folder to keep the picture in.");
   let shot: Awaited<ReturnType<ComputerHost["screenshot"]>>;
   try {
-    shot = await hostOf(ctx).screenshot(c.computerId);
+    shot = await hostOf(ctx, c.computerId).screenshot(c.computerId);
   } catch {
     raise(ctx, "internal.unexpected", "The computer did not give a picture. Try again.");
   }
@@ -293,7 +293,7 @@ export async function stream(ctx: CompCtx, input: { computerId: string }) {
   const t = await mintTicket(ctx.db, "stream", c.computerId, actorOf(ctx), ctx.now());
   let target: Awaited<ReturnType<ComputerHost["stream"]>>;
   try {
-    target = await hostOf(ctx).stream({ computerId: c.computerId, ticket: t.ticket });
+    target = await hostOf(ctx, c.computerId).stream({ computerId: c.computerId, ticket: t.ticket });
   } catch {
     raise(ctx, "internal.unexpected", "The live view could not be opened. Try again.");
   }

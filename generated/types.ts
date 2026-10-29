@@ -5825,6 +5825,7 @@ export type ComputersConfigureOut = {
     tabs: number;
     tabLimit: number;
     host: "server" | "vm";
+    nodeId?: string;
     diskBytes?: number;
     lastFrameAt?: number;
     lastActiveAt?: number;
@@ -5892,6 +5893,7 @@ export type ComputersGetOut = {
     tabs: number;
     tabLimit: number;
     host: "server" | "vm";
+    nodeId?: string;
     diskBytes?: number;
     lastFrameAt?: number;
     lastActiveAt?: number;
@@ -5911,6 +5913,7 @@ export type ComputersGiveBackOut = {
     tabs: number;
     tabLimit: number;
     host: "server" | "vm";
+    nodeId?: string;
     diskBytes?: number;
     lastFrameAt?: number;
     lastActiveAt?: number;
@@ -5941,6 +5944,7 @@ export type ComputersListOut = {
       tabs: number;
       tabLimit: number;
       host: "server" | "vm";
+      nodeId?: string;
       diskBytes?: number;
       lastFrameAt?: number;
       lastActiveAt?: number;
@@ -5953,6 +5957,7 @@ export type ComputersListOut = {
 export type ComputersProvisionIn = {
   agentId: string;
   tabLimit?: number;
+  nodeId?: string;
   idempotencyKey: string;
 };
 export type ComputersProvisionOut = {
@@ -5964,6 +5969,7 @@ export type ComputersProvisionOut = {
     tabs: number;
     tabLimit: number;
     host: "server" | "vm";
+    nodeId?: string;
     diskBytes?: number;
     lastFrameAt?: number;
     lastActiveAt?: number;
@@ -6169,6 +6175,7 @@ export type ComputersSleepOut = {
     tabs: number;
     tabLimit: number;
     host: "server" | "vm";
+    nodeId?: string;
     diskBytes?: number;
     lastFrameAt?: number;
     lastActiveAt?: number;
@@ -6197,6 +6204,7 @@ export type ComputersTakeOverOut = {
     tabs: number;
     tabLimit: number;
     host: "server" | "vm";
+    nodeId?: string;
     diskBytes?: number;
     lastFrameAt?: number;
     lastActiveAt?: number;
@@ -6254,6 +6262,7 @@ export type ComputersWakeOut = {
     tabs: number;
     tabLimit: number;
     host: "server" | "vm";
+    nodeId?: string;
     diskBytes?: number;
     lastFrameAt?: number;
     lastActiveAt?: number;
