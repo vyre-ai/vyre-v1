@@ -240,7 +240,7 @@ export function wireSidebar(rt: ShellRuntime, go: Go, toggleSidebar?: () => void
 }
 
 /** The open chat: a face's page, a helper, the Computer chip, a channel's Connect sheet and the Waiting on line are all this place's doors. */
-export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string; list: readonly Principal[]; nameOf: (id: string) => string; leadId: string }): ConversationData {
+export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string; list: readonly Principal[]; nameOf: (id: string) => string; leadId: string; focus?: string }): ConversationData {
   const base = conversationData(rt, chatsActions(go), o.threadId, o.list);
   return {
     ...base,
@@ -250,6 +250,7 @@ export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string
       openConnectOutsideAgent: (channelId: string) => go.connect(channelId),
     },
     toast: (text: string) => go.say(text),
+    ...(o.focus ? { focus: o.focus } : {}),
     waitingLine: createElement(WaitingLine, { screens: rt.screens, call: rt.call, threadId: o.threadId, agent: o.nameOf(o.leadId) }),
   };
 }

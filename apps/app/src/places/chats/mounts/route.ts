@@ -11,7 +11,8 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 type RecentOut = CapMap["chat.recent"]["out"];
 
 export type Route =
-  | { view: "chat"; threadId: string | null }
+  /** `focus` is a message the page opens scrolled to and highlighted (a link from memory: `...&m=<messageId>`). */
+  | { view: "chat"; threadId: string | null; focus?: string }
   | { view: "needs"; taskId: string | null }
   | { view: "agent"; agentId: string; tab: TabKey | null }
   | { view: "helper"; threadId: string };
@@ -36,7 +37,7 @@ export const START: Shown = { route: { view: "chat", threadId: null }, pane: fal
 
 export type Act =
   /** `pane` opens the agent's pane beside the chat (a click on an agent). */
-  | { t: "chat"; threadId: string; pane?: boolean }
+  | { t: "chat"; threadId: string; pane?: boolean; focus?: string }
   | { t: "helper"; threadId: string }
   | { t: "needs"; taskId?: string }
   | { t: "agent"; agentId: string; tab?: TabKey }
@@ -48,7 +49,7 @@ export type Act =
 
 export function step(s: Shown, a: Act): Shown {
   switch (a.t) {
-    case "chat": return a.threadId.startsWith(LOCAL_PREFIX) ? s : { ...s, route: { view: "chat", threadId: a.threadId === "" ? null : a.threadId }, ...(a.pane ? { pane: true, terminalId: null } : {}), layer: null };
+    case "chat": return a.threadId.startsWith(LOCAL_PREFIX) ? s : { ...s, route: { view: "chat", threadId: a.threadId === "" ? null : a.threadId, ...(a.focus ? { focus: a.focus } : {}) }, ...(a.pane ? { pane: true, terminalId: null } : {}), layer: null };
     case "helper": return { ...s, route: { view: "helper", threadId: a.threadId }, layer: null };
     case "needs": return { ...s, route: { view: "needs", taskId: a.taskId ?? null }, layer: null };
     case "agent": return { ...s, route: { view: "agent", agentId: a.agentId, tab: a.tab ?? null }, layer: null };
@@ -97,7 +98,7 @@ export function fromHash(hash: string): Shown {
     case SCREEN.agent: { const tab = arg("tab"); return arg("agentId") === "" ? START : step(START, { t: "agent", agentId: arg("agentId"), ...(isTabKey(tab) ? { tab } : {}) }); }
     case SCREEN.helper: return arg("threadId") === "" ? START : step(START, { t: "helper", threadId: arg("threadId") });
     case SCREEN.needs: return step(START, { t: "needs", ...(arg("taskId") === "" ? {} : { taskId: arg("taskId") }) });
-    case SCREEN.conversation: return arg("threadId") === "" ? START : step(START, { t: "chat", threadId: arg("threadId") });
+    case SCREEN.conversation: return arg("threadId") === "" ? START : step(START, { t: "chat", threadId: arg("threadId"), ...(arg("m") === "" ? {} : { focus: arg("m") }) });
     case SCREEN.computer: case SCREEN.agentComputer: return arg("computerId") === "" ? START : step(START, { t: "layer", layer: { kind: "computer", computerId: arg("computerId"), chat: false } });
     case SCREEN.recording: return arg("recordingId") === "" ? START : step(START, { t: "layer", layer: { kind: "recording", recordingId: arg("recordingId") } });
     case SCREEN.connect: return arg("channelId") === "" ? START : step(START, { t: "layer", layer: { kind: "connect", channelId: arg("channelId") } });

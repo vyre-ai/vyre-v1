@@ -121,7 +121,18 @@ export type DriverEvent =
 export interface ToolResult { ok: boolean; content: unknown }
 
 /** One line the memory module recalled for a message: a fact (or note title) with where it is kept and the link to the chat, task or record it came from. */
-export interface RecallLine { title: string; fact?: string; trueSince?: number; path: string; sourceLink?: string }
+export interface RecallLine {
+  title: string; fact?: string; trueSince?: number; path: string; sourceLink?: string;
+  /** "quote" is the exact words of a past chat message or run step (title = where it was said); anything else is a fact or note. */
+  kind?: "fact" | "quote";
+  /** The source id: a fact id for a fact, a message id or <thread>#<index> for a quote. A model passes it to memory_quote or memory_forget. */
+  ref?: string;
+  /** Who said a quote, and when. */
+  by?: string;
+  at?: number;
+  /** A quote cut for the prompt: the rest is memory_quote with its ref. */
+  cut?: boolean;
+}
 
 export interface TurnInput {
   threadId: string;

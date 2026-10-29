@@ -6,6 +6,8 @@ import {
 } from "./facts.ts";
 import { graph, graphEverything, graphExport, indexGraph, layoutGet, layoutSave } from "./graph.ts";
 import { noteErase } from "./purge.ts";
+import { quote } from "./quotes.ts";
+import { forget, remember } from "./tools.ts";
 
 export const handlers = {
   "memory.search": search,
@@ -40,4 +42,7 @@ export const handlers = {
   "memory.restore_version": restoreVersion,
   "memory.find_by_subject": findBySubject,
   "memory.notes.erase": noteErase,
+  "memory.quote": quote,
+  "memory.remember": remember,
+  "memory.forget": forget,
 };

@@ -383,6 +383,21 @@
       },
       "type": "array"
     },
+    "s_0712dfa533": {
+      "properties": {
+        "fact": {
+          "$ref": "#/$defs/s_1ff9692f8d"
+        },
+        "merged": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "fact",
+        "merged"
+      ],
+      "type": "object"
+    },
     "s_07340211b5": {
       "anyOf": [
         {
@@ -42594,6 +42609,206 @@
         "mcp": {
           "toolset": "chats"
         }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "excludeThreadId": "thr_a1b2c3",
+            "limit": 1,
+            "minCoverage": 1,
+            "q": "example",
+            "ref": "example",
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "hits": [
+              {
+                "at": 1760000000000,
+                "author": {
+                  "id": "usr_a1b2c3",
+                  "kind": "person"
+                },
+                "link": "vyre://thread/thr_a1b2c3?m=msg_a1b2c3",
+                "messageId": "msg_a1b2c3",
+                "ref": "msg_a1b2c3",
+                "role": "person",
+                "score": 1,
+                "seq": 1,
+                "source": "message",
+                "text": "example",
+                "threadId": "thr_a1b2c3",
+                "threadKind": "example",
+                "threadTitle": "example",
+                "truncated": true
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "excludeThreadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minCoverage": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "q": {
+            "type": "string"
+          },
+          "ref": {
+            "description": "A message id, or <thread>#<index> for a transcript row: read that one line in full",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "chat",
+      "name": "chat.history.search",
+      "output": {
+        "properties": {
+          "hits": {
+            "items": {
+              "properties": {
+                "at": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "author": {
+                  "$ref": "#/$defs/s_6c1eb10d98"
+                },
+                "link": {
+                  "examples": [
+                    "vyre://thread/thr_a1b2c3?m=msg_a1b2c3"
+                  ],
+                  "type": "string"
+                },
+                "messageId": {
+                  "examples": [
+                    "msg_a1b2c3"
+                  ],
+                  "pattern": "^msg_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "ref": {
+                  "examples": [
+                    "msg_a1b2c3"
+                  ],
+                  "type": "string"
+                },
+                "role": {
+                  "examples": [
+                    "person"
+                  ],
+                  "type": "string"
+                },
+                "score": {
+                  "type": "number"
+                },
+                "seq": {
+                  "type": "integer"
+                },
+                "source": {
+                  "enum": [
+                    "message",
+                    "step"
+                  ],
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "threadId": {
+                  "examples": [
+                    "thr_a1b2c3"
+                  ],
+                  "pattern": "^thr_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "threadKind": {
+                  "type": "string"
+                },
+                "threadTitle": {
+                  "type": "string"
+                },
+                "truncated": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "source",
+                "ref",
+                "threadId",
+                "threadKind",
+                "seq",
+                "role",
+                "author",
+                "text",
+                "at",
+                "link",
+                "score"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "hits"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "rate": {
+        "n": 120,
+        "perSeconds": 60,
+        "scope": "principal"
+      },
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Word-for-word search over the chat messages and transcript rows (turns, tool calls and results) the asker could open themselves; used by memory for exact quotes. Returns the stored words, author, time and a link that opens the chat at that line",
+      "surfaces": {
+        "http": "auto"
       },
       "v": 1
     },
@@ -110023,6 +110238,85 @@
       "v": 1
     },
     {
+      "audit": "sensitive",
+      "effects": "write",
+      "emits": [
+        "memory.removed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "factIds": [
+              "fct_a1b2c3"
+            ]
+          },
+          "name": "example",
+          "output": {
+            "removed": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "factIds": {
+            "items": {
+              "examples": [
+                "fct_a1b2c3"
+              ],
+              "pattern": "^fct_[a-z0-9]+$",
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "factIds"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "memory",
+      "name": "memory.forget",
+      "output": {
+        "properties": {
+          "removed": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Forget facts by id: they stop being recalled and stay in history",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "cli": "vyre memory forget",
+        "http": "auto",
+        "mcp": {
+          "name": "memory_forget",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -110991,6 +111285,7 @@
               {
                 "fact": "example",
                 "path": "example",
+                "ref": "example",
                 "sourceLink": "example",
                 "title": "example",
                 "trueSince": 1760000000000
@@ -111045,6 +111340,10 @@
                   "type": "string"
                 },
                 "path": {
+                  "type": "string"
+                },
+                "ref": {
+                  "description": "The fact id, for memory_forget",
                   "type": "string"
                 },
                 "sourceLink": {
@@ -111575,19 +111874,7 @@
       "module": "memory",
       "name": "memory.propose_fact",
       "output": {
-        "properties": {
-          "fact": {
-            "$ref": "#/$defs/s_1ff9692f8d"
-          },
-          "merged": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "fact",
-          "merged"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_0712dfa533"
       },
       "permission": null,
       "resource": {
@@ -111606,6 +111893,218 @@
         "http": "auto",
         "mcp": {
           "name": "memory_propose",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "excludeThreadId": "thr_a1b2c3",
+            "limit": 1,
+            "minCoverage": 1,
+            "q": "example",
+            "ref": "example",
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "quotes": [
+              {
+                "at": 1760000000000,
+                "author": {
+                  "id": "example",
+                  "kind": "person",
+                  "name": "example"
+                },
+                "link": "vyre://thread/thr_a1b2c3?m=msg_a1b2c3",
+                "ref": "msg_a1b2c3",
+                "role": "example",
+                "score": 1,
+                "source": "message",
+                "text": "example",
+                "threadId": "thr_a1b2c3",
+                "threadTitle": "example",
+                "truncated": true
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "excludeThreadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minCoverage": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "q": {
+            "type": "string"
+          },
+          "ref": {
+            "description": "A source id from a recalled quote: returns that line in full",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.quote",
+      "output": {
+        "properties": {
+          "quotes": {
+            "items": {
+              "properties": {
+                "at": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "author": {
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "person",
+                        "agent",
+                        "actor",
+                        "service"
+                      ],
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "link": {
+                  "description": "Opens the chat scrolled to this line, highlighted",
+                  "examples": [
+                    "vyre://thread/thr_a1b2c3?m=msg_a1b2c3"
+                  ],
+                  "type": "string"
+                },
+                "ref": {
+                  "description": "Source id of the line: a message id, or <thread>#<index> for a transcript row",
+                  "examples": [
+                    "msg_a1b2c3"
+                  ],
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                },
+                "score": {
+                  "type": "number"
+                },
+                "source": {
+                  "enum": [
+                    "message",
+                    "step"
+                  ],
+                  "type": "string"
+                },
+                "text": {
+                  "description": "The stored words, exactly as written",
+                  "type": "string"
+                },
+                "threadId": {
+                  "examples": [
+                    "thr_a1b2c3"
+                  ],
+                  "pattern": "^thr_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "threadTitle": {
+                  "type": "string"
+                },
+                "truncated": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "ref",
+                "source",
+                "text",
+                "author",
+                "role",
+                "at",
+                "threadId",
+                "link",
+                "score"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "quotes"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "rate": {
+        "n": 120,
+        "perSeconds": 60,
+        "scope": "principal"
+      },
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Exact words of a chat message or run step, word for word, with author, time and a link that opens the chat at that line; only chats, channels and runs the asker could open themselves",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "cli": "vyre memory quote",
+        "http": "auto",
+        "mcp": {
+          "name": "memory_quote",
           "toolset": "memory"
         }
       },
@@ -111690,6 +112189,134 @@
         "http": "auto",
         "mcp": {
           "name": "read_note",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "memory.fact_proposed",
+        "memory.fact_accepted"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.provider_label",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "kind": "preference",
+            "layer": "person",
+            "projectId": "prj_a1b2c3",
+            "sourceRef": "example",
+            "text": "example",
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "fact": {
+              "agentId": "agt_a1b2c3",
+              "closedAt": 1760000000000,
+              "factId": "fct_a1b2c3",
+              "layer": "person",
+              "learnedAt": 1760000000000,
+              "lowRisk": true,
+              "noteId": "not_a1b2c3",
+              "ownerRef": "agt_a1b2c3",
+              "sourceKind": "chat",
+              "sourceLink": "example",
+              "sourceRef": "example",
+              "status": "proposed",
+              "text": "example",
+              "validFrom": 1760000000000,
+              "validTo": 1760000000000
+            },
+            "merged": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "kind": {
+            "examples": [
+              "preference"
+            ],
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "sourceRef": {
+            "description": "The source id of what this came from, for example a quote ref",
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "memory",
+      "name": "memory.remember",
+      "output": {
+        "$ref": "#/$defs/s_0712dfa533"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Remember something, with where it came from; in your own layer it is current at once, a shared layer follows its review rule",
+      "surfaces": {
+        "agent": {
+          "blocks": [
+            "memory_saved"
+          ],
+          "planMode": "blocked"
+        },
+        "cli": "vyre memory remember",
+        "http": "auto",
+        "mcp": {
+          "name": "memory_remember",
           "toolset": "memory"
         }
       },

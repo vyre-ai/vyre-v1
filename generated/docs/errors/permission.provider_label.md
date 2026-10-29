@@ -12,6 +12,7 @@ HTTP 403. Retryable: no.
 - engine.turn.retry
 - memory.capture
 - memory.propose_fact
+- memory.remember
 - records.reveal
 - vault.fill
 - vault.item.reveal

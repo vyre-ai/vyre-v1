@@ -111,13 +111,16 @@ function ConversationView(): ReactElement {
   const thread: Thread = threadQ.data.thread;
   const live = messagesQ.data.messages;
   const all = mergePages(live, older);
-  const win = lastMessages(all, shown);
+  // A link from memory opens the chat at one message: the window reaches back far enough to hold it, and older pages are fetched until it is there.
+  const focusAt = data.focus === undefined ? -1 : byOrderIndex(all, data.focus);
+  const win = lastMessages(all, focusAt >= 0 ? Math.max(shown, all.length - focusAt) : shown);
   const writing = new Set(collect(win.rows.filter((m) => { const s = data.streamOf(m.messageId); return s !== undefined && !s.getSnapshot().done; }), (m) => m.messageId));
   const working = workingAgents(win.rows, writing);
   const isWorking = working.length > 0;
   const nameOf = data.nameOf;
   const lead = leadOf(thread);
   const hasEarlier = win.hiddenLocal > 0 || (olderMore ?? messagesQ.data.hasMore);
+  const wantOlder = data.focus !== undefined && focusAt < 0 && (olderMore ?? messagesQ.data.hasMore) && cursor === null;
 
   const submit = (payload: ComposerSend, kind: SendKind): void => {
     const key = data.newKey();
@@ -129,7 +132,9 @@ function ConversationView(): ReactElement {
     run(p);
   };
 
-  const matches = finding ? findMatches(win.rows, query) : [];
+  const focused = data.focus !== undefined && win.rows.some((m) => m.messageId === data.focus) ? data.focus : undefined;
+  const found = finding ? findMatches(win.rows, query) : [];
+  const matches = found.length > 0 || focused === undefined ? found : [focused];
   const activeId = matches.length > 0 ? matches[Math.min(matchAt, matches.length - 1)] : undefined;
   const timelineMessages = [...win.rows, ...collect(stillPending(pending, win.rows), (p, i) => pendingMessage(p, data.me.id, thread.threadId, (win.rows[win.rows.length - 1]?.threadSeq ?? 0) + 1 + i))];
   const pendingState = new Map<string, "sending" | "failed">();
@@ -318,6 +323,7 @@ function ConversationView(): ReactElement {
         )}
       </View>
       {activeId ? <ScrollToMessage key={`${activeId}:${matchAt}`} id={activeId} /> : null}
+      {wantOlder ? <Once key={`focus:${all.length}`} run={() => { const c = beforeCursor(all); if (c !== null) setCursor(c); }} /> : null}
       {cursor !== null ? <OlderPage key={cursor} before={cursor} onPage={(page) => { setOlder((cur) => mergePages(cur, page.messages)); setOlderMore(page.hasMore); setShown((n) => n + WINDOW); setCursor(null); }} /> : null}
 
       {data.waitingLine ?? null}
@@ -347,6 +353,14 @@ function ConversationView(): ReactElement {
       {menu.element}
     </View>
   );
+}
+
+const byOrderIndex = (all: readonly Message[], id: string): number => all.findIndex((m) => m.messageId === id);
+
+/** Runs once when it appears: how a link to an old message asks for the next older page until the message is held. */
+function Once({ run }: { run: () => void }): null {
+  useEffect(() => { run(); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
 }
 
 /** Brings the match the person is on into view. A web page scrolls its element; a phone's list follows its own rules. */

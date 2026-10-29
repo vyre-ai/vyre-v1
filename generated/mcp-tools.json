@@ -30024,6 +30024,36 @@
     },
     {
       "blocks": [],
+      "cap": "memory.forget",
+      "deferred": false,
+      "description": "Forget facts by id: they stop being recalled and stay in history",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "factIds": {
+            "items": {
+              "examples": [
+                "fct_a1b2c3"
+              ],
+              "pattern": "^fct_[a-z0-9]+$",
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "factIds"
+        ],
+        "type": "object"
+      },
+      "name": "memory_forget",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.graph",
       "deferred": false,
       "description": "The memory graph for an agent or the Space, built per viewer through access checks; agent, project and Space layers only",
@@ -30562,6 +30592,117 @@
         "type": "object"
       },
       "name": "memory_propose",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.quote",
+      "deferred": false,
+      "description": "Exact words of a chat message or run step, word for word, with author, time and a link that opens the chat at that line; only chats, channels and runs the asker could open themselves",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "excludeThreadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minCoverage": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "q": {
+            "type": "string"
+          },
+          "ref": {
+            "description": "A source id from a recalled quote: returns that line in full",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_quote",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "memory_saved"
+      ],
+      "cap": "memory.remember",
+      "deferred": false,
+      "description": "Remember something, with where it came from; in your own layer it is current at once, a shared layer follows its review rule",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "kind": {
+            "examples": [
+              "preference"
+            ],
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "sourceRef": {
+            "description": "The source id of what this came from, for example a quote ref",
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "name": "memory_remember",
       "planMode": "blocked",
       "toolset": "memory",
       "v": 1

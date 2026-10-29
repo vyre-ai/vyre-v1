@@ -5,6 +5,7 @@
 //   everything from a chat goes to the asker's own layer and merges on its own only for a kind in the setting memory.auto_merge_kinds (default preference), or when the person typed it themselves.
 // DECISION: search is local and has no model call: BM25 over words, character trigrams for the "semantic" side, a small recency lift. The vector table of ARCH 6.10 is the same call shape and slots in later.
 import { excerpt } from "../../../lib/md.ts";
+import { isHostService } from "../../../lib/trust.ts";
 import {
   actorOf, autoMergeKinds, bm25, ensure, factOut, liveNow, loadFact, makeAccess, mintId, num, orNull, ownerOfLayer, pageOf, raise, readFact, recencyBoost, rowsOf, sealText, snippet, sourceLinkOf,
   str, tokens, trigramSim,
@@ -354,7 +355,8 @@ export async function counts(ctx: MemCtx, input: { agentId: string }) {
 /** The MAP.md block the nightly job last wrote for an agent. Only the agent layer goes into it, so anyone who may view the agent may read it. */
 export async function mapGet(ctx: MemCtx, input: { agentId: string }) {
   ensure(ctx.db);
-  if (!(await makeAccess(ctx).can("agent", input.agentId, input.agentId, null, "view"))) raise(ctx, "permission.no_grant", "You cannot read this agent's memory.");
+  // The server itself reads the map to keep the agent's CLAUDE.md and AGENTS.md in step with it (modules/agents/memory-guide.ts); it is the agent layer only, never a person's memory.
+  if (!isHostService(ctx.principal) && !(await makeAccess(ctx).can("agent", input.agentId, input.agentId, null, "view"))) raise(ctx, "permission.no_grant", "You cannot read this agent's memory.");
   const r = rowsOf(ctx.db, "SELECT body, lines, updated_at FROM memory_maps WHERE agent_id = ?", input.agentId)[0];
   return r ? { map: { body: str(r["body"]), lines: Number(r["lines"]), updatedAt: Number(r["updated_at"]) } } : {};
 }
@@ -479,7 +481,7 @@ export const POINTER_MIN_MASS = 0.8;
 export const POINTER_MAX_LINES = 5;
 export const POINTER_MAX_TOKENS = 350;
 
-export interface PointerLine { title: string; fact?: string; trueSince?: number; path: string; sourceLink?: string }
+export interface PointerLine { title: string; fact?: string; trueSince?: number; path: string; sourceLink?: string; ref?: string }
 export interface PointerOut { lines: PointerLine[]; tokens: number; skipped?: "short_ack" | "mid_tool_loop" | "no_match" | "duplicate" }
 
 export async function pointer(ctx: MemCtx, input: { threadId: string; agentId: string; text: string; sinceIdx?: number }): Promise<PointerOut> {
@@ -509,7 +511,7 @@ export async function pointer(ctx: MemCtx, input: { threadId: string; agentId: s
     const ref = `${d.kind}:${d.id}`;
     if (shown.has(ref)) continue;
     const line: PointerLine = d.kind === "fact"
-      ? { title: d.title, fact: d.text.length > 160 ? `${d.text.slice(0, 157)}...` : d.text, ...(d.since !== null ? { trueSince: d.since } : {}), path: d.path ?? `memory/${d.layer}`, ...(d.link ? { sourceLink: d.link } : {}) }
+      ? { title: d.title, fact: d.text.length > 160 ? `${d.text.slice(0, 157)}...` : d.text, ...(d.since !== null ? { trueSince: d.since } : {}), path: d.path ?? `memory/${d.layer}`, ...(d.link ? { sourceLink: d.link } : {}), ref: d.id }
       : { title: d.title, path: d.path ?? `memory/${d.layer}` };
     const cost = Math.ceil((line.title.length + (line.fact?.length ?? 0) + line.path.length + 12) / 4);
     if (tokenCount + cost > POINTER_MAX_TOKENS && lines.length > 0) break;

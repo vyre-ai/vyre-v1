@@ -29,6 +29,7 @@
     "chat.handoff@1": "265e3b3f5dffd72d682cd0f70e43b02195b86d24c57732e9120a8d05348ed696",
     "chat.helper.start@1": "639fc97f0220c994c112d64ecca7661f5fbb396f7328343c40aa0ab609d7c6c2",
     "chat.helpers.list@1": "13376b574aaa6998e24e4be421ebcc5bc057c3cbf46bcea4a0a2ec19d18f3d69",
+    "chat.history.search@1": "53ceefbcc6c45e4ced981d4c455517697bd604264e653382ff01c42bc42489b1",
     "chat.message.get@1": "a4e1ae3233008ca5c3433fd359e5b9db1b0d8a777e0a61c656d340cd6c4e339e",
     "chat.messages.list@1": "211a70aa0f8ad3130c4b44c20d5ba701570279dc6b8c43db649d66cca19f01e3",
     "chat.open_as_chat@1": "ed48a80741fe80ec8040e17c57411ed0ee14caa1e96cb998b921c1b7b7b21661",

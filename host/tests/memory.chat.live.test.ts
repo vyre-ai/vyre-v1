@@ -172,6 +172,6 @@ test("memory live: a fact stated in chat 1 is captured on close and recalled in 
     const recalled = await say(d, asker, "what pens do I prefer for client invoices?", "prop2");
     assert.match(recalled.reply, /blue pens/);
     const rejected = await say(d, asker, "which ink do I never use for client invoices?", "prop3");
-    assert.doesNotMatch(rejected.reply, /red ink/, "a rejected fact is not recalled");
+    assert.doesNotMatch(rejected.reply, /\[fct_[a-z0-9]+\][^\n]*red ink/, "a rejected fact is not recalled as a fact (the words people wrote stay findable as quotes)");
   } finally { await d.stop(); }
 });

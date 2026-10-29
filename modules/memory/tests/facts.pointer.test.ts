@@ -13,7 +13,7 @@ test("a matching fact comes back as a line with its title, the fact, true since,
   seedFact(h, { id: "fct_1", layer: "agent", agentId: "agt_intake", kind: "policy", noteId, validFrom: NOW - 9 * DAY, text: "Refunds above 500 dollars need a second approver" });
   const out = await pointer(h.ctx, { ...base, threadId: "thr_a", text: "Do refunds above 500 dollars need a second approver?" });
   assert.equal(out.lines.length, 1);
-  assert.deepEqual(out.lines[0], { title: "Policy", fact: "Refunds above 500 dollars need a second approver", trueSince: NOW - 9 * DAY, path: "Agents/Intake/memory/notes/clients.md" });
+  assert.deepEqual(out.lines[0], { title: "Policy", fact: "Refunds above 500 dollars need a second approver", trueSince: NOW - 9 * DAY, path: "Agents/Intake/memory/notes/clients.md", ref: "fct_1" });
   assert.ok(out.tokens > 0 && out.tokens <= 350);
   assert.equal(out.skipped, undefined);
   assert.deepEqual(contractErrors("memory.pointer", "out", out), []);

@@ -324,6 +324,9 @@ export function createClient(transport: Transport) {
       helpers: {
         list: call("chat.helpers.list", 1),
       },
+      history: {
+        search: call("chat.history.search", 1),
+      },
       message: {
         get: call("chat.message.get", 1),
       },
@@ -1296,6 +1299,7 @@ export function createClient(transport: Transport) {
       },
       facts_as_of: call("memory.facts_as_of", 1),
       find_by_subject: call("memory.find_by_subject", 1),
+      forget: call("memory.forget", 1),
       graph: call("memory.graph", 1),
       graph_everything: call("memory.graph_everything", 1),
       graph_export: call("memory.graph_export", 1),
@@ -1323,7 +1327,9 @@ export function createClient(transport: Transport) {
         undo: call("memory.promotion.undo", 1),
       },
       propose_fact: call("memory.propose_fact", 1),
+      quote: call("memory.quote", 1),
       read_note: call("memory.read_note", 1),
+      remember: call("memory.remember", 1),
       restore_version: call("memory.restore_version", 1),
       search: call("memory.search", 1),
       versions: call("memory.versions", 1),

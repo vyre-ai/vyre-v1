@@ -324,6 +324,9 @@ export function stubs(ctx: CallCtx) {
       helpers: {
         list: call("chat.helpers.list"),
       },
+      history: {
+        search: call("chat.history.search"),
+      },
       message: {
         get: call("chat.message.get"),
       },
@@ -1296,6 +1299,7 @@ export function stubs(ctx: CallCtx) {
       },
       facts_as_of: call("memory.facts_as_of"),
       find_by_subject: call("memory.find_by_subject"),
+      forget: call("memory.forget"),
       graph: call("memory.graph"),
       graph_everything: call("memory.graph_everything"),
       graph_export: call("memory.graph_export"),
@@ -1323,7 +1327,9 @@ export function stubs(ctx: CallCtx) {
         undo: call("memory.promotion.undo"),
       },
       propose_fact: call("memory.propose_fact"),
+      quote: call("memory.quote"),
       read_note: call("memory.read_note"),
+      remember: call("memory.remember"),
       restore_version: call("memory.restore_version"),
       search: call("memory.search"),
       versions: call("memory.versions"),

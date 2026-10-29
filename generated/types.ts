@@ -5015,6 +5015,35 @@ export type ChatHelpersListOut = {
       startedAt: number;
     }>;
 };
+export type ChatHistorySearchIn = {
+  q?: string;
+  ref?: string;
+  threadId?: string;
+  excludeThreadId?: string;
+  limit?: number;
+  minCoverage?: number;
+};
+export type ChatHistorySearchOut = {
+  hits: Array<{
+      source: "message" | "step";
+      ref: string;
+      messageId?: string;
+      threadId: string;
+      threadTitle?: string;
+      threadKind: string;
+      seq: number;
+      role: string;
+      author: {
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      };
+      text: string;
+      truncated?: boolean;
+      at: number;
+      link: string;
+      score: number;
+    }>;
+};
 export type ChatMessageGetIn = {
   threadId: string;
   messageId: string;
@@ -16112,6 +16141,12 @@ export type MemoryFindBySubjectOut = {
   next?: string;
   total?: number;
 };
+export type MemoryForgetIn = {
+  factIds: Array<string>;
+};
+export type MemoryForgetOut = {
+  removed: number;
+};
 export type MemoryGraphIn = {
   scope: "agent" | "space";
   agentId?: string;
@@ -16275,6 +16310,7 @@ export type MemoryPointerOut = {
       trueSince?: number;
       path: string;
       sourceLink?: string;
+      ref?: string;
     }>;
   tokens: number;
   skipped?: "short_ack" | "mid_tool_loop" | "no_match" | "duplicate";
@@ -16358,6 +16394,33 @@ export type MemoryProposeFactOut = {
   };
   merged: boolean;
 };
+export type MemoryQuoteIn = {
+  q?: string;
+  ref?: string;
+  threadId?: string;
+  excludeThreadId?: string;
+  limit?: number;
+  minCoverage?: number;
+};
+export type MemoryQuoteOut = {
+  quotes: Array<{
+      ref: string;
+      source: "message" | "step";
+      text: string;
+      truncated?: boolean;
+      author: {
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+        name?: string;
+      };
+      role: string;
+      at: number;
+      threadId: string;
+      threadTitle?: string;
+      link: string;
+      score: number;
+    }>;
+};
 export type MemoryReadNoteIn = {
   noteId: string;
 };
@@ -16371,6 +16434,35 @@ export type MemoryReadNoteOut = {
     updatedAt: number;
   };
   markdown: string;
+};
+export type MemoryRememberIn = {
+  text: string;
+  layer?: "person" | "agent" | "project" | "space";
+  agentId?: string;
+  projectId?: string;
+  kind?: string;
+  threadId?: string;
+  sourceRef?: string;
+};
+export type MemoryRememberOut = {
+  fact: {
+    factId: string;
+    layer: "person" | "agent" | "project" | "space";
+    ownerRef: string;
+    agentId?: string;
+    noteId?: string;
+    text: string;
+    validFrom: number;
+    validTo?: number;
+    learnedAt: number;
+    closedAt?: number;
+    sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+    sourceRef: string;
+    sourceLink?: string;
+    status: "proposed" | "current" | "closed" | "removed";
+    lowRisk?: boolean;
+  };
+  merged: boolean;
 };
 export type MemoryRestoreVersionIn = {
   noteId: string;
@@ -27172,6 +27264,7 @@ export interface CapMap {
   "chat.handoff": { in: ChatHandoffIn; out: ChatHandoffOut };
   "chat.helper.start": { in: ChatHelperStartIn; out: ChatHelperStartOut };
   "chat.helpers.list": { in: ChatHelpersListIn; out: ChatHelpersListOut };
+  "chat.history.search": { in: ChatHistorySearchIn; out: ChatHistorySearchOut };
   "chat.message.get": { in: ChatMessageGetIn; out: ChatMessageGetOut };
   "chat.messages.list": { in: ChatMessagesListIn; out: ChatMessagesListOut };
   "chat.open_as_chat": { in: ChatOpenAsChatIn; out: ChatOpenAsChatOut };
@@ -27874,6 +27967,7 @@ export interface CapMap {
   "memory.facts.remove": { in: MemoryFactsRemoveIn; out: MemoryFactsRemoveOut };
   "memory.facts_as_of": { in: MemoryFactsAsOfIn; out: MemoryFactsAsOfOut };
   "memory.find_by_subject": { in: MemoryFindBySubjectIn; out: MemoryFindBySubjectOut };
+  "memory.forget": { in: MemoryForgetIn; out: MemoryForgetOut };
   "memory.graph": { in: MemoryGraphIn; out: MemoryGraphOut };
   "memory.graph_everything": { in: MemoryGraphEverythingIn; out: MemoryGraphEverythingOut };
   "memory.graph_export": { in: MemoryGraphExportIn; out: MemoryGraphExportOut };
@@ -27891,7 +27985,9 @@ export interface CapMap {
   "memory.promotion.reject": { in: MemoryPromotionRejectIn; out: MemoryPromotionRejectOut };
   "memory.promotion.undo": { in: MemoryPromotionUndoIn; out: MemoryPromotionUndoOut };
   "memory.propose_fact": { in: MemoryProposeFactIn; out: MemoryProposeFactOut };
+  "memory.quote": { in: MemoryQuoteIn; out: MemoryQuoteOut };
   "memory.read_note": { in: MemoryReadNoteIn; out: MemoryReadNoteOut };
+  "memory.remember": { in: MemoryRememberIn; out: MemoryRememberOut };
   "memory.restore_version": { in: MemoryRestoreVersionIn; out: MemoryRestoreVersionOut };
   "memory.search": { in: MemorySearchIn; out: MemorySearchOut };
   "memory.versions": { in: MemoryVersionsIn; out: MemoryVersionsOut };

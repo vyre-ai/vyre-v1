@@ -50,6 +50,8 @@ export interface SessionOpenerDeps {
    * sandbox) and how to close the bridge. The token stays in the process environment (VYRE_MCP_TOKEN); the shim sends it on each request. Omitted: the engine uses the loopback URL.
    */
   mcpBridge?(m: { url: string; token: string }, spec: OpenerSpec): Promise<{ stdio: { command: string; args: string[] }; close(): Promise<void> }>;
+  /** Before a CLI engine starts: put what it reads from its folder in place (the memory guide as CLAUDE.md and AGENTS.md). A failure never stops the session. */
+  prepare?(spec: OpenerSpec): Promise<void>;
   /** The system prompt and tool list an API driver sends for a turn. */
   apiContext: SessionDeps["context"];
   /** Where the process runs, for the Vault's place rules. Default "host". */
@@ -112,6 +114,7 @@ export function createSessionOpener(d: SessionOpenerDeps): SessionOpener {
       const spec = need(spec0);
       const cred = cliCredential(id, spec.account.kind, spec.account.ref);
       if (!cred) throw new DriverError("engine.account_unsupported", `${id} cannot run on this kind of account yet. Use an API key for it.`);
+      try { await d.prepare?.(spec); } catch { /* the engine runs without the guide */ }
       const launcher = createFillLauncher({ inner: d.launcher, source: d.source, reportMiss: d.reportMiss, who: whoOf(spec), env: { [cred.env]: cred.handle }, onUsed: used(spec) });
       const driver = createCliDriver(CLI_ADAPTERS[id], { ...d.cli, launcher, mcp: () => mcpFor(spec), mcpClose: (_s, endpoint) => mcpRevoke(endpoint) });
       return driver.open(spec);

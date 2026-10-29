@@ -4,6 +4,7 @@ import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { onFileVersion, onTurn, restoreAgentFiles } from "./handlers/crud.ts";
 import { onMessageReceived } from "./handlers/routines.ts";
+import { memoryGuideConsumers } from "./memory-guide.ts";
 import type { FileVersionEvent, TurnEvent } from "./handlers/crud.ts";
 import type { AgentsCtx } from "./projections.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
@@ -18,6 +19,7 @@ export const periodic = {
 export { restoreAgentFiles };
 
 export const consumers = {
+  ...memoryGuideConsumers,
   /** A person saved agent.toml or AGENT.md in Files: a text that passes becomes what the next run uses, one that does not raises agent.config_error and the last good version keeps running. */
   "agents.config_watch": {
     on: ["file.version_added"],

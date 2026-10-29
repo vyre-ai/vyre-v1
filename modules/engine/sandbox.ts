@@ -65,7 +65,9 @@ export function sandboxWrap(plan: SandboxPlan): NonNullable<LocalLauncherOptions
     if (rel.length !== 2 || rel.some((x) => x === "" || x === "..")) throw new SandboxError("sandbox.policy", "the work folder is not one of the Space's person-and-thread folders");
     const person = rel[0] as string;
     const scratch = scratchFolder(plan.dataDir, person);
-    const roots: Roots = { work: [path.join(plan.dataDir, "work")], scratch: [path.join(plan.dataDir, "scratch")] };
+    // The roots are the real paths of the folders: a data folder reached through a symlink (/var is /private/var on a Mac) must name the same folders the work and scratch helpers returned.
+    fs.mkdirSync(path.join(plan.dataDir, "scratch"), { recursive: true });
+    const roots: Roots = { work: [workRoot], scratch: [fs.realpathSync(path.join(plan.dataDir, "scratch"))] };
     const spec: SandboxSpec = {
       id: sandboxId(person), person, kind: s.kind, scratch,
       mounts: [{ host: start.cwd, mode: "rw" }],
@@ -77,7 +79,13 @@ export function sandboxWrap(plan: SandboxPlan): NonNullable<LocalLauncherOptions
       return [w.cmd, ...w.args];
     }
     const w = seatbeltCommand(spec, roots, argv, { proxyPort: s.proxyPort, ...(s.programRead ? { programRead: s.programRead } : {}) });
-    // sandbox-exec keeps the caller's environment, so the proxy variables go in front with env(1).
-    return ["/usr/bin/env", ...Object.entries(proxyEnv(`http://127.0.0.1:${s.proxyPort}`)).map(([k, v]) => `${k}=${v}`), w.cmd, ...w.args];
+    // sandbox-exec keeps the caller's environment, so the proxy variables go in front with env(1). So does the engine's home: a real CLI (Claude Code, Codex) writes its state and temp files
+    // under HOME and TMPDIR, and Seatbelt only lets it write the work and scratch folders, so both point into this person's scratch (Claude Code otherwise fails with EPERM at startup).
+    const home = path.join(scratch, "home");
+    const tmp = path.join(scratch, "tmp");
+    fs.mkdirSync(home, { recursive: true });
+    fs.mkdirSync(tmp, { recursive: true });
+    const own = { HOME: home, TMPDIR: tmp, XDG_CONFIG_HOME: path.join(home, ".config"), XDG_CACHE_HOME: path.join(home, ".cache") };
+    return ["/usr/bin/env", ...Object.entries({ ...proxyEnv(`http://127.0.0.1:${s.proxyPort}`), ...own }).map(([k, v]) => `${k}=${v}`), w.cmd, ...w.args];
   };
 }

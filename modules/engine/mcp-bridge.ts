@@ -4,6 +4,7 @@
 // The first line on a connection is {"auth": "<token>"}; a wrong token closes the connection before anything is posted.
 import fs from "node:fs";
 import net from "node:net";
+import os from "node:os";
 import path from "node:path";
 
 /** The program the CLI starts. Plain Node, no imports beyond the standard library. argv[2] is the socket; the token comes from VYRE_MCP_TOKEN. */
@@ -11,7 +12,10 @@ export const SHIM_SOURCE = `import net from "node:net";
 const sock = process.argv[2];
 const token = process.env.VYRE_MCP_TOKEN ?? "";
 if (!sock || !token) { process.stderr.write("vyre mcp shim: no socket or token\\n"); process.exit(2); }
-const c = net.connect(sock);
+// A unix socket path holds about 100 characters, and a Mac's data folder is longer than that: connect by name from inside the socket's own folder.
+let at = sock;
+try { const i = sock.lastIndexOf("/"); if (i > 0) { process.chdir(sock.slice(0, i)); at = sock.slice(i + 1); } } catch {}
+const c = net.connect(at);
 c.on("error", (e) => { process.stderr.write("vyre mcp shim: " + e.message + "\\n"); process.exit(1); });
 c.on("connect", () => { c.write(JSON.stringify({ auth: token }) + "\\n"); process.stdin.pipe(c); });
 c.pipe(process.stdout);
@@ -45,7 +49,17 @@ export async function openMcpBridge(m: { url: string; token: string }, o: McpBri
   const shim = path.join(o.scratch, "mcp-shim.mjs");
   fs.writeFileSync(shim, SHIM_SOURCE, { mode: 0o644 });
   const socket = path.join(o.scratch, `mcp-${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("")}.sock`);
-  if (Buffer.byteLength(socket) > MAX_SOCKET_PATH) throw new Error(`the MCP socket path is too long for a unix socket: ${socket.length} characters`);
+  // The daemon binds through a short symlink to the scratch folder when the real path is too long for a unix socket (a Mac's data folder is). The file lands in the scratch folder; only the name
+  // given to bind(2) is short. The shim, inside the sandbox, goes to the scratch folder and connects by file name.
+  let link: string | null = null;
+  let bindAt = socket;
+  if (Buffer.byteLength(socket) > MAX_SOCKET_PATH) {
+    const short = path.join(process.platform === "win32" ? os.tmpdir() : "/tmp", `vyre-m${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(4)), (b) => b.toString(16).padStart(2, "0")).join("")}`);
+    fs.symlinkSync(o.scratch, short, "dir");
+    link = short;
+    bindAt = path.join(short, path.basename(socket));
+    if (Buffer.byteLength(bindAt) > MAX_SOCKET_PATH) { fs.rmSync(short, { force: true }); throw new Error(`the MCP socket path is too long for a unix socket: ${bindAt.length} characters`); }
+  }
   const live = new Set<net.Socket>();
   const server = net.createServer({ allowHalfOpen: true }, (c) => {
     live.add(c);
@@ -99,7 +113,7 @@ export async function openMcpBridge(m: { url: string; token: string }, o: McpBri
       }
     });
   });
-  await new Promise<void>((ok, bad) => { server.once("error", bad); server.listen(socket, () => ok()); });
+  await new Promise<void>((ok, bad) => { server.once("error", bad); server.listen(bindAt, () => ok()); });
   fs.chmodSync(socket, 0o600);
   return {
     stdio: { command: o.node ?? process.execPath, args: [shim, socket] },
@@ -108,6 +122,7 @@ export async function openMcpBridge(m: { url: string; token: string }, o: McpBri
       for (const c of live) c.destroy();
       await new Promise<void>((ok) => server.close(() => ok()));
       fs.rmSync(socket, { force: true });
+      if (link) fs.rmSync(link, { force: true });
     },
   };
 }

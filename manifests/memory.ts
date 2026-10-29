@@ -20,6 +20,12 @@ const factRow = t.obj({
 });
 const noteRow = t.obj({ noteId: id.note, path: t.str({ examples: ['Agents/Intake/memory/notes/clients.md'] }), title: t.str(), layer, agentId: t.opt(id.agent), updatedAt: t.ts() });
 const hit = t.obj({ kind: t.enm('note', 'fact'), noteId: t.opt(id.note), factId: t.opt(id.fact), title: t.str(), text: t.str(), path: t.opt(t.str()), trueSince: t.opt(t.ts()), layer, sourceLink: t.opt(t.str()), score: t.num() });
+const quoteRow = t.obj({
+  ref: t.str({ description: 'Source id of the line: a message id, or <thread>#<index> for a transcript row', examples: ['msg_a1b2c3'] }), source: t.enm('message', 'step'),
+  text: t.str({ description: 'The stored words, exactly as written' }), truncated: t.opt(t.bool()),
+  author: t.obj({ kind: t.enm('person', 'agent', 'actor', 'service'), id: t.str(), name: t.opt(t.str()) }), role: t.str(), at: t.ts(), threadId: id.thread, threadTitle: t.opt(t.str()),
+  link: t.str({ description: 'Opens the chat scrolled to this line, highlighted', examples: ['vyre://thread/thr_a1b2c3?m=msg_a1b2c3'] }), score: t.num(),
+});
 const node = t.obj({
   nodeId: t.str(), kind: t.enm('note', 'person', 'client', 'project', 'site', 'decision', 'record', 'chat'), title: t.str(), layer: t.opt(layer), cluster: t.opt(t.str({ description: 'Cluster named after its hub' })),
   x: t.opt(t.num()), y: t.opt(t.num()), link: t.opt(t.str()),
@@ -48,6 +54,13 @@ export default defineManifest({
     read('memory.search', 'Search notes and current facts the asker may read; BM25, vectors and recency; snippets carry the source link', {
       in: { q: t.str(), layers: t.opt(t.arr(layer)), agentId: t.opt(id.agent), projectId: t.opt(id.project), mode: t.opt(t.enm('keyword', 'semantic', 'hybrid')), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) },
       out: { hits: t.arr(hit), tookMs: t.int() }, label: 'filter', tool: 'memory', mcpName: 'memory_search', agent: { planMode: 'allowed' }, cli: 'vyre memory search',
+    }),
+    read('memory.quote', 'Exact words of a chat message or run step, word for word, with author, time and a link that opens the chat at that line; only chats, channels and runs the asker could open themselves', {
+      in: {
+        q: t.opt(t.str()), ref: t.opt(t.str({ description: 'A source id from a recalled quote: returns that line in full' })), threadId: t.opt(id.thread),
+        excludeThreadId: t.opt(id.thread), limit: t.opt(t.int({ minimum: 1, maximum: 20 })), minCoverage: t.opt(t.num({ minimum: 0, maximum: 1 })),
+      },
+      out: { quotes: t.arr(quoteRow) }, label: 'filter', tool: 'memory', mcpName: 'memory_quote', agent: { planMode: 'allowed' }, cli: 'vyre memory quote', rate: { n: 120, perSeconds: 60, scope: 'principal' },
     }),
     read('memory.read_note', 'Read one memory note as Markdown', {
       in: { noteId: id.note }, out: { note: noteRow, markdown: t.str() }, on: ['note', '/noteId'], label: 'check', tool: 'memory', mcpName: 'read_note', agent: { planMode: 'allowed' },
@@ -79,7 +92,7 @@ export default defineManifest({
     }),
     read('memory.pointer', 'Pointer block for a message: up to about 5 lines from a local lookup, no model call, deduplicated against the thread', {
       in: { threadId: id.thread, agentId: id.agent, text: t.str(), sinceIdx: t.opt(t.int()) },
-      out: { lines: t.arr(t.obj({ title: t.str(), fact: t.opt(t.str()), trueSince: t.opt(t.ts()), path: t.str(), sourceLink: t.opt(t.str({ description: 'Link to the exact chat, task or record the fact came from' })) })), tokens: t.int(), skipped: t.opt(t.enm('short_ack', 'mid_tool_loop', 'no_match', 'duplicate')) },
+      out: { lines: t.arr(t.obj({ title: t.str(), fact: t.opt(t.str()), trueSince: t.opt(t.ts()), path: t.str(), sourceLink: t.opt(t.str({ description: 'Link to the exact chat, task or record the fact came from' })), ref: t.opt(t.str({ description: 'The fact id, for memory_forget' })) })), tokens: t.int(), skipped: t.opt(t.enm('short_ack', 'mid_tool_loop', 'no_match', 'duplicate')) },
       label: 'filter',
     }),
     // ---- write: facts
@@ -89,6 +102,18 @@ export default defineManifest({
         kind: t.opt(t.str({ description: 'Fact kind, for example preference', examples: ['preference'] })),
       },
       out: { fact: factRow, merged: t.bool() }, emits: ['memory.fact_proposed', 'memory.fact_accepted'], tool: 'memory', mcpName: 'memory_propose', agent: { planMode: 'blocked', blocks: ['memory_saved'] }, errors: ['permission.provider_label'],
+    }),
+    write('memory.remember', 'Remember something, with where it came from; in your own layer it is current at once, a shared layer follows its review rule', {
+      in: {
+        text: t.str(), layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), kind: t.opt(t.str({ examples: ['preference'] })), threadId: t.opt(id.thread),
+        sourceRef: t.opt(t.str({ description: 'The source id of what this came from, for example a quote ref' })),
+      },
+      out: { fact: factRow, merged: t.bool() }, emits: ['memory.fact_proposed', 'memory.fact_accepted'], tool: 'memory', mcpName: 'memory_remember', agent: { planMode: 'blocked', blocks: ['memory_saved'] },
+      errors: ['permission.provider_label'], cli: 'vyre memory remember', idem: 'natural',
+    }),
+    write('memory.forget', 'Forget facts by id: they stop being recalled and stay in history', {
+      in: { factIds: t.arr(id.fact, { minItems: 1 }) }, out: { removed: t.int() }, emits: ['memory.removed'], tool: 'memory', mcpName: 'memory_forget', agent: { planMode: 'blocked' }, audit: 'sensitive', risk: 'medium',
+      cli: 'vyre memory forget', idem: 'natural',
     }),
     write('memory.fact.accept', 'Accept a proposed fact into current memory', {
       in: factT, out: { fact: factRow }, emits: ['memory.fact_accepted'], tool: 'memory', offline: 'queue', errors: ['validation.precondition_failed'],

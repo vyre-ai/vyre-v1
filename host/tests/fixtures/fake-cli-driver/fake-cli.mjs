@@ -10,6 +10,7 @@
 //   authfail  a result line that is an error (an expired sign-in)
 //   send      "send <address> [mailboxId]": calls the mail_send tool over the Vyre MCP server named in --mcp-config (stdio shim or loopback URL, the same ways the real CLI would) and answers with
 //             what the tool said, "mail_send answered: <text>" or "mail_send refused: <text>" (a Gate hold, a refusal) or "mcp error: <message>". Lets a test drive the Gate path end to end.
+//   tool      "tool <name> <json arguments>": calls any tool over the Vyre MCP server and answers "<name> answered: <text>" or "<name> refused: <text>" (or "mcp error: ..."). A model that reads memory through its tools.
 //   anything else answers with the prompt it was given
 import process from "node:process";
 import { spawn } from "node:child_process";
@@ -107,7 +108,27 @@ async function sendMail(prompt) {
   } finally { mcp?.close(); }
 }
 
+async function callTool(prompt) {
+  const m = /^\s*tool\s+(\S+)\s*(.*)$/s.exec(prompt);
+  if (!m) { reply(["mcp error: say which tool"]); return; }
+  let args = {};
+  try { args = m[2].trim() === "" ? {} : JSON.parse(m[2]); } catch { reply(["mcp error: the arguments are not JSON"]); return; }
+  let mcp;
+  try {
+    mcp = await mcpOpen();
+    const r = await mcp.call(m[1], args);
+    if (r?.error) { reply([`mcp error: ${r.error.message ?? "the call failed"}`]); return; }
+    const text = (r?.result?.content ?? []).map((c) => c.text ?? "").join("\n");
+    reply([`${m[1]} ${r?.result?.isError ? "refused" : "answered"}: ${text}`]);
+  } catch (e) {
+    reply([`mcp error: ${e instanceof Error ? e.message : "the call failed"}`]);
+  } finally { mcp?.close(); }
+}
+
 async function run(prompt) {
+  // a "tool" line is the person's message, which comes last and may follow context or memory the engine put in front of it
+  const toolLine = prompt.split("\n").reverse().find((l) => /^tool\s+\S+/.test(l));
+  if (toolLine) { await callTool(toolLine); return; }
   const first = prompt.trim().split(/\s+/)[0];
   switch (first) {
     case "hello": reply(["Hello", " from the fake engine."]); break;
@@ -137,6 +158,7 @@ async function run(prompt) {
       process.exit(3);
       break;
     case "send": await sendMail(prompt); break;
+    case "tool": await callTool(prompt); break;
     case "authfail":
       init();
       out({ type: "result", subtype: "error_during_execution", is_error: true, result: "Invalid API key. Please run /login", session_id: session });

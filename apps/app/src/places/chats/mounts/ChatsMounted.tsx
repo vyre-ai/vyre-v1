@@ -98,8 +98,8 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const leadAgent = useMemo(() => ({ agentId: leadId, name: nameOf(leadId), ...(leadComputer ? { computerId: leadComputer } : {}) }), [leadId, nameOf, leadComputer]);
 
   const conv = useMemo(
-    () => (threadId === null ? null : wireConversation(rt, go, { threadId, list, nameOf, leadId })),
-    [rt, go, threadId, list, nameOf, leadId],
+    () => (threadId === null ? null : wireConversation(rt, go, { threadId, list, nameOf, leadId, ...(route.view === "chat" && route.focus ? { focus: route.focus } : {}) })),
+    [rt, go, threadId, list, nameOf, leadId, route.view === "chat" ? route.focus : undefined],
   );
   const paneCtx = useMemo(() => (threadId === null ? null : wirePane(rt, go, threadId, leadAgent)), [rt, go, threadId, leadAgent]);
 

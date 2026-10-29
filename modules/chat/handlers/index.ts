@@ -6,6 +6,7 @@ import { g24bHandlers } from "./g24b.ts";
 import { g24cHandlers } from "./g24c.ts";
 import { g24dHandlers } from "./g24d.ts";
 import { g26Handlers } from "./g26.ts";
+import { historySearch } from "./history.ts";
 import { post } from "./post.ts";
 import { guardPrivate } from "./private.ts";
 import { channelErase, threadErase, transcriptPurge } from "./purge.ts";
@@ -30,6 +31,7 @@ export const handlers = {
   "threads.erase": threadErase,
   "channels.erase": channelErase,
   "chat.transcript.purge": transcriptPurge,
+  "chat.history.search": historySearch,
   ...askHandlers,
   ...g24aHandlers,
   ...g24bHandlers,
