@@ -131,6 +131,24 @@ jobs:
       - name: Exercise the packaged Windows shell and capture it
         if: runner.os == 'Windows'
         run: apps/desktop/src-tauri/ci/run-shell.sh "$PWD/apps/desktop/src-tauri/target/release/vyre-desktop.exe" "$PWD/out"
+      - name: The Windows installer as VyreSetup.exe (the name install.ps1 downloads) and its SHA-256, a small file the release carries instead of the installer until publish
+        if: runner.os == 'Windows'
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          # Tauri names the installer <productName>_<version>_<arch>-setup.exe
+          exes=(apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe)
+          [ "${#exes[@]}" -eq 1 ] || { echo "expected exactly one Windows installer, found ${#exes[@]}"; exit 1; }
+          mkdir -p win-exe win-sum
+          cp "${exes[0]}" win-exe/VyreSetup.exe
+          (cd win-exe && sha256sum VyreSetup.exe) > win-sum/VyreSetup.exe.sha256
+          cat win-sum/VyreSetup.exe.sha256
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with: { name: desktop-Windows-sha256, path: win-sum, if-no-files-found: error }
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with: { name: desktop-Windows-exe, path: win-exe, if-no-files-found: error }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
