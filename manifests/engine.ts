@@ -136,6 +136,13 @@ export default defineManifest({
       in: { turnId: id.turn, taskId: t.opt(id.task), blockId: t.opt(id.block), runId: t.opt(id.run), until: t.opt(t.ts()) }, out: { ok: t.bool() },
       emits: ['turn.waiting'], idem: 'natural', risk: 'low',
     }),
+    write('engine.turn.record', 'Record a turn the in-process engine ran for a chat (started, then completed, failed or cancelled) under the engine\'s own turn id, so the turn list, review sampling and the agent\'s Working status see it; a repeat answers with what is already recorded', {
+      in: {
+        ...threadT, turnId: id.turn, agentId: id.agent, phase: t.enm('started', 'completed', 'failed', 'cancelled'), qseq: t.int(), asker: t.opt(t.str()), engine: t.opt(t.str()), model: t.opt(t.str()), accountRef: t.opt(accountRef),
+        tokensIn: t.opt(t.int()), tokensOut: t.opt(t.int()), costMicros: t.opt(t.int()), code: t.opt(t.str()),
+      },
+      out: { turn: turnRow }, emits: ['turn.started', 'turn.completed', 'turn.failed', 'turn.cancelled', 'agent.task_finished'], idem: 'natural', risk: 'low',
+    }),
     write('engine.turn.finish', 'End a turn as completed, failed or cancelled; always releases the lease', {
       in: { turnId: id.turn, outcome: t.enm('completed', 'failed', 'cancelled'), error: t.opt(errShape), tokensIn: t.opt(t.int()), tokensOut: t.opt(t.int()), costMicros: t.opt(t.int()) },
       out: { turn: turnRow }, emits: ['turn.completed', 'turn.failed', 'turn.cancelled', 'agent.task_finished', 'agent.blocked'], idem: 'natural', risk: 'low',
