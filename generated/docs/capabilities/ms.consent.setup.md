@@ -11,7 +11,7 @@ Store the app registration (Vault item Microsoft_App), map members by email and,
 | Grant level | edit |
 | Risk | high |
 | Resource | space |
-| Gate | delete when actor.kind != 'person' |
+| Gate | connection_change when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

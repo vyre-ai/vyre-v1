@@ -11,7 +11,7 @@ Exclude a member from the connection, or include them again (excluded members ne
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | delete when actor.kind != 'person' |
+| Gate | connection_change when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

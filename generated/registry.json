@@ -5706,87 +5706,6 @@
       ],
       "type": "object"
     },
-    "s_475c563580": {
-      "properties": {
-        "act": {
-          "$ref": "#/$defs/s_75dff07a61"
-        },
-        "afterHours": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "agentOkFor": {
-          "enum": [
-            "low",
-            "medium",
-            "high"
-          ],
-          "type": "string"
-        },
-        "approvers": {
-          "description": "role:<name>, owner or asker",
-          "examples": [
-            "role:admin"
-          ],
-          "type": "string"
-        },
-        "emailBackstopHours": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "escalateTo": {
-          "enum": [
-            "delegate",
-            "role"
-          ],
-          "type": "string"
-        },
-        "mode": {
-          "enum": [
-            "hold",
-            "allow"
-          ],
-          "type": "string"
-        },
-        "onTimeout": {
-          "enum": [
-            "drop",
-            "escalate"
-          ],
-          "type": "string"
-        },
-        "peopleOnly": {
-          "type": "boolean"
-        },
-        "scope": {
-          "enum": [
-            "space",
-            "floor",
-            "agent"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "act",
-        "mode",
-        "approvers",
-        "peopleOnly",
-        "afterHours",
-        "onTimeout",
-        "escalateTo",
-        "emailBackstopHours",
-        "scope"
-      ],
-      "type": "object"
-    },
     "s_47621c6fe1": {
       "properties": {
         "expiresAt": {
@@ -9476,23 +9395,6 @@
       ],
       "type": "object"
     },
-    "s_75dff07a61": {
-      "enum": [
-        "send",
-        "post",
-        "pay",
-        "delete",
-        "transfer",
-        "enroll_node",
-        "push_protected",
-        "campaign_launch",
-        "secret_export",
-        "site_promote",
-        "signature_send",
-        "spend_raise"
-      ],
-      "type": "string"
-    },
     "s_7636d4fac9": {
       "properties": {
         "all": {
@@ -10142,6 +10044,24 @@
         "labelIds"
       ],
       "type": "object"
+    },
+    "s_7ddc40f284": {
+      "enum": [
+        "send",
+        "post",
+        "pay",
+        "delete",
+        "transfer",
+        "enroll_node",
+        "connection_change",
+        "push_protected",
+        "campaign_launch",
+        "secret_export",
+        "site_promote",
+        "signature_send",
+        "spend_raise"
+      ],
+      "type": "string"
     },
     "s_7e1f5a267d": {
       "properties": {
@@ -12764,86 +12684,6 @@
       },
       "type": "array"
     },
-    "s_a7a9bf3d71": {
-      "properties": {
-        "act": {
-          "$ref": "#/$defs/s_75dff07a61"
-        },
-        "actingFor": {
-          "type": "string"
-        },
-        "capName": {
-          "examples": [
-            "mail.send"
-          ],
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "expiresAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "hld_a1b2c3"
-          ],
-          "pattern": "^hld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "payloadHash": {
-          "type": "string"
-        },
-        "principal": {
-          "$ref": "#/$defs/s_6c1eb10d98"
-        },
-        "runId": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "state": {
-          "enum": [
-            "held",
-            "approved",
-            "denied",
-            "expired"
-          ],
-          "type": "string"
-        },
-        "taskId": {
-          "examples": [
-            "tsk_a1b2c3"
-          ],
-          "pattern": "^tsk_[a-z0-9]+$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "act",
-        "capName",
-        "taskId",
-        "principal",
-        "state",
-        "payloadHash",
-        "createdAt",
-        "expiresAt"
-      ],
-      "type": "object"
-    },
     "s_a803997f5b": {
       "properties": {
         "count": {
@@ -13416,6 +13256,86 @@
       },
       "required": [
         "computer"
+      ],
+      "type": "object"
+    },
+    "s_b262471405": {
+      "properties": {
+        "act": {
+          "$ref": "#/$defs/s_7ddc40f284"
+        },
+        "actingFor": {
+          "type": "string"
+        },
+        "capName": {
+          "examples": [
+            "mail.send"
+          ],
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expiresAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "hld_a1b2c3"
+          ],
+          "pattern": "^hld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "payloadHash": {
+          "type": "string"
+        },
+        "principal": {
+          "$ref": "#/$defs/s_6c1eb10d98"
+        },
+        "runId": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "held",
+            "approved",
+            "denied",
+            "expired"
+          ],
+          "type": "string"
+        },
+        "taskId": {
+          "examples": [
+            "tsk_a1b2c3"
+          ],
+          "pattern": "^tsk_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "act",
+        "capName",
+        "taskId",
+        "principal",
+        "state",
+        "payloadHash",
+        "createdAt",
+        "expiresAt"
       ],
       "type": "object"
     },
@@ -17423,6 +17343,87 @@
       },
       "required": [
         "id"
+      ],
+      "type": "object"
+    },
+    "s_ed57fdd197": {
+      "properties": {
+        "act": {
+          "$ref": "#/$defs/s_7ddc40f284"
+        },
+        "afterHours": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "agentOkFor": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "type": "string"
+        },
+        "approvers": {
+          "description": "role:<name>, owner or asker",
+          "examples": [
+            "role:admin"
+          ],
+          "type": "string"
+        },
+        "emailBackstopHours": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "escalateTo": {
+          "enum": [
+            "delegate",
+            "role"
+          ],
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "hold",
+            "allow"
+          ],
+          "type": "string"
+        },
+        "onTimeout": {
+          "enum": [
+            "drop",
+            "escalate"
+          ],
+          "type": "string"
+        },
+        "peopleOnly": {
+          "type": "boolean"
+        },
+        "scope": {
+          "enum": [
+            "space",
+            "floor",
+            "agent"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "act",
+        "mode",
+        "approvers",
+        "peopleOnly",
+        "afterHours",
+        "onTimeout",
+        "escalateTo",
+        "emailBackstopHours",
+        "scope"
       ],
       "type": "object"
     },
@@ -77271,7 +77272,7 @@
                   "type": "boolean"
                 },
                 "key": {
-                  "$ref": "#/$defs/s_75dff07a61"
+                  "$ref": "#/$defs/s_7ddc40f284"
                 },
                 "peopleOnly": {
                   "type": "boolean"
@@ -77447,7 +77448,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_75dff07a61"
+            "$ref": "#/$defs/s_7ddc40f284"
           },
           "principal": {
             "$ref": "#/$defs/s_6c1eb10d98"
@@ -77678,7 +77679,7 @@
       "output": {
         "properties": {
           "hold": {
-            "$ref": "#/$defs/s_a7a9bf3d71"
+            "$ref": "#/$defs/s_b262471405"
           }
         },
         "required": [
@@ -77750,7 +77751,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_75dff07a61"
+            "$ref": "#/$defs/s_7ddc40f284"
           },
           "cursor": {
             "type": "string"
@@ -77790,7 +77791,7 @@
         "properties": {
           "holds": {
             "items": {
-              "$ref": "#/$defs/s_a7a9bf3d71"
+              "$ref": "#/$defs/s_b262471405"
             },
             "type": "array"
           },
@@ -77864,7 +77865,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_75dff07a61"
+            "$ref": "#/$defs/s_7ddc40f284"
           },
           "actingFor": {
             "type": "string"
@@ -78117,7 +78118,7 @@
         "properties": {
           "rules": {
             "items": {
-              "$ref": "#/$defs/s_475c563580"
+              "$ref": "#/$defs/s_ed57fdd197"
             },
             "type": "array"
           }
@@ -78191,7 +78192,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_75dff07a61"
+            "$ref": "#/$defs/s_7ddc40f284"
           },
           "afterHours": {
             "minimum": 1,
@@ -78262,7 +78263,7 @@
       "output": {
         "properties": {
           "rule": {
-            "$ref": "#/$defs/s_475c563580"
+            "$ref": "#/$defs/s_ed57fdd197"
           }
         },
         "required": [
@@ -85032,7 +85033,7 @@
         }
       ],
       "gate": {
-        "act": "delete",
+        "act": "connection_change",
         "when": "actor.kind != 'person'"
       },
       "idempotency": "natural",
@@ -85319,7 +85320,7 @@
         }
       ],
       "gate": {
-        "act": "delete",
+        "act": "connection_change",
         "when": "actor.kind != 'person'"
       },
       "idempotency": "natural",
@@ -85383,7 +85384,7 @@
         }
       ],
       "gate": {
-        "act": "delete",
+        "act": "connection_change",
         "when": "actor.kind != 'person'"
       },
       "idempotency": "key",
@@ -116945,7 +116946,7 @@
         }
       ],
       "gate": {
-        "act": "delete",
+        "act": "connection_change",
         "when": "actor.kind != 'person'"
       },
       "idempotency": "natural",
@@ -117209,7 +117210,7 @@
         }
       ],
       "gate": {
-        "act": "delete",
+        "act": "connection_change",
         "when": "actor.kind != 'person'"
       },
       "idempotency": "natural",
@@ -117270,7 +117271,7 @@
         }
       ],
       "gate": {
-        "act": "delete",
+        "act": "connection_change",
         "when": "actor.kind != 'person'"
       },
       "idempotency": "key",
@@ -183035,7 +183036,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_75dff07a61"
+            "$ref": "#/$defs/s_7ddc40f284"
           },
           "by": {
             "type": "string"
@@ -183083,7 +183084,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_75dff07a61"
+            "$ref": "#/$defs/s_7ddc40f284"
           },
           "by": {
             "type": "string"
@@ -183139,7 +183140,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_75dff07a61"
+            "$ref": "#/$defs/s_7ddc40f284"
           },
           "escalatedTo": {
             "type": "string"
@@ -183197,7 +183198,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_75dff07a61"
+            "$ref": "#/$defs/s_7ddc40f284"
           },
           "actingFor": {
             "type": "string"
@@ -183264,7 +183265,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_75dff07a61"
+            "$ref": "#/$defs/s_7ddc40f284"
           },
           "agentId": {
             "examples": [
@@ -199900,6 +199901,39 @@
         "onTimeout": "escalate"
       },
       "title": "Launch a campaign"
+    },
+    {
+      "appliesTo": {
+        "actors": [
+          "agent",
+          "automation",
+          "campaign"
+        ],
+        "humanToo": false
+      },
+      "approvers": {
+        "default": "asker",
+        "peopleOnly": true
+      },
+      "key": "connection_change",
+      "module": "gate",
+      "preview": {
+        "blocks": [
+          {
+            "from": "$input",
+            "type": "table"
+          }
+        ]
+      },
+      "risk": "high",
+      "sendsOnApprove": "gate.release",
+      "timeout": {
+        "afterHours": 24,
+        "emailBackstopHours": 4,
+        "escalateTo": "delegate",
+        "onTimeout": "escalate"
+      },
+      "title": "Change a company-wide connection"
     },
     {
       "appliesTo": {

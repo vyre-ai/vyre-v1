@@ -1,1 +1,2 @@
 - An agent or automation can no longer set up, exclude a member from, or change the company-wide Google or Microsoft connection without a person approving it in the Gate (turning it off was already held). A person is not held.
+- A dedicated Gate act, "Change a company-wide connection" (connection_change), replaces Delete on the six Google and Microsoft setup, exclusion and disable capabilities. Approving it shows what is changing.
