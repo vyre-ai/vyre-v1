@@ -9,7 +9,7 @@ import type {Filter,Sort} from "../../../kernel/src/store/types.ts";
 type ReadSeed=CtxSeed&{readCap?:string;readInput?:unknown;labels?:Readonly<Record<string,number>>};
 const READS=new Set(["records.get","records.query","records.search","records.history"]);
 const object=(value:unknown):Record<string,unknown>=>value!==null&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{};
-export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapshot;now():number;fresh():boolean}){
+export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapshot;now():number;fresh():boolean;refresh?():Promise<void>}){
  const cursors=new Map<string,{key:string;cursor:string;expires:number;skip:number}>();
  const random=()=>Array.from(crypto.getRandomValues(new Uint8Array(24)),byte=>byte.toString(16).padStart(2,"0")).join("");
  function related(resourceId:string|null,type:string):boolean{const snapshot=ports.snapshot();return resourceId!==null&&(snapshot.chain(type)?.some(parent=>parent.id===resourceId)===true||snapshot.chain(resourceId)?.some(parent=>parent.id===type)===true);}
@@ -148,10 +148,13 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
    const stored=await Promise.all(originals.map(row=>typeof row["id"]==="string"?ports.store().get(type,row["id"]):Promise.resolve(null)));
    return async()=>{
     seed={...seed,labels:await recordSensitivity(ports.store(),type,trace)};
-    const rows=originals.flatMap((original,index)=>{const row=stored[index];if(!row||!decision(seed,row))return[];const visible=fields(seed,row,object(original["fields"]),trace);
+    const read=()=>originals.flatMap((original,index)=>{const row=stored[index];if(!row||!decision(seed,row))return[];const visible=fields(seed,row,object(original["fields"]),trace);
      if(cap==="records.query"){const touched=[...references(value["filter"]),...references(value["sort"]),...(typeof value["group"]==="string"?[value["group"]]:[])].map(field=>field.split(".")[0]!);const complete=fields(seed,row,row.data,trace);if(touched.some(field=>!["id","version","created_at","updated_at"].includes(field)&&Object.hasOwn(row.data,field)&&!Object.hasOwn(complete,field)))throw fail("permission.no_grant",trace);}
      if(cap==="records.search"){const words=String(value["q"]??"").toLocaleLowerCase().match(/[\p{L}\p{N}_]+/gu)??[];const body=Object.values(visible).filter(item=>typeof item==="string").join(" ").toLocaleLowerCase();const actual=body.match(/[\p{L}\p{N}_]+/gu)??[];if(!words.length||!words.every(word=>actual.some(item=>item.startsWith(word))))return[];}
      return[{...original,fields:visible}];});
+    // A row the read returned may belong to a record this Space wrote a moment ago (a run, a hook) whose access entry the snapshot has not folded yet. Fold what is pending and read once more before calling it a change of access: a real change (a grant taken away, a record removed) is still refused after the second read.
+    let rows=read();
+    if(rows.length!==originals.length&&ports.refresh){await ports.refresh();rows=read();}
     if(cap==="records.get"){if(!rows[0])throw fail("permission.no_grant",trace);return{...result,record:rows[0]};}
     if(rows.length!==originals.length)throw fail("validation.precondition_failed",trace,{message:"Access changed while reading. Refresh the list."});
     const{total:_total,...rest}=result;return{...rest,rows};

@@ -255,7 +255,8 @@ function ensureFace(doc: FaceDoc, seed: string): string {
  */
 function upgradeFaces(): void {
   const doc = faceDoc();
-  if (doc === undefined) return;
+  // a page whose document cannot be queried (a test's stand-in, a document going away) has no faces to upgrade
+  if (doc === undefined || typeof doc.querySelectorAll !== "function") return;
   const found = doc.querySelectorAll("[data-face-seed]");
   for (let i = 0; i < found.length && i < 160; i++) {
     const el = found[i]!;
