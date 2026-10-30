@@ -38,7 +38,19 @@ export interface McpEndpoint {
   stdio?: { command: string; args: readonly string[] };
 }
 
+/**
+ * Plugins installed on the agent, written into the CLI's own configuration inside its sandbox work folder (ruling 6): the plugin folders (Claude Code reads commands, skills and agents from them), and
+ * the plugin MCP servers as stdio commands. A value that is a secret is never here: the environment variable the CLI expands is named, and the host fills it from the Vault at launch.
+ */
+export interface NativePlugins {
+  dirs: readonly string[];
+  mcpServers: Readonly<Record<string, { command: string; args: readonly string[]; env: Readonly<Record<string, string>> }>>;
+  /** Environment variable name to the Vault handle whose value goes there (the existing fill). */
+  secrets: Readonly<Record<string, string>>;
+}
+
 export interface CommandOptions {
+  plugins?: NativePlugins;
   model: string | null;
   /** The engine's own session id to continue, from a checkpoint. */
   resume: string | null;

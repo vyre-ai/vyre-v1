@@ -13,7 +13,7 @@ import { classifyCli } from "./errors.ts";
 import { channel, lines } from "./lines.ts";
 import type { Channel } from "./lines.ts";
 import { defaultPrompt } from "./prompt.ts";
-import type { CliAdapter, CliCheckpoint, CliDecoder, CliEvent, CliProcess, Launcher, McpEndpoint } from "./types.ts";
+import type { CliAdapter, CliCheckpoint, CliDecoder, CliEvent, CliProcess, Launcher, McpEndpoint, NativePlugins } from "./types.ts";
 import { TOKEN_ENV } from "./types.ts";
 
 export interface CliSessionDeps {
@@ -30,6 +30,8 @@ export interface CliSessionDeps {
   /** Extra environment from the sandbox (proxy variables). */
   env: Readonly<Record<string, string>>;
   planMode?: () => boolean;
+  /** Plugins installed on the agent, for the CLI's own config. */
+  plugins?: NativePlugins;
   prompt?: (input: TurnInput, ctx: { fresh: boolean }) => string;
   /** No output for this long ends the turn. Default 10 minutes. */
   idleMs?: number;
@@ -95,7 +97,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
 
   async function start(): Promise<Run> {
     const argv = a.command({
-      model: deps.model, resume: sessionId, mcpUrl: deps.endpoint.url, ...(deps.endpoint.stdio ? { mcpStdio: deps.endpoint.stdio } : {}), planMode: deps.planMode?.() ?? false,
+      model: deps.model, resume: sessionId, mcpUrl: deps.endpoint.url, ...(deps.endpoint.stdio ? { mcpStdio: deps.endpoint.stdio } : {}), ...(deps.plugins ? { plugins: deps.plugins } : {}), planMode: deps.planMode?.() ?? false,
       workFolder: deps.workFolder, system: a.systemFlag ? deps.system : null,
     });
     const proc = await deps.launcher.spawn({
