@@ -60,11 +60,18 @@ export function useAutomationsData(): AutomationsData {
   return v;
 }
 
+/** The registry's route pointers (/route/automationId, /route/runId, /route/journeyId) read the state's `route`; a place that names the id once at the top of the state gets the route filled in. */
+export function withRoute(state: Record<string, unknown>): Record<string, unknown> {
+  const route: Record<string, unknown> = { ...((state["route"] as Record<string, unknown> | undefined) ?? {}) };
+  for (const k of ["automationId", "runId", "journeyId"]) if (state[k] !== undefined && route[k] === undefined) route[k] = state[k];
+  return Object.keys(route).length === 0 ? state : { ...state, route };
+}
+
 /** A live screen query (generated/screens.ts): `screens.query(screenId, name, state)`. Re-subscribes only when the screen, query or state changes. */
 export function useScreenQuery<T>(screenId: string, name: string, state: Record<string, unknown> = {}): QueryState<T> {
   const { screens } = useAutomationsData();
   const key = JSON.stringify(state);
-  const q = useMemo(() => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>, [screens, screenId, name, key]);
+  const q = useMemo(() => screens.query(screenId, name, withRoute(JSON.parse(key) as Record<string, unknown>)) as LiveQuery<T>, [screens, screenId, name, key]);
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 
@@ -95,7 +102,7 @@ const LOADING: QueryState<never> = { status: "loading" };
 export function useScreenOrRead<T>(screenId: string, name: string, state: Record<string, unknown>, cap: string, input: Record<string, unknown>, refreshKey: unknown = 0): QueryState<T> {
   const { screens } = useAutomationsData();
   const key = JSON.stringify(state);
-  const live = useMemo(() => { try { return screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>; } catch { return null; } }, [screens, screenId, name, key]);
+  const live = useMemo(() => { try { return screens.query(screenId, name, withRoute(JSON.parse(key) as Record<string, unknown>)) as LiveQuery<T>; } catch { return null; } }, [screens, screenId, name, key]);
   const fromLive = useSyncExternalStore(live ? live.subscribe : NO_SUB, live ? live.getSnapshot : () => LOADING as QueryState<T>, live ? live.getSnapshot : () => LOADING as QueryState<T>);
   const fromRead = useRead<T>(cap, input, refreshKey, live === null);
   return live ? fromLive : fromRead;
