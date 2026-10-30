@@ -446,6 +446,8 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const online = useOnline();
   const phone = useWindowDimensions().width;
   const slim = phone > 0 && phone < 720;
+  const tight = phone > 0 && phone < 1180;   // beside the sidebar a 1024 window has no room for seven labelled buttons: icons only, so the type and view names keep their room
+  const typeList = useScreenQuery<TypesOut>(SCREENS.types, "types");
   const [v, setV] = useState<TableViewState>(base);
   const [folded, setFolded] = useState<readonly string[]>([]);
   const [finding, setFinding] = useState(base.find !== "");
@@ -675,7 +677,19 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
       <View style={styles.head} testID="records-head">
         <View style={styles.crumb}>
           {slim ? null : <Glyph name={typeIcon(def.icon)} size={18} color="var(--ink-2)" />}
-          <Text accessibilityRole="header" aria-level={1} style={styles.h1} numberOfLines={1}>{def.plural}</Text>
+          {slim && typeList.status === "ready" ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={`${def.plural}, change record type`} testID="records-type-pick" onPress={(e) => {
+              const p = pointOf(e);
+              const all = typeGroups(typeList.data.types).flatMap((g) => g.items);
+              const agent = typeList.data.types.find((t) => t.key === "agent");
+              const entries: MenuEntry[] = all.map((t) => ({ label: t.label, checked: t.key === type, onSelect: () => dispatch({ type: "open", key: t.key }) }));
+              if (agent !== undefined && !all.some((t) => t.key === "agent")) entries.push({ label: agent.plural, checked: type === "agent", onSelect: () => dispatch({ type: "open", key: "agent" }) });
+              menu.show(entries, p.x, p.y);
+            }} style={styles.typePick}>
+              <Text accessibilityRole="header" aria-level={1} style={styles.h1} numberOfLines={1}>{def.plural}</Text>
+              <Glyph name="chevd" size={10} />
+            </Pressable>
+          ) : <Text accessibilityRole="header" aria-level={1} style={styles.h1} numberOfLines={1}>{def.plural}</Text>}
           {slim ? null : <Text style={styles.slash}>/</Text>}
           <Pressable accessibilityRole="button" accessibilityLabel="Saved views" testID="records-views" onPress={(e) => { const p = pointOf(e); menu.show(viewEntries(), p.x, p.y); }}
             style={({ hovered }: { hovered?: boolean }) => [styles.pick, hovered === true && styles.pickOver]}>
@@ -698,13 +712,13 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
             autoFocus onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") { set({ ...v, find: "" }); setFinding(false); } }} style={styles.find}
           />
         ) : <HeadButton icon="find" label="Find" bare testID="records-find-btn" onPress={() => setFinding(true)} />}
-        <HeadButton icon="filter" label="Filter" detail={v.clauses.length ? String(v.clauses.length) : undefined} on={lit(v.clauses.length > 0)} bare={slim} testID="records-filter" onPress={keep("filter")} />
-        <HeadButton icon="sort" label="Sort" detail={sortKey ? def.fields.find((f) => f.key === sortKey.field)?.title : undefined} on={lit(sortKey !== undefined)} bare={slim} testID="records-sort" onPress={(x, y) => menu.show(sortEntries(), x, y)} />
-        <HeadButton icon="group" label="Group" detail={groupField?.title} on={lit(groupField !== undefined)} bare={slim} testID="records-group" onPress={(x, y) => menu.show(groupEntries(), x, y)} />
-        <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={slim} testID="records-fields" onPress={keep("fields")} />
-        <HeadButton icon="colour" label="Colour" detail={colourField?.title} on={lit(colourField !== undefined)} bare={slim} testID="records-colour" onPress={keep("colour")} />
+        <HeadButton icon="filter" label="Filter" detail={v.clauses.length ? String(v.clauses.length) : undefined} on={lit(v.clauses.length > 0)} bare={tight} testID="records-filter" onPress={keep("filter")} />
+        <HeadButton icon="sort" label="Sort" detail={sortKey ? def.fields.find((f) => f.key === sortKey.field)?.title : undefined} on={lit(sortKey !== undefined)} bare={tight} testID="records-sort" onPress={(x, y) => menu.show(sortEntries(), x, y)} />
+        <HeadButton icon="group" label="Group" detail={groupField?.title} on={lit(groupField !== undefined)} bare={tight} testID="records-group" onPress={(x, y) => menu.show(groupEntries(), x, y)} />
+        <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={tight} testID="records-fields" onPress={keep("fields")} />
+        <HeadButton icon="colour" label="Colour" detail={colourField?.title} on={lit(colourField !== undefined)} bare={tight} testID="records-colour" onPress={keep("colour")} />
         {headerExtra}
-        <HeadButton icon="plus" label="New" bare={slim} filled testID="records-new" onPress={startNew} />
+        <HeadButton icon="plus" label="New" bare={tight} filled testID="records-new" onPress={startNew} />
       </View>
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="records-offline">Offline, showing your saved copy</Text>}
       {adding ? (
@@ -877,6 +891,7 @@ const styles = StyleSheet.create({
   main: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string },
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 2, paddingLeft: 18, paddingRight: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, zIndex: 10 },
   crumb: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0, flexShrink: 1, overflow: "hidden" },
+  typePick: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1, minWidth: 0 },
   h1: { margin: 0, flexShrink: 1, minWidth: 0, fontSize: 14, fontWeight: "600", letterSpacing: -0.07, color: "var(--ink)" as string },
   slash: { fontSize: 14, color: "var(--ink-4)" as string },
   pick: { height: 26, flexShrink: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 7, borderRadius: 6 },

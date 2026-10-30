@@ -1,0 +1,1 @@
+- Records: at 1024 wide the toolbar buttons show icons only so the type and view names are not cut, and on a phone the type name opens a menu to switch record types (it had no way to leave the first type).
