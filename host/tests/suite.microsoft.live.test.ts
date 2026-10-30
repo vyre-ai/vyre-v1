@@ -108,7 +108,7 @@ test("Microsoft 365: setup, consent, check, then mail, calendar, Teams and OneDr
   try {
     // 1 the credentials go to the Vault by handle; the page reads status before anything is set up
     const folder = await w.ok(OWNER, "vault.folders.create", { name: "Company connections", scope: "shared", idempotencyKey: w.idem() });
-    await w.ok(OWNER, "access.labels.set", { resource: { type: "vault_folder", id: folder.folder.id }, label: "restricted" });   // as the setup page files it: Restricted, so only Owner and Admin reach the key (host/tests/sso-secret.live.test.ts)
+    await w.ok(OWNER, "access.labels.set", { resource: { type: "vault_folder", id: folder.folder.id }, label: "restricted" });   // as the setup page files it: Restricted, so only Owner and Admin reach the key (test/setup-secrets.live.test.ts)
     const item = await w.ok(OWNER, "vault.item.put", { folderId: folder.folder.id, name: "Microsoft_App", kind: "other", fields: [{ key: "key", value: APP_JSON, secret: true }], idempotencyKey: w.idem() });
     await w.ok(OWNER, "access.labels.set", { resource: { type: "vault_item", id: item.item.id }, label: "restricted" });
     assert.equal(item.item.handle, "#Microsoft_App");
