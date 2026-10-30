@@ -346,7 +346,7 @@ export function graphTime(value: unknown): number | undefined {
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = readFileSync(fileURLToPath(new URL("./migrations/0001_calendar_core.sql", import.meta.url)), "utf8");
+const migrationSql = ["0001_calendar_core.sql", "0002_calendar_account.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];

@@ -920,6 +920,12 @@
     },
     {
       "deferred": false,
+      "name": "calendar_connect_provider",
+      "summary": "Put a member's Google or Microsoft calendar in Calendar, owned by them and read as their account; connected false (an excluded member) removes it",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "calendar_create_calendar",
       "summary": "Create a local calendar (for example a private Personal one)",
       "toolset": "inbox"

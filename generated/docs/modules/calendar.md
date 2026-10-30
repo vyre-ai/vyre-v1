@@ -4,9 +4,10 @@ Lane L5. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (19)
+## Capabilities (20)
 
 - [calendar.availability](../capabilities/calendar.availability.md): Busy blocks for people over a range (the shaded stripes while adding people)
+- [calendar.connect_provider](../capabilities/calendar.connect_provider.md): Put a member's Google or Microsoft calendar in Calendar, owned by them and read as their account; connected false (an excluded member) removes it
 - [calendar.create_calendar](../capabilities/calendar.create_calendar.md): Create a local calendar (for example a private Personal one)
 - [calendar.create_event](../capabilities/calendar.create_event.md): Create an event (drag in 15 minute steps); the provider invites attendees
 - [calendar.delete_calendar](../capabilities/calendar.delete_calendar.md): Delete a local calendar (provider calendars are disconnected, not deleted)
@@ -26,8 +27,9 @@ Requires: nothing.
 - [calendar.update_calendar](../capabilities/calendar.update_calendar.md): Rename a calendar or change its colour
 - [calendar.update_event](../capabilities/calendar.update_event.md): Change, move or resize an event
 
-## Events (6)
+## Events (7)
 
+- [calendar.created](../events/calendar.created.md): A calendar came into being: a private local one, or a member's Google or Outlook calendar connected by an admin
 - [calendar.synced](../events/calendar.synced.md): A calendar finished a sync pass
 - [calendar_event.created](../events/calendar_event.created.md): An event was created in Vyre or arrived from a provider
 - [calendar_event.deleted](../events/calendar_event.deleted.md): An event was deleted (Undo restores it)

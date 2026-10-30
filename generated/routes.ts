@@ -3299,6 +3299,24 @@ const routes0: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/calendar/connect_provider",
+    "cap": "calendar.connect_provider",
+    "v": 1,
+    "module": "calendar",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/calendar/create_calendar",
     "cap": "calendar.create_calendar",
     "v": 1,

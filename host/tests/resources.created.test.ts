@@ -214,3 +214,12 @@ test("pipeline: agent creation registers its named owner resource before the age
   assert.equal(snap.info(agentId)?.p.kind, "agent");
   assert.equal(authorize(snap, { principal: agentId, actingFor: "usr_mia", action: { perm: null, level: "view" }, resource: { type: "agent", id: agentId } }).effect, "allow");
 });
+
+test("registrar: a calendar is a resource the moment calendar.created is emitted, owned by the member the event names (an admin connecting someone's Google calendar), never by the admin", () => {
+  const r = createResourceRegistrar({ events: [{ name: "calendar.created", subject: { type: "calendar", id: "/calendarId" } }], exists: (id) => id === "spc_1" });
+  const made = r.register({ cap: { name: "calendar.connect_provider", resource: { type: "space" } }, input: {}, space: "spc_1", owner: "usr_admin", events: [ev("calendar.created", { calendarId: "cld_abc123", provider: "google", ownerId: "usr_mia", private: true })] });
+  assert.equal(made.length, 1);
+  assert.deepEqual([made[0]?.id, made[0]?.type, made[0]?.owner_id, made[0]?.parent_id], ["cld_abc123", "calendar", "usr_mia", null], "private: it does not inherit the Space's access");
+  const own = r.register({ cap: { name: "calendar.create_calendar", resource: { type: "space" } }, input: {}, space: "spc_1", owner: "usr_admin", events: [ev("calendar.created", { calendarId: "cld_abc124", provider: "local", ownerId: "usr_admin", private: false })] });
+  assert.deepEqual([own[0]?.owner_id, own[0]?.parent_id], ["usr_admin", "spc_1"], "a shared calendar sits in the Space");
+});

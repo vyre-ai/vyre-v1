@@ -5,6 +5,7 @@ import type { Handlers } from './handlers.ts';
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
   "calendar.availability": async () => ({"busy":[{"endsAt":1760000000000,"startsAt":1760000000000,"who":"example"}],"unknown":["example"]} as unknown) as never,
+  "calendar.connect_provider": async () => ({"calendarId":"cld_a1b2c3","created":true} as unknown) as never,
   "calendar.create_calendar": async () => ({"calendar":{"color":"#4f6bed","connectionId":"con_a1b2c3","id":"cld_a1b2c3","ownerId":"usr_a1b2c3","personal":true,"provider":"google","state":"syncing","title":"example"}} as unknown) as never,
   "calendar.create_event": async () => ({"event":{"agenda":"example","allDay":true,"attendees":[{"contactId":"rec_a1b2c3","email":"maya@example.com","name":"example","optional":true,"response":"needs_action"}],"bookedByAgentId":"agt_a1b2c3","calendarId":"cld_a1b2c3","description":"example","endsAt":1760000000000,"fromBookingPage":"frm_a1b2c3","id":"cev_a1b2c3","joinProvider":"zoom","joinUrl":"example","location":"example","meetingId":"rec_a1b2c3","organizer":"maya@example.com","recordIds":["rec_a1b2c3"],"startsAt":1760000000000,"status":"confirmed","title":"example"}} as unknown) as never,
   "calendar.delete_calendar": async () => ({"deleted":true} as unknown) as never,

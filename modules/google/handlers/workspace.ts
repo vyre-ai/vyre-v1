@@ -9,6 +9,8 @@ import {
 } from "../projections.ts";
 import type { Call, GoogleCtx } from "../projections.ts";
 import { ensureMailbox, pollInterval, pullMailbox } from "./gmail.ts";
+import { pullMeet } from "./meet.ts";
+import { connectCalendar, syncCalendar } from "./calendar.ts";
 import type { Act } from "./gmail.ts";
 
 const g = (ctx: GoogleCtx, a: Act, cap: string, scope: string, c: Omit<Call, "cap" | "connectionId" | "as" | "scope">): Promise<Record<string, unknown>> =>
@@ -122,11 +124,25 @@ export async function dwdSetup(ctx: GoogleCtx, input: { vaultItem: string; admin
     if (!prior || num(prior, "excluded") === 0) mapped.push({ userId: m.userId, email });
   }
 
+  // The person setting this up is a member too, and the one whose address Vyre was just given: an owner has no invitation email on record, so without this the admin's own mail,
+  // calendar and Meet would be the only ones that never arrive.
+  const self = ctx.actingFor ?? ctx.principal.id;
+  if (/^usr_[a-z0-9]+$/.test(self) && admin.endsWith(`@${domain}`) && !mapped.some((m) => m.userId === self || m.email === admin)) {
+    const known = first(ctx.db.all(`SELECT "userId", excluded FROM google_member WHERE email = ?`, admin));
+    const takenBy = strOrNull(known, "userId");
+    if (!takenBy || takenBy === self) {
+      if (known) ctx.db.run(`UPDATE google_member SET "userId" = ?, mapped = ?, updated_at = ? WHERE email = ?`, self, 1, now, admin);
+      else ctx.db.run(`INSERT INTO google_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, admin, self, 1, 0, null, now);
+      if (num(known, "excluded") !== 1) mapped.push({ userId: self, email: admin });
+    }
+  }
+
   let connected = 0;
   if (autoConnect && mapped.length > 0) {
     const out = obj(await ctx.call("mail.auto_connect_members", { provider: "google", members: mapped, idempotencyKey: `${input.idempotencyKey}:members` }));
     connected = int(out.created) ?? 0;
     for (const m of mapped) ctx.db.run(`UPDATE google_member SET "mailboxState" = ? WHERE email = ?`, "pending", m.email);
+    for (const m of mapped) await connectCalendar(ctx, { connectionId, userId: m.userId, email: m.email });   // their calendars come in with their mail
   }
   ctx.db.run(`UPDATE google_config SET configured = ?, updated_at = ? WHERE id = ?`, 1, now, CONFIG_ID);
   ctx.emit("google.dwd_configured", "connector/google", { connector: "google", adminEmail: admin, mappedMembers: mapped.length, autoConnect });
@@ -201,6 +217,13 @@ export async function dwdSetExcluded(ctx: GoogleCtx, input: { email: string; exc
     ctx.db.run(`INSERT INTO google_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, email, null, 0, input.excluded ? 1 : 0, null, now);
   }
   forgetTokens();
+  // An excluded member's calendar leaves Calendar; including them again brings a fresh one in.
+  const member = first(ctx.db.all(`SELECT "userId", mapped FROM google_member WHERE email = ?`, email));
+  const connectionId = strOrNull(config(ctx), "connectionId");
+  const userId = strOrNull(member, "userId");
+  if (connectionId && userId && num(member, "mapped") === 1 && (input.excluded || num(config(ctx), "autoConnect") === 1)) {
+    await connectCalendar(ctx, { connectionId, userId, email, connected: !input.excluded });
+  }
   return { excluded: rowsOf(ctx.db.all(`SELECT email FROM google_member WHERE excluded = ?`, 1)).map((r) => str(r, "email")).sort() };
 }
 
@@ -268,6 +291,9 @@ async function pullAndSchedule(ctx: GoogleCtx, email: string, cause: string): Pr
     ctx.log.warn("google pull failed", { mailbox: email, code: codeOf(e), cause });
     delay = pollInterval(now, null, false);
   }
+  // Meet transcripts ride on the same pass; a Meet failure never fails the mailbox pull
+  await syncCalendar(ctx, { connectionId, email });
+  await pullMeet(ctx, { connectionId, mailbox: email }).catch((e: unknown) => ctx.log.warn("google meet pull failed", { mailbox: email, code: codeOf(e) }));
   const box = first(ctx.db.all(`SELECT "nextPollAt" FROM google_mailbox WHERE email = ?`, email));
   const queued = box && typeof box.nextPollAt === "number" ? box.nextPollAt : 0;
   if (queued > now) return;   // a poll is already waiting; a push or a manual sync does not start a second chain

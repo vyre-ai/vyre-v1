@@ -258,6 +258,7 @@ export function createClient(transport: Transport) {
     },
     calendar: {
       availability: call("calendar.availability", 1),
+      connect_provider: call("calendar.connect_provider", 1),
       create_calendar: call("calendar.create_calendar", 1),
       create_event: call("calendar.create_event", 1),
       delete_calendar: call("calendar.delete_calendar", 1),

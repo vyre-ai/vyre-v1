@@ -73,6 +73,10 @@ export function harness(opts: HarnessOptions = {}) {
         const id = String(body.providerId);
         return { messageId: `eml_${id}${++seq}`, deduped: ingestState.deduped.has(id), linked: "none" };
       }
+      if (cap === "calendar.connect_provider") return { calendarId: "cld_" + String(body.account).replace(/[^a-z0-9]/g, "") .padEnd(8, "0"), created: true };
+      if (cap === "calendar.sync_now") return { runId: "run_cal00001" };
+      if (cap === "meetings.ingest") return { meetingId: "rec_team00001", created: true, merged: false };
+      if (cap === "meetings.attach_recording") return { runId: "run_team00001" };
       throw new Error(`unexpected capability ${cap}`);
     },
     authorize(action) {
