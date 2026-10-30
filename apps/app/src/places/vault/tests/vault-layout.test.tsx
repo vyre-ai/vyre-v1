@@ -2,6 +2,8 @@
 // value is ever in the markup; a reveal is one logged capability call after one agreement; every write the place makes changes what the next render shows; the place opens offline
 // and draws a frame of the right size before data. Names below are the test names the packet's evidence links.
 import test from "node:test";
+import { createRoot } from "test-renderer";
+import { find, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import assert from "node:assert/strict";
 import { Dimensions } from "react-native";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -172,12 +174,20 @@ test("the frame before data and the empty Vault", () => {
   assert.ok(has(html(createSampleVault(harbor), { initial: { kind: "cards" } }), "Harbor Visa"));
 });
 
-test("request and export query failures render truthful errors with a working retry", () => {
+test("request and export query failures render truthful errors with a working retry", async () => {
   const requests = createSampleVault();
   const requestRetry = failQuery(requests, "vault_requests.list", "requests");
   const requestOut = html(requests, { route: { surface: "requests" } });
   assert.ok(has(requestOut, "Couldn&#x27;t load Vault requests") && has(requestOut, "The Space could not answer"));
-  assert.ok(has(requestOut, 'data-testid="state-retry"') && has(requestOut, "Details"));
+  assert.ok(has(requestOut, 'data-testid="state-retry"') && has(requestOut, 'data-testid="state-details"'), "Retry and Details show");
+  assert.ok(!has(requestOut, "trace-vault-read"), "the trace id waits behind Details");
+  const restore = installDom();
+  try {
+    const opened = await mount(createRoot, <Vault data={requests.data} route={{ surface: "requests" }} />);
+    await press(find(opened, "state-details"));
+    const shown = textOf(opened);
+    assert.ok(shown.includes("trace-vault-read") && shown.includes("Copy trace id"), "Details shows the trace id and Copy trace id");
+  } finally { restore(); }
   assert.equal(retryVaultQueries(requests.data.screens), true);
   assert.equal(requestRetry.retries(), 1);
 

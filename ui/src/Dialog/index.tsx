@@ -64,7 +64,10 @@ export function Dialog({ title, children, actions = [], onClose, width = 440, te
     el?.querySelector?.("input,textarea,select")?.focus?.();
     return () => doc.removeEventListener("keydown", key);
   }, [onClose]);
-  const left = actions.filter((a) => !a.primary && !a.danger), right = actions.filter((a) => a.primary || a.danger);
+  // quiet buttons first, then the primary or danger one, each built in a loop (not a list of rows)
+  const buttons: ReactElement[] = [];
+  for (const a of actions) if (!a.primary && !a.danger) buttons.push(<ActionButton key={a.label} a={a} />);
+  for (const a of actions) if (a.primary || a.danger) buttons.push(<ActionButton key={a.label} a={a} />);
   return (
     <Overlay>
       <View testID={veilTestID} style={[s.veil, web ? ({ animation: "vyre-dlg-veil 140ms ease-out both" } as object) : null]}>
@@ -74,10 +77,7 @@ export function Dialog({ title, children, actions = [], onClose, width = 440, te
           {children ? <View style={s.body}>{children}</View> : null}
           {actions.length ? (
             <View style={s.actions}>
-              {/* ui-rows-lint: not a list (the dialog's action buttons) */}
-              {left.map((a) => <ActionButton key={a.label} a={a} />)}
-              {/* ui-rows-lint: not a list (the dialog's action buttons) */}
-              {right.map((a) => <ActionButton key={a.label} a={a} />)}
+              {buttons}
             </View>
           ) : null}
         </View>
