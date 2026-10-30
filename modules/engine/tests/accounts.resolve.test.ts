@@ -100,3 +100,13 @@ test("providerOfModel reads router slugs and model families", () => {
   assert.equal(providerOfModel("llama-local"), undefined);
   assert.equal(providerOfModel(undefined), undefined);
 });
+
+test("a sign-in kept under the tool's own key serves a model of its maker: claude-code for a Claude model, codex for GPT, grok for Grok", () => {
+  const sub = (provider: string): AccountRow => row({ ref: `sub_${provider}`, kind: "subscription", provider, driver: provider, mine: true, ownerId: "usr_dana", spaceMayUse: true });
+  for (const [tool, model] of [["claude-code", "claude-haiku-5-5"], ["codex", "gpt-5"], ["grok", "grok-4"]] as const) {
+    const r = resolveAccount(base({ agent: { accountPolicy: "asker", provider: providerOfModel(model) as string }, accounts: [sub(tool)], onServer: false }));
+    assert.equal(r.accountRef, `sub_${tool}`, `${model} runs on the ${tool} sign-in`);
+  }
+  const other = resolveAccount(base({ agent: { accountPolicy: "asker", provider: providerOfModel("gemini-2.5-pro") as string }, accounts: [sub("claude-code")], onServer: false }));
+  assert.equal(other.allowed, false, "a Claude sign-in does not serve a Gemini model");
+});
