@@ -8,7 +8,7 @@ export function currentSignInPolicy(ctx:IdentityCtx){
 }
 export function assertSignInPolicy(ctx:IdentityCtx,account:Account,method:Method):void{
  const policy=currentSignInPolicy(ctx);
- if((method==="password"&&!policy.allowPassword)||(method==="github"&&(!policy.allowGithub||!ctx.github))||((method==="password"||method==="github")&&policy.requireSso))throw fail("auth.bad_credentials",ctx.trace.traceId);
+ if((method==="password"&&!policy.allowPassword)||(method==="github"&&(!policy.allowGithub||!ctx.github))||(method==="sso"&&!ctx.sso)||((method==="password"||method==="github")&&policy.requireSso))throw fail("auth.bad_credentials",ctx.trace.traceId);
  if(policy.secondFactor==="required"&&!account.totp_secret)throw fail("validation.precondition_failed",ctx.trace.traceId,{message:"This Space requires an authenticator. Ask the Space owner to help you enroll before signing in."});
 }
 export function assertNewMemberPolicy(ctx:IdentityCtx):void{

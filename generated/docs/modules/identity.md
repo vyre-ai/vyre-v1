@@ -27,7 +27,7 @@ Requires: access, members.
 - [identity.sign_in](../capabilities/identity.sign_in.md): Sign in with Space, username and password; asks for the second factor when one is set
 - [identity.sign_in_options](../capabilities/identity.sign_in_options.md): What the sign-in page offers for this Space: name, logo, key fingerprint, password, GitHub, SSO providers, second factor floor
 - [identity.sign_out](../capabilities/identity.sign_out.md): End this session; the device keeps nothing it should not
-- [identity.sso_sign_in](../capabilities/identity.sso_sign_in.md): Finish an OIDC sign-in (Google, Microsoft, Okta) with the provider code; reserved until SSO config lands in members
+- [identity.sso_sign_in](../capabilities/identity.sso_sign_in.md): Finish an OIDC sign-in (Google, Microsoft, Okta) with the one-use ticket the Space leaves in the address after the provider approves (through the sign-in app the firm made in Google or Microsoft, OpenID Connect)
 - [identity.totp_begin](../capabilities/identity.totp_begin.md): Start a TOTP enrolment; returns the shared secret once as a setup URI
 - [identity.totp_confirm](../capabilities/identity.totp_confirm.md): Confirm a TOTP enrolment with the first code
 - [identity.totp_remove](../capabilities/identity.totp_remove.md): Remove my TOTP factor (refused when the Space requires a second factor)

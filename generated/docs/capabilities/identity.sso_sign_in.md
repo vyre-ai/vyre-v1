@@ -1,6 +1,6 @@
 # identity.sso_sign_in
 
-Finish an OIDC sign-in (Google, Microsoft, Okta) with the provider code; reserved until SSO config lands in members
+Finish an OIDC sign-in (Google, Microsoft, Okta) with the one-use ticket the Space leaves in the address after the provider approves (through the sign-in app the firm made in Google or Microsoft, OpenID Connect)
 
 | | |
 |---|---|

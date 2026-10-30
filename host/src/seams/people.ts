@@ -12,14 +12,17 @@ import {DEFAULT_SIGN_IN_POLICY,parseSignInPolicy} from "../../../lib/sign-in-pol
 //   members.owned      routines, agents, automations, Mine vault items, records, projects, files, channels, private chats, memory and mailbox connections, through those modules' host calls (P-L7_21)
 //   spaces.directory    the role name shown in the switcher
 //   spaces.attention    Needs you from tasks (tasks.attention) and unread from chat (chat.attention), asked as the person
+import { pinIssuer } from "../../../lib/oidc-issuer.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/snapshot.ts";
 import type { Keyring } from "./keyring.ts";
+import type { SsoTickets } from "../routes/sso-signin.ts";
+import type { SsoProvider } from "./oidc.ts";
 import type {RecoveryCommit} from "../../../packages/contracts/src/identity-recovery.ts";
 
 export interface PeopleDeps {
   recoveryCommit?:RecoveryCommit;
   access(): AccessSnapshot;
-  db: { all(sql: string, ...args: unknown[]): unknown[] };
+  db: { all(sql: string, ...args: unknown[]): unknown[]; run?(sql: string, ...args: unknown[]): unknown };
   /** run a module's host call as that module */
   call(name: string, input: unknown, as?: { principal: { kind: "person" | "agent" | "service"; id: string } }): Promise<unknown>;
   /** GitHub sign-in; omitted: identity answers that it is not set up on this server */
@@ -31,6 +34,8 @@ export interface PeopleDeps {
     storeSecret(secret: string, as: { kind: "person" | "agent" | "service"; id: string }): Promise<string>;
     reload(): Promise<void>;
   };
+  /** Sign in with the firm's own Google or Microsoft app: the tickets a finished sign-in leaves; omitted: SSO is not offered */
+  sso?: { tickets: SsoTickets };
   /** true while the access snapshot cannot be vouched for and this person is not the owner (ruling 70): sessions are not opened */
   stale?(principalId: string): boolean;
   /** the person key this node holds (ruling 62, 63); identity clears it at sign-out */
@@ -66,10 +71,59 @@ export function createGithub(o: GithubOAuth): { resolve(code: string): Promise<{
   };
 }
 
+/** The SSO providers that are on and complete (a client, a secret handle and the firm's domain), from the members policy. */
+export function ssoProvidersIn(db: PeopleDeps["db"]): SsoProvider[] {
+  const out: SsoProvider[] = [];
+  for (const key of ["google", "microsoft", "okta"]) {
+    let row: { value: string } | undefined;
+    try { row = db.all("SELECT value FROM members_policy WHERE key = ?", `sso:${key}`)[0] as { value: string } | undefined; } catch { return out; }
+    if (!row) continue;
+    const p = JSON.parse(row.value) as SsoProvider;
+    const pin = pinIssuer(key, p.issuer);   // the issuer is fixed by the code for Google and Microsoft, whatever an old row says
+    if ("error" in pin) continue;
+    p.issuer = pin.issuer;
+    if (p.enabled && p.clientId && p.clientSecretHandle && p.domainHint) out.push(p);
+  }
+  return out;
+}
+
+/**
+ * The person a finished sign-in is. Google: the verified address. Microsoft: its email claim is not verified, so the person is known by tenant and immutable user id. Their first sign-in links that id
+ * to the person their account name matches (the invitation or the address matched by hand); after that the id alone is who they are, and an id that is not linked can never take over a linked person.
+ */
+export function personForSso(db: PeopleDeps["db"], active: (id: string) => boolean, key: string, t: { email: string; link?: { tenant: string; subject: string } }): string | null {
+  if (!t.link) return key === "microsoft" ? null : personForEmail(db, active, t.email);
+  const row = `sso_link:${key}:${t.link.tenant}:${t.link.subject}`;
+  let linked: string | undefined;
+  try { linked = (db.all("SELECT value FROM members_policy WHERE key = ?", row)[0] as { value?: string } | undefined)?.value; } catch { return null; }
+  if (linked) return active(linked) ? linked : null;
+  const person = personForEmail(db, active, t.email);
+  if (!person || !db.run) return null;
+  // one person, one id per tenant: someone else's id with the same account name does not get in
+  const mine = db.all("SELECT key FROM members_policy WHERE key LIKE ? AND value = ?", `sso_link:${key}:${t.link.tenant}:%`, person);
+  if (mine.length > 0) return null;
+  db.run("INSERT OR IGNORE INTO members_policy (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)", row, person, Date.now(), person);
+  return person;
+}
+
+/** The person a verified work address belongs to: the invitation it went to, or a Google or Microsoft address matched by hand, and only when they are active. */
+export function personForEmail(db: PeopleDeps["db"], active: (id: string) => boolean, email: string): string | null {
+  const queries = [
+    "SELECT accepted_by AS id FROM members_invites WHERE state = 'accepted' AND lower(email) = ? AND accepted_by IS NOT NULL",
+    "SELECT \"userId\" AS id FROM google_member WHERE email = ? AND mapped = 1 AND excluded = 0 AND \"userId\" IS NOT NULL",
+    "SELECT \"userId\" AS id FROM microsoft_member WHERE email = ? AND mapped = 1 AND excluded = 0 AND \"userId\" IS NOT NULL",
+  ];
+  const found = new Set<string>();
+  for (const q of queries) {
+    try { for (const r of db.all(q, email.toLowerCase()) as { id?: unknown }[]) if (typeof r.id === "string" && active(r.id)) found.add(r.id); } catch { /* that module has no table yet */ }
+  }
+  return found.size === 1 ? [...found][0]! : null;   // an address that points at two people signs no one in
+}
+
 export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { device?: string; principal?: { kind: string; id: string } }) => Record<string, unknown> | null {
   const spaceOwner=():string|null=>{const roots=[...d.access().allResources()].filter(row=>row.type==='space');return roots.length===1?roots[0]!.owner_id:null;};
   const githubNow=():GithubOAuth|null=>(typeof d.github==='function'?d.github():d.github)??null;
-  const signInMethods={get github(){return githubNow()!==null;},sso:[] as readonly string[],newMemberMfaEnrollment:false};
+  const signInMethods={get github(){return githubNow()!==null;},get sso():readonly string[]{return d.sso?ssoProvidersIn(d.db).map(x=>x.key):[];},newMemberMfaEnrollment:false};
   const currentSignInPolicy=()=>{
     let row:{value:string}|undefined;
     try {row=d.db.all('SELECT value FROM members_policy WHERE key = ?','sign_in')[0] as {value:string}|undefined;} catch(error){if(!String(error).includes('no such table: members_policy'))throw error;}
@@ -143,6 +197,14 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
           return p.status === "active" ? "ok" : "refused";
         },
       },
+      ...(d.sso ? { sso: {
+        providers: () => ssoProvidersIn(d.db).map((x) => ({ key: x.key, title: x.title })),
+        // spend a ticket from a finished sign-in: the person it names, or null
+        resolve: (key: string, ticket: string): string | null => {
+          const t = d.sso!.tickets.take(key, ticket);
+          return t ? personForSso(d.db, (id) => d.access().principal(id)?.status === "active", key, t) : null;
+        },
+      } } : {}),
       ...(d.keyring ? { keyring: { clear: (personId: string) => d.keyring!.clear(personId) } } : {}),
       invites: {
         peek: (code: string) => d.call("members.invite_peek", { code }),

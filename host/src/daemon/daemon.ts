@@ -94,7 +94,8 @@ import { createMcpRoute } from "../routes/mcp.ts";
 import type { McpRuntime } from "../routes/mcp.ts";
 import { createKeyring } from "../seams/keyring.ts";
 import { createGithubSignInRoute } from "../routes/github-signin.ts";
-import { createPeopleExtras, githubOAuthFromEnv } from "../seams/people.ts";
+import { createSsoSignInRoute, createSsoTickets } from "../routes/sso-signin.ts";
+import { createPeopleExtras, githubOAuthFromEnv, ssoProvidersIn } from "../seams/people.ts";
 import {createRecoveryCommit} from "../seams/recovery.ts";
 import type { GithubOAuth } from "../seams/people.ts";
 import { createSpaceAdmin } from "../seams/spaceadmin.ts";
@@ -102,7 +103,7 @@ import { preAuthSession } from "./preauth.ts";
 import { createFiller } from "../seams/filler.ts";
 import { createProviderProbe, createVaultService, refuseModelAddress, resolveVaultItem } from "../seams/vault.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
-import { createPushPort, wireSeams } from "../seams/index.ts";
+import { createPushPort, defaultFetch, wireSeams } from "../seams/index.ts";
 import { createPortalHost } from "../seams/comms.ts";
 import { createUpdatesHost } from "../seams/updates.ts";
 import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
@@ -395,6 +396,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let reloadSpaceGithub: () => Promise<void> = async () => undefined;
   const githubNow = (): GithubOAuth | null => (o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env)) ?? spaceGithub;
   const githubSignInRoute = createGithubSignInRoute({ oauth: githubNow });
+  // Sign in with the firm's own Google or Microsoft app: the providers come from the members policy, the client secret from the Vault (bound once the Vault exists), the tickets are shared with identity
+  const ssoTickets = createSsoTickets();
+  let ssoSecret: (handle: string) => Promise<string> = () => Promise.reject(new Error("The Vault is not live on this server."));
+  const ssoSignInRoute = createSsoSignInRoute({
+    providers: async () => (db ? ssoProvidersIn(db) : []), secret: (h) => ssoSecret(h), fetch: o.seams?.fetch ?? defaultFetch, tickets: ssoTickets,
+    log: (why, attrs) => sink.log({ space: space ?? "-", level: 30, msg: why, place: "sso", attrs }),
+  });
   const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: ownNode });
   let headSeq = 0;
   let sawSpace = false, hostMadeSpace = false;
@@ -516,6 +524,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // the Vault the connector seams read from: the vault module's own port once it is live and configured, else a refusal
       let vaultImpl: (VaultPort & { pullExport?(exportId: string, token: string): string }) | null = null;
       const vaultPort: VaultPort = { secret: (h, sp, asker) => (vaultImpl ?? refusingVault).secret(h, sp, asker), signRs256: (h, sp, d) => (vaultImpl ?? refusingVault).signRs256(h, sp, d) };
+      ssoSecret = (handle) => vaultPort.secret(handle, spaceId);
       let peopleExtras: ReturnType<typeof createPeopleExtras> | null = null;   // set once the hook runner exists
       let previews: ReturnType<typeof createViewAs> | null = null;
       let invokeRef: Invoke = () => Promise.reject(new Error("the invoke pipeline is not ready"));
@@ -807,7 +816,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       // the drivers that need the daemon's own state (the Space log, the access snapshot, the pipeline); the registry in seams/ builds the rest from the Vault
       const spaceLog = log;
-      peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, recoveryCommit:createRecoveryCommit({db:db!,now}),call: (n, i, as) => hookRunner.call(n, i, as), keyring, github: githubNow,
+      peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, recoveryCommit:createRecoveryCommit({db:db!,now}),call: (n, i, as) => hookRunner.call(n, i, as), keyring, sso: { tickets: ssoTickets }, github: githubNow,
         githubApp: {
           envClientId: () => (o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env))?.clientId ?? null,
           callbackUrl: () => `${(cfg.address ? (/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`) : `http://${cfg.host}:${boundPort}`).replace(/\/+$/, "")}/auth/github/callback`,
@@ -1407,7 +1416,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         res.once("finish", () => { setImmediate(requestStop); });
         return;
       }
-      if (mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
+      if (mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {
