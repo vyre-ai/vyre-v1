@@ -1,0 +1,1 @@
+- A real server can match its members to Google and Microsoft. The Space ports the two connections stand on were left empty, so delegation could not list members, send a Space file or keep downloaded bytes. Members are now listed by the email their invitation went to, Space files are read through Files, and downloaded bytes go into Files' own blob store.

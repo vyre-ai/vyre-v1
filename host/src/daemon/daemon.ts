@@ -27,6 +27,7 @@ import { createCtxSeal } from "../ctx/seal.ts";
 import { ScheduleQueue } from "../ctx/schedule.ts";
 import type { ScheduledCall } from "../ctx/schedule.ts";
 import { createBlobStore } from "../ctx/blobs.ts";
+import { createSpacePorts } from "../seams/space-ports.ts";
 import { scopedDb } from "../ctx/db.ts";
 import { createBlobRoute } from "../routes/blobs.ts";
 import { createPortalLinkRoute } from "../routes/portal-link.ts";
@@ -979,12 +980,21 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       const setters = o.seams?.setters ?? loaded.hostSeams;
       if (Object.keys(setters).length) {
-        const none = (what: string) => () => Promise.reject(new Error(`${what} is not available on this server yet.`));
+        // who the members are by work email, Space files by id, and where downloaded bytes go: built from the Space's own database and the Files module
+        const spacePorts = createSpacePorts({
+          db: db!, active: (id) => access.snap.principal(id)?.status === "active", putToSlot,
+          // the Files calls run as the server itself, through the pipeline, so the scrubber and the audit still see them
+          call: async (cap, input) => {
+            const r = await invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "seam" });
+            if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
+            return r.output;
+          },
+        });
         seams = wireSeams(setters, {
           vault: o.vault ?? vaultPort, space: spaceId,
-          files: o.seams?.files ?? { read: none("Space files") },
-          blobs: o.seams?.blobs ?? { put: none("The blob store") },
-          members: o.seams?.members ?? { emails: none("The member list") },
+          files: o.seams?.files ?? spacePorts.files,
+          blobs: o.seams?.blobs ?? spacePorts.blobs,
+          members: o.seams?.members ?? spacePorts.members,
           ...(o.seams?.fetch ? { fetch: o.seams.fetch } : {}),
           ...(o.seams?.filler ? { filler: o.seams.filler } : {}),
           // where Mailgun posts inbound mail: the address people reach this Space at, else the local URL (read at call time, the port is known only after listen)
