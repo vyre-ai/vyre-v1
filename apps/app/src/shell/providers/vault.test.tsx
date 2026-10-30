@@ -123,3 +123,16 @@ test("the policy page shows role names as people read them, and its page mounts"
   const src = renderToStaticMarkup(<ShellRuntimeProvider value={sampleRuntime({ screens: createSampleVault().data.screens, call: createSampleVault().data.call })}><PlaceHashProvider hash="screen=vault.layout&policy=true" opened={() => undefined}><VaultPlace place="vault" /></PlaceHashProvider></ShellRuntimeProvider>);
   assert.match(src, /data-testid="vault-policy"/);
 });
+
+test("Vault calls that need an idempotencyKey get one when the sheet sent none, and keep one it sent", async () => {
+  const { withKeys } = await import("./vault.tsx");
+  const seen: unknown[] = [];
+  const call = withKeys((async (_cap: string, input?: unknown) => { seen.push(input); return {}; }) as never);
+  await call("vault.item.put", { name: "x" } as never);
+  await call("vault.item.put", { name: "y", idempotencyKey: "mine" } as never);
+  await call("vault.item.update", { itemId: "i" } as never);
+  const [a, b, c] = seen as Record<string, unknown>[];
+  assert.equal(typeof a!["idempotencyKey"], "string");
+  assert.equal(b!["idempotencyKey"], "mine");
+  assert.equal(c!["idempotencyKey"], undefined, "a call that has no key in its contract is left alone");
+});
