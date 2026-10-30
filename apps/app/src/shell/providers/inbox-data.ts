@@ -2,6 +2,7 @@
 // optional phone dock. Keep it free of Inbox UI imports so phone setup cannot
 // promote the full place into the startup common chunk.
 import type { InboxData, InboxNav } from "../../places/inbox/sidebar/data.tsx";
+import { openAsk } from "./ask.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export function inboxData(rt: ShellRuntime, openConversation: (id: string) => void): InboxData {
@@ -12,7 +13,8 @@ export function inboxData(rt: ShellRuntime, openConversation: (id: string) => vo
     openCalendar: () => undefined,
     openDialer: () => rt.open({ screen: "telephony.softphone" }),
     openMatch: (conversationId) => rt.open({ screen: "inbox.unmatched", args: { conversationId } }),
-    compose: () => rt.open({ screen: "mail.message-detail" }),
+    // no compose screen exists yet (message-detail only reads a message), so New message opens the assistant to draft it
+    compose: () => openAsk(rt, "assistant", { kind: "compose", id: "email", title: "New message" }),
     connect: (kind) => rt.open({ screen: "mail.connections", args: { kind } }),
     openEmailDesign: (emailId) => rt.open({ screen: "apps.email-builder", ...(emailId ? { args: { emailId } } : {}) }),
     openInboxSettings: (inboxId) => rt.open({ screen: "settings.page", args: { page: "inboxes", inboxId } }),
