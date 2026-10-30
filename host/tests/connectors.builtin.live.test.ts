@@ -3,7 +3,7 @@
 // event), the owner and anyone holding connectors.manage can connect it, and a member without it is refused.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bootWorld, MEMBER, OWNER } from "./support/suite-world.ts";
+import { bootWorld, MEMBER, OWNER } from "../../fixtures/suite/world.ts";
 
 const none = { api: () => undefined, seam: () => undefined, members: [], secrets: {} };
 
