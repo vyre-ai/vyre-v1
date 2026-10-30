@@ -5,7 +5,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs";
 import path from "node:path";
 
-export type NodeFetch = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{ status: number; json(): Promise<unknown> }>;
+export type NodeFetch = (url: string, init: { method: string; headers: Record<string, string>; body: string | Uint8Array; signal?: AbortSignal }) => Promise<{ status: number; json(): Promise<unknown> }>;
 
 export interface NodeDeps {
   server: string;
@@ -55,6 +55,8 @@ function platformSocket(url: string, headers?: Record<string, string>): NodeSock
   };
 }
 
+/** Up to this many bytes a file goes up inside a JSON home call (base64 must stay under the route's 4 MB). */
+const INLINE_PUT = 2 * 1024 * 1024;
 const VIEW_ID = /^viw_[a-f0-9]{32}$/;
 const COMPUTER_ID = /^cmt_[a-z0-9]{1,64}$/;
 const MAX_LIVE_VIEWS = 8;
@@ -168,6 +170,13 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
     },
     async put(url, bytes) {
       const at = door();
+      if (bytes.length > INLINE_PUT) {
+        // too big for a JSON home call: a recording's video goes raw to the recording route, which only a saveRecording job may use
+        const q = new URLSearchParams({ token: at.token, computerId: at.computerId, url });
+        const r = await d.fetch(`${server}/compute/recording?${q}`, { method: "POST", headers: { "content-type": "application/octet-stream", authorization: `Bearer ${credential}` }, body: bytes as never, signal: d.signal });
+        if (r.status !== 200) throw new Error(`the Space refused the upload (${r.status})`);
+        return;
+      }
       const r = await post("/compute/home", { token: at.token, computerId: at.computerId, cap: "put_upload", input: { url, base64: Buffer.from(bytes).toString("base64") } }, { authorization: `Bearer ${credential}` });
       if (r.status !== 200) throw new Error(String(r.data?.error?.message ?? `the Space refused the upload (${r.status})`));
     },

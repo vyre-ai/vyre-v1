@@ -378,7 +378,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let computeStreamInput: (computerId: string, personId: string) => Promise<boolean> = () => Promise.resolve(false);
   const computeStream = createComputeStream({ poll: (c) => computePoll(c, {}), open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}) });
   closers.push(() => computeStream.close());
-  const computeRoute = createComputeRoute({ poll: (c, r) => computePoll(c, r), jobs: (n, r) => computeJobs(n, r), result: (n, a) => computeResult(n, a), home: (n, a) => computeHome(n, a) });
+  let computeRecording: (nodeId: string, a: { token: string; computerId: string; url: string; bytes: Buffer }) => Promise<boolean> = () => Promise.resolve(false);
+  const computeRoute = createComputeRoute({ poll: (c, r) => computePoll(c, r), jobs: (n, r) => computeJobs(n, r), result: (n, a) => computeResult(n, a), home: (n, a) => computeHome(n, a), recording: (n, a) => computeRecording(n, a) });
   const webhookRoute = createWebhookRoute({ has: (c) => webhooks.has(c), accept: (c, a) => webhooks.accept(c, a), automation: (a) => webhooks.automation(a), publicBase: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; } });
   // Ruling 62: the person's own key, handed over by their client on their own node (POST /local/vault/key/unlock, loopback only), held in memory only. A device-role daemon is the computer of whoever signs in on it;
   // a Space server holds the key of its owner alone.
@@ -533,6 +534,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // what a computer that joined is asked to do (the computers module's jobs), what it answers, and the one door it has into an agent's home: a job's token, as that agent, for the home calls only
       computeJobs = async (nodeId, running) => ((await hookRunner.call("computers.node_jobs", { nodeId, running, ...(o.computeLeaseMs !== undefined ? { leaseMs: o.computeLeaseMs } : {}) })) as { jobs?: unknown[] } | null)?.jobs ?? [];
       computeResult = async (nodeId, a) => (await hookRunner.call("computers.node_result", { nodeId, ...a })) as { status: string };
+      computeRecording = async (nodeId, a) => {
+        if (!(await hookRunner.call("computers.node_recording_check", { nodeId, token: a.token, computerId: a.computerId })) ) return false;
+        await putToSlot(a.url, a.bytes);
+        return true;
+      };
       computeStreamOpen = async (ticket, computerId) => (await hookRunner.call("computers.stream_open", { ticket, computerId })) as { nodeId: string; personId: string; input: boolean } | null;
       computeStreamInput = async (computerId, personId) => (await hookRunner.call("computers.stream_input", { computerId, personId })) === true;
       computeHome = async (nodeId, a) => {

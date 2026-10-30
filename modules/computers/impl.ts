@@ -31,7 +31,7 @@ import type { HomeDeps, HomeSync } from "./handlers/home.ts";
 import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
 import { bindFill, bindHost } from "./projections.ts";
-import { nodeHomeCheck, nodeJobs, nodeResult, nodeStreamInput, nodeStreamOpen } from "./handlers/node.ts";
+import { nodeHomeCheck, nodeJobs, nodeRecordingCheck, nodeResult, nodeStreamInput, nodeStreamOpen } from "./handlers/node.ts";
 import { nodeRun } from "./remote.ts";
 import { ToolError } from "./handlers/tools/common.ts";
 import type { ToolAnswer, ToolCode, ToolHost } from "./handlers/tools/common.ts";
@@ -386,4 +386,4 @@ export const hostSeams = { setComputersFill, setComputerHost };
 export { nodeRun };
 
 /** What the host asks of this module on behalf of a computer that joined (host/src/routes/compute.ts): never a capability, never reachable from a session. */
-export const hostCalls = { "computers.node_jobs": nodeJobs, "computers.node_result": nodeResult, "computers.node_home_check": nodeHomeCheck, "computers.stream_open": nodeStreamOpen, "computers.stream_input": nodeStreamInput };
+export const hostCalls = { "computers.node_jobs": nodeJobs, "computers.node_result": nodeResult, "computers.node_home_check": nodeHomeCheck, "computers.stream_open": nodeStreamOpen, "computers.stream_input": nodeStreamInput, "computers.node_recording_check": nodeRecordingCheck };

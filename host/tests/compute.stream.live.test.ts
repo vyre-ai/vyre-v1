@@ -88,7 +88,7 @@ interface StandIn {
 
 /** The node's host: a stand-in for the Docker host, honouring the same calls nodeRun makes. agentd's stream server is the real one. */
 function standIn(nodeDir: string): { make(link: HomeLink): { run(kind: string, input: unknown): Promise<unknown> }; state: StandIn } {
-  const state: StandIn = { executed: [], views: [], inputs: [], taken: { on: false }, video: Buffer.alloc(600_000, 7), stop: () => undefined };
+  const state: StandIn = { executed: [], views: [], inputs: [], taken: { on: false }, video: Buffer.alloc(4_000_000, 7), stop: () => undefined };
   let agd: StreamServer | undefined;
   let counter = 0;
   const agentOf = new Map<string, string>();
@@ -328,6 +328,14 @@ test("a computer on a node can be watched, taken over and recorded from the Spac
     control.send({ t: "ping", seq: 8 });
     await until("a pong", () => control.texts.find((m) => m["t"] === "pong"));
 
+    // ---- the recording route: not without the computer's credential, not with a token that is no saveRecording job
+    const cred1 = (JSON.parse(fs.readFileSync(path.join(nodeDir, "compute-state.json"), "utf8")) as { credential: string }).credential;
+    const rec = (auth: string | null, token: string) => fetch(`${d.url}/compute/recording?${new URLSearchParams({ token, computerId: id, url: "/spaces/spc_stream/blobs/blb_00000000000000000000000000000000?token=x" })}`, { method: "POST", headers: { "content-type": "application/octet-stream", ...(auth ? { authorization: `Bearer ${auth}` } : {}) }, body: Buffer.alloc(10) }).then((r) => r.status);
+    assert.equal(await rec(null, "vcj_00"), 401);
+    assert.equal(await rec("vcc_00", "vcj_00"), 401);
+    assert.equal(await rec(cred1, "vcj_00ff"), 403, "a guessed job token opens nothing");
+    assert.equal(await rec(cred1, ""), 400);
+
     // ---- a recording on the node reaches Files and plays back from the Space
     const started = await post(d, "/v1/computers/record_start", { computerId: id }, owner);
     assert.equal(started.status, 200, JSON.stringify(started.json));
@@ -341,7 +349,7 @@ test("a computer on a node can be watched, taken over and recorded from the Spac
     const folder = (await post(d, "/v1/files/folder/get", { folderId: a.folderId }, owner)).json.data.folder.path as string;
     const fileOf = async (name: string) => { const r = await post(d, "/v1/files/resolve", { path: `${folder}/work/recordings/${recordingId}/${name}` }, owner); return r.status === 200 ? (r.json.data.fileId as string) : undefined; };
     const videoId = await fileOf("video.mp4");
-    assert.ok(videoId, "the video reached Files through the upload slot");
+    assert.ok(videoId, "the 4 MB video reached Files through the recording route");
     const video = await post(d, "/v1/files/read", { fileId: videoId, as: "base64" }, owner);
     assert.equal(video.status, 200, JSON.stringify(video.json).slice(0, 300));
     assert.ok(Buffer.from(video.json.data.base64 as string, "base64").equals(mine.state.video), "and plays back from the Space byte for byte");

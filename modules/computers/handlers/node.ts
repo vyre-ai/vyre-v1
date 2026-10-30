@@ -50,3 +50,10 @@ export async function nodeStreamInput(ctx: CompCtx, input: { computerId: string;
   const c = computerBy(ctx.db, String(input.computerId));
   return !!c && c.state === "takeover" && c.takeoverBy === String(input.personId);
 }
+
+/** Is this token a live saveRecording job of this node for this computer? The only job whose video may go up the recording route. */
+export async function nodeRecordingCheck(ctx: CompCtx, input: { nodeId: string; token: string; computerId: string }): Promise<boolean> {
+  ensure(ctx.db);
+  const job = await jobForToken(ctx.db, String(input.nodeId), String(input.token), String(input.computerId), ctx.now());
+  return job?.kind === "saveRecording";
+}
