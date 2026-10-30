@@ -708,14 +708,16 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
       </View>
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="records-offline">Offline, showing your saved copy</Text>}
       {adding ? (
-        <View style={styles.pickBar} accessibilityRole="toolbar" testID="records-adding">
+        <View style={styles.draft} accessibilityRole="toolbar" testID="records-adding">
+          <View style={[styles.rn, styles.draftGutter]}><Text style={styles.footText}>+</Text></View>
           <TextInput
-            value={adding.name} onChangeText={(t) => setAdding({ name: t, busy: false })} placeholder={`New ${def.title.toLowerCase()}, ${titleLabel}`} placeholderTextColor="var(--ink-3)" accessibilityLabel={`New ${def.title.toLowerCase()}`} testID="records-adding-input"
-            autoFocus selectTextOnFocus editable={!adding.busy} onSubmitEditing={createNew} onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") setAdding(null); }} style={styles.find}
+            value={adding.name} onChangeText={(t) => setAdding({ name: t, busy: false })} placeholder={`New ${def.title.toLowerCase()}`} placeholderTextColor="var(--ink-3)" accessibilityLabel={`New ${def.title.toLowerCase()}`} testID="records-adding-input"
+            autoFocus selectTextOnFocus editable={!adding.busy} onSubmitEditing={createNew} onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") setAdding(null); }} style={[styles.draftInput, { width: (primary?.width ?? 240) - 14 }]}
           />
-          <Pressable accessibilityRole="button" testID="records-adding-create" disabled={adding.busy} onPress={createNew} style={styles.pickLink}><Text style={styles.pickLinkText}>{adding.busy ? "Creating…" : "Create"}</Text></Pressable>
+          {adding.error ? <Text style={[styles.footText, styles.pickDanger]} accessibilityRole="alert" testID="records-adding-error">{adding.error}</Text> : <Text style={styles.footText}>{adding.busy ? "Creating…" : "Enter saves, Esc cancels"}</Text>}
+          <View style={styles.grow} />
+          <Pressable accessibilityRole="button" testID="records-adding-create" disabled={adding.busy} onPress={createNew} style={styles.pickLink}><Text style={styles.pickLinkText}>Create</Text></Pressable>
           <Pressable accessibilityRole="button" testID="records-adding-cancel" onPress={() => setAdding(null)} style={styles.pickLink}><Text style={styles.pickLinkText}>Cancel</Text></Pressable>
-          {adding.error ? <Text style={[styles.pickBarText, styles.pickDanger]} accessibilityRole="alert" testID="records-adding-error">{adding.error}</Text> : null}
         </View>
       ) : null}
       {work ? (
@@ -900,6 +902,9 @@ const styles = StyleSheet.create({
   cbOn: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
   goto: { marginLeft: 14, paddingHorizontal: 6, height: 22, justifyContent: "center", borderRadius: 5 },
   gotoInput: { marginLeft: 14, width: 96, height: 22, paddingHorizontal: 6, fontSize: 12, color: "var(--ink)" as string, borderRadius: 5, borderWidth: 1, borderColor: "var(--line)" as string },
+  draft: { height: ROW_H, flexDirection: "row", alignItems: "center", gap: 10, paddingRight: 18, backgroundColor: "var(--accent-wash)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  draftGutter: { width: GUTTER, alignItems: "center", justifyContent: "center" },
+  draftInput: { height: 26, paddingHorizontal: 8, borderRadius: 6, backgroundColor: "var(--win)" as string, fontSize: 13, color: "var(--ink)" as string, borderWidth: 1, borderColor: "var(--accent)" as string },
   pickBar: { height: 34, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 18, backgroundColor: "var(--accent-wash)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   pickBarText: { fontSize: 12.5, color: "var(--ink)" as string },
   pickLink: { height: 24, justifyContent: "center", paddingHorizontal: 4 },
