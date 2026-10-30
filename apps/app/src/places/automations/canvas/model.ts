@@ -807,8 +807,31 @@ export function palette(): { head: string; items: { key: string; title: string }
   return out;
 }
 
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const clock = (h: number, m: number): string => `${h}:${String(m).padStart(2, "0")}`;
+
+/** A cron line in words ("0 9 * * 1" is "Every Monday at 9:00"); anything it does not recognise comes back as null and the card shows the line as it is. */
+export function cronWords(cron: string): string | null {
+  const f = cron.trim().split(/\s+/);
+  if (f.length !== 5) return null;
+  const [mi, hr, dom, mon, dow] = f as [string, string, string, string, string];
+  const num = (x: string): number | null => (/^\d+$/.test(x) ? Number(x) : null);
+  if (mon !== "*") return null;
+  if (/^\*\/\d+$/.test(mi) && hr === "*" && dom === "*" && dow === "*") return `Every ${mi.slice(2)} minutes`;
+  const m = num(mi), h = hr === "*" ? null : num(hr);
+  if (m === null) return null;
+  if (hr === "*" && dom === "*" && dow === "*") return m === 0 ? "Every hour" : `Every hour at :${String(m).padStart(2, "0")}`;
+  if (h === null) return null;
+  if (dom === "*" && dow === "*") return `Every day at ${clock(h, m)}`;
+  const d = num(dow);
+  if (dom === "*" && d !== null && d <= 7) return `Every ${DAYS[d]} at ${clock(h, m)}`;
+  if (dow === "*" && num(dom) !== null) return `On day ${dom} of each month at ${clock(h, m)}`;
+  return null;
+}
+
 export function describeTrigger(t: DefTrigger): string {
   const cfg = t.config ?? {};
+  if (typeof cfg["cron"] === "string") { const words = cronWords(cfg["cron"]); if (words) return words; }
   if (t.filter && typeof t.filter === "object") {
     const where = (t.filter as Record<string, unknown>)["where"];
     if (typeof where === "string" && where) return `Only when ${where}`;
