@@ -1,6 +1,6 @@
 # providers.subscription_complete
 
-Finish a subscription sign-in: the credential files are captured into a Mine item of kind ai_subscription
+Finish a subscription sign-in. Pass the pasted code where the provider shows one; call again until it answers a provider (waiting means the person has not approved yet). The credential goes straight into a Mine item of kind ai_subscription and is never returned.
 
 | | |
 |---|---|
@@ -26,6 +26,7 @@ Finish a subscription sign-in: the credential files are captured into a Mine ite
 ```ts
 type In = {
   flowId: string;
+  code?: string;
 };
 ```
 
@@ -33,7 +34,7 @@ type In = {
 
 ```ts
 type Out = {
-  provider: {
+  provider?: {
     id: string;
     providerKey: string;
     name: string;
@@ -55,6 +56,7 @@ type Out = {
     address?: string;
     keyless?: boolean;
   };
+  waiting?: boolean;
 };
 ```
 
@@ -73,6 +75,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "code": "example",
     "flowId": "sub_a1b2c3"
   },
   "output": {
@@ -99,7 +102,8 @@ type Out = {
         "tokens": 1
       },
       "via": "Subscription, yours"
-    }
+    },
+    "waiting": true
   }
 }
 ```

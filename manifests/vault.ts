@@ -188,11 +188,11 @@ export default defineManifest({
       ...V, idem: 'key', in: { providerKey: t.str({ examples: ['anthropic'] }), connection: t.enm('api_key', 'local_model'), name: t.opt(t.str()), apiKey: t.opt(t.str()), address: t.opt(url), scope: t.enm('mine', 'shared'), folderId: t.opt(id.vaultFolder) },
       out: { provider: providerRow }, emits: ['provider.added', 'vault.item_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['validation.duplicate', 'provider.auth_failed'],
     }),
-    write('providers.subscription_start', 'Start a subscription sign-in (Claude Code setup-token, Codex login) inside my own sandbox or device', {
-      ...V, idem: 'key', in: { providerKey: t.str({ examples: ['claude-code'] }) }, out: { flowId: t.id('sub'), instruction: t.str(), url: t.opt(url), userCode: t.opt(t.str()) }, audit: 'sensitive', tool: 'vault', offline: 'online',
+    write('providers.subscription_start', 'Start a subscription sign-in (Claude, ChatGPT through Codex, Grok): the server starts the provider\'s own sign-in and answers its link, and the code to type where the provider shows one. A person does this, never an agent.', {
+      ...V, idem: 'key', in: { providerKey: t.str({ examples: ['claude-code'] }) }, out: { flowId: t.id('sub'), instruction: t.str(), url: t.opt(url), userCode: t.opt(t.str()), needsCode: t.opt(t.bool({ description: 'True when the provider shows a code the person pastes back' })) }, audit: 'sensitive', tool: 'vault', offline: 'online',
     }),
-    write('providers.subscription_complete', 'Finish a subscription sign-in: the credential files are captured into a Mine item of kind ai_subscription', {
-      ...V, in: { flowId: t.id('sub') }, out: { provider: providerRow }, emits: ['provider.added', 'vault.item_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['provider.auth_failed', 'timeout.deadline'],
+    write('providers.subscription_complete', 'Finish a subscription sign-in. Pass the pasted code where the provider shows one; call again until it answers a provider (waiting means the person has not approved yet). The credential goes straight into a Mine item of kind ai_subscription and is never returned.', {
+      ...V, in: { flowId: t.id('sub'), code: t.opt(t.str({ description: 'The code the provider\'s page showed, pasted back' })) }, out: { provider: t.opt(providerRow), waiting: t.opt(t.bool()) }, emits: ['provider.added', 'vault.item_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['provider.auth_failed', 'timeout.deadline'],
     }),
     write('providers.set_space_use', 'Let the Space run work on my subscription, or stop it (stopping ends my sandbox)', {
       ...V, in: { providerId: t.id('prv'), allow: t.bool() }, out: { provider: providerRow }, emits: ['provider.updated'], audit: 'always', tool: 'vault', offline: 'online',

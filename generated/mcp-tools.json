@@ -38898,10 +38898,14 @@
       "blocks": [],
       "cap": "providers.subscription_complete",
       "deferred": false,
-      "description": "Finish a subscription sign-in: the credential files are captured into a Mine item of kind ai_subscription",
+      "description": "Finish a subscription sign-in. Pass the pasted code where the provider shows one; call again until it answers a provider (waiting means the person has not approved yet). The credential goes straight into a Mine item of kind ai_subscription and is never returned.",
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "code": {
+            "description": "The code the provider's page showed, pasted back",
+            "type": "string"
+          },
           "flowId": {
             "examples": [
               "sub_a1b2c3"
@@ -38924,7 +38928,7 @@
       "blocks": [],
       "cap": "providers.subscription_start",
       "deferred": false,
-      "description": "Start a subscription sign-in (Claude Code setup-token, Codex login) inside my own sandbox or device",
+      "description": "Start a subscription sign-in (Claude, ChatGPT through Codex, Grok): the server starts the provider's own sign-in and answers its link, and the code to type where the provider shows one. A person does this, never an agent.",
       "effects": "write",
       "inputSchema": {
         "properties": {

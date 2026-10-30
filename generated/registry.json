@@ -140861,6 +140861,7 @@
       "examples": [
         {
           "input": {
+            "code": "example",
             "flowId": "sub_a1b2c3"
           },
           "name": "example",
@@ -140888,13 +140889,18 @@
                 "tokens": 1
               },
               "via": "Subscription, yours"
-            }
+            },
+            "waiting": true
           }
         }
       ],
       "idempotency": "natural",
       "input": {
         "properties": {
+          "code": {
+            "description": "The code the provider's page showed, pasted back",
+            "type": "string"
+          },
           "flowId": {
             "examples": [
               "sub_a1b2c3"
@@ -140913,7 +140919,15 @@
       "name": "providers.subscription_complete",
       "offline": "online",
       "output": {
-        "$ref": "#/$defs/s_5a861eae61"
+        "properties": {
+          "provider": {
+            "$ref": "#/$defs/s_9c8d435efe"
+          },
+          "waiting": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
       },
       "permission": null,
       "resource": {
@@ -140921,7 +140935,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Finish a subscription sign-in: the credential files are captured into a Mine item of kind ai_subscription",
+      "summary": "Finish a subscription sign-in. Pass the pasted code where the provider shows one; call again until it answers a provider (waiting means the person has not approved yet). The credential goes straight into a Mine item of kind ai_subscription and is never returned.",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -140950,6 +140964,7 @@
           "output": {
             "flowId": "sub_a1b2c3",
             "instruction": "example",
+            "needsCode": true,
             "url": "https://example.com",
             "userCode": "example"
           }
@@ -140994,6 +141009,9 @@
           "instruction": {
             "type": "string"
           },
+          "needsCode": {
+            "type": "boolean"
+          },
           "url": {
             "examples": [
               "https://example.com"
@@ -141017,7 +141035,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Start a subscription sign-in (Claude Code setup-token, Codex login) inside my own sandbox or device",
+      "summary": "Start a subscription sign-in (Claude, ChatGPT through Codex, Grok): the server starts the provider's own sign-in and answers its link, and the code to type where the provider shows one. A person does this, never an agent.",
       "surfaces": {
         "http": "auto",
         "mcp": {

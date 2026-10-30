@@ -1,6 +1,6 @@
 # providers.subscription_start
 
-Start a subscription sign-in (Claude Code setup-token, Codex login) inside my own sandbox or device
+Start a subscription sign-in (Claude, ChatGPT through Codex, Grok): the server starts the provider's own sign-in and answers its link, and the code to type where the provider shows one. A person does this, never an agent.
 
 | | |
 |---|---|
@@ -38,6 +38,7 @@ type Out = {
   instruction: string;
   url?: string;
   userCode?: string;
+  needsCode?: boolean;
 };
 ```
 
@@ -60,6 +61,7 @@ type Out = {
   "output": {
     "flowId": "sub_a1b2c3",
     "instruction": "example",
+    "needsCode": true,
     "url": "https://example.com",
     "userCode": "example"
   }
