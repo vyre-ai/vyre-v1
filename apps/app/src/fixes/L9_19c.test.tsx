@@ -8,6 +8,7 @@ import { homePlace, homeVariantOf } from "../shell/spaces/sample-home.tsx";
 import { StyleSheet } from "react-native";
 import { createSampleHome, northwind as northwindHome } from "../places/home/sections-a/sample.ts";
 import { ASK_DOCK } from "../places/home/sections-b/AskBox.tsx";
+import { SCROLL_CLEAR } from "../places/home/index.tsx";
 import { statusIcon } from "../places/home/sections-a/model.ts";
 import { Plan } from "../../../../ui/src/Plan/index.tsx";
 import { createTask } from "../places/home/sections-a/actions.ts";
@@ -73,6 +74,8 @@ test("Quick start and the Ask composer are the last section, docked", () => {
   const dock = StyleSheet.flatten(ASK_DOCK) as Record<string, unknown>;
   assert.equal(dock["position"], "sticky", "sticks to the foot of the place");
   assert.equal(dock["bottom"], 0);
+  assert.ok(html("nw").includes("r-scrollPaddingBottom"), "the scroller keeps scrolled-to controls clear of the dock, so the dock never sits over a button");
+  assert.ok(SCROLL_CLEAR >= 120, "more than the dock is tall (Quick start row, Ask box, spacing)");
 });
 
 test("the Ask box is the shared composer: the Ask agent pill beside it, only + @ # in the tool row, no who-will-answer line", () => {
