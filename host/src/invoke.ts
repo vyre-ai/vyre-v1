@@ -127,6 +127,11 @@ export interface InvokeDeps {
    * authorize or any handler work. The sync module's `createPersonalHost(...)` satisfies this; a Team Space passes nothing, or a gate that never throws.
    */
   personal?: { gate(cap: string, traceId: string): void };
+  /**
+   * Called with the resource a call resolved to, before it is authorized: a resource that exists only on demand (a connector that ships with the server) is registered here, so the
+   * decision finds it. Nothing to do for any other resource.
+   */
+  ensureResource?(resource: ResourceRef): Promise<void>;
   /** vault name or handle to item id, for `resolve` bindings */
   resolveItem?(type: string, kind: "name" | "handle", value: string): string | null;
   /** spend so far per meter, for the spend policies */
@@ -285,6 +290,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
         throw e;
       }
+      if (resource && deps.ensureResource) await deps.ensureResource(resource);
       approved = seed.approval !== undefined && deps.gate !== undefined && deps.gate.verify(seed.approval, { cap: c, input, seed });
       const memberOnly = c.level === "member";
       let req: AuthReq = {
