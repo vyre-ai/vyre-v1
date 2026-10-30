@@ -77,6 +77,15 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
     done: () => { p.onStep(def.key, "done"); const n = nextAfter(p.flow, { ...p.progress, [def.key]: "done" }, def.key); if (n) open(n); },
     later: () => { p.onStep(def.key, "later"); const n = nextAfter(p.flow, { ...p.progress, [def.key]: "later" }, def.key); if (n) open(n); },
   } : null;
+  // Next moves on without changing the step; on the last step it becomes Done and finishes
+  const steps = stepsOf(p.flow);
+  const at = def ? steps.findIndex((x) => x.key === def.key) : -1;
+  const isLast = at === steps.length - 1;
+  const next = (): void => {
+    if (!def) return;
+    if (isLast) { if (stateOf(p.progress, def.key) !== "done") p.onStep(def.key, "done"); p.onClose?.(); return; }
+    open(steps[at + 1]!.key);
+  };
   const lines: ChatLine[] = [{ id: "hello", from: "assistant", text: greeting(p.flow, p.spaceName) }];
   if (words) lines.push(...words.lines.map((text, i) => ({ id: `${def!.key}-${i}`, from: "assistant" as const, text })));
   const chat = p.live && p.lines ? [lines[0]!, ...p.lines] : lines;
@@ -86,27 +95,27 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
     <View testID="onboarding" style={[s.page, narrow && s.pageNarrow]}>
       {narrow ? <Text style={s.railHead} testID="onboarding-progress">{`Set up  ${counts(p.flow, p.progress).done} of ${counts(p.flow, p.progress).total}`}</Text> : <Rail flow={p.flow} progress={p.progress} current={current} onOpen={open} />}
       <View testID="onboarding-chat" style={s.chat}>
-        <ScrollView style={s.flex} contentContainerStyle={s.chatBody}>
-          {finished ? <Text testID="onboarding-finished" style={s.title}>You are all set.</Text> : <Text style={s.title}>{def!.title}</Text>}
-          {p.live && p.liveChat ? (
-            <>
-              {card ? <View testID="onboarding-card" style={s.card}>{card}</View> : null}
-              <View testID="onboarding-live" style={s.live}>{p.liveChat}</View>
-            </>
-          ) : (
-            <>
-              {chat.map((l) => <Bubble key={l.id} line={l} />)}
-              {!p.live && !finished && def?.card !== "connect_ai" ? <Text style={s.dim} testID="scripted-note">Connect an AI account to talk to me. The steps work without it.</Text> : null}
-              {card ? <View testID="onboarding-card" style={s.card}>{card}</View> : null}
-            </>
-          )}
-        </ScrollView>
+        {p.live && p.liveChat ? (
+          <View style={[s.flex, s.chatBody, s.liveCol]}>
+            {finished ? <Text testID="onboarding-finished" style={s.title}>You are all set.</Text> : <Text style={s.title}>{def!.title}</Text>}
+            {card ? <View testID="onboarding-card" style={s.card}>{card}</View> : null}
+            <View testID="onboarding-live" style={s.live}>{p.liveChat}</View>
+          </View>
+        ) : (
+          <ScrollView style={s.flex} contentContainerStyle={s.chatBody}>
+            {finished ? <Text testID="onboarding-finished" style={s.title}>You are all set.</Text> : <Text style={s.title}>{def!.title}</Text>}
+            {chat.map((l) => <Bubble key={l.id} line={l} />)}
+            {!p.live && !finished && def?.card !== "connect_ai" ? <Text style={s.dim} testID="scripted-note">Connect an AI account to talk to me. The steps work without it.</Text> : null}
+            {card ? <View testID="onboarding-card" style={s.card}>{card}</View> : null}
+          </ScrollView>
+        )}
         <View style={s.actions}>
+          {p.onClose && !finished ? <Pressable testID="onboarding-close" accessibilityRole="link" onPress={p.onClose}><Text style={s.finishLater}>Finish later</Text></Pressable> : null}
+          <View style={s.flex} />
           {def && ctx ? <>
-            <Pressable testID="step-later" accessibilityRole="button" onPress={ctx.later} style={s.ghost}><Text style={s.ghostText}>Not now</Text></Pressable>
-            <Text style={[s.dim, s.flex]}>{words!.skipHint}</Text>
-          </> : <View style={s.flex} />}
-          {p.onClose ? <Pressable testID="onboarding-close" accessibilityRole="button" onPress={p.onClose} style={s.primary}><Text style={s.primaryText}>{finished ? "Open Home" : "Continue to Home"}</Text></Pressable> : null}
+            <Pressable testID="step-later" accessibilityRole="button" onPress={ctx.later} style={s.ghost}><Text style={s.ghostText}>Skip for now</Text></Pressable>
+            <Pressable testID="step-next" accessibilityRole="button" onPress={next} style={s.primary}><Text style={s.primaryText}>{isLast ? "Done" : "Next"}</Text></Pressable>
+          </> : p.onClose ? <Pressable testID="onboarding-close" accessibilityRole="button" onPress={p.onClose} style={s.primary}><Text style={s.primaryText}>Open Home</Text></Pressable> : null}
         </View>
       </View>
       {narrow ? null : <View testID="onboarding-preview" style={s.preview}><Text style={s.railHead}>Preview</Text>{preview}</View>}
@@ -137,7 +146,9 @@ const s = StyleSheet.create({
   bubbleMine: { alignSelf: "flex-end", backgroundColor: "var(--accent)" as string },
   bubbleText: { fontSize: 14.5, lineHeight: 21, color: "var(--ink)" as string },
   bubbleTextMine: { color: "#fff" },
-  live: { minHeight: 320, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
+  liveCol: { flex: 1 },
+  live: { flex: 1, minHeight: 240, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
+  finishLater: { fontSize: 13, color: "var(--ink-3)" as string },
   card: { padding: 16, borderRadius: 12, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string, gap: 10 },
   actions: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, paddingHorizontal: 20, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   ghost: { height: 34, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center" },

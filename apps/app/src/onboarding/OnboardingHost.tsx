@@ -13,9 +13,11 @@ import { PairPhoneCard } from "./PairPhoneCard.tsx";
 import { KitPickCard } from "./KitPickCard.tsx";
 import { SpaceAiCard } from "./SpaceAiCard.tsx";
 import { AssistantThread } from "./AssistantThread.tsx";
+import { PreviewPane } from "./PreviewPane.tsx";
 import type { ShellRuntime } from "../shell/providers/runtime.tsx";
 import { DirectoryCard, InvitesCard, SignInDomainCard, WorkspaceCard } from "./SuiteCards.tsx";
 import { shouldAutoOpen } from "./flow.ts";
+import { scriptFor } from "./script.ts";
 import type { CardKind, FlowKind, Progress, StepState } from "./flow.ts";
 import { OnboardingScreen } from "./OnboardingScreen.tsx";
 import type { CardContext } from "./OnboardingScreen.tsx";
@@ -116,7 +118,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
       {children}
       {shown && flow ? (
         <View style={s.fill}>
-          <OnboardingScreen flow={flow} spaceName={space.name} progress={progress} stepKey={step} live={hasAi && runtime !== null && person !== null} {...(hasAi && runtime && person ? { liveChat: <AssistantThread rt={runtime} person={person} flow={flow} step={step} progress={progress} /> } : {})} onOpenStep={setStep} onStep={onStep} onClose={() => { setShown(false); setStep(null); }} renderCard={renderCard} />
+          <OnboardingScreen flow={flow} spaceName={space.name} progress={progress} stepKey={step} live={hasAi && runtime !== null && person !== null} {...(hasAi && runtime && person ? { liveChat: <AssistantThread rt={runtime} person={person} flow={flow} step={step} progress={progress} /> } : {})} onOpenStep={setStep} onStep={onStep} onClose={() => { setShown(false); setStep(null); }} renderCard={renderCard} renderPreview={(card) => <PreviewPane call={call} card={card} progress={progress} fallback={scriptFor(card, flow).preview} />} />
         </View>
       ) : null}
     </>

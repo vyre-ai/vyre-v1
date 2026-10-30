@@ -123,3 +123,24 @@ test("with an AI account the person's own Ask thread replaces the scripted words
   assert.equal(await findAssistant(rt as never, "usr_a"), "agt_mine");
   assert.equal(await findAssistant(rt as never, "usr_zzz"), null);
 });
+
+test("the bottom bar is Skip for now, Next (Done on the last step) and a quiet Finish later; no Continue to Home", () => {
+  const out = html({ stepKey: "ai", onClose: noop });
+  assert.ok(out.includes("Skip for now") && out.includes('data-testid="step-next"') && out.includes(">Next<") && out.includes("Finish later"));
+  assert.ok(!out.includes("Continue to Home") && !out.includes("Not now"));
+  assert.ok(html({ stepKey: "team", onClose: noop }).includes(">Done<"), "the last step says Done");
+});
+
+test("the preview pane shows chips, or Not yet with its hint", async () => {
+  const { PreviewView } = await import("./PreviewPane.tsx");
+  const full = renderToStaticMarkup(<PreviewView preview={{ heading: "Your AI account", items: [{ id: "1", label: "Claude · subscription · in your Vault" }], hint: "x" }} fallback="f" />);
+  assert.ok(full.includes('data-testid="preview-item"') && full.includes("in your Vault"));
+  const empty = renderToStaticMarkup(<PreviewView preview={{ heading: "h", items: [], hint: "Not yet. Something appears here." }} fallback="f" />);
+  assert.ok(empty.includes('data-testid="preview-empty"') && empty.includes("Not yet."));
+});
+
+test("Team AI shows only the offer first, and the sign-in tiles after No", async () => {
+  const { SpaceAiCard } = await import("./SpaceAiCard.tsx");
+  const call = (async () => ({ providers: [] })) as never;
+  assert.ok(renderToStaticMarkup(<SpaceAiCard team={call} personal={null} onConnected={noop} />).includes('data-testid="ai-tiles"'), "no Personal key to copy: the tiles are the card");
+});

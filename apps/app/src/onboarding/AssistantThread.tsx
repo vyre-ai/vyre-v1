@@ -40,5 +40,5 @@ export function AssistantThread({ rt, person, flow, step, progress }: { rt: Shel
     return conversationData(rt, { openThread: (id) => rt.open({ subject: { type: "thread", id } }), togglePane: () => undefined, fillComposer: () => undefined, openAgentChat: (id) => rt.open({ subject: { type: "agent", id } }) }, thread, people.status === "ready" ? people.data : []);
   }, [rt, thread]);
   if (error) return <Text testID="assistant-error" style={{ fontSize: 13, color: "var(--ink-3)" as string }}>I could not open the chat. The steps still work.</Text>;
-  return data ? <Suspense fallback={null}><ChatsConversation data={data} /></Suspense> : <Text style={{ fontSize: 13, color: "var(--ink-3)" as string }}>Opening your assistant</Text>;
+  return data ? <Suspense fallback={null}><ChatsConversation data={data} compact /></Suspense> : <Text style={{ fontSize: 13, color: "var(--ink-3)" as string }}>Opening your assistant</Text>;
 }

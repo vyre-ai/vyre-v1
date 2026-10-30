@@ -2,7 +2,7 @@
 // agent's mode menu), Helpers while any run, Stop and Stop all while any work, the pane toggle and a menu. Under it the last 50 messages (older ones stream in on request), the agent's
 // work folded into one line, and the shared composer with its who-will-reply line. A send shows on the page in the same frame, before chat.post answers; while an agent works, a plain
 // send queues for its next step and Interrupt sends it now.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import type { ComposerSend } from "../../../../../../ui/src/Composer/index.tsx";
@@ -32,11 +32,13 @@ type HelpersOut = CapMap["chat.helpers.list"]["out"];
 
 export const CONVERSATION_SCREEN = "chats.conversation";
 
-export function Conversation({ data }: { data?: ConversationData }): ReactElement {
+/** `compact` is for a conversation inside another screen (the onboarding Assistant): just the messages and the composer, no title bar with members, search and side-panel buttons. */
+const CompactContext = createContext(false);
+export function Conversation({ data, compact = false }: { data?: ConversationData; compact?: boolean }): ReactElement {
   const ctx = useOptionalConversationData();
   const value = data ?? ctx;
   if (!value) return <ConversationLoading />;
-  return <ConversationDataProvider value={value}><ConversationView /></ConversationDataProvider>;
+  return <ConversationDataProvider value={value}><CompactContext.Provider value={compact}><ConversationView /></CompactContext.Provider></ConversationDataProvider>;
 }
 
 /** The frame before data: a header bar, messages the size of real ones and a composer box, so nothing moves when the thread arrives. */
@@ -64,6 +66,7 @@ export function connectEntries(thread: Pick<Thread, "kind" | "channelId" | "thre
 
 function ConversationView(): ReactElement {
   const data = useConversationData();
+  const compact = useContext(CompactContext);
   const online = useOnline();
   const menu = useMenu();
   const threadQ = useScreenQuery<ThreadOut>(CONVERSATION_SCREEN, "thread", { threadId: data.threadId });
@@ -256,6 +259,7 @@ function ConversationView(): ReactElement {
 
   return (
     <View testID="conversation" accessibilityLabel={`Conversation, ${title}`} style={st.root}>
+      {compact ? null : (
       <View testID="conversation-head" accessibilityRole="header" style={st.head}>
         <Text numberOfLines={1} testID="conversation-title" style={st.title}>{title}</Text>
         {leadFace ? <FaceButton key={leadFace.agentId} name={leadFace.name} mode={leadFace.mode} working={leadFace.working} title={modeTitle(leadFace)} testID={`face-${leadFace.agentId}`} label={leadFace.name} size={20} onPress={(x, y) => modeMenu(leadFace, x, y)} /> : null}
@@ -273,6 +277,7 @@ function ConversationView(): ReactElement {
         <IconButton icon="pane" label="Show or hide the pane" testID="pane-button" onPress={() => data.nav.togglePane()} />
         <IconButton icon="more" label="More" testID="more-button" onPress={moreMenu} />
       </View>
+      )}
       {finding ? (
         <View testID="find-bar" accessibilityRole="search" style={st.find}>
           <Glyph name="search" size={14} color="var(--ink-3)" />
