@@ -117,6 +117,28 @@ function hostsOf(value: unknown): string[] {
   return out;
 }
 
+/** The environment the sandbox process is started with: nothing. bwrap then clears what it inherits anyway and sets only the allow-list (HOME, PATH, LANG, the proxy variables and the step's own two), so the daemon's environment reaches neither layer. */
+export const SPAWN_ENV: Readonly<Record<string, string>> = Object.freeze({});
+
+/** The bubblewrap command for one run: the limits, Node's flags and the run folder as the only writable path. Pure: it builds the command and starts nothing. */
+export function wallCommand(h: CodeHost, codeRoot: string, dir: string, hosts: readonly string[], wallDir: string): ReturnType<typeof bwrapWallCommand> {
+  const node = h.node ?? process.execPath;
+  const heap = h.heapMb ?? LIMITS.heapMb;
+  const cpu = h.cpuSeconds ?? LIMITS.cpuSeconds;
+  const scratch = path.join(h.dataDir, "code-scratch");
+  fs.mkdirSync(scratch, { recursive: true });
+  const roots: Roots = { work: [codeRoot], scratch: [scratch] };
+  const spec: SandboxSpec = {
+    id: `vyre-code-${path.basename(dir).slice(4).toLowerCase().replace(/[^a-z0-9]/g, "")}`, person: "code", kind: "bwrap", scratch: fs.realpathSync(scratch),
+    mounts: [{ host: dir, mode: "rw" }], egressHosts: hosts, env: hosts.length > 0 ? { NODE_USE_ENV_PROXY: "1", VYRE_CODE_NET: "1" } : {},
+  };
+  // ulimit -t counts processor seconds: a loop is killed by the kernel, a wait on the network is not counted (the wall clock ends that).
+  const dataKb = (h.dataMb ?? LIMITS.dataMb) * 1024;
+  // ulimit -d bounds everything the process maps for data (brk and private writable mappings), so a Buffer or ArrayBuffer loop outside the V8 heap is stopped by the kernel too
+  const argv = ["/bin/sh", "-c", `ulimit -t ${cpu}; ulimit -d ${dataKb}; exec "$@"`, "sh", node, ...nodeFlags(dir, heap), path.join(dir, "runner.mjs"), dir];
+  return bwrapWallCommand(spec, roots, argv, { wallDir, node, ...(h.programRead ? { programRead: h.programRead } : {}) });
+}
+
 export async function runInSandbox(source: unknown, input: unknown, hostsRaw?: unknown): Promise<CodeResult> {
   const h = host;
   const why = codeAvailability(h);
@@ -140,24 +162,12 @@ export async function runInSandbox(source: unknown, input: unknown, hostsRaw?: u
     fs.writeFileSync(path.join(dir, "input.json"), inputText, { mode: 0o644 });
     // one proxy for this run: it allows the named hosts and is closed when the run ends
     net = await startNetWall({ allow: hosts, egress: { ...(h.egress ?? {}), lookup: guardedLookup(h.egress?.lookup) } });
-    const node = h.node ?? process.execPath;
     const heap = h.heapMb ?? LIMITS.heapMb;
     const cpu = h.cpuSeconds ?? LIMITS.cpuSeconds;
-    const scratch = path.join(h.dataDir, "code-scratch");
-    fs.mkdirSync(scratch, { recursive: true });
-    const roots: Roots = { work: [codeRoot], scratch: [scratch] };
-    const spec: SandboxSpec = {
-      id: `vyre-code-${path.basename(dir).slice(4).toLowerCase().replace(/[^a-z0-9]/g, "")}`, person: "code", kind: "bwrap", scratch: fs.realpathSync(scratch),
-      mounts: [{ host: dir, mode: "rw" }], egressHosts: hosts, env: hosts.length > 0 ? { NODE_USE_ENV_PROXY: "1", VYRE_CODE_NET: "1" } : {},
-    };
-    // ulimit -t counts processor seconds: a loop is killed by the kernel, a wait on the network is not counted (the wall clock below ends that).
-    const dataKb = (h.dataMb ?? LIMITS.dataMb) * 1024;
-    // ulimit -d bounds everything the process maps for data (brk and private writable mappings), so a Buffer or ArrayBuffer loop outside the V8 heap is stopped by the kernel too
-    const argv = ["/bin/sh", "-c", `ulimit -t ${cpu}; ulimit -d ${dataKb}; exec "$@"`, "sh", node, ...nodeFlags(dir, heap), path.join(dir, "runner.mjs"), dir];
-    const w = bwrapWallCommand(spec, roots, argv, { wallDir: net.dir, node, ...(h.programRead ? { programRead: h.programRead } : {}) });
+    const w = wallCommand(h, codeRoot, dir, hosts, net.dir);
     const outcome = await new Promise<{ code: number | null; signal: NodeJS.Signals | null; stderr: string; timedOut: boolean }>((resolve) => {
       // Its own process group: the wall clock ends everything the sandbox started, so a grandchild cannot keep the stderr pipe open and leave the run waiting for a close that never comes.
-      const p = spawn(w.cmd, w.args, { env: {}, stdio: ["ignore", "ignore", "pipe"], detached: true });
+      const p = spawn(w.cmd, w.args, { env: { ...SPAWN_ENV }, stdio: ["ignore", "ignore", "pipe"], detached: true });
       let stderr = "";
       let timedOut = false;
       let done = false;

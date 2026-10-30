@@ -119,12 +119,13 @@ test("real bubblewrap: input in, JSON out, no network, no host files, only the n
 
     // no host files, no daemon environment, no process to start, no write outside its folder
     const caged = await runCode(d, {
-      source: "const fs = await import('node:fs'); const cp = await import('node:child_process'); const out = {}; const t = (k, f) => { try { out[k] = f(); } catch (e) { out[k] = e.code || e.message; } }; t('passwd', () => fs.readFileSync('/etc/passwd', 'utf8').length); t('proc', () => fs.readFileSync('/proc/self/environ', 'utf8').length); t('home', () => fs.readdirSync('/home').length); t('write', () => fs.writeFileSync('/tmp/escape.txt', 'x')); t('spawn', () => cp.execSync('echo hi').toString()); out.env = Object.keys(process.env); out.secret = process.env.DAEMON_ONLY_SECRET ?? null; return out;",
+      source: "const fs = await import('node:fs'); const cp = await import('node:child_process'); const out = {}; const t = (k, f) => { try { out[k] = f(); } catch (e) { out[k] = e.code || e.message; } }; t('passwd', () => fs.readFileSync('/etc/passwd', 'utf8').length); t('proc', () => fs.readFileSync('/proc/self/environ', 'utf8').length); t('home', () => fs.readdirSync('/home').length); t('write', () => fs.writeFileSync('/tmp/escape.txt', 'x')); t('spawn', () => cp.execSync('echo hi').toString()); out.env = Object.keys(process.env); out.leak = process.env.DAEMON_ONLY_SECRET ?? null; return out;",
     });
     assert.equal(caged.status, "succeeded", JSON.stringify(caged));
     const r = caged.output.result as Record<string, unknown>;
     for (const k of ["passwd", "proc", "write", "spawn"]) assert.equal(r[k], "ERR_ACCESS_DENIED", `${k}: ${String(r[k])}`);
-    assert.equal(r["secret"], null);
+    // the key is not named secret or token: a run's stored output hides the value of any key with such a name, which would hide a real leak and a clean null alike
+    assert.equal(r["leak"], null);
     assert.equal(JSON.stringify(r["env"]).includes("daemon-secret"), false);
     assert.equal(fs.existsSync("/tmp/escape.txt"), false);
 
