@@ -1,5 +1,5 @@
 // Settings pages that belong to the open Space: Profile (with Copy from another Space), Notifications, Models and usage, Connections, Memory and privacy.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
@@ -12,6 +12,8 @@ import { labelOf, moneyLabel, sectionsFor } from "./model.ts";
 import type { SettingRow } from "./model.ts";
 import { SettingRowFor, useChange } from "./rows.tsx";
 import { useSaved } from "./saved.tsx";
+import { NOT_CONNECTED, suiteSections, throughFirm } from "./suites.ts";
+import type { CalendarLite } from "./suites.ts";
 import { Choice, Field, Glyph, Section, SettingsRow, SmallButton, Value, pointer } from "./ui.tsx";
 
 export interface PageProps { rows: readonly SettingRow[]; found: string | null }
@@ -197,8 +199,26 @@ export function ConnectionsPage({ rows, found }: PageProps): ReactElement {
       />,
     ));
   }
+  const [calendars, setCalendars] = useState<CalendarLite[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    void data.call("calendar.list_calendars", {}).then(
+      (out) => { if (live) setCalendars(((out as { calendars?: CalendarLite[] }).calendars ?? []).map((c) => ({ id: c.id, title: c.title, provider: c.provider, state: c.state }))); },
+      () => { if (live) setCalendars([]); },
+    );
+    return () => { live = false; };
+  }, [data]);
+  const mine = boxes.status === "ready" ? boxes.data.mailboxes.map((m) => ({ id: m.id, address: m.address, provider: m.provider, state: m.state })) : [];
+  const suites = suiteSections(mine, calendars ?? []);
+  const firm: ReactElement[] = [];
+  suites.forEach((suite, si) => firm.push(
+    <SettingsRow key={suite.key} id={`suite.${suite.key}`} label={suite.title} sub={throughFirm(suite)} first={si === 0} lead={<Glyph name="link" size={15} />} control={<Value text={suite.rows.map((r) => r.service).filter((v, i, a) => a.indexOf(v) === i).join(" and ")} />} />,
+  ));
   return (
     <>
+      <Section title="Through your firm" note={suites.length === 0 && boxes.status === "ready" && calendars !== null ? NOT_CONNECTED : undefined}>
+        {firm}
+      </Section>
       <Section title="Mail and calendar">
         {list}
         <SettingsRow id="connect-mailbox" label="Connect a mailbox" first={list.length === 0} lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("mailbox")} control={<Glyph name="chevR" size={13} />} />

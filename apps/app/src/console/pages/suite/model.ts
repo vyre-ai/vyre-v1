@@ -17,6 +17,7 @@ export const GOOGLE_LINKS = {
 export const MICROSOFT_LINKS = {
   appRegistrations: "https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade",
   exchangePowerShell: "https://learn.microsoft.com/powershell/exchange/connect-to-exchange-online-powershell",
+  teamsPowerShell: "https://learn.microsoft.com/microsoftteams/teams-powershell-install",
 } as const;
 
 /** The Google APIs to switch on in the project the service account lives in. */

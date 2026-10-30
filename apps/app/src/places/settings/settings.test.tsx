@@ -170,6 +170,7 @@ test("Connections lists mailboxes with their state and a way to pause; Memory an
   assert.ok(has(out, "irfad@northwind.example") && has(out, "Google, private to you") && has(out, "Syncing") && has(out, "Pause"));
   assert.ok(has(out, "irfad.imtiaz@outlook.example") && has(out, "Paused") && has(out, "Resume"));
   assert.ok(has(out, "Connect a mailbox") && has(out, "Connect a calendar"));
+  assert.ok(has(out, "Through your firm") && has(out, "Google Workspace") && has(out, "Microsoft 365") && has(out, "Connected through your firm"), "what the firm connected for this person, by suite");
   const p = html(createSampleSettings(northwind), { initialPage: "privacy" });
   assert.ok(has(p, "Weekly reminder about proposed facts") && has(p, "Let the Space continue my chats when my computer is off"));
   assert.ok(has(html(createSampleSettings(harbor), { initialPage: "connections" }), "Connect a mailbox"), "an empty list still offers the connect rows");
