@@ -27,6 +27,8 @@ test("the finished handlers replace the group's entries of the same name in the 
 test("chat.recent counts unread messages from others past the read cursor, filter unread keeps only those, and nextUnread names the first", async () => {
   const hn = harness();
   const quiet = await chatWith(hn);
+  // a chat nobody has written in is not listed, so the quiet one has one message of the asker's own: listed, and nothing unread in it
+  await h["chat.post"]!(hn.ctx, { threadId: quiet, body: "hello", idempotencyKey: "q1" });
   const busy = await chatWith(hn, MAYA);
   hn.advance(1000);
   await h["chat.post"]!(hn.person(MAYA), { threadId: busy, body: "one", idempotencyKey: "u1" });
