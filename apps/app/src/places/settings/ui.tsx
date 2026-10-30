@@ -2,8 +2,9 @@
 // choice, the field and the small button. Sizes follow the prototype's Settings (vyre-settings.html); colours are skin tokens, so a skin switch repaints with no re-render.
 import { createElement, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
+import { TextField } from "../../../../../ui/src/TextField/index.tsx";
 import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 
@@ -149,7 +150,6 @@ export function Field({ value, onCommit, label, placeholder, mono = false, patte
 }): ReactElement {
   const [draft, setDraft] = useState<string | null>(null);
   const [err, setErr] = useState(false);
-  const [focus, setFocus] = useState(false);
   const shown = draft ?? value;
   const bad = (v: string): boolean => (pattern ? !new RegExp(pattern).test(v) : false);
   const done = (): void => {
@@ -162,11 +162,11 @@ export function Field({ value, onCommit, label, placeholder, mono = false, patte
   return (
     <View style={s.fieldWrap}>
       {prefix ? <Text style={s.prefix}>{prefix}</Text> : null}
-      <TextInput
-        accessibilityLabel={label} testID={testID} value={shown} placeholder={placeholder} placeholderTextColor="var(--ink-4)" secureTextEntry={secureTextEntry}
-        onChangeText={(t) => { setDraft(t); setErr(false); }} onFocus={() => setFocus(true)} onBlur={() => { setFocus(false); done(); }} onSubmitEditing={done}
+      <TextField
+        accessibilityLabel={label} testID={testID} value={shown} placeholder={placeholder} secureTextEntry={secureTextEntry}
+        onChangeText={(t) => { setDraft(t); setErr(false); }} onBlur={done} onSubmitEditing={done}
         {...webOnly({ onKeyDown: (e: KeyEventLike) => { if (e.key === "Escape") { setDraft(null); setErr(false); } } })}
-        style={[s.input, { width }, mono && s.mono, focus && s.inputFocus, err && { borderColor: "var(--danger)" as string }]}
+        style={[{ width, height: 32, borderRadius: 7, paddingHorizontal: 10, fontSize: 13 }, mono && s.mono, err && { borderColor: "var(--danger)" as string }]}
       />
     </View>
   );
@@ -273,8 +273,6 @@ export const s = StyleSheet.create({
   mono: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" },
   fieldWrap: { flexDirection: "row", alignItems: "center", gap: 6 },
   prefix: { fontSize: 13, color: "var(--ink-3)" as string },
-  input: { height: 32, borderRadius: 7, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, paddingHorizontal: 10, fontSize: 13, color: "var(--ink)" as string, ...webOnly({ outlineStyle: "none" }) },
-  inputFocus: { borderColor: "var(--accent)" as string, ...webOnly({ boxShadow: "0 0 0 3px var(--accent-wash)" }) },
   stepper: { flexDirection: "row", alignItems: "center", gap: 4 },
   stepBtn: { width: 26, height: 26, borderRadius: 7, borderWidth: 1, borderColor: "var(--line)" as string, alignItems: "center", justifyContent: "center" },
   stepVal: { fontSize: 13, color: "var(--ink)" as string, minWidth: 64, textAlign: "center" },

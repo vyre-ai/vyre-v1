@@ -27,14 +27,20 @@ export function isStateIcon(name: string): name is StateIcon {
   return (STATE_ICONS as readonly string[]).includes(name);
 }
 
+/** The icon sits on a quiet rounded tile, so an empty page reads as designed and not as missing. An error's tile is tinted with the danger colour. */
 function Icon({ name }: { name: StateIcon }) {
-  if (Platform.OS !== "web") return <Text style={styles.glyph}>{name === "error" ? "!" : "o"}</Text>;
+  const tone = name === "error" ? styles.tileError : styles.tile;
+  if (Platform.OS !== "web") return <View style={tone}><Text style={styles.glyph}>{name === "error" ? "!" : "o"}</Text></View>;
   const paths = [];
   for (const d of ICON_PATHS[name]) paths.push(createElement("path", { key: d, d }));
-  return createElement(
-    "svg",
-    { viewBox: "0 0 16 16", width: 24, height: 24, "aria-hidden": true, "data-icon": name, style: { fill: "none", stroke: "var(--ink-4)", strokeWidth: 1.4, strokeLinecap: "round", strokeLinejoin: "round" } },
-    ...paths,
+  return (
+    <View style={tone}>
+      {createElement(
+        "svg",
+        { viewBox: "0 0 16 16", width: 22, height: 22, "aria-hidden": true, "data-icon": name, style: { display: "block", fill: "none", stroke: name === "error" ? "var(--danger)" : "var(--ink-3)", strokeWidth: 1.3, strokeLinecap: "round", strokeLinejoin: "round" } },
+        ...paths,
+      )}
+    </View>
   );
 }
 
@@ -85,12 +91,14 @@ export function States(props: StateProps) {
 
 const styles = StyleSheet.create({
   box: { flex: 1, minHeight: 200, alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 56, paddingHorizontal: 24 },
+  tile: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", marginBottom: 4, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
+  tileError: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", marginBottom: 4, backgroundColor: "color-mix(in srgb, var(--danger) 10%, transparent)" as string, borderWidth: 1, borderColor: "color-mix(in srgb, var(--danger) 25%, transparent)" as string },
   glyph: { color: "var(--ink-4)" as string, fontSize: 20 },
-  title: { color: "var(--ink-2)" as string, fontSize: 14, lineHeight: 20, fontWeight: "500", textAlign: "center" },
+  title: { color: "var(--ink)" as string, fontSize: 14, lineHeight: 20, fontWeight: "600", textAlign: "center" },
   sub: { color: "var(--ink-3)" as string, fontSize: 12.5, lineHeight: 18, textAlign: "center" },
   trace: { color: "var(--ink-4)" as string, fontSize: 11.5, textAlign: "center" },
   actions: { flexDirection: "row", gap: 8, marginTop: 6, flexWrap: "wrap", justifyContent: "center" },
-  btn: { height: 30, paddingHorizontal: 13, borderRadius: 8, justifyContent: "center" },
+  btn: { height: 32, paddingHorizontal: 14, borderRadius: 8, justifyContent: "center", marginTop: 4 },
   primary: { backgroundColor: "var(--ink)" as string },
   quiet: { backgroundColor: "transparent" },
   btnHover: { opacity: 0.88 },
