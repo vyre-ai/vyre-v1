@@ -1,1 +1,0 @@
-- Release: the Windows installer's checksum sidecar is written in the text form ("<hash>  VyreSetup.exe"); sha256sum on Windows wrote the binary-mode "*" form, which the release's check refuses.

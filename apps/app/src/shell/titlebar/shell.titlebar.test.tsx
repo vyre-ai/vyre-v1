@@ -7,6 +7,7 @@ import { createShellHub, titleText } from "../spaces/hub.ts";
 import { SEED_DEFS } from "../spaces/model.ts";
 import { TitleBar } from "./TitleBar.tsx";
 import type { TitleBarProps } from "./TitleBar.tsx";
+import { skins } from "../../../../../ui/src/tokens/skins.ts";
 import { SYSTEM_SKIN, skinMenuEntries, skinName, syncLabel } from "./model.ts";
 
 const props = (over: Partial<TitleBarProps> = {}): TitleBarProps => ({
@@ -59,6 +60,10 @@ test("the skin menu lists System, seven dark skins, six light skins, checks the 
   assert.equal(light.length, 6);
   assert.ok(dark.includes("Graphite") && light.includes("Paper"));
   assert.deepEqual(items.filter((e) => e.checked === true).map((e) => e.label), ["Graphite"]);
+  assert.ok(items.every((e) => typeof e.icon === "string" && e.icon.startsWith("<svg")), "every row has an icon, System included");
+  assert.ok(items[0]?.icon?.includes("M8 2.5v11"), "System is the half-filled circle");
+  const graphite = items.find((e) => e.label === "Graphite")?.icon ?? "";
+  assert.ok(graphite.includes(skins.find((k) => k.id === "graphite")!.palette.accent) && !/<style|style=/.test(graphite), "a swatch carries the skin's colours as attributes only");
   items.find((e) => e.label === "Paper")?.onSelect?.();
   assert.deepEqual(chosen, ["paper"]);
   assert.equal(skinName("graphite"), "Graphite");

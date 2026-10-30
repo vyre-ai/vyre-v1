@@ -14,3 +14,11 @@ export function providerOfModel(model: string | undefined): string | undefined {
   for (const [re, provider] of PREFIXES) if (re.test(model)) return provider;
   return undefined;
 }
+
+// A subscription sign-in is kept under the tool's own key (claude-code, codex, grok), a model names its maker (anthropic, openai, xai): the two spell one family.
+const FAMILY: Readonly<Record<string, string>> = { "claude-code": "anthropic", codex: "openai", grok: "xai" };
+
+/** True when an account of provider `account` can serve a model whose provider is `wanted`. */
+export function sameProviderFamily(account: string, wanted: string): boolean {
+  return (FAMILY[account] ?? account) === (FAMILY[wanted] ?? wanted);
+}
