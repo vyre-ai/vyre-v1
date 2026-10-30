@@ -120,3 +120,16 @@ test("a valid GET with no sender stays a draft", async () => {
     globalThis.fetch = prior;
   }
 });
+
+test("an agent cannot choose the host and the Vault item of a read; a person can", async () => {
+  let calls = 0;
+  setConnectorReadSender(async () => { calls += 1; return { status: 204 }; });
+  const agentCtx = { principal: { kind: "agent", id: "agt_x" }, actingFor: "usr_a", now: () => 1, db: undefined } as unknown as AutoCtx;
+  const personCtx = { principal: { kind: "person", id: "usr_a" }, now: () => 1, db: undefined } as unknown as AutoCtx;
+  const refused = await tryConnectorRead(agentCtx, readInput());
+  assert.equal(refused.level, "draft");
+  assert.match(refused.reason ?? "", /Save the connector first/);
+  assert.equal(calls, 0, "nothing was sent for the agent");
+  assert.deepEqual(await tryConnectorRead(personCtx, readInput()), { level: "tested" });
+  assert.equal(calls, 1);
+});
