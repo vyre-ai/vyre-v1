@@ -29,6 +29,7 @@ test("an API key goes to providers.add in Mine and never appears in what comes b
   const r = recorder({ "providers.add": { provider: { id: "prv_2" } } });
   const id = await saveApiKey(r.call, "anthropic", "  sk-secret-123  ", "k");
   assert.equal(id, "prv_2");
+  assert.equal(r.calls.length, 1, "the key makes exactly one call, to the Vault; no chat, event or card carries it");
   assert.deepEqual(r.calls[0], { cap: "providers.add", input: { providerKey: "anthropic", connection: "api_key", apiKey: "sk-secret-123", scope: "mine", idempotencyKey: "k" } });
   const bad = recorder({ "providers.add": Object.assign(new Error("sk-secret-123 rejected"), { code: "validation.bad_input" }) });
   await assert.rejects(() => saveApiKey(bad.call, "openai", "sk-secret-123", "k"), (e: Error) => !e.message.includes("sk-secret-123"));

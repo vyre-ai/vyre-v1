@@ -16,7 +16,7 @@ import { shouldAutoOpen } from "./flow.ts";
 import type { CardKind, FlowKind, Progress, StepState } from "./flow.ts";
 import { OnboardingScreen } from "./OnboardingScreen.tsx";
 import type { CardContext } from "./OnboardingScreen.tsx";
-import { flowOfSession, loadFlow, markSeen, markStep, registerOnboardingOpener, usedChecklistBefore } from "./store.ts";
+import { flowOfSession, loadFlow, markSeen, markStep, publishProgress, registerOnboardingOpener, usedChecklistBefore } from "./store.ts";
 
 export interface OnboardingHostProps {
   /** null until the session has opened; the shell below is mounted either way so nothing remounts */
@@ -52,7 +52,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
         const f = await flowOfSession(call, space.kind);
         const state = await loadFlow(call, f);
         if (off) return;
-        setFlow(f); setProgress(state.progress);
+        setFlow(f); setProgress(state.progress); publishProgress({ flow: f, progress: state.progress });
         const before = state.seen ? true : await usedChecklistBefore(call).catch(() => false);
         if (off) return;
         // "Set up my team" made this Personal Space first: open straight on the team step
@@ -67,7 +67,11 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
 
   const onStep = useCallback((key: string, state: StepState): void => {
     if (!flow || !call) return;
-    setProgress((p) => state === "open" ? Object.fromEntries(Object.entries(p).filter(([k]) => k !== key)) : { ...p, [key]: state });
+    setProgress((p) => {
+      const next = state === "open" ? Object.fromEntries(Object.entries(p).filter(([k]) => k !== key)) : { ...p, [key]: state };
+      publishProgress({ flow, progress: next });
+      return next;
+    });
     void markStep(call, flow, key, state).catch(() => undefined);
   }, [call, flow]);
 

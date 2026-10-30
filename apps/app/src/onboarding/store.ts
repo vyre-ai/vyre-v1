@@ -35,3 +35,11 @@ type Opener = (step?: string) => void;
 let opener: Opener | null = null;
 export function registerOnboardingOpener(open: Opener | null): () => void { opener = open; return () => { if (opener === open) opener = null; }; }
 export function openOnboarding(step?: string): boolean { if (!opener) return false; opener(step); return true; }
+
+/** What the host knows, for anything else on screen that shows the steps (the Home checklist, the Console): the flow and each step's state. Null until the first read. */
+export interface PublishedProgress { flow: FlowKind; progress: Progress }
+let published: PublishedProgress | null = null;
+const watchers = new Set<() => void>();
+export function publishProgress(p: PublishedProgress | null): void { published = p; for (const w of watchers) w(); }
+export const readProgress = (): PublishedProgress | null => published;
+export function watchProgress(fn: () => void): () => void { watchers.add(fn); return () => { watchers.delete(fn); }; }
