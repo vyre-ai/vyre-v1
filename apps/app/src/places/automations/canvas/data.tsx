@@ -1,6 +1,6 @@
 // Automations data: the one context the sidebar and the canvas read. Every list is a live query over the local copy (client screen hooks), so a row paints from what
 // is kept on the device and updates when the copy changes. Writes go through `call`, one capability per action. The shell supplies the value; the place never decides how a thing opens.
-import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
 import type { AskBundle } from "../ask/bundle.ts";
@@ -66,6 +66,39 @@ export function useScreenQuery<T>(screenId: string, name: string, state: Record<
   const key = JSON.stringify(state);
   const q = useMemo(() => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>, [screens, screenId, name, key]);
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
+}
+
+/**
+ * One read of a capability, again when `refreshKey` changes. For the screen queries the registry marks `live: false` (versions, previews), which the shell's live hooks refuse by design:
+ * asking them through useScreenQuery crashes the place ("query ... is not live"). A person reads them with a plain call, as the Ask before sending toggle does.
+ */
+export function useRead<T>(cap: string, input: Record<string, unknown>, refreshKey: unknown = 0, enabled = true): QueryState<T> {
+  const data = useAutomationsData();
+  const key = JSON.stringify(input);
+  const [state, setState] = useState<QueryState<T>>({ status: "loading" });
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let off = false;
+    data.call(cap, JSON.parse(key)).then(
+      (out) => { if (!off) setState({ status: "ready", data: out as T }); },
+      (e: unknown) => { if (!off) setState({ status: "loading", error: { message: e instanceof Error ? e.message : "Could not read this." } }); },
+    );
+    return () => { off = true; };
+  }, [data, cap, key, refreshKey, enabled]);
+  return state;
+}
+
+const NO_SUB = (): (() => void) => () => undefined;
+const LOADING: QueryState<never> = { status: "loading" };
+
+/** A screen query where the screen has it live (the sample data, tests); where the registry marks it not live (the real shell), a plain read of the same capability. */
+export function useScreenOrRead<T>(screenId: string, name: string, state: Record<string, unknown>, cap: string, input: Record<string, unknown>, refreshKey: unknown = 0): QueryState<T> {
+  const { screens } = useAutomationsData();
+  const key = JSON.stringify(state);
+  const live = useMemo(() => { try { return screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>; } catch { return null; } }, [screens, screenId, name, key]);
+  const fromLive = useSyncExternalStore(live ? live.subscribe : NO_SUB, live ? live.getSnapshot : () => LOADING as QueryState<T>, live ? live.getSnapshot : () => LOADING as QueryState<T>);
+  const fromRead = useRead<T>(cap, input, refreshKey, live === null);
+  return live ? fromLive : fromRead;
 }
 
 export const SIDEBAR = "automations.sidebar";

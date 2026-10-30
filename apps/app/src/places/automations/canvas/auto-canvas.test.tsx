@@ -164,3 +164,10 @@ test("an empty definition draws the trigger card and the first plus; nothing thr
   assert.ok(has(out, "Add the first step"));
   assert.ok(has(out, "1 thing to fix before this can run"));
 });
+
+test("opening an Automation does not crash when the shell refuses the Versions query as not live (the real registry marks it live: false)", () => {
+  const s = createSampleAutomations(northwind);
+  const real = { ...s.data, screens: { ...s.data.screens, query: (screen: string, name: string, state?: Record<string, unknown>) => { if (name === "versions") throw new Error(`query ${screen}.${name} is not live`); return s.data.screens.query(screen, name, state); } } };
+  const out = renderToStaticMarkup(<AutomationsDataProvider value={real as typeof s.data}><AutomationCanvas automationId="aut_lead" initialTab="steps" /></AutomationsDataProvider>);
+  assert.ok(out.length > 0 && has(out, 'data-testid'), "the canvas draws, with the versions read as a plain call");
+});

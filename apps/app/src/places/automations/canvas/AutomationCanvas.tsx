@@ -35,7 +35,7 @@ import type { CardHandlers } from "./Cards.tsx";
 import { canvasScale, COMPACT_REGIONS, compactRegionLabel, frameFor, layoutForWidth } from "./frame.ts";
 import { Inspector } from "./Inspector.tsx";
 import { Glyph } from "./icons.tsx";
-import { CANVAS, CONFIG, useAutomationsData, useScreenQuery } from "./data.tsx";
+import { CANVAS, CONFIG, useAutomationsData, useScreenOrRead, useScreenQuery } from "./data.tsx";
 import {
   addAfter, addInto, addTrigger, check, clampZoom, describeTrigger, duplicateStep, fitScale, kindOfKey, layout, liveBlockerStep, moveStep, neighbour, removeStep, removeTrigger, sortedIssues, titleOfKey,
 } from "./model.ts";
@@ -74,7 +74,7 @@ export function AutomationCanvas({ automationId, tabBodies, initialTab = "steps"
   const data = useAutomationsData();
   const q = useScreenQuery<GetOut>(CANVAS, "automation", { automationId, route: { automationId } });
   const failed = useScreenQuery<RunsOut>(CONFIG, "runs", { subject: { type: "automation", id: automationId }, statuses: ["failed"], scope: "subject" });
-  const versions = useScreenQuery<VersionsOut>(CONFIG, "versions", { automationId });
+  const versions = useScreenOrRead<VersionsOut>(CONFIG, "versions", { automationId }, "automations.versions", { automationId }, q.status === "ready" ? (q.data.automation as { version?: number } | undefined)?.version : 0);
   const [tab, setTab] = useState<CanvasTab>(initialTab);
   if (q.status !== "ready") return <Frame><Text style={s.dim} accessibilityRole="progressbar">Loading</Text></Frame>;
   const a = q.data.automation as GetOut["automation"] | undefined;
