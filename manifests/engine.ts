@@ -237,7 +237,7 @@ export default defineManifest({
     }),
     read('engine.usage.query', 'Usage by day, person, agent or model; people see their own, managers their agents, admins all', {
       in: { by: t.enm('day', 'person', 'agent', 'model'), from: t.opt(t.ts()), to: t.opt(t.ts()), personId: t.opt(id.user), agentId: t.opt(id.agent), itemId: t.opt(id.vaultItem) },
-      out: { rows: t.arr(t.obj({ key: t.str(), title: t.str(), totals: usageTotals })), totals: usageTotals }, label: 'filter', tool: 'meta',
+      out: { rows: t.arr(t.obj({ key: t.str(), title: t.str(), face: t.opt(t.str()), totals: usageTotals })), totals: usageTotals }, label: 'filter', tool: 'meta',
     }),
     read('engine.incidents.list', 'AI incidents for review', {
       in: { state: t.opt(t.arr(t.enm('open', 'assigned', 'resolved'))), ...pageIn }, out: { incidents: t.arr(incidentRow), ...pageOut }, perm: null, level: 'view', tool: 'meta',

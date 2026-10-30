@@ -41,6 +41,7 @@ type Out = {
   rows: Array<{
       key: string;
       title: string;
+      face?: string;
       totals: {
         turns: number;
         tokensIn: number;
@@ -80,6 +81,7 @@ type Out = {
   "output": {
     "rows": [
       {
+        "face": "example",
         "key": "example",
         "title": "example",
         "totals": {

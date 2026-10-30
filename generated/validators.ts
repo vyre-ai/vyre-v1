@@ -34489,6 +34489,7 @@ if (!("title" in o2135)) e.push(p + "/rows" + '/' + i2134 + "/title" + ': requir
 if (!("totals" in o2135)) e.push(p + "/rows" + '/' + i2134 + "/totals" + ': required');
 if ("key" in o2135) lf(o2135["key"], p + "/rows" + '/' + i2134 + "/key", e, L2);
 if ("title" in o2135) lf(o2135["title"], p + "/rows" + '/' + i2134 + "/title", e, L2);
+if ("face" in o2135) lf(o2135["face"], p + "/rows" + '/' + i2134 + "/face", e, L2);
 if ("totals" in o2135) d_s_759a03ae38(o2135["totals"], p + "/rows" + '/' + i2134 + "/totals", e);
 }
 }
