@@ -46,7 +46,7 @@ const manifest = defineManifest({
   ],
   events: [
     ev('calendar.created', 'A calendar came into being: a private local one, or a member\'s Google or Outlook calendar connected by an admin', {
-      p: { calendarId: calId, provider: t.enm('google', 'microsoft', 'local'), ownerId: id.user }, subject: ['calendar', '/calendarId'], vis: 'participants',
+      p: { calendarId: calId, provider: t.enm('google', 'microsoft', 'local'), ownerId: id.user, private: t.bool() }, subject: ['calendar', '/calendarId'], vis: 'participants',
     }),
     ev('calendar_event.created', 'An event was created in Vyre or arrived from a provider', {
       p: { eventId: cevId, calendarId: calId, startsAt: t.ts(), attendeeCount: t.int(), source: t.enm('vyre', 'google', 'microsoft', 'booking') }, subject: ['entity', '/eventId'], label: 'subject',

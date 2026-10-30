@@ -363,7 +363,11 @@ async function settleLink(ctx: MailCtx, messageId: string, p: Parsed, box: Row, 
       at: p.receivedAt,
       mailboxId: str(box, "id"),
       preview: snippetOf(p.text, p.subject),
+      subject: p.subject,
+      participants: [p.from.address, ...p.to.map((x) => x.address), ...p.cc.map((x) => x.address)],
     };
+    const threadId = strOrNull(first(ctx.db.all(`SELECT "threadId" FROM mail_message WHERE id = ?`, messageId)), "threadId");
+    if (threadId) input.threadId = threadId;
     if (campaignId) input.campaignId = campaignId;
     answer = parseLink(await ctx.call("inbox.link_message", input));
   } catch (e) {

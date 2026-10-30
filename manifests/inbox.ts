@@ -104,6 +104,8 @@ const manifest = defineManifest({
       in: {
         channel, ref: t.obj({ kind: t.enm('mail_message', 'sms', 'call'), id: t.str() }), address: t.str(), direction: t.enm('in', 'out'), at: t.ts(),
         mailboxId: t.opt(id.mailbox), numberId: t.opt(id.number), campaignId: t.opt(id.campaign), preview: t.opt(t.str()),
+        // what mail already knows of an email, so the thread needs no read-back: its thread key, subject and the people on it
+        threadId: t.opt(t.str()), subject: t.opt(t.str()), participants: t.opt(t.arr(t.str())),
       },
       out: { conversationId: cnvId, contactId: t.opt(id.record), linked: t.enm('sure', 'unsure', 'none'), taskId: t.opt(id.task) },
       emits: ['conversation.created', 'conversation.matched', 'conversation.needs_match', 'conversation.reply_received', 'conversation.campaign_reply'], idem: 'natural',

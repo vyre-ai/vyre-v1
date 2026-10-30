@@ -13404,6 +13404,9 @@ export type InboxLinkMessageIn = {
   numberId?: string;
   campaignId?: string;
   preview?: string;
+  threadId?: string;
+  subject?: string;
+  participants?: Array<string>;
 };
 export type InboxLinkMessageOut = {
   conversationId: string;
@@ -29351,6 +29354,7 @@ export type CalendarCreatedPayload = {
   calendarId: string;
   provider: "google" | "microsoft" | "local";
   ownerId: string;
+  private: boolean;
 };
 export type CalendarSyncedPayload = {
   calendarId: string;

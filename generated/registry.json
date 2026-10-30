@@ -96149,11 +96149,16 @@
             "direction": "in",
             "mailboxId": "mbx_a1b2c3",
             "numberId": "num_a1b2c3",
+            "participants": [
+              "example"
+            ],
             "preview": "example",
             "ref": {
               "id": "example",
               "kind": "mail_message"
-            }
+            },
+            "subject": "example",
+            "threadId": "example"
           },
           "name": "example",
           "output": {
@@ -96214,6 +96219,12 @@
             "pattern": "^num_[a-z0-9]+$",
             "type": "string"
           },
+          "participants": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "preview": {
             "type": "string"
           },
@@ -96236,6 +96247,12 @@
               "id"
             ],
             "type": "object"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
           }
         },
         "required": [
@@ -178321,6 +178338,9 @@
             "pattern": "^usr_[a-z0-9]+$",
             "type": "string"
           },
+          "private": {
+            "type": "boolean"
+          },
           "provider": {
             "enum": [
               "google",
@@ -178333,7 +178353,8 @@
         "required": [
           "calendarId",
           "provider",
-          "ownerId"
+          "ownerId",
+          "private"
         ],
         "type": "object"
       },

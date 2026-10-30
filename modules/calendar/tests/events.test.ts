@@ -35,7 +35,7 @@ test("a calendar is created for the caller, coloured, listed first among theirs,
   assert.deepEqual(contractErrors("calendar.create_calendar", "out", out), []);
   assert.deepEqual([out.calendar.title, out.calendar.provider, out.calendar.personal, out.calendar.ownerId, out.calendar.state], ["Personal", "local", true, "usr_maya01", "syncing"]);
   assert.match(out.calendar.color, /^#[0-9a-f]{6}$/);
-  assert.deepEqual(h.named("calendar.created").map((e) => [e.subject, e.payload]), [[`calendar/${out.calendar.id}`, { calendarId: out.calendar.id, provider: "local", ownerId: "usr_maya01" }]], "the calendar is a resource from its birth event");
+  assert.deepEqual(h.named("calendar.created").map((e) => [e.subject, e.payload]), [[`calendar/${out.calendar.id}`, { calendarId: out.calendar.id, provider: "local", ownerId: "usr_maya01", private: true }]], "the calendar is a resource from its birth event");
   h.denied.add(`calendar:${out.calendar.id}`);
   const mine = await listCalendars(h.ctx, {});
   assert.deepEqual(contractErrors("calendar.list_calendars", "out", mine), []);

@@ -143,7 +143,7 @@ export async function createCalendar(ctx: CalCtx, input: { title: string; color?
     `INSERT INTO calendar_list (id, title, color, provider, "connectionId", "remoteId", "ownerId", personal, state, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, title, color, "local", null, null, owner, personal ? 1 : 0, "syncing", 1, ctx.now(), null,
   );
-  ctx.emit("calendar.created", `calendar/${id}`, { calendarId: id, provider: "local", ownerId: owner });
+  ctx.emit("calendar.created", `calendar/${id}`, { calendarId: id, provider: "local", ownerId: owner, private: personal });
   return { calendar: toCalendar(calendarRow(ctx, id, "view")) };
 }
 
@@ -736,7 +736,7 @@ export async function syncNow(ctx: CalCtx, input: { calendarId: string }): Promi
     const code = codeOf(e);
     ctx.db.run(`UPDATE calendar_sync SET "lastError" = ? WHERE "calendarId" = ?`, code || "sync_failed", input.calendarId);
     ctx.db.run(`UPDATE calendar_list SET state = ?, version = ?, updated_at = ? WHERE id = ?`, "error", num(cal, "version") + 1, ctx.now(), input.calendarId);
-    ctx.log.warn("calendar sync failed", { calendarId: input.calendarId, code });
+    ctx.log.warn("calendar sync failed", { calendarId: input.calendarId, code, ...(e instanceof Error ? { error: e.message.slice(0, 200) } : {}) });
   }
   return { runId };
 }
@@ -874,6 +874,6 @@ export async function connectProvider(ctx: CalCtx, input: ConnectProviderIn): Pr
     id, title, color, input.provider, input.connectionId, remoteId, input.ownerId, 0, "syncing", 1, now, null,
   );
   ctx.db.run(`INSERT INTO calendar_account ("calendarId", account) VALUES (?, ?)`, id, account);
-  ctx.emit("calendar.created", `calendar/${id}`, { calendarId: id, provider: input.provider, ownerId: input.ownerId });
+  ctx.emit("calendar.created", `calendar/${id}`, { calendarId: id, provider: input.provider, ownerId: input.ownerId, private: true });
   return { calendarId: id, created: true };
 }

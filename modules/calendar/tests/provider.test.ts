@@ -20,7 +20,7 @@ test("connect_provider puts the member's primary Google calendar in Calendar, ow
   const out = await connectProvider(h.ctx, { ...ARGS });
   assert.deepEqual(contractErrors("calendar.connect_provider", "out", out), []);
   assert.equal(out.created, true);
-  assert.deepEqual(h.named("calendar.created").map((e) => [e.subject, e.payload]), [[`calendar/${out.calendarId}`, { calendarId: out.calendarId, provider: "google", ownerId: MAYA }]]);
+  assert.deepEqual(h.named("calendar.created").map((e) => [e.subject, e.payload]), [[`calendar/${out.calendarId}`, { calendarId: out.calendarId, provider: "google", ownerId: MAYA, private: true }]]);
   const row = h.rows(`SELECT * FROM calendar_list WHERE id = ?`, out.calendarId!)[0]!;
   assert.deepEqual([row.provider, row.ownerId, row.connectionId, row.remoteId, row.title, row.personal, row.state], ["google", MAYA, "con_g01", "primary", "Google Calendar", 0, "syncing"]);
   assert.deepEqual(h.rows(`SELECT * FROM calendar_account`), [{ calendarId: out.calendarId, account: "maya@vyre.test" }]);
