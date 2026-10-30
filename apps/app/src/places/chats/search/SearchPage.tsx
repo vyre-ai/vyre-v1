@@ -71,7 +71,7 @@ export function SearchPage({ data }: { data: SearchData }): ReactElement {
   return (
     <View testID="chat-search" accessibilityLabel="Search all chats" style={st.root}>
       <View style={st.head}>
-        <IconButton icon="chevd" label="Back to the chat" size={26} testID="search-back" onPress={() => data.close()} />
+        <IconButton icon="back" label="Back to the chat" size={26} testID="search-back" onPress={() => data.close()} />
         <Glyph name="search" size={15} color="var(--ink-3)" />
         <TextInput
           ref={input} testID="search-input" accessibilityLabel="Search all chats" autoFocus value={query} onChangeText={setQuery} placeholder="Search every chat you are in" placeholderTextColor="var(--ink-4)"

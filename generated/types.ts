@@ -21946,6 +21946,13 @@ export type SessionsGetOut = {
       role: "user" | "assistant";
       text: string;
       at: number;
+      tools?: Array<{
+          id: string;
+          name: string;
+          summary: string;
+          ok?: boolean;
+          output?: string;
+        }>;
     }>;
 };
 export type SessionsImportIn = {
@@ -21971,6 +21978,13 @@ export type SessionsImportIn = {
           role: "user" | "assistant";
           text: string;
           at: number;
+          tools?: Array<{
+              id: string;
+              name: string;
+              summary: string;
+              ok?: boolean;
+              output?: string;
+            }>;
         }>;
     }>;
   idempotencyKey: string;

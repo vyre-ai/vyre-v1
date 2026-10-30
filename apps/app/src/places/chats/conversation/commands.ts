@@ -53,6 +53,7 @@ export async function runSlash(text: string, env: CommandEnv): Promise<boolean> 
 
 const failureLine = (id: string, e: unknown): string => {
   const m = e instanceof Error ? e.message : "";
+  if (m === act.OTHERS_LINE) return m;
   return m !== "" && m.length < 140 && !/^[a-z]+\.[a-z_]+$/.test(m) ? `/${id}: ${m}` : `/${id} did not work. Try again.`;
 };
 
@@ -111,6 +112,17 @@ async function run(id: string, arg: string, env: CommandEnv, plugins: readonly P
       else { data.copy(file.content); say(`Copied the chat as ${format === "json" ? "JSON" : "Markdown"}: ${file.messages} ${file.messages === 1 ? "message" : "messages"}`); }
       return;
     }
+    case "continue": {
+      if (!act.onlyMeHere(thread, data.me.id)) { say(act.OTHERS_LINE); return; }
+      const spaces = data.elsewhere?.spaces ?? [];
+      if (spaces.length === 0) { say("You are in no other Space on this device"); return; }
+      const want = arg.trim().toLowerCase();
+      const hit = spaces.find((x) => x.name.toLowerCase() === want) ?? spaces.find((x) => x.name.toLowerCase().startsWith(want));
+      if (!hit) { say(`No Space named "${arg}". You can continue in: ${spaces.map((x) => x.name).join(", ")}`); return; }
+      await act.continueElsewhere(data, thread, hit, data.spaceName ?? "another Space", env.newKey());
+      say(`Continued in ${hit.name}. Open that Space and it is in your chats there.`);
+      return;
+    }
     case "task": {
       const m = lastActionable(rows);
       if (!m && arg === "") { say("Nothing to make a task from yet. Say what it is: /task call the court"); return; }
@@ -138,6 +150,7 @@ async function run(id: string, arg: string, env: CommandEnv, plugins: readonly P
       const p = plugins.find((x) => x.name.replace(/^\//, "").toLowerCase() === id);
       if (!p) { say(`/${id} is not a command here`); return; }
       if (p.run) { const line = await p.run(arg); if (line) say(line); return; }
+      if (p.render) { env.send(await p.render(arg)); return; }
       if (p.prompt) { env.send(p.prompt.replaceAll("$ARGUMENTS", arg).trim()); return; }
       say(`/${id} has nothing to run`);
     }

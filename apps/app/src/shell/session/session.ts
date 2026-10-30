@@ -15,6 +15,7 @@ import type { CapCall, RouteRow } from "./caps.ts";
 import { createDeferred } from "../../../../../client/src/runtime/deferred.ts";
 import { createLiveLink } from "./live.ts";
 import { createTurnStreams } from "./turn-streams.ts";
+import { readStoredSessions } from "./stored.ts";
 import type { LiveLink, LiveStatus } from "./live.ts";
 import { BUILD_REGISTRY_HASH } from "../../../../../client/src/connection/registry-hash.ts";
 import type { Dial, Scheduler } from "../../../../../client/src/connection/index.ts";
@@ -254,6 +255,13 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     screens: hooks,
     turns,
     call: (cap, input) => call(cap, input),
+    callIn: async (spaceId, cap, input) => {
+      // another Space this device is signed in to: its own address and its own token, never this Space's
+      const other = readStoredSessions().find((x) => x.def.spaceId === spaceId);
+      if (!other || other.def.spaceId === space.id) throw new Error("This device is not signed in to that Space");
+      const caller = createCapCaller({ baseUrl: other.baseUrl, token: () => other.token, ...(o.fetch ? { fetch: o.fetch } : {}), ...(o.routes ? { routes: o.routes } : {}) });
+      return caller(cap, input);
+    },
     putBlob: async (path, bytes) => {
       // the upload address files.upload_url hands out: the bytes go there with the person's own token, one time
       if (token === null) throw new CapError({ code: "auth.unauthenticated", message: "You are signed out.", traceId: "", status: 401 });

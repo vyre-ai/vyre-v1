@@ -20,7 +20,7 @@ Requires: schema.
 - [import.template](../capabilities/import.template.md): A CSV template for a record type: header row and one example row
 - [sessions.continue](../capabilities/sessions.continue.md): Start a separate live Vyre chat linked to an immutable imported conversation; it never writes back to the local provider store
 - [sessions.get](../capabilities/sessions.get.md): Read an immutable imported session transcript owned by the signed-in person
-- [sessions.import](../capabilities/sessions.import.md): Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply only visible user and assistant text
+- [sessions.import](../capabilities/sessions.import.md): Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply visible user and assistant text and, on assistant messages, the tool calls with their one-line summaries and the start of their results (credentials removed)
 - [sessions.list](../capabilities/sessions.list.md): List the current owner private imported session archive in this Personal Space
 
 ## Events (5)

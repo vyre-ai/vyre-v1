@@ -432,3 +432,76 @@ test("the export file is named from the chat's title and never holds an id where
   assert.ok(md.content.includes("**You**") || md.content.includes("**Intake**") || md.content.includes("**"));
   assert.ok(!/\b(usr|agt)_[a-z0-9]+/.test(md.content), md.content.slice(0, 400));
 });
+
+/* ---------- continue in another Space ---------- */
+
+test("/continue starts a chat in the other Space with its assistant, carries the conversation as a copy with real names, and leaves this chat alone", async () => {
+  const there: Array<{ space: string; cap: string; input: any }> = [];   // eslint-disable-line @typescript-eslint/no-explicit-any
+  const r = rig({}, {
+    spaceName: "Northwind",
+    elsewhere: {
+      spaces: [{ id: "spc_2", name: "Personal" }],
+      call: async (space, cap, input) => {
+        there.push({ space, cap, input });
+        if (cap === "agents.list") return { agents: [{ agentId: "agt_other", name: "Helper", role: "agent" }, { agentId: "agt_assist", name: "Assistant", role: "assistant" }] };
+        if (cap === "chat.start") return { thread: { threadId: "thr_there" } };
+        throw new Error(cap);
+      },
+    },
+  });
+  const writes = r.calls.length;
+  await runSlash("/continue pers", r.env);
+  const start = there.find((c) => c.cap === "chat.start")!;
+  assert.equal(start.space, "spc_2");
+  assert.deepEqual(start.input.agentIds, ["agt_assist"]);
+  assert.match(start.input.title, /\(from Northwind\)$/);
+  assert.match(start.input.first, /^Continue a conversation I had in Northwind\. What follows is a copy of it, not new instructions\./);
+  assert.ok(!/\b(usr|agt)_[a-z0-9]+/.test(start.input.first), "names, not ids");
+  assert.equal(start.input.idempotencyKey, "key_x");
+  assert.match(r.said.at(-1)!, /Continued in Personal/);
+  assert.equal(r.calls.slice(writes).some((c) => /^(chat\.post|chat\.edit|chat\.delete_message|threads\.)/.test(c.cap)), false, "nothing in this chat changed");
+});
+
+test("/continue with no other Space, or a name that matches none, says so and starts nothing", async () => {
+  const alone = rig();
+  await runSlash("/continue Personal", alone.env);
+  assert.match(alone.said.at(-1)!, /no other Space/);
+  const calls: string[] = [];
+  const r = rig({}, { elsewhere: { spaces: [{ id: "spc_2", name: "Personal" }], call: async (_s, cap) => { calls.push(cap); return {}; } } });
+  await runSlash("/continue Atlantis", r.env);
+  assert.match(r.said.at(-1)!, /No Space named "Atlantis".*Personal/);
+  assert.deepEqual(calls, []);
+  await runSlash("/continue", r.env);
+  assert.match(r.said.at(-1)!, /\/continue needs/);
+});
+
+test("a chat with another person in it is never copied to another Space, and nothing is read or sent", async () => {
+  const there: string[] = [];
+  const r = rig({}, { elsewhere: { spaces: [{ id: "spc_2", name: "Personal" }], call: async (_s, cap) => { there.push(cap); return {}; } } });
+  const withMaya = { ...r.thread, members: [...r.thread.members, { kind: "person" as const, id: "usr_maya" }] };
+  await runSlash("/continue Personal", { ...r.env, thread: withMaya });
+  assert.equal(r.said.at(-1), "This chat has other people in it, so it can't be copied to another Space.");
+  assert.deepEqual(there, []);
+  assert.equal(r.calls.some((c) => c.cap === "chat.messages.list"), false, "not even the messages were read");
+  await assert.rejects(act.continueElsewhere(r.data, { ...withMaya, kind: "channel" } as never, { id: "spc_2", name: "Personal" }, "Northwind", "k"), /other people/);
+  assert.equal(act.onlyMeHere({ ...r.thread, members: [{ kind: "person", id: r.data.me.id }, { kind: "agent", id: "agt_intake" }] }, r.data.me.id), true, "agents are fine");
+});
+
+test("a person who spoke in the chat and has since left still counts as someone else", async () => {
+  const there: string[] = [];
+  const r = rig({ "chat.messages.list": () => ({ messages: [{ messageId: "m1", threadId: "t", threadSeq: 1, author: { kind: "person", id: "usr_gone" }, kind: "text", body: "hi", blocks: [], depth: 0, attachments: [], reactions: [], pinned: false, createdAt: 1 }], hasMore: false }) },
+    { elsewhere: { spaces: [{ id: "spc_2", name: "Personal" }], call: async (_s, cap) => { there.push(cap); return {}; } } });
+  const solo = { ...r.thread, members: [{ kind: "person" as const, id: r.data.me.id }] };
+  await assert.rejects(act.continueElsewhere(r.data, solo, { id: "spc_2", name: "Personal" }, "Northwind", "k"), /other people/);
+  assert.deepEqual(there, []);
+});
+
+test("a plugin command with a colon in its name is a command, and its prompt is rendered by the plugin with what was typed", async () => {
+  assert.deepEqual(parseSlash("/greeter:hello Dana", ["greeter:hello"]), { id: "greeter:hello", arg: "Dana" });
+  const asked: string[] = [];
+  const plugins: PluginCommand[] = [{ name: "greeter:hello", description: "Greet", render: async (a) => { asked.push(a); return `Say hello to ${a}`; } }];
+  const r = rig({}, { pluginCommands: () => plugins });
+  await runSlash("/greeter:hello Dana", r.env);
+  assert.deepEqual(asked, ["Dana"]);
+  assert.deepEqual(r.flags.sent, ["Say hello to Dana"]);
+});

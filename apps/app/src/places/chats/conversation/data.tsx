@@ -26,7 +26,9 @@ export interface ConversationNav {
 }
 
 /** A slash command a plugin adds. It runs `run` when it has one, else its `prompt` is sent as the message ($ARGUMENTS is replaced by what follows the name). */
-export interface PluginCommand { name: string; description: string; pluginId?: string; prompt?: string; run?(arg: string): Promise<string | void> }
+export interface PluginCommand { name: string; description: string; pluginId?: string; prompt?: string; run?(arg: string): Promise<string | void>;
+  /** Fills the command's prompt with what was typed after its name; the result is sent as the person's message. */
+  render?(arg: string): Promise<string> }
 
 /** The live replies of a chat: a row for each reply that is being written or just finished and not yet saved. */
 export interface LiveTurns {
@@ -64,6 +66,10 @@ export interface ConversationData {
   putBlob?(url: string, bytes: Uint8Array): Promise<void>;
   /** Hand the person a file: a download in the browser, a save sheet on a phone. Left out: the text is copied instead. */
   saveFile?(name: string, mime: string, content: string): void;
+  /** The name of the Space this chat lives in. */
+  spaceName?: string;
+  /** The other Spaces this person is in on this device, and a way to act in them. Left out when there is only this one. */
+  elsewhere?: { spaces: readonly { id: string; name: string }[]; call(spaceId: string, cap: string, input: unknown): Promise<unknown> };
   /** Slash commands that plugins add (name, one line, and what to run). Left out when no plugin offers any. */
   pluginCommands?(): readonly PluginCommand[];
   /** Replies being written in this chat, from the live socket. Left out where there is no live link: the reply then lands whole. */

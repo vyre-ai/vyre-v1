@@ -164,3 +164,33 @@ test("a fork of a chat with only the forker in it may still become a channel, as
   const made = await base["threads.make_channel"]!(hn.ctx, { threadId: out.thread.threadId, personId: MAYA, idempotencyKey: key() });
   assert.ok(made.channel.channelId);
 });
+
+test("meaning comes from the memory module's ranker: only messages this person may read are scored, low scores are ignored, and empty scores or a failing ranker leave the word search whole", async () => {
+  const seen: Array<{ query: string; ids: string[] }> = [];
+  const hn0 = harness();
+  const a = await chat(hn0);
+  const far = await say(hn0.ctx, a, "Let us push it back a week");
+  const unrelated = await say(hn0.ctx, a, "Lunch is at noon");
+  const theirs = await chat(hn0, hn0.person(MAYA));
+  const secret = await say(hn0.person(MAYA), theirs, "Maya private plan");
+  let mode: "scores" | "empty" | "throw" = "scores";
+  const hn = harness({ raw: hn0.raw, calls: { "memory.meaning.rank": (i: any) => {   // eslint-disable-line @typescript-eslint/no-explicit-any
+    seen.push({ query: i.query, ids: i.candidates.map((c: { id: string }) => c.id) });
+    if (mode === "throw") throw new Error("not set up");
+    return { scores: mode === "empty" ? [] : i.candidates.map((c: { id: string }) => ({ id: c.id, score: c.id === far ? 0.8 : c.id === unrelated ? 0.1 : 0 })), meaning: { state: "on" } };
+  } } });
+  const out = await run(hn, "chat.search", hn.ctx, { q: "postpone the closing" });
+  assert.equal(out.meaning, true);
+  assert.ok(out.hits.some((h: any) => h.messageId === far && h.found === "meaning"));
+  assert.ok(!out.hits.some((h: any) => h.messageId === unrelated), "a low score is not a match");
+  assert.ok(seen[0]!.ids.includes(far) && !seen[0]!.ids.includes(secret), "Maya's message was never sent to the ranker");
+  assert.ok(seen[0]!.ids.length <= 200);
+  mode = "empty";
+  assert.equal((await run(hn, "chat.search", hn.ctx, { q: "postpone the closing" })).meaning, false);
+  mode = "throw";
+  const failed = await run(hn, "chat.search", hn.ctx, { q: "lunch noon" });
+  assert.equal(failed.meaning, false);
+  assert.ok(failed.hits.some((h: any) => h.messageId === unrelated), "the words still find it");
+  const kw = await run(hn, "chat.search", hn.ctx, { q: "lunch", mode: "keyword" });
+  assert.equal(kw.meaning, false);
+});

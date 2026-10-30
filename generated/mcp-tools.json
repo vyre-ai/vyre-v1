@@ -41051,7 +41051,7 @@
       "blocks": [],
       "cap": "sessions.import",
       "deferred": false,
-      "description": "Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply only visible user and assistant text",
+      "description": "Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply visible user and assistant text and, on assistant messages, the tool calls with their one-line summaries and the start of their results (credentials removed)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -41134,6 +41134,36 @@
                       },
                       "text": {
                         "type": "string"
+                      },
+                      "tools": {
+                        "items": {
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "ok": {
+                              "type": "boolean"
+                            },
+                            "output": {
+                              "description": "The start of what the tool returned, credentials removed",
+                              "type": "string"
+                            },
+                            "summary": {
+                              "description": "One line a person reads, such as Edit src/app.ts or Run npm test",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "summary"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
                       }
                     },
                     "required": [

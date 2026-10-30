@@ -34,7 +34,7 @@ test("native repository decisions override stale transcript metadata", () => {
   }, text);
   assert.deepEqual(deleted.repo, { root: "/work/deleted-vyre" }, "a stale transcript remote cannot turn a deleted checkout into a Project");
 });
-test("Claude preview excludes tools and thinking, accepts final JSON, redacts remote credentials", () => {
+test("Claude preview excludes thinking and a tool call it cannot name, accepts final JSON, redacts remote credentials", () => {
   const out = parseSession({ provider: "claude", sessionId: "two", sessionKey: "claude:two", gitOriginUrl: "https://token:secret@example.com/a/b.git" }, JSON.stringify({ type: "assistant", uuid: "m1", message: { role: "assistant", content: [{ type: "thinking", thinking: "private" }, { type: "tool_use", input: "secret" }, { type: "text", text: "Visible" }] } }));
   assert.equal(out.messages[0].text, "Visible");
   assert.equal(out.repo?.remote, "https://example.com/a/b.git");
@@ -72,4 +72,44 @@ test("combined previews stop at five thousand visible messages across documents"
   );
   assert.equal(out.messages.length, 5_000);
   assert.equal(out.messages.at(-1)?.sourceMessageId, "subagent:child:child-0");
+});
+
+test("Claude tool calls come with the message they ran in, a one-line summary, and the start of their result, credentials removed", () => {
+  const secret = ["sk-", "proj-", "fixtureOnlySecret0123456789abcdef"].join("");
+  const text = [
+    { type: "user", uuid: "u1", message: { role: "user", content: "Fix the build" } },
+    { type: "assistant", uuid: "a1", timestamp: "2026-10-30T10:00:00Z", message: { role: "assistant", content: [{ type: "text", text: "Looking." }, { type: "tool_use", id: "tu1", name: "Bash", input: { command: `npm test --token ${secret}` } }] } },
+    { type: "user", uuid: "u2", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "tu1", is_error: true, content: [{ type: "text", text: `FAIL a.test.ts\nAPI_KEY=${secret}` }] }] } },
+    { type: "assistant", uuid: "a2", message: { role: "assistant", content: [{ type: "tool_use", id: "tu2", name: "Edit", input: { file_path: "src/app.ts", old_string: "x", new_string: "y" } }] } },
+    { type: "user", uuid: "u3", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "tu2", content: "ok" }] } },
+    { type: "assistant", uuid: "a3", message: { role: "assistant", content: [{ type: "text", text: "Fixed." }] } },
+  ].map(JSON.stringify).join("\n");
+  const out = parseSession({ provider: "claude", sessionId: "t", sessionKey: "claude:t" }, text);
+  assert.deepEqual(out.messages.map((m) => [m.sourceMessageId, m.role, m.text, m.tools?.length ?? 0]), [["u1", "user", "Fix the build", 0], ["a1", "assistant", "Looking.", 1], ["a2", "assistant", "", 1], ["a3", "assistant", "Fixed.", 0]]);
+  const bash = out.messages[1]!.tools![0]!;
+  assert.equal(bash.summary.startsWith("Run npm test"), true);
+  assert.equal(bash.ok, false);
+  assert.match(bash.output ?? "", /FAIL a\.test\.ts/);
+  assert.ok(!JSON.stringify(out).includes(secret));
+  assert.deepEqual(out.messages[2]!.tools![0], { id: "tu2", name: "Edit", summary: "Edit src/app.ts", ok: true, output: "ok" });
+  assert.deepEqual(parseSession({ provider: "claude", sessionId: "t", sessionKey: "claude:t" }, text), out, "the same file gives the same preview");
+});
+
+test("Codex tool calls (function, custom and shell) pair with their outputs by call id, in either order", () => {
+  const text = [
+    { type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "List the files" }] } },
+    { type: "response_item", payload: { type: "function_call", name: "shell", call_id: "c1", arguments: JSON.stringify({ command: ["bash", "-lc", "ls -la"] }) } },
+    { type: "response_item", payload: { type: "function_call_output", call_id: "c1", output: JSON.stringify({ output: "a.txt\nb.txt", metadata: { exit_code: 0 } }) } },
+    { type: "response_item", payload: { type: "function_call_output", call_id: "c2", output: "patched" } },
+    { type: "response_item", payload: { type: "custom_tool_call", name: "apply_patch", call_id: "c2", input: "*** Begin Patch" } },
+    { type: "response_item", payload: { type: "local_shell_call", call_id: "c3", action: { command: ["git", "status"] } } },
+    { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "Done" }] } },
+  ].map(JSON.stringify).join("\n");
+  const out = parseSession({ provider: "codex", sessionId: "x", sessionKey: "codex:x" }, text);
+  const tools = out.messages.flatMap((m) => m.tools ?? []);
+  assert.deepEqual(tools.map((t) => [t.id, t.summary]), [["c1", "Run bash -lc ls -la"], ["c2", "Edit a file"], ["c3", "Run git status"]]);
+  assert.equal(tools[0]!.output, "a.txt\nb.txt");
+  assert.equal(tools[1]!.output, undefined, "an output that came before its call is not guessed at");
+  assert.deepEqual(out.messages.map((m) => m.role), ["user", "assistant", "assistant", "assistant", "assistant"]);
+  assert.equal(out.messages.at(-1)!.text, "Done");
 });

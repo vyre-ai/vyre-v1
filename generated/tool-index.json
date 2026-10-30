@@ -6123,7 +6123,7 @@
     {
       "deferred": false,
       "name": "sessions_import",
-      "summary": "Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply only visible user and assistant text",
+      "summary": "Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply visible user and assistant text and, on assistant messages, the tool calls with their one-line summaries and the start of their results (credentials removed)",
       "toolset": "chats"
     },
     {
