@@ -111,6 +111,21 @@ const AGENT_OK: Record<(typeof ROLE_NAMES)[number], boolean> = {
   owner: false, admin: false, developer: true, member: true, guest: true,
 };
 const OPS = new Set(["eq", "ne", "lt", "lte", "gt", "gte", "in", "owner_me", "and", "or"]);
+/** The columns and primary key of each table the store persists, in the order `rows()` writes them. */
+const SHAPES: Readonly<Record<string, { pk: string[]; cols: string[] }>> = {
+  access_meta: { pk: ["id"], cols: ["id", "epoch"] },
+  access_roles: { pk: ["id"], cols: ["id", "name", "builtIn", "clearance", "assignableToAgents", "permissions", "version"] },
+  access_role_changes: { pk: ["role_id"], cols: ["role_id", "before_json", "after_json", "by_kind", "by_id", "at"] },
+  access_groups: { pk: ["id"], cols: ["id", "name", "members", "managers", "builtIn", "version"] },
+  access_principals: { pk: ["id"], cols: ["id", "name", "kind", "owner", "status", "roles", "groups", "title", "createdAt", "version"] },
+  access_assignments: { pk: ["holder", "role_id"], cols: ["holder", "role_id"] },
+  access_grants: { pk: ["id"], cols: ["id", "subjectKind", "subjectId", "resourceType", "resourceId", "level", "conditions", "expiresAt", "by", "source", "version"] },
+  access_resources: { pk: ["id"], cols: ["id", "type", "parent_id", "label", "owner_id", "holds", "row_json"] },
+  access_policies: { pk: ["key", "scope"], cols: ["key", "scope", "kind", "value", "updated_at"] },
+  access_actors: { pk: ["id"], cols: ["id", "provider", "status", "engineer", "token_hash", "token_expires", "token_used", "cred_hash", "last_seen"] },
+  access_fields: { pk: ["k"], cols: ["k", "rank"] },
+};
+
 /** The field row that holds the cursor of the events folded into the store (modules/access/consumers.ts). */
 export const CURSOR_KEY = "seed_cursor";
 
@@ -408,11 +423,26 @@ export class AccessStore {
   }
 
   private base: Map<string, { pk: string[]; cols: string[]; vals: Map<string, unknown[]> }> | null = null;
+  /** The rows hydrate read, until the first persist turns them into `base`. Building the comparison only when something is written keeps a read of the store cheap. */
+  private raw: Map<string, Record<string, unknown>[]> | null = null;
+
+  private fromRaw(): Map<string, { pk: string[]; cols: string[]; vals: Map<string, unknown[]> }> | null {
+    if (!this.raw) return null;
+    const by = new Map<string, { pk: string[]; cols: string[]; vals: Map<string, unknown[]> }>();
+    for (const [table, rows] of this.raw) {
+      const shape = SHAPES[table];
+      if (!shape) continue;
+      const vals = new Map<string, unknown[]>();
+      for (const row of rows) vals.set(JSON.stringify(shape.pk.map((c) => row[c] ?? null)), shape.cols.map((c) => row[c] ?? null));
+      by.set(table, { pk: shape.pk, cols: shape.cols, vals });
+    }
+    return by;
+  }
 
   /** Write what this store changed since it last read or wrote the tables: a changed or new row is upserted, a row it dropped is deleted, and nothing else is touched. */
   persist(db: Db): void {
     const now = this.baseline();
-    const was = this.base;
+    const was = this.base ?? this.fromRaw();
     for (const [table, t] of now) {
       const before = was?.get(table)?.vals;
       for (const [key, vals] of t.vals) {
@@ -434,14 +464,18 @@ export class AccessStore {
       }
     }
     this.base = now;
+    this.raw = null;
   }
 
   hydrate(db: Db): void {
+    // the rows as read are kept: they are what the next persist compares against, and keeping them costs nothing here
+    const raw = new Map<string, Record<string, unknown>[]>();
+    const read = (table: string): unknown[] => { const rows = db.all(`SELECT * FROM ${table}`) as Record<string, unknown>[]; raw.set(table, rows); return rows; };
     this.roles.clear(); this.roleChanges.clear(); this.groups.clear(); this.principals.clear(); this.grants.clear();
     this.resources.clear(); this.policies.clear(); this.actors.clear(); this.assignments.clear(); this.fieldLabels.clear();
     this.catalogue.clear();
-    const meta = db.all("SELECT * FROM access_meta") as { epoch: number }[];
-    for (const r of db.all("SELECT * FROM access_roles") as Record<string, unknown>[]) {
+    const meta = read("access_meta") as { epoch: number }[];
+    for (const r of read("access_roles") as Record<string, unknown>[]) {
       const permissions = JSON.parse(String(r.permissions)) as string[];
       const rec: RoleRec = {
         id: String(r.id), name: String(r.name), builtIn: !!r.builtIn, clearance: r.clearance as Label,
@@ -450,14 +484,14 @@ export class AccessStore {
       this.roles.set(rec.id, rec);
       if (rec.builtIn) for (const k of permissions) this.catalogue.add(k);
     }
-    for (const change of db.all("SELECT * FROM access_role_changes") as { role_id: string; before_json: string; after_json: string; by_kind: PKind; by_id: string; at: number }[]) this.roleChanges.set(change.role_id, { before: JSON.parse(change.before_json), after: JSON.parse(change.after_json), by: {kind:change.by_kind,id:change.by_id}, at:change.at });
-    for (const g of db.all("SELECT * FROM access_groups") as Record<string, unknown>[]) {
+    for (const change of read("access_role_changes") as { role_id: string; before_json: string; after_json: string; by_kind: PKind; by_id: string; at: number }[]) this.roleChanges.set(change.role_id, { before: JSON.parse(change.before_json), after: JSON.parse(change.after_json), by: {kind:change.by_kind,id:change.by_id}, at:change.at });
+    for (const g of read("access_groups") as Record<string, unknown>[]) {
       this.groups.set(String(g.id), {
         id: String(g.id), name: String(g.name), builtIn: !!g.builtIn,
         members: JSON.parse(String(g.members)) as Ref[], managers: JSON.parse(String(g.managers)) as Ref[],
       });
     }
-    for (const p of db.all("SELECT * FROM access_principals") as Record<string, unknown>[]) {
+    for (const p of read("access_principals") as Record<string, unknown>[]) {
       const rec: PrincipalRec = {
         id: String(p.id), kind: p.kind as PKind, name: String(p.name), status: p.status as Status, createdAt: Number(p.createdAt),
       };
@@ -465,12 +499,12 @@ export class AccessStore {
       if (p.title) rec.title = String(p.title);
       this.principals.set(rec.id, rec);
     }
-    for (const a of db.all("SELECT * FROM access_assignments") as { holder: string; role_id: string }[]) {
+    for (const a of read("access_assignments") as { holder: string; role_id: string }[]) {
       const list = this.assignments.get(a.holder) ?? [];
       list.push(a.role_id);
       this.assignments.set(a.holder, list);
     }
-    for (const g of db.all("SELECT * FROM access_grants") as Record<string, unknown>[]) {
+    for (const g of read("access_grants") as Record<string, unknown>[]) {
       const conditions = JSON.parse(String(g.conditions)) as Cond;
       if (g.expiresAt != null && conditions.expiresAt === undefined) conditions.expiresAt = Number(g.expiresAt);
       const rec: GrantRec = {
@@ -485,7 +519,7 @@ export class AccessStore {
       if (g.source) rec.source = String(g.source);
       this.grants.set(rec.id, rec);
     }
-    for (const r of db.all("SELECT * FROM access_resources") as Record<string, unknown>[]) {
+    for (const r of read("access_resources") as Record<string, unknown>[]) {
       const rec: ResourceRec = {
         id: String(r.id), type: String(r.type), parentId: r.parent_id == null ? null : String(r.parent_id),
         label: r.label as Label, ownerId: r.owner_id == null ? null : String(r.owner_id), holds: Number(r.holds),
@@ -493,14 +527,14 @@ export class AccessStore {
       if (r.row_json) rec.row = JSON.parse(String(r.row_json)) as Record<string, unknown>;
       this.resources.set(rec.id, rec);
     }
-    for (const p of db.all("SELECT * FROM access_policies") as Record<string, unknown>[]) {
+    for (const p of read("access_policies") as Record<string, unknown>[]) {
       const rec: PolicyRec = {
         key: String(p.key), scope: String(p.scope), kind: p.kind as PolicyKind,
         value: JSON.parse(String(p.value)), updatedAt: Number(p.updated_at),
       };
       this.policies.set(pkey(rec.key, rec.scope), rec);
     }
-    for (const a of db.all("SELECT * FROM access_actors") as Record<string, unknown>[]) {
+    for (const a of read("access_actors") as Record<string, unknown>[]) {
       const rec: ActorRec = {
         id: String(a.id), provider: String(a.provider), status: a.status as ActorRec["status"], engineerMcp: !!a.engineer,
       };
@@ -511,11 +545,12 @@ export class AccessStore {
       if (a.last_seen != null) rec.lastSeenAt = Number(a.last_seen);
       this.actors.set(rec.id, rec);
     }
-    for (const f of db.all("SELECT * FROM access_fields") as { k: string; rank: number }[]) this.fieldLabels.set(f.k, Number(f.rank));
+    for (const f of read("access_fields") as { k: string; rank: number }[]) this.fieldLabels.set(f.k, Number(f.rank));
     this.epoch = meta[0]?.epoch ?? 1;
     this.snap = null;
     this.snapEpoch = -1;
-    this.base = this.baseline();
+    this.base = null;
+    this.raw = raw;
   }
 }
 
