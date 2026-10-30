@@ -347,13 +347,14 @@ jobs:
           set -o pipefail
           node scripts/test-run.ts --slow --no-cache --files apps/chrome/tests/ext-core.popup-shot.test.ts 2>&1 | tee chrome-popup.out
           grep -q '^ok .*apps/chrome/tests/ext-core.popup-shot.test.ts' chrome-popup.out
-      - name: A row lays out in Chromium and WebKit when the page drops style text (owner-model.test.ts)
-        # The Mac app's CSP (a style nonce) drops <style> text a script adds; WebKit is its engine. VYRE_REQUIRE_BROWSERS=1 makes a missing browser a failure, and the grep below needs both engines to pass.
+      - name: A row lays out in Chromium when the page drops style text (owner-model.test.ts)
+        # The Mac app's CSP (a style nonce) drops <style> text a script adds. WebKit, the Mac app's engine, needs system libraries this Linux runner lacks: its half runs in the desktop job on macOS.
+        # VYRE_REQUIRE_BROWSERS=chromium makes a missing Chromium a failure here, and the grep below needs the file to pass.
         env:
-          VYRE_REQUIRE_BROWSERS: "1"
+          VYRE_REQUIRE_BROWSERS: chromium
         run: |
           set -o pipefail
-          npx playwright-core install webkit chromium
+          npx playwright-core install chromium
           node scripts/test-run.ts --slow --no-cache --files scripts/shots/owner-model.test.ts 2>&1 | tee owner-model.out
           grep -q '^ok .*scripts/shots/owner-model.test.ts' owner-model.out
   check:

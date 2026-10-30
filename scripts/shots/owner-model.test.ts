@@ -1,6 +1,7 @@
 // A row lays out in a real browser engine when the page drops script-made <style> text (the Mac app's CSP with a style nonce): the sheets RN-web builds with insertRule survive, a stylesheet
 // injected as text does not. Chromium and WebKit (the Mac app's engine) both render ui/Row in a page that blocks style text.
-// VYRE_REQUIRE_BROWSERS=1 (set on the CI job that installs both browsers) turns a missing esbuild or browser into a failure: a skip is not a pass. Without it the test skips locally.
+// VYRE_REQUIRE_BROWSERS names the engines a CI job must have: "chromium", "webkit", a comma list, or "1" for both. A required engine that is missing is a failure (a skip is not a pass); an engine
+// that is not required is skipped when it is not installed, which is what happens locally with the variable unset.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -11,7 +12,8 @@ import { fileURLToPath } from "node:url";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const need = createRequire(import.meta.url);
-const REQUIRED = process.env.VYRE_REQUIRE_BROWSERS === "1";
+const WANT = (process.env.VYRE_REQUIRE_BROWSERS ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+const required = (engine: string): boolean => WANT.includes("1") || WANT.includes(engine);
 let esbuild: typeof import("esbuild") | null = null;
 let pw: typeof import("playwright-core") | null = null;
 try { esbuild = need("esbuild"); pw = need("playwright-core"); } catch { /* skipped below */ }
@@ -42,10 +44,10 @@ createRoot(document.getElementById("root")!).render(<View style={{ width: 640 }}
 }
 
 for (const engine of ["chromium", "webkit"] as const) {
-  test(`${engine}: a row lays out with style text blocked: flex row, icon beside the text, button on the right, nothing taller than its box`, { skip: !REQUIRED && (esbuild === null || pw === null) }, async (t) => {
+  test(`${engine}: a row lays out with style text blocked: flex row, icon beside the text, button on the right, nothing taller than its box`, { skip: !required(engine) && (esbuild === null || pw === null) }, async (t) => {
     assert.ok(esbuild !== null && pw !== null, "esbuild and playwright-core are installed");
     let browser;
-    try { browser = await pw![engine].launch(); } catch (e) { if (REQUIRED) throw e; t.skip(`${engine} is not installed`); return; }
+    try { browser = await pw![engine].launch(); } catch (e) { if (required(engine)) throw e; t.skip(`${engine} is not installed`); return; }
     try {
       const p = await browser.newPage({ viewport: { width: 800, height: 400 } });
       await p.goto(`file://${await page()}`);
