@@ -19,7 +19,7 @@ Remember something, with where it came from; in your own layer it is current at 
 | HTTP | POST /v1/memory/remember |
 | MCP tool | memory_remember (memory) |
 | CLI | vyre memory remember |
-| Emits | memory.fact_proposed, memory.fact_accepted |
+| Emits | memory.fact_proposed, memory.fact_accepted, memory.learned |
 
 ## Input
 

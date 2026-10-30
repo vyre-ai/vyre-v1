@@ -122343,7 +122343,8 @@
       "effects": "write",
       "emits": [
         "memory.fact_proposed",
-        "memory.fact_accepted"
+        "memory.fact_accepted",
+        "memory.learned"
       ],
       "errors": [
         "internal.unexpected",

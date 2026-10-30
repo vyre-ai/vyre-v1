@@ -24,6 +24,7 @@ export function PreviewView({ preview, fallback }: { preview: Preview | null; fa
   return (
     <View testID="preview-pane" style={s.col}>
       <Text style={s.head}>{preview.heading}</Text>
+      {/* ui-rows-lint: not a list (the preview shows tags, not list rows) */}
       {preview.items.length === 0 ? <Text testID="preview-empty" style={s.hint}>{preview.hint}</Text> : preview.items.map((i) => (
         <View key={i.id} testID="preview-item" style={s.chip}><Text style={s.chipText}>{i.label}</Text>{i.note ? <Text style={s.chipNote}>{i.note}</Text> : null}</View>
       ))}

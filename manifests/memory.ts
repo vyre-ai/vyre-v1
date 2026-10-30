@@ -111,7 +111,7 @@ export default defineManifest({
       out: { quotes: t.arr(quoteRow) }, label: 'filter', tool: 'memory', mcpName: 'memory_quote', agent: { planMode: 'allowed' }, cli: 'vyre memory quote', rate: { n: 120, perSeconds: 60, scope: 'principal' },
     }),
     read('memory.keys.get', 'The account that pays for memory upkeep: yours for personal memory, and for an admin the Space\'s with the accounts it can be picked from and the keys picked for projects', {
-      in: {}, out: { personal: keyPicker, admin: t.bool(), space: t.opt(keyPicker), projectKeys: t.opt(t.rec(t.str(), { description: 'Project id to the account picked for its memory' })) }, label: 'check', tool: 'memory',
+      in: {}, out: { personal: keyPicker, admin: t.bool(), space: t.opt(keyPicker), projectKeys: t.opt(t.rec(t.str())) }, label: 'check', tool: 'memory',
     }),
     read('memory.key.resolve', 'The account that pays for one scope\'s upkeep and where the choice came from (agent, project, Space or person); no key means rule-based upkeep', {
       in: { layer: layer, ownerRef: t.str(), agentId: t.opt(id.agent), projectId: t.opt(id.project) },
@@ -169,7 +169,7 @@ export default defineManifest({
         text: t.str(), layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), kind: t.opt(t.str({ examples: ['preference'] })), threadId: t.opt(id.thread),
         sourceRef: t.opt(t.str({ description: 'The source id of what this came from, for example a quote ref' })),
       },
-      out: { fact: factRow, merged: t.bool() }, emits: ['memory.fact_proposed', 'memory.fact_accepted'], tool: 'memory', mcpName: 'memory_remember', agent: { planMode: 'blocked', blocks: ['memory_saved'] },
+      out: { fact: factRow, merged: t.bool() }, emits: ['memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'], tool: 'memory', mcpName: 'memory_remember', agent: { planMode: 'blocked', blocks: ['memory_saved'] },
       errors: ['permission.provider_label'], cli: 'vyre memory remember', idem: 'natural',
     }),
     write('memory.forget', 'Forget facts by id: they stop being recalled and stay in history', {

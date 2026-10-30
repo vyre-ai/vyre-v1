@@ -36,6 +36,7 @@ export function SignInDomainCard({ call, onOpenConsole, onDone }: { call: CapCal
   return (
     <View testID="signin-domain-card" style={s.col}>
       <Text style={s.line}>Let people sign in with their work account for your domain, in the same app. Only existing members and people with an accepted invite can sign in.</Text>
+      {/* ui-rows-lint: not a list (each sign-in setup is a block with its own status and buttons, not a list row) */}
       {p === null ? <Text style={s.dim}>Checking</Text> : p.kind !== "ready" ? <Text style={s.dim}>{line(p, "")}</Text> : list.length === 0 ? <Text testID="signin-none" style={s.dim}>Not turned on yet. Set up Google or Microsoft in the Console.</Text> : list.map((x) => (
         <View key={x.key} style={s.col}>
           <Text testID={`sso-${x.key}`} style={s.dim}>{ssoLine(x)}</Text>
@@ -88,6 +89,7 @@ export function DirectoryCard({ call, by, space, onOpenConsole, onDone }: { call
       <Text style={s.line}>Tick the people to bring in. Each gets an invite as a Member. Nothing is sent until you press send on the drafts below.</Text>
       {state === "loading" ? <Text style={s.dim}>Checking</Text> : state !== "ready" ? <Text testID="directory-status" style={s.dim}>{state === "not_yet" ? NOT_YET : "Could not read this right now."}</Text> : shown.length === 0 ? <Text testID="directory-status" style={s.dim}>Everyone in your directory is already here.</Text> : (
         <View style={s.col}>
+          {/* ui-rows-lint: not a list (the people to bring in are checkbox choices on a card, not list rows) */}
           {shown.map((p) => (
             <Pressable key={p.email} testID={`dir-${p.email}`} accessibilityRole="checkbox" accessibilityState={{ checked: ticked.has(p.email) }} onPress={() => toggle(p.email)} style={[s.person, ticked.has(p.email) && s.personOn]}>
               <Text style={s.line}>{p.name ?? p.email}</Text><Text style={s.dim}>{p.name ? p.email : p.source === "google" ? "Google" : "Microsoft"}</Text>
@@ -102,12 +104,15 @@ export function DirectoryCard({ call, by, space, onOpenConsole, onDone }: { call
           {sent ? <Text testID="directory-sent" style={s.dim}>{sent.map((x) => `${x.to}: ${x.status === "queued" || x.status === "sent" ? "sent" : x.status === "held" ? "held for approval" : x.status === "suppressed" ? "not sent (suppressed)" : "failed"}`).join(". ")}</Text> : drafts.length > 0 ? (
             <View style={s.col}>
               <Text style={s.line}>{sender ? `Email these invites from ${sender.address}. One email per person, with their link.` : "Connect your mailbox to email these invites. Until then, share each link yourself."}</Text>
+              {/* ui-rows-lint: not a list (each draft is a card with its own text, not a list row) */}
               {drafts.map((d) => <View key={d.to} testID="invite-draft" style={s.person}><Text style={s.line}>{`To ${d.to}`}</Text><Text style={s.dim}>{d.subject}</Text></View>)}
               {sender ? <Go id="directory-email" label={busy ? "Sending" : `Send ${drafts.length} ${drafts.length === 1 ? "email" : "emails"}`} onPress={() => void send()} /> : null}
             </View>
           ) : null}
           <Text style={s.dim}>The links, if you would rather share them yourself:</Text>
+          {/* ui-rows-lint: not a list (the links are plain lines of text to copy, not list rows) */}
           {result.invited.map((i) => <Text key={i.inviteId} selectable style={s.link}>{`${i.email}  ${i.link}`}</Text>)}
+          {/* ui-rows-lint: not a list (the skipped people are plain lines of text, not list rows) */}
           {result.skipped.map((x) => <Text key={x.email} style={s.dim}>{`${x.email}: ${x.reason}`}</Text>)}
         </View>
       ) : null}

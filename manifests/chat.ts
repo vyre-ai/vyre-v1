@@ -224,7 +224,7 @@ export default defineManifest({
     }),
     read('chat.search', 'Search the messages of every chat and channel you are in, by the words and by meaning; each hit names its message so a screen can jump to it', {
       in: { q: t.str(), mode: t.opt(t.enm('keyword', 'meaning', 'hybrid')), threadId: t.opt(id.thread), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) },
-      out: { hits: t.arr(searchHit), meaning: t.bool({ description: 'Whether the answer used meaning as well as words' }), sealedChats: t.int({ minimum: 0, description: 'End-to-end chats the server cannot read, left out' }), tookMs: t.int({ minimum: 0 }) },
+      out: { hits: t.arr(searchHit), meaning: t.bool(), sealedChats: t.int({ minimum: 0, description: 'End-to-end chats the server cannot read, left out' }), tookMs: t.int({ minimum: 0 }) },
       tool: 'chats', label: 'filter', mcpName: 'chat_search', agent: { planMode: 'allowed' }, rate: { n: 60, perSeconds: 60, scope: 'principal' },
     }),
     // ---- native blocks, plan mode
