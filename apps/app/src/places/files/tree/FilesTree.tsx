@@ -19,10 +19,10 @@ import { Glyph } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
 import { useFilesState } from "./state.tsx";
 
-function NavRow({ id, title, glyph, selected, count, onPress }: { id: string; title: string; glyph: IconName; selected: boolean; count?: number | undefined; onPress: () => void }): ReactElement {
+function NavRow({ id, title, glyph, selected, count, onPress, hint }: { id: string; title: string; glyph: IconName; selected: boolean; count?: number | undefined; onPress: () => void; hint?: string }): ReactElement {
   return (
     <Row
-      id={`nav:${id}`} title={title} selected={selected}
+      id={`nav:${id}`} title={title} selected={selected} {...(hint !== undefined ? { domProps: { title: hint } } : {})}
       leading={<View style={styles.glyph}><Glyph name={glyph} size={16} /></View>}
       trailing={<View style={styles.trail}>{count ? <Text style={styles.count} testID={`count-${id}`}>{count}</Text> : null}</View>}
       onPress={onPress}
@@ -185,6 +185,9 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
   ], q);
   const know = matchRows(KNOW_ROWS.map((r) => ({ id: r.id, title: r.title })), q);
   const knowCount = (id: string): number | undefined => (id === "learned" ? learnedCount : id === "trash" ? trashCount : undefined);
+  // Only the Knowledge rows that hold something (or the open one) are listed; with none, one quiet "Knowledge" entry explains itself on hover.
+  const knowShown = know.filter((r) => (knowCount(r.id) ?? 0) > 0 || (data.memoryView != null && rowOf(data.memoryView) === r.id));
+  const knowQuiet = knowShown.length === 0 && (q === "" || matchRows([{ title: "Knowledge" }], q).length > 0);
   const allFiles = q === "" || matchRows([{ title: "All files" }], q).length > 0;
 
   const dropAll = {
@@ -197,11 +200,12 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
     <View style={styles.side} testID="files-tree" accessibilityLabel="Files sidebar">
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollIn} testID="files-nav">
         {each(fixed, (r) => <NavRow key={r.id} id={r.id} title={r.title} glyph={r.glyph} selected={sameWhere(state.where, r.where)} count={r.count} onPress={go(r.where)} />)}
-        {know.length > 0 ? <SectionHead id="know" label="Knowledge" open={!isShut("know")} onToggle={() => flip("know")} /> : null}
-        {know.length > 0 && !isShut("know") ? each(know, (r) => {
+        {knowShown.length > 0 ? <SectionHead id="know" label="Knowledge" open={!isShut("know")} onToggle={() => flip("know")} /> : null}
+        {knowShown.length > 0 && !isShut("know") ? each(knowShown, (r) => {
           const row = KNOW_ROWS.find((x) => x.id === r.id)!;
           return <NavRow key={r.id} id={r.id} title={r.title} glyph={row.glyph as IconName} selected={data.memoryView != null && rowOf(data.memoryView) === r.id} count={knowCount(r.id)} onPress={() => { data.nav.openKnow(row.route); slot?.openBody(); }} />;
         }) : null}
+        {knowQuiet ? <NavRow id="know" title="Knowledge" glyph="bulb" selected={data.memoryView != null} onPress={() => { data.nav.openKnow(KNOW_ROWS[0]!.route); slot?.openBody(); }} hint="What Vyre has learned about your people, clients and projects. It fills in as you work." /> : null}
         <SectionHead id="space" label="Space" open={q.length > 0 || !isShut("space")} onToggle={() => flip("space")} onAdd={() => data.nav.newFolder("space", null)} />
         {q.length > 0 || !isShut("space") ? (
           <View testID="files-space">
