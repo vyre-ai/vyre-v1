@@ -154,7 +154,8 @@ export function createContextBuilder(d: ContextDeps) {
   async function build(input: TurnInput): Promise<TurnContext> {
     const asker = input.asker;
     const agentId = input.agent.id;
-    const [screen, summary, agentOut, thread, nameMap, space, routines, zone, waits, computers] = await Promise.all([
+    const [reviewerOut, screen, summary, agentOut, thread, nameMap, space, routines, zone, waits, computers] = await Promise.all([
+      read<Obj>("engine.reviewer.get", { threadId: input.threadId }, asker),
       screenOf(input),
       read<Obj>("chat.transcript.summary", { threadId: input.threadId }, asker),
       read<Obj>("agents.get", { agentId }, asker),
@@ -194,6 +195,11 @@ export function createContextBuilder(d: ContextDeps) {
     if (others.length > 0) where.push(`Also here: ${others.slice(0, 12).map(who).join(", ")}.`);
     const mates = agents.filter((a) => a.id !== agentId);
     if (mates.length > 0) where.push(`Agents here: ${mates.slice(0, 8).map((a) => `${who(a.id)} (${a.mode || "listening"})`).join(", ")}.`);
+    const rv = reviewerOut?.["reviewer"] as { kind?: string; id?: string } | null | undefined;
+    if (rv?.id) {
+      if (rv.kind === "agent" && rv.id === agentId) where.push(`You are the reviewer of this chat. When you are asked, read the lead agent's last answer and what it changed, check it against what ${who(asker)} asked, and say Approved or list what is wrong. Address your verdict to ${who(asker)} with a mention.`);
+      else where.push(`${who(rv.id)} reviews the work done here before it counts. Say plainly what you did, so it can be checked.`);
+    }
     if (th?.["planMode"] === true) where.push("Plan mode is on: read and plan, change nothing until a plan is approved.");
     add("where", true, where.join("\n"));
 

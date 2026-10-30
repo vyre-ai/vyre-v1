@@ -1268,6 +1268,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_ask_level",
+      "summary": "The level the caller has on the object an Ask pane is about (view, use, edit or manage), null when none: the Ask pane's tools never go past it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_ask_suggest",
       "summary": "Suggested agent for an Ask pane: the agent that booked the event, else the contact agent, else the person last used",
       "toolset": "chats"
@@ -2345,6 +2351,18 @@
       "name": "engine_review_mark",
       "summary": "Mark a sampled turn reviewed: fine, or flagged (which opens an incident)",
       "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "engine_reviewer_get",
+      "summary": "The reviewer of a chat, if one is set",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_reviewer_set",
+      "summary": "Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn (\"Asking Reviewer to check this\"), a person gets a Review task",
+      "toolset": "chats"
     },
     {
       "deferred": false,

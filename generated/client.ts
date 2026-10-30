@@ -333,6 +333,7 @@ export function createClient(transport: Transport) {
     chat: {
       answer_block: call("chat.answer_block", 1),
       approve_plan: call("chat.approve_plan", 1),
+      ask_level: call("chat.ask_level", 1),
       ask_suggest: call("chat.ask_suggest", 1),
       asks_of: call("chat.asks_of", 1),
       composer: {
@@ -673,6 +674,10 @@ export function createClient(transport: Transport) {
       review: {
         list: call("engine.review.list", 1),
         mark: call("engine.review.mark", 1),
+      },
+      reviewer: {
+        get: call("engine.reviewer.get", 1),
+        set: call("engine.reviewer.set", 1),
       },
       route: {
         preview: call("engine.route.preview", 1),

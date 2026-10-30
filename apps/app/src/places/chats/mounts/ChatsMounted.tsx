@@ -29,10 +29,12 @@ import { TerminalRules } from "../terminal/TerminalRules.tsx";
 import { TerminalTab } from "../terminal/TerminalTab.tsx";
 import { AllAgents } from "./AllAgents.tsx";
 import { ConnectOutsideAgent } from "./ConnectOutsideAgent.tsx";
-import { agentPageData, chatWith, createCapture, createGo, helperData, needsData, newKey, popupData, terminalData, wireConversation, wirePane, wireSidebar } from "./data.ts";
+import { agentPageData, askWith, chatWith, createCapture, createGo, helperData, needsData, newKey, popupData, terminalData, wireConversation, wirePane, wireSidebar } from "./data.ts";
 import type { CaptureCounter, Go } from "./data.ts";
 import { useLive } from "./live.ts";
-import { START, fromHash, newestThread, step } from "./route.ts";
+import { noteThreadKind } from "../../../shell/ask/screen.ts";
+import { START, fromHash, newestThread, step, workOf } from "./route.ts";
+import { WORKSPACE_MIN_W, Workspace } from "./Workspace.tsx";
 import type { Act, Shown } from "./route.ts";
 
 type ThreadOut = CapMap["threads.get"]["out"];
@@ -82,6 +84,20 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   }, [line]);
 
   const act = useCallback((a: Act): void => setShown((s) => step(s, a)), []);
+  // An Ask link names an agent and an object; the thread it opens is found or made, then shown as a chat.
+  const asking = shown.route.view === "ask" ? shown.route : null;
+  useEffect(() => {
+    if (asking === null) return undefined;
+    let live = true;
+    const who = asking.agentId === "assistant" ? rt.assistant.id : asking.agentId;
+    const found = asking.scopeType === "" ? chatWith(rt, who) : askWith(rt, who, asking.scopeType, asking.scopeId, asking.bringFrom);
+    void found.then((id) => {
+      if (!live) return;
+      if (id) act({ t: "chat", threadId: id, pane: true });
+      else { setLine("Could not open the Ask. You may not see that yet."); act({ t: "agent", agentId: who, tab: "chats" }); }
+    });
+    return () => { live = false; };
+  }, [asking?.agentId, asking?.scopeType, asking?.scopeId, asking?.bringFrom, rt, act]);
   const go = useMemo<Go>(() => createGo(rt, act, nameOf, setLine), [rt, act, nameOf]);
   const route = shown.route;
   const width = useWindowDimensions().width;
@@ -94,6 +110,7 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const recent = useLive<RecentOut>(rt.screens, "chats.sidebar", "recent", { filter: "all" });
   const threadId = route.view === "chat" ? (route.threadId ?? newestThread(recent.status === "ready" ? recent.data : undefined)) : null;
   const thread = useLive<ThreadOut>(rt.screens, "chats.conversation", "thread", threadId === null ? null : { threadId });
+  if (thread.status === "ready" && threadId !== null) noteThreadKind(threadId, thread.data.thread.kind);
   const lead = thread.status === "ready" && threadId !== null ? (thread.data.thread.agents.find((a) => a.mode === "lead") ?? thread.data.thread.agents[0]) : undefined;
   const leadId = lead?.agentId ?? rt.assistant.id;
   const computers = useLive<ComputersOut>(rt.screens, "console.agent-computers", "computers", {});
@@ -126,7 +143,10 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   if (route.view === "needs") main = <NeedsYou data={needs} {...(route.taskId ? { initialSelected: route.taskId } : {})} {...(window ? { window } : {})} />;
   else if (route.view === "helper") main = helperId === "" ? <HelperChatLoading /> : <HelperChat key={helperId} data={helper} />;
   else if (route.view === "agent") main = agentId === "" ? <AgentPageLoading /> : <AgentPage key={agentId} data={agentPage} initialTab={route.tab ?? "chats"} {...(window ? { window } : {})} />;
-  else if (conv) main = <Conversation key={conv.threadId} data={conv} />;
+  else if (conv) {
+    const work = thread.status === "ready" ? workOf(thread.data.thread) : null;
+    main = work && width >= WORKSPACE_MIN_W ? <Workspace rt={rt} work={work}><Conversation key={conv.threadId} data={conv} /></Workspace> : <Conversation key={conv.threadId} data={conv} />;
+  }
   else if (threadId === null && recent.status === "ready") {
     // A Space with no chats yet: the shared empty state with the way to start one, not a skeleton for ever.
     main = <States kind="empty" title="No chats yet. Start one with your assistant." icon="chat" action={{ label: "New chat", onPress: () => go.agentChat(rt.assistant.id) }} />;

@@ -14,7 +14,9 @@ export type Route =
   | { view: "chat"; threadId: string | null }
   | { view: "needs"; taskId: string | null }
   | { view: "agent"; agentId: string; tab: TabKey | null }
-  | { view: "helper"; threadId: string };
+  | { view: "helper"; threadId: string }
+  /** An Ask about an object with an agent: resolved to the person's Ask thread on it (the newest one, else a new one), which then opens as a chat. With no object it is the person's chat with that agent. */
+  | { view: "ask"; agentId: string; scopeType: string; scopeId: string; bringFrom: string | null };
 
 export type Layer =
   | { kind: "computer"; computerId: string; chat: boolean }
@@ -38,6 +40,7 @@ export type Act =
   /** `pane` opens the agent's pane beside the chat (a click on an agent). */
   | { t: "chat"; threadId: string; pane?: boolean }
   | { t: "helper"; threadId: string }
+  | { t: "ask"; agentId: string; scopeType: string; scopeId: string; bringFrom?: string }
   | { t: "needs"; taskId?: string }
   | { t: "agent"; agentId: string; tab?: TabKey }
   | { t: "pane" }
@@ -50,6 +53,7 @@ export function step(s: Shown, a: Act): Shown {
   switch (a.t) {
     case "chat": return a.threadId.startsWith(LOCAL_PREFIX) ? s : { ...s, route: { view: "chat", threadId: a.threadId === "" ? null : a.threadId }, ...(a.pane ? { pane: true, terminalId: null } : {}), layer: null };
     case "helper": return { ...s, route: { view: "helper", threadId: a.threadId }, layer: null };
+    case "ask": return { ...s, route: { view: "ask", agentId: a.agentId, scopeType: a.scopeType, scopeId: a.scopeId, bringFrom: a.bringFrom ?? null }, layer: null };
     case "needs": return { ...s, route: { view: "needs", taskId: a.taskId ?? null }, layer: null };
     case "agent": return { ...s, route: { view: "agent", agentId: a.agentId, tab: a.tab ?? null }, layer: null };
     // One column on the right: the agent's pane or the terminal. The pane button closes whichever is showing, or opens the pane.
@@ -77,6 +81,7 @@ export const SCREEN = {
   helper: "chats.helper-chat",
   needs: "tasks.needs-you",
   conversation: "chats.conversation",
+  ask: "chats.ask",
   computer: "chats.computer-popup",
   agentComputer: "chats.agent-computer",
   recording: "chats.recording-sheet",
@@ -86,6 +91,21 @@ export const SCREEN = {
   terminalList: "chats.terminal-list",
   terminalRules: "chats.terminal-rules",
 } as const;
+
+/** What a chat is the workspace of: the record or the project it is tied to. DMs, channels and Ask panes (their own door) have none. */
+export interface Work { type: "record" | "project"; id: string }
+export function workOf(t: { kind?: string; recordId?: string; scopeType?: string; scopeId?: string }): Work | null {
+  if (t.kind !== "chat" && t.kind !== "thread") return null;
+  const id = t.recordId ?? (t.scopeType === "record" || t.scopeType === "project" ? t.scopeId : undefined);
+  if (!id) return null;
+  return { type: id.startsWith("prj_") || t.scopeType === "project" ? "project" : "record", id };
+}
+
+/** `record:rec_1` as the object an Ask is about. Null when it is not that shape. */
+export function askAbout(v: string): { type: string; id: string } | null {
+  const m = /^([a-z][a-z0-9_]{0,31}):(.{1,200})$/.exec(v);
+  return m ? { type: m[1]!, id: m[2]! } : null;
+}
 
 /** The first `Shown` for a link from another place, or the start when the link is not for this place. */
 export function fromHash(hash: string): Shown {
@@ -97,7 +117,14 @@ export function fromHash(hash: string): Shown {
     case SCREEN.agent: { const tab = arg("tab"); return arg("agentId") === "" ? START : step(START, { t: "agent", agentId: arg("agentId"), ...(isTabKey(tab) ? { tab } : {}) }); }
     case SCREEN.helper: return arg("threadId") === "" ? START : step(START, { t: "helper", threadId: arg("threadId") });
     case SCREEN.needs: return step(START, { t: "needs", ...(arg("taskId") === "" ? {} : { taskId: arg("taskId") }) });
-    case SCREEN.conversation: return arg("threadId") === "" ? START : step(START, { t: "chat", threadId: arg("threadId") });
+    // `with` is the agent and `about` the object (`record:rec_1`): an Ask, not a chat. A conversation link with a thread id is still that thread.
+    case SCREEN.conversation: case SCREEN.ask: {
+      const about = askAbout(arg("about"));
+      if (arg("threadId") !== "") return step(START, { t: "chat", threadId: arg("threadId") });
+      if (about !== null && arg("with") !== "") return step(START, { t: "ask", agentId: arg("with"), scopeType: about.type, scopeId: about.id, ...(arg("bring") === "" ? {} : { bringFrom: arg("bring") }) });
+      // `with` alone is a chat with that agent: the open chat it leads, else a new one.
+      return arg("with") === "" ? START : step(START, { t: "ask", agentId: arg("with"), scopeType: "", scopeId: "" });
+    }
     case SCREEN.computer: case SCREEN.agentComputer: return arg("computerId") === "" ? START : step(START, { t: "layer", layer: { kind: "computer", computerId: arg("computerId"), chat: false } });
     case SCREEN.recording: return arg("recordingId") === "" ? START : step(START, { t: "layer", layer: { kind: "recording", recordingId: arg("recordingId") } });
     case SCREEN.connect: return arg("channelId") === "" ? START : step(START, { t: "layer", layer: { kind: "connect", channelId: arg("channelId") } });

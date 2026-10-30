@@ -6,8 +6,8 @@ import VaultLayout, { VaultLoading } from "../../places/vault/layout/index.tsx";
 import type { VaultBrowsers, VaultData, VaultRoute } from "../../places/vault/layout/index.tsx";
 import { usePlaceHash } from "../hash/context.tsx";
 import type { HashTarget } from "../hash/hash.ts";
-import { attemptKey } from "./files-review.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
+import { openAsk } from "./ask.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export function vaultRoute(target: HashTarget): VaultRoute {
@@ -51,12 +51,7 @@ export function vaultData(rt: ShellRuntime, browsers: VaultBrowsers | undefined 
       openPolicy: () => rt.open({ screen: "vault.layout", args: { policy: true } }),
       openRequests: () => rt.open({ screen: "vault_requests.list" }),
       openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
-      // Ask an agent about an item: a new Ask pane scoped to it, opened as a thread
-      ask: (agentId, _mode, about) => {
-        void rt.call("chat.start", { kind: "ask", idempotencyKey: attemptKey(), agentIds: [agentId], scopeType: about.kind, scopeId: about.id, title: about.title })
-          .then((out: unknown) => rt.open({ subject: { type: "thread", id: (out as { thread: { threadId: string } }).thread.threadId } }))
-          .catch(() => undefined);
-      },
+      ask: (agentId, _mode, about) => openAsk(rt, agentId, about),
     },
     clock: () => ({ now: rt.clock().now }),
     ...(browsers ? { browsers } : {}),

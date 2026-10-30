@@ -153,6 +153,9 @@ export default defineManifest({
     write('chat.open_as_chat', 'Open an Ask pane as a normal chat so it appears in Recent', {
       in: threadT, out: { thread: threadRow }, on: ['thread', '/threadId'], emits: ['thread.updated'], tool: 'chats', offline: 'patch',
     }),
+    read('chat.ask_level', 'The level the caller has on the object an Ask pane is about (view, use, edit or manage), null when none: the Ask pane\'s tools never go past it', {
+      in: threadT, out: { level: t.nullable(t.enm('view', 'use', 'edit', 'manage')) }, on: ['thread', '/threadId'], tool: 'chats', label: 'check',
+    }),
     read('chat.ask_suggest', 'Suggested agent for an Ask pane: the agent that booked the event, else the contact agent, else the person last used', {
       in: { scopeType: t.str(), scopeId: t.str() }, out: { agentId: t.nullable(id.agent), reason: t.enm('booked_by', 'contact_agent', 'last_used', 'none') }, tool: 'chats',
     }),

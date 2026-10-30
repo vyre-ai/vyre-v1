@@ -128,3 +128,25 @@ export async function openAsChat(ctx: ChatCtx, input: { threadId: string }) {
   ctx.emit("thread.updated", t.id, { threadId: t.id, fields: ["listed"] });
   return { thread: threadOut(ctx.db, threadBy(ctx.db, t.id)!) };
 }
+
+// ---- the level an Ask pane works at -----------------------------------------------------------------------------------------------------------------
+
+const LEVELS = ["manage", "edit", "use", "view"] as const;
+
+/** The caller's level on the object the pane is about, the highest of manage, edit, use, view they hold. An object with no resource of its own is read through its capability, so it is view. */
+export async function askLevel(ctx: ChatCtx, input: { threadId: string }): Promise<{ level: (typeof LEVELS)[number] | null }> {
+  ensure(ctx.db);
+  const t = threadBy(ctx.db, input.threadId);
+  if (!t || t.starter !== askerOf(ctx)) raise(ctx, "validation.not_found", "That Ask pane does not exist or is not yours.");
+  if (t.kind !== "ask" || t.scopeType === undefined || t.scopeId === undefined) return { level: "manage" };
+  const type = RESOURCE_OF[t.scopeType];
+  if (type === undefined) return { level: "view" };
+  const host = ctx as ChatCtx & { authorize?: (action: { perm: string | null; level: string }, resource: { type: string; id: string | null }) => { effect?: string } };
+  for (const level of LEVELS) {
+    let effect: string | undefined;
+    if (typeof host.authorize === "function") effect = host.authorize({ perm: null, level }, { type, id: t.scopeId }).effect;
+    else effect = ((await callOf(ctx)("access.check", { principal: { kind: "person", id: askerOf(ctx) }, action: { level }, resource: { type, id: t.scopeId } })) as { decision?: { effect?: string } } | null | undefined)?.decision?.effect;
+    if (effect === "allow") return { level };
+  }
+  return { level: null };
+}

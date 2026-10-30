@@ -162,3 +162,13 @@ test("withTurnContext puts the context on the input of every send, and a builder
   for await (const _ of bad.send(input())) void _;
   assert.equal(seen[1]!.context, undefined);
 });
+
+test("a chat's reviewer is told it is the reviewer, and the lead is told its work is checked", async () => {
+  const f = (id: string) => fake({ ...FULL, "engine.reviewer.get": { reviewer: { kind: "agent", id } } });
+  const asReviewer = await createContextBuilder({ call: f("agt_intake").call, now: () => at }).build(input());
+  assert.match(asReviewer.sections.find((s) => s.id === "where")!.text, /You are the reviewer of this chat\. When you are asked, read the lead agent's last answer/);
+  const asLead = await createContextBuilder({ call: f("agt_docs").call, now: () => at }).build(input());
+  assert.match(asLead.sections.find((s) => s.id === "where")!.text, /Docs reviews the work done here before it counts\./);
+  const none = await createContextBuilder({ call: fake({ ...FULL, "engine.reviewer.get": { reviewer: null } }).call, now: () => at }).build(input());
+  assert.doesNotMatch(none.sections.find((s) => s.id === "where")!.text, /review/i);
+});

@@ -65,6 +65,13 @@ export default defineManifest({
       in: { ...threadT, agentId: id.agent, mode: agentMode }, out: { mode: agentMode, leadAgentId: t.nullable(id.agent) }, on: ['thread', '/threadId'], level: 'use',
       emits: ['agent.mode_changed'], tool: 'chats', offline: 'queue', idem: 'natural',
     }),
+    write('engine.reviewer.set', 'Give a chat a reviewer, an agent or a person, who checks the lead agent\'s work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn ("Asking Reviewer to check this"), a person gets a Review task', {
+      in: { ...threadT, reviewer: t.nullable(t.obj({ kind: t.enm('agent', 'person'), id: t.str({ examples: ['agt_a1b2c3'] }) })) }, out: { reviewer: t.nullable(t.obj({ kind: t.enm('agent', 'person'), id: t.str() })) },
+      on: ['thread', '/threadId'], level: 'use', emits: ['thread.reviewer_changed'], tool: 'chats', offline: 'online', idem: 'natural', errors: ['validation.not_found', 'validation.bad_input'],
+    }),
+    read('engine.reviewer.get', 'The reviewer of a chat, if one is set', {
+      in: threadT, out: { reviewer: t.nullable(t.obj({ kind: t.enm('agent', 'person'), id: t.str() })) }, on: ['thread', '/threadId'], tool: 'chats', label: 'check',
+    }),
     write('engine.set_model', 'Set the model, provider, effort and paying account of an agent in a thread', {
       in: { ...threadT, agentId: id.agent, model: t.opt(t.str()), provider: t.opt(t.str()), effort: t.opt(effort), accountRef: t.opt(accountRef) },
       out: { model: t.str(), provider: t.str(), effort: t.opt(effort), accountRef: t.opt(accountRef) }, on: ['thread', '/threadId'], level: 'use',
@@ -288,6 +295,7 @@ export default defineManifest({
     ev('agent.blocked', 'An agent is blocked (login, key, site down) and asks for what would unblock it', {
       p: { agentId: id.agent, threadId: id.thread, turnId: t.opt(id.turn), taskId: id.task, what: t.str() }, subject: ['thread', '/threadId'], vis: 'participants', notify: 'agent.blocked',
     }),
+    ev('thread.reviewer_changed', 'A chat got a reviewer, or lost it', { p: { threadId: id.thread, reviewer: t.nullable(t.obj({ kind: t.enm('agent', 'person'), id: t.str() })), by: t.str() }, subject: ['thread', '/threadId'] }),
     ev('agent.mode_changed', 'An agent switched between Leading and Listening in a thread', {
       p: { threadId: id.thread, agentId: id.agent, mode: t.str(), by: t.str() }, subject: ['thread', '/threadId'], vis: 'participants',
     }),

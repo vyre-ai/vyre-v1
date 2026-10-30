@@ -9470,6 +9470,32 @@
     },
     {
       "blocks": [],
+      "cap": "chat.ask_level",
+      "deferred": false,
+      "description": "The level the caller has on the object an Ask pane is about (view, use, edit or manage), null when none: the Ask pane's tools never go past it",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "chat_ask_level",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.ask_suggest",
       "deferred": false,
       "description": "Suggested agent for an Ask pane: the agent that booked the event, else the contact agent, else the person last used",
@@ -15845,6 +15871,88 @@
       "name": "engine_review_mark",
       "planMode": "blocked",
       "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.reviewer.get",
+      "deferred": false,
+      "description": "The reviewer of a chat, if one is set",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_reviewer_get",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.reviewer.set",
+      "deferred": false,
+      "description": "Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn (\"Asking Reviewer to check this\"), a person gets a Review task",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "reviewer": {
+            "anyOf": [
+              {
+                "properties": {
+                  "id": {
+                    "examples": [
+                      "agt_a1b2c3"
+                    ],
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "agent",
+                      "person"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "reviewer"
+        ],
+        "type": "object"
+      },
+      "name": "engine_reviewer_set",
+      "planMode": "blocked",
+      "toolset": "chats",
       "v": 1
     },
     {
