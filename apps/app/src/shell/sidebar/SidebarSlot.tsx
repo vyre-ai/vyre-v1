@@ -186,7 +186,7 @@ const s = StyleSheet.create({
   actions: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4 },
   icon: { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center" },
   hover: { backgroundColor: "var(--hover)" as string },
-  search: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, marginHorizontal: 10, marginBottom: 8, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  search: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, marginHorizontal: 10, marginBottom: 8, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string },
   input: { flex: 1, minWidth: 0, color: "var(--ink)" as string, fontSize: 13, padding: 0 },
   outlet: { flex: 1, minHeight: 0 },
   expand: { position: "absolute", left: 8, top: 8, width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center", zIndex: 3 },

@@ -225,7 +225,7 @@ export const s = StyleSheet.create({
   modText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   modLink: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
   grow: { flex: 1 },
-  find: { width: 190, height: 26, paddingHorizontal: 9, borderRadius: 7, backgroundColor: "var(--sunk)" as string, fontSize: 13, color: "var(--ink)" as string },
+  find: { width: 190, height: 26, paddingHorizontal: 9, borderRadius: 7, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string, fontSize: 13, color: "var(--ink)" as string },
   kind: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 7 },
   kindText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
   offline: { fontSize: 12.5, color: "var(--ink-3)" as string, marginLeft: 8 },

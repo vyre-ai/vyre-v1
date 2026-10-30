@@ -593,7 +593,7 @@ const styles = StyleSheet.create({
   optMark: { color: "var(--ink-3)" as string, fontSize: 13, lineHeight: 19, width: 16 },
   optLabel: { ...textBase },
   free: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
-  input: { flex: 1, minWidth: 0, height: 28, borderRadius: 8, paddingHorizontal: 10, backgroundColor: "var(--sunk)" as string, color: "var(--ink)" as string, fontSize: 13 },
+  input: { flex: 1, minWidth: 0, height: 28, borderRadius: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string, color: "var(--ink)" as string, fontSize: 13 },
   steps: { gap: 3, marginBottom: 2 },
   step: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   stepMark: { width: 18, color: "var(--ink-3)" as string, fontSize: 13, lineHeight: 19, textAlign: "right" },

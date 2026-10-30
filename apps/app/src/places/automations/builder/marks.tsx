@@ -184,7 +184,7 @@ const m = StyleSheet.create({
   secTextOn: { color: "var(--ink)" as string, fontWeight: "600" },
   field: { gap: 4 },
   label: { fontSize: 11.5, color: "var(--ink-3)" as string },
-  input: { height: 30, borderRadius: 7, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--sunk)" as string, paddingHorizontal: 9, fontSize: 13, color: "var(--ink)" as string },
+  input: { height: 30, borderRadius: 7, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, paddingHorizontal: 9, fontSize: 13, color: "var(--ink)" as string },
   hint: { fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
   fix: { fontSize: 12.5, lineHeight: 17, color: "var(--warn)" as string },
   shelf: { gap: 6 },

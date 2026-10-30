@@ -566,7 +566,7 @@ const styles = StyleSheet.create({
   ok: { color: "var(--ok)" as string },
   bad: { color: "var(--danger)" as string },
   struck: { textDecorationLine: "line-through" },
-  input: { flex: 1, minWidth: 0, height: 28, borderRadius: 8, paddingHorizontal: 10, backgroundColor: "var(--sunk)" as string, color: "var(--ink)" as string, fontSize: 13 },
+  input: { flex: 1, minWidth: 0, height: 28, borderRadius: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string, color: "var(--ink)" as string, fontSize: 13 },
   secretField: { marginTop: 6, gap: 3 },
   secretInput: { flex: 0, width: "100%" },
   fieldKey: { color: "var(--ink-3)" as string, fontSize: 11.5, lineHeight: 16 },

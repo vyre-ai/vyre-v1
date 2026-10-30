@@ -304,7 +304,7 @@ const st = StyleSheet.create({
   warn: { fontSize: 11.5, fontWeight: "500", color: "var(--warn)" as string },
   actions: { position: "absolute", right: 6, top: 6, flexDirection: "row" },
   editRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  input: { flex: 1, minWidth: 0, height: 28, paddingHorizontal: 9, borderRadius: 7, backgroundColor: "var(--sunk)" as string, color: "var(--ink)" as string, fontSize: 12.5, boxShadow: "inset 0 0 0 1px var(--line-2)", outlineStyle: "none" } as object,
+  input: { flex: 1, minWidth: 0, height: 28, paddingHorizontal: 9, borderRadius: 7, backgroundColor: "var(--field)" as string, color: "var(--ink)" as string, fontSize: 12.5, boxShadow: "inset 0 0 0 1px var(--line-2)", outlineStyle: "none" } as object,
   more: { paddingHorizontal: 8, paddingVertical: 2, alignItems: "flex-start" },
   footer: { paddingHorizontal: 8, paddingTop: 12, paddingBottom: 10, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4 },
 });

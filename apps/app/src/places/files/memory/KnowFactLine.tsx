@@ -223,7 +223,7 @@ const s = StyleSheet.create({
   vers: { color: "var(--ink-3)" as string },
   under: { textDecorationLine: "underline" },
   edit: { flexDirection: "row", alignItems: "center", gap: 6 },
-  input: { flex: 1, height: 32, paddingHorizontal: 9, borderRadius: 7, borderWidth: 1, borderColor: "var(--accent)" as string, backgroundColor: "var(--sunk)" as string, color: "var(--ink)" as string, fontSize: 14, outlineStyle: "none" } as never,
+  input: { flex: 1, height: 32, paddingHorizontal: 9, borderRadius: 7, borderWidth: 1, borderColor: "var(--accent)" as string, backgroundColor: "var(--field)" as string, color: "var(--ink)" as string, fontSize: 14, outlineStyle: "none" } as never,
   hint: { marginTop: 6, fontSize: 12, color: "var(--ink-3)" as string },
   err: { marginTop: 6, fontSize: 12.5, color: "var(--danger)" as string },
   rt: { flexDirection: "row", gap: 2, marginTop: 1 },

@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
   side: { flex: 1, minWidth: 220, backgroundColor: "var(--side)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
   top: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 8, paddingTop: 10, paddingBottom: 4, height: 44 },
   grow: { flex: 1 },
-  search: { flexDirection: "row", alignItems: "center", gap: 7, height: 30, marginHorizontal: 10, marginBottom: 8, paddingHorizontal: 9, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  search: { flexDirection: "row", alignItems: "center", gap: 7, height: 30, marginHorizontal: 10, marginBottom: 8, paddingHorizontal: 9, borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string },
   searchOn: { boxShadow: "0 0 0 1px var(--accent-line)" as string },
   input: { flex: 1, minWidth: 0, padding: 0, fontSize: 13, color: "var(--ink)" as string, outlineStyle: "none" as "none" },
   scroll: { flex: 1 },

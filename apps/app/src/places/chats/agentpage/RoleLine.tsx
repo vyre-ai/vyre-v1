@@ -53,5 +53,5 @@ const st = StyleSheet.create({
   lineOver: { backgroundColor: "var(--hover)" as string },
   text: { flexShrink: 1, fontSize: 14, lineHeight: 20, color: "var(--ink-2)" as string },
   empty: { color: "var(--ink-4)" as string },
-  input: { height: 28, alignSelf: "stretch", maxWidth: 560, paddingHorizontal: 8, marginLeft: -2, borderRadius: 7, fontSize: 14, color: "var(--ink)" as string, backgroundColor: "var(--sunk)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
+  input: { height: 28, alignSelf: "stretch", maxWidth: 560, paddingHorizontal: 8, marginLeft: -2, borderRadius: 7, fontSize: 14, color: "var(--ink)" as string, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
 });

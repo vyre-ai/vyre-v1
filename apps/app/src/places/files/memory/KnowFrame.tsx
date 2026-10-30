@@ -101,7 +101,7 @@ const h = StyleSheet.create({
   curText: { margin: 0, fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   over: { backgroundColor: "var(--hover)" as string },
   grow: { flex: 1 },
-  find: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 9, borderRadius: 7, backgroundColor: "var(--sunk)" as string },
+  find: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 9, borderRadius: 7, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string },
   scroll: { flex: 1 },
   content: { alignItems: "center", paddingHorizontal: 24, paddingTop: 22, paddingBottom: 56 },
   col: { width: "100%", maxWidth: 760 },

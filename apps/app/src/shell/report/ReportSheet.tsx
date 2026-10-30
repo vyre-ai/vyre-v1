@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
   card: { width: "100%", maxWidth: 520, backgroundColor: "var(--raised)", borderRadius: 14, paddingVertical: 18, paddingHorizontal: 20, boxShadow: "0 0 0 1px var(--line-2), 0 24px 60px rgba(0,0,0,0.4)" } as object,
   title: { fontSize: 15, fontWeight: "600", color: "var(--ink)", marginBottom: 10 },
   sub: { fontSize: 13, color: "var(--ink-3)", marginTop: 6 },
-  input: { height: 36, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)", backgroundColor: "var(--sunk)", color: "var(--ink)", paddingHorizontal: 10, fontSize: 13 },
+  input: { height: 36, borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)", color: "var(--ink)", paddingHorizontal: 10, fontSize: 13 },
   summary: { marginTop: 12, alignSelf: "flex-start", paddingVertical: 2 },
   summaryText: { fontSize: 13, color: "var(--ink-3)" },
   facts: { marginTop: 8, maxHeight: 200, overflow: "scroll" } as object,

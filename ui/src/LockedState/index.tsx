@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
   level: { marginTop: 10, flexDirection: "row", alignItems: "center", gap: 5, height: 28, paddingHorizontal: 10, borderRadius: 7 },
   levelHover: { backgroundColor: "var(--hover)" as string },
   levelText: { color: "var(--ink-2)" as string, fontSize: 13 },
-  note: { width: "100%", height: 34, borderRadius: 8, paddingHorizontal: 11, backgroundColor: "var(--sunk)" as string, color: "var(--ink)" as string, fontSize: 13, borderWidth: 0 },
+  note: { width: "100%", height: 34, borderRadius: 8, paddingHorizontal: 11, backgroundColor: "var(--field)" as string, color: "var(--ink)" as string, fontSize: 13, borderWidth: 1, borderColor: "var(--field-line)" },
   button: { marginTop: 12, minWidth: 120, height: 32, paddingHorizontal: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string },
   buttonOff: { backgroundColor: "var(--hover)" as string },
   buttonOk: { backgroundColor: "var(--accent)" as string },

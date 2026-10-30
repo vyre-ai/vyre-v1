@@ -401,7 +401,7 @@ const p = StyleSheet.create({
   star: { fontSize: 16, color: "var(--line-2)" as string },
   starOn: { color: "var(--warn)" as string },
   editWrap: { gap: 4 },
-  input: { height: 30, paddingHorizontal: 9, borderRadius: 7, backgroundColor: "var(--sunk)" as string, fontSize: 13.5, color: "var(--ink)" as string },
+  input: { height: 30, paddingHorizontal: 9, borderRadius: 7, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string, fontSize: 13.5, color: "var(--ink)" as string },
   inputLong: { height: 96, paddingTop: 6 },
   inputBad: { boxShadow: "inset 0 0 0 1.5px var(--danger)" } as object,
   errText: { fontSize: 12, color: "var(--danger)" as string },

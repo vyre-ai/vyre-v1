@@ -95,6 +95,6 @@ const st = StyleSheet.create({
   bold: { fontWeight: "600", color: "var(--ink-2)" as string },
   off: { color: "var(--ink-4)" as string },
   sep: { fontSize: 12.5, color: "var(--ink-4)" as string },
-  input: { flexGrow: 1, flexBasis: 220, maxWidth: 360, height: 28, paddingHorizontal: 10, borderRadius: 7, backgroundColor: "var(--sunk)" as string, color: "var(--ink)" as string, fontSize: 13, boxShadow: "inset 0 0 0 1px var(--line-2)", outlineStyle: "none" } as object,
+  input: { flexGrow: 1, flexBasis: 220, maxWidth: 360, height: 28, paddingHorizontal: 10, borderRadius: 7, backgroundColor: "var(--field)" as string, color: "var(--ink)" as string, fontSize: 13, boxShadow: "inset 0 0 0 1px var(--line-2)", outlineStyle: "none" } as object,
   err: { width: "100%", fontSize: 12, color: "var(--danger)" as string },
 });
