@@ -2,9 +2,9 @@
 
 Lane L2. Kind module. Version 0.1.0.
 
-Requires: nothing.
+Requires: projects.
 
-## Capabilities (52)
+## Capabilities (60)
 
 - [memory.archive_sweep](../capabilities/memory.archive_sweep.md): Daily job: move facts untouched in Trash for the Space setting (30 to 90 days, default 60) to Archive
 - [memory.backlinks](../capabilities/memory.backlinks.md): Where a page is linked from: other pages, chats, runs and records, each with the line that names it; only places the reader can open
@@ -20,10 +20,14 @@ Requires: nothing.
 - [memory.facts.remove](../capabilities/memory.facts.remove.md): Remove facts from answers (closed off, kept in history), one at a time or all at once for a layer or agent
 - [memory.facts_as_of](../capabilities/memory.facts_as_of.md): Facts that were true on a date (valid_from and valid_to), for "what did it believe on 3 March"
 - [memory.find_by_subject](../capabilities/memory.find_by_subject.md): Find every fact and note about one subject (a contact, company or person) for erase and export
+- [memory.forget](../capabilities/memory.forget.md): Forget facts by id: they stop being recalled and stay in history
 - [memory.graph](../capabilities/memory.graph.md): The memory graph for an agent or the Space, built per viewer through access checks; agent, project and Space layers only
 - [memory.graph_everything](../capabilities/memory.graph_everything.md): The admin "everything" graph view across all agents; every open is logged
 - [memory.graph_export](../capabilities/memory.graph_export.md): Export a graph as a file; personal layers are never included
 - [memory.index_graph](../capabilities/memory.index_graph.md): Graph consumer: update graph nodes and edges for a changed note, record or chat (notes, links, relations, came-from)
+- [memory.key.resolve](../capabilities/memory.key.resolve.md): The account that pays for one scope's upkeep and where the choice came from (agent, project, Space or person); no key means rule-based upkeep
+- [memory.key.set](../capabilities/memory.key.set.md): Pick the account that pays for memory upkeep: yours for personal memory, or (admins) the Space's or a project's; null clears it and upkeep stays rule-based
+- [memory.keys.get](../capabilities/memory.keys.get.md): The account that pays for memory upkeep: yours for personal memory, and for an admin the Space's with the accounts it can be picked from and the keys picked for projects
 - [memory.layers.list](../capabilities/memory.layers.list.md): Layers the caller may read for an agent (personal layers are private to their owner)
 - [memory.layout.get](../capabilities/memory.layout.get.md): Saved node positions for a graph
 - [memory.layout.save](../capabilities/memory.layout.save.md): Save node positions for a graph
@@ -49,7 +53,10 @@ Requires: nothing.
 - [memory.propose_fact](../capabilities/memory.propose_fact.md): Propose a fact for the asker layer of the agent memory, with its source; low-risk kinds merge on their own
 - [memory.question.resolve](../capabilities/memory.question.resolve.md): Answer an upkeep question with one click: keep one of two facts (the other goes to Trash), keep both, confirm an old fact, or drop it
 - [memory.questions.list](../capabilities/memory.questions.list.md): Questions upkeep could not settle: two values for one subject and field, or a fact that looks old
+- [memory.quote](../capabilities/memory.quote.md): Exact words of a chat message or run step, word for word, with author, time and a link that opens the chat at that line; only chats, channels and runs the asker could open themselves
 - [memory.read_note](../capabilities/memory.read_note.md): Read one memory note as Markdown
+- [memory.recall.record](../capabilities/memory.recall.record.md): Record which facts and quotes recall handed the agent for one message (ids only), for memory.used; the engine writes this as the person whose message it was
+- [memory.remember](../capabilities/memory.remember.md): Remember something, with where it came from; in your own layer it is current at once, a shared layer follows its review rule
 - [memory.restore](../capabilities/memory.restore.md): Restore a fact from Trash, or from Archive for an admin; open to any person or agent who can see the fact
 - [memory.restore_version](../capabilities/memory.restore_version.md): Restore a shared memory note to an earlier version (owners and admins)
 - [memory.search](../capabilities/memory.search.md): Search notes and current facts the asker may read; BM25, vectors and recency; snippets carry the source link
@@ -57,6 +64,7 @@ Requires: nothing.
 - [memory.trash.search](../capabilities/memory.trash.search.md): Search Trash (or Archive, for an admin): deleted and merged-away facts, which normal search and recall never show
 - [memory.undo](../capabilities/memory.undo.md): Undo something memory learned: the fact goes to Trash with the reason undone, and a restore brings it back
 - [memory.upkeep.status](../capabilities/memory.upkeep.status.md): Upkeep spend: this month against the monthly cap, and the recent runs with what each did and cost
+- [memory.used](../capabilities/memory.used.md): What recall put in front of the agent for one message: the facts and the exact quotes, each read again now under your access (a fact since deleted, or a chat closed to you, is not shown); for the "Used N memories" line and "Show what the agent knew here"
 - [memory.versions](../capabilities/memory.versions.md): List versions of a shared memory note (One History)
 
 ## Events (20)

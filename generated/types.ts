@@ -1108,6 +1108,8 @@ export type AgentsCreateOut = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1151,6 +1153,8 @@ export type AgentsGetOut = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1214,6 +1218,8 @@ export type AgentsListOut = {
       fallbackModel?: string;
       accountPolicy: "asker" | "key";
       accountKey?: string;
+      accountFallback: Array<string>;
+      memoryKey?: string;
       toolsAllowed: Array<string>;
       toolsDenied: Array<string>;
       vaultKeys: Array<string>;
@@ -1235,6 +1241,13 @@ export type AgentsListOut = {
   next?: string;
   total?: number;
 };
+export type AgentsMemoryKeyGetIn = {
+  agentId: string;
+};
+export type AgentsMemoryKeyGetOut = {
+  memoryKey?: string;
+  ownerId: string;
+};
 export type AgentsPauseIn = {
   agentId: string;
   reason?: string;
@@ -1254,6 +1267,8 @@ export type AgentsPauseOut = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1291,6 +1306,8 @@ export type AgentsRestoreOut = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1330,6 +1347,8 @@ export type AgentsRestoreVersionOut = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1367,6 +1386,8 @@ export type AgentsResumeOut = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1405,6 +1426,8 @@ export type AgentsRoleLineSetOut = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1561,6 +1584,8 @@ export type AgentsSetOwnerOut = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1748,6 +1773,8 @@ export type AgentsUpdateOut = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -5589,6 +5616,51 @@ export type ChatEditOut = {
     enc?: number;
   };
 };
+export type ChatForkIn = {
+  threadId: string;
+  messageId?: string;
+  title?: string;
+  idempotencyKey: string;
+};
+export type ChatForkOut = {
+  thread: {
+    threadId: string;
+    kind: "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
+    title?: string;
+    starter?: string;
+    channelId?: string;
+    parentThreadId?: string;
+    parentMessageId?: string;
+    recordId?: string;
+    folderId?: string;
+    scopeType?: string;
+    scopeId?: string;
+    listed: boolean;
+    planMode: boolean;
+    members: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    agents: Array<{
+        agentId: string;
+        mode: "lead" | "listen";
+        model?: string;
+        provider?: string;
+        effort?: "low" | "medium" | "high" | "max";
+        accountRef?: string;
+        watches?: boolean;
+      }>;
+    createdAt: number;
+    closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
+    path?: Array<{
+        title: string;
+        threadId: string;
+      }>;
+  };
+  copied: number;
+};
 export type ChatHandoffIn = {
   threadId: string;
   toAgentId: string;
@@ -5692,6 +5764,35 @@ export type ChatHelpersListOut = {
       agentId: string;
       model?: string;
       startedAt: number;
+    }>;
+};
+export type ChatHistorySearchIn = {
+  q?: string;
+  ref?: string;
+  threadId?: string;
+  excludeThreadId?: string;
+  limit?: number;
+  minCoverage?: number;
+};
+export type ChatHistorySearchOut = {
+  hits: Array<{
+      source: "message" | "step";
+      ref: string;
+      messageId?: string;
+      threadId: string;
+      threadTitle?: string;
+      threadKind: string;
+      seq: number;
+      role: string;
+      author: {
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      };
+      text: string;
+      truncated?: boolean;
+      at: number;
+      link: string;
+      score: number;
     }>;
 };
 export type ChatMessageGetIn = {
@@ -6090,6 +6191,37 @@ export type ChatScreenGetOut = {
     focus?: string;
   } | null;
   messageId?: string;
+};
+export type ChatSearchIn = {
+  q: string;
+  mode?: "keyword" | "meaning" | "hybrid";
+  threadId?: string;
+  limit?: number;
+};
+export type ChatSearchOut = {
+  hits: Array<{
+      messageId: string;
+      threadId: string;
+      threadSeq: number;
+      author: {
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      };
+      snippet: string;
+      at: number;
+      score: number;
+      found: "keyword" | "meaning" | "both";
+      thread: {
+        kind: "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
+        title?: string;
+        channelName?: string;
+        agentIds: Array<string>;
+        memberIds: Array<string>;
+      };
+    }>;
+  meaning: boolean;
+  sealedChats: number;
+  tookMs: number;
 };
 export type ChatStartIn = {
   kind: "chat" | "ask";
@@ -8465,6 +8597,7 @@ export type EngineAccountResolveIn = {
   agentId: string;
   askerId?: string;
   stepKey?: string;
+  unavailable?: Array<string>;
 };
 export type EngineAccountResolveOut = {
   accountRef: string | null;
@@ -11066,7 +11199,7 @@ export type FormsUpdateOut = {
 export type GateActsListIn = Record<string, unknown>;
 export type GateActsListOut = {
   acts: Array<{
-      key: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+      key: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
       title: string;
       risk: "low" | "medium" | "high";
       humanToo: boolean;
@@ -11087,7 +11220,7 @@ export type GateEffectiveRuleIn = {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
   };
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
   adminOnly?: boolean;
 };
 export type GateEffectiveRuleOut = {
@@ -11117,7 +11250,7 @@ export type GateHoldsGetIn = {
 export type GateHoldsGetOut = {
   hold: {
     id: string;
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
     capName: string;
     taskId: string;
     runId?: string;
@@ -11134,7 +11267,7 @@ export type GateHoldsGetOut = {
 };
 export type GateHoldsListIn = {
   states?: Array<"held" | "approved" | "denied" | "expired">;
-  act?: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act?: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
   runId?: string;
   cursor?: string;
   limit?: number;
@@ -11142,7 +11275,7 @@ export type GateHoldsListIn = {
 export type GateHoldsListOut = {
   holds: Array<{
       id: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
       capName: string;
       taskId: string;
       runId?: string;
@@ -11164,7 +11297,7 @@ export type GateParkIn = {
   capVersion: number;
   input: unknown;
   payloadHash: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
   principal: {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
@@ -11201,7 +11334,7 @@ export type GateRulesListIn = {
 };
 export type GateRulesListOut = {
   rules: Array<{
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
       mode: "hold" | "allow";
       approvers: string;
       peopleOnly: boolean;
@@ -11215,7 +11348,7 @@ export type GateRulesListOut = {
     }>;
 };
 export type GateRulesSetIn = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   mode: "hold" | "allow";
@@ -11227,7 +11360,7 @@ export type GateRulesSetIn = {
 };
 export type GateRulesSetOut = {
   rule: {
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
     mode: "hold" | "allow";
     approvers: string;
     peopleOnly: boolean;
@@ -16679,6 +16812,39 @@ export type MembersSecondFactorReportOut = {
   next?: string;
   total?: number;
 };
+export type MembersSignInGithubClearIn = Record<string, unknown>;
+export type MembersSignInGithubClearOut = {
+  github: {
+    clientId?: string;
+    secretSet: boolean;
+    source: "env" | "space" | "none";
+    callbackUrl: string;
+    createUrl: string;
+  };
+};
+export type MembersSignInGithubGetIn = Record<string, unknown>;
+export type MembersSignInGithubGetOut = {
+  github: {
+    clientId?: string;
+    secretSet: boolean;
+    source: "env" | "space" | "none";
+    callbackUrl: string;
+    createUrl: string;
+  };
+};
+export type MembersSignInGithubSetIn = {
+  clientId: string;
+  clientSecret?: string;
+};
+export type MembersSignInGithubSetOut = {
+  github: {
+    clientId?: string;
+    secretSet: boolean;
+    source: "env" | "space" | "none";
+    callbackUrl: string;
+    createUrl: string;
+  };
+};
 export type MembersSignInPolicyGetIn = Record<string, unknown>;
 export type MembersSignInPolicyGetOut = {
   policy: {
@@ -17166,6 +17332,12 @@ export type MemoryFindBySubjectOut = {
   next?: string;
   total?: number;
 };
+export type MemoryForgetIn = {
+  factIds: Array<string>;
+};
+export type MemoryForgetOut = {
+  removed: number;
+};
 export type MemoryGraphIn = {
   scope: "agent" | "space";
   agentId?: string;
@@ -17260,6 +17432,58 @@ export type MemoryIndexGraphIn = {
 export type MemoryIndexGraphOut = {
   nodes: number;
   edges: number;
+};
+export type MemoryKeyResolveIn = {
+  layer: "person" | "agent" | "project" | "space";
+  ownerRef: string;
+  agentId?: string;
+  projectId?: string;
+};
+export type MemoryKeyResolveOut = {
+  reason?: "no_key" | "key_unavailable";
+  key?: {
+    accountRef: string;
+    provider?: string;
+    kind?: string;
+    source: "agent" | "project" | "space" | "person";
+    model?: string;
+  };
+};
+export type MemoryKeySetIn = {
+  layer: "space" | "project" | "person";
+  projectId?: string;
+  accountRef: string | null;
+};
+export type MemoryKeySetOut = {
+  layer: "space" | "project" | "person";
+  accountRef: string | null;
+};
+export type MemoryKeysGetIn = Record<string, unknown>;
+export type MemoryKeysGetOut = {
+  personal: {
+    accountRef: string | null;
+    choices: Array<{
+        ref: string;
+        title: string;
+        provider: string;
+        kind: "subscription" | "api_key" | "local_model";
+        mine: boolean;
+        state: string;
+      }>;
+  };
+  admin: boolean;
+  space?: {
+    accountRef: string | null;
+    choices: Array<{
+        ref: string;
+        title: string;
+        provider: string;
+        kind: "subscription" | "api_key" | "local_model";
+        mine: boolean;
+        state: string;
+      }>;
+  };
+  projectKeys?: Record<string, string>;
 };
 export type MemoryLayersListIn = {
   agentId?: string;
@@ -17679,6 +17903,7 @@ export type MemoryPointerOut = {
       trueSince?: number;
       path: string;
       sourceLink?: string;
+      ref?: string;
     }>;
   tokens: number;
   skipped?: "short_ack" | "mid_tool_loop" | "no_match" | "duplicate";
@@ -17844,6 +18069,33 @@ export type MemoryQuestionsListOut = {
   next?: string;
   total?: number;
 };
+export type MemoryQuoteIn = {
+  q?: string;
+  ref?: string;
+  threadId?: string;
+  excludeThreadId?: string;
+  limit?: number;
+  minCoverage?: number;
+};
+export type MemoryQuoteOut = {
+  quotes: Array<{
+      ref: string;
+      source: "message" | "step";
+      text: string;
+      truncated?: boolean;
+      author: {
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+        name?: string;
+      };
+      role: string;
+      at: number;
+      threadId: string;
+      threadTitle?: string;
+      link: string;
+      score: number;
+    }>;
+};
 export type MemoryReadNoteIn = {
   noteId: string;
 };
@@ -17857,6 +18109,59 @@ export type MemoryReadNoteOut = {
     updatedAt: number;
   };
   markdown: string;
+};
+export type MemoryRecallRecordIn = {
+  threadId: string;
+  messageId: string;
+  agentId?: string;
+  lines: Array<{
+      kind: "fact" | "quote";
+      ref: string;
+    }>;
+};
+export type MemoryRecallRecordOut = {
+  recorded: number;
+};
+export type MemoryRememberIn = {
+  text: string;
+  layer?: "person" | "agent" | "project" | "space";
+  agentId?: string;
+  projectId?: string;
+  kind?: string;
+  threadId?: string;
+  sourceRef?: string;
+};
+export type MemoryRememberOut = {
+  fact: {
+    factId: string;
+    layer: "person" | "agent" | "project" | "space";
+    ownerRef: string;
+    agentId?: string;
+    noteId?: string;
+    text: string;
+    validFrom: number;
+    validTo?: number;
+    learnedAt: number;
+    closedAt?: number;
+    sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+    sourceRef: string;
+    sourceLink?: string;
+    status: "proposed" | "current" | "closed" | "removed";
+    lowRisk?: boolean;
+    trashedAt?: number;
+    trashReason?: string;
+    archivedAt?: number;
+    subject?: {
+      pageId: string;
+      title: string;
+      kind: string;
+    };
+    sourceTitle?: string;
+    by?: string;
+    byKind?: "person" | "agent" | "upkeep" | "system";
+    versions?: number;
+  };
+  merged: boolean;
 };
 export type MemoryRestoreIn = {
   factId?: string;
@@ -18128,6 +18433,60 @@ export type MemoryUpkeepStatusOut = {
     tokensIn: number;
     tokensOut: number;
   };
+};
+export type MemoryUsedIn = {
+  threadId: string;
+  messageId: string;
+};
+export type MemoryUsedOut = {
+  messageId: string;
+  at?: number;
+  facts: Array<{
+      factId: string;
+      layer: "person" | "agent" | "project" | "space";
+      ownerRef: string;
+      agentId?: string;
+      noteId?: string;
+      text: string;
+      validFrom: number;
+      validTo?: number;
+      learnedAt: number;
+      closedAt?: number;
+      sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+      sourceRef: string;
+      sourceLink?: string;
+      status: "proposed" | "current" | "closed" | "removed";
+      lowRisk?: boolean;
+      trashedAt?: number;
+      trashReason?: string;
+      archivedAt?: number;
+      subject?: {
+        pageId: string;
+        title: string;
+        kind: string;
+      };
+      sourceTitle?: string;
+      by?: string;
+      byKind?: "person" | "agent" | "upkeep" | "system";
+      versions?: number;
+    }>;
+  quotes: Array<{
+      ref: string;
+      source: "message" | "step";
+      text: string;
+      truncated?: boolean;
+      author: {
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+        name?: string;
+      };
+      role: string;
+      at: number;
+      threadId: string;
+      threadTitle?: string;
+      link: string;
+      score: number;
+    }>;
 };
 export type MemoryVersionsIn = {
   noteId: string;
@@ -29526,6 +29885,7 @@ export interface CapMap {
   "agents.guide.get": { in: AgentsGuideGetIn; out: AgentsGuideGetOut };
   "agents.limits.get": { in: AgentsLimitsGetIn; out: AgentsLimitsGetOut };
   "agents.list": { in: AgentsListIn; out: AgentsListOut };
+  "agents.memory_key.get": { in: AgentsMemoryKeyGetIn; out: AgentsMemoryKeyGetOut };
   "agents.pause": { in: AgentsPauseIn; out: AgentsPauseOut };
   "agents.restore": { in: AgentsRestoreIn; out: AgentsRestoreOut };
   "agents.restore_version": { in: AgentsRestoreVersionIn; out: AgentsRestoreVersionOut };
@@ -29705,9 +30065,11 @@ export interface CapMap {
   "chat.composer.suggest": { in: ChatComposerSuggestIn; out: ChatComposerSuggestOut };
   "chat.delete_message": { in: ChatDeleteMessageIn; out: ChatDeleteMessageOut };
   "chat.edit": { in: ChatEditIn; out: ChatEditOut };
+  "chat.fork": { in: ChatForkIn; out: ChatForkOut };
   "chat.handoff": { in: ChatHandoffIn; out: ChatHandoffOut };
   "chat.helper.start": { in: ChatHelperStartIn; out: ChatHelperStartOut };
   "chat.helpers.list": { in: ChatHelpersListIn; out: ChatHelpersListOut };
+  "chat.history.search": { in: ChatHistorySearchIn; out: ChatHistorySearchOut };
   "chat.message.get": { in: ChatMessageGetIn; out: ChatMessageGetOut };
   "chat.messages.list": { in: ChatMessagesListIn; out: ChatMessagesListOut };
   "chat.open_as_chat": { in: ChatOpenAsChatIn; out: ChatOpenAsChatOut };
@@ -29722,6 +30084,7 @@ export interface CapMap {
   "chat.react": { in: ChatReactIn; out: ChatReactOut };
   "chat.recent": { in: ChatRecentIn; out: ChatRecentOut };
   "chat.screen.get": { in: ChatScreenGetIn; out: ChatScreenGetOut };
+  "chat.search": { in: ChatSearchIn; out: ChatSearchOut };
   "chat.start": { in: ChatStartIn; out: ChatStartOut };
   "chat.thread": { in: ChatThreadIn; out: ChatThreadOut };
   "chat.transcript.append": { in: ChatTranscriptAppendIn; out: ChatTranscriptAppendOut };
@@ -30407,6 +30770,9 @@ export interface CapMap {
   "members.remove": { in: MembersRemoveIn; out: MembersRemoveOut };
   "members.remove_preview": { in: MembersRemovePreviewIn; out: MembersRemovePreviewOut };
   "members.second_factor.report": { in: MembersSecondFactorReportIn; out: MembersSecondFactorReportOut };
+  "members.sign_in_github.clear": { in: MembersSignInGithubClearIn; out: MembersSignInGithubClearOut };
+  "members.sign_in_github.get": { in: MembersSignInGithubGetIn; out: MembersSignInGithubGetOut };
+  "members.sign_in_github.set": { in: MembersSignInGithubSetIn; out: MembersSignInGithubSetOut };
   "members.sign_in_policy.get": { in: MembersSignInPolicyGetIn; out: MembersSignInPolicyGetOut };
   "members.sign_in_policy.set": { in: MembersSignInPolicySetIn; out: MembersSignInPolicySetOut };
   "members.sso.list": { in: MembersSsoListIn; out: MembersSsoListOut };
@@ -30428,10 +30794,14 @@ export interface CapMap {
   "memory.facts.remove": { in: MemoryFactsRemoveIn; out: MemoryFactsRemoveOut };
   "memory.facts_as_of": { in: MemoryFactsAsOfIn; out: MemoryFactsAsOfOut };
   "memory.find_by_subject": { in: MemoryFindBySubjectIn; out: MemoryFindBySubjectOut };
+  "memory.forget": { in: MemoryForgetIn; out: MemoryForgetOut };
   "memory.graph": { in: MemoryGraphIn; out: MemoryGraphOut };
   "memory.graph_everything": { in: MemoryGraphEverythingIn; out: MemoryGraphEverythingOut };
   "memory.graph_export": { in: MemoryGraphExportIn; out: MemoryGraphExportOut };
   "memory.index_graph": { in: MemoryIndexGraphIn; out: MemoryIndexGraphOut };
+  "memory.key.resolve": { in: MemoryKeyResolveIn; out: MemoryKeyResolveOut };
+  "memory.key.set": { in: MemoryKeySetIn; out: MemoryKeySetOut };
+  "memory.keys.get": { in: MemoryKeysGetIn; out: MemoryKeysGetOut };
   "memory.layers.list": { in: MemoryLayersListIn; out: MemoryLayersListOut };
   "memory.layout.get": { in: MemoryLayoutGetIn; out: MemoryLayoutGetOut };
   "memory.layout.save": { in: MemoryLayoutSaveIn; out: MemoryLayoutSaveOut };
@@ -30457,7 +30827,10 @@ export interface CapMap {
   "memory.propose_fact": { in: MemoryProposeFactIn; out: MemoryProposeFactOut };
   "memory.question.resolve": { in: MemoryQuestionResolveIn; out: MemoryQuestionResolveOut };
   "memory.questions.list": { in: MemoryQuestionsListIn; out: MemoryQuestionsListOut };
+  "memory.quote": { in: MemoryQuoteIn; out: MemoryQuoteOut };
   "memory.read_note": { in: MemoryReadNoteIn; out: MemoryReadNoteOut };
+  "memory.recall.record": { in: MemoryRecallRecordIn; out: MemoryRecallRecordOut };
+  "memory.remember": { in: MemoryRememberIn; out: MemoryRememberOut };
   "memory.restore": { in: MemoryRestoreIn; out: MemoryRestoreOut };
   "memory.restore_version": { in: MemoryRestoreVersionIn; out: MemoryRestoreVersionOut };
   "memory.search": { in: MemorySearchIn; out: MemorySearchOut };
@@ -30465,6 +30838,7 @@ export interface CapMap {
   "memory.trash.search": { in: MemoryTrashSearchIn; out: MemoryTrashSearchOut };
   "memory.undo": { in: MemoryUndoIn; out: MemoryUndoOut };
   "memory.upkeep.status": { in: MemoryUpkeepStatusIn; out: MemoryUpkeepStatusOut };
+  "memory.used": { in: MemoryUsedIn; out: MemoryUsedOut };
   "memory.versions": { in: MemoryVersionsIn; out: MemoryVersionsOut };
   "mounts.add": { in: MountsAddIn; out: MountsAddOut };
   "mounts.browse": { in: MountsBrowseIn; out: MountsBrowseOut };
@@ -32165,14 +32539,14 @@ export type FormSubmittedPayload = {
 };
 export type GateApprovedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
   taskId: string;
   by: string;
   forPerson?: string;
 };
 export type GateDeniedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
   taskId: string;
   by: string;
   mode: "send_back" | "drop";
@@ -32180,14 +32554,14 @@ export type GateDeniedPayload = {
 };
 export type GateExpiredPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
   taskId: string;
   outcome: "dropped" | "escalated";
   escalatedTo?: string;
 };
 export type GateRequestedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
   capName: string;
   taskId: string;
   principal: {
@@ -32199,7 +32573,7 @@ export type GateRequestedPayload = {
   expiresAt: number;
 };
 export type GateRuleChangedPayload = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   by: string;

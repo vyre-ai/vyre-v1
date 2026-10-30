@@ -19,10 +19,14 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "memory.facts.remove": Handler<"memory.facts.remove", X>;
   "memory.facts_as_of": Handler<"memory.facts_as_of", X>;
   "memory.find_by_subject": Handler<"memory.find_by_subject", X>;
+  "memory.forget": Handler<"memory.forget", X>;
   "memory.graph": Handler<"memory.graph", X>;
   "memory.graph_everything": Handler<"memory.graph_everything", X>;
   "memory.graph_export": Handler<"memory.graph_export", X>;
   "memory.index_graph": Handler<"memory.index_graph", X>;
+  "memory.key.resolve": Handler<"memory.key.resolve", X>;
+  "memory.key.set": Handler<"memory.key.set", X>;
+  "memory.keys.get": Handler<"memory.keys.get", X>;
   "memory.layers.list": Handler<"memory.layers.list", X>;
   "memory.layout.get": Handler<"memory.layout.get", X>;
   "memory.layout.save": Handler<"memory.layout.save", X>;
@@ -48,7 +52,10 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "memory.propose_fact": Handler<"memory.propose_fact", X>;
   "memory.question.resolve": Handler<"memory.question.resolve", X>;
   "memory.questions.list": Handler<"memory.questions.list", X>;
+  "memory.quote": Handler<"memory.quote", X>;
   "memory.read_note": Handler<"memory.read_note", X>;
+  "memory.recall.record": Handler<"memory.recall.record", X>;
+  "memory.remember": Handler<"memory.remember", X>;
   "memory.restore": Handler<"memory.restore", X>;
   "memory.restore_version": Handler<"memory.restore_version", X>;
   "memory.search": Handler<"memory.search", X>;
@@ -56,5 +63,6 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "memory.trash.search": Handler<"memory.trash.search", X>;
   "memory.undo": Handler<"memory.undo", X>;
   "memory.upkeep.status": Handler<"memory.upkeep.status", X>;
+  "memory.used": Handler<"memory.used", X>;
   "memory.versions": Handler<"memory.versions", X>;
 }

@@ -1389,6 +1389,25 @@ const routes0: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/agents/memory_key/get",
+    "cap": "agents.memory_key.get",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "agent",
+      "id": "/agentId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/agents/pause",
     "cap": "agents.pause",
     "v": 1,
@@ -4670,6 +4689,24 @@ const routes0: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/chat/fork",
+    "cap": "chat.fork",
+    "v": 1,
+    "module": "chat",
+    "effects": "write",
+    "permission": "chats.private",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/chat/handoff",
     "cap": "chat.handoff",
     "v": 1,
@@ -4718,6 +4755,24 @@ const routes0: Route[] = [
     "resource": {
       "type": "thread",
       "id": "/threadId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/chat/history/search",
+    "cap": "chat.history.search",
+    "v": 1,
+    "module": "chat",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -4983,6 +5038,24 @@ const routes0: Route[] = [
     "resource": {
       "type": "thread",
       "id": "/threadId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/chat/search",
+    "cap": "chat.search",
+    "v": 1,
+    "module": "chat",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -5499,7 +5572,10 @@ const routes0: Route[] = [
     "offline": "online",
     "teamOnly": true,
     "gate": null
-  },
+  }
+];
+
+const routes1: Route[] = [
   {
     "method": "POST",
     "path": "/v1/computers/chrome/status",
@@ -5800,10 +5876,7 @@ const routes0: Route[] = [
     "offline": null,
     "teamOnly": true,
     "gate": null
-  }
-];
-
-const routes1: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/computers/record_start",
@@ -11043,7 +11116,10 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes2: Route[] = [
   {
     "method": "POST",
     "path": "/v1/forms/link_create",
@@ -11413,10 +11489,7 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes2: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/git/commit",
@@ -16574,7 +16647,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/mail/route/set",
@@ -17047,10 +17123,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/mcp/token/log_reveal",
@@ -18017,6 +18090,24 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/memory/forget",
+    "cap": "memory.forget",
+    "v": 1,
+    "module": "memory",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/memory/graph",
     "cap": "memory.graph",
     "v": 1,
@@ -18078,6 +18169,60 @@ const routes3: Route[] = [
     "effects": "write",
     "permission": null,
     "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/key/resolve",
+    "cap": "memory.key.resolve",
+    "v": 1,
+    "module": "memory",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/key/set",
+    "cap": "memory.key.set",
+    "v": 1,
+    "module": "memory",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/keys/get",
+    "cap": "memory.keys.get",
+    "v": 1,
+    "module": "memory",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
     "resource": {
       "type": "space"
     },
@@ -18539,6 +18684,24 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/memory/quote",
+    "cap": "memory.quote",
+    "v": 1,
+    "module": "memory",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/memory/read_note",
     "cap": "memory.read_note",
     "v": 1,
@@ -18552,6 +18715,42 @@ const routes3: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/recall/record",
+    "cap": "memory.recall.record",
+    "v": 1,
+    "module": "memory",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/remember",
+    "cap": "memory.remember",
+    "v": 1,
+    "module": "memory",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -18674,6 +18873,24 @@ const routes3: Route[] = [
     "effects": "read",
     "permission": "memory.admin",
     "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/used",
+    "cap": "memory.used",
+    "v": 1,
+    "module": "memory",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
     "resource": {
       "type": "space"
     },
@@ -21927,7 +22144,10 @@ const routes3: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/providers/subscription_start",
@@ -23079,10 +23299,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/runs/get",
@@ -27453,7 +27670,10 @@ const routes4: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/telephony/ingest_recording",
@@ -28688,10 +28908,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "none"
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/twilio/health",

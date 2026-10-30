@@ -31,6 +31,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.composer.suggest": Handler<"chat.composer.suggest", X>;
   "chat.delete_message": Handler<"chat.delete_message", X>;
   "chat.edit": Handler<"chat.edit", X>;
+  "chat.fork": Handler<"chat.fork", X>;
   "chat.handoff": Handler<"chat.handoff", X>;
   "chat.helper.start": Handler<"chat.helper.start", X>;
   "chat.helpers.list": Handler<"chat.helpers.list", X>;
@@ -49,6 +50,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.react": Handler<"chat.react", X>;
   "chat.recent": Handler<"chat.recent", X>;
   "chat.screen.get": Handler<"chat.screen.get", X>;
+  "chat.search": Handler<"chat.search", X>;
   "chat.start": Handler<"chat.start", X>;
   "chat.thread": Handler<"chat.thread", X>;
   "chat.transcript.append": Handler<"chat.transcript.append", X>;

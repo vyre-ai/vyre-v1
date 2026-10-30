@@ -1340,6 +1340,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_fork",
+      "summary": "Branch a chat at one message: a new private chat that holds a copy of everything up to there, with the same agents and a line that links back",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_helpers_list",
       "summary": "Helpers running under a chat, with status",
       "toolset": "chats"
@@ -1408,6 +1414,12 @@
       "deferred": false,
       "name": "chat_screen_get",
       "summary": "The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_search",
+      "summary": "Search the messages of every chat and channel you are in, by the words and by meaning; each hit names its message so a screen can jump to it",
       "toolset": "chats"
     },
     {
@@ -4694,6 +4706,12 @@
     },
     {
       "deferred": false,
+      "name": "memory_forget",
+      "summary": "Forget facts by id: they stop being recalled and stay in history",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_graph",
       "summary": "The memory graph for an agent or the Space, built per viewer through access checks; agent, project and Space layers only",
       "toolset": "memory"
@@ -4708,6 +4726,18 @@
       "deferred": false,
       "name": "memory_graph_export",
       "summary": "Export a graph as a file; personal layers are never included",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_key_set",
+      "summary": "Pick the account that pays for memory upkeep: yours for personal memory, or (admins) the Space's or a project's; null clears it and upkeep stays rule-based",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_keys_get",
+      "summary": "The account that pays for memory upkeep: yours for personal memory, and for an admin the Space's with the accounts it can be picked from and the keys picked for projects",
       "toolset": "memory"
     },
     {
@@ -4838,6 +4868,18 @@
     },
     {
       "deferred": false,
+      "name": "memory_quote",
+      "summary": "Exact words of a chat message or run step, word for word, with author, time and a link that opens the chat at that line; only chats, channels and runs the asker could open themselves",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_remember",
+      "summary": "Remember something, with where it came from; in your own layer it is current at once, a shared layer follows its review rule",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_restore",
       "summary": "Restore a fact from Trash, or from Archive for an admin; open to any person or agent who can see the fact",
       "toolset": "memory"
@@ -4876,6 +4918,12 @@
       "deferred": false,
       "name": "memory_upkeep_status",
       "summary": "Upkeep spend: this month against the monthly cap, and the recent runs with what each did and cost",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_used",
+      "summary": "What recall put in front of the agent for one message: the facts and the exact quotes, each read again now under your access (a fact since deleted, or a chat closed to you, is not shown); for the \"Used N memories\" line and \"Show what the agent knew here\"",
       "toolset": "memory"
     },
     {

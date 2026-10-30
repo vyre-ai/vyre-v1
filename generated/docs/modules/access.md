@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: files.
 
-## Capabilities (59)
+## Capabilities (60)
 
 - [access.actors.create](../capabilities/access.actors.create.md): Register an outside actor and issue a one-time token (works once, within 10 minutes)
 - [access.actors.list](../capabilities/access.actors.list.md): List outside actors (registered external tools such as Claude Code or Codex)

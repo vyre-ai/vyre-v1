@@ -105,6 +105,9 @@ export function createClient(transport: Transport) {
         get: call("agents.limits.get", 1),
       },
       list: call("agents.list", 1),
+      memory_key: {
+        get: call("agents.memory_key.get", 1),
+      },
       pause: call("agents.pause", 1),
       restore: call("agents.restore", 1),
       restore_version: call("agents.restore_version", 1),
@@ -352,12 +355,16 @@ export function createClient(transport: Transport) {
       },
       delete_message: call("chat.delete_message", 1),
       edit: call("chat.edit", 1),
+      fork: call("chat.fork", 1),
       handoff: call("chat.handoff", 1),
       helper: {
         start: call("chat.helper.start", 1),
       },
       helpers: {
         list: call("chat.helpers.list", 1),
+      },
+      history: {
+        search: call("chat.history.search", 1),
       },
       message: {
         get: call("chat.message.get", 1),
@@ -385,6 +392,7 @@ export function createClient(transport: Transport) {
       screen: {
         get: call("chat.screen.get", 1),
       },
+      search: call("chat.search", 1),
       start: call("chat.start", 1),
       thread: call("chat.thread", 1),
       transcript: {
@@ -1366,10 +1374,18 @@ export function createClient(transport: Transport) {
       },
       facts_as_of: call("memory.facts_as_of", 1),
       find_by_subject: call("memory.find_by_subject", 1),
+      forget: call("memory.forget", 1),
       graph: call("memory.graph", 1),
       graph_everything: call("memory.graph_everything", 1),
       graph_export: call("memory.graph_export", 1),
       index_graph: call("memory.index_graph", 1),
+      key: {
+        resolve: call("memory.key.resolve", 1),
+        set: call("memory.key.set", 1),
+      },
+      keys: {
+        get: call("memory.keys.get", 1),
+      },
       layers: {
         list: call("memory.layers.list", 1),
       },
@@ -1413,7 +1429,12 @@ export function createClient(transport: Transport) {
       questions: {
         list: call("memory.questions.list", 1),
       },
+      quote: call("memory.quote", 1),
       read_note: call("memory.read_note", 1),
+      recall: {
+        record: call("memory.recall.record", 1),
+      },
+      remember: call("memory.remember", 1),
       restore: call("memory.restore", 1),
       restore_version: call("memory.restore_version", 1),
       search: call("memory.search", 1),
@@ -1425,6 +1446,7 @@ export function createClient(transport: Transport) {
       upkeep: {
         status: call("memory.upkeep.status", 1),
       },
+      used: call("memory.used", 1),
       versions: call("memory.versions", 1),
     },
     mounts: {

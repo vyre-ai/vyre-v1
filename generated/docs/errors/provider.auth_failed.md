@@ -31,4 +31,3 @@ HTTP 502. Retryable: no.
 - mounts.add
 - mounts.browse
 - ms.consent.setup
-- ms.consent.verify

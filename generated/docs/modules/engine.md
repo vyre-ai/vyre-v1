@@ -4,10 +4,11 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (54)
+## Capabilities (59)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status
+- [engine.complete](../capabilities/engine.complete.md): One request and one answer on an account the caller can run on, for work that is not a chat (memory upkeep); returns the text and the token counts and posts nothing
 - [engine.defaults.get](../capabilities/engine.defaults.get.md): The caller default model, provider, effort and fallback order in this Space
 - [engine.defaults.set](../capabilities/engine.defaults.set.md): Set the caller default model, provider, effort and fallback order (the chat default)
 - [engine.health](../capabilities/engine.health.md): Engine health: queue age, lease holders, provider reachability
@@ -21,6 +22,9 @@ Requires: nothing.
 - [engine.lease.acquire](../capabilities/engine.lease.acquire.md): Take the lease on a thread (compare and set; heartbeat every 5 s, expires after 20 s)
 - [engine.lease.heartbeat](../capabilities/engine.lease.heartbeat.md): Extend the lease on a thread
 - [engine.lease.release](../capabilities/engine.lease.release.md): Release the lease on a thread
+- [engine.mcp.call](../capabilities/engine.mcp.call.md): Call an outside MCP tool that may change things; an agent's call goes through the Gate
+- [engine.mcp.read](../capabilities/engine.mcp.read.md): Call an outside MCP tool that only reads (the server says so); runs in the sandbox or at the remote server
+- [engine.mcp.tools](../capabilities/engine.mcp.tools.md): The MCP servers a chat with this agent connects to and the tools each offers (starts the server in the sandbox if it is not running)
 - [engine.models.list](../capabilities/engine.models.list.md): Models the account can reach; models that the open labels or policy forbid are listed greyed with the reason
 - [engine.placement.decide](../capabilities/engine.placement.decide.md): Decide where a turn runs: host or the asker device (private chat rules, computers, routines, phone and web askers)
 - [engine.policy.get](../capabilities/engine.policy.get.md): AI policies: allowed accounts, allowed models and providers, and which providers each label may reach
@@ -43,6 +47,7 @@ Requires: nothing.
 - [engine.spend.pause_all](../capabilities/engine.spend.pause_all.md): Pause all AI spend in the Space
 - [engine.spend.raise](../capabilities/engine.spend.raise.md): Raise a limit once or for good (the Needs you card "Raise once or Stop"); an agent asking passes the Gate
 - [engine.spend.resume_all](../capabilities/engine.spend.resume_all.md): Resume AI spend after a pause
+- [engine.step_turn](../capabilities/engine.step_turn.md): Run one AI turn for an automation step: on the owner's own account (Personal) or a Space-shared key (Space), optionally as an agent, with no tools. A repeat of the same key returns the first answer.
 - [engine.stop](../capabilities/engine.stop.md): Stop one agent working in a thread (per-agent Stop)
 - [engine.stop_all](../capabilities/engine.stop_all.md): Stop every agent working in a thread (Stop all in the conversation header)
 - [engine.subscription_share.set](../capabilities/engine.subscription_share.set.md): Let the Space run work on my subscription (server runs for my chats, routines and personal automations); off kills my sandbox

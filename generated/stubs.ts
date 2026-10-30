@@ -105,6 +105,9 @@ export function stubs(ctx: CallCtx) {
         get: call("agents.limits.get"),
       },
       list: call("agents.list"),
+      memory_key: {
+        get: call("agents.memory_key.get"),
+      },
       pause: call("agents.pause"),
       restore: call("agents.restore"),
       restore_version: call("agents.restore_version"),
@@ -352,12 +355,16 @@ export function stubs(ctx: CallCtx) {
       },
       delete_message: call("chat.delete_message"),
       edit: call("chat.edit"),
+      fork: call("chat.fork"),
       handoff: call("chat.handoff"),
       helper: {
         start: call("chat.helper.start"),
       },
       helpers: {
         list: call("chat.helpers.list"),
+      },
+      history: {
+        search: call("chat.history.search"),
       },
       message: {
         get: call("chat.message.get"),
@@ -385,6 +392,7 @@ export function stubs(ctx: CallCtx) {
       screen: {
         get: call("chat.screen.get"),
       },
+      search: call("chat.search"),
       start: call("chat.start"),
       thread: call("chat.thread"),
       transcript: {
@@ -1366,10 +1374,18 @@ export function stubs(ctx: CallCtx) {
       },
       facts_as_of: call("memory.facts_as_of"),
       find_by_subject: call("memory.find_by_subject"),
+      forget: call("memory.forget"),
       graph: call("memory.graph"),
       graph_everything: call("memory.graph_everything"),
       graph_export: call("memory.graph_export"),
       index_graph: call("memory.index_graph"),
+      key: {
+        resolve: call("memory.key.resolve"),
+        set: call("memory.key.set"),
+      },
+      keys: {
+        get: call("memory.keys.get"),
+      },
       layers: {
         list: call("memory.layers.list"),
       },
@@ -1413,7 +1429,12 @@ export function stubs(ctx: CallCtx) {
       questions: {
         list: call("memory.questions.list"),
       },
+      quote: call("memory.quote"),
       read_note: call("memory.read_note"),
+      recall: {
+        record: call("memory.recall.record"),
+      },
+      remember: call("memory.remember"),
       restore: call("memory.restore"),
       restore_version: call("memory.restore_version"),
       search: call("memory.search"),
@@ -1425,6 +1446,7 @@ export function stubs(ctx: CallCtx) {
       upkeep: {
         status: call("memory.upkeep.status"),
       },
+      used: call("memory.used"),
       versions: call("memory.versions"),
     },
     mounts: {

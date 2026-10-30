@@ -9936,6 +9936,50 @@
     },
     {
       "blocks": [],
+      "cap": "chat.fork",
+      "deferred": false,
+      "description": "Branch a chat at one message: a new private chat that holds a copy of everything up to there, with the same agents and a line that links back",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_fork",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.helpers.list",
       "deferred": false,
       "description": "Helpers running under a chat, with status",
@@ -10524,6 +10568,48 @@
         "type": "object"
       },
       "name": "chat_screen_get",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.search",
+      "deferred": false,
+      "description": "Search the messages of every chat and channel you are in, by the words and by meaning; each hit names its message so a screen can jump to it",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "mode": {
+            "enum": [
+              "keyword",
+              "meaning",
+              "hybrid"
+            ],
+            "type": "string"
+          },
+          "q": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "q"
+        ],
+        "type": "object"
+      },
+      "name": "chat_search",
       "planMode": "allowed",
       "toolset": "chats",
       "v": 1
@@ -31429,6 +31515,36 @@
     },
     {
       "blocks": [],
+      "cap": "memory.forget",
+      "deferred": false,
+      "description": "Forget facts by id: they stop being recalled and stay in history",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "factIds": {
+            "items": {
+              "examples": [
+                "fct_a1b2c3"
+              ],
+              "pattern": "^fct_[a-z0-9]+$",
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "factIds"
+        ],
+        "type": "object"
+      },
+      "name": "memory_forget",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.graph",
       "deferred": false,
       "description": "The memory graph for an agent or the Space, built per viewer through access checks; agent, project and Space layers only",
@@ -31588,6 +31704,66 @@
       },
       "name": "memory_graph_export",
       "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.key.set",
+      "deferred": false,
+      "description": "Pick the account that pays for memory upkeep: yours for personal memory, or (admins) the Space's or a project's; null clears it and upkeep stays rule-based",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "accountRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "layer": {
+            "enum": [
+              "space",
+              "project",
+              "person"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "layer",
+          "accountRef"
+        ],
+        "type": "object"
+      },
+      "name": "memory_key_set",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.keys.get",
+      "deferred": false,
+      "description": "The account that pays for memory upkeep: yours for personal memory, and for an admin the Space's with the accounts it can be picked from and the keys picked for projects",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "memory_keys_get",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -32479,6 +32655,117 @@
     },
     {
       "blocks": [],
+      "cap": "memory.quote",
+      "deferred": false,
+      "description": "Exact words of a chat message or run step, word for word, with author, time and a link that opens the chat at that line; only chats, channels and runs the asker could open themselves",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "excludeThreadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minCoverage": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "q": {
+            "type": "string"
+          },
+          "ref": {
+            "description": "A source id from a recalled quote: returns that line in full",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_quote",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "memory_saved"
+      ],
+      "cap": "memory.remember",
+      "deferred": false,
+      "description": "Remember something, with where it came from; in your own layer it is current at once, a shared layer follows its review rule",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "kind": {
+            "examples": [
+              "preference"
+            ],
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "sourceRef": {
+            "description": "The source id of what this came from, for example a quote ref",
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "name": "memory_remember",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.restore",
       "deferred": false,
       "description": "Restore a fact from Trash, or from Archive for an admin; open to any person or agent who can see the fact",
@@ -32746,6 +33033,40 @@
         "type": "object"
       },
       "name": "memory_upkeep_status",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.used",
+      "deferred": false,
+      "description": "What recall put in front of the agent for one message: the facts and the exact quotes, each read again now under your access (a fact since deleted, or a chat closed to you, is not shown); for the \"Used N memories\" line and \"Show what the agent knew here\"",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "messageId"
+        ],
+        "type": "object"
+      },
+      "name": "memory_used",
       "planMode": "allowed",
       "toolset": "memory",
       "v": 1

@@ -3,13 +3,13 @@
 // member is invited, joins on the web, gets their own assistant, sees only their own data and keeps their own progress. Every step is the same capability call the screen makes.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bootFreshSpace } from "../../apps/app/tests/real-app-harness.test.ts";
-import type { Space } from "../../apps/app/tests/real-app-harness.test.ts";
-import { copyAccount, copyableAccounts } from "../../apps/app/src/onboarding/same-account.ts";
-import { saveInterview } from "../../apps/app/src/onboarding/interview.ts";
-import { saveApiKey } from "../../apps/app/src/onboarding/connect-ai.ts";
-import { loadFlow, markStep } from "../../apps/app/src/onboarding/store.ts";
-import type { CapCall } from "../../apps/app/src/shell/session/caps.ts";
+import { bootFreshSpace } from "./real-app-harness.test.ts";
+import type { Space } from "./real-app-harness.test.ts";
+import { copyAccount, copyableAccounts } from "../src/onboarding/same-account.ts";
+import { saveInterview } from "../src/onboarding/interview.ts";
+import { saveApiKey } from "../src/onboarding/connect-ai.ts";
+import { loadFlow, markStep } from "../src/onboarding/store.ts";
+import type { CapCall } from "../src/shell/session/caps.ts";
 
 const KEYS = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] };
 const PASSWORD = "correct horse battery staple 9";

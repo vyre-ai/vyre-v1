@@ -313,6 +313,13 @@
     },
     {
       "rule": "layer",
+      "file": "host/tests/onboarding.assistant.live.test.ts",
+      "spec": "../../apps/app/src/onboarding/screen-context.ts",
+      "reason": "test-only: the live test must send the Assistant the exact screen description the onboarding screen builds, from the one shared function",
+      "until": "2027-01-31"
+    },
+    {
+      "rule": "layer",
       "file": "host/tests/recovery.challenge.live.test.ts",
       "spec": "../../client/src/crypto/keys.ts",
       "reason": "test-only interop proof: it must use the other side's real implementation to show both speak the same bytes; no production code crosses this edge",

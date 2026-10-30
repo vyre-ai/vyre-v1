@@ -31,4 +31,3 @@ HTTP 404. Retryable: no.
 - automations.alerts.get
 - automations.alerts.set
 - automations.delete
-- automations.fire
