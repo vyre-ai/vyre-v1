@@ -534,7 +534,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const keep = (kind: "filter" | "fields" | "colour") => (x: number, y: number): void => {
     const build = kind === "filter" ? filterEntries : kind === "fields" ? fieldEntries : colourEntries;
     const again = (e: MenuEntry): MenuEntry => ("onSelect" in e && e.onSelect ? { ...e, onSelect: () => { e.onSelect?.(); setReopen({ kind, x, y }); } } : e);
-    menu.show(build(v).map(again), x, y);
+    menu.show(build(v).map(again), x, y, "other");
   };
   // the menus that take several choices open again on the new view after each click
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -687,7 +687,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
             </Pressable>
           ) : <Text accessibilityRole="header" aria-level={1} style={styles.h1} numberOfLines={1}>{def.plural}</Text>}
           {slim ? null : <Text style={styles.slash}>/</Text>}
-          <Pressable accessibilityRole="button" accessibilityLabel="Saved views" testID="records-views" onPress={(e) => { const p = pointOf(e); menu.show(viewEntries(), p.x, p.y); }}
+          <Pressable accessibilityRole="button" accessibilityLabel="Saved views" testID="records-views" onPress={(e) => { const p = pointOf(e); menu.show(viewEntries(), p.x, p.y, "other"); }}
             style={({ hovered }: { hovered?: boolean }) => [styles.pick, hovered === true && styles.pickOver]}>
             <Text style={styles.pickText} numberOfLines={1}>{saved ? saved.title : `All ${def.plural.toLowerCase()}`}</Text>
             {edited ? <Text style={styles.dirty}>{"·"}</Text> : null}
@@ -709,8 +709,8 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
           />
         ) : <HeadButton icon="find" label="Find" bare testID="records-find-btn" onPress={() => setFinding(true)} />}
         <HeadButton icon="filter" label="Filter" detail={v.clauses.length ? String(v.clauses.length) : undefined} on={lit(v.clauses.length > 0)} bare={tight} testID="records-filter" onPress={keep("filter")} />
-        <HeadButton icon="sort" label="Sort" detail={sortKey ? def.fields.find((f) => f.key === sortKey.field)?.title : undefined} on={lit(sortKey !== undefined)} bare={tight} testID="records-sort" onPress={(x, y) => menu.show(sortEntries(), x, y)} />
-        <HeadButton icon="group" label="Group" detail={groupField?.title} on={lit(groupField !== undefined)} bare={tight} testID="records-group" onPress={(x, y) => menu.show(groupEntries(), x, y)} />
+        <HeadButton icon="sort" label="Sort" detail={sortKey ? def.fields.find((f) => f.key === sortKey.field)?.title : undefined} on={lit(sortKey !== undefined)} bare={tight} testID="records-sort" onPress={(x, y) => menu.show(sortEntries(), x, y, "other")} />
+        <HeadButton icon="group" label="Group" detail={groupField?.title} on={lit(groupField !== undefined)} bare={tight} testID="records-group" onPress={(x, y) => menu.show(groupEntries(), x, y, "other")} />
         <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={tight} testID="records-fields" onPress={keep("fields")} />
         <HeadButton icon="colour" label="Colour" detail={colourField?.title} on={lit(colourField !== undefined)} bare={tight} testID="records-colour" onPress={keep("colour")} />
         {headerExtra}

@@ -94,7 +94,7 @@ export function KindSwitch({ ctx }: { ctx: ViewCtx }): ReactElement {
     <>
       <Pressable
         accessibilityRole="button" accessibilityLabel={`View as, ${label}`} testID="records-kind"
-        onPress={(e) => { const p = anchorOf(e); menu.show(kindEntries(ctx), p.x, p.y); }} style={({ hovered }: { hovered?: boolean }) => [s.kind, hovered === true && s.pickOver]}
+        onPress={(e) => { const p = anchorOf(e); menu.show(kindEntries(ctx), p.x, p.y, "other"); }} style={({ hovered }: { hovered?: boolean }) => [s.kind, hovered === true && s.pickOver]}
       >
         <Text style={s.kindText}>{label}</Text>
         <Glyph name="chevd" size={9} />
@@ -167,13 +167,13 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
       <View style={s.crumb}>
         {slim ? null : <Glyph name={typeIcon(def.icon)} size={18} color="var(--ink-2)" />}
         {slim && typeList.status === "ready" ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={`${def.plural}, change record type`} testID="records-type-pick" onPress={(e) => { const p = pointOf(e); menu.show(typeMenuEntries(typeList.data.types, ctx.type, (key) => dispatch({ type: "open", key })), p.x, p.y); }} style={s.typePick}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`${def.plural}, change record type`} testID="records-type-pick" onPress={(e) => { const p = pointOf(e); menu.show(typeMenuEntries(typeList.data.types, ctx.type, (key) => dispatch({ type: "open", key })), p.x, p.y, "other"); }} style={s.typePick}>
             <Text accessibilityRole="header" aria-level={1} style={s.h1} numberOfLines={1}>{def.plural}</Text>
             <Glyph name="chevd" size={10} />
           </Pressable>
         ) : <Text accessibilityRole="header" aria-level={1} style={s.h1} numberOfLines={1}>{def.plural}</Text>}
         {slim ? null : <Text style={s.slash}>/</Text>}
-        <Pressable accessibilityRole="button" accessibilityLabel="Saved views" testID="records-views" onPress={(e) => { const p = pointOf(e); menu.show(viewEntries(), p.x, p.y); }}
+        <Pressable accessibilityRole="button" accessibilityLabel="Saved views" testID="records-views" onPress={(e) => { const p = pointOf(e); menu.show(viewEntries(), p.x, p.y, "other"); }}
           style={({ hovered }: { hovered?: boolean }) => [s.pick, hovered === true && s.pickOver]}>
           <Text style={s.pickText} numberOfLines={1}>{ctx.saved ? ctx.saved.title : `All ${def.plural.toLowerCase()}`}</Text>
           {st.edited ? <Text style={s.dirty}>{"·"}</Text> : null}
@@ -204,10 +204,10 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
         ], x, y)} />
       ) : (
         <>
-      <HeadButton icon="filter" label="Filter" detail={v.clauses.length ? String(v.clauses.length) : undefined} on={v.clauses.length > 0} bare={slim} testID="records-filter" onPress={(x, y) => menu.show(filterEntries(), x, y)} />
-      {sort ? <HeadButton icon="sort" label="Sort" detail={sortKey ? def.fields.find((f) => f.key === sortKey.field)?.title : undefined} on={sortKey !== undefined} bare={slim} testID="records-sort" onPress={(x, y) => menu.show(sortEntries(), x, y)} /> : null}
-      {lanes ? <HeadButton icon="group" label="Lanes" detail={laneField?.title} bare={slim} testID="records-lanes" onPress={(x, y) => menu.show(laneEntries(), x, y)} /> : null}
-      {fields ? <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={slim} testID="records-fields" onPress={(x, y) => menu.show(fieldEntries(), x, y)} /> : null}
+      <HeadButton icon="filter" label="Filter" detail={v.clauses.length ? String(v.clauses.length) : undefined} on={v.clauses.length > 0} bare={slim} testID="records-filter" onPress={(x, y) => menu.show(filterEntries(), x, y, "other")} />
+      {sort ? <HeadButton icon="sort" label="Sort" detail={sortKey ? def.fields.find((f) => f.key === sortKey.field)?.title : undefined} on={sortKey !== undefined} bare={slim} testID="records-sort" onPress={(x, y) => menu.show(sortEntries(), x, y, "other")} /> : null}
+      {lanes ? <HeadButton icon="group" label="Lanes" detail={laneField?.title} bare={slim} testID="records-lanes" onPress={(x, y) => menu.show(laneEntries(), x, y, "other")} /> : null}
+      {fields ? <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={slim} testID="records-fields" onPress={(x, y) => menu.show(fieldEntries(), x, y, "other")} /> : null}
         </>
       )}
       {extra}

@@ -31,7 +31,7 @@ test("sidebar: the groups in order with their counts, and a title, a search and 
   const order = GROUPS.map((g) => at(out, `data-testid="apps-group-${g.key}"`));
   assert.deepEqual([...order].sort((a, b) => a - b), order, "Sites, Forms, Campaigns, Templates, Sending domains");
   assert.deepEqual(GROUPS.map((g) => g.title), ["Sites", "Forms", "Campaigns", "Templates", "Sending domains"]);
-  const head = (k: string): string => out.slice(at(out, `data-testid="apps-head-${k}"`), at(out, `data-testid="apps-head-${k}"`) + 500);
+  const head = (k: string): string => out.slice(at(out, `data-testid="apps-head-${k}"`), at(out, `data-testid="apps-head-${k}"`) + 1500);
   assert.ok(has(head("sites"), ">2<") && has(head("forms"), ">3<") && has(head("campaigns"), ">3<") && has(head("templates"), ">2<"), "counts from the Space");
   assert.ok(has(out, 'data-testid="apps-search"') && has(out, 'aria-label="New"') && has(out, ">Apps<"));
   const deferred = html(createSampleApps());

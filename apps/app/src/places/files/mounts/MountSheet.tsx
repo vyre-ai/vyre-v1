@@ -202,7 +202,7 @@ function SourceStep({ onChoose }: { onChoose: (id: SourceId) => void }): ReactEl
         key={s.id}
         id={`source:${s.id}`}
         title={s.name}
-        note={acc.connected ? acc.label : `Not connected. Connect ${s.id === "local" ? "this computer" : s.name} first.`}
+        note={acc.connected ? acc.label : "Not connected"}
         leading={<View style={st.markSlot}><Mark kind={markKind(s.id)} size={24} /></View>}
         trailing={acc.connected ? <Glyph name="chev" size={12} /> : <Text style={st.meta}>Connect</Text>}
         onPress={() => onChoose(s.id)}
