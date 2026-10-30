@@ -310,7 +310,6 @@ export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: Pane
     nav: {
       ...base.nav, openThread: (id: string) => go.thread(id), openHelper: (id: string) => go.thread(id), openComputer: (id: string) => go.computer(id),
       openTerminal: (id: string) => go.terminalOfComputer(id), openAgentPage: (id: string) => go.agent(id),
-      setUpTeam: () => rt.open({ screen: "settings.page", args: { page: "spaces" } }),
     },
   };
 }

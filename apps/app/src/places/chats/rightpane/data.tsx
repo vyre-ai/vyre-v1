@@ -21,8 +21,6 @@ export interface RightPaneNav {
   /** Where a fact came from: the chat, channel, task or record. */
   openSource(kind: string, ref: string, link?: string): void;
   openAgentPage(agentId: string): void;
-  /** Opens where a Team Space is made (a Personal Space's locked cards offer it). */
-  setUpTeam?(): void;
   /** routines/<name>.md in the agent's folder, as a tab. */
   openRoutineFile(agentId: string, title: string): void;
   /** "Make a Skill from Here": drafts a skill from a step to the end. */
