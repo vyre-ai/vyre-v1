@@ -17,11 +17,12 @@ export function recordTitle(fields: unknown): string | null {
 }
 
 /** What to read to name a tab opened on `subject`, or null for a subject with no name to read. */
-export function titleAsk(subject: { type: string; id: string }): Ask | null {
+export function titleAsk(subject: { type: string; id: string }, args: Readonly<Record<string, unknown>> = {}): Ask | null {
   const { type, id } = subject;
   switch (type) {
     case "automation": return { cap: "automations.get", input: { automationId: id }, name: (o) => at(o, "automation", "name") };
-    case "record": case "contact": return { cap: "records.get", input: { recordId: id }, name: (o) => recordTitle(obj(obj(o)?.["record"])?.["fields"]) };
+    // a record is read by its type and id; the tab's hash carries the type (a record opened without one keeps the place's name)
+    case "record": case "contact": return typeof args["type"] !== "string" || args["type"] === "" ? null : { cap: "records.get", input: { type: args["type"], recordId: id }, name: (o) => recordTitle(obj(obj(o)?.["record"])?.["fields"]) };
     case "project": return { cap: "projects.get", input: { projectId: id }, name: (o) => at(o, "project", "title") };
     case "file": case "doc": case "document": return { cap: "files.get", input: { fileId: id }, name: (o) => at(o, "file", "name") };
     case "task": return { cap: "tasks.get", input: { taskId: id }, name: (o) => at(o, "task", "title") };
