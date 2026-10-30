@@ -1,4 +1,5 @@
 // Pieces the Studio views share: the page frame, a call that loads once, a quiet header menu button, number tiles, bars and an empty state that says what to do next.
+import { States } from "../../../../../../ui/src/States/index.tsx";
 import { useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -54,7 +55,7 @@ export function Status({ state }: { state: Phase<unknown> }): ReactElement | nul
   if (state.phase === "error") {
     return (
       <View style={v.stack}>
-        <Text style={v.err} accessibilityRole="alert">{state.message}</Text>
+        <States kind="error" message={state.message} />
         <AskVyre bundle={{ resource: "automation", message: state.message }} />
       </View>
     );
@@ -110,16 +111,11 @@ export function Tile({ label, value, note, testID, tone }: { label: string; valu
 }
 
 /** What is missing and the next thing to do about it. The button is optional. */
-export function Empty({ testID, title, next, action, onAction }: { testID: string; title: string; next: string; action?: string; onAction?: () => void }): ReactElement {
+/** An empty state, the shared one: an icon, a few words, one action. `next` is the long explanation; it stays out of the page (help belongs on hover or on failure) and rides on the title for a screen reader. */
+export function Empty({ testID, title, next, action, onAction, icon = "done" }: { testID: string; title: string; next?: string; action?: string; onAction?: () => void; icon?: "inbox" | "search" | "files" | "records" | "chat" | "done" }): ReactElement {
   return (
-    <View testID={testID} style={v.empty}>
-      <Text style={v.emptyTitle}>{title}</Text>
-      <Text style={v.dim}>{next}</Text>
-      {action && onAction ? (
-        <Pressable accessibilityRole="button" testID={`${testID}-action`} onPress={onAction} style={[v.emptyBtn, pointer]}>
-          <Text style={v.menuText}>{action}</Text>
-        </Pressable>
-      ) : null}
+    <View testID={testID} style={v.empty} accessibilityLabel={next ? `${title}. ${next}` : title}>
+      <States kind="empty" title={title} icon={icon} {...(action && onAction ? { action: { label: action, onPress: onAction } } : {})} />
     </View>
   );
 }
