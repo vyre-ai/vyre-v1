@@ -28,7 +28,10 @@ export function WorkspaceCard({ call, onOpenConsole, onDone }: { call: CapCall; 
   );
 }
 
-export function SignInDomainCard({ call, onOpenConsole, onDone }: { call: CapCall; onOpenConsole(): void; onDone(): void }): ReactElement {
+/** The Console page that holds the Google and Microsoft sign-in forms (access.policies, the sign-in policy). */
+export const SSO_SETUP_HASH = "screen=access.policies&policyId=sign_in";
+
+export function SignInDomainCard({ call, onOpenConsole, onSetUp, onDone }: { call: CapCall; onOpenConsole(): void; /** opens the Google and Microsoft sign-in forms in the Console; without it the Console opens at its start */ onSetUp?: () => void; onDone(): void }): ReactElement {
   const [p, setP] = useState<Awaited<ReturnType<typeof ssoProviders>> | null>(null);
   const [tested, setTested] = useState<Record<string, string>>({});
   useEffect(() => { let off = false; void ssoProviders(call).then((r) => { if (!off) setP(r); }); return () => { off = true; }; }, [call]);
@@ -37,13 +40,13 @@ export function SignInDomainCard({ call, onOpenConsole, onDone }: { call: CapCal
     <View testID="signin-domain-card" style={s.col}>
       <Text style={s.line}>Let people sign in with their work account for your domain, in the same app. Only existing members and people with an accepted invite can sign in.</Text>
       {/* ui-rows-lint: not a list (each sign-in setup is a block with its own status and buttons, not a list row) */}
-      {p === null ? <Text style={s.dim}>Checking</Text> : p.kind !== "ready" ? <Text style={s.dim}>{line(p, "")}</Text> : list.length === 0 ? <Text testID="signin-none" style={s.dim}>Not turned on yet. Set up Google or Microsoft in the Console.</Text> : list.map((x) => (
+      {p === null ? <Text style={s.dim}>Checking</Text> : p.kind !== "ready" ? <Text style={s.dim}>{line(p, "")}</Text> : list.length === 0 ? <Text testID="signin-none" style={s.dim}>Not turned on yet. Press Set up to add your Google or Microsoft app.</Text> : list.map((x) => (
         <View key={x.key} style={s.col}>
           <Text testID={`sso-${x.key}`} style={s.dim}>{ssoLine(x)}</Text>
           <Buttons><Go id={`sso-test-${x.key}`} label="Test it" ghost onPress={() => void testSso(call, x.key).then((r) => setTested((t) => ({ ...t, [x.key]: r.ok ? "The test passed." : r.detail ?? "The test did not pass." })))} />{tested[x.key] ? <Text style={s.dim}>{tested[x.key]}</Text> : null}</Buttons>
         </View>
       ))}
-      <Buttons><Go id="signin-open" label="Open sign-in settings" onPress={onOpenConsole} />{list.some(ssoWorks) ? <Go id="signin-done" label="Done" ghost onPress={onDone} /> : <Go id="signin-done" label="Skip" ghost onPress={onDone} />}</Buttons>
+      <Buttons><Go id="signin-setup" label="Set up" onPress={onSetUp ?? onOpenConsole} /><Go id="signin-open" label="Open sign-in settings" ghost onPress={onSetUp ?? onOpenConsole} />{list.some(ssoWorks) ? <Go id="signin-done" label="Done" ghost onPress={onDone} /> : <Go id="signin-done" label="Skip" ghost onPress={onDone} />}</Buttons>
     </View>
   );
 }

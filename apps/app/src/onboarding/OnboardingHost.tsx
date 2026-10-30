@@ -15,7 +15,7 @@ import { SpaceAiCard } from "./SpaceAiCard.tsx";
 import { AssistantThread } from "./AssistantThread.tsx";
 import { PreviewPane } from "./PreviewPane.tsx";
 import type { ShellRuntime } from "../shell/providers/runtime.tsx";
-import { DirectoryCard, InvitesCard, SignInDomainCard, WorkspaceCard } from "./SuiteCards.tsx";
+import { DirectoryCard, InvitesCard, SSO_SETUP_HASH, SignInDomainCard, WorkspaceCard } from "./SuiteCards.tsx";
 import { shouldAutoOpen } from "./flow.ts";
 import { scriptFor } from "./script.ts";
 import type { CardKind, FlowKind, Progress, StepState } from "./flow.ts";
@@ -40,7 +40,7 @@ export interface OnboardingHostProps {
   /** the Space address, for a pairing link */
   address?: string;
   /** go to a place of the shell (the screen closes first) */
-  onGo?: (place: string) => void;
+  onGo?: (place: string, hash?: string) => void;
   /** this is the desktop app on a Mac */
   mac?: boolean;
   /** extra cards, by kind, supplied as they are built */
@@ -105,7 +105,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
     if (call && onGo) {
       const toConsole = (): void => { setShown(false); setStep(null); onGo("console"); };
       if (card === "google_microsoft") return <WorkspaceCard call={call} onOpenConsole={toConsole} onDone={() => ctx.done()} />;
-      if (card === "sign_in_domain") return <SignInDomainCard call={call} onOpenConsole={toConsole} onDone={() => ctx.done()} />;
+      if (card === "sign_in_domain") return <SignInDomainCard call={call} onOpenConsole={toConsole} onSetUp={() => { setShown(false); setStep(null); onGo("console", SSO_SETUP_HASH); }} onDone={() => ctx.done()} />;
       if (card === "directory") return <DirectoryCard call={call} by={personName ?? "Your admin"} space={space.name} onOpenConsole={toConsole} onDone={() => ctx.done()} />;
     }
     if (card === "invites" && call) return <InvitesCard call={call} onDone={() => ctx.done()} />;
