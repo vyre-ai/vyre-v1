@@ -12,35 +12,35 @@ export type CardKind =
 export interface StepDef { key: string; title: string; card: CardKind; /** one plain line under the title in the rail */ line: string }
 
 const personal: StepDef[] = [
-  { key: "ai", title: "Connect your AI", card: "connect_ai", line: "Claude, ChatGPT or Grok, or an API key" },
-  { key: "interview", title: "How you work", card: "interview", line: "Saved to your memory" },
-  { key: "sessions", title: "Bring your sessions", card: "import_sessions", line: "Claude Code and Codex on this computer" },
-  { key: "folders", title: "Local folders", card: "local_folders", line: "Folders Vyre may read" },
-  { key: "chrome", title: "Chrome extension", card: "chrome", line: "Fill from your Vault, drive Chrome" },
-  { key: "phone", title: "Your phone", card: "phone", line: "Scan a code to pair" },
-  { key: "win", title: "First win", card: "first_win", line: "One routine running" },
-  { key: "team", title: "Add a team", card: "bridge_team", line: "Optional, any time" },
+  { key: "ai", title: "Connect your AI", card: "connect_ai", line: "Claude, ChatGPT, Grok" },
+  { key: "interview", title: "How you work", card: "interview", line: "Three quick ones" },
+  { key: "sessions", title: "Bring your sessions", card: "import_sessions", line: "Claude Code and Codex" },
+  { key: "folders", title: "Local folders", card: "local_folders", line: "Into Files" },
+  { key: "chrome", title: "Chrome extension", card: "chrome", line: "In your browser" },
+  { key: "phone", title: "Your phone", card: "phone", line: "Take Vyre with you" },
+  { key: "win", title: "First win", card: "first_win", line: "One routine, run now" },
+  { key: "team", title: "Add a team", card: "bridge_team", line: "Optional" },
 ];
 
 const team: StepDef[] = [
-  { key: "org", title: "Your organisation", card: "org", line: "Name, logo, time zone, a Kit for your kind of work" },
-  { key: "space_ai", title: "AI for the Space", card: "space_ai", line: "Your account here, optional shared key" },
-  { key: "workspace", title: "Google or Microsoft", card: "google_microsoft", line: "Admin steps, secure fields, live test" },
-  { key: "sign_in", title: "Sign in for your domain", card: "sign_in_domain", line: "Google or Microsoft, same app" },
-  { key: "people", title: "Your team", card: "directory", line: "Import the directory, pick people and roles" },
-  { key: "invites", title: "Invites", card: "invites", line: "Drafted for you, sent when you approve" },
-  { key: "agents", title: "Agents and computers", card: "agents", line: "From the Kit, and where they run" },
-  { key: "shared", title: "Shared data", card: "shared_data", line: "Folders, records from a sheet, shared logins" },
-  { key: "win", title: "First team win", card: "team_win", line: "One thing your team now does" },
+  { key: "org", title: "Your organisation", card: "org", line: "Name, address, kit" },
+  { key: "space_ai", title: "AI for the Space", card: "space_ai", line: "Yours and a shared key" },
+  { key: "workspace", title: "Google or Microsoft", card: "google_microsoft", line: "Mail, calendar, files" },
+  { key: "sign_in", title: "Sign in for your domain", card: "sign_in_domain", line: "Same app" },
+  { key: "people", title: "Your team", card: "directory", line: "From your directory" },
+  { key: "invites", title: "Invites", card: "invites", line: "You approve each" },
+  { key: "agents", title: "Agents and computers", card: "agents", line: "Who runs where" },
+  { key: "shared", title: "Shared data", card: "shared_data", line: "Drive, sheets, logins" },
+  { key: "win", title: "First team win", card: "team_win", line: "One routine, run now" },
 ];
 
 const member: StepDef[] = [
-  { key: "mine", title: "Your mail, calendar, files", card: "own_data", line: "Already here, and only yours" },
-  { key: "ai", title: "Your AI account", card: "connect_ai", line: "Kept in your own Mine Vault" },
+  { key: "mine", title: "Your mail, calendar, files", card: "own_data", line: "Only yours" },
+  { key: "ai", title: "Your AI account", card: "connect_ai", line: "Claude, ChatGPT, Grok" },
   { key: "apps", title: "Apps", card: "apps", line: "Desktop, phone, Chrome" },
-  { key: "interview", title: "How you work", card: "interview", line: "Saved to your memory" },
-  { key: "agents", title: "Meet the team's agents", card: "meet_agents", line: "What each one does for you" },
-  { key: "personal", title: "A Personal Space", card: "optional_personal", line: "Optional, on this computer" },
+  { key: "interview", title: "How you work", card: "interview", line: "Three quick ones" },
+  { key: "agents", title: "Meet the team's agents", card: "meet_agents", line: "Say hello" },
+  { key: "personal", title: "A Personal Space", card: "optional_personal", line: "Optional" },
 ];
 
 const FLOWS: Record<FlowKind, readonly StepDef[]> = { personal, team, member };

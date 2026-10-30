@@ -6,7 +6,7 @@ import type { NoteStore } from "./doors.ts";
 const memory = (): NoteStore => { const m = new Map<string, string>(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v), removeItem: (k) => void m.delete(k) }; };
 
 test("three doors in the owner's order", () => {
-  assert.deepEqual(DOORS.map((d) => d.title), ["Just me", "I was invited", "Set up my team"]);
+  assert.deepEqual(DOORS.map((d) => d.title), ["Just me", "I was invited", "My team"]);
 });
 
 test("the wish to add a team is read once", () => {

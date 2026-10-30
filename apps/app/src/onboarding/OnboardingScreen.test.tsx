@@ -67,7 +67,7 @@ test("first launch shows the three doors and a way in for people who already hav
   const { FirstLaunch } = await import("./FirstLaunch.tsx");
   const out = renderToStaticMarkup(<FirstLaunch onDoor={async () => undefined} existing={<span>sign in</span>} />);
   for (const id of ["door-me", "door-invited", "door-team", "door-existing"]) assert.ok(out.includes(`data-testid="${id}"`), id);
-  assert.ok(out.includes("Just me") && out.includes("I was invited") && out.includes("Set up my team"));
+  assert.ok(out.includes("Just me") && out.includes("I was invited") && out.includes("My team") && out.includes("Welcome to Vyre") && out.includes("Used Vyre on another computer?"));
 });
 
 test("the team bridge card warns about a sleeping Mac in plain words, only on a Mac", async () => {

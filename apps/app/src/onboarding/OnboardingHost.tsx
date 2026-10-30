@@ -5,6 +5,7 @@ import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
 import { ConnectAiCard } from "./ConnectAiCard.tsx";
+import { ChromeCard } from "./ChromeCard.tsx";
 import { InterviewCard } from "./InterviewCard.tsx";
 import { takeTeamNext } from "./doors.ts";
 import { TeamBridgeCard } from "./TeamBridgeCard.tsx";
@@ -99,8 +100,9 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
     if (card === "connect_ai" && call) return <ConnectAiCard call={call} connected={aiProvider !== null || progress["ai"] === "done"} onConnected={(id) => { setAiProvider(id); ctx.done(); }} />;
     if (card === "bridge_team" && onAddSpace) return <TeamBridgeCard mac={mac} onCreate={() => { onAddSpace(); ctx.later(); }} />;
     if (card === "phone" && call && address) return <PairPhoneCard call={call} address={address} onPaired={() => ctx.done()} />;
+    if (card === "chrome" && call) return <ChromeCard call={call} device={ctx.device} onConnected={() => ctx.done()} />;
     const target = OPEN_TARGETS[card];
-    if (target && onGo) return <OpenCard text={target.text} action={target.action} onOpen={() => { setShown(false); setStep(null); onGo(target.place); }} onDone={() => ctx.done()} />;
+    if (target && onGo) return <OpenCard step={{ flow: ctx.flow, key: ctx.step.key }} text={target.text} action={target.action} onOpen={() => { setShown(false); setStep(null); onGo(target.place); }} onDone={() => ctx.done()} />;
     if (card === "space_ai" && call) return <SpaceAiCard team={call} personal={personalCall} onConnected={() => ctx.done()} />;
     if (call && onGo) {
       const toConsole = (): void => { setShown(false); setStep(null); onGo("console"); };
