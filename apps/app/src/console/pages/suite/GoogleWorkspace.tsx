@@ -8,10 +8,11 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { Section } from "../../shell/ui.tsx";
 import { useConsoleData } from "../../shell/data.tsx";
 import { Actions, Button, Field, Note, ReadState, useAction, useRead } from "../shared.tsx";
-import { Banner, Bullets, CopyRow, Members, OpenLink, Para, PasteBox, Services, Step, StepsCard } from "./parts.tsx";
+import { Banner, Directory, MatchPerson, Bullets, CopyRow, Members, OpenLink, Para, PasteBox, Services, Step, StepsCard } from "./parts.tsx";
 import type { StepState } from "./parts.tsx";
-import { connectedLine, googleCheckLine, googleChecked, memberToggle, storeInVault } from "./flow.ts";
+import { matchPerson, unmatchPerson, connectedLine, googleCheckLine, googleChecked, memberToggle, storeInVault } from "./flow.ts";
 import type { Checked } from "./flow.ts";
+import type { DirPerson, Invited } from "./parts.tsx";
 import {
   GOOGLE_APIS, GOOGLE_HANDLE, GOOGLE_LINKS, GOOGLE_SCOPE_USE, domainOf, looksLikeEmail, parseGoogleKey, serviceRows, shortScope, summaryOf,
 } from "./model.ts";
@@ -27,6 +28,7 @@ export function GoogleWorkspacePage(): ReactElement {
   const members = useRead<CapMap["google.dwd.members"]["out"]>("google.dwd.members", { limit: 100 }, { enabled: configured });
   const folders = useRead<CapMap["vault.folders.list"]["out"]>("vault.folders.list", { scope: "shared" });
   const items = useRead<CapMap["vault.items.list"]["out"]>("vault.items.list", { q: "Google_DWD", section: "shared" });
+  const people = useRead<CapMap["access.principals.list"]["out"]>("access.principals.list", { kind: "person", status: "active", limit: 200 }, { enabled: configured });
   const refresh = (): void => { status.refresh(); scopes.refresh(); members.refresh(); folders.refresh(); items.refresh(); };
   const act = useAction(refresh);
 
@@ -36,6 +38,9 @@ export function GoogleWorkspacePage(): ReactElement {
   const [admin, setAdmin] = useState("");
   const [checked, setChecked] = useState<Checked | null>(null);
   const [confirmOff, setConfirmOff] = useState(false);
+  const [dir, setDir] = useState<DirPerson[] | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [links, setLinks] = useState<Invited[]>([]);
 
   if (!status.data) return <ReadState error={status.error} retry={status.refresh} />;
   const s = status.data;
@@ -70,6 +75,16 @@ export function GoogleWorkspacePage(): ReactElement {
     await act.run<CapMap["google.dwd.probe"]["out"]>("google.dwd.probe", {}, (out) => { setChecked(googleChecked(out)); return googleCheckLine(out, adminEmail); });
   };
 
+  const peopleOptions = (people.data?.principals ?? []).map((p) => ({ key: p.id, title: p.name ?? p.id }));
+  const loadDirectory = async (): Promise<void> => {
+    await act.run<{ people: DirPerson[] }>("google.directory.list", {}, (out) => { setDir(out.people); setPicked(new Set()); return `${out.people.length} ${out.people.length === 1 ? "person" : "people"} in your directory.`; });
+  };
+  const inviteChosen = async (): Promise<void> => {
+    await act.run<{ invited: Invited[]; skipped: { email: string; reason: string }[] }>("google.directory.import", { people: [...picked].map((email) => ({ email, role: "rol_member" })), idempotencyKey: "" }, (out) => {
+      setLinks(out.invited); setPicked(new Set());
+      return `${out.invited.length} invitation${out.invited.length === 1 ? "" : "s"} made${out.skipped.length ? `, ${out.skipped.length} skipped: ${out.skipped.map((x) => `${x.email} (${x.reason})`).join("; ")}` : ""}.`;
+    });
+  };
   const toggle = (m: MemberRow): Promise<unknown> => memberToggle(act.run, "google.dwd.set_excluded", m);
 
   const off = async (): Promise<void> => {
@@ -144,7 +159,7 @@ export function GoogleWorkspacePage(): ReactElement {
       {problem ? <Note>{problem}</Note> : null}
       {configured ? <Services rows={rows} /> : null}
       <Section title={configured ? "Setup steps" : "Set up Google Workspace"}>{connectSteps}</Section>
-      {!configured ? <Services rows={rows} /> : <Members rows={memberRows} busy={act.busy} onToggle={(m) => void toggle(m)} />}
+      {!configured ? <Services rows={rows} /> : <><Members rows={memberRows} busy={act.busy} onToggle={(m) => void toggle(m)} onUnmatch={(m) => void unmatchPerson(act.run, "google.dwd.map_member", m.email)} /><Directory people={dir} picked={picked} links={links} busy={act.busy} onLoad={() => void loadDirectory()} onToggle={(email) => setPicked((cur) => { const next = new Set(cur); if (next.has(email)) next.delete(email); else next.add(email); return next; })} onInvite={() => void inviteChosen()} /><MatchPerson people={peopleOptions} domain={s.domain} busy={act.busy} onMatch={(email, id) => void matchPerson(act.run, "google.dwd.map_member", email, id)} /></>}
     </View>
   );
 }

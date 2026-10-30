@@ -31,6 +31,7 @@ export const GOOGLE_SCOPE_USE: Readonly<Record<string, string>> = {
   spreadsheets: "Read and write Sheets",
   documents: "Read and write Docs",
   "meetings.space.readonly": "Read Meet recordings and transcripts",
+  "admin.directory.user.readonly": "List the people in your directory to bring a team in",
 };
 
 export const MICROSOFT_PERMISSION_USE: Readonly<Record<string, string>> = {
@@ -51,6 +52,7 @@ const GOOGLE_SERVICES: readonly ServiceDef[] = [
   { key: "drive", title: "Drive", needs: ["drive"], what: "Google Drive" },
   { key: "meet", title: "Meet", needs: ["meetings.space.readonly"], what: "Meet transcripts" },
   { key: "docs", title: "Docs and Sheets", needs: ["documents", "spreadsheets"], what: "Docs and Sheets" },
+  { key: "people", title: "People", needs: ["admin.directory.user.readonly"], what: "Your directory" },
 ];
 const MICROSOFT_SERVICES: readonly ServiceDef[] = [
   { key: "mail", title: "Mail", needs: ["Mail.ReadWrite", "Mail.Send"], what: "Outlook mail" },
@@ -155,4 +157,12 @@ export function personLine(configured: boolean, excluded: boolean, name: string)
   if (!configured) return `${name} is not connected for your firm yet. Ask your admin to open Console, Integrations, ${name}.`;
   if (excluded) return `Connected through your firm, but your account is excluded, so ${name} never reads your mail or calendar.`;
   return "Connected through your firm";
+}
+
+/** What is wrong with a person-to-address match before anything is sent, or an empty string. */
+export function matchProblem(email: string, userId: string, domain: string | undefined): string {
+  if (!looksLikeEmail(email)) return "Type the person's work address, like maya@yourfirm.com.";
+  if (domain && domainOf(email) !== domain.toLowerCase()) return `Only addresses at ${domain} can be matched.`;
+  if (!userId) return "Choose the person this address belongs to.";
+  return "";
 }

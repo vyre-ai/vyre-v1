@@ -69,6 +69,10 @@ export function harness(opts: HarnessOptions = {}) {
         const id = String(body.providerId);
         return { messageId: `eml_${id}${++linkSeq}`, deduped: ingestState.deduped.has(id), linked: "none" };
       }
+      if (cap === "members.invites.create") {
+        if (String(body.email).startsWith("bad")) throw fail("validation.bad_input", ctx.trace.traceId, { message: "That invitation could not be made." });
+        return { invite: { id: `inv_${String(body.email).replace(/[^a-z0-9]/g, "")}` }, link: `https://space.test/join/${String(body.email).split("@")[0]}` };
+      }
       if (cap === "calendar.connect_provider") return { calendarId: "cld_" + String(body.account).replace(/[^a-z0-9]/g, "") .padEnd(8, "0"), created: true };
       if (cap === "calendar.sync_now") return { runId: "run_cal00001" };
       if (cap === "meetings.ingest") return { meetingId: "rec_meet00001", created: true, merged: false };

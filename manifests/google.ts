@@ -22,6 +22,7 @@ const SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets',
   'https://www.googleapis.com/auth/documents',
   'https://www.googleapis.com/auth/meetings.space.readonly',
+  'https://www.googleapis.com/auth/admin.directory.user.readonly',
 ];
 const healthOut = { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) };
 const gmailMessage = t.obj({ id: t.str(), threadId: t.str(), labelIds: t.arr(t.str()), snippet: t.opt(t.str()), historyId: t.opt(t.str()), internalDate: t.opt(t.ts()), payload: t.opt(t.rec()) });
@@ -66,6 +67,22 @@ const capabilities = [
   }),
   write('google.dwd.set_excluded', 'Exclude a member from delegation, or include them again (excluded members never get a connection)', {
     in: { email, excluded: t.bool() }, out: { excluded: t.arr(email) }, perm: 'connectors.manage', audit: 'always', tool: 'engineer', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['permission.on_hold'],
+  }),
+  read('google.directory.list', 'The people in the Google Workspace directory (admin only), with the Space member each is matched to, for choosing who to bring in', {
+    in: { pageToken: t.opt(t.str()), query: t.opt(t.str()) }, out: { people: t.arr(t.obj({ email, name: t.opt(t.str()), suspended: t.bool(), userId: t.opt(id.user) })), nextPageToken: t.opt(t.str()) },
+    perm: 'connectors.manage', tool: 'engineer', errors: ['provider.auth_failed', 'validation.precondition_failed'],
+  }),
+  write('google.directory.import', 'Invite chosen people from the directory: one invitation each with their work address and role, returned as links to send once a person approves', {
+    in: { people: t.arr(t.obj({ email, role: id.role }), { minItems: 1, maxItems: 100 }) },
+    out: { invited: t.arr(t.obj({ email, inviteId: id.invite, link: t.str() })), skipped: t.arr(t.obj({ email, reason: t.str() })) },
+    perm: 'connectors.manage', audit: 'always', tool: 'engineer', idem: 'key', errors: ['validation.precondition_failed'],
+  }),
+  write('google.dwd.sync_members', 'Match the people who have joined since setup (by the email their invitation went to) and connect their mail and calendar', {
+    in: {}, out: { matched: t.int(), connected: t.int() }, perm: 'connectors.manage', audit: 'always', tool: 'engineer', idem: 'key', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['validation.precondition_failed', 'permission.on_hold'],
+  }),
+  write('google.dwd.map_member', 'Match a Google address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Meet come in', {
+    in: { email, userId: t.opt(id.user) }, out: { email, userId: t.opt(id.user), mapped: t.bool(), connected: t.bool() },
+    perm: 'connectors.manage', audit: 'always', tool: 'engineer', idem: 'key', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['validation.precondition_failed', 'permission.on_hold'],
   }),
   write('google.dwd.disable', 'Turn delegation off and stop every member sync', {
     in: {}, out: { disabled: t.bool() }, perm: 'connectors.manage', risk: 'high', emits: ['google.dwd_revoked'], audit: 'always', tool: 'engineer',

@@ -22492,6 +22492,83 @@
     },
     {
       "blocks": [],
+      "cap": "google.directory.import",
+      "deferred": false,
+      "description": "Invite chosen people from the directory: one invitation each with their work address and role, returned as links to send once a person approves",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "people": {
+            "items": {
+              "properties": {
+                "email": {
+                  "examples": [
+                    "maya@example.com"
+                  ],
+                  "pattern": "^[^@\\s]+@[^@\\s]+$",
+                  "type": "string"
+                },
+                "role": {
+                  "examples": [
+                    "rol_a1b2c3"
+                  ],
+                  "pattern": "^rol_[a-z0-9]+$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "email",
+                "role"
+              ],
+              "type": "object"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "people",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "google_directory_import",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "google.directory.list",
+      "deferred": false,
+      "description": "The people in the Google Workspace directory (admin only), with the Space member each is matched to, for choosing who to bring in",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "pageToken": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "google_directory_list",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "google.docs.batch_update",
       "deferred": true,
       "description": "Edit a Google Doc with a list of requests",
@@ -23119,6 +23196,47 @@
     },
     {
       "blocks": [],
+      "cap": "google.dwd.map_member",
+      "deferred": false,
+      "description": "Match a Google address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Meet come in",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "email": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "userId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "google_dwd_map_member",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "google.dwd.members",
       "deferred": false,
       "description": "Workspace users mapped to Space members by email, with exclusion and mailbox state",
@@ -23266,6 +23384,32 @@
       },
       "name": "google_dwd_status",
       "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "google.dwd.sync_members",
+      "deferred": false,
+      "description": "Match the people who have joined since setup (by the email their invitation went to) and connect their mail and calendar",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "google_dwd_sync_members",
+      "planMode": "blocked",
       "toolset": "engineer",
       "v": 1
     },
@@ -33556,6 +33700,47 @@
     },
     {
       "blocks": [],
+      "cap": "ms.consent.map_member",
+      "deferred": false,
+      "description": "Match a Microsoft address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Teams come in",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "email": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "userId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "ms_consent_map_member",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "ms.consent.members",
       "deferred": false,
       "description": "Tenant users mapped to Space members by email, with exclusion and mailbox state",
@@ -33681,6 +33866,32 @@
     },
     {
       "blocks": [],
+      "cap": "ms.consent.sync_members",
+      "deferred": false,
+      "description": "Match the people who have joined since setup (by the email their invitation went to) and connect their mail and calendar",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "ms_consent_sync_members",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "ms.consent.verify",
       "deferred": false,
       "description": "Call GET /organization and check consent and the access policy for a probe member",
@@ -33702,6 +33913,83 @@
       },
       "name": "ms_consent_verify",
       "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ms.directory.import",
+      "deferred": false,
+      "description": "Invite chosen people from the directory: one invitation each with their work address and role, returned as links to send once a person approves",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "people": {
+            "items": {
+              "properties": {
+                "email": {
+                  "examples": [
+                    "maya@example.com"
+                  ],
+                  "pattern": "^[^@\\s]+@[^@\\s]+$",
+                  "type": "string"
+                },
+                "role": {
+                  "examples": [
+                    "rol_a1b2c3"
+                  ],
+                  "pattern": "^rol_[a-z0-9]+$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "email",
+                "role"
+              ],
+              "type": "object"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "people",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "ms_directory_import",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ms.directory.list",
+      "deferred": false,
+      "description": "The people in the Microsoft 365 directory (admin only), with the Space member each is matched to, for choosing who to bring in",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "skipToken": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "ms_directory_list",
+      "planMode": "allowed",
       "toolset": "engineer",
       "v": 1
     },

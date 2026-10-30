@@ -461,6 +461,45 @@ export async function consentExclude(ctx: MsCtx, input: { email: string; exclude
   return { excluded: rowsOf(ctx.db.all(`SELECT email FROM microsoft_member WHERE excluded = ?`, 1)).map((r) => str(r, "email")).sort() };
 }
 
+/**
+ * Match a Microsoft address to a person in the Space, or take the match away (no person). Setup matches people by the email their invitation went to; this is for the rest: the owner, someone
+ * whose work address differs from their invitation. An address belongs to one person and a person to one address, so a clash is refused until the first match is taken away.
+ */
+export async function consentMapMember(ctx: MicrosoftCtx, input: { email: string; userId?: string; idempotencyKey: string }) {
+  ensure(ctx);
+  const email = normalizeEmail(input.email ?? "");
+  if (!EMAIL.test(email)) bad(ctx, "The address is not an email.");
+  const cfg = config(ctx);
+  const connectionId = strOrNull(cfg, "connectionId");
+  const domain = strOrNull(cfg, "domain");
+  if (!cfg || num(cfg, "configured") !== 1 || !connectionId) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Microsoft delegation is not set up." });
+  if (domain && !email.endsWith(`@${domain}`)) bad(ctx, `Only addresses at ${domain} can be matched.`);
+  const now = ctx.now();
+  const have = first(ctx.db.all(`SELECT "userId", mapped, excluded FROM microsoft_member WHERE email = ?`, email));
+  if (input.userId === undefined) {
+    const was = strOrNull(have, "userId");
+    if (have) ctx.db.run(`UPDATE microsoft_member SET "userId" = ?, mapped = ?, "mailboxState" = ?, updated_at = ? WHERE email = ?`, null, 0, null, now, email);
+    if (was) await connectCalendar(ctx, { connectionId, userId: was, email, connected: false });
+    return { email, mapped: false, connected: false };
+  }
+  if (!/^usr_[a-z0-9]+$/.test(input.userId)) bad(ctx, "The person is a member id.");
+  const holder = strOrNull(have, "userId");
+  if (holder && holder !== input.userId && num(have, "mapped") === 1) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "That address is already matched to someone else. Take that match away first." });
+  const other = rowsOf(ctx.db.all(`SELECT email FROM microsoft_member WHERE "userId" = ? AND mapped = ?`, input.userId, 1)).find((r) => str(r, "email") !== email);
+  if (other) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: `That person is already matched to ${str(other, "email")}. Take that match away first.` });
+  if (have) ctx.db.run(`UPDATE microsoft_member SET "userId" = ?, mapped = ?, updated_at = ? WHERE email = ?`, input.userId, 1, now, email);
+  else ctx.db.run(`INSERT INTO microsoft_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, email, input.userId, 1, 0, null, now);
+  const excluded = num(have, "excluded") === 1;
+  let connected = false;
+  if (!excluded && num(cfg, "autoConnect") === 1) {
+    const out = obj(await ctx.call("mail.auto_connect_members", { provider: "microsoft", members: [{ userId: input.userId, email }], idempotencyKey: `map:${email}:${input.userId}` }));
+    ctx.db.run(`UPDATE microsoft_member SET "mailboxState" = ? WHERE email = ?`, "pending", email);
+    await connectCalendar(ctx, { connectionId, userId: input.userId, email });
+    connected = (int(out.created) ?? 0) > 0 || (int(out.skipped) ?? 0) > 0;
+  }
+  return { email, userId: input.userId, mapped: true, connected };
+}
+
 export async function consentDisable(ctx: MsCtx) {
   ensure(ctx);
   ctx.db.run(`UPDATE microsoft_config SET configured = ?, updated_at = ? WHERE id = ?`, 0, ctx.now(), CONFIG_ID);

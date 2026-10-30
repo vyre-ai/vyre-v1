@@ -947,6 +947,10 @@ export function stubs(ctx: CallCtx) {
         update_event: call("google.calendar.update_event"),
         watch: call("google.calendar.watch"),
       },
+      directory: {
+        import: call("google.directory.import"),
+        list: call("google.directory.list"),
+      },
       docs: {
         batch_update: call("google.docs.batch_update"),
         create_document: call("google.docs.create_document"),
@@ -970,6 +974,7 @@ export function stubs(ctx: CallCtx) {
       },
       dwd: {
         disable: call("google.dwd.disable"),
+        map_member: call("google.dwd.map_member"),
         members: call("google.dwd.members"),
         my_account: call("google.dwd.my_account"),
         probe: call("google.dwd.probe"),
@@ -977,6 +982,7 @@ export function stubs(ctx: CallCtx) {
         set_excluded: call("google.dwd.set_excluded"),
         setup: call("google.dwd.setup"),
         status: call("google.dwd.status"),
+        sync_members: call("google.dwd.sync_members"),
       },
       gmail: {
         create_draft: call("google.gmail.create_draft"),
@@ -1447,13 +1453,19 @@ export function stubs(ctx: CallCtx) {
       consent: {
         disable: call("ms.consent.disable"),
         link: call("ms.consent.link"),
+        map_member: call("ms.consent.map_member"),
         members: call("ms.consent.members"),
         my_account: call("ms.consent.my_account"),
         policy_snippet: call("ms.consent.policy_snippet"),
         set_excluded: call("ms.consent.set_excluded"),
         setup: call("ms.consent.setup"),
         status: call("ms.consent.status"),
+        sync_members: call("ms.consent.sync_members"),
         verify: call("ms.consent.verify"),
+      },
+      directory: {
+        import: call("ms.directory.import"),
+        list: call("ms.directory.list"),
       },
       drive: {
         create_folder: call("ms.drive.create_folder"),

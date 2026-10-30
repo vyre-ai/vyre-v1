@@ -3331,6 +3331,18 @@
       "toolset": "inbox"
     },
     {
+      "deferred": false,
+      "name": "google_directory_import",
+      "summary": "Invite chosen people from the directory: one invitation each with their work address and role, returned as links to send once a person approves",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "google_directory_list",
+      "summary": "The people in the Google Workspace directory (admin only), with the Space member each is matched to, for choosing who to bring in",
+      "toolset": "engineer"
+    },
+    {
       "deferred": true,
       "name": "google_docs_batch_update",
       "summary": "Edit a Google Doc with a list of requests",
@@ -3416,6 +3428,12 @@
     },
     {
       "deferred": false,
+      "name": "google_dwd_map_member",
+      "summary": "Match a Google address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Meet come in",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "google_dwd_members",
       "summary": "Workspace users mapped to Space members by email, with exclusion and mailbox state",
       "toolset": "engineer"
@@ -3448,6 +3466,12 @@
       "deferred": false,
       "name": "google_dwd_status",
       "summary": "State of domain-wide delegation: key stored, scopes, last probe, mapped members",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "google_dwd_sync_members",
+      "summary": "Match the people who have joined since setup (by the email their invitation went to) and connect their mail and calendar",
       "toolset": "engineer"
     },
     {
@@ -4970,6 +4994,12 @@
     },
     {
       "deferred": false,
+      "name": "ms_consent_map_member",
+      "summary": "Match a Microsoft address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Teams come in",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "ms_consent_members",
       "summary": "Tenant users mapped to Space members by email, with exclusion and mailbox state",
       "toolset": "engineer"
@@ -5000,8 +5030,26 @@
     },
     {
       "deferred": false,
+      "name": "ms_consent_sync_members",
+      "summary": "Match the people who have joined since setup (by the email their invitation went to) and connect their mail and calendar",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "ms_consent_verify",
       "summary": "Call GET /organization and check consent and the access policy for a probe member",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ms_directory_import",
+      "summary": "Invite chosen people from the directory: one invitation each with their work address and role, returned as links to send once a person approves",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ms_directory_list",
+      "summary": "The people in the Microsoft 365 directory (admin only), with the Space member each is matched to, for choosing who to bring in",
       "toolset": "engineer"
     },
     {

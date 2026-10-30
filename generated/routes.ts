@@ -12380,6 +12380,42 @@ const routes2: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/google/directory/import",
+    "cap": "google.directory.import",
+    "v": 1,
+    "module": "google",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/google/directory/list",
+    "cap": "google.directory.list",
+    "v": 1,
+    "module": "google",
+    "effects": "read",
+    "permission": "connectors.manage",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/google/docs/batch_update",
     "cap": "google.docs.batch_update",
     "v": 1,
@@ -12721,6 +12757,24 @@ const routes2: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/google/dwd/map_member",
+    "cap": "google.dwd.map_member",
+    "v": 1,
+    "module": "google",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "connection_change"
+  },
+  {
+    "method": "POST",
     "path": "/v1/google/dwd/members",
     "cap": "google.dwd.members",
     "v": 1,
@@ -12844,6 +12898,24 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/google/dwd/sync_members",
+    "cap": "google.dwd.sync_members",
+    "v": 1,
+    "module": "google",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "connection_change"
   },
   {
     "method": "POST",
@@ -19042,6 +19114,24 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/ms/consent/map_member",
+    "cap": "ms.consent.map_member",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "connection_change"
+  },
+  {
+    "method": "POST",
     "path": "/v1/ms/consent/members",
     "cap": "ms.consent.members",
     "v": 1,
@@ -19150,6 +19240,24 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/ms/consent/sync_members",
+    "cap": "ms.consent.sync_members",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "connection_change"
+  },
+  {
+    "method": "POST",
     "path": "/v1/ms/consent/verify",
     "cap": "ms.consent.verify",
     "v": 1,
@@ -19162,6 +19270,42 @@ const routes3: Route[] = [
     },
     "idempotency": "natural",
     "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/ms/directory/import",
+    "cap": "ms.directory.import",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/ms/directory/list",
+    "cap": "ms.directory.list",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "read",
+    "permission": "connectors.manage",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
     "offline": null,
     "teamOnly": false,
     "gate": null

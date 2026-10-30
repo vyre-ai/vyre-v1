@@ -22,5 +22,6 @@ type Payload = {
   memberId?: string;
   provider: "google" | "microsoft" | "imap" | "inbound_only";
   auto: boolean;
+  private?: boolean;
 };
 ```

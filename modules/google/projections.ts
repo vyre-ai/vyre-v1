@@ -68,7 +68,7 @@ export function needHost(ctx: Pick<GoogleCtx, "trace">): GoogleHost {
 // ---- constants
 
 export const SCOPE = "https://www.googleapis.com/auth/";
-export const SCOPES = ["gmail.modify", "calendar", "drive", "spreadsheets", "documents", "meetings.space.readonly"].map((s) => SCOPE + s);
+export const SCOPES = ["gmail.modify", "calendar", "drive", "spreadsheets", "documents", "meetings.space.readonly", "admin.directory.user.readonly"].map((s) => SCOPE + s);
 export const ADMIN_CONSOLE_URL = "https://admin.google.com/ac/owl/domainwidedelegation";
 export const CONFIG_ID = "google";
 

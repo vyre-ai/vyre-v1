@@ -21,6 +21,10 @@ export const handlers: Record<string, Handler> = {
   "ms.consent.members": (ctx, i) => h.consentMembers(ctx, i),
   "ms.consent.my_account": (ctx) => h.consentMyAccount(ctx),
   "ms.consent.set_excluded": (ctx, i) => h.consentExclude(ctx, i),
+  "ms.directory.list": (ctx, i) => h.directoryList(ctx, i),
+  "ms.directory.import": (ctx, i) => h.directoryImport(ctx, i),
+  "ms.consent.sync_members": (ctx, i) => h.syncMembers(ctx, i),
+  "ms.consent.map_member": (ctx, i) => h.consentMapMember(ctx, i),
   "ms.consent.disable": (ctx) => h.consentDisable(ctx),
   "ms.health": (ctx) => h.health(ctx),
   "ms.receive_notification": async (ctx, i) => { internalOnly(ctx, "ms.receive_notification"); return h.receiveNotification(ctx, i); },
@@ -64,8 +68,21 @@ export const handlers: Record<string, Handler> = {
   "ms.teams.recordings.subscribe": (ctx, i) => h.teamsSubscribe(ctx, i),
 };
 
-export const projections = { inline, consumers };
-export { codecs, inline, consumers };
+/** A person who has just joined is matched to their own mailbox by the address they were invited at, so their mail and calendar show with no admin step. Not set up, or no match: nothing happens, and the admin's "Match to..." line stays. */
+const joinConsumers = {
+  "microsoft.match_on_join": {
+    on: ["member.joined"],
+    async run(ctx: Ctx, _event: unknown): Promise<string[]> {
+      try { await h.syncMembers(ctx as never, {}); } catch { /* not connected yet: the admin matches later */ }
+      return [];
+    },
+  },
+};
+
+const consumersAll = { ...consumers, ...joinConsumers };
+export const projections = { inline, consumers: consumersAll };
+export { codecs, inline };
+export { consumersAll as consumers };
 
 /** Where the host registers its Microsoft seam at boot (ruling 31): the loader reads this export. */
 export const hostSeams: SeamSetters = { setMsHost };

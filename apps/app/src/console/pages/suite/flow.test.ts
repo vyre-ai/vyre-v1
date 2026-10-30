@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { connectedLine, googleCheckLine, googleChecked, memberToggle, microsoftCheckLine, microsoftChecked, storeInVault } from "./flow.ts";
+import { matchPerson, unmatchPerson, connectedLine, googleCheckLine, googleChecked, memberToggle, microsoftCheckLine, microsoftChecked, storeInVault } from "./flow.ts";
 import type { Run } from "./flow.ts";
 
 function runner(answers: Record<string, unknown> = {}) {
@@ -66,5 +66,15 @@ test("including or excluding a member sends the opposite of what they are now", 
   assert.deepEqual(r.calls, [
     { cap: "google.dwd.set_excluded", input: { email: "a@firm.com", excluded: true } },
     { cap: "ms.consent.set_excluded", input: { email: "b@firm.com", excluded: false } },
+  ]);
+});
+
+test("matching sends the address in lower case with the person, and unmatching sends the address alone", async () => {
+  const r = runner();
+  await matchPerson(r.run, "google.dwd.map_member", " Maya@Firm.com ", "usr_maya");
+  await unmatchPerson(r.run, "ms.consent.map_member", "maya@firm.com");
+  assert.deepEqual(r.calls, [
+    { cap: "google.dwd.map_member", input: { email: "maya@firm.com", userId: "usr_maya", idempotencyKey: "" } },
+    { cap: "ms.consent.map_member", input: { email: "maya@firm.com", idempotencyKey: "" } },
   ]);
 });
