@@ -32,7 +32,7 @@ test("place nav follows the prototype order", () => {
 test("the builder header segment and inspector tabs are the prototype labels", () => {
   assert.deepEqual([...BUILDER_MODES], ["Basic", "Advanced"]);
   assert.deepEqual([...INSPECTOR_TABS], ["Configure", "Data", "Test"]);
-  assert.equal(DATA_SHELF_NAME, "Universal Data Shelf");
+  assert.equal(DATA_SHELF_NAME, "Data");
   assert.equal(VAL_LABEL, "Advanced · VAL representation");
   const canvas = source("./canvas/AutomationCanvas.tsx");
   const inspector = source("./canvas/Inspector.tsx");
@@ -87,9 +87,9 @@ test("the header omits a live version and an edit count it does not have", () =>
   assert.equal(definitionLabel({ version: 5, status: "paused" }, true), `v5 · ${DRAFT_HAS_EDITS}`);
   assert.equal(definitionLabel({ version: 4 }), "v4");
   assert.doesNotMatch(definitionLabel({ version: 12, status: "on" }, true), /3 edits/);
-  assert.equal(definitionCrumb({ status: "draft", dirty: false, pinned: false }), "Current definition Draft");
-  assert.equal(definitionCrumb({ status: "on", pinned: true }), "Current definition Live · New enrollments only");
-  assert.equal(definitionCrumb({ status: "paused" }), "Current definition Current");
+  assert.equal(definitionCrumb({ status: "draft", dirty: false, pinned: false }), "Draft");
+  assert.equal(definitionCrumb({ status: "on", pinned: true }), "Live · New enrollments only");
+  assert.equal(definitionCrumb({ status: "paused" }), "Current");
   assert.equal(enrollmentsPinned(undefined, false), false);
   assert.equal(enrollmentsPinned([{ status: "succeeded" }], true), false);
   assert.equal(enrollmentsPinned([{ status: "waiting" }], true), true);

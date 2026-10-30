@@ -19,7 +19,7 @@ export type BuilderMode = "basic" | "advanced";
 export const INSPECTOR_TABS = ["Configure", "Data", "Test"] as const;
 export type InspectorTab = "configure" | "data" | "test";
 
-export const DATA_SHELF_NAME = "Universal Data Shelf";
+export const DATA_SHELF_NAME = "Data";
 export const SHELF_SEARCH = "Search fields and values";
 export const ABSENCE = ["Missing", "Null", "Empty"] as const;
 export const VAL_LABEL = "Advanced · VAL representation";
@@ -78,7 +78,7 @@ export function definitionCrumb(input: { status?: string; dirty?: boolean; pinne
   const draft = input.dirty === true || input.status === "draft";
   const live = !draft && input.status === "on";
   const word = draft ? "Draft" : live ? "Live" : "Current";
-  const base = `Current definition ${word}`;
+  const base = word;
   return input.pinned === true ? `${base} · ${PINNED_ENROLLMENTS}` : base;
 }
 
