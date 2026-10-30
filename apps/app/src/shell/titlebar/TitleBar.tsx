@@ -22,6 +22,9 @@ export interface TitleBarProps {
   /** The open skin's id, or "system". */
   skin: string;
   onSkin: (id: string) => void;
+  /** The Space the skin is personal to, named in the menu header, and where "More in Appearance" goes. */
+  spaceName?: string;
+  onMoreAppearance?: () => void;
   /** A phone-width window keeps icons and drops labels. */
   compact?: boolean;
   /** The running call as a pill beside the title (the Inbox's CallTitlePill); nothing when there is no call. */
@@ -68,7 +71,7 @@ export function TitleBar(props: TitleBarProps): ReactElement {
         testID="title-skin"
         label={skinName(props.skin)}
         hideLabel={compact}
-        onPress={(x, y) => show(skinMenuEntries(props.skin, props.onSkin), x, y, "other", { label: "Skin" })}
+        onPress={(x, y) => show(skinMenuEntries(props.skin, props.onSkin, { ...(props.spaceName ? { space: props.spaceName } : {}), ...(props.onMoreAppearance ? { onMore: props.onMoreAppearance } : {}) }), x, y, "other", { label: "Skin" })}
         lead={<MenuIcon icon={props.skin === SYSTEM_SKIN ? SYSTEM_ICON : skinSwatch(props.skin)} />}
         tail={<ShellIcon name="chev" size={10} color="var(--ink-4)" />}
         title="Skin, just for you in this Space"
