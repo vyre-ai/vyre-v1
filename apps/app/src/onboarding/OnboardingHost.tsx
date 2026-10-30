@@ -12,6 +12,7 @@ import { OPEN_TARGETS, OpenCard } from "./OpenCard.tsx";
 import { PairPhoneCard } from "./PairPhoneCard.tsx";
 import { KitPickCard } from "./KitPickCard.tsx";
 import { SpaceAiCard } from "./SpaceAiCard.tsx";
+import { DirectoryCard, InvitesCard, SignInDomainCard, WorkspaceCard } from "./SuiteCards.tsx";
 import { shouldAutoOpen } from "./flow.ts";
 import type { CardKind, FlowKind, Progress, StepState } from "./flow.ts";
 import { OnboardingScreen } from "./OnboardingScreen.tsx";
@@ -84,6 +85,13 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
     const target = OPEN_TARGETS[card];
     if (target && onGo) return <OpenCard text={target.text} action={target.action} onOpen={() => { setShown(false); setStep(null); onGo(target.place); }} onDone={() => ctx.done()} />;
     if (card === "space_ai" && call) return <SpaceAiCard team={call} personal={personalCall} onConnected={() => ctx.done()} />;
+    if (call && onGo) {
+      const toConsole = (): void => { setShown(false); setStep(null); onGo("console"); };
+      if (card === "google_microsoft") return <WorkspaceCard call={call} onOpenConsole={toConsole} onDone={() => ctx.done()} />;
+      if (card === "sign_in_domain") return <SignInDomainCard call={call} onOpenConsole={toConsole} onDone={() => ctx.done()} />;
+      if (card === "directory") return <DirectoryCard call={call} onOpenConsole={toConsole} onDone={() => ctx.done()} />;
+    }
+    if (card === "invites" && call) return <InvitesCard call={call} onDone={() => ctx.done()} />;
     if (card === "org" && call) return <KitPickCard call={call} onInstalled={() => ctx.done()} />;
     if (card === "interview" && call) return <InterviewCard call={call} onSaved={() => ctx.done()} />;
     return <Text testID="card-not-set-up" style={s.dim}>This part is not set up yet. You can do it later from the checklist on Home.</Text>;
