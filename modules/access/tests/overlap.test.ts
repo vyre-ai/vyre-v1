@@ -85,3 +85,21 @@ test("a persist that fails leaves the store owing its rows: the next persist wri
   assert.equal(fresh.principals.get("usr_noah")?.status, "suspended", "the suspension reached the tables");
   assert.ok(fresh.grants.has("grn_x"), "and so did the rows written before the failure point");
 });
+
+test("a store read from the tables and not changed writes nothing, and a change writes just its own row", () => {
+  const h = harness();
+  const shared = h.db;
+  const first = callOn(h.ctx, shared);
+  const seeded = storeOf(first);
+  changed(first, seeded, "label");   // the Space is in the tables
+  const writes: string[] = [];
+  const db: Db = { all: (sql, ...a) => shared.all(sql, ...a), run: (sql, ...a) => { writes.push(sql.replace(/\s+/g, " ").slice(0, 60)); return shared.run(sql, ...a); } };
+  const ctx = { ...h.ctx, db };
+  const store = storeOf(ctx);        // hydrated from the tables
+  store.persist(db);
+  assert.deepEqual(writes, [], "nothing changed, nothing written");
+  store.grants.set("grn_one", grant("grn_one"));
+  store.persist(db);
+  assert.equal(writes.length, 1, writes.join(" | "));
+  assert.match(writes[0]!, /access_grants/);
+});
