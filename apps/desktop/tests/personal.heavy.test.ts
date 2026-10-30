@@ -97,6 +97,18 @@ async function post(url: string, token: string | null, cap: string, body: unknow
 }
 const ok = (r: Reply, what: string): any => { assert.equal(r.status, 200, `${what}: ${r.status} ${JSON.stringify(r.body.error ?? r.body).slice(0, 400)}`); return r.body.data; };   // eslint-disable-line @typescript-eslint/no-explicit-any
 
+/** What the sidecar left behind, for a failure message: the app's own output (the sidecar's stderr is in it) and the tail of every file the Personal daemon wrote under its logs folder. */
+function diagnostics(appOut: string): string {
+  const parts = [`app output (tail):\n${appOut.slice(-3500)}`];
+  try {
+    const walk = (dir: string, depth = 0): string[] => (depth > 3 ? [] : fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name), depth + 1) : [path.join(dir, e.name)])));
+    const files = fs.existsSync(data) ? walk(data).filter((f) => !/\.(db|sqlite|wal|shm)(-\w+)?$/.test(f)) : [];
+    parts.push(`personal data dir ${data}:\n${files.map((f) => `${path.relative(data, f)} ${fs.statSync(f).size}`).join("\n") || "(missing)"}`);
+    for (const f of files.filter((x) => /(logs\/|vyred\.json)/.test(x) && !/claim-link/.test(x)).slice(0, 6)) parts.push(`--- ${path.relative(data, f)}\n${fs.readFileSync(f, "utf8").slice(-1500)}`);
+  } catch (e) { parts.push(`(could not read the data dir: ${String(e)})`); }
+  return parts.join("\n");
+}
+
 function quit(app: ChildProcess): Promise<void> {
   const exited = new Promise<void>((r) => app.once("exit", () => r()));
   const q = spawnSync("osascript", ["-e", 'tell application id "ai.vyre.desktop" to quit'], { encoding: "utf8" });
@@ -117,7 +129,7 @@ test("the built app starts Personal, claims over HTTP, imports fixture sessions 
   const first = launch(c.url);
   try {
     const proof = await Promise.race([c.got, new Promise((_, bad) => setTimeout(() => bad(new Error(`the page never reported over the IPC:\n${first.out().slice(-2500)}`)), 90_000))]) as any;   // eslint-disable-line @typescript-eslint/no-explicit-any
-    assert.deepEqual(proof.errors, [], "every command the page called over the IPC answered");
+    assert.deepEqual(proof.errors, [], `every command the page called over the IPC answered\n${proof.errors.length ? diagnostics(first.out()) : ""}`);
 
     // ---- 1. Personal, started by the app as the UI starts it, claimed over HTTP
     const p = proof.personal;
