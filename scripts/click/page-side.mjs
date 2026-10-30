@@ -82,15 +82,17 @@ export function enumerate(scopeSel) {
     const tn = e.tagName;
     if (tn === "INPUT" || tn === "TEXTAREA" || tn === "SELECT") continue;
     if (e.closest("[aria-hidden=true],[inert]") && !e.closest("[data-dbg-ov]")) continue;
+    // The role rule: a container that only holds keyboard focus for arrow navigation is not a click target; its items are. Anything with an interactive role, a native control or no role at all (a focusable div with a handler) is.
+    const role0 = e.getAttribute("role") || "";
+    if (/^(list|listbox|grid|treegrid|tree|tablist|menu|menubar|radiogroup|toolbar|table|rowgroup|region|group|application|document|scrollbar|presentation|none)$/.test(role0) && tn !== "BUTTON" && tn !== "A" && tn !== "SUMMARY") continue;
     const cs = getComputedStyle(e);
     const r = e.getBoundingClientRect();
     if (r.width < 2 || r.height < 2 || cs.visibility === "hidden" || cs.display === "none" || Number(cs.opacity) === 0) continue;
     const disabled = e.disabled === true || e.getAttribute("aria-disabled") === "true" || e.hasAttribute("disabled");
-    const noop = e.closest("[data-noop-ok]");
     const selected = e.getAttribute("aria-selected") === "true" || e.getAttribute("aria-pressed") === "true" || (e.getAttribute("aria-current") && e.getAttribute("aria-current") !== "false");
     e.setAttribute("data-dbg-i", String(i));
     const href = e.getAttribute("href");
-    out.push({ i: i++, label: shortLabel(e), tag: tn.toLowerCase(), role: e.getAttribute("role") || "", testid: e.getAttribute("data-testid") || "", sel: structural(e), disabled, selected, noop: noop ? noop.getAttribute("data-noop-ok") || "marked" : "", href: href || "", target: e.getAttribute("target") || "", rect: [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)], hasKids: [...e.querySelectorAll(SEL)].some((k) => matched.has(k)) });
+    out.push({ i: i++, label: shortLabel(e), tag: tn.toLowerCase(), role: e.getAttribute("role") || "", testid: e.getAttribute("data-testid") || "", sel: structural(e), disabled, selected, href: href || "", target: e.getAttribute("target") || "", rect: [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)], hasKids: [...e.querySelectorAll(SEL)].some((k) => matched.has(k)) });
   }
   return out;
 }

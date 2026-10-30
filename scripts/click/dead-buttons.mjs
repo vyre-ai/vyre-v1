@@ -3,7 +3,7 @@
 // clicks every interactive element from a fresh state and fails when a click changes nothing a person could see within 1.5 s. Run it on WebKit (the Mac app's engine) and on Chromium.
 //   node scripts/click/dead-buttons.mjs --dist apps/app/dist [--browser webkit|chromium] [--csp tauri|none] [--spaces personal,team] [--out shots-out/dead-buttons] [--workers 4]
 //        [--max-screens 40] [--places home,chat,...] [--update-baseline] [--no-gate]
-// Exit 1 when a DEAD element is not in scripts/click/dead-baseline.json (empty by decision: there is no allowlist). Elements that are meant to do nothing carry data-noop-ok="<reason>".
+// Exit 1 when a DEAD element is not in scripts/click/dead-baseline.json (empty by decision: there is no allowlist). There is no opt-out attribute: scripts/lint/no-noop-opt-out.ts fails any data-noop-ok. A container with role list, listbox, grid, tree, tablist, menu, radiogroup, toolbar, table or region that only holds focus for arrow keys is not a click target (its items are); everything else focusable is.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -215,7 +215,6 @@ export async function crawl({ browser, space, name, web, csp, workers, maxScreen
     const counts = new Map();
     for (const e of els) {
       if (e.disabled) continue;
-      if (e.noop) { stats.noop++; continue; }
       if (e.selected) { record(current, unit, e, { note: "already the current choice (aria-selected, aria-pressed or aria-current set)" }); continue; }   // pressing the current choice again may do nothing
       if (!scope && CHROME.test(e.testid)) { const c = e.testid.replace(/-selected$/, ""); if (chromeDone.has(c)) continue; chromeDone.add(c); }
       if (RISKY.test(e.label)) { skipped.push({ space: name, place: unit.place, screen: screenKey(unit.url), path: unit.steps.map((s) => s.label), label: e.label, why: "ends the session or the Space; its confirm is not clicked" }); continue; }

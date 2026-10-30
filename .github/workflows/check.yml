@@ -115,6 +115,8 @@ jobs:
         run: node scripts/lint/raise-after-write.ts --enforce
       - name: no-silent-calls (enforced); a fire-and-forget capability call in apps/app or ui needs an error handler, so a refused call never leaves a dead button (known list may only shrink)
         run: node scripts/lint/no-silent-calls.ts --enforce
+      - name: no-noop-opt-out (enforced); the no-dead-buttons gate has no opt-out attribute
+        run: node scripts/lint/no-noop-opt-out.ts
       - name: Typecheck every package that has a tsconfig.json above a changed file
         run: |
           git fetch -q origin main
