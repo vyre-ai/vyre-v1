@@ -89,3 +89,20 @@ test("a Calendar failure never fails the setup or the mailbox pass", async () =>
   assert.deepEqual(await receivePush(h.ctx, { kind: "gmail", messageId: "p3", mailbox: MAYA, historyId: "1" }), { accepted: true });
   assert.equal(h.scheduled.length, 1);
 });
+
+test("the admin who sets up is matched to the admin address even though no invitation holds it, and never taken over another person's address", async () => {
+  const h = harness({ admin: true, members, principal: { kind: "person", id: "usr_admin01" } });
+  ensure(h.ctx);
+  h.on("GET", "https://gmail.googleapis.com/gmail/v1/users/me/profile", { body: { emailAddress: "admin@vyre.test", historyId: "1000" } });
+  const out = await dwdSetup(h.ctx, { vaultItem: "#Google_DWD", adminEmail: "admin@vyre.test", idempotencyKey: "s1" });
+  assert.equal(out.mappedMembers, 4);
+  assert.deepEqual(h.rows(`SELECT "userId", mapped FROM google_member WHERE email = ?`, "admin@vyre.test"), [{ userId: "usr_admin01", mapped: 1 }]);
+  assert.ok(h.calls("mail.auto_connect_members")[0]!.input.members instanceof Array);
+  assert.ok((h.calls("mail.auto_connect_members")[0]!.input.members as { email: string }[]).some((m) => m.email === "admin@vyre.test"));
+  // an address an invitation already gave to someone else is theirs
+  const h2 = harness({ admin: true, members: [...members, { userId: "usr_other01", email: "admin@vyre.test" }], principal: { kind: "person", id: "usr_admin01" } });
+  ensure(h2.ctx);
+  h2.on("GET", "https://gmail.googleapis.com/gmail/v1/users/me/profile", { body: { emailAddress: "admin@vyre.test", historyId: "1000" } });
+  await dwdSetup(h2.ctx, { vaultItem: "#Google_DWD", adminEmail: "admin@vyre.test", idempotencyKey: "s1" });
+  assert.deepEqual(h2.rows(`SELECT "userId" FROM google_member WHERE email = ?`, "admin@vyre.test"), [{ userId: "usr_other01" }]);
+});

@@ -124,6 +124,19 @@ export async function dwdSetup(ctx: GoogleCtx, input: { vaultItem: string; admin
     if (!prior || num(prior, "excluded") === 0) mapped.push({ userId: m.userId, email });
   }
 
+  // The person setting this up is a member too, and the one whose address Vyre was just given: an owner has no invitation email on record, so without this the admin's own mail,
+  // calendar and Meet would be the only ones that never arrive.
+  const self = ctx.actingFor ?? ctx.principal.id;
+  if (/^usr_[a-z0-9]+$/.test(self) && admin.endsWith(`@${domain}`) && !mapped.some((m) => m.userId === self || m.email === admin)) {
+    const known = first(ctx.db.all(`SELECT "userId", excluded FROM google_member WHERE email = ?`, admin));
+    const takenBy = strOrNull(known, "userId");
+    if (!takenBy || takenBy === self) {
+      if (known) ctx.db.run(`UPDATE google_member SET "userId" = ?, mapped = ?, updated_at = ? WHERE email = ?`, self, 1, now, admin);
+      else ctx.db.run(`INSERT INTO google_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, admin, self, 1, 0, null, now);
+      if (num(known, "excluded") !== 1) mapped.push({ userId: self, email: admin });
+    }
+  }
+
   let connected = 0;
   if (autoConnect && mapped.length > 0) {
     const out = obj(await ctx.call("mail.auto_connect_members", { provider: "google", members: mapped, idempotencyKey: `${input.idempotencyKey}:members` }));
