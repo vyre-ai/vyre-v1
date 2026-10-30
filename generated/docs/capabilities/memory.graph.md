@@ -43,6 +43,7 @@ type Out = {
       nodeId: string;
       kind: "note" | "person" | "client" | "project" | "site" | "decision" | "record" | "chat" | "agent" | "topic";
       title: string;
+      pageId?: string;
       layer?: "person" | "agent" | "project" | "space";
       cluster?: string;
       x?: number;
@@ -56,6 +57,11 @@ type Out = {
       label?: string;
       evidence?: string;
       at?: number;
+      source?: {
+        title: string;
+        kind: string;
+        link?: string;
+      };
     }>;
   clusters: Array<{
       name: string;
@@ -105,6 +111,11 @@ type Out = {
         "from": "example",
         "kind": "link",
         "label": "example",
+        "source": {
+          "kind": "example",
+          "link": "example",
+          "title": "example"
+        },
         "to": "example"
       }
     ],
@@ -115,6 +126,7 @@ type Out = {
         "layer": "person",
         "link": "example",
         "nodeId": "example",
+        "pageId": "example",
         "title": "example",
         "x": 1,
         "y": 1

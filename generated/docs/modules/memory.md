@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (50)
+## Capabilities (51)
 
 - [memory.archive_sweep](../capabilities/memory.archive_sweep.md): Daily job: move facts untouched in Trash for the Space setting (30 to 90 days, default 60) to Archive
 - [memory.backlinks](../capabilities/memory.backlinks.md): Where a page is linked from: other pages, chats, runs and records, each with the line that names it; only places the reader can open
@@ -38,6 +38,7 @@ Requires: nothing.
 - [memory.page.list](../capabilities/memory.page.list.md): List the pages the reader can see, by words in the title or Notes, layer, kind, agent or project
 - [memory.page.put](../capabilities/memory.page.put.md): Write the Notes of a page as a new version (making the page when it is new); [[links]] in the Notes become labelled edges, each with the line it was written in
 - [memory.page.restore_version](../capabilities/memory.page.restore_version.md): Write an earlier version of the Notes back as a new version (the versions in between stay)
+- [memory.page.set_visibility](../capabilities/memory.page.set_visibility.md): Change who can see a page: move it to the Space, a project, an agent or the caller's own personal layer; its Notes, versions and links go with it
 - [memory.page.versions](../capabilities/memory.page.versions.md): Every version of the Notes of a page, newest first, with who wrote it and when
 - [memory.pointer](../capabilities/memory.pointer.md): Pointer block for a message: up to about 5 lines from a local lookup, no model call, deduplicated against the thread
 - [memory.promote](../capabilities/memory.promote.md): Promote a fact to the agent, a project or the Space layer; a task for the right approver carries the name and time, no admin needed when the person can edit the target

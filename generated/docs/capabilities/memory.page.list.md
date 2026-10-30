@@ -53,6 +53,9 @@ type Out = {
       updatedAt: number;
       trashedAt?: number;
       archivedAt?: number;
+      subtitle?: string;
+      blurb?: string;
+      visibleTo?: string;
     }>;
   next?: string;
   total?: number;
@@ -86,6 +89,7 @@ type Out = {
       {
         "agentId": "agt_a1b2c3",
         "archivedAt": 1760000000000,
+        "blurb": "example",
         "createdAt": 1760000000000,
         "kind": "person",
         "layer": "person",
@@ -93,10 +97,12 @@ type Out = {
         "pageId": "example",
         "projectId": "prj_a1b2c3",
         "subjectRef": "example",
+        "subtitle": "example",
         "title": "example",
         "trashedAt": 1760000000000,
         "updatedAt": 1760000000000,
-        "version": 1
+        "version": 1,
+        "visibleTo": "example"
       }
     ],
     "total": 1

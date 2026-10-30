@@ -4,6 +4,7 @@
 // DECISION: where a fact lands follows "who accepts what" in spec 2.15: channel facts go straight to the project layer, run and Journey facts wait in proposed for the agent owner,
 //   everything from a chat goes to the asker's own layer and merges on its own only for a kind in the setting memory.auto_merge_kinds (default preference), or when the person typed it themselves.
 // DECISION: search is local and has no model call: BM25 over words, character trigrams for the "semantic" side, a small recency lift. The vector table of ARCH 6.10 is the same call shape and slots in later.
+import { extrasFor, factRows } from "../enrich.ts";
 import { MEANING_MIN, meaningScores } from "../meaning.ts";
 import { reviewRequired } from "../policy.ts";
 import { trail, whoIs } from "../trail.ts";
@@ -271,7 +272,7 @@ export async function factGet(ctx: MemCtx, input: { factId: string }) {
     history.push(prev);
     cur = prev.replaces;
   }
-  return { fact: factOut(f), history: history.map(factOut) };
+  return { fact: factRows(ctx, [f])[0]!, history: history.map(factOut) };
 }
 
 export async function factsList(
@@ -295,7 +296,7 @@ export async function factsList(
     facts = facts.filter((f) => f.text.toLowerCase().includes(needle));
   }
   const p = pageOf(facts, input.cursor, input.limit);
-  return { facts: p.page.map(factOut), ...(p.next ? { next: p.next } : {}), total: p.total };
+  return { facts: factRows(ctx, p.page), ...(p.next ? { next: p.next } : {}), total: p.total };
 }
 
 export async function factsAsOf(ctx: MemCtx, input: Page & { date: number; agentId?: string; layer?: Layer; q?: string }) {
@@ -312,7 +313,7 @@ export async function factsAsOf(ctx: MemCtx, input: Page & { date: number; agent
     facts = facts.filter((f) => f.text.toLowerCase().includes(needle));
   }
   const p = pageOf(facts, input.cursor, input.limit);
-  return { facts: p.page.map(factOut), ...(p.next ? { next: p.next } : {}), total: p.total };
+  return { facts: factRows(ctx, p.page), ...(p.next ? { next: p.next } : {}), total: p.total };
 }
 
 export async function layersList(ctx: MemCtx, input: { agentId?: string; projectId?: string }) {
@@ -488,12 +489,14 @@ export async function search(
   });
   hits.sort((a, b) => b.score - a.score || a.doc.id.localeCompare(b.doc.id));
   const limit = input.limit ?? 10;
+  const shown = hits.slice(0, limit);
+  const extra = extrasFor(ctx, shown.filter((h) => h.doc.kind === "fact").map((h) => loadFact(ctx, h.doc.id)).filter((f): f is Fact => f !== null).map((f) => (f.text === "" ? { ...f, text: shown.find((h) => h.doc.id === f.id)?.doc.text ?? "" } : f)));
   return {
-    hits: hits.slice(0, limit).map(({ doc, score }) => ({
+    hits: shown.map(({ doc, score }) => ({
       kind: doc.kind,
       ...(doc.kind === "fact" ? { factId: doc.id } : doc.kind === "page" ? { pageId: doc.id } : { noteId: doc.id }),
       title: doc.title, text: snippet(doc.text || doc.title, q), ...(doc.path ? { path: doc.path } : {}), ...(doc.since !== null ? { trueSince: doc.since } : {}), layer: doc.layer,
-      ...(doc.link ? { sourceLink: doc.link } : {}), score: Math.round(score * 10_000) / 10_000,
+      ...(doc.link ? { sourceLink: doc.link } : {}), score: Math.round(score * 10_000) / 10_000, ...(doc.kind === "fact" ? extra.get(doc.id) ?? {} : {}),
     })),
     tookMs: Math.max(0, Math.round(performance.now() - t0)),
     ...(meaning ? { meaning: { state: meaning.status.state, ...(meaning.status.model ? { model: meaning.status.model } : {}), ...(meaning.status.hint ? { hint: meaning.status.hint } : {}) } } : {}),
@@ -644,7 +647,7 @@ export async function findBySubject(ctx: MemCtx, input: Page & { subject: string
   const noteRows = rowsOf(ctx.db, "SELECT * FROM memory_notes WHERE layer != 'person' AND (LOWER(title) LIKE ? OR LOWER(body) LIKE ?) ORDER BY updated_at DESC", like, like);
   const notes = noteRows.map((r) => noteRowOut(ctx, r)).filter((n): n is NonNullable<typeof n> => n !== null);
   const p = pageOf(facts, input.cursor, input.limit);
-  return { facts: p.page.map(factOut), notes, ...(p.next ? { next: p.next } : {}), total: p.total };
+  return { facts: factRows(ctx, p.page), notes, ...(p.next ? { next: p.next } : {}), total: p.total };
 }
 
 // ---- promotion

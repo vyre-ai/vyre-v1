@@ -30368,6 +30368,15 @@
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "actorKind": {
+            "enum": [
+              "person",
+              "agent",
+              "upkeep",
+              "system"
+            ],
+            "type": "string"
+          },
           "agentId": {
             "examples": [
               "agt_a1b2c3"
@@ -30406,6 +30415,27 @@
             ],
             "minimum": 0,
             "type": "integer"
+          },
+          "sourceRef": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "what": {
+            "items": {
+              "enum": [
+                "learned",
+                "merged",
+                "flagged"
+              ],
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -30665,6 +30695,52 @@
         "type": "object"
       },
       "name": "memory_page_restore_version",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.page.set_visibility",
+      "deferred": false,
+      "description": "Change who can see a page: move it to the Space, a project, an agent or the caller's own personal layer; its Notes, versions and links go with it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "pageId": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pageId",
+          "layer"
+        ],
+        "type": "object"
+      },
+      "name": "memory_page_set_visibility",
       "planMode": "blocked",
       "toolset": "memory",
       "v": 1
@@ -31332,6 +31408,9 @@
             "minimum": 1,
             "type": "integer"
           },
+          "blurb": {
+            "type": "string"
+          },
           "kind": {
             "enum": [
               "person",
@@ -31371,6 +31450,9 @@
             "type": "string"
           },
           "subjectRef": {
+            "type": "string"
+          },
+          "subtitle": {
             "type": "string"
           },
           "title": {

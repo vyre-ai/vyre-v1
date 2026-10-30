@@ -4556,6 +4556,12 @@
     },
     {
       "deferred": false,
+      "name": "memory_page_set_visibility",
+      "summary": "Change who can see a page: move it to the Space, a project, an agent or the caller's own personal layer; its Notes, versions and links go with it",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_page_versions",
       "summary": "Every version of the Notes of a page, newest first, with who wrote it and when",
       "toolset": "memory"

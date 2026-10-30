@@ -55,6 +55,10 @@ const ready = new WeakSet<object>();
 const FACT_COLUMNS = [
   '"trashed_at" INTEGER', '"trash_reason" TEXT', '"trashed_by" TEXT', '"prev_status" TEXT', '"prev_valid_to" INTEGER', '"merged_into" TEXT', '"touched_at" INTEGER', '"archived_at" INTEGER', '"archived_by" TEXT',
 ];
+/** Columns added to the page and link tables after their first version. */
+const LATER_COLUMNS: Array<[string, string]> = [
+  ["memory_pages", '"subtitle" TEXT'], ["memory_pages", '"blurb" TEXT'], ["memory_mentions", '"message_id" TEXT'], ["memory_page_links", `"target" TEXT NOT NULL DEFAULT ''`],
+];
 const FACT_INDEXES = ['CREATE INDEX IF NOT EXISTS memory_facts_trash ON memory_facts (trashed_at, archived_at)'];
 
 /** Make sure the memory tables exist. One cheap probe per handle; the CREATE ... IF NOT EXISTS statements run only when it fails. */
@@ -63,10 +67,14 @@ export function ensure(db: Db): void {
   try {
     db.all("SELECT archived_by FROM memory_facts WHERE id = ?", "probe");
     db.all("SELECT stopped FROM memory_upkeep_runs WHERE id = ?", "probe");
+    db.all("SELECT blurb FROM memory_pages WHERE page_id = ?", "probe");
+    db.all("SELECT message_id FROM memory_mentions WHERE page_id = ?", "probe");
+    db.all("SELECT target FROM memory_page_links WHERE from_page = ?", "probe");
   } catch {
     for (const stmt of SCHEMA) db.run(stmt);
     // SQLite has no ADD COLUMN IF NOT EXISTS: a column that is already there raises and is skipped.
     for (const col of FACT_COLUMNS) { try { db.run(`ALTER TABLE memory_facts ADD COLUMN ${col}`); } catch { /* already there */ } }
+    for (const [table, col] of LATER_COLUMNS) { try { db.run(`ALTER TABLE ${table} ADD COLUMN ${col}`); } catch { /* already there */ } }
     for (const stmt of FACT_INDEXES) db.run(stmt);
   }
   ready.add(db);

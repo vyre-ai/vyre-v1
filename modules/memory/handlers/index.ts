@@ -6,7 +6,7 @@ import {
 } from "./facts.ts";
 import { graph, graphEverything, graphExport, indexGraph, layoutGet, layoutSave } from "./graph.ts";
 import { archiveSweep, learned, restore, trailRead, trashSearch, undo } from "./lifecycle.ts";
-import { backlinks, exportMarkdown, pageDelete, pageGet, pageList, pagePut, pageRestoreVersion, pageVersions } from "./pages.ts";
+import { backlinks, exportMarkdown, pageDelete, pageGet, pageList, pagePut, pageRestoreVersion, pageSetVisibility, pageVersions } from "./pages.ts";
 import { noteErase } from "./purge.ts";
 import { meaningStatusRead } from "./meaning.ts";
 import { maintain, questionResolve, questionsList, upkeepStatus } from "./upkeep.ts";
@@ -58,6 +58,7 @@ export const handlers = {
   "memory.page.versions": pageVersions,
   "memory.page.restore_version": pageRestoreVersion,
   "memory.page.delete": pageDelete,
+  "memory.page.set_visibility": pageSetVisibility,
   "memory.backlinks": backlinks,
   "memory.export_markdown": exportMarkdown,
   "memory.questions.list": questionsList,

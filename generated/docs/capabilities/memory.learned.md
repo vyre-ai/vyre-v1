@@ -29,6 +29,10 @@ type In = {
   agentId?: string;
   projectId?: string;
   since?: number;
+  threadId?: string;
+  sourceRef?: string;
+  actorKind?: "person" | "agent" | "upkeep" | "system";
+  what?: Array<"learned" | "merged" | "flagged">;
   cursor?: string;
   limit?: number;
 };
@@ -58,6 +62,15 @@ type Out = {
         trashedAt?: number;
         trashReason?: string;
         archivedAt?: number;
+        subject?: {
+          pageId: string;
+          title: string;
+          kind: string;
+        };
+        sourceTitle?: string;
+        by?: string;
+        byKind?: "person" | "agent" | "upkeep" | "system";
+        versions?: number;
       };
       at: number;
       actor: string;
@@ -67,6 +80,10 @@ type Out = {
       sourceLink?: string;
       from?: string;
       undone: boolean;
+      what: "learned" | "merged" | "flagged";
+      note?: string;
+      mergedInto?: string;
+      questionId?: string;
     }>;
   next?: string;
   total?: number;
@@ -86,12 +103,18 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "actorKind": "person",
     "agentId": "agt_a1b2c3",
     "cursor": "example",
     "layer": "person",
     "limit": 1,
     "projectId": "prj_a1b2c3",
-    "since": 1760000000000
+    "since": 1760000000000,
+    "sourceRef": "example",
+    "threadId": "thr_a1b2c3",
+    "what": [
+      "learned"
+    ]
   },
   "output": {
     "items": [
@@ -102,6 +125,8 @@ type Out = {
         "fact": {
           "agentId": "agt_a1b2c3",
           "archivedAt": 1760000000000,
+          "by": "example",
+          "byKind": "person",
           "closedAt": 1760000000000,
           "factId": "fct_a1b2c3",
           "layer": "person",
@@ -112,18 +137,29 @@ type Out = {
           "sourceKind": "chat",
           "sourceLink": "example",
           "sourceRef": "example",
+          "sourceTitle": "example",
           "status": "proposed",
+          "subject": {
+            "kind": "example",
+            "pageId": "example",
+            "title": "example"
+          },
           "text": "example",
           "trashReason": "example",
           "trashedAt": 1760000000000,
           "validFrom": 1760000000000,
-          "validTo": 1760000000000
+          "validTo": 1760000000000,
+          "versions": 1
         },
         "from": "example",
+        "mergedInto": "fct_a1b2c3",
+        "note": "example",
+        "questionId": "example",
         "sourceKind": "chat",
         "sourceLink": "example",
         "sourceRef": "example",
-        "undone": true
+        "undone": true,
+        "what": "learned"
       }
     ],
     "next": "example",

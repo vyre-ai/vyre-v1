@@ -52,6 +52,15 @@ type Out = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    subject?: {
+      pageId: string;
+      title: string;
+      kind: string;
+    };
+    sourceTitle?: string;
+    by?: string;
+    byKind?: "person" | "agent" | "upkeep" | "system";
+    versions?: number;
   };
 };
 ```
@@ -76,6 +85,8 @@ type Out = {
     "fact": {
       "agentId": "agt_a1b2c3",
       "archivedAt": 1760000000000,
+      "by": "example",
+      "byKind": "person",
       "closedAt": 1760000000000,
       "factId": "fct_a1b2c3",
       "layer": "person",
@@ -86,12 +97,19 @@ type Out = {
       "sourceKind": "chat",
       "sourceLink": "example",
       "sourceRef": "example",
+      "sourceTitle": "example",
       "status": "proposed",
+      "subject": {
+        "kind": "example",
+        "pageId": "example",
+        "title": "example"
+      },
       "text": "example",
       "trashReason": "example",
       "trashedAt": 1760000000000,
       "validFrom": 1760000000000,
-      "validTo": 1760000000000
+      "validTo": 1760000000000,
+      "versions": 1
     }
   }
 }

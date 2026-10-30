@@ -1328,6 +1328,7 @@ export function createClient(transport: Transport) {
         list: call("memory.page.list", 1),
         put: call("memory.page.put", 1),
         restore_version: call("memory.page.restore_version", 1),
+        set_visibility: call("memory.page.set_visibility", 1),
         versions: call("memory.page.versions", 1),
       },
       pointer: call("memory.pointer", 1),

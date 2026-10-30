@@ -17511,6 +17511,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/memory/page/set_visibility",
+    "cap": "memory.page.set_visibility",
+    "v": 1,
+    "module": "memory",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/memory/page/versions",
     "cap": "memory.page.versions",
     "v": 1,

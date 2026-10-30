@@ -15950,6 +15950,15 @@ export type MemoryFactAcceptOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    subject?: {
+      pageId: string;
+      title: string;
+      kind: string;
+    };
+    sourceTitle?: string;
+    by?: string;
+    byKind?: "person" | "agent" | "upkeep" | "system";
+    versions?: number;
   };
 };
 export type MemoryFactCorrectIn = {
@@ -15977,6 +15986,15 @@ export type MemoryFactCorrectOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    subject?: {
+      pageId: string;
+      title: string;
+      kind: string;
+    };
+    sourceTitle?: string;
+    by?: string;
+    byKind?: "person" | "agent" | "upkeep" | "system";
+    versions?: number;
   };
   closed: {
     factId: string;
@@ -15997,6 +16015,15 @@ export type MemoryFactCorrectOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    subject?: {
+      pageId: string;
+      title: string;
+      kind: string;
+    };
+    sourceTitle?: string;
+    by?: string;
+    byKind?: "person" | "agent" | "upkeep" | "system";
+    versions?: number;
   };
 };
 export type MemoryFactGetIn = {
@@ -16022,6 +16049,15 @@ export type MemoryFactGetOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    subject?: {
+      pageId: string;
+      title: string;
+      kind: string;
+    };
+    sourceTitle?: string;
+    by?: string;
+    byKind?: "person" | "agent" | "upkeep" | "system";
+    versions?: number;
   };
   history: Array<{
       factId: string;
@@ -16042,6 +16078,15 @@ export type MemoryFactGetOut = {
       trashedAt?: number;
       trashReason?: string;
       archivedAt?: number;
+      subject?: {
+        pageId: string;
+        title: string;
+        kind: string;
+      };
+      sourceTitle?: string;
+      by?: string;
+      byKind?: "person" | "agent" | "upkeep" | "system";
+      versions?: number;
     }>;
 };
 export type MemoryFactRejectIn = {
@@ -16067,6 +16112,15 @@ export type MemoryFactRejectOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    subject?: {
+      pageId: string;
+      title: string;
+      kind: string;
+    };
+    sourceTitle?: string;
+    by?: string;
+    byKind?: "person" | "agent" | "upkeep" | "system";
+    versions?: number;
   };
 };
 export type MemoryFactsListIn = {
@@ -16099,6 +16153,15 @@ export type MemoryFactsListOut = {
       trashedAt?: number;
       trashReason?: string;
       archivedAt?: number;
+      subject?: {
+        pageId: string;
+        title: string;
+        kind: string;
+      };
+      sourceTitle?: string;
+      by?: string;
+      byKind?: "person" | "agent" | "upkeep" | "system";
+      versions?: number;
     }>;
   next?: string;
   total?: number;
@@ -16142,6 +16205,15 @@ export type MemoryFactsAsOfOut = {
       trashedAt?: number;
       trashReason?: string;
       archivedAt?: number;
+      subject?: {
+        pageId: string;
+        title: string;
+        kind: string;
+      };
+      sourceTitle?: string;
+      by?: string;
+      byKind?: "person" | "agent" | "upkeep" | "system";
+      versions?: number;
     }>;
   next?: string;
   total?: number;
@@ -16171,6 +16243,15 @@ export type MemoryFindBySubjectOut = {
       trashedAt?: number;
       trashReason?: string;
       archivedAt?: number;
+      subject?: {
+        pageId: string;
+        title: string;
+        kind: string;
+      };
+      sourceTitle?: string;
+      by?: string;
+      byKind?: "person" | "agent" | "upkeep" | "system";
+      versions?: number;
     }>;
   notes: Array<{
       noteId: string;
@@ -16197,6 +16278,7 @@ export type MemoryGraphOut = {
       nodeId: string;
       kind: "note" | "person" | "client" | "project" | "site" | "decision" | "record" | "chat" | "agent" | "topic";
       title: string;
+      pageId?: string;
       layer?: "person" | "agent" | "project" | "space";
       cluster?: string;
       x?: number;
@@ -16210,6 +16292,11 @@ export type MemoryGraphOut = {
       label?: string;
       evidence?: string;
       at?: number;
+      source?: {
+        title: string;
+        kind: string;
+        link?: string;
+      };
     }>;
   clusters: Array<{
       name: string;
@@ -16225,6 +16312,7 @@ export type MemoryGraphEverythingOut = {
       nodeId: string;
       kind: "note" | "person" | "client" | "project" | "site" | "decision" | "record" | "chat" | "agent" | "topic";
       title: string;
+      pageId?: string;
       layer?: "person" | "agent" | "project" | "space";
       cluster?: string;
       x?: number;
@@ -16238,6 +16326,11 @@ export type MemoryGraphEverythingOut = {
       label?: string;
       evidence?: string;
       at?: number;
+      source?: {
+        title: string;
+        kind: string;
+        link?: string;
+      };
     }>;
   clusters: Array<{
       name: string;
@@ -16305,6 +16398,10 @@ export type MemoryLearnedIn = {
   agentId?: string;
   projectId?: string;
   since?: number;
+  threadId?: string;
+  sourceRef?: string;
+  actorKind?: "person" | "agent" | "upkeep" | "system";
+  what?: Array<"learned" | "merged" | "flagged">;
   cursor?: string;
   limit?: number;
 };
@@ -16329,6 +16426,15 @@ export type MemoryLearnedOut = {
         trashedAt?: number;
         trashReason?: string;
         archivedAt?: number;
+        subject?: {
+          pageId: string;
+          title: string;
+          kind: string;
+        };
+        sourceTitle?: string;
+        by?: string;
+        byKind?: "person" | "agent" | "upkeep" | "system";
+        versions?: number;
       };
       at: number;
       actor: string;
@@ -16338,6 +16444,10 @@ export type MemoryLearnedOut = {
       sourceLink?: string;
       from?: string;
       undone: boolean;
+      what: "learned" | "merged" | "flagged";
+      note?: string;
+      mergedInto?: string;
+      questionId?: string;
     }>;
   next?: string;
   total?: number;
@@ -16426,6 +16536,9 @@ export type MemoryPageDeleteOut = {
     updatedAt: number;
     trashedAt?: number;
     archivedAt?: number;
+    subtitle?: string;
+    blurb?: string;
+    visibleTo?: string;
   };
   trashed: boolean;
 };
@@ -16451,6 +16564,9 @@ export type MemoryPageGetOut = {
     updatedAt: number;
     trashedAt?: number;
     archivedAt?: number;
+    subtitle?: string;
+    blurb?: string;
+    visibleTo?: string;
   };
   notes: string;
   facts: Array<{
@@ -16472,6 +16588,15 @@ export type MemoryPageGetOut = {
       trashedAt?: number;
       trashReason?: string;
       archivedAt?: number;
+      subject?: {
+        pageId: string;
+        title: string;
+        kind: string;
+      };
+      sourceTitle?: string;
+      by?: string;
+      byKind?: "person" | "agent" | "upkeep" | "system";
+      versions?: number;
     }>;
   links: Array<{
       label: string;
@@ -16514,6 +16639,9 @@ export type MemoryPageListOut = {
       updatedAt: number;
       trashedAt?: number;
       archivedAt?: number;
+      subtitle?: string;
+      blurb?: string;
+      visibleTo?: string;
     }>;
   next?: string;
   total?: number;
@@ -16526,6 +16654,8 @@ export type MemoryPagePutIn = {
   agentId?: string;
   projectId?: string;
   subjectRef?: string;
+  subtitle?: string;
+  blurb?: string;
   notes: string;
   baseVersion?: number;
   reason?: string;
@@ -16545,6 +16675,9 @@ export type MemoryPagePutOut = {
     updatedAt: number;
     trashedAt?: number;
     archivedAt?: number;
+    subtitle?: string;
+    blurb?: string;
+    visibleTo?: string;
   };
   created: boolean;
   links: number;
@@ -16568,7 +16701,37 @@ export type MemoryPageRestoreVersionOut = {
     updatedAt: number;
     trashedAt?: number;
     archivedAt?: number;
+    subtitle?: string;
+    blurb?: string;
+    visibleTo?: string;
   };
+};
+export type MemoryPageSetVisibilityIn = {
+  pageId: string;
+  layer: "person" | "agent" | "project" | "space";
+  agentId?: string;
+  projectId?: string;
+};
+export type MemoryPageSetVisibilityOut = {
+  page: {
+    pageId: string;
+    title: string;
+    kind: "person" | "client" | "project" | "agent" | "record" | "topic" | "decision" | "site";
+    layer: "person" | "agent" | "project" | "space";
+    ownerRef: string;
+    agentId?: string;
+    projectId?: string;
+    subjectRef?: string;
+    version: number;
+    createdAt: number;
+    updatedAt: number;
+    trashedAt?: number;
+    archivedAt?: number;
+    subtitle?: string;
+    blurb?: string;
+    visibleTo?: string;
+  };
+  moved: boolean;
 };
 export type MemoryPageVersionsIn = {
   pageId: string;
@@ -16635,6 +16798,15 @@ export type MemoryPromotionApproveOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    subject?: {
+      pageId: string;
+      title: string;
+      kind: string;
+    };
+    sourceTitle?: string;
+    by?: string;
+    byKind?: "person" | "agent" | "upkeep" | "system";
+    versions?: number;
   };
 };
 export type MemoryPromotionRejectIn = {
@@ -16682,6 +16854,15 @@ export type MemoryProposeFactOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    subject?: {
+      pageId: string;
+      title: string;
+      kind: string;
+    };
+    sourceTitle?: string;
+    by?: string;
+    byKind?: "person" | "agent" | "upkeep" | "system";
+    versions?: number;
   };
   merged: boolean;
 };
@@ -16728,6 +16909,15 @@ export type MemoryQuestionsListOut = {
           trashedAt?: number;
           trashReason?: string;
           archivedAt?: number;
+          subject?: {
+            pageId: string;
+            title: string;
+            kind: string;
+          };
+          sourceTitle?: string;
+          by?: string;
+          byKind?: "person" | "agent" | "upkeep" | "system";
+          versions?: number;
         }>;
       resolution?: string;
     }>;
@@ -16772,6 +16962,15 @@ export type MemoryRestoreOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    subject?: {
+      pageId: string;
+      title: string;
+      kind: string;
+    };
+    sourceTitle?: string;
+    by?: string;
+    byKind?: "person" | "agent" | "upkeep" | "system";
+    versions?: number;
   };
   page?: {
     pageId: string;
@@ -16787,6 +16986,9 @@ export type MemoryRestoreOut = {
     updatedAt: number;
     trashedAt?: number;
     archivedAt?: number;
+    subtitle?: string;
+    blurb?: string;
+    visibleTo?: string;
   };
   restoredFrom: "trash" | "archive";
 };
@@ -16825,6 +17027,15 @@ export type MemorySearchOut = {
       layer: "person" | "agent" | "project" | "space";
       sourceLink?: string;
       score: number;
+      subject?: {
+        pageId: string;
+        title: string;
+        kind: string;
+      };
+      sourceTitle?: string;
+      by?: string;
+      byKind?: "person" | "agent" | "upkeep" | "system";
+      versions?: number;
     }>;
   tookMs: number;
   meaning?: {
@@ -16890,6 +17101,15 @@ export type MemoryTrashSearchOut = {
       trashedAt?: number;
       trashReason?: string;
       archivedAt?: number;
+      subject?: {
+        pageId: string;
+        title: string;
+        kind: string;
+      };
+      sourceTitle?: string;
+      by?: string;
+      byKind?: "person" | "agent" | "upkeep" | "system";
+      versions?: number;
     }>;
   pages?: Array<{
       pageId: string;
@@ -16905,6 +17125,9 @@ export type MemoryTrashSearchOut = {
       updatedAt: number;
       trashedAt?: number;
       archivedAt?: number;
+      subtitle?: string;
+      blurb?: string;
+      visibleTo?: string;
     }>;
   next?: string;
   total?: number;
@@ -16932,6 +17155,15 @@ export type MemoryUndoOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    subject?: {
+      pageId: string;
+      title: string;
+      kind: string;
+    };
+    sourceTitle?: string;
+    by?: string;
+    byKind?: "person" | "agent" | "upkeep" | "system";
+    versions?: number;
   };
   trashed: boolean;
 };
@@ -16962,6 +17194,20 @@ export type MemoryUpkeepStatusOut = {
       costMicros: number;
       stopped?: "cap" | "no_key";
     }>;
+  nights: Array<{
+      day: string;
+      runs: number;
+      costMicros: number;
+      tokensIn: number;
+      tokensOut: number;
+    }>;
+  lastNight?: {
+    day: string;
+    runs: number;
+    costMicros: number;
+    tokensIn: number;
+    tokensOut: number;
+  };
 };
 export type MemoryVersionsIn = {
   noteId: string;
@@ -28517,6 +28763,7 @@ export interface CapMap {
   "memory.page.list": { in: MemoryPageListIn; out: MemoryPageListOut };
   "memory.page.put": { in: MemoryPagePutIn; out: MemoryPagePutOut };
   "memory.page.restore_version": { in: MemoryPageRestoreVersionIn; out: MemoryPageRestoreVersionOut };
+  "memory.page.set_visibility": { in: MemoryPageSetVisibilityIn; out: MemoryPageSetVisibilityOut };
   "memory.page.versions": { in: MemoryPageVersionsIn; out: MemoryPageVersionsOut };
   "memory.pointer": { in: MemoryPointerIn; out: MemoryPointerOut };
   "memory.promote": { in: MemoryPromoteIn; out: MemoryPromoteOut };

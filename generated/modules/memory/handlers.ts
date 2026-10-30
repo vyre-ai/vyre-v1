@@ -37,6 +37,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "memory.page.list": Handler<"memory.page.list", X>;
   "memory.page.put": Handler<"memory.page.put", X>;
   "memory.page.restore_version": Handler<"memory.page.restore_version", X>;
+  "memory.page.set_visibility": Handler<"memory.page.set_visibility", X>;
   "memory.page.versions": Handler<"memory.page.versions", X>;
   "memory.pointer": Handler<"memory.pointer", X>;
   "memory.promote": Handler<"memory.promote", X>;

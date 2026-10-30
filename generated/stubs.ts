@@ -1328,6 +1328,7 @@ export function stubs(ctx: CallCtx) {
         list: call("memory.page.list"),
         put: call("memory.page.put"),
         restore_version: call("memory.page.restore_version"),
+        set_visibility: call("memory.page.set_visibility"),
         versions: call("memory.page.versions"),
       },
       pointer: call("memory.pointer"),
