@@ -956,7 +956,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (Object.keys(setters).length) {
         // who the members are by work email, Space files by id, and where downloaded bytes go: built from the Space's own database and the Files module
         const spacePorts = createSpacePorts({
-          db: db!, active: (id) => access.snap.principal(id)?.status === "active", call: (cap, input) => hookRunner.call(cap, input), putToSlot,
+          db: db!, active: (id) => access.snap.principal(id)?.status === "active", putToSlot,
+          // the Files calls run as the server itself, through the pipeline, so the scrubber and the audit still see them
+          call: async (cap, input) => {
+            const r = await invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "seam" });
+            if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
+            return r.output;
+          },
         });
         seams = wireSeams(setters, {
           vault: o.vault ?? vaultPort, space: spaceId,
