@@ -542,10 +542,22 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const saveView = (): void => {
     void data.call("views.save", { type, ...(saved ? { viewId: saved.viewId } : {}), kind: "table", title: saved?.title ?? `${def.plural} view`, ...toSaved(v), idempotencyKey: `view-${type}-${Date.now()}` });
   };
-  const newRecord = (): void => {
-    void data.call("records.create", { type, fields: {}, idempotencyKey: `new-${type}-${Date.now()}` }).then((out) => {
+  /** New: ask for the title first (the field every record needs), create, open it. A refusal shows its reason in the bar; nothing fails silently. */
+  const [adding, setAdding] = useState<{ name: string; busy: boolean; error?: string } | null>(null);
+  const titleLabel = (def.fields.find((f) => f.key === def.titleField)?.title ?? "name").toLowerCase();
+  const startNew = (): void => setAdding({ name: "", busy: false });
+  const createNew = (): void => {
+    if (adding === null || adding.busy) return;
+    const name = adding.name.trim();
+    if (name === "") { setAdding({ ...adding, error: `Give the ${def.title.toLowerCase()} a ${titleLabel}.` }); return; }
+    setAdding({ name, busy: true });
+    data.call("records.create", { type, fields: { [def.titleField]: name }, idempotencyKey: `new-${type}-${Date.now()}` }).then((out) => {
+      setAdding(null);
       const id = (out as { record?: { id?: string } } | undefined)?.record?.id;
       if (id) data.nav.openRecord(id);
+    }, (e: unknown) => {
+      const x = e as { error?: { message?: string }; message?: string };
+      setAdding({ name, busy: false, error: x?.error?.message ?? x?.message ?? `Could not create the ${def.title.toLowerCase()}.` });
     });
   };
   const nPicked = pickCount(sel, count ?? 0);
@@ -692,9 +704,20 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
         <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={slim} testID="records-fields" onPress={keep("fields")} />
         <HeadButton icon="colour" label="Colour" detail={colourField?.title} on={lit(colourField !== undefined)} bare={slim} testID="records-colour" onPress={keep("colour")} />
         {headerExtra}
-        <HeadButton icon="plus" label="New" bare={slim} filled testID="records-new" onPress={newRecord} />
+        <HeadButton icon="plus" label="New" bare={slim} filled testID="records-new" onPress={startNew} />
       </View>
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="records-offline">Offline, showing your saved copy</Text>}
+      {adding ? (
+        <View style={styles.pickBar} accessibilityRole="toolbar" testID="records-adding">
+          <TextInput
+            value={adding.name} onChangeText={(t) => setAdding({ name: t, busy: false })} placeholder={`New ${def.title.toLowerCase()}, ${titleLabel}`} placeholderTextColor="var(--ink-3)" accessibilityLabel={`New ${def.title.toLowerCase()}`} testID="records-adding-input"
+            autoFocus editable={!adding.busy} onSubmitEditing={createNew} onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") setAdding(null); }} style={styles.find}
+          />
+          <Pressable accessibilityRole="button" testID="records-adding-create" disabled={adding.busy} onPress={createNew} style={styles.pickLink}><Text style={styles.pickLinkText}>{adding.busy ? "Creating…" : "Create"}</Text></Pressable>
+          <Pressable accessibilityRole="button" testID="records-adding-cancel" onPress={() => setAdding(null)} style={styles.pickLink}><Text style={styles.pickLinkText}>Cancel</Text></Pressable>
+          {adding.error ? <Text style={[styles.pickBarText, styles.pickDanger]} accessibilityRole="alert" testID="records-adding-error">{adding.error}</Text> : null}
+        </View>
+      ) : null}
       {work ? (
         <View style={styles.pickBar} accessibilityRole="alert" testID="records-work">
           {work.kind === "confirm" ? (
@@ -740,7 +763,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
       ) : null}
       <View style={styles.sheet} onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })} {...({ onKeyDown } as object)}>
         {count === 0 && !items?.length ? (
-          <States kind="empty" title={v.clauses.length > 0 || v.find ? "Nothing matches these filters." : `No ${def.plural.toLowerCase()} yet.`} icon="records" {...(v.clauses.length > 0 || v.find ? { action: { label: "Clear filters", onPress: () => set(clearClauses(v)) } } : { action: { label: `New ${def.title.toLowerCase()}`, onPress: newRecord } })} />
+          <States kind="empty" title={v.clauses.length > 0 || v.find ? "Nothing matches these filters." : `No ${def.plural.toLowerCase()} yet.`} icon="records" {...(v.clauses.length > 0 || v.find ? { action: { label: "Clear filters", onPress: () => set(clearClauses(v)) } } : { action: { label: `New ${def.title.toLowerCase()}`, onPress: startNew } })} />
         ) : (
           <Scroller
             handle={scroller} width={width} height={total * ROW_H} onScroll={onScroll}
