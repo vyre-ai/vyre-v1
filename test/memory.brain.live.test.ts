@@ -193,3 +193,44 @@ test("memory core live: engine.complete is internal: a person and an agent tool 
     assert.doesNotMatch(viaAgent.reply, /TOOL RESULT ok/, viaAgent.reply);
   } finally { await d.stop(); }
 });
+
+test("memory core live: upkeep runs on the key memory.key.resolve names, through engine.complete, meters the tokens and stops at the monthly cap", async () => {
+  const d = await boot(seededDir());
+  try {
+    await connect(d);
+    assert.equal((await call(d, "engine.pool.status", {})).status, 200);
+    const accounts = (await call(d, "engine.accounts.list", {})).data.accounts as Array<{ ref: string }>;
+    const ref = accounts[0]!.ref;
+    const put = async (text: string, key: string): Promise<void> => {
+      const r = await call(d, "memory.propose_fact", { idempotencyKey: key, layer: "person", text, kind: "preference", sourceKind: "manual", sourceRef: "live" });
+      assert.equal(r.status, 200, JSON.stringify(r.data));
+    };
+    await put("I like my coffee black", "k1");
+    await put("I walk to the office", "k2");
+
+    // no key chosen: rules only, nothing spent
+    const none = await call(d, "memory.maintain", {});
+    assert.deepEqual([none.data.modelUsed, none.data.costMicros, none.data.stopped], [false, 0, "no_key"], JSON.stringify(none.data));
+
+    // the person picks their account for personal memory; resolve names it
+    assert.equal((await call(d, "memory.key.set", { layer: "person", accountRef: ref })).status, 200);
+    const me = ((await call(d, "memory.facts.list", { layer: "person", status: ["current"] })).data.facts as Array<{ ownerRef: string }>)[0]!.ownerRef;
+    const resolved = (await call(d, "memory.key.resolve", { layer: "person", ownerRef: me })).data;
+    assert.equal(resolved.key?.accountRef, ref, JSON.stringify(resolved));
+
+    // a cap of half a cent: the stand-in reports 1200 tokens in and 80 out = 4800 micro-dollars a run, so two runs fit and the third is stopped
+    assert.equal((await call(d, "settings.set_space", { key: "memory.upkeep_monthly_cap", value: 0.005, idempotencyKey: "cap-kr" })).status, 200);
+    const first = await call(d, "memory.maintain", {});
+    assert.deepEqual([first.data.modelUsed, first.data.costMicros, first.data.tokensIn, first.data.tokensOut, first.data.created], [true, 4_800, 1_200, 80, 1], JSON.stringify(first.data));
+    const second = await call(d, "memory.maintain", {});
+    assert.deepEqual([second.data.modelUsed, second.data.costMicros], [true, 4_800], JSON.stringify(second.data));
+    const third = await call(d, "memory.maintain", {});
+    assert.deepEqual([third.data.modelUsed, third.data.costMicros, third.data.stopped], [false, 0, "cap"], JSON.stringify(third.data));
+
+    const status = (await call(d, "memory.upkeep.status", {})).data;
+    assert.deepEqual([status.spentMicros, status.capMicros, status.capReached], [9_600, 5_000, true]);
+    assert.equal(status.nights[0].costMicros, 9_600);
+    const facts = (await call(d, "memory.facts.list", { layer: "person", status: ["current"] })).data.facts as Array<{ text: string }>;
+    assert.ok(facts.some((f) => f.text === "Pattern noticed by the stand-in"), "what the model wrote is a fact, sealed to the person");
+  } finally { await d.stop(); }
+});

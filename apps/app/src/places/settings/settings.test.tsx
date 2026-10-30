@@ -12,6 +12,7 @@ import { SavedProvider } from "./saved.tsx";
 import { PAGES, bytesLabel, clock, controlFor, hoursSummary, moneyLabel, pageOfRow, rowLabel, searchRows, sectionsFor, splitList, summaryOf, timeIn } from "./model.ts";
 import type { PageKey, SettingRow } from "./model.ts";
 import { whenLabel } from "./pages-b.tsx";
+import { dollars, monthNote } from "./MemorySpend.tsx";
 import { ROWS, createSampleSettings, harbor, northwind } from "./sample.ts";
 import type { SampleSettings } from "./sample.ts";
 
@@ -320,4 +321,17 @@ test("Memory and privacy > Who pays for memory: your own picker, the Space and p
   const harborOut = html(createSampleSettings(harbor), { initialPage: "privacy" });
   assert.ok(harborOut.includes("Your memory") && !harborOut.includes("Space memory") && !harborOut.includes("Project memory"));
   await assert.rejects(() => createSampleSettings(harbor).data.call("memory.key.set", { layer: "space", accountRef: "#Team_OpenAI_Key" }), /Only a Space admin/);
+});
+
+test("Memory and privacy > Memory spend: last night, this month and the monthly cap for an admin, the cap saving through settings.set_space; a member sees none", async () => {
+  const s = createSampleSettings(northwind);
+  const out = html(s, { initialPage: "privacy" });
+  for (const tx of ["Memory spend", "Last night", "$0.04", "This month", "$1.24", "25% of the cap", "Monthly cap", 'data-testid="ctl-memory-spend-cap"']) assert.ok(out.includes(tx), tx);
+  await s.data.call("settings.set_space", { key: "memory.upkeep_monthly_cap", value: 8 });
+  assert.equal(((s.data.peek?.("memory.upkeep.status", {}) as { capMicros: number }).capMicros), 8_000_000);
+  assert.ok(!html(createSampleSettings(harbor), { initialPage: "privacy" }).includes("Memory spend"));
+  assert.equal(dollars(0), "$0.00");
+  assert.equal(dollars(2_500_000), "$2.50");
+  assert.match(monthNote({ spentMicros: 5_000_000, capMicros: 5_000_000, capReached: true, modelAvailable: true }), /cap is reached/);
+  assert.match(monthNote({ spentMicros: 0, capMicros: 5_000_000, capReached: false, modelAvailable: false }), /rules only/);
 });
