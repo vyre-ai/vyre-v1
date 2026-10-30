@@ -44,18 +44,3 @@ test("the screen context names the step and the focus skill for each flow, ids o
   assert.deepEqual(onboardingScreen("member", null, {}).open, []);
   assert.equal(onboardingScreen("member", "mine", {}).focus, "focus-onboarding-member");
 });
-
-test("the Home checklist shows one row per step with its state, from what the host published", async () => {
-  const { setupRows } = await import("./SetupRows.tsx");
-  const { publishProgress, readProgress, watchProgress } = await import("./store.ts");
-  const rows = setupRows("personal", { ai: "done", sessions: "later" });
-  assert.equal(rows.length, 8);
-  assert.deepEqual(rows.slice(0, 3).map((r) => [r.key, r.state]), [["ai", "done"], ["interview", "open"], ["sessions", "later"]]);
-  let heard = 0;
-  const off = watchProgress(() => { heard++; });
-  publishProgress({ flow: "member", progress: { mine: "done" } });
-  assert.deepEqual(readProgress(), { flow: "member", progress: { mine: "done" } });
-  off();
-  publishProgress(null);
-  assert.equal(heard, 1);
-});

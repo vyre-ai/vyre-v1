@@ -87,3 +87,18 @@ test("the same-account offer asks first, names the account, and shows nothing wh
   assert.ok(out.includes("Use the same AI account here?") && out.includes("Anthropic") && out.includes('data-testid="same-account-yes"') && out.includes('data-testid="same-account-no"'));
   assert.equal(renderToStaticMarkup(<SameAccountOffer personal={none} team={none} accounts={[]} onCopied={noop} />), "");
 });
+
+test("the Home checklist shows one row per step with its state, from what the host published", async () => {
+  const { setupRows } = await import("./SetupRows.tsx");
+  const { publishProgress, readProgress, watchProgress } = await import("./store.ts");
+  const rows = setupRows("personal", { ai: "done", sessions: "later" });
+  assert.equal(rows.length, 8);
+  assert.deepEqual(rows.slice(0, 3).map((r) => [r.key, r.state]), [["ai", "done"], ["interview", "open"], ["sessions", "later"]]);
+  let heard = 0;
+  const off = watchProgress(() => { heard++; });
+  publishProgress({ flow: "member", progress: { mine: "done" } });
+  assert.deepEqual(readProgress(), { flow: "member", progress: { mine: "done" } });
+  off();
+  publishProgress(null);
+  assert.equal(heard, 1);
+});
