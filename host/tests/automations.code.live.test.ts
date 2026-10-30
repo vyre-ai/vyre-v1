@@ -107,26 +107,6 @@ test("real bubblewrap: input in, JSON out, no network, no host files, only the n
     assert.equal(offline.output.result.fetch, "undefined");
     assert.match(offline.output.result.raw, /^blocked:/);
 
-    // a named host is reached through the proxy: the stand-in internet resolves api.example.test to a public address and dials the local stub, and a name that resolves inside is refused
-    const stub = http.createServer((req, res) => { seenByStub.push(`${req.method} ${req.url} host=${req.headers.host}`); res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ hello: "from the stub" })); });
-    await new Promise<void>((r) => stub.listen(0, "127.0.0.1", r));
-    const stubPort = (stub.address() as net.AddressInfo).port;
-    const worldwide = await boot(seededDir(), {
-      cpuSeconds: 5, wallMs: 20_000,
-      egress: {
-        lookup: async (host: string) => (host === "inside.example.test" ? ["10.1.2.3"] : ["93.184.216.34"]),
-        connect: (_h: string, _p: number, ip: string) => (ip === "10.1.2.3" ? Promise.reject(new Error("must never be dialled")) : new Promise((resolve, reject) => { const s = net.connect({ host: "127.0.0.1", port: stubPort }); s.once("connect", () => resolve(s)); s.once("error", reject); })),
-      },
-    });
-    try {
-      const reached = await runCode(worldwide, {
-        hosts: ["api.example.test", "inside.example.test"],
-        source: "const out = {}; const r = await fetch('http://api.example.test/hello?x=1'); out.reached = await r.json(); try { await fetch('http://inside.example.test/'); out.inside = 'REACHED'; } catch (e) { out.inside = 'blocked'; } try { await fetch('http://other.example.test/'); out.other = 'REACHED'; } catch (e) { out.other = 'blocked'; } return out;",
-      });
-      assert.equal(reached.status, "succeeded", JSON.stringify(reached));
-      assert.deepEqual(reached.output.result, { reached: { hello: "from the stub" }, inside: "blocked", other: "blocked" });
-      assert.deepEqual(seenByStub, ["GET /hello?x=1 host=api.example.test"], "only the named host was dialled, once");
-    } finally { await worldwide.stop(); stub.close(); stub.closeAllConnections(); }
 
     // a named host is reachable through the proxy and nothing else is: another name, an address, and a private address are refused by the proxy
     const walled = await runCode(d, {
@@ -173,5 +153,28 @@ test("real bubblewrap: input in, JSON out, no network, no host files, only the n
 
     // nothing is left behind
     assert.deepEqual(fs.readdirSync(path.join(dir, "code")), [], "every run folder is removed");
+
+    // A second daemon in this process replaces the module-level seams the first one is using (the Code step's host, the runs worker) and clears them when it stops, so it boots only after every
+    // check on the first one is done.  The first daemon's folder is checked for leftovers before it starts.
+    // a named host is reached through the proxy: the stand-in internet resolves api.example.test to a public address and dials the local stub, and a name that resolves inside is refused
+    const stub = http.createServer((req, res) => { seenByStub.push(`${req.method} ${req.url} host=${req.headers.host}`); res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ hello: "from the stub" })); });
+    await new Promise<void>((r) => stub.listen(0, "127.0.0.1", r));
+    const stubPort = (stub.address() as net.AddressInfo).port;
+    const worldwide = await boot(seededDir(), {
+      cpuSeconds: 5, wallMs: 20_000,
+      egress: {
+        lookup: async (host: string) => (host === "inside.example.test" ? ["10.1.2.3"] : ["93.184.216.34"]),
+        connect: (_h: string, _p: number, ip: string) => (ip === "10.1.2.3" ? Promise.reject(new Error("must never be dialled")) : new Promise((resolve, reject) => { const s = net.connect({ host: "127.0.0.1", port: stubPort }); s.once("connect", () => resolve(s)); s.once("error", reject); })),
+      },
+    });
+    try {
+      const reached = await runCode(worldwide, {
+        hosts: ["api.example.test", "inside.example.test"],
+        source: "const out = {}; const r = await fetch('http://api.example.test/hello?x=1'); out.reached = await r.json(); try { await fetch('http://inside.example.test/'); out.inside = 'REACHED'; } catch (e) { out.inside = 'blocked'; } try { await fetch('http://other.example.test/'); out.other = 'REACHED'; } catch (e) { out.other = 'blocked'; } return out;",
+      });
+      assert.equal(reached.status, "succeeded", JSON.stringify(reached));
+      assert.deepEqual(reached.output.result, { reached: { hello: "from the stub" }, inside: "blocked", other: "blocked" });
+      assert.deepEqual(seenByStub, ["GET /hello?x=1 host=api.example.test"], "only the named host was dialled, once");
+    } finally { await worldwide.stop(); stub.close(); stub.closeAllConnections(); }
   } finally { delete process.env["DAEMON_ONLY_SECRET"]; await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
