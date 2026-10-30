@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  SYSTEM_READ, SandboxError, seatbeltCommand, confinementProbe, containerConfig, createEgressProxy, networkName, reviewContainerConfig, sbplString, seatbeltProfile, validateSpec, within,
+  ROOT_DIR_LITERAL, SYSTEM_READ, SandboxError, seatbeltCommand, confinementProbe, containerConfig, createEgressProxy, networkName, reviewContainerConfig, sbplString, seatbeltProfile, validateSpec, within,
 } from "../src/index.ts";
 import { bwrapCommand } from "../src/bwrap.ts";
 import { startDockerSandbox } from "../src/docker.ts";
@@ -274,7 +274,7 @@ test("fuzz: of 600 awkward mount paths, those accepted name only the person's fo
     assert.ok(!/[\u0000-\u001f"'`\\()\u007f:;]/u.test(m.host), `a character that could end a string got through: ${JSON.stringify(m.host)}`);
     assert.ok(!m.host.split("/").some((s) => forbidden.has(s)) && !m.host.endsWith(".sock"), m.host);
 
-    const allowed = new Set([...SYSTEM_READ, "/dev/null", "/dev/zero", "/dev/random", "/dev/urandom", "/dev/tty", m.host]);
+    const allowed = new Set([...SYSTEM_READ, ROOT_DIR_LITERAL, "/dev/null", "/dev/zero", "/dev/random", "/dev/urandom", "/dev/tty", m.host]);
     const profile = seatbeltProfile(checked, { proxyPort: 4040 });
     for (const q of profile.matchAll(/\((?:subpath|literal) "((?:[^"\\]|\\.)*)"\)/g)) {
       const path = (q[1] as string).replace(/\\(.)/g, "$1");

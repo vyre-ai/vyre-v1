@@ -31,7 +31,7 @@ export const DEFAULT_TOOLS: Record<string, string[]> = {
   computer: ['screen_screenshot', 'screen_click', 'chrome_snapshot', 'chrome_act'],
   agents: ['agents_list', 'agents_get'],
   tasks: ['tasks_create', 'tasks_list', 'tasks_update', 'tasks_transition'],
-  meta: ['tool_search', 'switch_model'],
+  meta: ['tool_search', 'switch_model', 'load_skill'],
 };
 const defaults = Object.values(DEFAULT_TOOLS).flat();
 

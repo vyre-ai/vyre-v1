@@ -6,6 +6,7 @@ import { onFileVersion, onTurn, restoreAgentFiles } from "./handlers/crud.ts";
 import { onMessageReceived } from "./handlers/routines.ts";
 import type { FileVersionEvent, TurnEvent } from "./handlers/crud.ts";
 import type { AgentsCtx } from "./projections.ts";
+import { setPluginsHost } from "./handlers/plugins.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
@@ -16,6 +17,9 @@ export const periodic = {
 };
 
 export { restoreAgentFiles };
+
+/** The host's half for plugins (host/src/seams/plugins.ts): fetching a marketplace or a plugin as a map of text files. */
+export const hostSeams = { setPluginsHost };
 
 export const consumers = {
   /** A person saved agent.toml or AGENT.md in Files: a text that passes becomes what the next run uses, one that does not raises agent.config_error and the last good version keeps running. */

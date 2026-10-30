@@ -1156,6 +1156,24 @@
       ],
       "type": "object"
     },
+    "s_0b7e723577": {
+      "properties": {
+        "isError": {
+          "type": "boolean"
+        },
+        "structured": {
+          "description": "Any JSON value"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "isError",
+        "text"
+      ],
+      "type": "object"
+    },
     "s_0c004c8d01": {
       "properties": {
         "group": {
@@ -2233,6 +2251,52 @@
       ],
       "type": "object"
     },
+    "s_1ad2d370d2": {
+      "properties": {
+        "allowed": {
+          "items": {
+            "properties": {
+              "at": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              "by": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "marketplace",
+                  "plugin"
+                ],
+                "type": "string"
+              },
+              "marketplace": {
+                "type": "string"
+              },
+              "plugin": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "marketplace",
+              "by",
+              "at"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "allowed"
+      ],
+      "type": "object"
+    },
     "s_1b534bdd89": {
       "properties": {
         "chain": {
@@ -2241,6 +2305,69 @@
       },
       "required": [
         "chain"
+      ],
+      "type": "object"
+    },
+    "s_1b7445ea88": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "bytes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "description": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "name": {
+          "examples": [
+            "deploy-checks"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "vyre, upload, agent, plugin:<name> or kit:<key>",
+          "examples": [
+            "upload"
+          ],
+          "type": "string"
+        },
+        "system": {
+          "type": "boolean"
+        },
+        "tier": {
+          "enum": [
+            "builtin",
+            "space",
+            "agent"
+          ],
+          "type": "string"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "tier",
+        "source",
+        "system",
+        "enabled",
+        "bytes"
       ],
       "type": "object"
     },
@@ -3363,149 +3490,6 @@
         "type": "object"
       },
       "type": "array"
-    },
-    "s_2819d08f97": {
-      "properties": {
-        "accountKey": {
-          "description": "Vault handle, never a value",
-          "examples": [
-            "#Team_Anthropic_Key"
-          ],
-          "type": "string"
-        },
-        "accountPolicy": {
-          "enum": [
-            "asker",
-            "key"
-          ],
-          "type": "string"
-        },
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "captureMode": {
-          "enum": [
-            "propose",
-            "auto_low_risk",
-            "off"
-          ],
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "face": {
-          "description": "DiceBear Notionists seed tinted per Space",
-          "examples": [
-            "intake"
-          ],
-          "type": "string"
-        },
-        "fallbackModel": {
-          "type": "string"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "hasComputer": {
-          "type": "boolean"
-        },
-        "lastActiveAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "limits": {
-          "$ref": "#/$defs/s_dd54f66d0c"
-        },
-        "model": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "ownerId": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "pattern": "^usr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "pausedBy": {
-          "type": "string"
-        },
-        "pausedReason": {
-          "type": "string"
-        },
-        "role": {
-          "description": "The \"use me when\" line",
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "awake",
-            "working",
-            "asleep",
-            "paused"
-          ],
-          "type": "string"
-        },
-        "templateVersion": {
-          "type": "integer"
-        },
-        "toolsAllowed": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "toolsDenied": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "vaultKeys": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "agentId",
-        "name",
-        "face",
-        "status",
-        "ownerId",
-        "folderId",
-        "accountPolicy",
-        "toolsAllowed",
-        "toolsDenied",
-        "vaultKeys",
-        "limits",
-        "captureMode",
-        "hasComputer",
-        "templateVersion",
-        "createdAt"
-      ],
-      "type": "object"
     },
     "s_2842806102": {
       "properties": {
@@ -6184,6 +6168,52 @@
       ],
       "type": "object"
     },
+    "s_483b2d837b": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "madeForProject": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "lead",
+            "member",
+            "reviewer",
+            "guest"
+          ],
+          "type": "string"
+        },
+        "roleLine": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "awake",
+            "working",
+            "asleep",
+            "paused"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "agentId",
+        "name",
+        "role",
+        "status",
+        "madeForProject"
+      ],
+      "type": "object"
+    },
     "s_4860ff32a0": {
       "properties": {
         "connections": {
@@ -6312,6 +6342,17 @@
       "required": [
         "deliveryId",
         "idempotencyKey"
+      ],
+      "type": "object"
+    },
+    "s_4967f634d7": {
+      "properties": {
+        "marketplace": {
+          "$ref": "#/$defs/s_b546bcd0e1"
+        }
+      },
+      "required": [
+        "marketplace"
       ],
       "type": "object"
     },
@@ -8236,6 +8277,29 @@
       ],
       "type": "object"
     },
+    "s_601b035d8e": {
+      "properties": {
+        "by": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "pluginId": {
+          "examples": [
+            "plg_a1b2c3"
+          ],
+          "pattern": "^plg_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pluginId",
+        "name",
+        "by"
+      ],
+      "type": "object"
+    },
     "s_61ad3658fc": {
       "properties": {
         "person": {
@@ -8894,6 +8958,168 @@
       "required": [
         "threadId",
         "holder"
+      ],
+      "type": "object"
+    },
+    "s_64dcd43aaa": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "config": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "configured": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "installedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "marketplace": {
+          "type": "string"
+        },
+        "marketplaceId": {
+          "examples": [
+            "mkt_a1b2c3"
+          ],
+          "pattern": "^mkt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "name": {
+          "examples": [
+            "deploy-tools"
+          ],
+          "type": "string"
+        },
+        "parts": {
+          "properties": {
+            "agents": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "commands": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "hooks": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "mcpServers": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "skills": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "skills",
+            "commands",
+            "agents",
+            "hooks",
+            "mcpServers"
+          ],
+          "type": "object"
+        },
+        "pluginId": {
+          "examples": [
+            "plg_a1b2c3"
+          ],
+          "pattern": "^plg_[a-z0-9]+$",
+          "type": "string"
+        },
+        "scope": {
+          "enum": [
+            "space",
+            "agent"
+          ],
+          "type": "string"
+        },
+        "userConfig": {
+          "items": {
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "key": {
+                "type": "string"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "sensitive": {
+                "type": "boolean"
+              },
+              "title": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "type",
+              "title",
+              "description",
+              "required",
+              "sensitive"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "version": {
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "pluginId",
+        "name",
+        "marketplace",
+        "marketplaceId",
+        "scope",
+        "enabled",
+        "parts",
+        "userConfig",
+        "config",
+        "configured",
+        "warnings",
+        "installedAt"
       ],
       "type": "object"
     },
@@ -9577,6 +9803,17 @@
       "required": [
         "name",
         "kind"
+      ],
+      "type": "object"
+    },
+    "s_72764793f4": {
+      "properties": {
+        "plugin": {
+          "$ref": "#/$defs/s_64dcd43aaa"
+        }
+      },
+      "required": [
+        "plugin"
       ],
       "type": "object"
     },
@@ -10955,6 +11192,17 @@
         "source",
         "tables",
         "expiresAt"
+      ],
+      "type": "object"
+    },
+    "s_87d11c99bf": {
+      "properties": {
+        "skill": {
+          "$ref": "#/$defs/s_1b7445ea88"
+        }
+      },
+      "required": [
+        "skill"
       ],
       "type": "object"
     },
@@ -14139,6 +14387,79 @@
       ],
       "type": "object"
     },
+    "s_b546bcd0e1": {
+      "properties": {
+        "allowed": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "git",
+            "local"
+          ],
+          "type": "string"
+        },
+        "marketplaceId": {
+          "examples": [
+            "mkt_a1b2c3"
+          ],
+          "pattern": "^mkt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "name": {
+          "examples": [
+            "acme-tools"
+          ],
+          "type": "string"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "plugins": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ref": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "source": {
+          "description": "The git URL or the folder it was added from",
+          "type": "string"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "marketplaceId",
+        "name",
+        "kind",
+        "source",
+        "owner",
+        "plugins",
+        "allowed",
+        "warnings",
+        "updatedAt"
+      ],
+      "type": "object"
+    },
     "s_b549e9e216": {
       "properties": {
         "id": {
@@ -16289,6 +16610,156 @@
       ],
       "type": "object"
     },
+    "s_d5bbc76c6b": {
+      "properties": {
+        "accountKey": {
+          "description": "Vault handle, never a value",
+          "examples": [
+            "#Team_Anthropic_Key"
+          ],
+          "type": "string"
+        },
+        "accountPolicy": {
+          "enum": [
+            "asker",
+            "key"
+          ],
+          "type": "string"
+        },
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "captureMode": {
+          "enum": [
+            "propose",
+            "auto_low_risk",
+            "off"
+          ],
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "face": {
+          "description": "DiceBear Notionists seed tinted per Space",
+          "examples": [
+            "intake"
+          ],
+          "type": "string"
+        },
+        "fallbackModel": {
+          "type": "string"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "hasComputer": {
+          "type": "boolean"
+        },
+        "lastActiveAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "limits": {
+          "$ref": "#/$defs/s_dd54f66d0c"
+        },
+        "model": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ownerId": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^usr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "pausedBy": {
+          "type": "string"
+        },
+        "pausedReason": {
+          "type": "string"
+        },
+        "role": {
+          "description": "The \"use me when\" line",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "awake",
+            "working",
+            "asleep",
+            "paused"
+          ],
+          "type": "string"
+        },
+        "teammateOf": {
+          "examples": [
+            "prj_a1b2c3"
+          ],
+          "pattern": "^prj_[a-z0-9]+$",
+          "type": "string"
+        },
+        "templateVersion": {
+          "type": "integer"
+        },
+        "toolsAllowed": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "toolsDenied": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "vaultKeys": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "agentId",
+        "name",
+        "face",
+        "status",
+        "ownerId",
+        "folderId",
+        "accountPolicy",
+        "toolsAllowed",
+        "toolsDenied",
+        "vaultKeys",
+        "limits",
+        "captureMode",
+        "hasComputer",
+        "templateVersion",
+        "createdAt"
+      ],
+      "type": "object"
+    },
     "s_d5e112d024": {
       "items": {
         "properties": {
@@ -16742,17 +17213,6 @@
       },
       "type": "object"
     },
-    "s_dd8211e1b7": {
-      "properties": {
-        "agent": {
-          "$ref": "#/$defs/s_2819d08f97"
-        }
-      },
-      "required": [
-        "agent"
-      ],
-      "type": "object"
-    },
     "s_de4eba3dc2": {
       "properties": {
         "agentId": {
@@ -17144,6 +17604,17 @@
       },
       "required": [
         "rules"
+      ],
+      "type": "object"
+    },
+    "s_e2f4c3a96a": {
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/s_d5bbc76c6b"
+        }
+      },
+      "required": [
+        "agent"
       ],
       "type": "object"
     },
@@ -18316,6 +18787,88 @@
         "providerEventId",
         "envelopeId",
         "status"
+      ],
+      "type": "object"
+    },
+    "s_f37bc5d2c7": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "args": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "command": {
+          "type": "string"
+        },
+        "connectionId": {
+          "examples": [
+            "mcs_a1b2c3"
+          ],
+          "pattern": "^mcs_[a-z0-9]+$",
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "name": {
+          "type": "string"
+        },
+        "scope": {
+          "enum": [
+            "space",
+            "agent"
+          ],
+          "type": "string"
+        },
+        "transport": {
+          "enum": [
+            "stdio",
+            "http"
+          ],
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "connectionId",
+        "name",
+        "scope",
+        "transport",
+        "args",
+        "env",
+        "headers",
+        "enabled",
+        "createdAt"
       ],
       "type": "object"
     },
@@ -26467,6 +27020,7 @@
             "model": "example",
             "name": "Intake",
             "ownerId": "usr_a1b2c3",
+            "projectId": "prj_a1b2c3",
             "role": "example",
             "templateKey": "example",
             "tools": {
@@ -26506,6 +27060,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
                 "example"
@@ -26555,6 +27110,13 @@
             "pattern": "^usr_[a-z0-9]+$",
             "type": "string"
           },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
           "role": {
             "type": "string"
           },
@@ -26594,7 +27156,7 @@
       "name": "agents.create",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_e2f4c3a96a"
       },
       "permission": "agents.create",
       "resource": {
@@ -26730,6 +27292,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
                 "example"
@@ -26765,7 +27328,7 @@
       "module": "agents",
       "name": "agents.get",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_e2f4c3a96a"
       },
       "permission": null,
       "resource": {
@@ -26951,10 +27514,12 @@
             "cursor": "example",
             "folderId": "fld_a1b2c3",
             "limit": 1,
+            "projectId": "prj_a1b2c3",
             "section": "personal",
             "status": [
               "awake"
-            ]
+            ],
+            "teammates": "hide"
           },
           "name": "example",
           "output": {
@@ -26985,6 +27550,7 @@
                 "pausedReason": "example",
                 "role": "example",
                 "status": "awake",
+                "teammateOf": "prj_a1b2c3",
                 "templateVersion": 1,
                 "toolsAllowed": [
                   "example"
@@ -27020,6 +27586,13 @@
             "minimum": 1,
             "type": "integer"
           },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
           "section": {
             "enum": [
               "personal",
@@ -27039,6 +27612,14 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "teammates": {
+            "enum": [
+              "hide",
+              "include",
+              "only"
+            ],
+            "type": "string"
           }
         },
         "type": "object"
@@ -27051,7 +27632,7 @@
         "properties": {
           "agents": {
             "items": {
-              "$ref": "#/$defs/s_2819d08f97"
+              "$ref": "#/$defs/s_d5bbc76c6b"
             },
             "type": "array"
           },
@@ -27130,6 +27711,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
                 "example"
@@ -27167,7 +27749,7 @@
       "module": "agents",
       "name": "agents.pause",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_e2f4c3a96a"
       },
       "permission": null,
       "resource": {
@@ -27230,6 +27812,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
                 "example"
@@ -27264,7 +27847,7 @@
       "module": "agents",
       "name": "agents.restore",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_e2f4c3a96a"
       },
       "permission": null,
       "resource": {
@@ -27329,6 +27912,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
                 "example"
@@ -27378,7 +27962,7 @@
       "module": "agents",
       "name": "agents.restore_version",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_e2f4c3a96a"
       },
       "permission": null,
       "resource": {
@@ -27444,6 +28028,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
                 "example"
@@ -27478,7 +28063,7 @@
       "module": "agents",
       "name": "agents.resume",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_e2f4c3a96a"
       },
       "permission": null,
       "resource": {
@@ -27542,6 +28127,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
                 "example"
@@ -27585,7 +28171,7 @@
       "output": {
         "properties": {
           "agent": {
-            "$ref": "#/$defs/s_2819d08f97"
+            "$ref": "#/$defs/s_d5bbc76c6b"
           },
           "undoVersionId": {
             "examples": [
@@ -28226,6 +28812,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
                 "example"
@@ -28272,7 +28859,7 @@
       "module": "agents",
       "name": "agents.set_owner",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_e2f4c3a96a"
       },
       "permission": null,
       "resource": {
@@ -29225,6 +29812,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
                 "example"
@@ -29265,7 +29853,7 @@
       "name": "agents.update",
       "offline": "patch",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_e2f4c3a96a"
       },
       "permission": null,
       "resource": {
@@ -66978,6 +67566,321 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.network",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "idempotencyKey": "idem_1",
+            "input": {},
+            "server": "greeter/echo",
+            "tool": "example"
+          },
+          "name": "example",
+          "output": {
+            "isError": true,
+            "structured": {},
+            "text": "example"
+          }
+        }
+      ],
+      "gate": {
+        "act": "send",
+        "when": "actor.kind != 'person'"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "input": {
+            "description": "Any JSON value"
+          },
+          "server": {
+            "examples": [
+              "greeter/echo"
+            ],
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "server",
+          "tool",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "engine",
+      "name": "engine.mcp.call",
+      "output": {
+        "$ref": "#/$defs/s_0b7e723577"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Call an outside MCP tool that may change things; an agent's call goes through the Gate",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "input": {},
+            "server": "greeter/echo",
+            "tool": "example"
+          },
+          "name": "example",
+          "output": {
+            "isError": true,
+            "structured": {},
+            "text": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "input": {
+            "description": "Any JSON value"
+          },
+          "server": {
+            "examples": [
+              "greeter/echo"
+            ],
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "server",
+          "tool"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "engine",
+      "name": "engine.mcp.read",
+      "output": {
+        "$ref": "#/$defs/s_0b7e723577"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Call an outside MCP tool that only reads (the server says so); runs in the sandbox or at the remote server",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "server": "example"
+          },
+          "name": "example",
+          "output": {
+            "servers": [
+              {
+                "error": "example",
+                "from": "plugin",
+                "key": "greeter/echo",
+                "name": "example",
+                "ok": true,
+                "tools": [
+                  {
+                    "description": "example",
+                    "inputSchema": {},
+                    "name": "example",
+                    "readOnly": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "server": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "engine",
+      "name": "engine.mcp.tools",
+      "output": {
+        "properties": {
+          "servers": {
+            "items": {
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "from": {
+                  "enum": [
+                    "plugin",
+                    "connection"
+                  ],
+                  "type": "string"
+                },
+                "key": {
+                  "examples": [
+                    "greeter/echo"
+                  ],
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "ok": {
+                  "type": "boolean"
+                },
+                "tools": {
+                  "items": {
+                    "properties": {
+                      "description": {
+                        "type": "string"
+                      },
+                      "inputSchema": {
+                        "description": "Any JSON value"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "readOnly": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "description",
+                      "inputSchema",
+                      "readOnly"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "key",
+                "name",
+                "from",
+                "ok",
+                "tools"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "servers"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The MCP servers a chat with this agent connects to and the tools each offers (starts the server in the sandbox if it is not running)",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "mcp_tools",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -80110,6 +81013,72 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Re-invoke the parked capability with an approval token bound to the payload hash, then resume the turn or step",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "holdId": "hld_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "found": true,
+            "result": {}
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "holdId": {
+            "examples": [
+              "hld_a1b2c3"
+            ],
+            "pattern": "^hld_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "holdId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "gate",
+      "name": "gate.result.take",
+      "output": {
+        "properties": {
+          "found": {
+            "type": "boolean"
+          },
+          "result": {
+            "description": "Any JSON value"
+          }
+        },
+        "required": [
+          "found"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "System: hand the engine the answer of an approved call for a chat turn parked on it, once, and clear it. Only the server may call it; a requester or approver never reads the answer here.",
       "surfaces": {
         "http": "auto"
       },
@@ -102235,7 +103204,19 @@
           "name": "example",
           "output": {
             "sheet": {
+              "agents": [
+                "example"
+              ],
+              "connections": [
+                "example"
+              ],
+              "marketplaces": [
+                "example"
+              ],
               "networkDomains": [
+                "example"
+              ],
+              "plugins": [
                 "example"
               ],
               "problems": [
@@ -102251,6 +103232,9 @@
                 "example"
               ],
               "scripts": 1,
+              "skills": [
+                "example"
+              ],
               "tools": [
                 "example"
               ],
@@ -102284,7 +103268,31 @@
         "properties": {
           "sheet": {
             "properties": {
+              "agents": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "connections": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "marketplaces": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
               "networkDomains": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "plugins": {
                 "items": {
                   "type": "string"
                 },
@@ -102334,6 +103342,12 @@
               "scripts": {
                 "type": "integer"
               },
+              "skills": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
               "tools": {
                 "items": {
                   "type": "string"
@@ -102353,6 +103367,11 @@
               "networkDomains",
               "vaultNames",
               "scripts",
+              "skills",
+              "marketplaces",
+              "plugins",
+              "connections",
+              "agents",
               "problems"
             ],
             "type": "object"
@@ -125678,6 +126697,2444 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "plugin.changed",
+        "agent.created"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.duplicate",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentName": "example",
+            "idempotencyKey": "idem_1",
+            "name": "example",
+            "pluginId": "plg_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "agentId": "agt_a1b2c3"
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "agentName": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pluginId": {
+            "examples": [
+              "plg_a1b2c3"
+            ],
+            "pattern": "^plg_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pluginId",
+          "name",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "agents",
+      "name": "plugins.agent_template.use",
+      "output": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "permission": "agents.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Make an agent from a sub-agent a plugin brought (its description becomes the role line and its prompt the start of AGENT.md)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_agent_template_use",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "templates": [
+              {
+                "description": "example",
+                "model": "example",
+                "name": "example",
+                "plugin": "example",
+                "pluginId": "plg_a1b2c3",
+                "tools": [
+                  "example"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "plugins.agent_templates.list",
+      "output": {
+        "properties": {
+          "templates": {
+            "items": {
+              "properties": {
+                "description": {
+                  "type": "string"
+                },
+                "model": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "plugin": {
+                  "type": "string"
+                },
+                "pluginId": {
+                  "examples": [
+                    "plg_a1b2c3"
+                  ],
+                  "pattern": "^plg_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "tools": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "pluginId",
+                "plugin",
+                "name",
+                "description",
+                "tools"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "templates"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Sub-agents that installed plugins bring, as templates a new agent can start from",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_agent_templates",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "allowed": [
+              {
+                "at": 1760000000000,
+                "by": "example",
+                "kind": "marketplace",
+                "marketplace": "example",
+                "plugin": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "plugins.allow.list",
+      "output": {
+        "$ref": "#/$defs/s_1ad2d370d2"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The marketplaces and plugins the admin allows",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_allowlist",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "plugin.allowlist_changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "allowed": true,
+            "idempotencyKey": "idem_1",
+            "kind": "marketplace",
+            "marketplace": "example",
+            "plugin": "example"
+          },
+          "name": "example",
+          "output": {
+            "allowed": [
+              {
+                "at": 1760000000000,
+                "by": "example",
+                "kind": "marketplace",
+                "marketplace": "example",
+                "plugin": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "marketplace",
+              "plugin"
+            ],
+            "type": "string"
+          },
+          "marketplace": {
+            "type": "string"
+          },
+          "plugin": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "marketplace",
+          "allowed",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "agents",
+      "name": "plugins.allow.set",
+      "output": {
+        "$ref": "#/$defs/s_1ad2d370d2"
+      },
+      "permission": "kits.install",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Allow or stop allowing a whole marketplace, or one plugin of it",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_allow",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "cursor": "example",
+            "limit": 1,
+            "marketplaceId": "mkt_a1b2c3",
+            "q": "example"
+          },
+          "name": "example",
+          "output": {
+            "next": "example",
+            "plugins": [
+              {
+                "allowed": true,
+                "category": "example",
+                "description": "example",
+                "installed": [
+                  {
+                    "agentId": "agt_a1b2c3",
+                    "pluginId": "plg_a1b2c3",
+                    "scope": "space"
+                  }
+                ],
+                "marketplace": "example",
+                "marketplaceId": "mkt_a1b2c3",
+                "name": "example",
+                "source": "example",
+                "version": "example"
+              }
+            ],
+            "total": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "marketplaceId": {
+            "examples": [
+              "mkt_a1b2c3"
+            ],
+            "pattern": "^mkt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "q": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "plugins.browse",
+      "output": {
+        "properties": {
+          "next": {
+            "type": "string"
+          },
+          "plugins": {
+            "items": {
+              "properties": {
+                "allowed": {
+                  "type": "boolean"
+                },
+                "category": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "installed": {
+                  "items": {
+                    "properties": {
+                      "agentId": {
+                        "examples": [
+                          "agt_a1b2c3"
+                        ],
+                        "pattern": "^agt_[a-z0-9]+$",
+                        "type": "string"
+                      },
+                      "pluginId": {
+                        "examples": [
+                          "plg_a1b2c3"
+                        ],
+                        "pattern": "^plg_[a-z0-9]+$",
+                        "type": "string"
+                      },
+                      "scope": {
+                        "enum": [
+                          "space",
+                          "agent"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "pluginId",
+                      "scope"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "marketplace": {
+                  "type": "string"
+                },
+                "marketplaceId": {
+                  "examples": [
+                    "mkt_a1b2c3"
+                  ],
+                  "pattern": "^mkt_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "source": {
+                  "description": "path, github, git, npm, archive or command",
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "marketplaceId",
+                "marketplace",
+                "name",
+                "source",
+                "allowed",
+                "installed"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "plugins"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Plugins the marketplaces offer, with whether each is on the allowlist and where it is installed",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_browse",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "args": "example",
+            "name": "deploy-tools:status"
+          },
+          "name": "example",
+          "output": {
+            "allowedTools": [
+              "example"
+            ],
+            "description": "example",
+            "model": "example",
+            "pluginId": "plg_a1b2c3",
+            "prompt": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "args": {
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "deploy-tools:status"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "plugins.command.render",
+      "output": {
+        "properties": {
+          "allowedTools": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "pluginId": {
+            "examples": [
+              "plg_a1b2c3"
+            ],
+            "pattern": "^plg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt",
+          "description",
+          "allowedTools",
+          "pluginId"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The prompt a plugin command stands for, with its arguments filled in; the chat sends it as the person's message",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_command",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "commands": [
+              {
+                "argumentHint": "example",
+                "description": "example",
+                "name": "deploy-tools:status",
+                "plugin": "example",
+                "pluginId": "plg_a1b2c3"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "plugins.commands.list",
+      "output": {
+        "properties": {
+          "commands": {
+            "items": {
+              "properties": {
+                "argumentHint": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "name": {
+                  "examples": [
+                    "deploy-tools:status"
+                  ],
+                  "type": "string"
+                },
+                "plugin": {
+                  "type": "string"
+                },
+                "pluginId": {
+                  "examples": [
+                    "plg_a1b2c3"
+                  ],
+                  "pattern": "^plg_[a-z0-9]+$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "description",
+                "plugin",
+                "pluginId"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "commands"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The / commands that plugins add for a chat with this agent (or the Space when no agent)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_commands",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "plugin.changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "config": {},
+            "idempotencyKey": "idem_1",
+            "pluginId": "plg_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "plugin": {
+              "agentId": "agt_a1b2c3",
+              "config": {},
+              "configured": true,
+              "description": "example",
+              "enabled": true,
+              "installedAt": 1760000000000,
+              "marketplace": "example",
+              "marketplaceId": "mkt_a1b2c3",
+              "name": "deploy-tools",
+              "parts": {
+                "agents": [
+                  "example"
+                ],
+                "commands": [
+                  "example"
+                ],
+                "hooks": 1,
+                "mcpServers": [
+                  "example"
+                ],
+                "skills": [
+                  "example"
+                ]
+              },
+              "pluginId": "plg_a1b2c3",
+              "scope": "space",
+              "userConfig": [
+                {
+                  "description": "example",
+                  "key": "example",
+                  "required": true,
+                  "sensitive": true,
+                  "title": "example",
+                  "type": "example"
+                }
+              ],
+              "version": "example",
+              "warnings": [
+                "example"
+              ]
+            }
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "config": {
+            "additionalProperties": {
+              "description": "A value, or a Vault handle such as #Dana_Api.token for a secret",
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "pluginId": {
+            "examples": [
+              "plg_a1b2c3"
+            ],
+            "pattern": "^plg_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pluginId",
+          "config",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "agents",
+      "name": "plugins.config.set",
+      "output": {
+        "$ref": "#/$defs/s_72764793f4"
+      },
+      "permission": "agents.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Set the options a plugin asks for; a secret option takes a Vault handle, never a value",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_config",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "plugin.connection_added"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.duplicate"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "args": [
+              "example"
+            ],
+            "command": "example",
+            "env": {},
+            "headers": {},
+            "idempotencyKey": "idem_1",
+            "name": "crm",
+            "scope": "space",
+            "url": "example"
+          },
+          "name": "example",
+          "output": {
+            "connection": {
+              "agentId": "agt_a1b2c3",
+              "args": [
+                "example"
+              ],
+              "command": "example",
+              "connectionId": "mcs_a1b2c3",
+              "createdAt": 1760000000000,
+              "enabled": true,
+              "env": {},
+              "headers": {},
+              "name": "example",
+              "scope": "space",
+              "transport": "stdio",
+              "url": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "args": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "command": {
+            "type": "string"
+          },
+          "env": {
+            "additionalProperties": {
+              "description": "A value, or a Vault handle such as #Dana_Api.token for a secret",
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "headers": {
+            "additionalProperties": {
+              "description": "A value, or a Vault handle such as #Dana_Api.token for a secret",
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "crm"
+            ],
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "space",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "scope",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "agents",
+      "name": "plugins.connection.add",
+      "output": {
+        "properties": {
+          "connection": {
+            "$ref": "#/$defs/s_f37bc5d2c7"
+          }
+        },
+        "required": [
+          "connection"
+        ],
+        "type": "object"
+      },
+      "permission": "agents.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Connect an MCP server by URL (remote) or by command (runs in the sandbox), for the Space or one agent; works for every model",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_connection_add",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "plugin.connection_removed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "connectionId": "mcs_a1b2c3",
+            "idempotencyKey": "idem_1",
+            "name": "example",
+            "scope": "space"
+          },
+          "name": "example",
+          "output": {
+            "removed": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "mcs_a1b2c3"
+            ],
+            "pattern": "^mcs_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "space",
+              "agent"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "agents",
+      "name": "plugins.connection.remove",
+      "output": {
+        "properties": {
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "permission": "agents.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Disconnect an MCP server made by hand",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_connection_remove",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "connections": [
+              {
+                "agentId": "agt_a1b2c3",
+                "args": [
+                  "example"
+                ],
+                "command": "example",
+                "connectionId": "mcs_a1b2c3",
+                "createdAt": 1760000000000,
+                "enabled": true,
+                "env": {},
+                "headers": {},
+                "name": "example",
+                "scope": "space",
+                "transport": "stdio",
+                "url": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "plugins.connections.list",
+      "output": {
+        "properties": {
+          "connections": {
+            "items": {
+              "$ref": "#/$defs/s_f37bc5d2c7"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "connections"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "MCP connections made by hand (a URL or a command)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_connections",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "pluginId": "plg_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "files": {}
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "pluginId": {
+            "examples": [
+              "plg_a1b2c3"
+            ],
+            "pattern": "^plg_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pluginId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "plugins.files",
+      "output": {
+        "properties": {
+          "files": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The text files of an installed plugin, for the sandbox to be given (its MCP servers and hooks run from them)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "pluginId": "plg_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "plugin": {
+              "agentId": "agt_a1b2c3",
+              "config": {},
+              "configured": true,
+              "description": "example",
+              "enabled": true,
+              "installedAt": 1760000000000,
+              "marketplace": "example",
+              "marketplaceId": "mkt_a1b2c3",
+              "name": "deploy-tools",
+              "parts": {
+                "agents": [
+                  "example"
+                ],
+                "commands": [
+                  "example"
+                ],
+                "hooks": 1,
+                "mcpServers": [
+                  "example"
+                ],
+                "skills": [
+                  "example"
+                ]
+              },
+              "pluginId": "plg_a1b2c3",
+              "scope": "space",
+              "userConfig": [
+                {
+                  "description": "example",
+                  "key": "example",
+                  "required": true,
+                  "sensitive": true,
+                  "title": "example",
+                  "type": "example"
+                }
+              ],
+              "version": "example",
+              "warnings": [
+                "example"
+              ]
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "pluginId": {
+            "examples": [
+              "plg_a1b2c3"
+            ],
+            "pattern": "^plg_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pluginId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "plugins.get",
+      "output": {
+        "$ref": "#/$defs/s_72764793f4"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "One installed plugin with the skills, commands, sub-agents, hooks and MCP servers it brought",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_get",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "hooks": [
+              {
+                "args": [
+                  "example"
+                ],
+                "command": "example",
+                "event": "PostToolUse",
+                "matcher": "example",
+                "plugin": "example",
+                "pluginId": "plg_a1b2c3",
+                "timeoutSec": 1
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "plugins.hooks.list",
+      "output": {
+        "properties": {
+          "hooks": {
+            "items": {
+              "properties": {
+                "args": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "command": {
+                  "type": "string"
+                },
+                "event": {
+                  "examples": [
+                    "PostToolUse"
+                  ],
+                  "type": "string"
+                },
+                "matcher": {
+                  "type": "string"
+                },
+                "plugin": {
+                  "type": "string"
+                },
+                "pluginId": {
+                  "examples": [
+                    "plg_a1b2c3"
+                  ],
+                  "pattern": "^plg_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "timeoutSec": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "pluginId",
+                "plugin",
+                "event",
+                "matcher",
+                "command",
+                "args"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "hooks"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The hooks of the plugins that apply to this agent. They run only in the sandbox.",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "plugin.installed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.duplicate",
+        "validation.not_found",
+        "validation.precondition_failed",
+        "validation.too_large"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "config": {},
+            "idempotencyKey": "idem_1",
+            "marketplace": "example",
+            "marketplaceId": "mkt_a1b2c3",
+            "plugin": "deploy-tools",
+            "scope": "space"
+          },
+          "name": "example",
+          "output": {
+            "plugin": {
+              "agentId": "agt_a1b2c3",
+              "config": {},
+              "configured": true,
+              "description": "example",
+              "enabled": true,
+              "installedAt": 1760000000000,
+              "marketplace": "example",
+              "marketplaceId": "mkt_a1b2c3",
+              "name": "deploy-tools",
+              "parts": {
+                "agents": [
+                  "example"
+                ],
+                "commands": [
+                  "example"
+                ],
+                "hooks": 1,
+                "mcpServers": [
+                  "example"
+                ],
+                "skills": [
+                  "example"
+                ]
+              },
+              "pluginId": "plg_a1b2c3",
+              "scope": "space",
+              "userConfig": [
+                {
+                  "description": "example",
+                  "key": "example",
+                  "required": true,
+                  "sensitive": true,
+                  "title": "example",
+                  "type": "example"
+                }
+              ],
+              "version": "example",
+              "warnings": [
+                "example"
+              ]
+            }
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "config": {
+            "additionalProperties": {
+              "description": "A value, or a Vault handle such as #Dana_Api.token for a secret",
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "marketplace": {
+            "description": "The marketplace by name, for a Kit that cannot know its id",
+            "type": "string"
+          },
+          "marketplaceId": {
+            "examples": [
+              "mkt_a1b2c3"
+            ],
+            "pattern": "^mkt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "plugin": {
+            "examples": [
+              "deploy-tools"
+            ],
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "space",
+              "agent"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "plugin",
+          "scope",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "agents",
+      "name": "plugins.install",
+      "output": {
+        "$ref": "#/$defs/s_72764793f4"
+      },
+      "permission": "agents.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Install a plugin from a marketplace into the whole Space (admin) or into one agent: its skills, commands, sub-agents, hooks and MCP servers become available",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_install",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "plugins": [
+              {
+                "agentId": "agt_a1b2c3",
+                "config": {},
+                "configured": true,
+                "description": "example",
+                "enabled": true,
+                "installedAt": 1760000000000,
+                "marketplace": "example",
+                "marketplaceId": "mkt_a1b2c3",
+                "name": "deploy-tools",
+                "parts": {
+                  "agents": [
+                    "example"
+                  ],
+                  "commands": [
+                    "example"
+                  ],
+                  "hooks": 1,
+                  "mcpServers": [
+                    "example"
+                  ],
+                  "skills": [
+                    "example"
+                  ]
+                },
+                "pluginId": "plg_a1b2c3",
+                "scope": "space",
+                "userConfig": [
+                  {
+                    "description": "example",
+                    "key": "example",
+                    "required": true,
+                    "sensitive": true,
+                    "title": "example",
+                    "type": "example"
+                  }
+                ],
+                "version": "example",
+                "warnings": [
+                  "example"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "plugins.list",
+      "output": {
+        "properties": {
+          "plugins": {
+            "items": {
+              "$ref": "#/$defs/s_64dcd43aaa"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "plugins"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Installed plugins: in the whole Space, and in one agent when agentId is given",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_list",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "plugin.marketplace_added"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.duplicate"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "ref": "example",
+            "source": "https://github.com/acme/tools"
+          },
+          "name": "example",
+          "output": {
+            "marketplace": {
+              "allowed": true,
+              "description": "example",
+              "kind": "git",
+              "marketplaceId": "mkt_a1b2c3",
+              "name": "acme-tools",
+              "owner": "example",
+              "plugins": 1,
+              "ref": "example",
+              "revision": "example",
+              "source": "example",
+              "updatedAt": 1760000000000,
+              "warnings": [
+                "example"
+              ]
+            }
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "source": {
+            "examples": [
+              "https://github.com/acme/tools"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "agents",
+      "name": "plugins.marketplace.add",
+      "output": {
+        "$ref": "#/$defs/s_4967f634d7"
+      },
+      "permission": "kits.install",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Add a marketplace by git URL (https) or a folder on this server; reads its marketplace.json and puts it on the allowlist",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_marketplace_add",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "plugin.marketplace_refreshed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "marketplaceId": "mkt_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "marketplace": {
+              "allowed": true,
+              "description": "example",
+              "kind": "git",
+              "marketplaceId": "mkt_a1b2c3",
+              "name": "acme-tools",
+              "owner": "example",
+              "plugins": 1,
+              "ref": "example",
+              "revision": "example",
+              "source": "example",
+              "updatedAt": 1760000000000,
+              "warnings": [
+                "example"
+              ]
+            }
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "marketplaceId": {
+            "examples": [
+              "mkt_a1b2c3"
+            ],
+            "pattern": "^mkt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "marketplaceId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "agents",
+      "name": "plugins.marketplace.refresh",
+      "output": {
+        "$ref": "#/$defs/s_4967f634d7"
+      },
+      "permission": "kits.install",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Fetch a marketplace again and update its list",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_marketplace_refresh",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "plugin.marketplace_removed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "marketplaceId": "mkt_a1b2c3",
+            "name": "example"
+          },
+          "name": "example",
+          "output": {
+            "removed": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "marketplaceId": {
+            "examples": [
+              "mkt_a1b2c3"
+            ],
+            "pattern": "^mkt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "description": "The marketplace by name, for a Kit that cannot know its id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "agents",
+      "name": "plugins.marketplace.remove",
+      "output": {
+        "properties": {
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "permission": "kits.install",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Remove a marketplace; the plugins installed from it stay until they are removed",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_marketplace_remove",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "marketplaces": [
+              {
+                "allowed": true,
+                "description": "example",
+                "kind": "git",
+                "marketplaceId": "mkt_a1b2c3",
+                "name": "acme-tools",
+                "owner": "example",
+                "plugins": 1,
+                "ref": "example",
+                "revision": "example",
+                "source": "example",
+                "updatedAt": 1760000000000,
+                "warnings": [
+                  "example"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "plugins.marketplaces.list",
+      "output": {
+        "properties": {
+          "marketplaces": {
+            "items": {
+              "$ref": "#/$defs/s_b546bcd0e1"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "marketplaces"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Marketplaces added to this Space",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_marketplaces",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "servers": [
+              {
+                "args": [
+                  "example"
+                ],
+                "command": "example",
+                "env": {},
+                "files": "example",
+                "from": "plugin",
+                "headers": {},
+                "key": "deploy-tools/api",
+                "name": "example",
+                "needs": [
+                  "example"
+                ],
+                "pluginId": "plg_a1b2c3",
+                "transport": "stdio",
+                "url": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "plugins.mcp.servers",
+      "output": {
+        "properties": {
+          "servers": {
+            "items": {
+              "properties": {
+                "args": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "command": {
+                  "type": "string"
+                },
+                "env": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "files": {
+                  "description": "Plugin id whose files the command runs from; the folder is ${CLAUDE_PLUGIN_ROOT}",
+                  "type": "string"
+                },
+                "from": {
+                  "enum": [
+                    "plugin",
+                    "connection"
+                  ],
+                  "type": "string"
+                },
+                "headers": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "key": {
+                  "description": "plugin:<plugin>/<server> or <name> for a connection made by hand",
+                  "examples": [
+                    "deploy-tools/api"
+                  ],
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "needs": {
+                  "items": {
+                    "description": "Options of the plugin that have no value yet; the server is not started until they do",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "pluginId": {
+                  "examples": [
+                    "plg_a1b2c3"
+                  ],
+                  "pattern": "^plg_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "transport": {
+                  "enum": [
+                    "stdio",
+                    "http",
+                    "sse",
+                    "ws"
+                  ],
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "name",
+                "from",
+                "transport",
+                "args",
+                "env",
+                "headers",
+                "needs"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "servers"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The MCP servers a chat with this agent connects to: from plugins in the Space, plugins in the agent and connections made by hand. Secrets are Vault handles.",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_mcp_servers",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "plugin.changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "enabled": true,
+            "idempotencyKey": "idem_1",
+            "pluginId": "plg_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "plugin": {
+              "agentId": "agt_a1b2c3",
+              "config": {},
+              "configured": true,
+              "description": "example",
+              "enabled": true,
+              "installedAt": 1760000000000,
+              "marketplace": "example",
+              "marketplaceId": "mkt_a1b2c3",
+              "name": "deploy-tools",
+              "parts": {
+                "agents": [
+                  "example"
+                ],
+                "commands": [
+                  "example"
+                ],
+                "hooks": 1,
+                "mcpServers": [
+                  "example"
+                ],
+                "skills": [
+                  "example"
+                ]
+              },
+              "pluginId": "plg_a1b2c3",
+              "scope": "space",
+              "userConfig": [
+                {
+                  "description": "example",
+                  "key": "example",
+                  "required": true,
+                  "sensitive": true,
+                  "title": "example",
+                  "type": "example"
+                }
+              ],
+              "version": "example",
+              "warnings": [
+                "example"
+              ]
+            }
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "pluginId": {
+            "examples": [
+              "plg_a1b2c3"
+            ],
+            "pattern": "^plg_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pluginId",
+          "enabled",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "agents",
+      "name": "plugins.set_enabled",
+      "output": {
+        "$ref": "#/$defs/s_72764793f4"
+      },
+      "permission": "agents.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Turn an installed plugin off or on without removing it",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_set_enabled",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "plugin.uninstalled"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "idempotencyKey": "idem_1",
+            "name": "example",
+            "pluginId": "plg_a1b2c3",
+            "scope": "space"
+          },
+          "name": "example",
+          "output": {
+            "removed": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pluginId": {
+            "examples": [
+              "plg_a1b2c3"
+            ],
+            "pattern": "^plg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "space",
+              "agent"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "agents",
+      "name": "plugins.uninstall",
+      "output": {
+        "properties": {
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "permission": "agents.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Remove an installed plugin and what it brought",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "plugins_uninstall",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [
         "portal.account_created"
@@ -129250,6 +132707,294 @@
         "http": "auto",
         "mcp": {
           "toolset": "tasks"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "project.member_set",
+        "agent.created"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.not_contained",
+        "validation.bad_input",
+        "validation.duplicate",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "brief": "example",
+            "idempotencyKey": "idem_1",
+            "name": "Security reviewer",
+            "projectId": "prj_a1b2c3",
+            "role": "lead"
+          },
+          "name": "example",
+          "output": {
+            "teammate": {
+              "agentId": "agt_a1b2c3",
+              "madeForProject": true,
+              "name": "example",
+              "role": "lead",
+              "roleLine": "example",
+              "status": "awake"
+            }
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "brief": {
+            "description": "The use-me-when line",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "Security reviewer"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "lead",
+              "member",
+              "reviewer"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "name",
+          "role",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "projects",
+      "name": "projects.teammates.create",
+      "output": {
+        "properties": {
+          "teammate": {
+            "$ref": "#/$defs/s_483b2d837b"
+          }
+        },
+        "required": [
+          "teammate"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/projectId",
+        "type": "project"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Make a teammate for this project: an agent with no computer and a project role (Lead, Member or Reviewer), by one yes; it shows on the Teammates tab, not on the Agents page",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "projectId": "prj_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "leadAgentId": "agt_a1b2c3",
+            "teammates": [
+              {
+                "agentId": "agt_a1b2c3",
+                "madeForProject": true,
+                "name": "example",
+                "role": "lead",
+                "roleLine": "example",
+                "status": "awake"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "projects",
+      "name": "projects.teammates.list",
+      "output": {
+        "properties": {
+          "leadAgentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "teammates": {
+            "items": {
+              "$ref": "#/$defs/s_483b2d837b"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "teammates"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/projectId",
+        "type": "project"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The teammates of a project: agents with a role there, with the lead first. The lead is the default participant in a new chat in the project.",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "project.member_removed",
+        "agent.deleted"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "idempotencyKey": "idem_1",
+            "projectId": "prj_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "removed": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "agentId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "projects",
+      "name": "projects.teammates.remove",
+      "output": {
+        "properties": {
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/projectId",
+        "type": "project"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Take a teammate off the project; one made for this project moves to Trash with it",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
         }
       },
       "v": 1
@@ -146827,6 +150572,506 @@
         "http": "auto",
         "mcp": {
           "toolset": "sites"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "skill.added"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.too_large"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "files": {},
+            "idempotencyKey": "idem_1",
+            "name": "example",
+            "source": "example",
+            "text": "example"
+          },
+          "name": "example",
+          "output": {
+            "skill": {
+              "agentId": "agt_a1b2c3",
+              "bytes": 1,
+              "description": "example",
+              "enabled": true,
+              "name": "deploy-checks",
+              "source": "upload",
+              "system": true,
+              "tier": "builtin",
+              "updatedAt": 1760000000000
+            }
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "files": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "description": "Used when the front matter has no name",
+            "type": "string"
+          },
+          "source": {
+            "description": "upload (default), plugin:<name> or kit:<key>",
+            "type": "string"
+          },
+          "text": {
+            "description": "The SKILL.md text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "agents",
+      "name": "skills.add",
+      "output": {
+        "$ref": "#/$defs/s_87d11c99bf"
+      },
+      "permission": "agents.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "skills_add",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "includeOff": true
+          },
+          "name": "example",
+          "output": {
+            "skills": [
+              {
+                "agentId": "agt_a1b2c3",
+                "bytes": 1,
+                "description": "example",
+                "enabled": true,
+                "name": "deploy-checks",
+                "source": "upload",
+                "system": true,
+                "tier": "builtin",
+                "updatedAt": 1760000000000
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "includeOff": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "skills.list",
+      "output": {
+        "properties": {
+          "skills": {
+            "items": {
+              "$ref": "#/$defs/s_1b7445ea88"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "skills"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "skills_list",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "name": "deploy-checks"
+          },
+          "name": "example",
+          "output": {
+            "skill": {
+              "body": "example",
+              "description": "example",
+              "files": [
+                {
+                  "path": "example",
+                  "text": "example"
+                }
+              ],
+              "name": "example",
+              "source": "example",
+              "tier": "builtin"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "deploy-checks"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "agents",
+      "name": "skills.load",
+      "output": {
+        "properties": {
+          "skill": {
+            "properties": {
+              "body": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "files": {
+                "items": {
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "text"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "name": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "tier": {
+                "enum": [
+                  "builtin",
+                  "space",
+                  "agent"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "description",
+              "tier",
+              "source",
+              "body",
+              "files"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "skill"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Load the full text of one skill by name (SKILL.md body and its supporting files); agent skills win over Space ones, Space ones over built-in",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "load_skill",
+          "toolset": "meta"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "skill.removed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "idempotencyKey": "idem_1",
+            "name": "example"
+          },
+          "name": "example",
+          "output": {
+            "removed": true
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "agents",
+      "name": "skills.remove",
+      "output": {
+        "properties": {
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "permission": "agents.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Remove a skill from the Space library, or from one agent",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "skills_remove",
+          "toolset": "agents"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "skill.changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "enabled": true,
+            "idempotencyKey": "idem_1",
+            "name": "example"
+          },
+          "name": "example",
+          "output": {
+            "skill": {
+              "agentId": "agt_a1b2c3",
+              "bytes": 1,
+              "description": "example",
+              "enabled": true,
+              "name": "deploy-checks",
+              "source": "upload",
+              "system": true,
+              "tier": "builtin",
+              "updatedAt": 1760000000000
+            }
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "enabled",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "agents",
+      "name": "skills.set_enabled",
+      "output": {
+        "$ref": "#/$defs/s_87d11c99bf"
+      },
+      "permission": "agents.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Turn a Space or agent skill off or on without removing it",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "skills_set_enabled",
+          "toolset": "agents"
         }
       },
       "v": 1
@@ -191253,6 +195498,330 @@
       "vis": "participants"
     },
     {
+      "module": "agents",
+      "name": "plugin.allowlist_changed",
+      "payload": {
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "by": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "marketplace",
+              "plugin"
+            ],
+            "type": "string"
+          },
+          "marketplace": {
+            "type": "string"
+          },
+          "plugin": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "marketplace",
+          "allowed",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/marketplace",
+        "type": "entity"
+      },
+      "summary": "The plugin allowlist changed",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "agents",
+      "name": "plugin.changed",
+      "payload": {
+        "$ref": "#/$defs/s_601b035d8e"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/pluginId",
+        "type": "entity"
+      },
+      "summary": "A plugin was turned on or off, configured, or used to make an agent",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "agents",
+      "name": "plugin.connection_added",
+      "payload": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "by": {
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "mcs_a1b2c3"
+            ],
+            "pattern": "^mcs_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "space",
+              "agent"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "name",
+          "scope",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/connectionId",
+        "type": "entity"
+      },
+      "summary": "An MCP server was connected",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "agents",
+      "name": "plugin.connection_removed",
+      "payload": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "mcs_a1b2c3"
+            ],
+            "pattern": "^mcs_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "name",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/connectionId",
+        "type": "entity"
+      },
+      "summary": "An MCP connection was removed",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "agents",
+      "name": "plugin.installed",
+      "payload": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "by": {
+            "type": "string"
+          },
+          "marketplace": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pluginId": {
+            "examples": [
+              "plg_a1b2c3"
+            ],
+            "pattern": "^plg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "space",
+              "agent"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "pluginId",
+          "name",
+          "marketplace",
+          "scope",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/pluginId",
+        "type": "entity"
+      },
+      "summary": "A plugin was installed",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "agents",
+      "name": "plugin.marketplace_added",
+      "payload": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "marketplaceId": {
+            "examples": [
+              "mkt_a1b2c3"
+            ],
+            "pattern": "^mkt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "marketplaceId",
+          "name",
+          "source",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/marketplaceId",
+        "type": "entity"
+      },
+      "summary": "A marketplace was added",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "agents",
+      "name": "plugin.marketplace_refreshed",
+      "payload": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "marketplaceId": {
+            "examples": [
+              "mkt_a1b2c3"
+            ],
+            "pattern": "^mkt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "plugins": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "marketplaceId",
+          "name",
+          "plugins",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/marketplaceId",
+        "type": "entity"
+      },
+      "summary": "A marketplace was fetched again",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "agents",
+      "name": "plugin.marketplace_removed",
+      "payload": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "marketplaceId": {
+            "examples": [
+              "mkt_a1b2c3"
+            ],
+            "pattern": "^mkt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "marketplaceId",
+          "name",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/marketplaceId",
+        "type": "entity"
+      },
+      "summary": "A marketplace was removed",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "agents",
+      "name": "plugin.uninstalled",
+      "payload": {
+        "$ref": "#/$defs/s_601b035d8e"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/pluginId",
+        "type": "entity"
+      },
+      "summary": "A plugin was removed",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
       "module": "access",
       "name": "policy.changed",
       "payload": {
@@ -195418,6 +199987,124 @@
         "type": "site"
       },
       "summary": "A site table became a Space record type",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "agents",
+      "name": "skill.added",
+      "payload": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "by": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "tier": {
+            "enum": [
+              "space",
+              "agent"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "tier",
+          "source",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/name",
+        "type": "entity"
+      },
+      "summary": "A skill was added to the Space library or to one agent",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "agents",
+      "name": "skill.changed",
+      "payload": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "by": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "enabled",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/name",
+        "type": "entity"
+      },
+      "summary": "A skill was turned off or on",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "agents",
+      "name": "skill.removed",
+      "payload": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "by": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/name",
+        "type": "entity"
+      },
+      "summary": "A skill was removed from the Space library or from one agent",
       "sv": 1,
       "vis": "space"
     },
@@ -203808,6 +208495,7 @@
       "kind": "module",
       "owner": "L3",
       "requires": [
+        "agents",
         "records",
         "tasks"
       ],
@@ -210560,6 +215248,147 @@
     },
     {
       "actions": {
+        "addMarketplace": {
+          "cap": "plugins.marketplace.add",
+          "confirm": "Add this marketplace and allow it?",
+          "input": {
+            "ref": "/draft/ref",
+            "source": "/draft/source"
+          }
+        },
+        "allow": {
+          "cap": "plugins.allow.set",
+          "input": {
+            "allowed": "/state/allowed",
+            "kind": "/state/kind",
+            "marketplace": "/state/marketplace",
+            "plugin": "/state/plugin"
+          }
+        },
+        "configure": {
+          "cap": "plugins.config.set",
+          "input": {
+            "config": "/draft/config",
+            "pluginId": "/state/pluginId"
+          }
+        },
+        "connect": {
+          "cap": "plugins.connection.add",
+          "input": {
+            "agentId": "/draft/agentId",
+            "args": "/draft/args",
+            "command": "/draft/command",
+            "env": "/draft/env",
+            "headers": "/draft/headers",
+            "name": "/draft/name",
+            "scope": "/draft/scope",
+            "url": "/draft/url"
+          }
+        },
+        "disconnect": {
+          "cap": "plugins.connection.remove",
+          "confirm": "Disconnect this server?",
+          "input": {
+            "connectionId": "/state/connectionId"
+          }
+        },
+        "install": {
+          "cap": "plugins.install",
+          "confirm": "Install this plugin?",
+          "input": {
+            "agentId": "/state/agentId",
+            "config": "/draft/config",
+            "marketplaceId": "/state/marketplaceId",
+            "plugin": "/state/plugin",
+            "scope": "/state/scope"
+          }
+        },
+        "refresh": {
+          "cap": "plugins.marketplace.refresh",
+          "input": {
+            "marketplaceId": "/state/marketplaceId"
+          }
+        },
+        "removeMarketplace": {
+          "cap": "plugins.marketplace.remove",
+          "confirm": "Remove this marketplace?",
+          "input": {
+            "marketplaceId": "/state/marketplaceId"
+          }
+        },
+        "toggle": {
+          "cap": "plugins.set_enabled",
+          "input": {
+            "enabled": "/state/enabled",
+            "pluginId": "/state/pluginId"
+          }
+        },
+        "uninstall": {
+          "cap": "plugins.uninstall",
+          "confirm": "Remove this plugin?",
+          "input": {
+            "pluginId": "/state/pluginId"
+          }
+        }
+      },
+      "builtin": "ui:ConsolePlugins",
+      "id": "console.plugins",
+      "module": "agents",
+      "needs": [
+        "agents.manage"
+      ],
+      "perf": {
+        "completeMs": 100,
+        "firstPaintMs": 50
+      },
+      "place": "console",
+      "queries": {
+        "allowed": {
+          "cap": "plugins.allow.list",
+          "input": {},
+          "live": true
+        },
+        "browse": {
+          "cap": "plugins.browse",
+          "input": {
+            "marketplaceId": "/state/marketplaceId",
+            "q": "/state/q"
+          },
+          "live": true
+        },
+        "connections": {
+          "cap": "plugins.connections.list",
+          "input": {},
+          "live": true
+        },
+        "installed": {
+          "cap": "plugins.list",
+          "input": {},
+          "live": true
+        },
+        "marketplaces": {
+          "cap": "plugins.marketplaces.list",
+          "input": {},
+          "live": true
+        }
+      },
+      "slot": "main",
+      "states": {
+        "empty": {
+          "line": "No plugins yet",
+          "primary": "Add a marketplace"
+        },
+        "error": {
+          "line": "Couldn't load this",
+          "primary": "Try again"
+        },
+        "offline": {
+          "line": "Offline, showing your saved copy"
+        }
+      }
+    },
+    {
+      "actions": {
         "apply": {
           "cap": "schema.apply",
           "confirm": "Apply these changes?",
@@ -210759,6 +215588,67 @@
         "empty": {
           "line": "No updates yet",
           "primary": "Check for updates"
+        },
+        "error": {
+          "line": "Couldn't load this",
+          "primary": "Try again"
+        },
+        "offline": {
+          "line": "Offline, showing your saved copy"
+        }
+      }
+    },
+    {
+      "actions": {
+        "add": {
+          "cap": "skills.add",
+          "input": {
+            "name": "/draft/name",
+            "text": "/draft/text"
+          }
+        },
+        "remove": {
+          "cap": "skills.remove",
+          "confirm": "Remove this skill?",
+          "input": {
+            "agentId": "/state/agentId",
+            "name": "/state/name"
+          }
+        },
+        "toggle": {
+          "cap": "skills.set_enabled",
+          "input": {
+            "agentId": "/state/agentId",
+            "enabled": "/state/enabled",
+            "name": "/state/name"
+          }
+        }
+      },
+      "builtin": "ui:ConsoleSkills",
+      "id": "console.skills",
+      "module": "agents",
+      "needs": [
+        "agents.manage"
+      ],
+      "perf": {
+        "completeMs": 100,
+        "firstPaintMs": 50
+      },
+      "place": "console",
+      "queries": {
+        "skills": {
+          "cap": "skills.list",
+          "input": {
+            "includeOff": true
+          },
+          "live": true
+        }
+      },
+      "slot": "main",
+      "states": {
+        "empty": {
+          "line": "No skills of your own yet",
+          "primary": "Add a skill"
         },
         "error": {
           "line": "Couldn't load this",

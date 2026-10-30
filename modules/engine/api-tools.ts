@@ -10,6 +10,8 @@ import { createToolSession } from "../../agent/src/tools/call.ts";
 import { buildCatalog, parseDefaultTools } from "../../agent/src/tools/catalog.ts";
 import type { AgentToolRow, McpToolRow, RegistryCapRow } from "../../agent/src/tools/types.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
+import type { CallHooks, DynamicTools } from "../../agent/src/tools/call.ts";
+import type { ToolCtx, ToolDef } from "../../agent/src/tools/types.ts";
 import type { SystemBlock } from "../../agent/src/drivers/api/types.ts";
 import type { SessionSpec, TurnInput } from "../../agent/src/turn-engine/types.ts";
 
@@ -20,6 +22,8 @@ export interface EngineApiToolsDeps {
   space: string;
   /** The agent's role as system prompt blocks. */
   system(spec: SessionSpec, input: TurnInput): Promise<SystemBlock[]>;
+  /** The MCP tools of the agent's plugins and connections, and the plugin hooks around every call (modules/engine/plugin-tools.ts). */
+  plugins?: { extra(ctx: ToolCtx): Promise<ToolDef[]>; dynamic: DynamicTools; hooks: CallHooks };
 }
 
 let catalog: ReturnType<typeof buildCatalog> | null = null;
@@ -33,6 +37,6 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
     defaults = parseDefaultTools(read("docs/frozen/agent-tools.md"));
   }
   // An Ask pane's scope level is not offered yet (the MCP endpoint answers the same): such a thread gets the narrowest set.
-  const session = createToolSession({ invoke: d.invoke, catalog, defaults, levelFor: () => null, canEngineer: () => false });
-  return createApiTools({ session, space: d.space, system: (spec, input) => d.system(spec, input) });
+  const session = createToolSession({ invoke: d.invoke, catalog, defaults, levelFor: () => null, canEngineer: () => false, ...(d.plugins ? { dynamic: d.plugins.dynamic, hooks: d.plugins.hooks } : {}) });
+  return createApiTools({ session, space: d.space, system: (spec, input) => d.system(spec, input), ...(d.plugins ? { extra: d.plugins.extra } : {}) });
 }

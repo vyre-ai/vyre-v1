@@ -8,9 +8,9 @@ ARCH 3.7 output 6 and 6.7. Source of truth: `generated/tool-index.json` and `gen
 - Agent parity: every capability a principal screen query or action reaches is agent-visible or wrapped by an `agentTools` entry. The generator rejects a manifest that breaks this; the test re-checks it from the manifests (all principal screens, more than 500 references).
 - Pre-auth capabilities (anonymous and pending callers, 11 in all) are never agent-visible.
 - No capability sets `surfaces.agent: false` today, so there is no opt-out list and `contracts/agent-optout.json` is not needed. 255 principal capabilities have no MCP surface; none is reached by a screen.
-- A tool with `deferred: true` is found with `tool_search` and called after its schema is returned. The default listed toolset is the 59 tools below (about 60, plus or minus 5). The `engineer` toolset is never in the default list; it needs `engineer.mcp`.
+- A tool with `deferred: true` is found with `tool_search` and called after its schema is returned. The default listed toolset is the 60 tools below (about 60, plus or minus 5). The `engineer` toolset is never in the default list; it needs `engineer.mcp`.
 
-## Default listed toolset (59 tools)
+## Default listed toolset (60 tools)
 
 | Tool | Toolset | Summary |
 |---|---|---|
@@ -73,6 +73,7 @@ ARCH 3.7 output 6 and 6.7. Source of truth: `generated/tool-index.json` and `gen
 | `tool_search` | meta | Find tools by what you want to do; returns names, summaries and schemas, then the tools are callable |
 | `wait_for` | automations | Wait in the background for an event, another Run or a time; ends the turn and wakes the thread on a match (default timeout 30 days) |
 | `switch_model` | meta | Switch engine mid-chat: the new engine starts from the rolling summary, the last turns and a pointer to the transcript |
+| `load_skill` | meta | Load the full text of one skill by name; the turn lists the skills (name and one line) and this opens one |
 
 Note: ARCH 6.7 lists `wait_for` under meta; the manifests put it in the automations toolset, and the table follows the manifests.
 

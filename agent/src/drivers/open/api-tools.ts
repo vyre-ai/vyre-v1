@@ -16,6 +16,8 @@ export interface ApiToolsDeps {
   system(spec: SessionSpec, input: TurnInput): SystemBlock[] | Promise<SystemBlock[]>;
   /** The agent's allow and deny lists. */
   rules?(agentId: string): AgentRules | undefined;
+  /** Tools this turn has besides the catalog (an agent's plugin MCP tools). Listed to the model after the catalog's own; the tool session finds them again by name. */
+  extra?(ctx: ToolCtx): Promise<readonly ToolDef[]>;
   /** What the thread is (kind, Ask scope, plan mode). Default: a plain chat. */
   thread?(threadId: string): Omit<ThreadFacts, "threadId">;
 }
@@ -47,7 +49,8 @@ export function createApiTools(d: ApiToolsDeps): ApiTools {
       const c = ctxFor(input.threadId, input.agent.id, input.asker, input.turnId);
       const set = d.session.toolsFor(c);
       const loaded = d.session.loaded(input.threadId);
-      const tools = [...set.listed, ...set.searchable.filter((t) => loaded.has(t.name))].map(view);
+      const extra = d.extra ? await d.extra(c).catch(() => []) : [];
+      const tools = [...set.listed, ...set.searchable.filter((t) => loaded.has(t.name)), ...extra].map(view);
       return { system: await d.system(spec, input), tools };
     },
     runner: toolRunnerFrom((call, ctx) => d.session.call(ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId), call.name, call.input)),

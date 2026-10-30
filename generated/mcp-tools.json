@@ -2619,6 +2619,13 @@
             "pattern": "^usr_[a-z0-9]+$",
             "type": "string"
           },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
           "role": {
             "type": "string"
           },
@@ -2774,6 +2781,13 @@
             "minimum": 1,
             "type": "integer"
           },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
           "section": {
             "enum": [
               "personal",
@@ -2793,6 +2807,14 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "teammates": {
+            "enum": [
+              "hide",
+              "include",
+              "only"
+            ],
+            "type": "string"
           }
         },
         "type": "object"
@@ -27723,6 +27745,38 @@
     },
     {
       "blocks": [],
+      "cap": "skills.load",
+      "deferred": false,
+      "description": "Load the full text of one skill by name (SKILL.md body and its supporting files); agent skills win over Space ones, Space ones over built-in",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "deploy-checks"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "name": "load_skill",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "logs.export",
       "deferred": false,
       "description": "Export a log search as a file",
@@ -29734,6 +29788,35 @@
       "name": "mcp_tool_describe",
       "planMode": "allowed",
       "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.mcp.tools",
+      "deferred": false,
+      "description": "The MCP servers a chat with this agent connects to and the tools each offers (starts the server in the sandbox if it is not running)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "server": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "mcp_tools",
+      "planMode": "allowed",
+      "toolset": "agents",
       "v": 1
     },
     {
@@ -34844,6 +34927,751 @@
     },
     {
       "blocks": [],
+      "cap": "plugins.agent_template.use",
+      "deferred": false,
+      "description": "Make an agent from a sub-agent a plugin brought (its description becomes the role line and its prompt the start of AGENT.md)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentName": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pluginId": {
+            "examples": [
+              "plg_a1b2c3"
+            ],
+            "pattern": "^plg_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pluginId",
+          "name",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "plugins_agent_template_use",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.agent_templates.list",
+      "deferred": false,
+      "description": "Sub-agents that installed plugins bring, as templates a new agent can start from",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "plugins_agent_templates",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.allow.set",
+      "deferred": false,
+      "description": "Allow or stop allowing a whole marketplace, or one plugin of it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "marketplace",
+              "plugin"
+            ],
+            "type": "string"
+          },
+          "marketplace": {
+            "type": "string"
+          },
+          "plugin": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "marketplace",
+          "allowed",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "plugins_allow",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.allow.list",
+      "deferred": false,
+      "description": "The marketplaces and plugins the admin allows",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "plugins_allowlist",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.browse",
+      "deferred": false,
+      "description": "Plugins the marketplaces offer, with whether each is on the allowlist and where it is installed",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "marketplaceId": {
+            "examples": [
+              "mkt_a1b2c3"
+            ],
+            "pattern": "^mkt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "q": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "plugins_browse",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.command.render",
+      "deferred": false,
+      "description": "The prompt a plugin command stands for, with its arguments filled in; the chat sends it as the person's message",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "args": {
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "deploy-tools:status"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "name": "plugins_command",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.commands.list",
+      "deferred": false,
+      "description": "The / commands that plugins add for a chat with this agent (or the Space when no agent)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "plugins_commands",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.config.set",
+      "deferred": false,
+      "description": "Set the options a plugin asks for; a secret option takes a Vault handle, never a value",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "config": {
+            "additionalProperties": {
+              "description": "A value, or a Vault handle such as #Dana_Api.token for a secret",
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "pluginId": {
+            "examples": [
+              "plg_a1b2c3"
+            ],
+            "pattern": "^plg_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pluginId",
+          "config",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "plugins_config",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.connection.add",
+      "deferred": false,
+      "description": "Connect an MCP server by URL (remote) or by command (runs in the sandbox), for the Space or one agent; works for every model",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "args": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "command": {
+            "type": "string"
+          },
+          "env": {
+            "additionalProperties": {
+              "description": "A value, or a Vault handle such as #Dana_Api.token for a secret",
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "headers": {
+            "additionalProperties": {
+              "description": "A value, or a Vault handle such as #Dana_Api.token for a secret",
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "crm"
+            ],
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "space",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "scope",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "plugins_connection_add",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.connection.remove",
+      "deferred": false,
+      "description": "Disconnect an MCP server made by hand",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "mcs_a1b2c3"
+            ],
+            "pattern": "^mcs_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "space",
+              "agent"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "plugins_connection_remove",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.connections.list",
+      "deferred": false,
+      "description": "MCP connections made by hand (a URL or a command)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "plugins_connections",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.get",
+      "deferred": false,
+      "description": "One installed plugin with the skills, commands, sub-agents, hooks and MCP servers it brought",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "pluginId": {
+            "examples": [
+              "plg_a1b2c3"
+            ],
+            "pattern": "^plg_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pluginId"
+        ],
+        "type": "object"
+      },
+      "name": "plugins_get",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.install",
+      "deferred": false,
+      "description": "Install a plugin from a marketplace into the whole Space (admin) or into one agent: its skills, commands, sub-agents, hooks and MCP servers become available",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "config": {
+            "additionalProperties": {
+              "description": "A value, or a Vault handle such as #Dana_Api.token for a secret",
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "marketplace": {
+            "description": "The marketplace by name, for a Kit that cannot know its id",
+            "type": "string"
+          },
+          "marketplaceId": {
+            "examples": [
+              "mkt_a1b2c3"
+            ],
+            "pattern": "^mkt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "plugin": {
+            "examples": [
+              "deploy-tools"
+            ],
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "space",
+              "agent"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "plugin",
+          "scope",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "plugins_install",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.list",
+      "deferred": false,
+      "description": "Installed plugins: in the whole Space, and in one agent when agentId is given",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "plugins_list",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.marketplace.add",
+      "deferred": false,
+      "description": "Add a marketplace by git URL (https) or a folder on this server; reads its marketplace.json and puts it on the allowlist",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "source": {
+            "examples": [
+              "https://github.com/acme/tools"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "plugins_marketplace_add",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.marketplace.refresh",
+      "deferred": false,
+      "description": "Fetch a marketplace again and update its list",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "marketplaceId": {
+            "examples": [
+              "mkt_a1b2c3"
+            ],
+            "pattern": "^mkt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "marketplaceId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "plugins_marketplace_refresh",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.marketplace.remove",
+      "deferred": false,
+      "description": "Remove a marketplace; the plugins installed from it stay until they are removed",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "marketplaceId": {
+            "examples": [
+              "mkt_a1b2c3"
+            ],
+            "pattern": "^mkt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "description": "The marketplace by name, for a Kit that cannot know its id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "plugins_marketplace_remove",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.marketplaces.list",
+      "deferred": false,
+      "description": "Marketplaces added to this Space",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "plugins_marketplaces",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.mcp.servers",
+      "deferred": false,
+      "description": "The MCP servers a chat with this agent connects to: from plugins in the Space, plugins in the agent and connections made by hand. Secrets are Vault handles.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "plugins_mcp_servers",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.set_enabled",
+      "deferred": false,
+      "description": "Turn an installed plugin off or on without removing it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "pluginId": {
+            "examples": [
+              "plg_a1b2c3"
+            ],
+            "pattern": "^plg_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pluginId",
+          "enabled",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "plugins_set_enabled",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.uninstall",
+      "deferred": false,
+      "description": "Remove an installed plugin and what it brought",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pluginId": {
+            "examples": [
+              "plg_a1b2c3"
+            ],
+            "pattern": "^plg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "space",
+              "agent"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "plugins_uninstall",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "portal.account_create",
       "deferred": false,
       "description": "Create an outside account for a site (magic link or password, per site)",
@@ -36111,6 +36939,128 @@
       "name": "projects_stages_set",
       "planMode": "blocked",
       "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.teammates.create",
+      "deferred": false,
+      "description": "Make a teammate for this project: an agent with no computer and a project role (Lead, Member or Reviewer), by one yes; it shows on the Teammates tab, not on the Agents page",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "brief": {
+            "description": "The use-me-when line",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "Security reviewer"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "lead",
+              "member",
+              "reviewer"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "name",
+          "role",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "projects_teammates_create",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.teammates.list",
+      "deferred": false,
+      "description": "The teammates of a project: agents with a role there, with the lead first. The lead is the default participant in a new chat in the project.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_teammates_list",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.teammates.remove",
+      "deferred": false,
+      "description": "Take a teammate off the project; one made for this project moves to Trash with it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "agentId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "projects_teammates_remove",
+      "planMode": "blocked",
+      "toolset": "records",
       "v": 1
     },
     {
@@ -42124,6 +43074,162 @@
       "name": "sites_update",
       "planMode": "blocked",
       "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.add",
+      "deferred": false,
+      "description": "Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "files": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "description": "Used when the front matter has no name",
+            "type": "string"
+          },
+          "source": {
+            "description": "upload (default), plugin:<name> or kit:<key>",
+            "type": "string"
+          },
+          "text": {
+            "description": "The SKILL.md text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_add",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.list",
+      "deferred": false,
+      "description": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "includeOff": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "skills_list",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.remove",
+      "deferred": false,
+      "description": "Remove a skill from the Space library, or from one agent",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_remove",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.set_enabled",
+      "deferred": false,
+      "description": "Turn a Space or agent skill off or on without removing it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "enabled",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_set_enabled",
+      "planMode": "blocked",
+      "toolset": "agents",
       "v": 1
     },
     {

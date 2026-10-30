@@ -11,8 +11,8 @@ import { mkChain, mkProject, run } from "../fixtures/seed.ts";
 
 const mine = registry.capabilities.filter((c) => c.module === "projects");
 
-test("the handler table covers exactly the 24 capabilities of the projects manifest", () => {
-  assert.equal(mine.length, 24);
+test("the handler table covers exactly the 27 capabilities of the projects manifest", () => {
+  assert.equal(mine.length, 27);
   assert.deepEqual(Object.keys(handlers).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof handlers[c.name], "function", c.name);
 });
@@ -52,6 +52,11 @@ const scenarios: Scenario[] = [
   { cap: "projects.members.set", run: (hn) => run(hn, "projects.members.set", { projectId: NONE, principal: MAYA, role: "member" }), expect: "validation.not_found" },
   { cap: "projects.members.remove", setup: async (hn) => { const p = await mkProject(hn); await run(hn, "projects.members.set", { projectId: p.projectId, principal: BOT, role: "member" }); hn.clear(); return p; }, run: (hn, p) => run(hn, "projects.members.remove", { projectId: p.projectId, principal: BOT }) },
   { cap: "projects.members.remove", run: (hn) => run(hn, "projects.members.remove", { projectId: NONE, principal: MAYA }), expect: "validation.not_found" },
+  { cap: "projects.teammates.list", setup: withProject, run: (hn, p) => run(hn, "projects.teammates.list", { projectId: p.projectId }) },
+  { cap: "projects.teammates.list", run: (hn) => run(hn, "projects.teammates.list", { projectId: NONE }), expect: "validation.not_found" },
+  { cap: "projects.teammates.create", setup: withProject, run: (hn, p) => run(hn, "projects.teammates.create", { projectId: p.projectId, name: "Security reviewer", role: "reviewer", brief: "Reviews drafts for safety." }) },
+  { cap: "projects.teammates.create", run: (hn) => run(hn, "projects.teammates.create", { projectId: NONE, name: "X", role: "member" }), expect: "validation.not_found" },
+  { cap: "projects.teammates.remove", setup: withProject, run: (hn, p) => run(hn, "projects.teammates.remove", { projectId: p.projectId, agentId: "agt_none" }) },
   { cap: "projects.plan", setup: withChain, run: (hn, c) => run(hn, "projects.plan", { projectId: c.p.projectId }) },
   { cap: "projects.plan", run: (hn) => run(hn, "projects.plan", { projectId: NONE }), expect: "validation.not_found" },
   { cap: "projects.stages.set", setup: withProject, run: (hn, p) => run(hn, "projects.stages.set", { projectId: p.projectId, stages: [{ title: "Draft" }, { title: "Review" }] }) },

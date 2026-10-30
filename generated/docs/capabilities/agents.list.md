@@ -28,6 +28,8 @@ type In = {
   section?: "personal" | "shared" | "space";
   folderId?: string;
   status?: Array<"awake" | "working" | "asleep" | "paused">;
+  teammates?: "hide" | "include" | "only";
+  projectId?: string;
   cursor?: string;
   limit?: number;
 };
@@ -67,6 +69,7 @@ type Out = {
       templateVersion: number;
       createdAt: number;
       lastActiveAt?: number;
+      teammateOf?: string;
     }>;
   next?: string;
   total?: number;
@@ -89,10 +92,12 @@ type Out = {
     "cursor": "example",
     "folderId": "fld_a1b2c3",
     "limit": 1,
+    "projectId": "prj_a1b2c3",
     "section": "personal",
     "status": [
       "awake"
-    ]
+    ],
+    "teammates": "hide"
   },
   "output": {
     "agents": [
@@ -122,6 +127,7 @@ type Out = {
         "pausedReason": "example",
         "role": "example",
         "status": "awake",
+        "teammateOf": "prj_a1b2c3",
         "templateVersion": 1,
         "toolsAllowed": [
           "example"

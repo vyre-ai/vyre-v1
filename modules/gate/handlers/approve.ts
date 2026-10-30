@@ -92,6 +92,9 @@ export async function release(ctx: GateCtx, input: In): Promise<unknown> {
     throw e;
   }
   delete h.error;
+  const kept = result === undefined || result === null ? undefined : JSON.stringify(result);
+  // only a chat turn waits for the answer, and a secret is never kept: vault.* calls resume the turn with "approved" only
+  if (kept !== undefined && h.threadId !== undefined && !h.capName.startsWith("vault.")) h.result = kept.length <= 100_000 ? result : { truncated: true };
   settle(ctx, h, "approved", claims.by);
   await cancelSchedules(ctx, h);
   saveHold(ctx.db, h);

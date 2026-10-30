@@ -4136,6 +4136,12 @@
     },
     {
       "deferred": false,
+      "name": "load_skill",
+      "summary": "Load the full text of one skill by name (SKILL.md body and its supporting files); agent skills win over Space ones, Space ones over built-in",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "logs_export",
       "summary": "Export a log search as a file",
       "toolset": "engineer"
@@ -4397,6 +4403,12 @@
       "name": "mcp_tool_describe",
       "summary": "Full schema and examples of named tools",
       "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "mcp_tools",
+      "summary": "The MCP servers a chat with this agent connects to and the tools each offers (starts the server in the sandbox if it is not running)",
+      "toolset": "agents"
     },
     {
       "deferred": false,
@@ -5186,6 +5198,132 @@
     },
     {
       "deferred": false,
+      "name": "plugins_agent_template_use",
+      "summary": "Make an agent from a sub-agent a plugin brought (its description becomes the role line and its prompt the start of AGENT.md)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_agent_templates",
+      "summary": "Sub-agents that installed plugins bring, as templates a new agent can start from",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_allow",
+      "summary": "Allow or stop allowing a whole marketplace, or one plugin of it",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_allowlist",
+      "summary": "The marketplaces and plugins the admin allows",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_browse",
+      "summary": "Plugins the marketplaces offer, with whether each is on the allowlist and where it is installed",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_command",
+      "summary": "The prompt a plugin command stands for, with its arguments filled in; the chat sends it as the person's message",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_commands",
+      "summary": "The / commands that plugins add for a chat with this agent (or the Space when no agent)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_config",
+      "summary": "Set the options a plugin asks for; a secret option takes a Vault handle, never a value",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_connection_add",
+      "summary": "Connect an MCP server by URL (remote) or by command (runs in the sandbox), for the Space or one agent; works for every model",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_connection_remove",
+      "summary": "Disconnect an MCP server made by hand",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_connections",
+      "summary": "MCP connections made by hand (a URL or a command)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_get",
+      "summary": "One installed plugin with the skills, commands, sub-agents, hooks and MCP servers it brought",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_install",
+      "summary": "Install a plugin from a marketplace into the whole Space (admin) or into one agent: its skills, commands, sub-agents, hooks and MCP servers become available",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_list",
+      "summary": "Installed plugins: in the whole Space, and in one agent when agentId is given",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_marketplace_add",
+      "summary": "Add a marketplace by git URL (https) or a folder on this server; reads its marketplace.json and puts it on the allowlist",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_marketplace_refresh",
+      "summary": "Fetch a marketplace again and update its list",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_marketplace_remove",
+      "summary": "Remove a marketplace; the plugins installed from it stay until they are removed",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_marketplaces",
+      "summary": "Marketplaces added to this Space",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_mcp_servers",
+      "summary": "The MCP servers a chat with this agent connects to: from plugins in the Space, plugins in the agent and connections made by hand. Secrets are Vault handles.",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_set_enabled",
+      "summary": "Turn an installed plugin off or on without removing it",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_uninstall",
+      "summary": "Remove an installed plugin and what it brought",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "portal_account_create",
       "summary": "Create an outside account for a site (magic link or password, per site)",
       "toolset": "sites"
@@ -5363,6 +5501,24 @@
       "name": "projects_stages_set",
       "summary": "Create, rename, reorder or remove the stages of a plan",
       "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "projects_teammates_create",
+      "summary": "Make a teammate for this project: an agent with no computer and a project role (Lead, Member or Reviewer), by one yes; it shows on the Teammates tab, not on the Agents page",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_teammates_list",
+      "summary": "The teammates of a project: agents with a role there, with the lead first. The lead is the default participant in a new chat in the project.",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_teammates_remove",
+      "summary": "Take a teammate off the project; one made for this project moves to Trash with it",
+      "toolset": "records"
     },
     {
       "deferred": false,
@@ -6305,6 +6461,30 @@
       "name": "sites_update",
       "summary": "Rename a site or change its settings",
       "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "skills_add",
+      "summary": "Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_list",
+      "summary": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_remove",
+      "summary": "Remove a skill from the Space library, or from one agent",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_set_enabled",
+      "summary": "Turn a Space or agent skill off or on without removing it",
+      "toolset": "agents"
     },
     {
       "deferred": false,

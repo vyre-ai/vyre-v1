@@ -7,12 +7,37 @@ import { registry } from "../../../generated/registry.ts";
 import { handlers } from "../impl.ts";
 import { MAYA, assertEventsConform, codeOf, contractErrors, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
+import { setPluginsHost } from "../handlers/plugins.ts";
+import { createPluginsHost } from "../../../host/src/seams/plugins.ts";
+
+const MARKET = new URL("../../../fixtures/plugins/test-marketplace", import.meta.url).pathname;
+/** The skills capabilities are another capability's work here: they answer, and raise no event into this call. */
+const stubSkills = (hn: Harness): void => {
+  hn.world.answer("skills.add", (i: any) => ({ skill: { name: i.name } }));
+  hn.world.answer("skills.remove", () => ({ removed: true }));
+  hn.world.answer("skills.set_enabled", (i: any) => ({ skill: { name: i.name } }));
+};
+/** A harness whose neighbours answer for skills, with a marketplace added and the greeter plugin installed in the Space. */
+const withPlugin = async (hn: Harness) => {
+  setPluginsHost(createPluginsHost());
+  stubSkills(hn);
+  const m = (await h["plugins.marketplace.add"]!(hn.ctx, { source: MARKET, idempotencyKey: k() })).marketplace;
+  const p = (await h["plugins.install"]!(hn.ctx, { marketplaceId: m.marketplaceId, plugin: "greeter", scope: "space", idempotencyKey: k() })).plugin;
+  hn.clear();
+  return { m, p };
+};
+const withMarket = async (hn: Harness) => {
+  setPluginsHost(createPluginsHost());
+  const m = (await h["plugins.marketplace.add"]!(hn.ctx, { source: MARKET, idempotencyKey: k() })).marketplace;
+  hn.clear();
+  return { m };
+};
 
 const mine = registry.capabilities.filter((c) => c.module === "agents");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
-test("the handler table covers exactly the 33 capabilities of the agents manifest", () => {
-  assert.equal(mine.length, 33);
+test("the handler table covers exactly the 61 capabilities of the agents manifest", () => {
+  assert.equal(mine.length, 61);
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });
@@ -126,6 +151,53 @@ const scenarios: Scenario[] = [
   { cap: "agents.template.apply", setup: withAgent, hn: () => { const x = harness(); x.world.setting("agents.template_mode", "off"); return x; }, run: (hn) => h["agents.template.apply"]!(hn.ctx, { scope: "all" }), expect: "validation.bad_input" },
   { cap: "agents.guide.get", run: (hn) => h["agents.guide.get"]!(hn.ctx, {}) },
   { cap: "agents.builtin_skills.list", run: (hn) => h["agents.builtin_skills.list"]!(hn.ctx, {}) },
+  { cap: "plugins.marketplaces.list", setup: withMarket, run: (hn) => h["plugins.marketplaces.list"]!(hn.ctx, {}) },
+  { cap: "plugins.browse", setup: withMarket, run: (hn) => h["plugins.browse"]!(hn.ctx, {}) },
+  { cap: "plugins.list", setup: withPlugin, run: (hn) => h["plugins.list"]!(hn.ctx, {}) },
+  { cap: "plugins.get", setup: withPlugin, run: (hn, s) => h["plugins.get"]!(hn.ctx, { pluginId: s.p.pluginId }) },
+  { cap: "plugins.get", run: (hn) => h["plugins.get"]!(hn.ctx, { pluginId: "plg_none" }), expect: "validation.not_found" },
+  { cap: "plugins.commands.list", setup: withPlugin, run: (hn) => h["plugins.commands.list"]!(hn.ctx, {}) },
+  { cap: "plugins.command.render", setup: withPlugin, run: (hn) => h["plugins.command.render"]!(hn.ctx, { name: "greeter:hello", args: "Dana" }) },
+  { cap: "plugins.command.render", run: (hn) => h["plugins.command.render"]!(hn.ctx, { name: "x:y" }), expect: "validation.not_found" },
+  { cap: "plugins.agent_templates.list", setup: withPlugin, run: (hn) => h["plugins.agent_templates.list"]!(hn.ctx, {}) },
+  { cap: "plugins.allow.list", setup: withMarket, run: (hn) => h["plugins.allow.list"]!(hn.ctx, {}) },
+  { cap: "plugins.mcp.servers", setup: withPlugin, run: (hn) => h["plugins.mcp.servers"]!(hn.ctx, {}) },
+  { cap: "plugins.files", setup: withPlugin, run: (hn, s) => h["plugins.files"]!(hn.ctx, { pluginId: s.p.pluginId }) },
+  { cap: "plugins.files", run: (hn) => h["plugins.files"]!(hn.ctx, { pluginId: "plg_none" }), expect: "validation.not_found" },
+  { cap: "plugins.hooks.list", setup: withPlugin, run: (hn) => h["plugins.hooks.list"]!(hn.ctx, {}) },
+  { cap: "plugins.connections.list", run: (hn) => h["plugins.connections.list"]!(hn.ctx, {}) },
+  { cap: "plugins.marketplace.add", run: (hn) => { setPluginsHost(createPluginsHost()); return h["plugins.marketplace.add"]!(hn.ctx, { source: MARKET, idempotencyKey: k() }); } },
+  { cap: "plugins.marketplace.add", run: (hn) => h["plugins.marketplace.add"]!(hn.ctx, { source: "nothing", idempotencyKey: k() }), expect: "validation.bad_input" },
+  { cap: "plugins.marketplace.refresh", setup: withMarket, run: (hn, s) => h["plugins.marketplace.refresh"]!(hn.ctx, { marketplaceId: s.m.marketplaceId, idempotencyKey: k() }) },
+  { cap: "plugins.marketplace.refresh", run: (hn) => h["plugins.marketplace.refresh"]!(hn.ctx, { marketplaceId: "mkt_none", idempotencyKey: k() }), expect: "validation.not_found" },
+  { cap: "plugins.marketplace.remove", setup: withMarket, run: (hn, s) => h["plugins.marketplace.remove"]!(hn.ctx, { marketplaceId: s.m.marketplaceId, idempotencyKey: k() }) },
+  { cap: "plugins.allow.set", setup: withMarket, run: (hn) => h["plugins.allow.set"]!(hn.ctx, { kind: "marketplace", marketplace: "vyre-test-market", allowed: false, idempotencyKey: k() }) },
+  { cap: "plugins.install", setup: withMarket, run: (hn, s) => { stubSkills(hn); return h["plugins.install"]!(hn.ctx, { marketplaceId: s.m.marketplaceId, plugin: "notes", scope: "space", idempotencyKey: k() }); } },
+  { cap: "plugins.install", setup: withMarket, run: (hn, s) => h["plugins.install"]!(hn.ctx, { marketplaceId: s.m.marketplaceId, plugin: "nope", scope: "space", idempotencyKey: k() }), expect: "validation.not_found" },
+  { cap: "plugins.uninstall", setup: withPlugin, run: (hn, s) => h["plugins.uninstall"]!(hn.ctx, { pluginId: s.p.pluginId, idempotencyKey: k() }) },
+  { cap: "plugins.set_enabled", setup: withPlugin, run: (hn, s) => h["plugins.set_enabled"]!(hn.ctx, { pluginId: s.p.pluginId, enabled: false, idempotencyKey: k() }) },
+  { cap: "plugins.set_enabled", run: (hn) => h["plugins.set_enabled"]!(hn.ctx, { pluginId: "plg_none", enabled: false, idempotencyKey: k() }), expect: "validation.not_found" },
+  { cap: "plugins.config.set", setup: withPlugin, run: (hn, s) => h["plugins.config.set"]!(hn.ctx, { pluginId: s.p.pluginId, config: { echo_token: "#Dana_Echo.token" }, idempotencyKey: k() }) },
+  { cap: "plugins.config.set", setup: withPlugin, run: (hn, s) => h["plugins.config.set"]!(hn.ctx, { pluginId: s.p.pluginId, config: { echo_token: "plain" }, idempotencyKey: k() }), expect: "validation.bad_input" },
+  { cap: "plugins.agent_template.use", setup: withPlugin, run: (hn, s) => h["plugins.agent_template.use"]!(hn.ctx, { pluginId: s.p.pluginId, name: "helper", idempotencyKey: k() }) },
+  { cap: "plugins.agent_template.use", setup: withPlugin, run: (hn, s) => h["plugins.agent_template.use"]!(hn.ctx, { pluginId: s.p.pluginId, name: "ghost", idempotencyKey: k() }), expect: "validation.not_found" },
+  { cap: "plugins.connection.add", run: (hn) => h["plugins.connection.add"]!(hn.ctx, { name: "crm", scope: "space", url: "https://crm.example.com/mcp", idempotencyKey: k() }) },
+  { cap: "plugins.connection.add", run: (hn) => h["plugins.connection.add"]!(hn.ctx, { name: "crm", scope: "space", idempotencyKey: k() }), expect: "validation.bad_input" },
+  { cap: "plugins.connection.remove", setup: async (hn) => (await h["plugins.connection.add"]!(hn.ctx, { name: "crm", scope: "space", url: "https://crm.example.com/mcp", idempotencyKey: k() })).connection, run: (hn, s) => h["plugins.connection.remove"]!(hn.ctx, { connectionId: s.connectionId, idempotencyKey: k() }) },
+  { cap: "skills.list", run: (hn) => h["skills.list"]!(hn.ctx, {}) },
+  { cap: "skills.load", run: (hn) => h["skills.load"]!(hn.ctx, { name: "working-in-vyre" }) },
+  { cap: "skills.load", run: (hn) => h["skills.load"]!(hn.ctx, { name: "no-such-skill" }), expect: "validation.not_found" },
+  { cap: "skills.add", run: (hn) => h["skills.add"]!(hn.ctx, { text: "---\nname: one\ndescription: One.\n---\nBody.\n", idempotencyKey: k() }) },
+  { cap: "skills.add", run: (hn) => h["skills.add"]!(hn.ctx, { text: "no front matter and no name", idempotencyKey: k() }), expect: "validation.bad_input" },
+  {
+    cap: "skills.set_enabled", setup: (hn) => h["skills.add"]!(hn.ctx, { text: "---\nname: one\ndescription: One.\n---\nBody.\n", idempotencyKey: k() }).then(() => hn.clear()),
+    run: (hn) => h["skills.set_enabled"]!(hn.ctx, { name: "one", enabled: false, idempotencyKey: k() }),
+  },
+  { cap: "skills.set_enabled", run: (hn) => h["skills.set_enabled"]!(hn.ctx, { name: "none", enabled: false, idempotencyKey: k() }), expect: "validation.not_found" },
+  {
+    cap: "skills.remove", setup: (hn) => h["skills.add"]!(hn.ctx, { text: "---\nname: one\ndescription: One.\n---\nBody.\n", idempotencyKey: k() }).then(() => hn.clear()),
+    run: (hn) => h["skills.remove"]!(hn.ctx, { name: "one", idempotencyKey: k() }),
+  },
 ];
 
 test("every path through every capability: answers match the schema, errors are declared, events are declared and match their schemas", async () => {

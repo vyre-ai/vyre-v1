@@ -662,6 +662,11 @@ export function stubs(ctx: CallCtx) {
         heartbeat: call("engine.lease.heartbeat"),
         release: call("engine.lease.release"),
       },
+      mcp: {
+        call: call("engine.mcp.call"),
+        read: call("engine.mcp.read"),
+        tools: call("engine.mcp.tools"),
+      },
       models: {
         list: call("engine.models.list"),
       },
@@ -855,6 +860,9 @@ export function stubs(ctx: CallCtx) {
       },
       park: call("gate.park"),
       release: call("gate.release"),
+      result: {
+        take: call("gate.result.take"),
+      },
       rules: {
         list: call("gate.rules.list"),
         set: call("gate.rules.set"),
@@ -1503,6 +1511,55 @@ export function stubs(ctx: CallCtx) {
       },
       send: call("notifications.send"),
     },
+    plugins: {
+      agent_template: {
+        use: call("plugins.agent_template.use"),
+      },
+      agent_templates: {
+        list: call("plugins.agent_templates.list"),
+      },
+      allow: {
+        list: call("plugins.allow.list"),
+        set: call("plugins.allow.set"),
+      },
+      browse: call("plugins.browse"),
+      command: {
+        render: call("plugins.command.render"),
+      },
+      commands: {
+        list: call("plugins.commands.list"),
+      },
+      config: {
+        set: call("plugins.config.set"),
+      },
+      connection: {
+        add: call("plugins.connection.add"),
+        remove: call("plugins.connection.remove"),
+      },
+      connections: {
+        list: call("plugins.connections.list"),
+      },
+      files: call("plugins.files"),
+      get: call("plugins.get"),
+      hooks: {
+        list: call("plugins.hooks.list"),
+      },
+      install: call("plugins.install"),
+      list: call("plugins.list"),
+      marketplace: {
+        add: call("plugins.marketplace.add"),
+        refresh: call("plugins.marketplace.refresh"),
+        remove: call("plugins.marketplace.remove"),
+      },
+      marketplaces: {
+        list: call("plugins.marketplaces.list"),
+      },
+      mcp: {
+        servers: call("plugins.mcp.servers"),
+      },
+      set_enabled: call("plugins.set_enabled"),
+      uninstall: call("plugins.uninstall"),
+    },
     portal: {
       account_create: call("portal.account_create"),
       account_disable: call("portal.account_disable"),
@@ -1545,6 +1602,11 @@ export function stubs(ctx: CallCtx) {
       shared_view: call("projects.shared_view"),
       stages: {
         set: call("projects.stages.set"),
+      },
+      teammates: {
+        create: call("projects.teammates.create"),
+        list: call("projects.teammates.list"),
+        remove: call("projects.teammates.remove"),
       },
       templates: {
         list: call("projects.templates.list"),
@@ -1797,6 +1859,13 @@ export function stubs(ctx: CallCtx) {
       table_promote: call("sites.table_promote"),
       tables: call("sites.tables"),
       update: call("sites.update"),
+    },
+    skills: {
+      add: call("skills.add"),
+      list: call("skills.list"),
+      load: call("skills.load"),
+      remove: call("skills.remove"),
+      set_enabled: call("skills.set_enabled"),
     },
     source_rules: {
       list: call("source_rules.list"),

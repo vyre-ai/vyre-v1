@@ -5,7 +5,41 @@ import {
 } from "./crud.ts";
 import { builtinSkillsList, guideGet, routineDelegate, routineDelete, routineRunNow, routineSave, routinesList, suggestionAccept, suggestionDismiss, suggestionPropose, suggestionsList, templateApply, templateGet, templatePreview } from "./routines.ts";
 
+import {
+  agentTemplateUse, agentTemplates, allowList, allowSet, browse, commandRender, commandsList, configSet, connectionAdd, connectionRemove, connectionsList, hooksList, install, marketplaceAdd, marketplaceRefresh, marketplaceRemove,
+  marketplacesList, mcpServers, pluginFiles, pluginGet, pluginsList, setEnabled, uninstall,
+} from "./plugins.ts";
+import { skillsAdd, skillsList, skillsLoad, skillsRemove, skillsSetEnabled } from "./skills.ts";
+
 export const handlers = {
+  "plugins.marketplaces.list": marketplacesList,
+  "plugins.browse": browse,
+  "plugins.list": pluginsList,
+  "plugins.get": pluginGet,
+  "plugins.commands.list": commandsList,
+  "plugins.command.render": commandRender,
+  "plugins.agent_templates.list": agentTemplates,
+  "plugins.allow.list": allowList,
+  "plugins.mcp.servers": mcpServers,
+  "plugins.hooks.list": hooksList,
+  "plugins.connections.list": connectionsList,
+  "plugins.files": pluginFiles,
+  "plugins.marketplace.add": marketplaceAdd,
+  "plugins.marketplace.refresh": marketplaceRefresh,
+  "plugins.marketplace.remove": marketplaceRemove,
+  "plugins.allow.set": allowSet,
+  "plugins.install": install,
+  "plugins.uninstall": uninstall,
+  "plugins.set_enabled": setEnabled,
+  "plugins.config.set": configSet,
+  "plugins.agent_template.use": agentTemplateUse,
+  "plugins.connection.add": connectionAdd,
+  "plugins.connection.remove": connectionRemove,
+  "skills.list": skillsList,
+  "skills.load": skillsLoad,
+  "skills.add": skillsAdd,
+  "skills.remove": skillsRemove,
+  "skills.set_enabled": skillsSetEnabled,
   "agents.list": list,
   "agents.get": get,
   "agents.status": status,

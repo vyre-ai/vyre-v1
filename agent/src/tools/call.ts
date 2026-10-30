@@ -14,7 +14,25 @@ export type ToolOutcome =
   /** Parked at the Gate: the turn shows turn.waiting {task} and resumes when it is approved or denied. */
   | { kind: "held"; result: ToolResult; taskId: string; runId?: string; traceId: string };
 
+/** Tools of a turn that are not in the generated catalog: the MCP tools of a plugin or a connection. Each is called through one capability (def.cap), so access, the Gate and the audit apply as to any tool. */
+export interface DynamicTools {
+  /** May be async: a turn that resumes after a hold or a restart has not listed its tools again yet, so the first call finds them then. */
+  find(ctx: ToolCtx, name: string): ToolDef | undefined | Promise<ToolDef | undefined>;
+  /** The input of that capability for one call of the tool. */
+  input(ctx: ToolCtx, t: ToolDef, input: unknown): unknown;
+}
+
+/** Plugin hooks around a call. They run in the sandbox (modules/engine/plugin-runtime.ts); this file only asks and waits. */
+export interface CallHooks {
+  /** A reason to refuse the call (a PreToolUse hook exited with 2), or null. */
+  before?(ctx: ToolCtx, t: ToolDef, input: unknown): Promise<string | null>;
+  /** Told how the call ended. Not waited for: a slow hook must not hold the model. */
+  after?(ctx: ToolCtx, t: ToolDef, input: unknown, result: { ok: boolean; output: unknown }): Promise<void> | void;
+}
+
 export interface CallDeps extends AccessDeps {
+  dynamic?: DynamicTools;
+  hooks?: CallHooks;
   invoke: Invoke;
   traceId?(): string;
   /** Local tools only: what Ask, Allow and Auto say. Fails closed: a missing policy refuses a local tool. */
@@ -72,14 +90,15 @@ export function createToolSession(deps: CallDeps): ToolSession {
 
   async function call(ctx: ToolCtx, name: string, input: unknown, opts: { approval?: string } = {}): Promise<ToolOutcome> {
     const traceId = ctx.trace?.traceId ?? newTrace();
-    const t = deps.catalog.byName(name);
+    const t = deps.catalog.byName(name) ?? (await deps.dynamic?.find(ctx, name));
     if (!t) return fail("validation.unknown_capability", traceId, { message: "There is no such tool.", details: { tool: name } });
 
     const level = askLevel(deps, ctx.asker, ctx.thread);
     const why = refusalFor(deps, ctx, t, level);
     if (why !== null) return refused(why, ctx, t, traceId);
 
-    if (!deps.defaults.has(t.name) && !loadedSet(ctx.thread.threadId).has(t.name)) {
+    const isDynamic = !deps.catalog.byName(name);
+    if (!isDynamic && !deps.defaults.has(t.name) && !loadedSet(ctx.thread.threadId).has(t.name)) {
       return fail("validation.precondition_failed", traceId, { message: "Find this tool with tool_search first.", details: { tool: t.name, reason: "not_loaded" } });
     }
 
@@ -102,6 +121,10 @@ export function createToolSession(deps: CallDeps): ToolSession {
       }
     }
 
+    if (deps.hooks?.before) {
+      const reason = await deps.hooks.before(ctx, t, input).catch(() => null);
+      if (reason !== null) return fail("permission.role_lacks_permission", traceId, { message: `A plugin hook stopped this: ${reason}`, details: { tool: t.name, reason: "hook" } });
+    }
     const seed: CtxSeed = {
       space: ctx.space,
       principal: { kind: "agent", id: ctx.agentId },
@@ -114,7 +137,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
       approval: opts.approval,
     };
     try {
-      const res = await deps.invoke(t.cap, input, seed);
+      const res = await deps.invoke(t.cap, isDynamic && deps.dynamic ? deps.dynamic.input(ctx, t, input) : input, seed);
       if (res.status === "held") {
         return {
           kind: "held", taskId: res.taskId, traceId: res.traceId, ...(res.runId === undefined ? {} : { runId: res.runId }),
@@ -123,6 +146,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
       }
       const content: { data: unknown; blocks?: string[] } = { data: res.output };
       if (t.blocks.length > 0) content.blocks = t.blocks;
+      if (deps.hooks?.after) void Promise.resolve(deps.hooks.after(ctx, t, input, { ok: true, output: res.output })).catch(() => undefined);
       return { kind: "result", traceId: res.traceId, result: { ok: true, content } };
     } catch (e) {
       if (e instanceof HostError) return { kind: "error", error: e.error, result: { ok: false, content: { error: e.error } } };

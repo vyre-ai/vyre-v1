@@ -344,3 +344,38 @@ test("ordinary human sends skip the Gate; the acts that always ask do not", asyn
 });
 // ok
 // ok2
+
+// ---- the answer of an approved call, for a chat turn ----
+
+test("a chat turn's hold keeps the call's answer for the engine only: not in holds.get or list, taken once and cleared, never for vault calls, and not past the hold's expiry", async () => {
+  const h = harness();
+  h.callee("mail.send", () => ({ messageId: "msg_1", body: "private text" }));
+  const p = await park(h, { threadId: "thr_1" });
+  await release(h, p);
+  // an approver or the requester reads the hold and never sees the answer
+  for (const who of [person(alice), as(bot)]) {
+    const got = await h.call("gate.holds.get", { holdId: p.holdId }, who).catch(() => null) as { hold: Record<string, unknown> } | null;
+    if (got) assert.equal("result" in got.hold, false);
+  }
+  assert.ok(!JSON.stringify(await h.call("gate.holds.list", {}, person(alice))).includes("private text"));
+  // only the server takes it, and a person cannot
+  await refused(h.call("gate.result.take", { holdId: p.holdId }, person(alice)), "permission.role_lacks_permission", "system_only");
+  assert.deepEqual(await h.call("gate.result.take", { holdId: p.holdId }, svc), { found: true, result: { messageId: "msg_1", body: "private text" } });
+  assert.deepEqual(await h.call("gate.result.take", { holdId: p.holdId }, svc), { found: false }, "cleared once handed over");
+  assert.equal(h.db.all("SELECT result FROM gate_holds WHERE id = ?", p.holdId)[0]!["result"], null);
+  // a hold with no thread keeps nothing
+  const run = await park(h, { runId: "run_2", decisionId: "dec_2" });
+  await release(h, run, { decision: "dec_2" });
+  assert.deepEqual(await h.call("gate.result.take", { holdId: run.holdId }, svc), { found: false });
+  // a vault call is never kept
+  h.callee("vault.item.get", () => ({ value: "s3cret" }));
+  const v = await park(h, { capName: "vault.item.get", threadId: "thr_1", decisionId: "dec_3" });
+  await release(h, v, { decision: "dec_3" });
+  assert.deepEqual(await h.call("gate.result.take", { holdId: v.holdId }, svc), { found: false });
+  // past the expiry the answer is dropped, not handed over
+  h.callee("mail.send", () => ({ late: true }));
+  const late = await park(h, { threadId: "thr_1", decisionId: "dec_4" });
+  await release(h, late, { decision: "dec_4" });
+  h.advance(30 * HOUR);
+  assert.deepEqual(await h.call("gate.result.take", { holdId: late.holdId }, svc), { found: false });
+});

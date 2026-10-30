@@ -18,6 +18,7 @@ import { createGithubHost, createStripeHost, createTwilioHost, createZoomHost } 
 import type { GithubHostSeam, StripeHostSeam, TwilioHostSeam, ZoomHostSeam } from "./comms.ts";
 import type { FillerPort } from "./filler.ts";
 import { createMsHost } from "./microsoft.ts";
+import { createPluginsHost } from "./plugins.ts";
 import { createSourcesSecretResolver } from "./sources.ts";
 import type { SourcesSecretResolver } from "./sources.ts";
 import type { MsHostSeam, MsSeamDeps } from "./microsoft.ts";
@@ -112,6 +113,7 @@ export const BUILTIN_DRIVERS: Readonly<Record<string, SeamDriver>> = Object.free
   setStripeHost: (d: SeamDriverDeps) => createStripeHost({ vault: d.vault }),
   setTwilioHost: (d: SeamDriverDeps) => createTwilioHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, publicUrl: d.publicUrl }),
   setZoomHost: (d: SeamDriverDeps) => createZoomHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs }),
+  setPluginsHost: () => createPluginsHost(),
   setGithubHost: (d: SeamDriverDeps) => createGithubHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, filler: d.filler, publicUrl: d.publicUrl }),
 });
 

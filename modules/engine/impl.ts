@@ -6,10 +6,11 @@
 import { createTurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { EngineOptions, TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { bindEngine, engineIfBound, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
+import { bindEngine, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
 import type { Db } from "./projections.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { bridgeConsumers } from "./handlers/bridge.ts";
+import { gateResumeConsumers } from "./handlers/gate-resume.ts";
 import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
 import { ensureRuntime, setEngineHost, wakeAfterUnblock } from "./runtime.ts";
 import type { EngineCtx } from "./projections.ts";
@@ -31,17 +32,8 @@ export const periodic = {
 /** A task reached Done: if it was the Unblock for a turn with no account, wake that agent in that thread. */
 export const consumers = {
   ...bridgeConsumers,
+  ...gateResumeConsumers,
   ...captureConsumers,
-  /** A person answered the Gate task a tool call was held on: the turn parked on it wakes and carries on with the answer (approved, or a refusal the model reads). */
-  "engine.held_resume": {
-    on: ["gate.approved", "gate.denied", "gate.expired"],
-    run: async (_ctx: EngineCtx, event: { name?: string; type?: string; payload: { taskId: string } }): Promise<string[]> => {
-      const engine = engineIfBound();
-      if (!engine) return [];
-      const approved = (event.name ?? event.type) === "gate.approved";
-      return resumeHeld(engine, event.payload.taskId, approved) === null ? [] : [event.payload.taskId];
-    },
-  },
   "engine.unblock": {
     on: ["task.completed"],
     run: async (ctx: EngineCtx, event: { payload: { taskId: string } }): Promise<string[]> => ((await wakeAfterUnblock(ctx, event.payload.taskId)) ? [event.payload.taskId] : []),
