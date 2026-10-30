@@ -663,6 +663,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           return previews.read(token, cap, input, trace);
         } },
         resolveItem: (type, kind, value) => resolveVaultItem(db!, type, kind, value),
+        ensureResource: async (r) => {
+          const key = r.type === "connector" ? r.id : r.id === null && r.type === "connection" ? r.parent ?? null : null;
+          if (key && builtinConnectors.has(key)) await ensureBuiltinConnector(key);
+        },
         handler: (cap, v) => whoamiWithDeferred(cap, (() => {
           const original = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);
           // Count a public content/access mutation before its handler writes, including the interval before its log commit.
@@ -806,6 +810,28 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const spaceStore = createSpaceStore({ path: spaceStorePath(paths.root), space: spaceId });
       closers.push(() => spaceStore.close());
       dispatchSystem = system;
+      // The connectors that ship with the server (Google, Microsoft, Stripe, HubSpot...) are resources in the access projection so that a connection can be made under one: connections.create
+      // authorizes against its connector, and without this every built-in connector answered "not found" to everyone. A connector someone writes becomes a resource when it is created
+      // (connector.created). A built-in one is registered the first time a call names it, with an id made from its key, so a restart repeats the same event and a new Space still
+      // starts with exactly its bootstrap events (ruling 71).
+      const builtinConnectors = new Set(((registry as unknown as { connectors?: { key: string }[] }).connectors ?? []).map((c) => c.key));
+      const ensuringConnector = new Map<string, Promise<void>>();
+      const ensureBuiltinConnector = (key: string): Promise<void> => {
+        let p = ensuringConnector.get(key);
+        if (!p) {
+          p = (async () => {
+            if (access.snap.resource(key)) return;
+            const r = await spaceLog.appendResult({
+              id: `evt_res_connector_${key}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: key,
+              payload: { id: key, type: "connector", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
+            });
+            if (!r.ok) throw new Error(`could not register the connector ${key}: ${r.message}`);
+            if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
+          })().finally(() => ensuringConnector.delete(key));
+          ensuringConnector.set(key, p);
+        }
+        return p;
+      };
       const ensureFileRoot = async (f: { id: string; type: "folder"; parentId: string | null; ownerId?: string; privateRoot?: boolean }): Promise<void> => {
         const old = access.snap.resource(f.id);
         let privateOwner: string | undefined;
