@@ -5,8 +5,8 @@ import { Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-nat
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Dot, Glyph } from "../../shell/glyphs.tsx";
 import { Group, Section, pointer } from "../../shell/ui.tsx";
-import { Button } from "../shared.tsx";
-import { memberNote } from "./model.ts";
+import { Actions, Button, Field, Select } from "../shared.tsx";
+import { matchProblem, memberNote } from "./model.ts";
 import type { MemberRow, ServiceRow, Summary } from "./model.ts";
 
 /** Only addresses this module wrote can be opened; nothing a server sent. */
@@ -136,7 +136,7 @@ export function Services({ rows, title = "Services" }: { rows: readonly ServiceR
   );
 }
 
-export function Members({ rows, onToggle, busy }: { rows: readonly MemberRow[]; onToggle: (m: MemberRow) => void; busy: boolean }): ReactElement {
+export function Members({ rows, onToggle, onUnmatch, busy }: { rows: readonly MemberRow[]; onToggle: (m: MemberRow) => void; onUnmatch?: ((m: MemberRow) => void) | undefined; busy: boolean }): ReactElement {
   return (
     <Section title="Members" count={rows.length} testID="suite-members">
       <Group>
@@ -146,9 +146,29 @@ export function Members({ rows, onToggle, busy }: { rows: readonly MemberRow[]; 
           <Row
             key={m.email} id={m.email} title={m.email} note={memberNote(m)}
             leading={<Dot tone={m.excluded ? "off" : m.mapped ? "ok" : "off"} label={m.excluded ? "Excluded" : m.mapped ? "Included" : "Not matched"} />}
-            trailing={m.mapped ? <Button label={m.excluded ? "Include" : "Exclude"} disabled={busy} testID={`member-toggle-${m.email}`} onPress={() => onToggle(m)} /> : undefined}
+            trailing={m.mapped ? <View style={{ flexDirection: "row", gap: 6 }}><Button label={m.excluded ? "Include" : "Exclude"} disabled={busy} testID={`member-toggle-${m.email}`} onPress={() => onToggle(m)} />{onUnmatch ? <Button label="Unmatch" disabled={busy} testID={`member-unmatch-${m.email}`} onPress={() => onUnmatch(m)} /> : null}</View> : undefined}
           />
         ))}
+      </Group>
+    </Section>
+  );
+}
+
+/** "Match to…": an address that no invitation holds, matched by hand to a person in the Space. */
+export function MatchPerson({ people, domain, busy, onMatch }: { people: readonly { key: string; title: string }[]; domain?: string | undefined; busy: boolean; onMatch: (email: string, userId: string) => void }): ReactElement {
+  const [email, setEmail] = useState("");
+  const [who, setWho] = useState("");
+  const [problem, setProblem] = useState("");
+  return (
+    <Section title="Match an address to a person" testID="suite-match">
+      <Group>
+        <View style={{ padding: 12, gap: 4 }}>
+          <Para>For the owner, or anyone whose work address differs from the one their invitation went to.</Para>
+          <Field label={`Work address${domain ? ` at ${domain}` : ""}`} value={email} onChange={setEmail} testID="match-email" />
+          <Select label="Person" value={who} options={people} onChange={setWho} />
+          {problem ? <Text style={s.noteText}>{problem}</Text> : null}
+          <Actions><Button label="Match" disabled={busy} testID="match-go" onPress={() => { const p = matchProblem(email, who, domain); setProblem(p); if (!p) { onMatch(email.trim(), who); setEmail(""); } }} /></Actions>
+        </View>
       </Group>
     </Section>
   );

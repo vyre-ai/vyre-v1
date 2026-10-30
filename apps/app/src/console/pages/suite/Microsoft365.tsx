@@ -7,9 +7,9 @@ import { View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { Section } from "../../shell/ui.tsx";
 import { Actions, Button, Field, Note, ReadState, useAction, useRead } from "../shared.tsx";
-import { Banner, Bullets, CodeBlock, CopyRow, Members, OpenLink, Para, Services, Step, StepsCard } from "./parts.tsx";
+import { Banner, MatchPerson, Bullets, CodeBlock, CopyRow, Members, OpenLink, Para, Services, Step, StepsCard } from "./parts.tsx";
 import type { StepState } from "./parts.tsx";
-import { connectedLine, memberToggle, microsoftCheckLine, microsoftChecked, storeInVault } from "./flow.ts";
+import { matchPerson, unmatchPerson, connectedLine, memberToggle, microsoftCheckLine, microsoftChecked, storeInVault } from "./flow.ts";
 import type { Checked } from "./flow.ts";
 import { MICROSOFT_HANDLE, MICROSOFT_LINKS, MICROSOFT_PERMISSION_USE, microsoftSecret, serviceRows, summaryOf } from "./model.ts";
 import type { MemberRow } from "./model.ts";
@@ -24,6 +24,7 @@ export function Microsoft365Page(): ReactElement {
   const members = useRead<CapMap["ms.consent.members"]["out"]>("ms.consent.members", { limit: 100 }, { enabled: configured });
   const folders = useRead<CapMap["vault.folders.list"]["out"]>("vault.folders.list", { scope: "shared" });
   const items = useRead<CapMap["vault.items.list"]["out"]>("vault.items.list", { q: "Microsoft_App", section: "shared" });
+  const people = useRead<CapMap["access.principals.list"]["out"]>("access.principals.list", { kind: "person", status: "active", limit: 200 }, { enabled: configured });
   const refresh = (): void => { status.refresh(); link.refresh(); snippet.refresh(); members.refresh(); folders.refresh(); items.refresh(); };
   const act = useAction(refresh);
 
@@ -69,6 +70,7 @@ export function Microsoft365Page(): ReactElement {
     await act.run<CapMap["ms.consent.verify"]["out"]>("ms.consent.verify", { ...(ranPolicy ? { policyConfirmed: true } : {}) }, (out) => { setChecked(microsoftChecked(out)); return microsoftCheckLine(out); });
   };
 
+  const peopleOptions = (people.data?.principals ?? []).map((p) => ({ key: p.id, title: p.name ?? p.id }));
   const toggle = (m: MemberRow): Promise<unknown> => memberToggle(act.run, "ms.consent.set_excluded", m);
 
   const off = async (): Promise<void> => {
@@ -146,7 +148,7 @@ export function Microsoft365Page(): ReactElement {
       {problem ? <Note>{problem}</Note> : null}
       {configured ? <Services rows={rows} /> : null}
       <Section title={configured ? "Setup steps" : "Set up Microsoft 365"}>{steps}</Section>
-      {!configured ? <Services rows={rows} /> : <Members rows={memberRows} busy={act.busy} onToggle={(m) => void toggle(m)} />}
+      {!configured ? <Services rows={rows} /> : <><Members rows={memberRows} busy={act.busy} onToggle={(m) => void toggle(m)} onUnmatch={(m) => void unmatchPerson(act.run, "ms.consent.map_member", m.email)} /><MatchPerson people={peopleOptions} domain={undefined} busy={act.busy} onMatch={(email, id) => void matchPerson(act.run, "ms.consent.map_member", email, id)} /></>}
     </View>
   );
 }

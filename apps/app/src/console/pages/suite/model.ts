@@ -155,3 +155,11 @@ export function personLine(configured: boolean, excluded: boolean, name: string)
   if (excluded) return `Connected through your firm, but your account is excluded, so ${name} never reads your mail or calendar.`;
   return "Connected through your firm";
 }
+
+/** What is wrong with a person-to-address match before anything is sent, or an empty string. */
+export function matchProblem(email: string, userId: string, domain: string | undefined): string {
+  if (!looksLikeEmail(email)) return "Type the person's work address, like maya@yourfirm.com.";
+  if (domain && domainOf(email) !== domain.toLowerCase()) return `Only addresses at ${domain} can be matched.`;
+  if (!userId) return "Choose the person this address belongs to.";
+  return "";
+}

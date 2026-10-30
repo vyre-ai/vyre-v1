@@ -47,6 +47,8 @@ test("Google, connected with a missing scope: Drive and Docs and Sheets degrade;
   assert.match(html, />Include</);
   assert.match(html, />Exclude</);
   assert.match(html, /never reads this person/);
+  assert.match(html, /Match an address to a person/);
+  assert.match(html, />Unmatch</);
   assert.ok(html.includes("Check connection") && html.includes("Turn off"));
 });
 

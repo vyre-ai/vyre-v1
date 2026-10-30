@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { memberNote, microsoftSecret, parseGoogleKey, personLine, serviceRows, shortScope, summaryOf } from "./model.ts";
+import { matchProblem, memberNote, microsoftSecret, parseGoogleKey, personLine, serviceRows, shortScope, summaryOf } from "./model.ts";
 
 const key = (o: Record<string, unknown> = {}) => JSON.stringify({ type: "service_account", project_id: "firm-prod", client_id: "104857384729183746501", client_email: "vyre@firm-prod.iam.gserviceaccount.com", private_key: "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n", ...o });
 
@@ -79,4 +79,12 @@ test("people see what is connected for them and what to ask their admin", () => 
 
 test("small helpers", () => {
   assert.equal(shortScope("https://www.googleapis.com/auth/gmail.modify"), "gmail.modify");
+});
+
+test("a match needs a firm address and a person", () => {
+  assert.match(matchProblem("nobody", "usr_1", "firm.com"), /work address/);
+  assert.match(matchProblem("a@other.com", "usr_1", "firm.com"), /Only addresses at firm.com/);
+  assert.match(matchProblem("a@firm.com", "", "firm.com"), /Choose the person/);
+  assert.equal(matchProblem("A@Firm.com", "usr_1", "firm.com"), "");
+  assert.equal(matchProblem("a@firm.com", "usr_1", undefined), "");
 });

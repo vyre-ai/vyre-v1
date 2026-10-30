@@ -56,3 +56,11 @@ export function microsoftCheckLine(out: { ok: boolean; missingPermissions: reado
   if (out.missingPermissions.length > 0) return `Not yet consented: ${out.missingPermissions.join(", ")}. ${out.detail ?? ""}`.trim();
   return out.detail ?? "Microsoft did not accept the check.";
 }
+
+export function matchPerson(run: Run, cap: "google.dwd.map_member" | "ms.consent.map_member", email: string, userId: string): Promise<unknown> {
+  return run(cap, { email: email.trim().toLowerCase(), userId, idempotencyKey: "" }, (out: { connected?: boolean }) => (out.connected ? `Matched ${email}. Their mail and calendar will start to come in.` : `Matched ${email}.`));
+}
+
+export function unmatchPerson(run: Run, cap: "google.dwd.map_member" | "ms.consent.map_member", email: string): Promise<unknown> {
+  return run(cap, { email, idempotencyKey: "" }, `${email} is no longer matched to a person.`);
+}

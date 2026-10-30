@@ -1,1 +1,2 @@
 - Match an address to a person. New capabilities google.dwd.map_member and ms.consent.map_member (admin only, Gate-held for agents and automations): the owner, or anyone whose work address differs from their invitation, is matched by hand, and their mail and calendar then come in. An address belongs to one person and a person to one address; a clash is refused until the first match is taken away.
+- The Google and Microsoft pages list people with a Match to... section (address plus person) and an Unmatch button on each matched person.
