@@ -3,7 +3,7 @@
 //   node --experimental-strip-types test/chat-brain.benchmark.ts            prints the table
 //   VYRE_BENCH_OUT=/path/scores.json node ... test/chat-brain.benchmark.ts   also writes the scores as JSON
 //   VYRE_BENCH_DEBUG=1 ...                                                    prints every tool call a policy makes and the host log of a failed task
-// test/chat-brain.bench-after.test.ts and bench-before.test.ts run each side as a test on every change.
+// test/chat-brain.bench.test.ts runs each side as a test on every change.
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
