@@ -18,6 +18,7 @@ export const handlers: Record<string, Handler> = {
   "google.dwd.setup": (ctx, i) => h.dwdSetup(ctx, i),
   "google.dwd.probe": (ctx, i) => h.dwdProbe(ctx, i),
   "google.dwd.members": (ctx, i) => h.dwdMembers(ctx, i),
+  "google.dwd.my_account": (ctx) => h.dwdMyAccount(ctx),
   "google.dwd.set_excluded": (ctx, i) => h.dwdSetExcluded(ctx, i),
   "google.dwd.disable": (ctx) => h.dwdDisable(ctx),
   "google.health": (ctx, i) => h.health(ctx, i),

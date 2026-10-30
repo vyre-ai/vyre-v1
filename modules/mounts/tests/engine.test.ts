@@ -10,7 +10,7 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { handlers } from "../impl.ts";
 import { localChangesConsumer } from "../projections.ts";
 import { DEVICE_OFFLINE_MS, LAG_DEGRADED_S, LAG_DOWN_S, SYNC_INTERVAL_MS } from "../handlers/index.ts";
-import { NOW, harness, vyreErr } from "../fixtures/world.ts";
+import { ME, NOW, harness, vyreErr } from "../fixtures/world.ts";
 import type { World } from "../fixtures/world.ts";
 
 type Row = Record<string, unknown>;
@@ -71,6 +71,8 @@ test("migration and module state: two tables, nothing else; the first sync of a 
   assert.deepEqual(w.named("folder.mounted"), [{ mountId, folderId, kind: "google_drive", by: "usr_owner" }]);
   assert.deepEqual(w.named("mount.synced"), [{ mountId, folderId, pulled: 5, pushed: 0, conflicts: 0, ms: 0 }]);
   assert.ok(w.google.calls.every((c) => c.input["connectionId"] === "con_g"), "every Google call carries the connection");
+  assert.ok(w.google.calls.every((c) => c.input["as"] === ME), "every Google call is made as the person who made the mount, never as whoever runs the pass");
+  assert.equal(w.mountRow(mountId)["account"], ME);
   assert.deepEqual(w.google.calls.filter((c) => c.cap === "google.drive.list_files").map((c) => [c.input["parentId"], c.input["pageToken"]]), [["root_drv", undefined], ["root_drv", "page2"], ["d1", undefined]]);
   assert.equal(w.google.calls.filter((c) => c.cap === "google.drive.export_file").length, 2);
 
@@ -95,6 +97,21 @@ test("migration and module state: two tables, nothing else; the first sync of a 
   assert.equal(w.files.files.get(w.files.fileNamed("Plan").id)?.deleted, false);
   assert.ok([...w.files.files.values()].find((f) => f.name === "intro.pdf")?.deleted, "intro.pdf is in Trash");
   assert.equal(lastSynced(w)["pulled"], 1);
+});
+
+test("a Drive mount takes the feed's start token before its first listing, stores it, and from then on reads only the feed", async () => {
+  const w = harness();
+  w.google.startToken = "tok1";
+  const { mountId } = await addDrive(w);
+  const order = w.google.calls.map((c) => c.cap);
+  assert.equal(order[0], "google.drive.changes_start_token", "the token is taken before the listing, so a change made during the listing is not lost");
+  assert.ok(order.includes("google.drive.list_files"));
+  assert.equal(w.mountRow(mountId)["cursor"], "tok1");
+  w.google.calls.length = 0;
+  await syncNow(w, mountId);
+  assert.equal(w.google.calls.filter((c) => c.cap === "google.drive.list_files").length, 0, "no rescan once a cursor is stored");
+  assert.deepEqual(w.google.calls.filter((c) => c.cap === "google.drive.list_changes").map((c) => c.input["pageToken"]), ["tok1", "tok2"]);
+  assert.ok(w.google.calls.every((c) => c.input["as"] === ME), "every call is made as the mount's own account");
 });
 
 test("the Drive change feed: updates, renames, removals, children before parents, items outside the folder, and the stored cursor", async () => {
@@ -125,7 +142,7 @@ test("the Graph delta: first listing finds the root, a later delta renames, adds
   const add = await call(w, "mounts.add", { into: "fld_into", source: { kind: "sharepoint", connectionId: "con_m", ref: "drv1" }, name: "Policies Library" });
   const mountId = String(add["mountId"]);
   assert.deepEqual(w.files.paths(), ["Policies Library/Policies/handbook.pdf", "Policies Library/readme.md"]);
-  assert.deepEqual(w.graph.calls[0]?.input, { connectionId: "con_m", driveId: "drv1" });
+  assert.deepEqual(w.graph.calls[0]?.input, { connectionId: "con_m", as: ME, driveId: "drv1" });
   assert.equal(w.mountRow(mountId)["cursor"], "dl1");
   assert.equal(rootOf(w, mountId)["remote_id"], "root", "the drive root was learned from the first listing");
   assert.equal(lastSynced(w)["pulled"], 3);
@@ -144,7 +161,7 @@ test("the Graph delta: first listing finds the root, a later delta renames, adds
   // OneDrive needs no library
   const od = await call(w, "mounts.add", { into: "fld_into", source: { kind: "onedrive", connectionId: "con_m" } });
   assert.equal((await view(w, String(od["mountId"])))["provider"], "OneDrive");
-  assert.deepEqual(w.graph.calls.filter((c) => c.cap === "ms.drive.delta").at(-1)?.input, { connectionId: "con_m" });
+  assert.deepEqual(w.graph.calls.filter((c) => c.cap === "ms.drive.delta").at(-1)?.input, { connectionId: "con_m", as: ME });
   assert.equal((await view(w, String(od["mountId"])))["name"], "OneDrive");
 });
 

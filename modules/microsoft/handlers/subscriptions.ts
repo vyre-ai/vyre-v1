@@ -456,3 +456,12 @@ export async function health(ctx: MsCtx) {
 }
 
 
+
+/** The address the caller is matched to, if they are matched and not excluded. A mount names it so it syncs as the person who made it. */
+export async function consentMyAccount(ctx: MsCtx) {
+  const person = ctx.actingFor ?? ctx.principal.id;
+  const row = first(ctx.db.all(`SELECT email, excluded FROM microsoft_member WHERE "userId" = ? AND mapped = ?`, person, 1));
+  const out: { email?: string } = {};
+  if (row && num(row, "excluded") !== 1) out.email = str(row, "email");
+  return out;
+}

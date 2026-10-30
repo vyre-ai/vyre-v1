@@ -939,6 +939,7 @@ export function createClient(transport: Transport) {
       dwd: {
         disable: call("google.dwd.disable", 1),
         members: call("google.dwd.members", 1),
+        my_account: call("google.dwd.my_account", 1),
         probe: call("google.dwd.probe", 1),
         scopes: call("google.dwd.scopes", 1),
         set_excluded: call("google.dwd.set_excluded", 1),
@@ -1380,6 +1381,7 @@ export function createClient(transport: Transport) {
         disable: call("ms.consent.disable", 1),
         link: call("ms.consent.link", 1),
         members: call("ms.consent.members", 1),
+        my_account: call("ms.consent.my_account", 1),
         policy_snippet: call("ms.consent.policy_snippet", 1),
         set_excluded: call("ms.consent.set_excluded", 1),
         setup: call("ms.consent.setup", 1),

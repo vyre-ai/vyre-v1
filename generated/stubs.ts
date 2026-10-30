@@ -939,6 +939,7 @@ export function stubs(ctx: CallCtx) {
       dwd: {
         disable: call("google.dwd.disable"),
         members: call("google.dwd.members"),
+        my_account: call("google.dwd.my_account"),
         probe: call("google.dwd.probe"),
         scopes: call("google.dwd.scopes"),
         set_excluded: call("google.dwd.set_excluded"),
@@ -1380,6 +1381,7 @@ export function stubs(ctx: CallCtx) {
         disable: call("ms.consent.disable"),
         link: call("ms.consent.link"),
         members: call("ms.consent.members"),
+        my_account: call("ms.consent.my_account"),
         policy_snippet: call("ms.consent.policy_snippet"),
         set_excluded: call("ms.consent.set_excluded"),
         setup: call("ms.consent.setup"),

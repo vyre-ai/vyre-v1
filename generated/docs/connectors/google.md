@@ -22,6 +22,7 @@ Key google, module google. Mode dwd, owned by a space. Auth service_account_dwd.
 - google.dwd.scopes
 - google.dwd.setup
 - google.dwd.probe
+- google.dwd.my_account
 - google.dwd.members
 - google.dwd.set_excluded
 - google.dwd.disable

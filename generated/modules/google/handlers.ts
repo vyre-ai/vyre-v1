@@ -34,6 +34,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "google.drive.watch_changes": Handler<"google.drive.watch_changes", X>;
   "google.dwd.disable": Handler<"google.dwd.disable", X>;
   "google.dwd.members": Handler<"google.dwd.members", X>;
+  "google.dwd.my_account": Handler<"google.dwd.my_account", X>;
   "google.dwd.probe": Handler<"google.dwd.probe", X>;
   "google.dwd.scopes": Handler<"google.dwd.scopes", X>;
   "google.dwd.set_excluded": Handler<"google.dwd.set_excluded", X>;

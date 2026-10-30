@@ -4,7 +4,7 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: mail.
 
-## Capabilities (60)
+## Capabilities (61)
 
 - [google.calendar.create_event](../capabilities/google.calendar.create_event.md): Create an event; Google invites the attendees
 - [google.calendar.delete_event](../capabilities/google.calendar.delete_event.md): Delete an event; Google tells the attendees
@@ -35,6 +35,7 @@ Requires: mail.
 - [google.drive.watch_changes](../capabilities/google.drive.watch_changes.md): Open a Drive changes.watch channel
 - [google.dwd.disable](../capabilities/google.dwd.disable.md): Turn delegation off and stop every member sync
 - [google.dwd.members](../capabilities/google.dwd.members.md): Workspace users mapped to Space members by email, with exclusion and mailbox state
+- [google.dwd.my_account](../capabilities/google.dwd.my_account.md): The Workspace address the caller is matched to, if any (a Drive mount names it so it syncs as the person, not as an admin)
 - [google.dwd.probe](../capabilities/google.dwd.probe.md): Mint a token for a probe user and call users.getProfile to prove the delegation and scopes
 - [google.dwd.scopes](../capabilities/google.dwd.scopes.md): The scope list and client id to paste into the Google Admin console
 - [google.dwd.set_excluded](../capabilities/google.dwd.set_excluded.md): Exclude a member from delegation, or include them again (excluded members never get a connection)

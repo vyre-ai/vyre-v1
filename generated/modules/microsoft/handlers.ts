@@ -20,6 +20,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "ms.consent.disable": Handler<"ms.consent.disable", X>;
   "ms.consent.link": Handler<"ms.consent.link", X>;
   "ms.consent.members": Handler<"ms.consent.members", X>;
+  "ms.consent.my_account": Handler<"ms.consent.my_account", X>;
   "ms.consent.policy_snippet": Handler<"ms.consent.policy_snippet", X>;
   "ms.consent.set_excluded": Handler<"ms.consent.set_excluded", X>;
   "ms.consent.setup": Handler<"ms.consent.setup", X>;
