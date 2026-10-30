@@ -18,6 +18,7 @@ export const BASELINE = path.join(HERE, "dead-baseline.json");
 const WINDOW_MS = 1500;
 const CLOSERS = /^(cancel|close|dismiss|done|ok|got it|not now|later|no thanks|back|x|skip|maybe later|never mind|hide)$/i;
 const RISKY = /sign out|log out|logout|delete space|wipe|erase everything|reset (everything|space)|leave (space|team)|close account|delete account/i;
+const READ_CALL = /\/(list|list_by_contact|get|recent|learned|search|read|query|counts?|nav|me|options|status|tree|preview|sign_in_options)(\/|$|_)|\/(list|get|recent|learned)[a-z_]*$/;
 const CHROME = /^(title-|rail-|tab-|space-tile|tab-strip)/;
 const PLACES = ["home", "chat", "mail", "records", "files", "sites", "automations", "vault", "settings", "console"];
 
@@ -143,7 +144,7 @@ async function click(w, el, ovSel, closer) {
   const url = pg.url();
   const nets = w.net.filter((n) => n.t >= t0);
   const fail = nets.find((n) => n.s >= 400);
-  const ok = nets.find((n) => n.m !== "GET" && n.s < 400);
+  const ok = nets.find((n) => n.m !== "GET" && n.s < 400 && !READ_CALL.test(n.p));   // the app polls reads (chat/recent, connections/list) all the time; only a write the click could have caused counts
   const logs = w.logs.filter((l) => l.t >= t0).map((l) => l.text);
   const ev = res?.ev ?? [];
   const effective = [...fx].filter((f) => !(f === "ovclose" && !closer));
