@@ -19,6 +19,7 @@ export function InterviewCard({ call, onSaved }: { call: CapCall; onSaved(count:
   };
   return (
     <View testID="interview-card" style={s.col}>
+      {/* ui-rows-lint: not a list (each is a question with its own text field, not a list row) */}
       {QUESTIONS.map((q) => (
         <View key={q.key} style={s.col}>
           <Text style={s.ask}>{q.ask}</Text>

@@ -10,7 +10,7 @@ const html = (props: Partial<Parameters<typeof OnboardingScreen>[0]> = {}): stri
 test("the screen has a rail, a chat and a preview, and opens on the first open step", () => {
   const out = html();
   for (const id of ["onboarding", "onboarding-rail", "onboarding-chat", "onboarding-preview", "onboarding-card", "step-later"]) assert.ok(out.includes(`data-testid="${id}"`), id);
-  for (const st of stepsOf("personal")) assert.ok(out.includes(`data-testid="step-${st.key}"`), st.key);
+  for (const st of stepsOf("personal")) assert.ok(out.includes(`data-testid="row-step-${st.key}"`), st.key);
   assert.ok(out.includes("Connect your AI"));
   assert.ok(out.includes("Set up  0 of 8") || out.includes("Set up&nbsp;&nbsp;0 of 8") || /Set up\s+0 of 8/.test(out));
 });

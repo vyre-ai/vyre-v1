@@ -25,6 +25,7 @@ export function KitPickCard({ call, onInstalled }: { call: CapCall; onInstalled(
     <View testID="kit-pick" style={s.col}>
       <Text style={s.line}>Pick the Kit that fits your kind of work. It sets up the agents, record types and routines to start from.</Text>
       {kits === null && !error ? <Text style={s.dim}>Loading Kits</Text> : null}
+      {/* ui-rows-lint: not a list (Kit choices are tiles, not list rows) */}
       <View style={s.row}>{(kits ?? []).map((k) => (
         <Pressable key={k.kitId} testID={`kit-${k.kitId}`} accessibilityRole="button" accessibilityState={{ selected: picked?.kitId === k.kitId }} onPress={() => void pick(k)} style={[s.tile, picked?.kitId === k.kitId && s.tileOn]}><Text style={s.tileText}>{k.installed ? `${k.title} (installed)` : k.title}</Text></Pressable>
       ))}</View>

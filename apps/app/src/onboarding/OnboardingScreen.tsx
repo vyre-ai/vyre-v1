@@ -4,6 +4,7 @@
 import { useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Row } from "../../../../ui/src/Row/index.tsx";
 import { counts, nextAfter, resumeAt, stateOf, stepsOf } from "./flow.ts";
 import type { CardKind, FlowKind, Progress, StepDef, StepState } from "./flow.ts";
 import { greeting, scriptFor } from "./script.ts";
@@ -44,15 +45,7 @@ function Rail({ flow, progress, current, onOpen }: { flow: FlowKind; progress: P
       {stepsOf(flow).map((st) => {
         const state = stateOf(progress, st.key);
         const on = st.key === current;
-        return (
-          <Pressable key={st.key} testID={`step-${st.key}`} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => onOpen(st.key)} style={[s.railRow, on && s.railRowOn]}>
-            <Mark state={state} />
-            <View style={s.flex}>
-              <Text style={[s.railTitle, state === "done" && s.dim]}>{st.title}</Text>
-              {state === "later" ? <Text style={s.later}>Later</Text> : on ? <Text style={s.dim}>{st.line}</Text> : null}
-            </View>
-          </Pressable>
-        );
+        return <Row key={st.key} id={`step-${st.key}`} title={st.title} {...(state === "later" ? { note: "Later" } : on ? { note: st.line } : {})} selected={on} leading={<Mark state={state} />} onPress={() => onOpen(st.key)} />;
       })}
     </View>
   );
@@ -88,6 +81,7 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
       <View testID="onboarding-chat" style={s.chat}>
         <ScrollView style={s.flex} contentContainerStyle={s.chatBody}>
           {finished ? <Text testID="onboarding-finished" style={s.title}>You are all set.</Text> : <Text style={s.title}>{def!.title}</Text>}
+          {/* ui-rows-lint: not a list (the chat messages are bubbles, not list rows) */}
           {chat.map((l) => <Bubble key={l.id} line={l} />)}
           {!p.live && !finished && def?.card !== "connect_ai" ? <Text style={s.dim} testID="scripted-note">Connect an AI account to talk to me. The steps work without it.</Text> : null}
           {card ? <View testID="onboarding-card" style={s.card}>{card}</View> : null}

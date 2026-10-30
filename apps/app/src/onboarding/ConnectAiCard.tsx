@@ -24,6 +24,7 @@ export function ConnectAiCard({ call, connected, onConnected }: { call: CapCall;
   if (mode === "key") {
     return (
       <View testID="ai-key-form" style={s.col}>
+        {/* ui-rows-lint: not a list (provider choices are tiles, not list rows) */}
         <View style={s.row}>{API_KEYS.map((o) => (
           <Pressable key={o.key} testID={`ai-provider-${o.key}`} accessibilityRole="button" accessibilityState={{ selected: provider === o.key }} onPress={() => setProvider(o.key)} style={[s.tile, provider === o.key && s.tileOn]}><Text style={s.tileText}>{o.label}</Text></Pressable>
         ))}</View>
@@ -39,6 +40,7 @@ export function ConnectAiCard({ call, connected, onConnected }: { call: CapCall;
   }
   return (
     <View testID="ai-tiles" style={s.col}>
+      {/* ui-rows-lint: not a list (sign-in choices are tiles, not list rows) */}
       <View style={s.row}>{SUBSCRIPTIONS.map((o) => (
         <Pressable key={o.key} testID={`ai-sub-${o.key}`} accessibilityRole="button" accessibilityLabel={`${o.label}: ${o.help}`} disabled={busy} onPress={() => void run(async () => setFlow({ ...(await startSubscription(call, o.key, `${attempt.current}:${o.key}`)), provider: o.key }))} style={[s.tile, flow?.provider === o.key && s.tileOn]}><Text style={s.tileText}>{o.label}</Text></Pressable>
       ))}</View>

@@ -21,6 +21,7 @@ export function WorkspaceCard({ call, onOpenConsole, onDone }: { call: CapCall; 
   return (
     <View testID="workspace-card" style={s.col}>
       <Text style={s.line}>Connect Google Workspace or Microsoft 365 so people and mailboxes come in. The admin steps are in the Console, with secure fields for keys and a live test.</Text>
+      {/* ui-rows-lint: not a list (two status lines of text, not list rows) */}
       {c === null ? <Text style={s.dim}>Checking</Text> : rows.map((p, i) => <Text key={i} testID={`workspace-${i === 0 ? "google" : "microsoft"}`} style={s.dim}>{p.kind === "ready" ? `${p.value.name}: ${p.value.note}` : `${i === 0 ? "Google Workspace" : "Microsoft 365"}: ${line(p, "")}`}</Text>)}
       <Buttons><Go id="workspace-open" label="Open the setup in the Console" onPress={onOpenConsole} />{c && stepDoneBy(c) ? <Go id="workspace-done" label="Done" ghost onPress={onDone} /> : null}</Buttons>
     </View>
