@@ -1,5 +1,6 @@
 // The shell registry: every place is registered with a lazy route and a data provider, and draws data from the replica of the open Space, not its loading frame.
 // Seeded replicas come from the Home samples (Northwind, a Personal Space) plus one list per other place registered on the same replica.
+import { publishProgress } from "../onboarding/store.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -139,6 +140,7 @@ test("Home in a Team Space draws the whole page and the checklist, Today, Starre
 });
 
 test("Home in a Personal Space draws only the personal variant: checklist, Starred and the Ask box, and Today once a calendar is connected", async () => {
+  publishProgress({ flow: "personal", progress: {} });
   const out = await mount("home", runtimeFor("personal", false).rt);
   assert.ok(out.includes('data-testid="home-place"'));
   assert.ok(out.includes("Good morning, Irfad"));

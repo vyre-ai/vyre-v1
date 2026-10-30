@@ -19,11 +19,11 @@ test("a hovered row paints the hover token and an unselected row does not paint 
   assert.doesNotMatch(plain, /var\(--sel\)|var\(--hover\)/);
 });
 
-test("the height is fixed: 28 for one line, 44 with a note", () => {
+test("the least height is 28 for one line, 44 with a note", () => {
   assert.equal(rowHeight(), ROW_HEIGHT);
   assert.equal(rowHeight("Updated yesterday"), ROW_HEIGHT_WITH_NOTE);
-  assert.match(renderToStaticMarkup(<Row title="One" />), /height:28px/);
-  assert.match(renderToStaticMarkup(<Row title="One" note="Two" />), /height:44px/);
+  assert.match(renderToStaticMarkup(<Row title="One" />), /min-height:28px/);
+  assert.match(renderToStaticMarkup(<Row title="One" note="Two" />), /min-height:44px/);
 });
 
 test("the note renders after the title in the same text column", () => {
@@ -115,4 +115,20 @@ test("on the web a row is plain elements, and domProps put a list's own attribut
   assert.match(html, /height:28px/, "and the row keeps its height and selection token");
   assert.match(html, /background-color:var\(--sel\)/);
   assert.ok(!html.includes("r-flexDirection") && !html.includes("css-"), "no React Native view classes");
+});
+
+test("a row never has a fixed height: content taller than the least height grows the row instead of painting over the next one", () => {
+  for (const html of [renderToStaticMarkup(<Row title="One" />), renderToStaticMarkup(<Row title="One" note="Two" leading={<i>L</i>} trailing={<b>T</b>} />), renderToStaticMarkup(<Row title="One" note="Two" tall />)]) {
+    assert.match(html, /min-height:(28|44|62)px/);
+    assert.doesNotMatch(html, /[;"]height:\d/, "no fixed height");
+  }
+});
+
+test("a row lays out from its own inline styles, so it does not depend on an injected stylesheet (a CSP that drops <style> text)", () => {
+  const html = renderToStaticMarkup(<Row id="g" title="Connect an AI account" note="Sign in with Claude" leading={<i>L</i>} trailing={<b>T</b>} />);
+  assert.match(html, /data-testid="row-g"[^>]*style="[^"]*display:flex/, "the row is a flex row");
+  assert.match(html, /align-items:center/, "leading and trailing centre to the text column");
+  assert.match(html, /flex:1 1 0%;min-width:0;display:flex;flex-direction:column/, "title and note stack in one min-width:0 column");
+  assert.match(html, /white-space:nowrap/, "the title and note stay on one line each, so row heights are what lists assume");
+  assert.match(html, /margin-left:8px/, "the trailing slot keeps its gap from the text");
 });

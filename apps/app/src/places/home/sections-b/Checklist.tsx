@@ -1,64 +1,83 @@
-// Home > Get started: the first-run checklist (spec 3.1 flow 4). A raised card of rows, each a ui/Row with a check circle in its leading slot and one button in its trailing
-// slot. The card shows "n of N" and goes away once every row is done or the person hides it. Data: home.checklist (screen home.checklist), live from the kept copy.
-// A Personal Space keeps the same card without the project row. "Meet your assistant" waits (Locked) until an AI account is connected.
+// Home > Set up: the one setup card. Home draws the person's onboarding steps and nothing else: one ui/Row per step with an icon tile, the title, and Set up (or Resume) on the right.
+// A done step shows a check and no button; a step put off says so. The card shows "n of N", can be hidden (with Undo on the line that replaces it) and goes away once every step is done.
+// The rows come from the onboarding host's progress (onboarding/store.ts); a Space whose host has not read the progress yet draws nothing.
+import { createElement, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
-import type { CapMap } from "../../../../../../generated/types.ts";
-import { useScreenQuery } from "../sections-a/data.tsx";
-import { isPersonal, useExtras } from "./data.tsx";
-import { CHECKLIST_SCREEN, checklistProgress, checklistRows } from "./model.ts";
-import type { ChecklistRow } from "./model.ts";
+import { setupRows } from "../../../onboarding/SetupRows.tsx";
+import { openOnboarding, readProgress, watchProgress } from "../../../onboarding/store.ts";
+import { stepLook } from "../../../onboarding/stepStyle.ts";
 import { GoButton, Icon } from "./parts.tsx";
-import { SetupRows } from "../../../onboarding/SetupRows.tsx";
 
-type Out = CapMap["home.checklist"]["out"];
-
-function Circle({ done }: { done: boolean }): ReactElement {
-  return <View style={[local.circle, done && local.circleDone]} testID={done ? "check-done" : "check-open"}>{done ? <Icon name="check" size={12} color="#fff" width={2} /> : null}</View>;
+// Hiding is the person's own choice on this computer, kept across restarts.
+const KEY = "vyre.home.setup.hidden";
+const watchers = new Set<() => void>();
+let hidden = ((): boolean => { try { return (globalThis as { localStorage?: Storage }).localStorage?.getItem(KEY) === "1"; } catch { return false; } })();
+const readHidden = (): boolean => hidden;
+const watchHidden = (fn: () => void): (() => void) => { watchers.add(fn); return () => { watchers.delete(fn); }; };
+export function setSetupHidden(v: boolean): void {
+  hidden = v;
+  try { (globalThis as { localStorage?: Storage }).localStorage?.setItem(KEY, v ? "1" : "0"); } catch { /* private window: it lasts until the page reloads */ }
+  for (const w of watchers) w();
 }
 
 export function Checklist(): ReactElement | null {
-  const extras = useExtras();
-  const q = useScreenQuery<Out>(CHECKLIST_SCREEN, "checklist");
-  if (q.status !== "ready" || !q.data.visible) return null;
-  const rows = checklistRows(q.data, { spaceName: extras.space.name, personal: isPersonal(extras), aiConnected: extras.aiConnected });
-  const { done, total } = checklistProgress(rows);
+  const p = useSyncExternalStore(watchProgress, readProgress, readProgress);
+  const off = useSyncExternalStore(watchHidden, readHidden, readHidden);
+  if (!p) return null;
+  const rows = setupRows(p.flow, p.progress);
+  const done = rows.filter((r) => r.state === "done").length;
+  if (rows.length === 0 || done === rows.length) return null;
+  if (off) {
+    return (
+      <View testID="s-first" accessibilityLabel="Set up" style={local.card}>
+        <View style={local.hidden}><Text style={local.n}>Setup hidden</Text><Pressable accessibilityRole="button" testID="first-undo" onPress={() => setSetupHidden(false)}><Text style={local.link}>Undo</Text></Pressable></View>
+      </View>
+    );
+  }
   const items: ReactElement[] = [];
-  for (let i = 0; i < rows.length; i++) {
-    const r: ChecklistRow = rows[i]!;
+  rows.forEach((r, i) => {
+    const open = (): void => { openOnboarding(r.key); };
     items.push(
-      <View key={r.key} style={[local.item, i > 0 && local.itemLine]} testID={`first-${r.key}`}>
+      <View key={r.key} style={[local.item, i > 0 && local.itemLine]} testID={`first-setup-${r.key}`}>
         <Row
-          id={`first-${r.key}`}
+          id={`first-setup-${r.key}`}
           title={r.title}
-          note={r.note}
-          leading={<View style={local.lead}><Circle done={r.done} /></View>}
-          trailing={r.done ? null : r.locked ? <Text style={local.locked}>Locked</Text> : <GoButton label={r.action} testID={`first-go-${r.key}`} onPress={() => extras.go(r.key === "ai" ? "ai" : r.key)} />}
-          {...(r.done || r.locked ? {} : { onPress: () => extras.go(r.key === "ai" ? "ai" : r.key) })}
+          {...(r.state === "done" ? {} : { note: r.state === "later" ? "Skipped" : r.note })}
+          leading={<StepIcon flow={p.flow} k={r.key} done={r.state === "done"} />}
+          trailing={r.state === "done" ? null : <GoButton label={r.state === "later" ? "Resume" : "Set up"} testID={`first-go-setup-${r.key}`} onPress={open} />}
+          {...(r.state === "done" ? {} : { onPress: open })}
         />
       </View>,
     );
-  }
-  // the setup guide (step rail, chat, preview) holds the longer flow: one row per step, each reopening the screen at that step
-  items.push(
-    <SetupRows key="setup" render={(r, open, i) => (
-      <View key={`setup-${r.key}`} style={[local.item, local.itemLine]} testID={`first-setup-${r.key}`}>
-        <Row id={`first-setup-${r.key}`} title={r.title} note={r.state === "later" ? "Put off. Pick it up when you like" : r.note}
-          leading={<View style={local.lead}><Circle done={r.state === "done"} /></View>}
-          trailing={r.state === "done" ? null : <GoButton label={r.state === "later" ? "Resume" : i === 0 ? "Start" : "Open"} testID={`first-go-setup-${r.key}`} onPress={open} />}
-          {...(r.state === "done" ? {} : { onPress: open })} />
-      </View>
-    )} />,
-  );
+  });
   return (
-    <View testID="s-first" accessibilityLabel="Get started" style={local.card}>
+    <View testID="s-first" accessibilityLabel="Set up" style={local.card}>
       <View style={local.head}>
-        <Text accessibilityRole="header" style={local.title}>Get started</Text>
-        <Text style={local.n} testID="first-progress">{`${done} of ${total}`}</Text>
+        <Text accessibilityRole="header" style={local.title}>Set up</Text>
+        <Text style={local.n} testID="first-progress">{`${done} of ${rows.length}`}</Text>
         <View style={local.grow} />
+        <Pressable accessibilityRole="button" testID="first-hide" onPress={() => setSetupHidden(true)}><Text style={local.hide}>Hide checklist</Text></Pressable>
       </View>
       <View style={local.body} accessibilityRole="list">{items}</View>
+    </View>
+  );
+}
+
+const PATH_ICON = (paths: readonly string[], size: number): ReactElement | null => {
+  if (Platform.OS !== "web") return null;
+  const kids: ReactElement[] = [];
+  for (const d of paths) kids.push(createElement("path", { key: d, d }));
+  return createElement("svg", { viewBox: "0 0 16 16", width: size, height: size, "aria-hidden": true, style: { display: "block", flex: "none", stroke: "#fff", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round", fill: "none" } }, ...kids);
+};
+
+function StepIcon({ flow, k, done }: { flow: Parameters<typeof stepLook>[0]; k: string; done: boolean }): ReactElement {
+  const look = stepLook(flow, k);
+  const bg = done ? { backgroundColor: "var(--ok)" } : { backgroundImage: `linear-gradient(180deg, ${look.from}, ${look.to})` };
+  return (
+    <View testID={done ? "check-done" : "check-open"} style={[local.tile, bg as object]}>
+      {done ? <Icon name="check" size={14} color="#fff" width={2.2} /> : PATH_ICON(look.icon, 15)}
     </View>
   );
 }
@@ -69,11 +88,12 @@ const local = StyleSheet.create({
   title: { fontSize: 12, fontWeight: "500", color: "var(--ink-3)" as string },
   n: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   grow: { flex: 1 },
+  hide: { fontSize: 12, color: "var(--ink-3)" as string },
+  link: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
+  hidden: { flexDirection: "row", alignItems: "center", gap: 8, height: 24 },
   body: { borderRadius: 12, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
   item: { paddingVertical: 4, paddingHorizontal: 6 },
   itemLine: { borderTopWidth: 1, borderTopColor: "var(--line)" as string },
-  lead: { width: 32, alignItems: "flex-start", justifyContent: "center" },
-  circle: { width: 20, height: 20, borderRadius: 99, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "var(--line-2)" as string },
-  circleDone: { backgroundColor: "var(--ok)" as string, borderWidth: 0 },
-  locked: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  tile: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", marginRight: 12 },
+  tileOpen: {},
 });

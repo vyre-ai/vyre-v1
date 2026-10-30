@@ -1,13 +1,17 @@
-// P-L9b_02c: the Personal Space Home as the prototype draws it (Home, Personal Space): the greeting with "Your Personal Space, on this computer only", the Get started card with
-// its four rows, no section that is empty, and the quick start row with the locked Ask box at the foot.
+// P-L9b_02c: the Personal Space Home as the prototype draws it (Home, Personal Space): the greeting with "Your Personal Space, on this computer only", the setup card with
+// the person's onboarding steps, no section that is empty, and the quick start row with the locked Ask box at the foot.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import Home from "../../home/index.tsx";
 import { homeBSlots } from "../../home/sections-b/index.ts";
 import { createSampleHomeB } from "../../home/sections-b/sample.ts";
+import { setSetupHidden } from "../../home/sections-b/Checklist.tsx";
+import { publishProgress } from "../../../onboarding/store.ts";
 
 const html = (v: "personal" | "northwind", o: Parameters<typeof createSampleHomeB>[1] = {}): string => {
+  publishProgress({ flow: "personal", progress: {} });
+  setSetupHidden(false);
   const h = createSampleHomeB(v, o);
   const { top, bottom } = homeBSlots(h.extras);
   return renderToStaticMarkup(<Home data={h.data} top={top} bottom={bottom} personal={v === "personal"} />).replaceAll("<!-- -->", "");
@@ -21,13 +25,11 @@ test("the subtitle reads Your Personal Space, on this computer only", () => {
   assert.ok(!has(out, "Nothing is waiting on you"));
 });
 
-test("the Get started card has four setup rows and no project or import row", () => {
+test("the setup card lists the onboarding steps, with no separate Get started list", () => {
   const out = html("personal");
-  assert.ok(has(out, ">Get started<") && has(out, ">0 of 4<"));
-  for (const t of ["Connect an AI account", "Add a photo and title", "Connect your mailbox and calendar", "Meet your assistant"]) assert.ok(has(out, t), t);
-  assert.ok(!has(out, "Open your first project") && !has(out, "Import your data"));
-  assert.ok(has(out, "Connect an AI account first"), "the assistant row waits for an account");
-  assert.ok(has(out, ">Locked<"));
+  assert.ok(has(out, ">Set up<") && has(out, ">0 of 8<"));
+  for (const t of ["Connect your AI", "How you work", "Bring your sessions", "Local folders", "Chrome extension", "Your phone", "First win", "Add a team"]) assert.ok(has(out, t), t);
+  assert.ok(!has(out, ">Get started<") && !has(out, "Add a photo and title") && !has(out, "Open your first project") && !has(out, "Import your data"));
 });
 
 test("sections with nothing in them are not drawn", () => {
@@ -50,9 +52,9 @@ test("a Personal Space with starred things draws Starred, and a Team Space still
   assert.ok(!has(team, "Your Personal Space"));
 });
 
-test("the Get started card has no Hide link (the prototype has none): it goes when every row is done", () => {
+test("the setup card has Hide checklist (the prototype's Home): it goes when every step is done", () => {
   const out = html("personal");
-  assert.ok(!has(out, ">Hide<") && !has(out, 'data-testid="first-hide"'));
+  assert.ok(has(out, "Hide checklist") && has(out, 'data-testid="first-hide"'));
 });
 
 test("the Ask pill (the shared AskButton) sits beside the locked composer, with Quick start above it", () => {

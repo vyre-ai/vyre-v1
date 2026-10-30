@@ -1,6 +1,7 @@
 // Records > table (spec 3.4, 2.9): a type's records as a sheet. 100,000 rows open under 100 ms because the table never holds more than a window: it asks the local copy for 200 rows at
 // a time and draws only the rows and the columns that meet the screen, with the title column and the row numbers held at the left. The count in the foot is the cached count(*).
 // Filter, Sort, Group, Fields and Colour are quiet buttons in the header; each opens a menu with checkmarks and counts. Click a header to sort; Enter or Space opens the record.
+import { injectCss } from "../../../../../../ui/src/theme/css.ts";
 import { createElement, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject, ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
@@ -185,9 +186,7 @@ function ensureRowCss(): void {
   if (cssDone) return;
   const d = (globalThis as { document?: { getElementById(id: string): unknown; createElement(t: string): { id: string; textContent: string }; head?: { appendChild(n: unknown): void } } }).document;
   if (!d || !d.head || d.getElementById(CSS_ID)) return;
-  const el = d.createElement("style");
-  el.id = CSS_ID;
-  el.textContent = `.vrt-r{position:absolute;box-sizing:border-box;display:flex;align-items:center;height:${ROW_H}px;border-bottom:1px solid var(--line);contain:layout style}`
+  const css = `.vrt-r{position:absolute;box-sizing:border-box;display:flex;align-items:center;height:${ROW_H}px;border-bottom:1px solid var(--line);contain:layout style}`
     + ".vrt-c{box-sizing:border-box;flex:none;padding:0 10px;font-size:13px;color:var(--ink);white-space:nowrap}"
     + ".vrt-b{box-sizing:border-box;display:flex;align-items:center;flex:none;height:100%;padding:0 10px;min-width:0}.vrt-e{justify-content:flex-end}"
     + ".vrt-chip{box-sizing:border-box;display:inline-block;height:20px;line-height:20px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap}"
@@ -196,7 +195,7 @@ function ensureRowCss(): void {
     + ".vrt-chip::before{content:\"\";display:inline-block;width:6px;height:6px;border-radius:3px;margin-right:5px;margin-bottom:2px;vertical-align:middle;background:hsl(var(--h) 65% 52%)}"
     + ".vrt-n{font-variant-numeric:tabular-nums;text-align:right}.vrt-s{color:var(--ink-3);letter-spacing:1px}"
     + ".vrt-g{width:" + GUTTER + "px;height:100%;display:flex;align-items:center;box-sizing:border-box;padding-left:10px;flex:none;font-size:11.5px;color:var(--ink-4);font-variant-numeric:tabular-nums}";
-  d.head.appendChild(el);
+  injectCss(d, CSS_ID, css);
   cssDone = true;
 }
 

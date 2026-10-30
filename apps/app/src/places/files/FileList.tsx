@@ -1,5 +1,6 @@
 // Files list parts (P-L9e_01b): the column header (Name, Modified, Made by, Size, Kind; each a sort button), the cells that go in a Row's trailing slot, and the grid (tiles in rows, so the
 // grid scrolls on the same VirtualList as the list). The list itself stays in list/FilesList.tsx; this file owns what is drawn per line. Row stays the shared ui/Row (ruling 36).
+import { injectCss } from "../../../../../ui/src/theme/css.ts";
 import { createElement } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ReactElement, ReactNode } from "react";
@@ -58,9 +59,7 @@ function ensureCellCss(): void {
   const d = (globalThis as { document?: { getElementById(id: string): unknown; createElement(t: string): { id: string; textContent: string }; head?: { appendChild(n: unknown): void } } }).document;
   if (!d || !d.head) return;
   if (!d.getElementById("vyre-files-cells")) {
-    const el = d.createElement("style");
-    el.id = "vyre-files-cells";
-    el.textContent = ".vfl-cs{display:flex;flex-direction:row;align-items:center;gap:" + COL.gap + "px}"
+    const css = ".vfl-cs{display:flex;flex-direction:row;align-items:center;gap:" + COL.gap + "px}"
       + ".vfl-c{flex:none;white-space:nowrap;color:var(--ink-3);font-size:12.5px;font-variant-numeric:tabular-nums}.vfl-n{text-align:right}"
       + ".vfl-x{overflow:hidden;text-overflow:ellipsis}.vfl-w{flex:none;display:flex;align-items:center;gap:7px;white-space:nowrap;color:var(--ink-2);font-size:12.5px}.vfl-b{min-width:0}.vfl-b.vfl-x{flex:1}"
       + ".vfl-f{flex:none;width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--sunk);color:var(--ink-2);font-size:9px;font-weight:600}"
@@ -68,7 +67,7 @@ function ensureCellCss(): void {
       + ".vfl-t{flex:none;width:30px;height:30px;display:flex;align-items:center;justify-content:center;margin-right:10px}"
       + ".vfl-pg{width:22px;height:26px;border-radius:3px;border:1px solid;background:var(--win);display:flex;align-items:flex-end;justify-content:center;padding-bottom:3px;box-sizing:border-box;overflow:hidden;font-size:6.5px;font-weight:700;line-height:1}"
       + ".vfl-th{flex:none;width:30px;height:30px;border-radius:8px;overflow:hidden;margin-right:10px;background:var(--sunk)}.vfl-th img{width:30px;height:30px;object-fit:cover;display:block}";
-    d.head.appendChild(el);
+    injectCss(d, "vyre-files-cells", css);
   }
   cssDone = true;
 }
