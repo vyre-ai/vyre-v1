@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { MEMORY_KEYS, useScreenQuery, useSettingsData } from "./data.tsx";
 import { useSaved } from "./saved.tsx";
+import { MemorySpend } from "./MemorySpend.tsx";
 import { Choice, Section, SettingsRow } from "./ui.tsx";
 
 type KeysOut = CapMap["memory.keys.get"]["out"];
@@ -65,6 +66,7 @@ export function MemoryKeys(): ReactElement | null {
           {projectRows}
         </Section>
       ) : null}
+      {k.admin ? <MemorySpend /> : null}
     </>
   );
 }
