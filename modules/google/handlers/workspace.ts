@@ -5,7 +5,7 @@
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
   ADMIN_CONSOLE_URL, api, apiRaw, bad, bearer, CALENDAR, CONFIG_ID, config, DOCS, DRIVE, EMAIL, enc, ensure, EVENTS, first, forgetTokens, int, list, MEET,
-  needHost, newId, normalizeEmail, num, obj, refusal, rowsOf, SCOPES, SHEETS, str, strOrNull, text, codeOf,
+  needHost, newId, normalizeEmail, num, obj, pushToken, refusal, rowsOf, SCOPES, SHEETS, str, strOrNull, text, codeOf,
 } from "../projections.ts";
 import type { Call, GoogleCtx } from "../projections.ts";
 import { ensureMailbox, pollInterval, pullMailbox } from "./gmail.ts";
@@ -23,7 +23,7 @@ export async function dwdStatus(ctx: GoogleCtx) {
   const cfg = config(ctx);
   const members = rowsOf(ctx.db.all(`SELECT email, mapped, excluded FROM google_member`));
   const out: {
-    configured: boolean; adminEmail?: string; domain?: string; lastProbeAt?: number; lastProbeOk?: boolean; autoConnect: boolean; mappedMembers: number; excluded: string[];
+    configured: boolean; adminEmail?: string; domain?: string; lastProbeAt?: number; lastProbeOk?: boolean; autoConnect: boolean; mappedMembers: number; excluded: string[]; pushToken?: string;
   } = {
     configured: num(cfg, "configured") === 1,
     autoConnect: cfg ? num(cfg, "autoConnect") === 1 : true,
@@ -34,6 +34,9 @@ export async function dwdStatus(ctx: GoogleCtx) {
   if (strOrNull(cfg, "domain")) out.domain = str(cfg, "domain");
   if (typeof cfg?.lastProbeAt === "number") out.lastProbeAt = cfg.lastProbeAt;
   if (typeof cfg?.lastProbeOk === "number") out.lastProbeOk = cfg.lastProbeOk === 1;
+  // The secret that goes in the Pub/Sub push address (?token=): shown to the admin who sets it up, made when delegation is set up.
+  const token = strOrNull(first(ctx.db.all(`SELECT token FROM google_push_secret WHERE id = ?`, CONFIG_ID)), "token");
+  if (token && out.configured) out.pushToken = token;
   return out;
 }
 
@@ -96,6 +99,7 @@ export async function dwdSetup(ctx: GoogleCtx, input: { vaultItem: string; admin
     );
   }
   forgetTokens();
+  pushToken(ctx);   // the secret that proves a push came from Google exists from the moment delegation does
 
   // The probe proves the key, the delegation and the scopes before anyone is connected.
   const probe = await probeProfile(ctx, connectionId, admin, "google.dwd.setup").catch((e) => {
@@ -380,13 +384,21 @@ export async function freeBusy(ctx: GoogleCtx, a: Act & { emails: string[]; time
   return { busy };
 }
 
+/** Google is handed the push secret with the address, so the address must be this server's own hook: https, no sign-in in it, ending /hooks/google/<kind>. */
+function hookAddress(ctx: GoogleCtx, address: string, kind: "calendar" | "drive"): void {
+  let u: URL;
+  try { u = new URL(address); } catch { return bad(ctx, "The push address is not an address."); }
+  if (u.protocol !== "https:" || u.username || u.password || !u.pathname.endsWith(`/hooks/google/${kind}`)) bad(ctx, `The push address must be this server's https address ending /hooks/google/${kind}.`);
+}
+
 async function watchReply(r: Record<string, unknown>) {
   return { resourceId: text(r.resourceId) ?? "", expiration: int(r.expiration) ?? 0 };
 }
 
 export async function calendarWatch(ctx: GoogleCtx, a: Act & { calendarId: string; channelId: string; address: string }) {
+  hookAddress(ctx, a.address, "calendar");
   return watchReply(await g(ctx, a, "google.calendar.watch", "calendar", {
-    method: "POST", url: `${cal(a.calendarId)}/events/watch`, body: { id: a.channelId, type: "web_hook", address: a.address },
+    method: "POST", url: `${cal(a.calendarId)}/events/watch`, body: { id: a.channelId, type: "web_hook", address: a.address, token: pushToken(ctx) },
   }));
 }
 
@@ -525,9 +537,10 @@ export async function driveStartToken(ctx: GoogleCtx, a: Act & { driveId?: strin
 }
 
 export async function driveWatch(ctx: GoogleCtx, a: Act & { pageToken: string; channelId: string; address: string; driveId?: string }) {
+  hookAddress(ctx, a.address, "drive");
   return watchReply(await g(ctx, a, "google.drive.watch_changes", "drive", {
     method: "POST", url: `${DRIVE}/changes/watch`, query: { pageToken: a.pageToken, ...(a.driveId ? { driveId: a.driveId } : {}), includeItemsFromAllDrives: true, ...shared },
-    body: { id: a.channelId, type: "web_hook", address: a.address },
+    body: { id: a.channelId, type: "web_hook", address: a.address, token: pushToken(ctx) },
   }));
 }
 

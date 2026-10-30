@@ -65,9 +65,10 @@ export function moreMenuEntries(h: { showHidden: boolean; trashCount: number; to
 }
 
 /** The New menu: a folder, and an upload where the place has one. Each opens the shell's sheet for it. */
-export function newMenuEntries(h: { newFolder(): void; upload?: (() => void) | undefined }): MenuEntry[] {
+export function newMenuEntries(h: { newFolder(): void; upload?: (() => void) | undefined; connect?: (() => void) | undefined }): MenuEntry[] {
   const out: MenuEntry[] = [{ label: "New Folder", onSelect: h.newFolder }];
   if (h.upload) out.push({ label: "Upload Files…", onSelect: h.upload });
+  if (h.connect) out.push({ label: "Connect a Folder…", onSelect: h.connect });
   return out;
 }
 
@@ -255,7 +256,7 @@ function List(): ReactElement {
   const scopeHere = (here ? (nodes.status === "ready" ? nodes.data.find((n) => n.id === here)?.scope : undefined) : undefined) ?? (here === null ? "personal" : "space");
   const upload = here !== undefined && data.nav.upload ? (): void => { data.nav.upload?.(here); } : undefined;
   const newMenu = here !== undefined
-    ? (x: number, y: number): void => { menu.show(newMenuEntries({ newFolder: () => data.nav.newFolder(scopeHere, here), upload }), x, y); }
+    ? (x: number, y: number): void => { menu.show(newMenuEntries({ newFolder: () => data.nav.newFolder(scopeHere, here), upload, ...(data.nav.connectFolder ? { connect: () => data.nav.connectFolder?.(here) } : {}) }), x, y); }
     : undefined;
   const moreMenu = (x: number, y: number): void => menu.show(moreMenuEntries({
     showHidden: state.showHidden, trashCount, toggleHidden: () => dispatch({ type: "hidden", on: !state.showHidden }), selectAll: () => dispatch({ type: "all", order }),

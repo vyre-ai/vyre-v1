@@ -26,6 +26,46 @@ export interface DefaultSandboxOptions {
 
 const BWRAP = ["/usr/bin/bwrap", "/usr/local/bin/bwrap", "/bin/bwrap"];
 
+/** The CLI engines a person may have installed. */
+const CLI_NAMES = ["claude", "codex", "grok"] as const;
+
+/**
+ * PATH for finding a CLI engine. An app opened from the Finder or the Dock gets PATH=/usr/bin:/bin:/usr/sbin:/sbin, where `claude` and `codex` are never installed; a person's shell would add the
+ * folders below. They are appended (the given PATH keeps priority) and only the ones that exist are added, newest nvm version first. Other platforms keep their PATH as it is.
+ */
+export function enginePath(env: { PATH?: string | undefined }, home: string, platform: NodeJS.Platform = process.platform, exists: (p: string) => boolean = fs.existsSync, list: (p: string) => string[] = (p) => fs.readdirSync(p)): string {
+  const have = (env.PATH ?? "/usr/bin:/bin").split(path.delimiter).filter((p) => p !== "");
+  if (platform !== "darwin") return have.join(path.delimiter);
+  const nvm = path.join(home, ".nvm", "versions", "node");
+  let versions: string[] = [];
+  try { versions = exists(nvm) ? list(nvm).filter((v) => /^v\d+/.test(v)).sort((a, b) => b.localeCompare(a, undefined, { numeric: true })).map((v) => path.join(nvm, v, "bin")) : []; } catch { /* no nvm */ }
+  const more = [path.join(home, ".local", "bin"), "/opt/homebrew/bin", "/usr/local/bin", path.join(home, ".claude", "local"), path.join(home, ".bun", "bin"), path.join(home, ".volta", "bin"), ...versions];
+  return [...have, ...more.filter((p) => !have.includes(p) && exists(p))].join(path.delimiter);
+}
+
+/**
+ * Where the installed CLI engines live, so Seatbelt can let them read their own program. A CLI installed with npm under nvm (`~/.nvm/versions/node/v24/bin/claude`), bun, volta or Claude Code's
+ * own installer (`~/.claude/local/claude`) sits outside the folders the profile always opens. For each CLI found on PATH the folder that holds the link and the install prefix above it are returned
+ * (the link's own and the real file's), so a prefix that holds the CLI, its node_modules and its node can be read. Never the home folder, a parent of it, or the folders that hold a person's sign-ins
+ * and history (`~/.claude`, `~/.codex`, `~/.grok`): only a folder inside them.
+ */
+export function cliInstallRoots(env: { PATH?: string | undefined }, home: string, exists: (p: string) => boolean = fs.existsSync, real: (p: string) => string = fs.realpathSync): string[] {
+  const closed = new Set([".claude", ".codex", ".grok"].map((d) => path.join(home, d)));
+  const tooWide = (p: string): boolean => p === "/" || p === home || home.startsWith(`${p}${path.sep}`) || closed.has(p) || ["/usr", "/bin", "/sbin", "/System", "/Library", "/private", "/Users", "/Applications"].includes(p);
+  const out = new Set<string>();
+  for (const dir of (env.PATH ?? "").split(path.delimiter)) {
+    if (dir === "" || !path.isAbsolute(dir)) continue;
+    for (const name of CLI_NAMES) {
+      const found = path.join(dir, name);
+      if (!exists(found)) continue;
+      let target = found;
+      try { target = real(found); } catch { /* a link that leads nowhere has nothing to read */ continue; }
+      for (const p of [path.dirname(found), path.dirname(path.dirname(found)), path.dirname(target), path.dirname(path.dirname(target))]) if (!tooWide(p)) out.add(p);
+    }
+  }
+  return [...out];
+}
+
 export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultSandbox> {
   const platform = o.platform ?? process.platform;
   const hosts = o.egressHosts ?? ENGINE_EGRESS_HOSTS;
@@ -41,7 +81,8 @@ export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultS
     const proxy = createEgressProxy({ allow: hosts });
     const { port } = await proxy.listen();
     // Seatbelt denies reads by default: the program being run (this Node, and the CLI's install folders) must be readable.
-    const programRead = [...(o.programRead ?? []), path.dirname(path.dirname(node)), path.join(process.env["HOME"] ?? "/", ".local"), "/opt/homebrew", "/usr/local"].filter((p) => p !== "/");
+    const home = process.env["HOME"] ?? "/";
+    const programRead = [...(o.programRead ?? []), path.dirname(path.dirname(node)), path.join(home, ".local"), "/opt/homebrew", "/usr/local", ...cliInstallRoots({ PATH: enginePath(process.env, home) }, home)].filter((p) => p !== "/");
     return done({ kind: "seatbelt", proxyPort: port, programRead }, () => proxy.close());
   }
   return unavailable(`CLI engines cannot be sandboxed on ${platform}`);

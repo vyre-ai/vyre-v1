@@ -35,7 +35,10 @@ export function foldersQuery(rt: ShellRuntime): LiveQuery<readonly FolderNode[]>
 /** The Knowledge screens the body can show instead of the list. The place holds which one; the data carries it so the sidebar marks the row. */
 export interface MemoryView { view: "proposed" | "graph" | null; open(v: "proposed" | "graph" | null): void }
 
-export function filesData(rt: ShellRuntime, memory?: MemoryView): FilesData {
+/** Where Connect a folder goes: the place opens the mount sheet into this folder (null: the top of the Space). */
+export interface MountDoor { connect(into: string | null): void }
+
+export function filesData(rt: ShellRuntime, memory?: MemoryView, mounts?: MountDoor): FilesData {
   return {
     ...(memory ? { memoryView: memory.view } : {}),
     screens: rt.screens,
@@ -49,6 +52,7 @@ export function filesData(rt: ShellRuntime, memory?: MemoryView): FilesData {
       openFile: (fileId) => rt.open({ screen: "files.viewer", args: { fileId } }),
       shareFolder: (folderId) => rt.open({ screen: "spaces.switcher", args: { share: folderId } }),
       renameEntry: (kind, id, current) => rt.open({ screen: "files.list", args: { rename: id, kind, current } }),
+      ...(mounts ? { connectFolder: (into: string | null) => mounts.connect(into) } : {}),
       newFolder: (scope, parentId) => rt.open({ screen: "files.list", args: { newFolder: scope, ...(parentId ? { parentId } : {}) } }),
       openMemory: () => (memory ? memory.open("proposed") : rt.open({ screen: "files.memory-proposed" })),
       openGraph: () => (memory ? memory.open("graph") : rt.open({ screen: "files.memory-graph" })),

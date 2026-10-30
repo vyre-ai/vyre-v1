@@ -85779,7 +85779,8 @@
             ],
             "lastProbeAt": 1760000000000,
             "lastProbeOk": true,
-            "mappedMembers": 1
+            "mappedMembers": 1,
+            "pushToken": "example"
           }
         }
       ],
@@ -85832,6 +85833,9 @@
           },
           "mappedMembers": {
             "type": "integer"
+          },
+          "pushToken": {
+            "type": "string"
           }
         },
         "required": [

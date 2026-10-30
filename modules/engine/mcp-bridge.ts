@@ -4,6 +4,7 @@
 // The first line on a connection is {"auth": "<token>"}; a wrong token closes the connection before anything is posted.
 import fs from "node:fs";
 import net from "node:net";
+import os from "node:os";
 import path from "node:path";
 
 /** The program the CLI starts. Plain Node, no imports beyond the standard library. argv[2] is the socket; the token comes from VYRE_MCP_TOKEN. */
@@ -44,7 +45,16 @@ export async function openMcpBridge(m: { url: string; token: string }, o: McpBri
   fs.mkdirSync(o.scratch, { recursive: true });
   const shim = path.join(o.scratch, "mcp-shim.mjs");
   fs.writeFileSync(shim, SHIM_SOURCE, { mode: 0o644 });
-  const socket = path.join(o.scratch, `mcp-${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("")}.sock`);
+  const name = `mcp-${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("")}.sock`;
+  let socket = path.join(o.scratch, name);
+  // A unix socket path holds about 100 bytes. A Mac's data folder ("~/Library/Application Support/<app>/personal/scratch/<person>") is already longer than that, so there the socket is reached through a
+  // short link: a private (0700, random-named) folder in the temp area holds one symlink to the scratch folder. Seatbelt resolves the link, so the profile's rule for the scratch folder still decides.
+  let alias: string | undefined;
+  if (Buffer.byteLength(socket) > MAX_SOCKET_PATH && process.platform === "darwin") {
+    alias = fs.mkdtempSync(path.join(fs.realpathSync("/tmp"), "vyre-"));
+    fs.symlinkSync(fs.realpathSync(o.scratch), path.join(alias, "s"));
+    socket = path.join(alias, "s", name);
+  }
   if (Buffer.byteLength(socket) > MAX_SOCKET_PATH) throw new Error(`the MCP socket path is too long for a unix socket: ${socket.length} characters`);
   const live = new Set<net.Socket>();
   const server = net.createServer({ allowHalfOpen: true }, (c) => {
@@ -108,6 +118,7 @@ export async function openMcpBridge(m: { url: string; token: string }, o: McpBri
       for (const c of live) c.destroy();
       await new Promise<void>((ok) => server.close(() => ok()));
       fs.rmSync(socket, { force: true });
+      if (alias !== undefined) fs.rmSync(alias, { recursive: true, force: true });
     },
   };
 }

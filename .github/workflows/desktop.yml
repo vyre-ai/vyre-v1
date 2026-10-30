@@ -7,6 +7,9 @@ on:
     paths:
       - "apps/desktop/**"
       - "apps/app/**"
+      - "modules/engine/**"
+      - "sandbox/**"
+      - "agent/src/drivers/**"
       - "scripts/install/macos/**"
       - "scripts/install/linux/**"
       - ".github/workflows/desktop.yml"
@@ -16,6 +19,9 @@ on:
     paths:
       - "apps/desktop/**"
       - "apps/app/**"
+      - "modules/engine/**"
+      - "sandbox/**"
+      - "agent/src/drivers/**"
       - "scripts/install/macos/**"
       - "scripts/install/linux/**"
       - ".github/workflows/desktop.yml"
@@ -118,6 +124,30 @@ jobs:
           fi
           cat proof-gatekeeper.txt
           VYRE_SHELL_RELAUNCH=1 apps/desktop/src-tauri/ci/run-shell.sh "$installed/Contents/MacOS/vyre-desktop" "$PWD/out"
+      - name: The bundle holds what a Personal Space needs, and its Node runs under the Seatbelt profile
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          installed="$RUNNER_TEMP/Vyre-Applications/Vyre.app"
+          "$installed/Contents/MacOS/vyred" apps/desktop/src-tauri/ci/bundle-check.ts "$installed/Contents/Resources/runtime"
+      - name: Personal Space, session import and a chat turn in the built app, then a restart
+        if: runner.os == 'macOS'
+        env:
+          VYRE_PERSONAL_PROOF: "1"
+        run: |
+          set -euo pipefail
+          installed="$RUNNER_TEMP/Vyre-Applications/Vyre.app"
+          export VYRE_SHELL_APP="$installed/Contents/MacOS/vyre-desktop"
+          node --test --test-force-exit --test-timeout=420000 --test-reporter=spec apps/desktop/tests/personal.heavy.test.ts 2>&1 | tee out/personal-heavy.log
+          exit "${PIPESTATUS[0]}"
+      - name: The Rust Personal-profile test against the real daemon
+        if: runner.os == 'macOS'
+        env:
+          VYRE_TEST_NODE: ${{ runner.temp }}/node-for-rust
+        run: |
+          set -euo pipefail
+          ln -sf "$(command -v node)" "$VYRE_TEST_NODE"
+          cargo test --lib --manifest-path apps/desktop/src-tauri/Cargo.toml real_native_personal_profile_concurrency_and_restart -- --ignored --nocapture
       - name: The DMG's name and SHA-256, a small file the release carries instead of the DMG until publish
         if: runner.os == 'macOS'
         run: |
@@ -181,6 +211,39 @@ jobs:
             apps/desktop/src-tauri/target/release/bundle/dmg
             apps/desktop/src-tauri/target/release/bundle/nsis
           if-no-files-found: warn
+  # The Mac's Seatbelt sandbox around CLI engines (Claude Code, Codex) on a real Mac: node starts under the exact profile, the full engine chain completes a turn with the fake CLI, MCP works over a
+  # long socket path, a write outside the work folder is refused, and the real CLIs (installed on this runner only) start under the profile and do not die on a signal. Blocks the release because
+  # release.yml calls this whole workflow.
+  sandbox-macos:
+    name: sandbox (macos-latest)
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Claude Code and Codex, installed here only
+        run: |
+          set -euo pipefail
+          cli="$RUNNER_TEMP/clis"
+          mkdir -p "$cli"
+          npm install --prefix "$cli" --no-audit --no-fund @anthropic-ai/claude-code@2.1.312 @openai/codex@0.166.0
+          echo "VYRE_MAC_CLI_DIR=$cli" >> "$GITHUB_ENV"
+          # outside the sandbox first: they run at all on this runner
+          npx -y @anthropic-ai/claude-code@2.1.312 --version
+          npx -y @openai/codex@0.166.0 --version
+      - name: Under the exact Vyre profile
+        env:
+          VYRE_HEAVY_MAC: "1"
+        run: |
+          set -euo pipefail
+          node --test --test-force-exit --test-reporter=spec modules/engine/tests/sandbox.mac.heavy.test.ts modules/engine/tests/cli.heavy.test.ts modules/engine/tests/sandbox.test.ts sandbox/tests/sandbox.escape.test.ts
+          VYRE_HEAVY_DOCKER=1 node --test --test-force-exit --test-reporter=spec golden/steps/07-reply.heavy.test.ts
   # The Mac server installer on a real macOS runner: BSD tar, shasum, diskutil, plutil and the system LibreSSL beside Homebrew's OpenSSL 3. No Docker and no launchd changes.
   # Its unit tests (scripts/install/macos/install.test.ts) also run on the Linux runners with the main suite. There is no self-hosted macOS runner. A tag run skips it:
   # the release already ran it on the commit that was merged.

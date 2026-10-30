@@ -2,6 +2,9 @@
 // flips it to live once the generated contract tests pass against these handlers and the Workspace proof (S11 part A) is recorded.
 // The host registers its half once at boot with setGoogleHost (token mint from the Vault key, member emails, blobs): see projections.ts.
 import type { Handler } from "../../host/src/invoke.ts";
+import { hostOnly, internalOnly } from "../../host/src/ctx/host-only.ts";
+import type { Ctx } from "../../packages/contracts/src/ctx.ts";
+import type { WebhookAccept } from "../../host/src/routes/webhooks.ts";
 import * as h from "./handlers/index.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
 import { codecs, consumers, inline, setGoogleHost } from "./projections.ts";
@@ -18,7 +21,7 @@ export const handlers: Record<string, Handler> = {
   "google.dwd.set_excluded": (ctx, i) => h.dwdSetExcluded(ctx, i),
   "google.dwd.disable": (ctx) => h.dwdDisable(ctx),
   "google.health": (ctx, i) => h.health(ctx, i),
-  "google.receive_push": (ctx, i) => h.receivePush(ctx, i),
+  "google.receive_push": async (ctx, i) => { internalOnly(ctx, "google.receive_push"); return h.receivePush(ctx, i); },
   "google.gmail.get_profile": (ctx, i) => h.getProfile(ctx, i),
   "google.gmail.list_labels": (ctx, i) => h.listLabels(ctx, i),
   "google.gmail.list_messages": (ctx, i) => h.listMessages(ctx, i),
@@ -77,3 +80,11 @@ export { codecs, inline, consumers };
 
 /** Where the host registers its Google seam at boot (ruling 31): the loader reads this export. */
 export const hostSeams: SeamSetters = { setGoogleHost };
+
+/** /hooks/google/<kind>: the push secret is checked before anything is recorded (handlers/hook.ts). */
+export const hostCalls = {
+  "google.accept_webhook": async (ctx: Ctx, a: WebhookAccept): Promise<unknown> => {
+    hostOnly(ctx, "google.accept_webhook");   // a host call: the webhook route is the only way in
+    return h.acceptHook(ctx, a);
+  },
+};
