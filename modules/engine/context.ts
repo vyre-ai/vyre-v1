@@ -25,7 +25,12 @@ export interface ContextDeps {
   cacheMs?: number;
   /** One read gives up after this long. Default 1500 ms. */
   readMs?: number;
+  /** Text for the one turn after a model switch (taken once): the engine the chat moved from and the summary it starts from. */
+  handoff?: (threadId: string) => string | undefined;
 }
+
+/** Messages kept word for word once a summary stands for the older ones (the handoff and rollover rule: the last 20 turns). */
+export const KEEP_TURNS = 20;
 
 const FRONT = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
@@ -77,6 +82,11 @@ export function routineLine(r: Obj): string {
   const next = typeof r["nextRunAt"] === "number" ? `, next ${new Date(r["nextRunAt"]).toISOString().slice(0, 16).replace("T", " ")} UTC` : "";
   return `- ${kind} "${one(r["title"], 80)}" ${when}${next}${r["enabled"] === false ? ", paused" : ""} (${str(r["routineId"]) ?? "?"})`;
 }
+
+const handoffs = new Map<string, string>();
+/** Remember what the next turn of a thread is told after a model switch. Taken once. */
+export function noteHandoff(threadId: string, text: string): void { handoffs.set(threadId, text); }
+export function takeHandoff(threadId: string): string | undefined { const t = handoffs.get(threadId); handoffs.delete(threadId); return t; }
 
 export function createContextBuilder(d: ContextDeps) {
   const now = d.now ?? Date.now;
@@ -144,8 +154,9 @@ export function createContextBuilder(d: ContextDeps) {
   async function build(input: TurnInput): Promise<TurnContext> {
     const asker = input.asker;
     const agentId = input.agent.id;
-    const [screen, agentOut, thread, nameMap, space, routines, zone, waits, computers] = await Promise.all([
+    const [screen, summary, agentOut, thread, nameMap, space, routines, zone, waits, computers] = await Promise.all([
       screenOf(input),
+      read<Obj>("chat.transcript.summary", { threadId: input.threadId }, asker),
       read<Obj>("agents.get", { agentId }, asker),
       read<Obj>("threads.get", { threadId: input.threadId }, asker),
       names(asker),
@@ -224,13 +235,17 @@ export function createContextBuilder(d: ContextDeps) {
     }
     add("can", true, can.join("\n"));
 
+    const older = str(summary?.["summary"]);
+    if (older) add("earlier", false, `${cutTo(older, 8_000)}\nThe full transcript is chats/${input.threadId}/transcript.md; transcript_search finds an exact line.`);
+    const taken = d.handoff?.(input.threadId);
+    if (taken) add("handoff", false, taken);
     add("screen", false, screenText(screen));
     add("now", false, timeLine(now(), str(((zone?.["row"] as Obj | undefined)?.["value"])) ));
     const w = (waits ?? []).filter((x) => x !== "");
     if (w.length > 0) add("waiting", false, w.map((x) => `- ${x}`).join("\n"));
 
     const ordered = SECTION_ORDER.flatMap((id) => sections.filter((s) => s.id === id));
-    return { sections: ordered, names: nameMap, ...(screen ? { screen } : {}) };
+    return { sections: ordered, names: nameMap, ...(screen ? { screen } : {}), ...(older ? { keepHistory: KEEP_TURNS } : {}) };
   }
 
   return { build };
@@ -247,7 +262,7 @@ export function withTurnContext(open: OpenSession, b: ContextBuilder): OpenSessi
         value: (input: TurnInput) => (async function* () {
           let context: TurnContext | undefined;
           try { context = await b.build(input); } catch { context = undefined; }
-          yield* session.send(context ? { ...input, context } : input);
+          yield* session.send(context ? { ...input, context, ...(context.keepHistory !== undefined && input.history.length > context.keepHistory ? { history: input.history.slice(-context.keepHistory) } : {}) } : input);
         })(),
       },
     }) as EngineSession;

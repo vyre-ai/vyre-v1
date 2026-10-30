@@ -124,3 +124,42 @@ test("screen context: what the person had open reaches the agent with the focus 
     assert.equal(got.data.screen.place, "records");
   } finally { await d.stop(); }
 });
+
+const brief: OpenSession = async () => ({
+  warm: true,
+  async *send(input: TurnInput): AsyncGenerator<DriverEvent> {
+    const body = input.trigger?.body ?? "";
+    yield { type: "text", text: body.startsWith("show") ? defaultPrompt(input, true) : `ok ${body.slice(0, 20)}` };
+    yield { type: "done" };
+  },
+  sendToolResult() {}, inject() {}, async cancel() {}, async close() {},
+} as EngineSession);
+
+test("long sessions: every turn is written to the transcript, older turns stand as a summary, the recent twenty stay word for word, and a model switch carries the summary", async () => {
+  const d = await boot(seededDir(), brief);
+  try {
+    await connect(d);
+    const id = await makeAgent(d, "Intake");
+    const started = await call(d, "chat.start", { kind: "chat", agentIds: [id], idempotencyKey: "long-start" });
+    const threadId = started.data.thread.threadId as string;
+    for (let i = 1; i <= 16; i++) await post(d, threadId, id, `message number ${i} about the Smith matter`, `long${i}`);
+    const rows = (await call(d, "chat.transcript.read", { threadId })).data.markdown as string;
+    assert.match(rows, /message number 1 about the Smith matter/);
+    assert.match(rows, /ok message number 16/);
+    const sum = (await call(d, "chat.transcript.summary", { threadId })).data;
+    assert.ok(sum.summary.length > 0 && sum.upToIdx > 0, JSON.stringify(sum));
+    const shown = await post(d, threadId, id, "show me what you were sent", "long-show");
+    const front = shown.slice(0, shown.indexOf("</vyre-context>"));
+    assert.match(front, /Earlier in this chat \(a summary of turns before the recent ones/);
+    assert.match(front, /transcript_search finds an exact line/);
+    const verbatim = shown.slice(shown.indexOf("</vyre-context>"));
+    assert.doesNotMatch(verbatim, /message number 1 about/, "the oldest message is in the summary, not word for word");
+    assert.match(verbatim, /message number 16 about the Smith matter/);
+    const sw = await call(d, "engine.switch", { threadId, agentId: id, driver: "codex", model: "gpt-5" });
+    assert.equal(sw.status, 200, JSON.stringify(sw.data));
+    const after = await post(d, threadId, id, "show me again", "long-show2");
+    assert.match(after.slice(0, after.indexOf("</vyre-context>")), /You are taking over this chat:\nThis chat was running on .* and moved to Codex\./);
+    const again = await post(d, threadId, id, "show me once more", "long-show3");
+    assert.doesNotMatch(again.slice(0, again.indexOf("</vyre-context>")), /You are taking over this chat/, "the handoff is told once");
+  } finally { await d.stop(); }
+});
