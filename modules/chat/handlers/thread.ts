@@ -11,6 +11,7 @@ import {
 } from "../projections.ts";
 import type { ChatCtx, Mode, PlanStep, ThreadRec } from "../projections.ts";
 import { canSpeak, deliver, isDirect } from "./post.ts";
+import { privateFork } from "./g27.ts";
 
 type Row = Record<string, unknown>;
 const MAX_AGENTS = 20;
@@ -167,6 +168,7 @@ export async function makeChannel(ctx: ChatCtx, input: { threadId: string; perso
   if (src.kind !== "chat" || src.channelId !== undefined) raise(ctx, "validation.bad_input", "Only a private chat becomes a channel.");
   const asker = askerOf(ctx);
   if (!input.personId.startsWith("usr_") || input.personId === asker) raise(ctx, "validation.bad_input", "Pick another person for the channel.");
+  if (privateFork(ctx.db, src.id)) raise(ctx, "validation.precondition_failed", "This is a copy of a chat that had other people in it, so it stays private to you and cannot become a channel.", { reason: "private_fork" });
 
   let name: string;
   if (input.name !== undefined && input.name.trim() !== "") {

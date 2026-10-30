@@ -187,7 +187,30 @@ export function createBridge(o: BridgeOptions): Bridge {
   }
 
   type ThreadGet = { thread: { kind?: string; starter?: string; agents: Array<{ agentId: string; mode: "lead" | "listen"; model?: string; accountRef?: string; watches?: unknown }> } };
-  type Row = { messageId: string; threadSeq?: number; author: { kind: string; id: string }; body: string; depth?: number };
+  type Row = { messageId: string; threadSeq?: number; author: { kind: string; id: string }; body: string; depth?: number; attachments?: string[]; blocks?: Array<{ type: string; data?: unknown }> };
+
+  /**
+   * What a message points at, as plain lines after its words, so the agent sees the files and links the person sent: "[Attached: brief.docx (file fil_1)]", "[Linked: Rivera Holdings (record rec_2)]".
+   * A file the asker cannot name (gone, not theirs) is listed by id only. Chat keeps the words as typed; only the engine's copy carries these lines.
+   */
+  async function pointers(read: (cap: string, input: unknown) => Promise<unknown>, m: Row): Promise<string> {
+    const lines: string[] = [];
+    for (const id of (m.attachments ?? []).slice(0, 20)) {
+      let name = "";
+      try { name = String(((await read("files.get", { fileId: id })) as { file?: { name?: unknown } }).file?.name ?? ""); } catch { /* listed by id */ }
+      lines.push(name === "" ? `[Attached: file ${id}]` : `[Attached: ${name} (file ${id})]`);
+    }
+    for (const b of m.blocks ?? []) {
+      if (b.type !== "refs" || typeof b.data !== "object" || b.data === null) continue;
+      const refs = (b.data as { refs?: unknown }).refs;
+      if (!Array.isArray(refs)) continue;
+      for (const r of refs.slice(0, 20)) {
+        const x = r as { kind?: unknown; id?: unknown; title?: unknown };
+        if (typeof x.kind === "string" && typeof x.id === "string") lines.push(`[Linked: ${typeof x.title === "string" ? x.title : x.id} (${x.kind} ${x.id})]`);
+      }
+    }
+    return lines.length === 0 ? "" : `\n\n${lines.join("\n")}`;
+  }
 
   /** A read of the chat for this message: as its person author when the host gave us a way to, else with the consumer's own ctx. */
   const reader = (ctx: EngineCtx, authorId: string, threadId?: string): ((cap: string, input: unknown) => Promise<unknown>) => {
@@ -218,7 +241,8 @@ export function createBridge(o: BridgeOptions): Bridge {
       const list = (await read("chat.messages.list", { threadId, limit: HISTORY })) as { messages: Row[] };
       for (const r of [...list.messages].sort((a, b) => (a.threadSeq ?? 0) - (b.threadSeq ?? 0))) {
         if (r.messageId === skipId || store.get(r.messageId)) continue;
-        withMessageId(r.messageId, () => store.append({ id: r.messageId, threadId, author: { kind: r.author.id.startsWith("agt_") ? "agent" : "person", id: r.author.id }, mentions: [], depth: r.depth ?? 0, body: r.body }));
+        const body = r.body + await pointers(read, r);
+        withMessageId(r.messageId, () => store.append({ id: r.messageId, threadId, author: { kind: r.author.id.startsWith("agt_") ? "agent" : "person", id: r.author.id }, mentions: [], depth: r.depth ?? 0, body }));
       }
     }
     try {
@@ -242,10 +266,11 @@ export function createBridge(o: BridgeOptions): Bridge {
     if (store.get(messageId)) return { skipped: "known" };
     const got = (await reader(ctx, str(a.id), threadId)("chat.message.get", { threadId, messageId })) as { message: Row };
     const authorId = str(a.id) || got.message.author.id;
+    const note = await pointers(reader(ctx, authorId), got.message);
     const mentions = ((p["mentions"] ?? []) as RouteMention[]).map((m) => ({ kind: m.kind, id: m.id }));
     const eng = engine;
     const res = withMessageId(messageId, () => eng.receive({
-      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body,
+      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note,
     }));
     return { receivedAs: res.responders };
   }
@@ -255,7 +280,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     const known = sqlMessages(ctx.db, ctx.now).get(messageId);
     if (!known) return { skipped: "unknown" };
     const got = (await reader(ctx, known.author.id)("chat.message.get", { threadId, messageId })) as { message: Row };
-    ctx.db.run("UPDATE engine_messages SET body = ? WHERE id = ?", got.message.body, messageId);
+    ctx.db.run("UPDATE engine_messages SET body = ? WHERE id = ?", got.message.body + (await pointers(reader(ctx, known.author.id), got.message)), messageId);
     return {};
   }
 

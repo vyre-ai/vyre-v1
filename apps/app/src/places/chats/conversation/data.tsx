@@ -13,8 +13,10 @@ import type { Candidate, Clock } from "./model.ts";
 export interface ConversationNav {
   /** An agent's name in the header or on a message: its page. */
   openAgent(agentId: string): void;
-  /** A helper from the Helpers list, or a thread from "Open thread". */
-  openThread(threadId: string): void;
+  /** A helper from the Helpers list, or a thread from "Open thread". With a message id the chat opens on that message and marks it. */
+  openThread(threadId: string, messageId?: string): void;
+  /** Search every chat (the page of results). Left out where the shell has no such page. */
+  openSearch?(query: string): void;
   /** Shows or hides the pane on the right (Computer, Threads, Files, Memory, Routines). */
   togglePane(): void;
   /** A card's file, record or diff opens beside the chat. A "computer" card or the Computer chip passes the agent's id. */
@@ -22,6 +24,9 @@ export interface ConversationNav {
   /** The channel menu's "Connect an outside agent": the sheet for this channel (P-L9b_23). Left out where the shell has no such sheet. */
   openConnectOutsideAgent?(channelId: string): void;
 }
+
+/** A slash command a plugin adds. It runs `run` when it has one, else its `prompt` is sent as the message ($ARGUMENTS is replaced by what follows the name). */
+export interface PluginCommand { name: string; description: string; pluginId?: string; prompt?: string; run?(arg: string): Promise<string | void> }
 
 /** The live replies of a chat: a row for each reply that is being written or just finished and not yet saved. */
 export interface LiveTurns {
@@ -38,7 +43,8 @@ export interface ConversationData {
   call(cap: string, input: unknown): Promise<unknown>;
   connection: Connection;
   threadId: string;
-  /** A message to open the page scrolled to and highlighted: the link a memory quote carries (`vyre://thread/<id>?m=<messageId>`). */
+  
+  /** A message to open on and mark (from a memory quote's link `vyre://thread/<id>?m=<messageId>`, a search result or a fork's link back): the page loads the messages around it. */
   focus?: string;
   /** The signed-in person: messages from them are the right-hand bubbles. */
   me: { id: string; name: string };
@@ -54,6 +60,12 @@ export interface ConversationData {
   newKey(): string;
   /** The stream of a message that is still being written; none once it is complete. A row id `turn:<id>` is a reply that has no saved message yet. */
   streamOf(messageId: string): StreamStore | undefined;
+  /** Put bytes at a one-time upload address (files.upload_url). Left out where the shell cannot: a large file is then refused with a clear line. */
+  putBlob?(url: string, bytes: Uint8Array): Promise<void>;
+  /** Hand the person a file: a download in the browser, a save sheet on a phone. Left out: the text is copied instead. */
+  saveFile?(name: string, mime: string, content: string): void;
+  /** Slash commands that plugins add (name, one line, and what to run). Left out when no plugin offers any. */
+  pluginCommands?(): readonly PluginCommand[];
   /** Replies being written in this chat, from the live socket. Left out where there is no live link: the reply then lands whole. */
   live?: LiveTurns;
   /** Copy to the clipboard (Copy in the hover bar, Copy trace id). */

@@ -12,6 +12,7 @@ import type { ChatMemoryData, MemoryStore } from "../../places/chats/memory/data
 import { KNOW_SCREEN, routeToArgs } from "../../places/files/memory/know.ts";
 import { nameLookup } from "./records-live.ts";
 import type { ShellRuntime } from "./runtime.tsx";
+import { nameOr } from "../../places/chats/names.ts";
 
 export interface ChatsActions {
   /** Open a chat or channel's thread in the main column. */
@@ -45,6 +46,20 @@ export function composerLists(list: readonly Principal[], meId: string): Compose
 
 let keySeq = 0;
 const newKey = (): string => `k_${Date.now().toString(36)}_${(keySeq++).toString(36)}`;
+
+/** A file the person keeps: a download in the browser. Other platforms leave `saveFile` out and the text is copied. */
+export function saveFile(name: string, mime: string, content: string): void {
+  const g = globalThis as { document?: { createElement(t: string): { href: string; download: string; click(): void; remove(): void }; body?: { appendChild(n: unknown): unknown } }; URL?: { createObjectURL(b: unknown): string; revokeObjectURL(u: string): void }; Blob?: new (p: string[], o: { type: string }) => unknown };
+  if (!g.document || !g.URL || !g.Blob) return;
+  const url = g.URL.createObjectURL(new g.Blob([content], { type: mime }));
+  const a = g.document.createElement("a");
+  a.href = url; a.download = name;
+  g.document.body?.appendChild(a);
+  a.click(); a.remove();
+  setTimeout(() => g.URL!.revokeObjectURL(url), 10_000);
+}
+
+const canSave = (): boolean => typeof (globalThis as { document?: unknown }).document !== "undefined" && typeof (globalThis as { Blob?: unknown }).Blob !== "undefined";
 
 const copy = (text: string): void => {
   const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): unknown } } }).navigator?.clipboard;
@@ -107,7 +122,7 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
   };
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, threadId, me: { id: rt.me.id, name: rt.me.name },
-    nameOf: (id) => byId.get(id)?.name ?? id,
+    nameOf: (id) => nameOr(byId.get(id)?.name, id),
     kindOf: (id) => kindOf(byId.get(id)),
     nav, clock: rt.clock,
     ...(fill ? { fill } : {}),
@@ -119,6 +134,9 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     ...(rt.turns ? { live: { turnsOf: (t: string) => rt.turns!.turnsOf(t), subscribe: (l: () => void) => rt.turns!.subscribe(l), settle: (id: string) => rt.turns!.settle(id) } } : {}),
     copy,
     toast: () => undefined,
+    ...(rt.putBlob ? { putBlob: (url: string, bytes: Uint8Array) => rt.putBlob!(url, bytes) } : {}),
+    ...(canSave() ? { saveFile } : {}),
+    ...(rt.pluginCommands ? { pluginCommands: () => rt.pluginCommands!() } : {}),
   };
 }
 

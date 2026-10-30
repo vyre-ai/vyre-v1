@@ -79,3 +79,17 @@ test("reset forgets every turn when the link drops", () => {
   s.reset();
   assert.deepEqual(s.turnsOf("thr_a"), []);
 });
+
+test("a chat with no live turn reads the very same list every time, so a store snapshot stays stable", () => {
+  const s = createTurnStreams();
+  assert.equal(s.turnsOf("thr_a"), s.turnsOf("thr_a"));
+  s.onFrame(f("trn_1", { kind: "start" }));
+  const one = s.turnsOf("thr_a");
+  assert.equal(s.turnsOf("thr_a"), one, "unchanged until something about a turn changes");
+  s.onFrame(f("trn_1", { kind: "delta", text: "x" }));
+  assert.equal(s.turnsOf("thr_a"), one, "text arriving changes the store, not the list");
+  s.onFrame(f("trn_1", { kind: "end", state: "done" }));
+  assert.notEqual(s.turnsOf("thr_a"), one, "a state change makes a new list");
+  s.reset();
+  assert.equal(s.turnsOf("thr_a"), s.turnsOf("thr_b"), "empty is one list");
+});

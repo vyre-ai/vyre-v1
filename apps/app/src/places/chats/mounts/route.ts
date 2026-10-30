@@ -11,8 +11,9 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 type RecentOut = CapMap["chat.recent"]["out"];
 
 export type Route =
-  /** `focus` is a message the page opens scrolled to and highlighted (a link from memory: `...&m=<messageId>`). */
+  /** `focus`: a message to open on and mark (a link from memory `...&m=<messageId>`, a search result or the link a fork starts with). */
   | { view: "chat"; threadId: string | null; focus?: string }
+  | { view: "search"; q: string; from: string | null }
   | { view: "needs"; taskId: string | null }
   | { view: "agent"; agentId: string; tab: TabKey | null }
   | { view: "helper"; threadId: string }
@@ -40,6 +41,9 @@ export const START: Shown = { route: { view: "chat", threadId: null }, pane: fal
 export type Act =
   /** `pane` opens the agent's pane beside the chat (a click on an agent). */
   | { t: "chat"; threadId: string; pane?: boolean; focus?: string }
+  /** Search every chat. `q` starts the box with those words. */
+  | { t: "search"; q?: string }
+  | { t: "search-close" }
   | { t: "helper"; threadId: string }
   | { t: "ask"; agentId: string; scopeType: string; scopeId: string; bringFrom?: string }
   | { t: "needs"; taskId?: string }
@@ -55,6 +59,8 @@ export type Act =
 export function step(s: Shown, a: Act): Shown {
   switch (a.t) {
     case "chat": return a.threadId.startsWith(LOCAL_PREFIX) ? s : { ...s, route: { view: "chat", threadId: a.threadId === "" ? null : a.threadId, ...(a.focus ? { focus: a.focus } : {}) }, ...(a.pane ? { pane: true, terminalId: null } : {}), layer: null };
+    case "search": return { ...s, route: { view: "search", q: a.q ?? "", from: s.route.view === "chat" ? s.route.threadId : s.route.view === "search" ? s.route.from : null }, layer: null };
+    case "search-close": return { ...s, route: { view: "chat", threadId: s.route.view === "search" ? s.route.from : null }, layer: null };
     case "helper": return { ...s, route: { view: "helper", threadId: a.threadId }, layer: null };
     case "ask": return { ...s, route: { view: "ask", agentId: a.agentId, scopeType: a.scopeType, scopeId: a.scopeId, bringFrom: a.bringFrom ?? null }, layer: null };
     case "needs": return { ...s, route: { view: "needs", taskId: a.taskId ?? null }, layer: null };

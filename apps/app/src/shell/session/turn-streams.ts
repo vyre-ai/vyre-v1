@@ -45,6 +45,9 @@ export interface TurnStreamOptions {
 
 export const turnRowId = (turnId: string): string => `turn:${turnId}`;
 
+/** One frozen empty list, so a chat with no live turn reads the same array every time (a store's snapshot must be stable). */
+const NONE: readonly LiveTurn[] = Object.freeze([]);
+
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
 export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
@@ -61,7 +64,7 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
 
   const rebuild = (threadId: string): void => {
     const list = [...turns.values()].filter((t) => t.threadId === threadId).sort((a, b) => a.startedAt - b.startedAt);
-    byThread.set(threadId, list);
+    byThread.set(threadId, list.length > 0 ? list : NONE);
   };
   const tell = (threadId: string): void => { rebuild(threadId); for (const l of [...listeners]) l(); };
   const arm = (turnId: string, ms: number): void => {
@@ -123,7 +126,7 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
         tell(threadId);
       }
     },
-    turnsOf: (threadId) => byThread.get(threadId) ?? [],
+    turnsOf: (threadId) => byThread.get(threadId) ?? NONE,
     streamOf(rowId) {
       if (rowId.startsWith("turn:")) return turns.get(rowId.slice(5))?.store;
       for (const t of turns.values()) if (t.messageId === rowId) return t.store;

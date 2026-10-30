@@ -14,6 +14,7 @@ Area: chats. Risk: low. Applies to: space.
 
 ## Capabilities that need it
 
+- chat.fork
 - chat.start
 - sessions.continue
 - sessions.get

@@ -27,6 +27,7 @@ import { REPORT_PROBLEM_EVENT } from "../../../../../../ui/src/States/index.tsx"
 import { Badge, EmptyLine, Face, GroupLabel, Glyph, LeadGlyph, SectionHead, Tool, UnreadDot } from "./parts.tsx";
 import type { Channel } from "./model.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { nameOr } from "../names.ts";
 
 export const SIDEBAR_SCREEN = "chats.sidebar";
 export const AGENTS_SCREEN = "chats.all-agents";
@@ -99,7 +100,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
 
   const agents: Agent[] = agentsQ.status === "ready" ? agentsQ.data.agents : [];
   const names = useMemo(() => new Map(agents.map((a) => [a.agentId, a.name])), [agents]);
-  const agentName = useCallback((id: string) => names.get(id) ?? id, [names]);
+  const agentName = useCallback((id: string) => nameOr(names.get(id), id), [names]);
   // The Agents group is the Space's agents (agents.list takes no "starred" input; starring becomes its own packet): the first FACES_SHOWN of them, the rest behind All agents.
   // Not the assistant (its mark sits beside New chat). An agent waiting on you always comes first, so the cap can never hide one; everyone else keeps the Space's order.
   const matching: Agent[] = useMemo(() => {
