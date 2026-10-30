@@ -31,3 +31,17 @@ export function titleAsk(subject: { type: string; id: string }, args: Readonly<R
     default: return null;
   }
 }
+
+/** What to read to name a Records tab opened on a record type (its hash carries the type's key): the type's own plural, "Companies" in place of "Records". */
+export function typeTitleAsk(place: string, args: Readonly<Record<string, unknown>>): Ask | null {
+  const key = args["type"];
+  if (place !== "records" || typeof key !== "string" || key === "") return null;
+  return {
+    cap: "schema.types.list", input: {},
+    name: (o) => {
+      const types = obj(o)?.["types"];
+      const t = Array.isArray(types) ? types.map(obj).find((x) => x !== null && x["key"] === key) : undefined;
+      return text(t?.["plural"]) ?? text(t?.["title"]);
+    },
+  };
+}

@@ -13,7 +13,7 @@ import { createGateSearch, loadRecent } from "../cmdk/gate.ts";
 import type { Hit } from "../cmdk/model.ts";
 import { formatHash, parseHash } from "../hash/hash.ts";
 import { tabKey } from "../tabs/store.ts";
-import { titleAsk } from "../tabs/titles.ts";
+import { titleAsk, typeTitleAsk } from "../tabs/titles.ts";
 import type { PlaceId } from "../rail/kits.ts";
 import { createShellHub } from "../spaces/hub.ts";
 import type { ShellHub } from "../spaces/hub.ts";
@@ -145,7 +145,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   useEffect(() => {
     if (!session) return;
     const target = parseHash(location.hash);
-    const ask = target.subject ? titleAsk(target.subject, target.args) : null;
+    const ask = target.subject ? titleAsk(target.subject, target.args) : typeTitleAsk(location.place, target.args);
     if (!ask) return;
     const key = tabKey(location.place, location.hash);
     let off = false;
