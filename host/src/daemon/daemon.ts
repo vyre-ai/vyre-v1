@@ -1449,7 +1449,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       server.listen(boundPort, cfg.host, () => { server.off("error", onError); resolve(); });
     });
     boundPort = (server.address() as { port: number }).port;
-    startMcpRuntime?.(boundPort);
+    // A step after the listen that throws (the MCP runtime reads its tool table here) must close the listener it leaves behind, or every restart of this unit meets EADDRINUSE on its own port and the
+    // supervisor ends up reporting that instead of the real cause.
+    try { startMcpRuntime?.(boundPort); } catch (e) { await h.close().catch(() => {}); throw e; }
     const exited = new Promise<UnitExit>((resolve) => {
       server.once("close", () => resolve({ code: 0 }));
       server.on("error", (err) => resolve({ error: err.message }));
@@ -1468,7 +1470,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
   try {
     await supervisor.startAll();
-    if (supervisor.status("gateway")[0]?.phase !== "running") throw new Error(`the gateway did not start on ${cfg.host}:${cfg.port}`);
+    if (supervisor.status("gateway")[0]?.phase !== "running") { const g = supervisor.status("gateway")[0]; throw new Error(`the gateway did not start on ${cfg.host}:${cfg.port}${g?.lastExit?.error ? `: ${g.lastExit.error}` : ""}`); }
     await runProbes();
     reportNetwork();
     // The boot checks (the scheduler's first pass) have committed events, and the consumers that react to them run after the commit. Finish that chain before the daemon reports itself started,

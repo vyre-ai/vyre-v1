@@ -13,8 +13,8 @@ import { withReleaseVersion } from "../../../lib/chrome-version.ts";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, "..", "..", "..");
 
-/** Workspaces the device daemon loads. Every other workspace keeps only its package.json so `npm ci` can resolve the lockfile. */
-export const RUNTIME_DIRS = ["lib", "manifest", "contracts", "kernel", "host", "sync", "client", "agent", "sandbox", "modules", "connectors", "generated", "manifests", "packages", "relay/client", "testkit"] as const;
+/** Workspaces the device daemon loads, and docs/frozen, whose agent-tools.md the MCP and engine modules read at start (a daemon with the Space role cannot start its gateway without it). Every other workspace keeps only its package.json so `npm ci` can resolve the lockfile. */
+export const RUNTIME_DIRS = ["lib", "manifest", "contracts", "kernel", "host", "sync", "client", "agent", "sandbox", "modules", "connectors", "generated", "manifests", "packages", "relay/client", "testkit", "docs/frozen"] as const;
 export const ROOT_FILES = ["package.json", "package-lock.json", "tsconfig.base.json", "LICENSE", "NOTICE"] as const;
 /** Never staged, whatever the directory: tests, screenshots, caches and build output. */
 export const SKIP = /(^|\/)(node_modules|\.git|target|dist|coverage|__screens__|tests?|golden|fixtures)(\/|$)|\.test\.(ts|js|mjs|tsx)$|\.heavy\.test\./;
