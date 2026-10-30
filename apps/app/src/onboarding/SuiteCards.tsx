@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
-import { connections, createInviteLink, directory, importable, importPeople, invites, memberRoleId, ssoProviders, stepDoneBy } from "./suite.ts";
-import type { ImportResult, Probe } from "./suite.ts";
+import { connections, createInviteLink, directory, draftInvites, importable, importPeople, invites, memberRoleId, ownMailbox, sendDrafts, ssoProviders, stepDoneBy } from "./suite.ts";
+import type { DirectoryPage, DirectoryPerson, ImportResult, MailSender, Probe, SendOutcome } from "./suite.ts";
 
 const NOT_YET = "This part is not set up yet. You can come back to it from the checklist.";
 
@@ -39,39 +39,73 @@ export function SignInDomainCard({ call, onOpenConsole, onDone }: { call: CapCal
   );
 }
 
-export function DirectoryCard({ call, onOpenConsole, onDone }: { call: CapCall; onOpenConsole(): void; onDone(): void }): ReactElement {
+export function DirectoryCard({ call, by, space, onOpenConsole, onDone }: { call: CapCall; /** who is inviting, for the email */ by: string; space: string; onOpenConsole(): void; onDone(): void }): ReactElement {
   const attempt = useRef(0);
-  const [d, setD] = useState<Awaited<ReturnType<typeof directory>> | null>(null);
+  const [people, setPeople] = useState<DirectoryPerson[] | null>(null);
+  const [next, setNext] = useState<DirectoryPage["next"]>({});
+  const [state, setState] = useState<"loading" | "ready" | "not_yet" | "failed">("loading");
   const [ticked, setTicked] = useState<Set<string>>(new Set());
   const [result, setResult] = useState<ImportResult | null>(null);
+  const [sender, setSender] = useState<MailSender | null | undefined>(undefined);
+  const [sent, setSent] = useState<SendOutcome[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  useEffect(() => { let off = false; void directory(call).then((r) => { if (!off) setD(r); }); return () => { off = true; }; }, [call]);
-  const people = d?.kind === "ready" ? importable(d.value) : [];
+  const load = async (from?: DirectoryPage["next"]): Promise<void> => {
+    const r = await directory(call, from);
+    if (r.kind !== "ready") { if (!from) setState(r.kind); return; }
+    setState("ready"); setNext(r.value.next);
+    setPeople((cur) => [...(from ? cur ?? [] : []), ...r.value.people]);
+  };
+  useEffect(() => { void load(); }, [call]);
+  const shown = people ? importable(people) : [];
+  const more = Boolean(next.google || next.microsoft);
   const toggle = (email: string): void => setTicked((t) => { const n = new Set(t); if (n.has(email)) n.delete(email); else n.add(email); return n; });
   const run = async (): Promise<void> => {
-    if (busy || d?.kind !== "ready") return;
+    if (busy || ticked.size === 0) return;
     setBusy(true); setError("");
-    try { setResult(await importPeople(call, people.filter((p) => ticked.has(p.email)), await memberRoleId(call), `onb-import-${Date.now()}-${attempt.current++}`)); } catch { setError("Could not bring these people in. Try again."); } finally { setBusy(false); }
+    try {
+      setResult(await importPeople(call, shown.filter((p) => ticked.has(p.email)), await memberRoleId(call), `onb-import-${Date.now()}-${attempt.current++}`));
+      setSender(await ownMailbox(call));
+    } catch { setError("Could not bring these people in. Try again."); } finally { setBusy(false); }
+  };
+  const names = new Map((people ?? []).filter((p) => p.name).map((p) => [p.email, p.name!] as const));
+  const drafts = result ? draftInvites(result.invited, names, by, space) : [];
+  const send = async (): Promise<void> => {
+    if (busy || !sender) return;
+    setBusy(true);
+    try { setSent(await sendDrafts(call, sender, drafts, `onb-mail-${Date.now()}-${attempt.current++}`)); } finally { setBusy(false); }
   };
   return (
     <View testID="directory-card" style={s.col}>
-      <Text style={s.line}>Tick the people to bring in. Each gets an invite as a Member. Nothing is sent: you share or approve the invites yourself.</Text>
-      {d === null ? <Text style={s.dim}>Checking</Text> : d.kind !== "ready" ? <Text testID="directory-status" style={s.dim}>{line(d, "")}</Text> : people.length === 0 ? <Text testID="directory-status" style={s.dim}>Everyone in your directory is already here.</Text> : (
-        <View style={s.col}>{people.map((p) => (
-          <Pressable key={p.email} testID={`dir-${p.email}`} accessibilityRole="checkbox" accessibilityState={{ checked: ticked.has(p.email) }} onPress={() => toggle(p.email)} style={[s.person, ticked.has(p.email) && s.personOn]}>
-            <Text style={s.line}>{p.name ?? p.email}</Text><Text style={s.dim}>{p.name ? p.email : p.source === "google" ? "Google" : "Microsoft"}</Text>
-          </Pressable>
-        ))}</View>
+      <Text style={s.line}>Tick the people to bring in. Each gets an invite as a Member. Nothing is sent until you press send on the drafts below.</Text>
+      {state === "loading" ? <Text style={s.dim}>Checking</Text> : state !== "ready" ? <Text testID="directory-status" style={s.dim}>{state === "not_yet" ? NOT_YET : "Could not read this right now."}</Text> : shown.length === 0 ? <Text testID="directory-status" style={s.dim}>Everyone in your directory is already here.</Text> : (
+        <View style={s.col}>
+          {shown.map((p) => (
+            <Pressable key={p.email} testID={`dir-${p.email}`} accessibilityRole="checkbox" accessibilityState={{ checked: ticked.has(p.email) }} onPress={() => toggle(p.email)} style={[s.person, ticked.has(p.email) && s.personOn]}>
+              <Text style={s.line}>{p.name ?? p.email}</Text><Text style={s.dim}>{p.name ? p.email : p.source === "google" ? "Google" : "Microsoft"}</Text>
+            </Pressable>
+          ))}
+          {more ? <Go id="directory-more" label="Show more people" ghost onPress={() => void load(next)} /> : null}
+        </View>
       )}
-      {result ? <View testID="directory-result" style={s.col}>
-        <Text style={s.dim}>{`${result.invited.length} invited${result.skipped.length ? `, ${result.skipped.length} skipped` : ""}. Share each link with its person.`}</Text>
-        {result.invited.map((i) => <Text key={i.inviteId} selectable style={s.link}>{`${i.email}  ${i.link}`}</Text>)}
-        {result.skipped.map((x) => <Text key={x.email} style={s.dim}>{`${x.email}: ${x.reason}`}</Text>)}
-      </View> : null}
+      {result ? (
+        <View testID="directory-result" style={s.col}>
+          <Text style={s.dim}>{`${result.invited.length} invited${result.skipped.length ? `, ${result.skipped.length} skipped` : ""}.`}</Text>
+          {sent ? <Text testID="directory-sent" style={s.dim}>{sent.map((x) => `${x.to}: ${x.status === "queued" || x.status === "sent" ? "sent" : x.status === "held" ? "held for approval" : x.status === "suppressed" ? "not sent (suppressed)" : "failed"}`).join(". ")}</Text> : drafts.length > 0 ? (
+            <View style={s.col}>
+              <Text style={s.line}>{sender ? `Email these invites from ${sender.address}. One email per person, with their link.` : "Connect your mailbox to email these invites. Until then, share each link yourself."}</Text>
+              {drafts.map((d) => <View key={d.to} testID="invite-draft" style={s.person}><Text style={s.line}>{`To ${d.to}`}</Text><Text style={s.dim}>{d.subject}</Text></View>)}
+              {sender ? <Go id="directory-email" label={busy ? "Sending" : `Send ${drafts.length} ${drafts.length === 1 ? "email" : "emails"}`} onPress={() => void send()} /> : null}
+            </View>
+          ) : null}
+          <Text style={s.dim}>The links, if you would rather share them yourself:</Text>
+          {result.invited.map((i) => <Text key={i.inviteId} selectable style={s.link}>{`${i.email}  ${i.link}`}</Text>)}
+          {result.skipped.map((x) => <Text key={x.email} style={s.dim}>{`${x.email}: ${x.reason}`}</Text>)}
+        </View>
+      ) : null}
       {error ? <Text testID="directory-error" style={s.err}>{error}</Text> : null}
       <Buttons>
-        {people.length > 0 && !result ? <Go id="directory-import" label={busy ? "Inviting" : `Invite ${ticked.size} ${ticked.size === 1 ? "person" : "people"}`} onPress={() => { if (ticked.size > 0) void run(); }} /> : null}
+        {shown.length > 0 && !result ? <Go id="directory-import" label={busy ? "Inviting" : `Invite ${ticked.size} ${ticked.size === 1 ? "person" : "people"}`} onPress={() => void run()} /> : null}
         <Go id="directory-open" label="Open People in the Console" ghost onPress={onOpenConsole} />
         <Go id="directory-done" label="Done" ghost onPress={onDone} />
       </Buttons>

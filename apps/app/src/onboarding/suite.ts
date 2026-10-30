@@ -35,13 +35,19 @@ export async function ssoProviders(call: CapCall): Promise<Probe<{ provider: str
 }
 
 export interface DirectoryPerson { email: string; name?: string; suspended: boolean; userId?: string; source: "google" | "microsoft" }
+export interface DirectoryPage { people: DirectoryPerson[]; /** the next page of each source, when it has one */ next: { google?: string; microsoft?: string } }
 
-/** Step 5: the people of the connected tenant (admin read). Google and Microsoft both answer { people: [{ email, name?, suspended, userId? }] }; userId set means already in the Space. */
-export async function directory(call: CapCall): Promise<Probe<DirectoryPerson[]>> {
-  const g = await probe<{ people?: Omit<DirectoryPerson, "source">[] }>(call, "google.directory.list", {});
-  const m = await probe<{ people?: Omit<DirectoryPerson, "source">[] }>(call, "ms.directory.list", {});
-  const take = (p: typeof g, source: DirectoryPerson["source"]): DirectoryPerson[] => (p.kind === "ready" ? (p.value.people ?? []).map((x) => ({ ...x, source })) : []);
-  if (g.kind === "ready" || m.kind === "ready") return { kind: "ready", value: [...take(g, "google"), ...take(m, "microsoft")] };
+type RawPage = { people?: Omit<DirectoryPerson, "source">[]; nextPageToken?: string; nextSkipToken?: string };
+
+/** Step 5: the people of the connected tenant, one page at a time (admin read). userId set means already in the Space. Pass the previous `next` to read the following page. */
+export async function directory(call: CapCall, from?: DirectoryPage["next"], query?: string): Promise<Probe<DirectoryPage>> {
+  const first = from === undefined;
+  const g = !first && !from.google ? ({ kind: "ready", value: {} } as Probe<RawPage>) : await probe<RawPage>(call, "google.directory.list", { ...(from?.google ? { pageToken: from.google } : {}), ...(query ? { query } : {}) });
+  const m = !first && !from.microsoft ? ({ kind: "ready", value: {} } as Probe<RawPage>) : await probe<RawPage>(call, "ms.directory.list", { ...(from?.microsoft ? { skipToken: from.microsoft } : {}), ...(query ? { query } : {}) });
+  const take = (p: Probe<RawPage>, source: DirectoryPerson["source"]): DirectoryPerson[] => (p.kind === "ready" ? (p.value.people ?? []).map((x) => ({ ...x, source })) : []);
+  if (g.kind === "ready" || m.kind === "ready") {
+    return { kind: "ready", value: { people: [...take(g, "google"), ...take(m, "microsoft")], next: { ...(g.kind === "ready" && g.value.nextPageToken ? { google: g.value.nextPageToken } : {}), ...(m.kind === "ready" && m.value.nextSkipToken ? { microsoft: m.value.nextSkipToken } : {}) } } };
+  }
   return g.kind === "failed" || m.kind === "failed" ? { kind: "failed" } : { kind: "not_yet" };
 }
 
@@ -84,4 +90,41 @@ export async function createInviteLink(call: CapCall, roleName: string, email: s
   if (!role) throw new Error("This Space has no roles to invite into.");
   const out = (await call("members.invites.create", { role: role.id, ...(email ? { email } : {}), idempotencyKey })) as { link: string };
   return out.link;
+}
+
+// ---- email the invites
+
+export interface InviteDraft { to: string; name?: string; subject: string; text: string }
+
+/** One email per invited person: their link, who invited them, and a line on what Vyre is. Nothing is sent by drafting. */
+export function draftInvites(invited: readonly { email: string; link: string }[], names: ReadonlyMap<string, string>, by: string, space: string): InviteDraft[] {
+  return invited.map((i) => {
+    const name = names.get(i.email);
+    return {
+      to: i.email, ...(name ? { name } : {}), subject: `${by} invited you to ${space} on Vyre`,
+      text: `${name ? `Hi ${name.split(" ")[0]},` : "Hi,"}\n\n${by} invited you to join ${space} on Vyre, a shared workspace where your team and its AI assistants work together.\n\nOpen this link to set up your account:\n${i.link}\n\nThe link works once and expires. If you were not expecting this, you can ignore it.\n`,
+    };
+  });
+}
+
+export interface MailSender { mailboxId: string; address: string }
+/** The mailbox the owner sends from: their own, connected and working. Null when they have none, so the card can say so and keep the links. */
+export async function ownMailbox(call: CapCall): Promise<MailSender | null> {
+  const r = await probe<{ mailboxes: { id: string; kind: string; address: string; state: string }[] }>(call, "mail.mailbox.list", { scope: "mine" });
+  if (r.kind !== "ready") return null;
+  const box = r.value.mailboxes.find((b) => b.kind === "personal" && (b.state === "syncing" || b.state === "pending")) ?? r.value.mailboxes.find((b) => b.state === "syncing");
+  return box ? { mailboxId: box.id, address: box.address } : null;
+}
+
+export interface SendOutcome { to: string; status: "queued" | "sent" | "held" | "suppressed" | "failed" }
+/** One press sends every draft through the single send API, so the Space's send rule (caps, windows, suppression, the Gate) applies to each. A refusal on one does not stop the rest. */
+export async function sendDrafts(call: CapCall, from: MailSender, drafts: readonly InviteDraft[], idempotencyKey: string): Promise<SendOutcome[]> {
+  const out: SendOutcome[] = [];
+  for (const d of drafts) {
+    try {
+      const r = (await call("mail.send", { mailboxId: from.mailboxId, to: [{ address: d.to, ...(d.name ? { name: d.name } : {}) }], subject: d.subject, text: d.text, idempotencyKey: `${idempotencyKey}:${d.to}` })) as { status: SendOutcome["status"] };
+      out.push({ to: d.to, status: r.status });
+    } catch { out.push({ to: d.to, status: "failed" }); }
+  }
+  return out;
 }

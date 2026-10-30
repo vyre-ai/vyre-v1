@@ -33,6 +33,8 @@ export interface OnboardingHostProps {
   /** the session runtime and the person, for the live Assistant (an Ask thread); without them the scripted words stay */
   runtime?: ShellRuntime | null;
   person?: string | null;
+  /** the signed-in person's name, for the invite emails */
+  personName?: string | null;
   /** a caller for the Personal Space on this device, when there is one (for "use the same AI account") */
   personalCall?: CapCall | null;
   /** the Space address, for a pairing link */
@@ -45,7 +47,7 @@ export interface OnboardingHostProps {
   cards?: Partial<Record<CardKind, (ctx: CardContext) => ReactNode>>;
 }
 
-export function OnboardingHost({ call, space, children, cards, onAddSpace, mac = false, address, onGo, personalCall = null, runtime = null, person = null }: OnboardingHostProps): ReactElement {
+export function OnboardingHost({ call, space, children, cards, onAddSpace, mac = false, address, onGo, personalCall = null, runtime = null, person = null, personName = null }: OnboardingHostProps): ReactElement {
   const [flow, setFlow] = useState<FlowKind | null>(null);
   const [progress, setProgress] = useState<Progress>({});
   const [shown, setShown] = useState(false);
@@ -104,13 +106,13 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
       const toConsole = (): void => { setShown(false); setStep(null); onGo("console"); };
       if (card === "google_microsoft") return <WorkspaceCard call={call} onOpenConsole={toConsole} onDone={() => ctx.done()} />;
       if (card === "sign_in_domain") return <SignInDomainCard call={call} onOpenConsole={toConsole} onDone={() => ctx.done()} />;
-      if (card === "directory") return <DirectoryCard call={call} onOpenConsole={toConsole} onDone={() => ctx.done()} />;
+      if (card === "directory") return <DirectoryCard call={call} by={personName ?? "Your admin"} space={space.name} onOpenConsole={toConsole} onDone={() => ctx.done()} />;
     }
     if (card === "invites" && call) return <InvitesCard call={call} onDone={() => ctx.done()} />;
     if (card === "org" && call) return <KitPickCard call={call} onInstalled={() => ctx.done()} />;
     if (card === "interview" && call) return <InterviewCard call={call} onSaved={() => ctx.done()} />;
     return <Text testID="card-not-set-up" style={s.dim}>This part is not set up yet. You can do it later from the checklist on Home.</Text>;
-  }, [call, cards, aiProvider, progress, onAddSpace, mac, address, onGo, personalCall]);
+  }, [call, cards, aiProvider, progress, onAddSpace, mac, address, onGo, personalCall, personName]);
 
   // the shell stays mounted underneath, so closing the screen returns to exactly where the person was
   return (

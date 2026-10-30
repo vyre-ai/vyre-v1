@@ -109,7 +109,7 @@ test("the suite cards draw their first frame with the buttons the owner needs", 
   const w = renderToStaticMarkup(<WorkspaceCard call={call} onOpenConsole={noop} onDone={noop} />);
   assert.ok(w.includes('data-testid="workspace-open"') && w.includes("Open the setup in the Console"));
   assert.ok(renderToStaticMarkup(<SignInDomainCard call={call} onOpenConsole={noop} onDone={noop} />).includes('data-testid="signin-open"'));
-  assert.ok(renderToStaticMarkup(<DirectoryCard call={call} onOpenConsole={noop} onDone={noop} />).includes('data-testid="directory-open"'));
+  assert.ok(renderToStaticMarkup(<DirectoryCard call={call} by="Dana" space="Northwind" onOpenConsole={noop} onDone={noop} />).includes('data-testid="directory-open"'));
   const inv = renderToStaticMarkup(<InvitesCard call={call} onDone={noop} />);
   assert.ok(inv.includes('data-testid="invite-make"') && inv.includes("Nothing is sent until you share it or approve it."));
 });
