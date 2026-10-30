@@ -685,7 +685,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         membership: (principal, actingFor) => isMemberOrGuest(access.snap, principal) && (actingFor === undefined || isMemberOrGuest(access.snap, actingFor)),
         sourceGuard: createSourceGuard({ db: { all: (sql, ...args) => db!.all(sql, ...args) }, connectors: { all: (sql, ...args) => spaceStore.open().tx.all(sql, ...args) }, authorize: (r) => authorize(access.snap, r), space: spaceId }),
-        recordAccess: createRecordAccess({store:()=>spaceStore.open().store,snapshot:()=>access.snap,now,fresh:()=>!accessStale}),
+        recordAccess: createRecordAccess({store:()=>spaceStore.open().store,snapshot:()=>access.snap,now,fresh:()=>!accessStale,refresh:()=>syncAccess(true)}),
         preview: { read: (token, cap, input, trace) => {
           if (!previews) throw fail("permission.no_grant", trace);
           return previews.read(token, cap, input, trace);
