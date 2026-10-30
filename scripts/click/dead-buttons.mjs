@@ -292,6 +292,9 @@ export function reportMd(all, meta) {
   for (const d of all.dead) by.set(d.place, (by.get(d.place) ?? 0) + 1);
   lines.push(`Per place: ${[...by].map(([k, v]) => `${k} ${v}`).join(", ") || "none"}`, "", "## DEAD", "", "| space | place | screen | label | path | selector | shot | cause |", "|---|---|---|---|---|---|---|---|");
   for (const d of [...all.dead].sort((a, b) => RANK(a) - RANK(b))) lines.push(`| ${d.space} | ${d.place} | ${d.screen} | ${d.label.replace(/\|/g, "/")} | ${d.path.join(" > ")} | ${d.selector.replace(/\|/g, "/")} | ${d.shot ?? ""} | ${d.cause.replace(/\|/g, "/")} |`);
+  const cover = new Map();
+  for (const d of all.dead) { const m = /lands on (\S+)/.exec(d.cause); const k = m ? m[1] : "not covered"; cover.set(k, (cover.get(k) ?? 0) + 1); }
+  lines.push("", "## DEAD by covering element", "", ...[...cover].sort((a, b) => b[1] - a[1]).map(([k, v]) => `- ${k}: ${v}`));
   lines.push("", "## Quiet", "");
   for (const d of all.quiet) lines.push(`- ${d.space} ${d.place} ${d.screen} ${d.path.join(" > ")} "${d.label}": ${d.note}`);
   lines.push("", "## Disabled", "");
