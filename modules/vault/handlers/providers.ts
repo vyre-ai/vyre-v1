@@ -55,7 +55,7 @@ function viaOf(connection: string, scope: string): string {
   return `${connection === "subscription" ? "Subscription" : "API key"}, ${scope === "mine" ? "yours" : "shared"}`;
 }
 
-function rowOut(ctx: VaultCtx, p: Row): Record<string, unknown> {
+function rowOut(ctx: VaultCtx, p: Row, used?: { tokens: number; costCents: number }): Record<string, unknown> {
   const c = entry(ctx, str(p, "providerKey"));
   const item = itemOf(ctx, str(p, "itemId"));
   const address = first(ctx.db.all(`SELECT "address" FROM vault_provider_extra WHERE "providerId" = ?`, str(p, "id")));
@@ -63,7 +63,7 @@ function rowOut(ctx: VaultCtx, p: Row): Record<string, unknown> {
     id: str(p, "id"), providerKey: str(p, "providerKey"), name: c?.name ?? str(p, "providerKey"), ...(c?.logo ? { logo: c.logo } : {}),
     connection: str(p, "connection"), via: viaOf(str(p, "connection"), str(p, "scope")), scope: str(p, "scope"), itemId: str(p, "itemId"),
     ...(item && str(item, "handle") ? { handle: str(item, "handle") } : {}), agentsUsing: [],
-    usage: { tokens: 0, costCents: 0, periodStart: monthStart(ctx.now()) }, engine: c?.engine ?? str(p, "providerKey"),
+    usage: { tokens: used?.tokens ?? 0, costCents: used?.costCents ?? 0, periodStart: monthStart(ctx.now()) }, engine: c?.engine ?? str(p, "providerKey"),
     spaceMayUse: num(p, "spaceMayUse") === 1, state: str(p, "state"),
     ...(address ? { address: str(address, "address") } : {}), ...(c?.keyless || str(p, "connection") === "local_model" ? { keyless: true } : {}),
   };
@@ -92,6 +92,14 @@ export async function catalog(ctx: VaultCtx, _input: Record<string, never>) {
   return { providers: [...CATALOG, ...customDefs(ctx)].map((c) => ({ key: c.key, name: c.name, ...(c.logo ? { logo: c.logo } : {}), connections: c.connections, modelsSource: c.modelsSource, engine: c.engine, ...(c.custom ? { custom: true } : {}), ...(c.base ? { base: c.base } : {}) })) };
 }
 
+/** This month's tokens and cost on an account, from the turns the engine metered on its item (the person sees their own). Zero when the engine does not answer. */
+async function usageThisMonth(ctx: VaultCtx, itemId: string): Promise<{ tokens: number; costCents: number }> {
+  try {
+    const r = (await ctx.call("engine.usage.query", { by: "agent", itemId, from: monthStart(ctx.now()) })) as { totals?: { tokensIn?: number; tokensOut?: number; costMicros?: number } } | null;
+    return { tokens: (r?.totals?.tokensIn ?? 0) + (r?.totals?.tokensOut ?? 0), costCents: Math.round((r?.totals?.costMicros ?? 0) / 10_000) };
+  } catch { return { tokens: 0, costCents: 0 }; }
+}
+
 export async function list(ctx: VaultCtx, _input: Record<string, never>) {
   ensureProviders(ctx);
   const out: Record<string, unknown>[] = [];
@@ -99,7 +107,7 @@ export async function list(ctx: VaultCtx, _input: Record<string, never>) {
     if (!itemOf(ctx, str(p, "itemId"))) continue;
     if (str(p, "scope") === "mine") { if (str(p, "owner") !== me(ctx)) continue; }
     else if (str(p, "owner") !== me(ctx) && !atLeast(levelOn(ctx, "vault_item", str(p, "itemId")), "use")) continue;
-    out.push(rowOut(ctx, p));
+    out.push(rowOut(ctx, p, await usageThisMonth(ctx, str(p, "itemId"))));
   }
   return { providers: out };
 }

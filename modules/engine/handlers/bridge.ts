@@ -232,8 +232,17 @@ export function createBridge(o: BridgeOptions): Bridge {
       return false;
     }
     if (got.thread.agents.length === 0) return false;   // nobody to run; the thread opens on the first message after an agent joins
+    // a chat pins no model unless the person picked one for the thread: the agent's own model is then the one the turn runs and is metered on
+    const own = new Map<string, string>();
+    for (const a of got.thread.agents) {
+      if (a.model) continue;
+      try {
+        const m = ((await read("agents.get", { agentId: a.agentId })) as { agent?: { model?: string } } | null)?.agent?.model;
+        if (m) own.set(a.agentId, m);
+      } catch { /* an agent that cannot be read runs on the account's default */ }
+    }
     const agents: EngineAgent[] = got.thread.agents.map((a) => ({
-      id: a.agentId, mode: a.mode, ...(a.model ? { model: a.model } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watching: true } : {}),
+      id: a.agentId, mode: a.mode, ...(a.model || own.get(a.agentId) ? { model: a.model ?? own.get(a.agentId) as string } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watching: true } : {}),
     }));
     const store = sqlMessages(ctx.db, ctx.now);
     if (store.recent(threadId, 1).length === 0) {

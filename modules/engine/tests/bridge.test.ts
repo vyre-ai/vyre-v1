@@ -16,7 +16,7 @@ const WATCHER = "agt_watch";
 
 interface ChatRow { messageId: string; threadId: string; threadSeq: number; author: { kind: string; id: string }; body: string; blocks: unknown[]; mentions: unknown[]; via?: { routineOwner: string }; depth: number; attachments?: string[] }
 
-function setup(opts: { stream?: (e: StreamEvent) => void; addressAsker?: (threadId: string, agentId: string) => boolean; agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
+function setup(opts: { agentModel?: string; stream?: (e: StreamEvent) => void; addressAsker?: (threadId: string, agentId: string) => boolean; agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
   const h = harness();
   const chat: ChatRow[] = [];
   const echoes: Array<{ id: string; result: unknown }> = [];
@@ -26,6 +26,7 @@ function setup(opts: { stream?: (e: StreamEvent) => void; addressAsker?: (thread
     async call(cap: string, input: unknown) {
       const b = input as { threadId: string; messageId?: string; fileId?: string };
       if (cap === "threads.get") return { thread: { threadId: T, kind: "chat", starter: "usr_dana", agents } };
+      if (cap === "agents.get") { if (!opts.agentModel) throw new Error("no such agent"); return { agent: { agentId: LEAD, model: opts.agentModel } }; }
       if (cap === "chat.message.get") return { message: chat.find((r) => r.messageId === b.messageId) };
       if (cap === "files.get") { if (b.fileId === "fil_gone") throw new Error("not found"); return { file: { fileId: b.fileId, name: b.fileId === "fil_1" ? "brief.docx" : "other.pdf" } }; }
       if (cap === "chat.messages.list") return { messages: chat.filter((r) => r.threadId === b.threadId), hasMore: false };
@@ -221,4 +222,13 @@ test("a message with nothing attached reaches the agent exactly as typed", async
   const s = setup({ script: reply("Ok.") });
   await s.say("Just words");
   assert.equal(s.provider.sessions[0]?.inputs[0]?.trigger?.body, "Just words");
+});
+
+test("a chat that pins no model runs on the agent's own model, so the turn and its usage name it", async () => {
+  const s = setup({ agentModel: "claude-haiku-5-5", script: reply("Hi.") });
+  await s.say("Hello");
+  assert.equal(s.engine.turns(T)[0]?.model, "claude-haiku-5-5");
+  const none = setup({ script: reply("Hi.") });
+  await none.say("Hello");
+  assert.equal(none.engine.turns(T)[0]?.model ?? null, null, "an agent with no model of its own leaves the turn unpinned");
 });

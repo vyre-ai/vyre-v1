@@ -502,7 +502,17 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       const st = need(threadId);
       if (leases.get(threadId, now())) return false;   // someone still holds it and is beating
       const dead = queue.running(threadId);
+      // A turn that posted its reply and died before the row was closed is finished: running it again would answer the same message twice.
+      const seen = messages.recent(threadId, historyWindow);
+      const answered = (row: QueueItem): boolean => {
+        const trigger = row.kind === "message" && row.messageId ? seen.find((m) => m.id === row.messageId) : undefined;
+        return trigger !== undefined && seen.some((m) => m.threadSeq > trigger.threadSeq && m.author.kind === "agent" && m.author.id === row.agentId);
+      };
       for (const row of dead) {
+        if (answered(row)) {
+          queue.setState(threadId, row.qseq, "done");
+          continue;
+        }
         queue.setState(threadId, row.qseq, "queued");
         emit({ type: "turn.failed", threadId, turnId: `lost:${threadId}:${row.qseq}`, agentId: row.agentId, code: "host_lost" });
       }

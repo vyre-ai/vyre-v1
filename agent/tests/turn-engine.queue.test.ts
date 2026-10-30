@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { route } from "../../lib/route.ts";
 import type { RouteMessage, RouteMention } from "../../lib/route.ts";
-import { createTurnEngine, createMemoryLeases, createMemoryQueue, scriptedProvider, assignDefaults, withMode, defaultMode } from "../src/turn-engine/index.ts";
+import { createTurnEngine, createMemoryLeases, createMemoryMessages, createMemoryQueue, scriptedProvider, assignDefaults, withMode, defaultMode } from "../src/turn-engine/index.ts";
 import type { DriverEvent, EngineAgent, OpenThread } from "../src/turn-engine/index.ts";
 import { gate, manualClock, until } from "../src/turn-engine/harness.ts";
 
@@ -279,6 +279,31 @@ test("crash: after the lease expires another host requeues what the dead one ran
   await a.stop("T");
   await a.idle("T");
   assert.equal(queue.list("T").filter((r) => r.state === "done").length, 1);
+});
+
+test("crash after the reply: a turn that posted its answer and died before the row closed is not run again", async () => {
+  const clock = manualClock();
+  const queue = createMemoryQueue();
+  const leases = createMemoryLeases();
+  const messages = createMemoryMessages();
+  const hold = gate();
+  const pa = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
+  const a = createTurnEngine({ holder: "host:a", openSession: pa.openSession, queue, leases, messages, now: clock.now });
+  const pb = scriptedProvider({ script: ok });
+  const b = createTurnEngine({ holder: "host:b", openSession: pb.openSession, queue, leases, messages, now: clock.now });
+  a.openThread(thread("T"));
+  b.openThread(thread("T"));
+  a.receive({ threadId: "T", author: person("dana") });
+  await until(() => pa.sessions.length === 1);
+  // the agent's answer reached the thread (the host posts it as it streams), then the host died before closing the row
+  messages.append({ id: "msg_answer", threadId: "T", author: agent("intake"), mentions: [], depth: 1, body: "ok" });
+  clock.advance(21_000);
+  assert.equal(b.recover("T"), true);
+  await b.idle("T");
+  assert.equal(pb.sessions.length, 0, "no second session is opened for the same message");
+  assert.deepEqual(queue.list("T").map((r) => r.state), ["done"]);
+  hold.open();
+  await a.stop("T");
 });
 
 test("placement: an item that belongs on a device is handed off, and the device engine runs it", async () => {

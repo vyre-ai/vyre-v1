@@ -73116,6 +73116,7 @@
           "output": {
             "rows": [
               {
+                "face": "example",
                 "key": "example",
                 "title": "example",
                 "totals": {
@@ -73199,6 +73200,9 @@
           "rows": {
             "items": {
               "properties": {
+                "face": {
+                  "type": "string"
+                },
                 "key": {
                   "type": "string"
                 },
