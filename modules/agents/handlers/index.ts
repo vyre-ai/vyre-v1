@@ -3,7 +3,7 @@
 import {
   configGet, configValidate, create, get, limitsGet, list, pause, remove, restore, setOwner, restoreVersion, resume, roleLineSet, snapshotTake, status, summary, update, versions, visibilitySet,
 } from "./crud.ts";
-import { builtinSkillsList, guideGet, routineDelegate, routineDelete, routineRunNow, routineSave, routinesList, suggestionAccept, suggestionDismiss, suggestionPropose, suggestionsList, templateApply, templateGet, templatePreview } from "./routines.ts";
+import { builtinSkillGet, builtinSkillsList, guideGet, routineDelegate, routineDelete, routineRunNow, routineSave, routinesList, suggestionAccept, suggestionDismiss, suggestionPropose, suggestionsList, templateApply, templateGet, templatePreview } from "./routines.ts";
 
 export const handlers = {
   "agents.list": list,
@@ -39,4 +39,5 @@ export const handlers = {
   "agents.template.apply": templateApply,
   "agents.guide.get": guideGet,
   "agents.builtin_skills.list": builtinSkillsList,
+  "agents.builtin_skill.get": builtinSkillGet,
 };

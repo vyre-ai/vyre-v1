@@ -5,6 +5,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "agents.builtin_skill.get": async (ctx) => { throw new VyreErr(notImplemented("agents.builtin_skill.get", ctx.trace)); },
   "agents.builtin_skills.list": async (ctx) => { throw new VyreErr(notImplemented("agents.builtin_skills.list", ctx.trace)); },
   "agents.config.get": async (ctx) => { throw new VyreErr(notImplemented("agents.config.get", ctx.trace)); },
   "agents.config.validate": async (ctx) => { throw new VyreErr(notImplemented("agents.config.validate", ctx.trace)); },

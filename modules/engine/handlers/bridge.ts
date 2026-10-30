@@ -38,6 +38,8 @@ export interface BridgeOptions {
   callAs?: CallAs;
   log?: { warn(msg: string, attrs?: Record<string, unknown>): void };
   now?: () => number;
+  /** An agent whose reply is addressed to the person whose turn it was (an @mention), so it reaches them and no agent answers it: a reviewer's verdict. */
+  addressAsker?: (threadId: string, agentId: string) => boolean;
 }
 
 export interface BridgeEvent { name: string; subject?: string; payload: Record<string, unknown> }
@@ -72,6 +74,11 @@ export function createBridge(o: BridgeOptions): Bridge {
   const chains = new Map<string, Promise<void>>();       // per thread: posts go out one after another, in the order the events arrived
   const warn = (msg: string, attrs?: Record<string, unknown>): void => o.log?.warn(msg, attrs);
 
+  const askerMention = (threadId: string, agentId: string): AgentPost["mentions"] => {
+    const who = askerOf.get(threadId);
+    return who && o.addressAsker?.(threadId, agentId) ? [{ kind: "person", id: who }] : [];
+  };
+
   const enqueuePost = (threadId: string, agentId: string, post: AgentPost): void => {
     const prev = chains.get(threadId) ?? Promise.resolve();
     const next = prev.then(async () => {
@@ -105,7 +112,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         if (seg.text !== "" || seg.mentions > 0) {
           ready.set(`${e.threadId}:${e.agentId}`, { ...seg, routineOwner });   // the engine stores the reply right after this event; message.received below posts it
         } else if (seg.blocks.length > 0) {
-          enqueuePost(e.threadId, e.agentId, { threadId: e.threadId, body: "", blocks: seg.blocks, mentions: [], clientId: brgId(), ...(routineOwner ? { via: { routineOwner } } : {}) });
+          enqueuePost(e.threadId, e.agentId, { threadId: e.threadId, body: "", blocks: seg.blocks, mentions: askerMention(e.threadId, e.agentId), clientId: brgId(), ...(routineOwner ? { via: { routineOwner } } : {}) });
         }
         return;
       }
@@ -117,7 +124,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         const routineOwner = turns.get(e.turnId)?.routineOwner ?? null;
         if (!parked) { live.delete(e.turnId); turns.delete(e.turnId); }
         const blocks = [...(seg?.blocks ?? []), status(e)];
-        enqueuePost(e.threadId, e.agentId, { threadId: e.threadId, body: seg?.text ?? "", blocks, mentions: [], clientId: brgId(), ...(routineOwner ? { via: { routineOwner } } : {}) });
+        enqueuePost(e.threadId, e.agentId, { threadId: e.threadId, body: seg?.text ?? "", blocks, mentions: askerMention(e.threadId, e.agentId), clientId: brgId(), ...(routineOwner ? { via: { routineOwner } } : {}) });
         return;
       }
       case "message.received": {
@@ -127,7 +134,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         if (!msg || msg.author.kind !== "agent") return;
         ready.delete(`${e.threadId}:${e.authorId}`);
         enqueuePost(e.threadId, e.authorId, {
-          threadId: e.threadId, body: msg.body, blocks: r?.blocks ?? [], mentions: [...msg.mentions], clientId: msg.id, ...(r?.routineOwner ? { via: { routineOwner: r.routineOwner } } : {}),
+          threadId: e.threadId, body: msg.body, blocks: r?.blocks ?? [], mentions: [...msg.mentions, ...askerMention(e.threadId, e.authorId).filter((m) => !msg.mentions.some((x) => x.id === m.id))], clientId: msg.id, ...(r?.routineOwner ? { via: { routineOwner: r.routineOwner } } : {}),
         });
         return;
       }
@@ -142,7 +149,14 @@ export function createBridge(o: BridgeOptions): Bridge {
       for await (const ev of s.send(input)) {
         if (ev.type === "text") seg.text += ev.text;
         else if (ev.type === "block") seg.blocks.push({ type: ev.kind, v: 1, data: ev.payload ?? {} });
-        else if (ev.type === "done") seg.mentions = ev.mentions?.length ?? 0;
+        else if (ev.type === "done") {
+          // The engine routes the reply with the mentions the driver ends on: a reply addressed to the asker (a reviewer's verdict) names them, so it reaches them and no agent answers it.
+          const aimed = o.addressAsker?.(input.threadId, input.agent.id) ? [{ kind: "person" as const, id: input.asker }] : [];
+          const mentions = [...(ev.mentions ?? []), ...aimed.filter((m) => !(ev.mentions ?? []).some((x) => x.id === m.id))];
+          seg.mentions = mentions.length;
+          yield mentions.length > 0 ? { ...ev, mentions } : ev;
+          continue;
+        }
         yield ev;
       }
     })();
@@ -159,11 +173,16 @@ export function createBridge(o: BridgeOptions): Bridge {
   type Row = { messageId: string; threadSeq?: number; author: { kind: string; id: string }; body: string; depth?: number };
 
   /** A read of the chat for this message: as its person author when the host gave us a way to, else with the consumer's own ctx. */
-  const reader = (ctx: EngineCtx, authorId: string): ((cap: string, input: unknown) => Promise<unknown>) =>
-    o.callAs && authorId.startsWith("usr_") ? (cap, input) => o.callAs!(cap, input, authorId) : (cap, input) => ctx.call(cap, input);
+  const reader = (ctx: EngineCtx, authorId: string, threadId?: string): ((cap: string, input: unknown) => Promise<unknown>) => {
+    if (!o.callAs) return (cap, input) => ctx.call(cap, input);
+    if (authorId.startsWith("usr_")) return (cap, input) => o.callAs!(cap, input, authorId);
+    // An agent speaks for the person it works for, and a private chat opens only to its people: read as the last person who spoke in the thread (an agent that mentions another agent, a reviewer asked).
+    const person = threadId === undefined ? undefined : (ctx.db.all("SELECT author_id FROM engine_messages WHERE thread_id = ? AND author_kind = 'person' ORDER BY thread_seq DESC LIMIT 1", threadId)[0] as { author_id?: string } | undefined)?.author_id;
+    return person ? (cap, input) => o.callAs!(cap, input, person) : (cap, input) => ctx.call(cap, input);
+  };
 
   async function open(ctx: EngineCtx, threadId: string, skipId: string, authorId: string): Promise<boolean> {
-    const read = reader(ctx, authorId);
+    const read = reader(ctx, authorId, threadId);
     if (!engine) return false;
     if (opened.has(threadId)) return true;
     let got: ThreadGet;
@@ -204,7 +223,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     const a = (p["author"] ?? {}) as { kind?: string; id?: string };
     if (!(await open(ctx, threadId, messageId, str(a.id)))) return { skipped: "no_agents" };
     if (store.get(messageId)) return { skipped: "known" };
-    const got = (await reader(ctx, str(a.id))("chat.message.get", { threadId, messageId })) as { message: Row };
+    const got = (await reader(ctx, str(a.id), threadId)("chat.message.get", { threadId, messageId })) as { message: Row };
     const authorId = str(a.id) || got.message.author.id;
     const mentions = ((p["mentions"] ?? []) as RouteMention[]).map((m) => ({ kind: m.kind, id: m.id }));
     const eng = engine;

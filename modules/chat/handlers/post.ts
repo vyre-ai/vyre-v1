@@ -5,11 +5,14 @@ import {
   MAX_BLOCKS, MAX_BODY, MAX_MENTIONS, agentsOf, askerOf, encOf, ensure, hopLimit, insertMessage, isMember, lastMessage, membersOf, messageBy, messageOut, mintId, raise, refOf, threadBy,
 } from "../projections.ts";
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
+import { saveScreen } from "./screen.ts";
 
 export interface Mention { kind: "person" | "agent"; id: string }
 export interface PostInput {
   threadId: string; body: string; blocks?: Array<{ type: string; v: number; data: unknown }>; attachments?: string[]; replyTo?: string; mentions?: Mention[]; via?: { routineOwner: string };
   clientId?: string; idempotencyKey?: string;
+  /** Where the person sent this from (ScreenContext); kept beside the message for the agent's turn. */
+  screen?: unknown;
 }
 
 const BLOCK_TYPE = /^[a-z][a-z0-9_]*$/;
@@ -147,6 +150,7 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     ...(input.clientId !== undefined ? { id: input.clientId } : {}), author: author.id, kind: author.kind === "agent" ? "agent" : "text", body, blocks,
     ...(input.replyTo !== undefined ? { replyTo: input.replyTo } : {}), ...(input.via ? { via: { routineOwner: input.via.routineOwner } } : {}), depth, attachments,
   });
+  saveScreen(ctx, thread.id, m.id, input.screen);
   deliver(ctx, thread, m, mentions, { kind: author.kind, id: author.id });
   return { message: messageOut(m, encOf(ctx.db, thread)) };
 }

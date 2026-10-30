@@ -4,6 +4,7 @@
 //   suggestions.list / suggestion.propose / .accept / .dismiss   changes to AGENT.md as diffs; accepted ones are applied through files.save as a version; ones that widen access need an admin
 //   template.get / .preview / .apply                the Agent template: add, never remove, never overwrite; changed files become suggestions; try one agent first
 //   guide.get / builtin_skills.list                 Vyre's own text, rewritten by app updates
+import { readFileSync } from "node:fs";
 import {
   BUILTIN_SKILLS, GUIDE_MD, GUIDE_VERSION, MAX_DIFF, MAX_PROMPT, TREE_FOLDERS, agentBy, allAgents, allows, applyUnifiedDiff, askerOf, call, canSee, ensure, fingerprint, insertSuggestion, makeFile,
   makeFolder, messageOf, meta, mintId, nextRun, parseCron, raise, routineBy, routineOf, routineOut, setMeta, simpleDiff, saveFile, suggestionBy, suggestionOf, suggestionOut, textOf, tolerant, visible, walkFolder,
@@ -394,6 +395,16 @@ export async function templateApply(ctx: AgentsCtx, input: { scope: "all" | "one
 
 export async function guideGet(_ctx: AgentsCtx, _input: Record<string, never>) {
   return { version: GUIDE_VERSION, path: ".vyre/guide.md" as const, body: GUIDE_MD };
+}
+
+/** A built-in skill (agent/skills/<name>/SKILL.md, the open SKILL.md format) by name: its description and its text without the front matter. */
+export async function builtinSkillGet(ctx: AgentsCtx, input: { name: string }) {
+  if (!/^[a-z][a-z0-9-]{0,63}$/.test(input.name)) raise(ctx, "validation.not_found", "There is no such built-in skill.", { name: input.name });
+  let text: string;
+  try { text = readFileSync(new URL(`../../../agent/skills/${input.name}/SKILL.md`, import.meta.url), "utf8"); } catch { raise(ctx, "validation.not_found", "There is no such built-in skill.", { name: input.name }); }
+  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
+  const front = m?.[1] ?? "";
+  return { name: input.name, description: /^description:\s*(.+)$/m.exec(front)?.[1]?.trim() ?? "", body: m ? text.slice(m[0].length) : text };
 }
 
 export async function builtinSkillsList(_ctx: AgentsCtx, _input: Record<string, never>) {

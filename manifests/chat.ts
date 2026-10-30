@@ -43,6 +43,14 @@ const recentRow = t.obj({
   lastAt: t.ts(), preview: t.opt(t.str()),
 });
 const mention = t.obj({ kind: t.enm('person', 'agent'), id: t.str({ examples: ['usr_a1b2c3'] }) });
+const screenObject = t.obj({ type: t.str({ examples: ['record'] }), id: t.str({ examples: ['rec_a1b2c3'] }), title: t.opt(t.str()) });
+// What a place tells the agent about the screen the message was sent from (agent/src/turn-engine/context.ts ScreenContext): ids, titles and short summaries, never content. The agent reads the objects through its tools, as the asker.
+const screenContext = t.obj({
+  place: t.str({ examples: ['records'], description: 'home, chats, inbox, records, files, apps, automations, vault, console, projects, agents, tasks, calendar' }), title: t.opt(t.str()),
+  open: t.opt(t.arr(screenObject)), selection: t.opt(t.arr(screenObject)), filters: t.opt(t.rec()),
+  rows: t.opt(t.obj({ shown: t.int({ minimum: 0 }), total: t.opt(t.int({ minimum: 0 })), sample: t.opt(t.arr(t.str())) })),
+  actions: t.opt(t.arr(t.str())), focus: t.opt(t.str({ description: 'Name of the focus skill the place asks for' })),
+});
 const planStep = t.obj({ stepId: t.id('stp'), text: t.str(), state: t.enm('todo', 'doing', 'done', 'skipped'), detail: t.opt(t.str()) });
 const option = t.obj({ key: t.str(), label: t.str(), detail: t.opt(t.str()) });
 const transcriptHit = t.obj({ turnId: id.turn, threadId: id.thread, idx: t.int(), role: t.enm('user', 'assistant', 'tool', 'system'), snippet: t.str(), at: t.ts(), link: t.str() });
@@ -145,6 +153,9 @@ export default defineManifest({
     write('chat.open_as_chat', 'Open an Ask pane as a normal chat so it appears in Recent', {
       in: threadT, out: { thread: threadRow }, on: ['thread', '/threadId'], emits: ['thread.updated'], tool: 'chats', offline: 'patch',
     }),
+    read('chat.ask_level', 'The level the caller has on the object an Ask pane is about (view, use, edit or manage), null when none: the Ask pane\'s tools never go past it', {
+      in: threadT, out: { level: t.nullable(t.enm('view', 'use', 'edit', 'manage')) }, on: ['thread', '/threadId'], tool: 'chats', label: 'check',
+    }),
     read('chat.ask_suggest', 'Suggested agent for an Ask pane: the agent that booked the event, else the contact agent, else the person last used', {
       in: { scopeType: t.str(), scopeId: t.str() }, out: { agentId: t.nullable(id.agent), reason: t.enm('booked_by', 'contact_agent', 'last_used', 'none') }, tool: 'chats',
     }),
@@ -153,10 +164,14 @@ export default defineManifest({
       in: {
         ...threadT, body: t.str(), blocks: t.opt(t.arr(t.obj({ type: t.str(), v: t.int({ minimum: 1 }), data: t.json() }))), attachments: t.opt(t.arr(id.file)),
         replyTo: t.opt(id.message), mentions: t.opt(t.arr(mention)), via: t.opt(t.obj({ routineOwner: id.user })), clientId: t.opt(id.message),
+        screen: t.opt(screenContext),
       },
       out: { message: messageRow }, on: ['thread', '/threadId'], level: 'use', idem: 'key',
       emits: ['message.received', 'message.mentioned', 'message.direct', 'thread.replied'], tool: 'chats', offline: 'queue', hook: true, cli: 'vyre chat post',
       rate: { n: 120, perSeconds: 60, scope: 'principal' }, errors: ['permission.plan_mode', 'permission.limit'],
+    }),
+    read('chat.screen.get', 'The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows', {
+      in: { ...threadT, messageId: t.opt(id.message) }, out: { screen: t.nullable(screenContext), messageId: t.opt(id.message) }, on: ['thread', '/threadId'], tool: 'chats', label: 'check',
     }),
     write('chat.edit', 'Edit the text of a message you wrote', {
       in: { messageId: id.message, threadId: id.thread, body: t.str() }, out: { message: messageRow }, on: ['thread', '/threadId'], level: 'use',

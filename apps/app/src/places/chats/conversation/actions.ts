@@ -3,6 +3,7 @@
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
 import { postInput } from "./model.ts";
+import { carriesScreen, currentScreen } from "../../../shell/ask/screen.ts";
 import type { AgentMode, SendKind, Thread } from "./model.ts";
 
 type Mention = { kind: "person" | "agent"; id: string };
@@ -14,7 +15,9 @@ export interface SendResult { messageId: string; threadSeq: number }
  * is left in the queue for the agent's next step.
  */
 export async function sendMessage(data: ConversationData, input: { text: string; mentions: readonly Mention[]; key: string; kind: SendKind; working: boolean; replyTo?: string }): Promise<SendResult> {
-  const out = (await data.call("chat.post", postInput(data.threadId, input.text, input.mentions, input.key, input.replyTo))) as CapMap["chat.post"]["out"];
+  // An Ask pane is about a place: its messages carry where the person is, so "this" means the object on screen.
+  const screen = carriesScreen(data.threadId) ? currentScreen() : null;
+  const out = (await data.call("chat.post", { ...postInput(data.threadId, input.text, input.mentions, input.key, input.replyTo), ...(screen ? { screen } : {}) })) as CapMap["chat.post"]["out"];
   if (input.kind === "interrupt" && input.working) await data.call("engine.interrupt", { threadId: data.threadId, messageId: out.message.messageId } satisfies CapMap["engine.interrupt"]["in"]);
   return { messageId: out.message.messageId, threadSeq: out.message.threadSeq };
 }

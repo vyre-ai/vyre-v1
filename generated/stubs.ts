@@ -83,6 +83,9 @@ export function stubs(ctx: CallCtx) {
       view_as: call("access.view_as"),
     },
     agents: {
+      builtin_skill: {
+        get: call("agents.builtin_skill.get"),
+      },
       builtin_skills: {
         list: call("agents.builtin_skills.list"),
       },
@@ -330,6 +333,7 @@ export function stubs(ctx: CallCtx) {
     chat: {
       answer_block: call("chat.answer_block"),
       approve_plan: call("chat.approve_plan"),
+      ask_level: call("chat.ask_level"),
       ask_suggest: call("chat.ask_suggest"),
       asks_of: call("chat.asks_of"),
       composer: {
@@ -367,6 +371,9 @@ export function stubs(ctx: CallCtx) {
       },
       react: call("chat.react"),
       recent: call("chat.recent"),
+      screen: {
+        get: call("chat.screen.get"),
+      },
       start: call("chat.start"),
       thread: call("chat.thread"),
       transcript: {
@@ -667,6 +674,10 @@ export function stubs(ctx: CallCtx) {
       review: {
         list: call("engine.review.list"),
         mark: call("engine.review.mark"),
+      },
+      reviewer: {
+        get: call("engine.reviewer.get"),
+        set: call("engine.reviewer.set"),
       },
       route: {
         preview: call("engine.route.preview"),

@@ -1,0 +1,1 @@
+- Long chats keep going. The recent 20 messages stay word for word and everything older stands as a rolling summary (with a pointer to the exact lines), instead of dropping all but the last 50. Every turn is now written to the chat's transcript, the summary is refreshed every five turns, and a model switch tells the new engine where it is taking over from, with the summary.

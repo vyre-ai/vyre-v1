@@ -296,6 +296,12 @@
     },
     {
       "deferred": false,
+      "name": "agents_builtin_skill_get",
+      "summary": "Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "agents_builtin_skills_list",
       "summary": "Skills every agent carries, led by \"Working in Vyre\": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces",
       "toolset": "agents"
@@ -1262,6 +1268,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_ask_level",
+      "summary": "The level the caller has on the object an Ask pane is about (view, use, edit or manage), null when none: the Ask pane's tools never go past it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_ask_suggest",
       "summary": "Suggested agent for an Ask pane: the agent that booked the event, else the contact agent, else the person last used",
       "toolset": "chats"
@@ -1354,6 +1366,12 @@
       "deferred": false,
       "name": "chat_recent",
       "summary": "Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_screen_get",
+      "summary": "The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows",
       "toolset": "chats"
     },
     {
@@ -2333,6 +2351,18 @@
       "name": "engine_review_mark",
       "summary": "Mark a sampled turn reviewed: fine, or flagged (which opens an incident)",
       "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "engine_reviewer_get",
+      "summary": "The reviewer of a chat, if one is set",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_reviewer_set",
+      "summary": "Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn (\"Asking Reviewer to check this\"), a person gets a Review task",
+      "toolset": "chats"
     },
     {
       "deferred": false,

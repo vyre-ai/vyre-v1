@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (52)
+## Capabilities (54)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status
@@ -32,6 +32,8 @@ Requires: nothing.
 - [engine.queue.peek](../capabilities/engine.queue.peek.md): Steering check between tool calls: the next queued messages for a running turn
 - [engine.review.list](../capabilities/engine.review.list.md): Sampled turns waiting for human review
 - [engine.review.mark](../capabilities/engine.review.mark.md): Mark a sampled turn reviewed: fine, or flagged (which opens an incident)
+- [engine.reviewer.get](../capabilities/engine.reviewer.get.md): The reviewer of a chat, if one is set
+- [engine.reviewer.set](../capabilities/engine.reviewer.set.md): Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn ("Asking Reviewer to check this"), a person gets a Review task
 - [engine.route.preview](../capabilities/engine.route.preview.md): Who will answer a draft message ("Intake will reply" or "No agent will reply, type @ to ask one"); same route() the client runs locally
 - [engine.runtime.opt_in](../capabilities/engine.runtime.opt_in.md): Let the Space continue my chats when my computer is off, by wrapping my runtime key for the Space; revocable
 - [engine.set_mode](../capabilities/engine.set_mode.md): Set an agent to Leading or Listening in a thread; exactly one lead per thread
@@ -59,7 +61,7 @@ Requires: nothing.
 - [engine.use_policy.export](../capabilities/engine.use_policy.export.md): Export the AI use policy (models, providers, label rules, limits, accounts) as a file
 - [engine.warm](../capabilities/engine.warm.md): Hint that a thread was opened or the composer got focus: warm the engine session (drivers pool, prefix cache)
 
-## Events (25)
+## Events (26)
 
 - [agent.blocked](../events/agent.blocked.md): An agent is blocked (login, key, site down) and asks for what would unblock it
 - [agent.limit_hit](../events/agent.limit_hit.md): An agent hit a limit from agent.toml or a Space cap; the turn stopped
@@ -77,6 +79,7 @@ Requires: nothing.
 - [spend.paused](../events/spend.paused.md): All AI spend was paused
 - [spend.raised](../events/spend.raised.md): A limit was raised
 - [spend.resumed](../events/spend.resumed.md): AI spend resumed
+- [thread.reviewer_changed](../events/thread.reviewer_changed.md): A chat got a reviewer, or lost it
 - [turn.block](../events/turn.block.md): A coalesced chunk of a running turn was persisted
 - [turn.cancelled](../events/turn.cancelled.md): A turn was cancelled by Stop or Interrupt
 - [turn.completed](../events/turn.completed.md): A turn finished

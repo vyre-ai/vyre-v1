@@ -198,6 +198,10 @@ export default defineManifest({
     read('agents.guide.get', 'The Vyre agent guide (.vyre/guide.md): version and text, rewritten by app updates, loaded into every chat before VYRE.md', {
       out: { version: t.str({ examples: ['1.0.0'] }), path: t.lit('.vyre/guide.md'), body: t.str() }, perm: null, level: 'view', tool: 'agents',
     }),
+    read('agents.builtin_skill.get', 'Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer', {
+      in: { name: t.str({ examples: ['focus-records'], pattern: '^[a-z][a-z0-9-]{0,63}$' }) }, out: { name: t.str(), description: t.str(), body: t.str() },
+      perm: null, level: 'view', tool: 'agents', errors: ['validation.not_found'],
+    }),
     read('agents.builtin_skills.list', 'Skills every agent carries, led by "Working in Vyre": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces', {
       out: { skills: t.arr(t.obj({ key: t.str({ examples: ['working_in_vyre'] }), title: t.str(), version: t.str({ examples: ['1.0.0'] }), summary: t.str() })) }, perm: null, level: 'view', tool: 'agents',
     }),

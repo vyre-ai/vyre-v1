@@ -1004,6 +1004,14 @@ export type AccessViewAsOut = {
   previewToken: string;
   expiresAt: number;
 };
+export type AgentsBuiltinSkillGetIn = {
+  name: string;
+};
+export type AgentsBuiltinSkillGetOut = {
+  name: string;
+  description: string;
+  body: string;
+};
 export type AgentsBuiltinSkillsListIn = Record<string, unknown>;
 export type AgentsBuiltinSkillsListOut = {
   skills: Array<{
@@ -5166,6 +5174,12 @@ export type ChatApprovePlanOut = {
       }>;
   };
 };
+export type ChatAskLevelIn = {
+  threadId: string;
+};
+export type ChatAskLevelOut = {
+  level: ("view" | "use" | "edit" | "manage") | null;
+};
 export type ChatAskSuggestIn = {
   scopeType: string;
   scopeId: string;
@@ -5618,6 +5632,28 @@ export type ChatPostIn = {
     routineOwner: string;
   };
   clientId?: string;
+  screen?: {
+    place: string;
+    title?: string;
+    open?: Array<{
+        type: string;
+        id: string;
+        title?: string;
+      }>;
+    selection?: Array<{
+        type: string;
+        id: string;
+        title?: string;
+      }>;
+    filters?: Record<string, unknown>;
+    rows?: {
+      shown: number;
+      total?: number;
+      sample?: Array<string>;
+    };
+    actions?: Array<string>;
+    focus?: string;
+  };
   idempotencyKey: string;
 };
 export type ChatPostOut = {
@@ -5731,6 +5767,35 @@ export type ChatRecentOut = {
       preview?: string;
     }>;
   nextUnread: string | null;
+};
+export type ChatScreenGetIn = {
+  threadId: string;
+  messageId?: string;
+};
+export type ChatScreenGetOut = {
+  screen: {
+    place: string;
+    title?: string;
+    open?: Array<{
+        type: string;
+        id: string;
+        title?: string;
+      }>;
+    selection?: Array<{
+        type: string;
+        id: string;
+        title?: string;
+      }>;
+    filters?: Record<string, unknown>;
+    rows?: {
+      shown: number;
+      total?: number;
+      sample?: Array<string>;
+    };
+    actions?: Array<string>;
+    focus?: string;
+  } | null;
+  messageId?: string;
 };
 export type ChatStartIn = {
   kind: "chat" | "ask";
@@ -8457,6 +8522,28 @@ export type EngineReviewMarkIn = {
 };
 export type EngineReviewMarkOut = {
   incidentId?: string;
+};
+export type EngineReviewerGetIn = {
+  threadId: string;
+};
+export type EngineReviewerGetOut = {
+  reviewer: ({
+    kind: "agent" | "person";
+    id: string;
+  }) | null;
+};
+export type EngineReviewerSetIn = {
+  threadId: string;
+  reviewer: ({
+    kind: "agent" | "person";
+    id: string;
+  }) | null;
+};
+export type EngineReviewerSetOut = {
+  reviewer: ({
+    kind: "agent" | "person";
+    id: string;
+  }) | null;
 };
 export type EngineRoutePreviewIn = {
   threadId: string;
@@ -27513,6 +27600,7 @@ export interface CapMap {
   "access.shares_of": { in: AccessSharesOfIn; out: AccessSharesOfOut };
   "access.unshare": { in: AccessUnshareIn; out: AccessUnshareOut };
   "access.view_as": { in: AccessViewAsIn; out: AccessViewAsOut };
+  "agents.builtin_skill.get": { in: AgentsBuiltinSkillGetIn; out: AgentsBuiltinSkillGetOut };
   "agents.builtin_skills.list": { in: AgentsBuiltinSkillsListIn; out: AgentsBuiltinSkillsListOut };
   "agents.config.get": { in: AgentsConfigGetIn; out: AgentsConfigGetOut };
   "agents.config.validate": { in: AgentsConfigValidateIn; out: AgentsConfigValidateOut };
@@ -27688,6 +27776,7 @@ export interface CapMap {
   "channels.update": { in: ChannelsUpdateIn; out: ChannelsUpdateOut };
   "chat.answer_block": { in: ChatAnswerBlockIn; out: ChatAnswerBlockOut };
   "chat.approve_plan": { in: ChatApprovePlanIn; out: ChatApprovePlanOut };
+  "chat.ask_level": { in: ChatAskLevelIn; out: ChatAskLevelOut };
   "chat.ask_suggest": { in: ChatAskSuggestIn; out: ChatAskSuggestOut };
   "chat.asks_of": { in: ChatAsksOfIn; out: ChatAsksOfOut };
   "chat.composer.suggest": { in: ChatComposerSuggestIn; out: ChatComposerSuggestOut };
@@ -27709,6 +27798,7 @@ export interface CapMap {
   "chat.question.ask": { in: ChatQuestionAskIn; out: ChatQuestionAskOut };
   "chat.react": { in: ChatReactIn; out: ChatReactOut };
   "chat.recent": { in: ChatRecentIn; out: ChatRecentOut };
+  "chat.screen.get": { in: ChatScreenGetIn; out: ChatScreenGetOut };
   "chat.start": { in: ChatStartIn; out: ChatStartOut };
   "chat.thread": { in: ChatThreadIn; out: ChatThreadOut };
   "chat.transcript.append": { in: ChatTranscriptAppendIn; out: ChatTranscriptAppendOut };
@@ -27924,6 +28014,8 @@ export interface CapMap {
   "engine.queue.peek": { in: EngineQueuePeekIn; out: EngineQueuePeekOut };
   "engine.review.list": { in: EngineReviewListIn; out: EngineReviewListOut };
   "engine.review.mark": { in: EngineReviewMarkIn; out: EngineReviewMarkOut };
+  "engine.reviewer.get": { in: EngineReviewerGetIn; out: EngineReviewerGetOut };
+  "engine.reviewer.set": { in: EngineReviewerSetIn; out: EngineReviewerSetOut };
   "engine.route.preview": { in: EngineRoutePreviewIn; out: EngineRoutePreviewOut };
   "engine.runtime.opt_in": { in: EngineRuntimeOptInIn; out: EngineRuntimeOptInOut };
   "engine.set_mode": { in: EngineSetModeIn; out: EngineSetModeOut };
@@ -32049,6 +32141,14 @@ export type ThreadRepliedPayload = {
   messageId: string;
   personId: string;
 };
+export type ThreadReviewerChangedPayload = {
+  threadId: string;
+  reviewer: ({
+    kind: "agent" | "person";
+    id: string;
+  }) | null;
+  by: string;
+};
 export type ThreadStartedPayload = {
   threadId: string;
   kind: "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
@@ -32957,6 +33057,7 @@ export interface EventMap {
   "thread.promoted": ThreadPromotedPayload;
   "thread.reopened": ThreadReopenedPayload;
   "thread.replied": ThreadRepliedPayload;
+  "thread.reviewer_changed": ThreadReviewerChangedPayload;
   "thread.started": ThreadStartedPayload;
   "thread.updated": ThreadUpdatedPayload;
   "token.issued": TokenIssuedPayload;

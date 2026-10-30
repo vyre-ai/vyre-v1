@@ -11,8 +11,8 @@ import type { Harness } from "../fixtures/harness.ts";
 const mine = registry.capabilities.filter((c) => c.module === "agents");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
-test("the handler table covers exactly the 33 capabilities of the agents manifest", () => {
-  assert.equal(mine.length, 33);
+test("the handler table covers exactly the 34 capabilities of the agents manifest", () => {
+  assert.equal(mine.length, 34);
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });
@@ -126,6 +126,9 @@ const scenarios: Scenario[] = [
   { cap: "agents.template.apply", setup: withAgent, hn: () => { const x = harness(); x.world.setting("agents.template_mode", "off"); return x; }, run: (hn) => h["agents.template.apply"]!(hn.ctx, { scope: "all" }), expect: "validation.bad_input" },
   { cap: "agents.guide.get", run: (hn) => h["agents.guide.get"]!(hn.ctx, {}) },
   { cap: "agents.builtin_skills.list", run: (hn) => h["agents.builtin_skills.list"]!(hn.ctx, {}) },
+  { cap: "agents.builtin_skill.get", run: (hn) => h["agents.builtin_skill.get"]!(hn.ctx, { name: "focus-records" }) },
+  { cap: "agents.builtin_skill.get", run: (hn) => h["agents.builtin_skill.get"]!(hn.ctx, { name: "no-such-skill" }), expect: "validation.not_found" },
+  { cap: "agents.builtin_skill.get", run: (hn) => h["agents.builtin_skill.get"]!(hn.ctx, { name: "../../etc/passwd" }), expect: "validation.not_found" },
 ];
 
 test("every path through every capability: answers match the schema, errors are declared, events are declared and match their schemas", async () => {
@@ -178,7 +181,7 @@ test("the capabilities that change something raise their declared events and the
   const before = hn.emitted.length;
   for (const [cap, input] of [["agents.list", {}], ["agents.get", { agentId: a.agentId }], ["agents.status", { agentId: a.agentId }], ["agents.summary", { agentId: a.agentId }], ["agents.config.get", { agentId: a.agentId }],
     ["agents.config.validate", { agentId: a.agentId, toml: 'name = "x"\n' }], ["agents.limits.get", { agentId: a.agentId }], ["agents.versions", { agentId: a.agentId }], ["agents.routines.list", { agentId: a.agentId }],
-    ["agents.suggestions.list", {}], ["agents.template.get", {}], ["agents.template.preview", { scope: "all" }], ["agents.guide.get", {}], ["agents.builtin_skills.list", {}]] as const) await h[cap]!(hn.ctx, input);
+    ["agents.suggestions.list", {}], ["agents.template.get", {}], ["agents.template.preview", { scope: "all" }], ["agents.guide.get", {}], ["agents.builtin_skills.list", {}], ["agents.builtin_skill.get", { name: "focus-files" }]] as const) await h[cap]!(hn.ctx, input);
   assert.equal(hn.emitted.length, before, "reads emit nothing");
 });
 // P-CC_20: run now and delegate are covered here; touched so the check selects this file.

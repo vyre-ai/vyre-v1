@@ -1,5 +1,6 @@
 // The thread as the model reads it, and what happens when it grows past the window (ARCH 6.6: compaction at 80% of context).
 import { tokens } from "../../transcript/tokens.ts";
+import { speaker } from "../../turn-engine/context.ts";
 import type { StoredMessage, TurnInput } from "../../turn-engine/types.ts";
 import type { ApiTool, Msg, SystemBlock } from "./types.ts";
 
@@ -25,7 +26,7 @@ export function threadMessages(input: TurnInput): Msg[] {
   for (const r of rows) {
     const mine = r.author.kind === "agent" && r.author.id === self;
     if (r.body.trim() === "") continue;
-    pushMerged(out, mine ? { role: "assistant", text: r.body, calls: [] } : { role: "user", text: named ? `${r.author.id}: ${r.body}` : r.body });
+    pushMerged(out, mine ? { role: "assistant", text: r.body, calls: [] } : { role: "user", text: named ? `${speaker(input.context, r.author.id)}: ${r.body}` : r.body });
   }
   const first = out[0];
   // Every provider wants the conversation to open with the user.
