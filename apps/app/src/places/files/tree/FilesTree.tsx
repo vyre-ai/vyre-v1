@@ -167,6 +167,7 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
       onToggle: (id, open) => setOpenF((o) => ({ ...o, [id]: open })),
       onNewFolder: (scope, parent) => data.nav.newFolder(scope === "space" ? "space" : "personal", parent),
       onShare: (n) => data.nav.shareFolder(n.id),
+      ...(data.nav.connectFolder ? { onMount: (n: { id: string }) => data.nav.connectFolder?.(n.id) } : {}),
       onRename: (n) => data.nav.renameEntry("folder", n.id, n.name),
       onDelete: (n) => void data.call("folders.delete", { folderId: n.id }),
     },
@@ -206,6 +207,12 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
               />
             ) : null}
             <Kids parent={null} depth={0} c={c} query={q} />
+            {data.nav.connectFolder && q.length === 0 ? (
+              <SlotRow
+                id="folder-connect" title="Connect a folder…" leadWidth={18 + 7 + 16 + 6}
+                lead={<View style={styles.subLead}><View style={styles.chev} /><Glyph name="link" size={16} /></View>} onPress={() => data.nav.connectFolder?.(null)}
+              />
+            ) : null}
           </View>
         ) : null}
         {fixed.length === 0 && know.length === 0 && !allFiles && q.length > 0 ? <Text style={styles.none} testID="files-tree-empty">Nothing matches that.</Text> : null}
