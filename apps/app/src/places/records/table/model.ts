@@ -24,12 +24,12 @@ export const SCROLL_BLOCK = 4;
 // ---------------------------------------------------------------- columns
 
 const WIDTHS: Record<string, number> = {
-  checkbox: 90, rating: 110, number: 110, money: 130, duration: 110, date: 130, datetime: 160, choice: 150, multichoice: 190, status: 150, person: 170, email: 220, phone: 160, url: 220,
-  address: 240, longtext: 260, relation: 190, files: 120, sealed: 130, autonumber: 100, formula: 130, lookup: 170, rollup: 130, button: 110, ai: 240,
+  checkbox: 90, rating: 110, number: 110, money: 130, duration: 110, date: 130, datetime: 150, choice: 140, multichoice: 170, status: 140, person: 150, email: 200, phone: 130, url: 200,
+  address: 220, longtext: 240, relation: 160, files: 120, sealed: 130, autonumber: 100, formula: 130, lookup: 170, rollup: 130, button: 110, ai: 240,
 };
 
 export function widthOf(f: FieldDef, primary: boolean): number {
-  return primary ? 280 : WIDTHS[f.type] ?? 170;
+  return primary ? 240 : WIDTHS[f.type] ?? 140;   // a contact's six columns fit a 1440 window beside the sidebar; wider tables scroll sideways
 }
 
 const NUMERIC = new Set(["number", "money", "duration", "autonumber", "rollup", "formula"]);

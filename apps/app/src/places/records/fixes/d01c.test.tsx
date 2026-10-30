@@ -28,9 +28,9 @@ test("New is a filled button: the ink as its fill and the window as its text", (
   assert.ok(has(tag, "var(--ink)"), "filled with the ink");
 });
 
-test("the foot says how many records, averages a rating under its column, and ends in the status line", () => {
+test("one status line says how many records and holds Go to row, and the foot averages a rating under its column", () => {
   const out = render(<RecordViews kind="table" view={view} />);
-  assert.ok(has(out, ">1,240 records<"), "the count in the name cell");
+  assert.ok(!has(out, ">1,240 records<") && has(out, 'data-testid="records-goto"'), "the count and Go to row live in the one status line, not in a second footer");
   assert.ok(/data-testid="agg-fit"[^>]*>Avg \d\.\d</.test(out), "the Fit column's average");
   assert.ok(has(out, 'data-testid="records-status"') && has(out, "1,240 clients · every record shown"), "the status line under the table");
   assert.equal(out.split(">Avg ").length - 1, 1, "no figure under a column that has none, apart from Fit's");
