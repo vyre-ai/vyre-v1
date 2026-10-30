@@ -9,3 +9,4 @@ export {
   calendarSubscribe, calendarUnsubscribe, consentDisable, consentExclude, consentLink, consentMembers, consentSetup, consentSnippet, consentStatus, consentVerify, health,
   mailSubscribe, mailUnsubscribe, receiveNotification, renew, teamsSubscribe,
 } from "./subscriptions.ts";
+export { acceptHook, sameState } from "./hook.ts";

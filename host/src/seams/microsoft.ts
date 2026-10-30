@@ -4,7 +4,7 @@
 import { fail } from "../routes/errors.ts";
 import { HANDLE } from "./ports.ts";
 import type { SeamCtx, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort } from "./ports.ts";
-import { downloadToBlob, statusError, uploadFile } from "./transfer.ts";
+import { downloadToBlob, putFile, statusError } from "./transfer.ts";
 
 export const MS_DOMAINS = ["graph.microsoft.com", "login.microsoftonline.com", "sharepoint.com", "1drv.ms", "files.1drv.com"] as const;
 export const MS_GRAPH_SCOPE = "https://graph.microsoft.com/.default";
@@ -13,12 +13,12 @@ const TENANT = /^[A-Za-z0-9.-]{1,128}$/;
 export interface MsHostSeam {
   mintToken(ctx: SeamCtx, a: { connectionId: string }): Promise<{ token: string; expiresAt: number }>;
   /** The non-secret identity of the app registration stored under a Vault handle. */
-  appIdentity(ctx: SeamCtx, handle: string): Promise<{ clientId: string; tenantId: string }>;
+  appRegistration(ctx: SeamCtx, handle: string): Promise<{ clientId: string; tenantId: string }>;
   memberEmails(ctx: SeamCtx): Promise<{ userId: string; email: string }[]>;
   fileBytes(ctx: SeamCtx, fileId: string): Promise<{ name: string; mime: string; bytes: Uint8Array }>;
   putBlob(ctx: SeamCtx, bytes: Uint8Array, mime: string): Promise<string>;
   download(ctx: SeamCtx, a: { url: string; token: string; mime?: string }): Promise<{ blobId: string; size: number; mime: string }>;
-  upload(ctx: SeamCtx, a: { url: string; token: string; fileId: string; metadata: Record<string, unknown> }): Promise<unknown>;
+  upload(ctx: SeamCtx, a: { url: string; token: string; fileId: string }): Promise<unknown>;
 }
 
 export interface MsSeamDeps {
@@ -70,7 +70,7 @@ export function createMsHost(d: MsSeamDeps): MsHostSeam {
       const secs = typeof body.expires_in === "number" && body.expires_in > 0 ? body.expires_in : 3600;
       return { token: body.access_token, expiresAt: ctx.now() + secs * 1000 };
     },
-    async appIdentity(ctx, handle) {
+    async appRegistration(ctx, handle) {
       if (!HANDLE.test(handle)) throw fail("validation.bad_input", ctx.trace.traceId, { message: "The Vault item is not a valid handle." });
       const app = appOf(ctx, await d.vault.secret(handle, ctx.space));
       return { clientId: app.clientId, tenantId: app.tenantId };
@@ -79,6 +79,7 @@ export function createMsHost(d: MsSeamDeps): MsHostSeam {
     fileBytes: (ctx, fileId) => d.files.read(ctx.space, fileId),
     putBlob: (ctx, bytes, mime) => d.blobs.put(ctx.space, bytes, mime),
     download: (ctx, a) => downloadToBlob(ctx, { fetch: d.fetch, blobs: d.blobs, domains: MS_DOMAINS }, a),
-    upload: (ctx, a) => uploadFile(ctx, { fetch: d.fetch, files: d.files, domains: MS_DOMAINS }, a),
+    // Graph takes the bytes of a file as the body of a PUT; Drive's multipart upload is Google's
+    upload: (ctx, a) => putFile(ctx, { fetch: d.fetch, files: d.files, domains: MS_DOMAINS }, a),
   };
 }

@@ -62,4 +62,17 @@ export async function uploadFile(
   try { return text ? JSON.parse(text) : {}; } catch { throw fail("provider.bad_response", ctx.trace.traceId, { details: { what: "upload answer is not JSON" } }); }
 }
 
+/** A PUT of the file's bytes (Microsoft Graph's upload): the body is the file, the content type its own. */
+export async function putFile(
+  ctx: SeamCtx, d: { fetch: SeamFetch; files: SpaceFiles; domains: readonly string[] }, a: { url: string; token: string; fileId: string },
+): Promise<unknown> {
+  const url = target(ctx, a.url, d.domains);
+  const file = await d.files.read(ctx.space, a.fileId);
+  if (file.bytes.byteLength > MAX_DOWNLOAD) throw fail("validation.too_large", ctx.trace.traceId, { message: "That file is too large to send." });
+  const r = await d.fetch(url, { method: "PUT", headers: { authorization: `Bearer ${a.token}`, "content-type": file.mime || "application/octet-stream" }, body: file.bytes });
+  if (r.status < 200 || r.status >= 300) statusError(ctx, r.status, "upload");
+  const text = await r.text();
+  try { return text ? JSON.parse(text) : {}; } catch { throw fail("provider.bad_response", ctx.trace.traceId, { details: { what: "upload answer is not JSON" } }); }
+}
+
 export { statusError };
