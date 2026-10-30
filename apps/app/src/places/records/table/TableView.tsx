@@ -545,7 +545,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   /** New: ask for the title first (the field every record needs), create, open it. A refusal shows its reason in the bar; nothing fails silently. */
   const [adding, setAdding] = useState<{ name: string; busy: boolean; error?: string } | null>(null);
   const titleLabel = (def.fields.find((f) => f.key === def.titleField)?.title ?? "name").toLowerCase();
-  const startNew = (): void => setAdding({ name: "", busy: false });
+  const startNew = (): void => setAdding({ name: `New ${def.title.toLowerCase()}`, busy: false });   // the prototype starts a new row with this name, selected: Enter saves, Esc cancels
   const createNew = (): void => {
     if (adding === null || adding.busy) return;
     const name = adding.name.trim();
@@ -711,7 +711,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
         <View style={styles.pickBar} accessibilityRole="toolbar" testID="records-adding">
           <TextInput
             value={adding.name} onChangeText={(t) => setAdding({ name: t, busy: false })} placeholder={`New ${def.title.toLowerCase()}, ${titleLabel}`} placeholderTextColor="var(--ink-3)" accessibilityLabel={`New ${def.title.toLowerCase()}`} testID="records-adding-input"
-            autoFocus editable={!adding.busy} onSubmitEditing={createNew} onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") setAdding(null); }} style={styles.find}
+            autoFocus selectTextOnFocus editable={!adding.busy} onSubmitEditing={createNew} onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") setAdding(null); }} style={styles.find}
           />
           <Pressable accessibilityRole="button" testID="records-adding-create" disabled={adding.busy} onPress={createNew} style={styles.pickLink}><Text style={styles.pickLinkText}>{adding.busy ? "Creating…" : "Create"}</Text></Pressable>
           <Pressable accessibilityRole="button" testID="records-adding-cancel" onPress={() => setAdding(null)} style={styles.pickLink}><Text style={styles.pickLinkText}>Cancel</Text></Pressable>
