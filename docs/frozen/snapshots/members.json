@@ -13,9 +13,9 @@
     "members.second_factor.report@1": "7313970fa7c3605c43175e5177e6d495b915697737b866775590e2520b55d33a",
     "members.sign_in_policy.get@1": "70e1b9a79b2a92943deee4a37145b901ce41b3cd14402449cdd71ae58c87e3f2",
     "members.sign_in_policy.set@1": "a39d2e248b7a4a2b6fec356e538fc8dbf7ef7db3c65dc7e7c1e9b55ecae795da",
-    "members.sso.list@1": "96138721b4b075eaf36797a0c40cbbf75e3cfd2fc6b976023deecdbe1487506d",
+    "members.sso.list@1": "e3552670ef74226c701254336a5b49c3ca02c3914748183267998271c62b20cb",
     "members.sso.remove@1": "ab0283313a676a5713babba5e0681f461887cbb5b6fac1cfd9bcbd56163990ba",
-    "members.sso.set@1": "333dd039eaed9db339d12a74b7e544763488284ebe769a56157c4f628233cc6e",
+    "members.sso.set@1": "d5fdf05f5e661ad37a18665005ed80c7e42613a839bb7649e4d8ba3ccd467af5",
     "members.sso.test@1": "8ae15c3400bab67106aa3db8af5ae41ddcd59d51d61794704f945da977467151",
     "members.suspend@1": "981becc12d533165fa223279c2cf8dc57e3c49b5d090789bc00d071800014ced"
   },

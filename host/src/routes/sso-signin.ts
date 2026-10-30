@@ -4,7 +4,7 @@
 // and whether they may sign in, is decided there. The return address is the Space's own origin or a loopback address.
 import http from "node:http";
 import { authorizeUrl, createJwksCache, discover, exchangeCode, guardAddresses, pkce, verifyIdToken } from "../seams/oidc.ts";
-import { pinIssuer } from "../../../lib/oidc-issuer.ts";
+import { pinIssuer, tenantOf } from "../../../lib/oidc-issuer.ts";
 import type { Discovery, SsoProvider } from "../seams/oidc.ts";
 import type { SeamFetch } from "../seams/ports.ts";
 
@@ -15,24 +15,26 @@ const PATH = "/auth/sso";
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 /** One-use tickets from a finished sign-in. Shared by the route (which makes them) and identity (which spends them). */
+/** Who the provider says this is, beyond the address: the tenant and immutable user id (Microsoft). */
+export interface SsoLink { tenant: string; subject: string }
 export interface SsoTickets {
-  make(key: string, email: string): string;
-  take(key: string, ticket: string): { email: string } | null;
+  make(key: string, email: string, link?: SsoLink): string;
+  take(key: string, ticket: string): { email: string; link?: SsoLink } | null;
 }
 export function createSsoTickets(now: () => number = Date.now): SsoTickets {
-  const open = new Map<string, { key: string; email: string; exp: number }>();
+  const open = new Map<string, { key: string; email: string; link?: SsoLink; exp: number }>();
   return {
-    make(key, email) {
+    make(key, email, link) {
       for (const [k, v] of open) if (v.exp < now()) open.delete(k);
       if (open.size > 500) open.clear();
       const t = Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(24))).toString("base64url");
-      open.set(t, { key, email, exp: now() + TICKET_MS });
+      open.set(t, { key, email, ...(link ? { link } : {}), exp: now() + TICKET_MS });
       return t;
     },
     take(key, ticket) {
       const v = open.get(ticket);
       open.delete(ticket);
-      return v && v.key === key && v.exp >= now() ? { email: v.email } : null;
+      return v && v.key === key && v.exp >= now() ? { email: v.email, ...(v.link ? { link: v.link } : {}) } : null;
     },
   };
 }
@@ -100,8 +102,8 @@ export function createSsoSignInRoute(deps: SsoSignInRouteDeps): { handle(req: ht
     if (url.searchParams.get("error") || !code || code.length > 2000) return back("sso_error=denied");
     try {
       const idToken = await exchangeCode(fetch, rec.disc, { clientId: provider.clientId, clientSecret: await deps.secret(provider.clientSecretHandle), code, redirect, verifier: rec.verifier });
-      const who = await verifyIdToken(fetch, rec.disc, idToken, { clientId: provider.clientId, nonce: rec.nonce, domain: provider.domainHint, now: now(), jwks });
-      back(`sso_code=${encodeURIComponent(deps.tickets.make(key, who.email))}&sso_provider=${encodeURIComponent(key)}`);
+      const who = await verifyIdToken(fetch, rec.disc, idToken, { clientId: provider.clientId, nonce: rec.nonce, domain: provider.domainHint, now: now(), jwks, ...(key === "microsoft" ? { tenant: tenantOf(provider.issuer) ?? "-" } : {}) });
+      back(`sso_code=${encodeURIComponent(deps.tickets.make(key, who.email, who.tenant !== undefined && who.oid !== undefined ? { tenant: who.tenant, subject: who.oid } : undefined))}&sso_provider=${encodeURIComponent(key)}`);
     } catch (e) {
       deps.log?.("sso sign-in refused", { key, why: (e as Error).message });
       back("sso_error=refused");

@@ -30132,10 +30132,7 @@
                 "type": "boolean"
               },
               "issuer": {
-                "examples": [
-                  "https://example.com"
-                ],
-                "pattern": "^https?://",
+                "maxLength": 300,
                 "type": "string"
               },
               "key": {

@@ -16,9 +16,9 @@ export const handlers: Handlers<HandlerCtx> = {
   "members.second_factor.report": async () => ({"next":"example","people":[{"factors":["totp"],"name":"example","person":{"id":"usr_a1b2c3","kind":"person"}}],"total":1} as unknown) as never,
   "members.sign_in_policy.get": async () => ({"capabilities":{"currentHasSecondFactor":true,"github":true,"newMemberMfaEnrollment":true,"ownerHasSecondFactor":true,"password":true,"sso":["example"]},"policy":{"allowGithub":true,"allowPassword":true,"requireSso":true,"secondFactor":"off"}} as unknown) as never,
   "members.sign_in_policy.set": async () => ({"policy":{"allowGithub":true,"allowPassword":true,"requireSso":true,"secondFactor":"off"}} as unknown) as never,
-  "members.sso.list": async () => ({"providers":[{"clientId":"example","clientSecretHandle":"#Dana_Lawmatics","domainHint":"example","enabled":true,"issuer":"https://example.com","key":"google","title":"example"}]} as unknown) as never,
+  "members.sso.list": async () => ({"providers":[{"clientId":"example","clientSecretHandle":"#Dana_Lawmatics","domainHint":"example","enabled":true,"issuer":"example","key":"google","title":"example"}]} as unknown) as never,
   "members.sso.remove": async () => ({"ok":true} as unknown) as never,
-  "members.sso.set": async () => ({"provider":{"clientId":"example","clientSecretHandle":"#Dana_Lawmatics","domainHint":"example","enabled":true,"issuer":"https://example.com","key":"google","title":"example"}} as unknown) as never,
+  "members.sso.set": async () => ({"provider":{"clientId":"example","clientSecretHandle":"#Dana_Lawmatics","domainHint":"example","enabled":true,"issuer":"example","key":"google","title":"example"}} as unknown) as never,
   "members.sso.test": async () => ({"detail":"example","ok":true} as unknown) as never,
   "members.suspend": async () => ({"ok":true} as unknown) as never,
 };

@@ -5819,17 +5819,6 @@
       ],
       "type": "object"
     },
-    "s_4788a500a9": {
-      "properties": {
-        "provider": {
-          "$ref": "#/$defs/s_beaf3b9b61"
-        }
-      },
-      "required": [
-        "provider"
-      ],
-      "type": "object"
-    },
     "s_47a3102d3e": {
       "properties": {
         "days": {
@@ -14637,50 +14626,14 @@
       ],
       "type": "object"
     },
-    "s_beaf3b9b61": {
+    "s_bef5b01c7a": {
       "properties": {
-        "clientId": {
-          "type": "string"
-        },
-        "clientSecretHandle": {
-          "examples": [
-            "#Dana_Lawmatics"
-          ],
-          "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
-          "type": "string"
-        },
-        "domainHint": {
-          "type": "string"
-        },
-        "enabled": {
-          "type": "boolean"
-        },
-        "issuer": {
-          "examples": [
-            "https://example.com"
-          ],
-          "pattern": "^https?://",
-          "type": "string"
-        },
-        "key": {
-          "enum": [
-            "google",
-            "microsoft",
-            "okta"
-          ],
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
+        "provider": {
+          "$ref": "#/$defs/s_fc5a39b381"
         }
       },
       "required": [
-        "key",
-        "title",
-        "issuer",
-        "clientId",
-        "clientSecretHandle",
-        "enabled"
+        "provider"
       ],
       "type": "object"
     },
@@ -18342,6 +18295,50 @@
       },
       "required": [
         "folder"
+      ],
+      "type": "object"
+    },
+    "s_fc5a39b381": {
+      "properties": {
+        "clientId": {
+          "type": "string"
+        },
+        "clientSecretHandle": {
+          "examples": [
+            "#Dana_Lawmatics"
+          ],
+          "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+          "type": "string"
+        },
+        "domainHint": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "issuer": {
+          "maxLength": 300,
+          "type": "string"
+        },
+        "key": {
+          "enum": [
+            "google",
+            "microsoft",
+            "okta"
+          ],
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "issuer",
+        "clientId",
+        "clientSecretHandle",
+        "enabled"
       ],
       "type": "object"
     },
@@ -111034,7 +111031,7 @@
                 "clientSecretHandle": "#Dana_Lawmatics",
                 "domainHint": "example",
                 "enabled": true,
-                "issuer": "https://example.com",
+                "issuer": "example",
                 "key": "google",
                 "title": "example"
               }
@@ -111054,7 +111051,7 @@
         "properties": {
           "providers": {
             "items": {
-              "$ref": "#/$defs/s_beaf3b9b61"
+              "$ref": "#/$defs/s_fc5a39b381"
             },
             "type": "array"
           }
@@ -111174,7 +111171,7 @@
               "clientSecretHandle": "#Dana_Lawmatics",
               "domainHint": "example",
               "enabled": true,
-              "issuer": "https://example.com",
+              "issuer": "example",
               "key": "google",
               "title": "example"
             }
@@ -111186,7 +111183,7 @@
               "clientSecretHandle": "#Dana_Lawmatics",
               "domainHint": "example",
               "enabled": true,
-              "issuer": "https://example.com",
+              "issuer": "example",
               "key": "google",
               "title": "example"
             }
@@ -111195,13 +111192,13 @@
       ],
       "idempotency": "natural",
       "input": {
-        "$ref": "#/$defs/s_4788a500a9"
+        "$ref": "#/$defs/s_bef5b01c7a"
       },
       "level": "view",
       "module": "members",
       "name": "members.sso.set",
       "output": {
-        "$ref": "#/$defs/s_4788a500a9"
+        "$ref": "#/$defs/s_bef5b01c7a"
       },
       "permission": "policy.manage",
       "resource": {

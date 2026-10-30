@@ -49,15 +49,6 @@ test("a provider with no firm domain signs nobody in", async () => {
   await assert.rejects(check(await sign(good()), { domain: undefined }), refused(/no firm domain/));
 });
 
-test("a Microsoft issuer with the tenant placeholder matches the tenant the token names", async () => {
-  const ms: Discovery = { ...D, issuer: "https://login.example.com/{tenantid}/v2.0" };
-  const T1 = "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0", T2 = "1f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0";
-  const t = await sign(good({ iss: `https://login.example.com/${T1}/v2.0`, tid: T1 }));
-  assert.equal((await verifyIdToken(fetchKeys, ms, t, { clientId: "app", nonce: "n1", domain: "firm.test", now: NOW })).email, "ana@firm.test");
-  const bad = await sign(good({ iss: `https://login.example.com/${T2}/v2.0`, tid: T1 }));
-  await assert.rejects(verifyIdToken(fetchKeys, ms, bad, { clientId: "app", nonce: "n1", domain: "firm.test", now: NOW }), refused(/another issuer/));
-});
-
 test("the authorization address carries PKCE S256, state, nonce and the domain hint", async () => {
   const { verifier, challenge } = await pkce();
   assert.notEqual(verifier, challenge);
@@ -95,15 +86,24 @@ test("discovery whose issuer is not exactly the expected one is refused before a
   const doc = (issuer: string) => ({ issuer, authorization_endpoint: "https://evil.example.com/a", token_endpoint: "https://evil.example.com/t", jwks_uri: "https://evil.example.com/k" });
   await assert.rejects(discover(answer(doc("https://evil.example.com")), ISS), refused(/different issuer/));
   await assert.rejects(discover(answer(doc(`${ISS}.evil.example.com`)), ISS), refused(/different issuer/));
-  const ms = "https://login.microsoftonline.com/common/v2.0";
-  assert.equal((await discover(answer(doc("https://login.microsoftonline.com/{tenantid}/v2.0")), ms)).issuer, "https://login.microsoftonline.com/{tenantid}/v2.0");
-  await assert.rejects(discover(answer(doc("https://login.microsoftonline.com/{tenantid}/v2.0")), ISS), refused(/different issuer/), "only Microsoft's shared tenants may say {tenantid}");
+  await assert.rejects(discover(answer(doc("https://login.microsoftonline.com/{tenantid}/v2.0")), ISS), refused(/different issuer/), "a placeholder issuer is never accepted");
 });
 
-test("a Microsoft token whose tenant is not an id never matches the placeholder issuer", async () => {
-  const ms: Discovery = { ...D, issuer: "https://login.example.com/{tenantid}/v2.0" };
-  const t = await sign(good({ iss: "https://login.example.com/evil/v2.0", tid: "evil" }));
-  await assert.rejects(verifyIdToken(fetchKeys, ms, t, { clientId: "app", nonce: "n1", domain: "firm.test", now: NOW }), refused(/another issuer/));
+const T1 = "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0", T2 = "1f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0", OID = "aaaaaaaa-1111-2222-3333-bbbbbbbbbbbb";
+const MS: Discovery = { ...D, issuer: `https://login.example.com/${T1}/v2.0` };
+const msGood = (over: Record<string, unknown> = {}): Record<string, unknown> => good({ iss: MS.issuer, tid: T1, oid: OID, preferred_username: "Ana@Firm.test", email: "someone.else@firm.test", ...over });
+const msCheck = (claims: Record<string, unknown>, tenant: string | undefined = T1) => sign(claims).then((t) => verifyIdToken(fetchKeys, MS, t, { clientId: "app", nonce: "n1", domain: "firm.test", now: NOW, ...(tenant ? { tenant } : {}) }));
+
+test("a Microsoft token is known by tenant and user id, and its unverified email claim is not the address", async () => {
+  assert.deepEqual(await msCheck(msGood()), { email: "ana@firm.test", subject: OID, tenant: T1, oid: OID }, "the account name is the address, not the email claim");
+  await assert.rejects(msCheck(msGood({ email: "ana@firm.test", preferred_username: "ana@other.test" })), refused(/not at firm.test/), "a firm address in the email claim does not pass when the account name is elsewhere");
+});
+
+test("a Microsoft token from another tenant is refused even when its email claim is a firm member's address (nOAuth)", async () => {
+  await assert.rejects(msCheck(msGood({ iss: `https://login.example.com/${T2}/v2.0`, tid: T2, email: "ana@firm.test" })), refused(/another issuer/));
+  await assert.rejects(msCheck(msGood({ tid: T2, email: "ana@firm.test" })), refused(/another Microsoft tenant/), "the right issuer with a foreign tid");
+  await assert.rejects(msCheck(msGood({ tid: undefined })), refused(/another Microsoft tenant/));
+  await assert.rejects(msCheck(msGood({ oid: undefined })), refused(/no user id/));
 });
 
 test("signing keys are kept for the TTL and fetched once more only for a key the copy lacks", async () => {

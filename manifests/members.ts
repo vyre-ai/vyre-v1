@@ -3,7 +3,7 @@
 // DECISION: members.accept creates the person and session, then stores the wrapped keys by calling identity.keys_put; it emits member.joined and principal.created itself.
 // DECISION: sign-in policy (second-factor floor, SSO required, allowed methods) is written as policies of kind sign_in through members.sign_in_policy.set, which emits policy.changed; the settings rows below mirror the values for Cmd-F search.
 import { defineManifest, ev, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
-import { id, email, ok, pageIn, pageOut, principalRef, url } from './_common.ts';
+import { id, email, ok, pageIn, pageOut, principalRef } from './_common.ts';
 
 const V = { level: 'view' } as const;
 const deviceClass = t.enm('desktop', 'phone', 'web', 'extension', 'daemon');
@@ -19,7 +19,7 @@ const inviteRow = t.obj({
 });
 const removalKind = t.enm('routines', 'automations', 'agents', 'records', 'files', 'channels', 'projects', 'mailbox_connections', 'vault_mine', 'private_chats', 'memory_from_you');
 const removalAction = t.enm('pause', 'reassign', 'revoke', 'export', 'retain', 'keep', 'delete');
-const ssoRow = t.obj({ key: t.enm('google', 'microsoft', 'okta'), title: t.str(), issuer: url, clientId: t.str(), clientSecretHandle: id.handle, enabled: t.bool(), domainHint: t.opt(t.str()) });
+const ssoRow = t.obj({ key: t.enm('google', 'microsoft', 'okta'), title: t.str(), issuer: t.str({ maxLength: 300 }), clientId: t.str(), clientSecretHandle: id.handle, enabled: t.bool(), domainHint: t.opt(t.str()) });
 const policy = t.obj({ secondFactor: t.enm('off', 'required'), requireSso: t.bool(), allowPassword: t.bool(), allowGithub: t.bool() });
 
 export default defineManifest({

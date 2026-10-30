@@ -3,12 +3,12 @@
 // it answers which verified address signed in, and the caller decides who that is.
 import { lookup } from "node:dns/promises";
 import { refusesAddress } from "../../../lib/address-guard.ts";
-import { MS_SHARED_TENANTS, refusedHost } from "../../../lib/oidc-issuer.ts";
+import { refusedHost } from "../../../lib/oidc-issuer.ts";
 import type { SeamFetch } from "./ports.ts";
 
 export interface Discovery { issuer: string; authorization_endpoint: string; token_endpoint: string; jwks_uri: string }
 export interface SsoProvider { key: string; title: string; issuer: string; clientId: string; clientSecretHandle: string; enabled: boolean; domainHint?: string }
-export interface Verified { email: string; subject: string }
+export interface Verified { email: string; subject: string; /** Microsoft only: the tenant and the person's immutable id in it; the Space links a person on these, never on the address alone */ tenant?: string; oid?: string }
 
 const b64url = (b: Uint8Array): string => Buffer.from(b).toString("base64url");
 const text = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
@@ -30,13 +30,12 @@ const https = (u: string | undefined, what: string): string => {
   return url.toString();
 };
 
-/** The provider's discovery document. Its issuer must be exactly the one expected (mix-up defence) before any address in it is used; only Microsoft's shared tenants may say {tenantid}. */
+/** The provider's discovery document. Its issuer must be exactly the one expected (mix-up defence) before any address in it is used. */
 export async function discover(fetch: SeamFetch, issuer: string): Promise<Discovery> {
   const want = https(issuer, "the issuer").replace(/\/+$/, "");
   const d = await json(fetch, `${want}/.well-known/openid-configuration`);
   const said = (text(d["issuer"]) ?? refuse("the provider names no issuer")).replace(/\/+$/, "");
-  const shared = MS_SHARED_TENANTS.some((t) => want === `https://login.microsoftonline.com/${t}/v2.0` && said === `https://login.microsoftonline.com/{tenantid}/v2.0`);
-  if (said !== want && !shared) refuse("the provider's discovery document names a different issuer");
+  if (said !== want) refuse("the provider's discovery document names a different issuer");
   return { issuer: said, authorization_endpoint: https(text(d["authorization_endpoint"]), "the authorization address"), token_endpoint: https(text(d["token_endpoint"]), "the token address"), jwks_uri: https(text(d["jwks_uri"]), "the key address") };
 }
 
@@ -91,7 +90,7 @@ export async function exchangeCode(fetch: SeamFetch, d: Discovery, p: { clientId
 const part = (s: string | undefined): Record<string, unknown> => { try { return obj(JSON.parse(Buffer.from(s ?? "", "base64url").toString("utf8"))); } catch { return {}; } };
 
 /** The address an ID token proves, or a refusal saying why not. The signature is checked first; nothing in an unsigned token is believed. */
-export async function verifyIdToken(fetch: SeamFetch, d: Discovery, token: string, p: { clientId: string; nonce: string; domain: string | undefined; now: number; jwks?: JwksCache }): Promise<Verified> {
+export async function verifyIdToken(fetch: SeamFetch, d: Discovery, token: string, p: { clientId: string; nonce: string; domain: string | undefined; now: number; jwks?: JwksCache; /** Microsoft: the one tenant this sign-in is for; the token must come from it */ tenant?: string }): Promise<Verified> {
   const [h, c, s] = token.split(".");
   if (!h || !c || !s) refuse("that is not an ID token");
   const header = part(h);
@@ -103,8 +102,7 @@ export async function verifyIdToken(fetch: SeamFetch, d: Discovery, token: strin
   const ok = await globalThis.crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, Buffer.from(s, "base64url"), new TextEncoder().encode(`${h}.${c}`));
   if (!ok) refuse("the ID token's signature is not the provider's");
   const claims = part(c);
-  const issuer = d.issuer.includes("{tenantid}") ? d.issuer.replace("{tenantid}", /^[0-9a-f-]{36}$/i.test(text(claims["tid"]) ?? "") ? text(claims["tid"])! : "") : d.issuer;
-  if (claims["iss"] !== issuer) refuse("the ID token is from another issuer");
+  if (claims["iss"] !== d.issuer) refuse("the ID token is from another issuer");
   const aud = claims["aud"];
   if (!(aud === p.clientId || (Array.isArray(aud) && aud.includes(p.clientId)))) refuse("the ID token is for another app");
   const exp = typeof claims["exp"] === "number" ? claims["exp"] * 1000 : 0;
@@ -112,10 +110,17 @@ export async function verifyIdToken(fetch: SeamFetch, d: Discovery, token: strin
   if (typeof claims["iat"] === "number" && claims["iat"] * 1000 > p.now + 5 * 60_000) refuse("the ID token is from the future");
   if (claims["nonce"] !== p.nonce) refuse("the ID token is not the one this sign-in asked for");
   if (!p.domain) refuse("this provider has no firm domain set, so it cannot sign anyone in");
-  const email = (text(claims["email"]) ?? text(claims["preferred_username"]) ?? "").trim().toLowerCase();
+  const ms = p.tenant !== undefined;
+  if (ms) {
+    // Microsoft's email claim is not verified (anyone can set it in a tenant they run), so for Microsoft the tenant is checked and the person is known by their immutable id; the address is the account name
+    if (String(claims["tid"] ?? "").toLowerCase() !== p.tenant!.toLowerCase()) refuse("the ID token is from another Microsoft tenant");
+    if (!/^[0-9a-f-]{36}$/i.test(text(claims["oid"]) ?? "")) refuse("the ID token names no user id");
+  }
+  const email = (ms ? (text(claims["preferred_username"]) ?? text(claims["upn"]) ?? "") : (text(claims["email"]) ?? text(claims["preferred_username"]) ?? "")).trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+$/.test(email)) refuse("the ID token names no email address");
   if (claims["email_verified"] === false || claims["email_verified"] === "false") refuse("the provider has not verified that address");
   if (!email.endsWith(`@${p.domain}`)) refuse(`that address is not at ${p.domain}`);
   if (claims["hd"] !== undefined && String(claims["hd"]).toLowerCase() !== p.domain) refuse("the account belongs to another domain");
+  if (ms) return { email, subject: String(claims["oid"]).toLowerCase(), tenant: p.tenant!.toLowerCase(), oid: String(claims["oid"]).toLowerCase() };
   return { email, subject: text(claims["sub"]) ?? email };
 }

@@ -73,7 +73,7 @@ type Out = {
       "clientSecretHandle": "#Dana_Lawmatics",
       "domainHint": "example",
       "enabled": true,
-      "issuer": "https://example.com",
+      "issuer": "example",
       "key": "google",
       "title": "example"
     }
@@ -84,7 +84,7 @@ type Out = {
       "clientSecretHandle": "#Dana_Lawmatics",
       "domainHint": "example",
       "enabled": true,
-      "issuer": "https://example.com",
+      "issuer": "example",
       "key": "google",
       "title": "example"
     }

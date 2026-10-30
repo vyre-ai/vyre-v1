@@ -22,7 +22,7 @@ import type {RecoveryCommit} from "../../../packages/contracts/src/identity-reco
 export interface PeopleDeps {
   recoveryCommit?:RecoveryCommit;
   access(): AccessSnapshot;
-  db: { all(sql: string, ...args: unknown[]): unknown[] };
+  db: { all(sql: string, ...args: unknown[]): unknown[]; run?(sql: string, ...args: unknown[]): unknown };
   /** run a module's host call as that module */
   call(name: string, input: unknown, as?: { principal: { kind: "person" | "agent" | "service"; id: string } }): Promise<unknown>;
   /** GitHub sign-in; omitted: identity answers that it is not set up on this server */
@@ -78,6 +78,25 @@ export function ssoProvidersIn(db: PeopleDeps["db"]): SsoProvider[] {
     if (p.enabled && p.clientId && p.clientSecretHandle && p.domainHint) out.push(p);
   }
   return out;
+}
+
+/**
+ * The person a finished sign-in is. Google: the verified address. Microsoft: its email claim is not verified, so the person is known by tenant and immutable user id. Their first sign-in links that id
+ * to the person their account name matches (the invitation or the address matched by hand); after that the id alone is who they are, and an id that is not linked can never take over a linked person.
+ */
+export function personForSso(db: PeopleDeps["db"], active: (id: string) => boolean, key: string, t: { email: string; link?: { tenant: string; subject: string } }): string | null {
+  if (!t.link) return key === "microsoft" ? null : personForEmail(db, active, t.email);
+  const row = `sso_link:${key}:${t.link.tenant}:${t.link.subject}`;
+  let linked: string | undefined;
+  try { linked = (db.all("SELECT value FROM members_policy WHERE key = ?", row)[0] as { value?: string } | undefined)?.value; } catch { return null; }
+  if (linked) return active(linked) ? linked : null;
+  const person = personForEmail(db, active, t.email);
+  if (!person || !db.run) return null;
+  // one person, one id per tenant: someone else's id with the same account name does not get in
+  const mine = db.all("SELECT key FROM members_policy WHERE key LIKE ? AND value = ?", `sso_link:${key}:${t.link.tenant}:%`, person);
+  if (mine.length > 0) return null;
+  db.run("INSERT OR IGNORE INTO members_policy (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)", row, person, Date.now(), person);
+  return person;
 }
 
 /** The person a verified work address belongs to: the invitation it went to, or a Google or Microsoft address matched by hand, and only when they are active. */
@@ -174,7 +193,10 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
       ...(d.sso ? { sso: {
         providers: () => ssoProvidersIn(d.db).map((x) => ({ key: x.key, title: x.title })),
         // spend a ticket from a finished sign-in: the person it names, or null
-        resolve: (key: string, ticket: string): string | null => { const t = d.sso!.tickets.take(key, ticket); return t ? personForEmail(d.db, (id) => d.access().principal(id)?.status === "active", t.email) : null; },
+        resolve: (key: string, ticket: string): string | null => {
+          const t = d.sso!.tickets.take(key, ticket);
+          return t ? personForSso(d.db, (id) => d.access().principal(id)?.status === "active", key, t) : null;
+        },
       } } : {}),
       ...(d.keyring ? { keyring: { clear: (personId: string) => d.keyring!.clear(personId) } } : {}),
       invites: {

@@ -21,3 +21,9 @@ test("a ticket dies after two minutes and a made-up one is nothing", () => {
   assert.equal(t.take("google", a), null);
   assert.equal(t.take("google", "nope"), null);
 });
+
+test("a ticket carries the tenant and user id it was made with, to its own provider only", () => {
+  const t = createSsoTickets(() => 1000);
+  const a = t.make("microsoft", "ana@firm.test", { tenant: "t1", subject: "o1" });
+  assert.deepEqual(t.take("microsoft", a), { email: "ana@firm.test", link: { tenant: "t1", subject: "o1" } });
+});
