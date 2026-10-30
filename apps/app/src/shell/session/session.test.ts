@@ -85,6 +85,17 @@ test("caps: a 401 with a token tells the session it is over; an unknown capabili
   await assert.rejects(call("nope.nothing", {}), (e: unknown) => e instanceof CapError && e.status === 404);
 });
 
+test("caps: a 401 that says the vault key is locked is the vault's answer: the person stays signed in", async () => {
+  let out = 0;
+  const locked = { status: 401, body: { error: { code: "auth.unauthenticated", message: "Your vault key is locked. Sign in again to open your Mine items.", traceId: "t" } } };
+  const tagged = { status: 401, body: { error: { code: "auth.unauthenticated", message: "Locked.", traceId: "t", details: { reason: "vault_locked" } } } };
+  const gw = gateway({ "GET /v1/files/list": () => locked, "POST /v1/files/rename": () => tagged });
+  const call = createCapCaller({ baseUrl: "http://s.test", token: () => "t", fetch: gw.fetch, routes: async () => ROUTES, onUnauthenticated: () => { out++; } });
+  await assert.rejects(call("files.list", {}), (e: unknown) => e instanceof CapError && e.status === 401);
+  await assert.rejects(call("files.rename", {}), (e: unknown) => e instanceof CapError && e.status === 401);
+  assert.equal(out, 0, "no sign-out for a locked vault key, by message or by the tagged reason");
+});
+
 test("caps: the newest version of a capability's route wins, and a query string leaves out missing values", () => {
   assert.equal(indexByCap(ROUTES).get("old.cap")!.path, "/v2/old");
   assert.equal(queryString({ a: "x", b: undefined, c: null, d: true }), "?a=x&d=true");

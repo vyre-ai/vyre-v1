@@ -12,6 +12,8 @@ import type { PlaceId } from "../rail/kits.ts";
 import type { SpaceDef } from "../spaces/model.ts";
 import { CapError, createCapCaller } from "./caps.ts";
 import type { CapCall, RouteRow } from "./caps.ts";
+import { loadCryptoKeys } from "../../../../../client/src/crypto/load.ts";
+import { holdKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
 import { createDeferred } from "../../../../../client/src/runtime/deferred.ts";
 import { createLiveLink } from "./live.ts";
 import { createTurnStreams } from "./turn-streams.ts";
@@ -269,6 +271,15 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       if (!send) throw new Error("This device cannot upload");
       const r = await send(new URL(path, o.baseUrl).toString(), { method: "PUT", headers: { authorization: `Bearer ${token}`, "content-type": "application/octet-stream" }, body: bytes as unknown as BodyInit });
       if (!r.ok) throw new Error(r.status === 413 ? "The file is over the size limit" : "The upload did not go through");
+    },
+    unlockVault: async (password) => {
+      const got = (await reach("identity.keys_get", {})) as { keys: { personKeyByPassword: string; personKeyByRecovery?: string; publicKey: string; privateKeyWrapped: string } };
+      const { openBundle, wipe } = await loadCryptoKeys();
+      let opened: Awaited<ReturnType<typeof openBundle>>;
+      try { opened = await openBundle(password, { ...got.keys, personKeyByRecovery: got.keys.personKeyByRecovery ?? "" }); } catch { throw new Error("That password does not open your vault."); }
+      try {
+        if (!(await holdKeyOnOwnNode(o.baseUrl, token ?? "", opened.personKey))) throw new Error("Your Mine vault opens on the computer your Space runs on, not from here.");
+      } finally { wipe(opened.personKey); wipe(opened.privateKey); }
     },
     connection: {
       get: () => (reachable && !(everLive && live === "offline") ? "online" : "offline"),

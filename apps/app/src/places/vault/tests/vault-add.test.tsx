@@ -163,3 +163,11 @@ test("Copy as .env: the whole item is one logged reveal, then the text is KEY=va
   assert.deepEqual(text.split("\n").map((l) => l.split("=")[0]), northwind.items.find((i) => i.id === "vit_ghl")!.fields.map((f) => f[0]));
   assert.ok(text.split("\n").every((l) => /^[A-Z0-9_]+=.+$/.test(l)));
 });
+
+test("a locked vault key is recognised by the daemon's reason or its words, so the sheet asks for the password in place", async () => {
+  const { isVaultLocked } = await import("../itemenv/AddAnything.tsx");
+  assert.equal(isVaultLocked({ details: { reason: "vault_locked" } }), true);
+  assert.equal(isVaultLocked({ error: { details: { reason: "vault_locked" } } }), true);
+  assert.equal(isVaultLocked(new Error("Your vault key is locked. Sign in again to open your Mine items.")), true);
+  assert.equal(isVaultLocked(new Error("There is already an item called x")), false);
+});
