@@ -104,7 +104,6 @@ function SpaceEntryBody({ onTarget, onBack, onCreatePersonal, onCreateMacServer,
         {page === 'create' && kind === 'team' && where === 'linux' ? (
           <View style={{ marginTop: 24, gap: 14 }}>
             <CodeBlock testID="space-setup-command" text={INSTALL_COMMAND} />
-            <Text style={[baseText(p), { fontSize: 13, fontWeight: '600', marginTop: 6 }]}>Then paste the owner link it prints</Text>
           </View>
         ) : null}
 

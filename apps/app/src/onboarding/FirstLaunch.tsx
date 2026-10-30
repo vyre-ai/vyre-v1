@@ -64,24 +64,31 @@ export function FirstLaunch({ onDoor, existing, device = "mac", onGetApp }: { on
       </JoinFrame>
     );
   }
-  const phone = device === "phone";
   return (
     <JoinFrame halftoneIntensity="full">
       <Stage wide>
         <Step id="first-launch">
+          <Body device={device} doors={doors} busy={busy} error={error} pick={pick} onSignIn={() => setSignIn(true)} {...(onGetApp ? { onGetApp } : {})} />
+        </Step>
+      </Stage>
+    </JoinFrame>
+  );
+}
+
+function Body({ device, doors, busy, error, pick, onSignIn, onGetApp }: { device: Device; doors: ReturnType<typeof doorsFor>; busy: Door | null; error: string; pick(door: Door): Promise<void>; onSignIn(): void; onGetApp?(): void }): ReactElement {
+  const { p } = useJoin();
+  const phone = device === "phone";
+  return (
           <View style={{ alignItems: "center" }}>
-            {phone ? null : <HalftoneV size={device === "web" ? 150 : 210} />}
-            <Text accessibilityRole="header" style={{ fontSize: phone ? 30 : 40, lineHeight: phone ? 36 : 46, fontWeight: "700", letterSpacing: -1, textAlign: "center" }}>{device === "mac" || device === "win" ? "Welcome to Vyre" : "Vyre"}</Text>
+            <HalftoneV size={phone ? 150 : device === "web" ? 150 : 210} />
+            <Text accessibilityRole="header" style={[baseText(p), { fontSize: phone ? 30 : 40, lineHeight: phone ? 36 : 46, fontWeight: "700", letterSpacing: -1, textAlign: "center" }]}>{device === "mac" || device === "win" ? "Welcome to Vyre" : "Vyre"}</Text>
             <View testID="doors" accessibilityRole={"list" as never} style={{ flexDirection: phone ? "column" : "row", gap: phone ? 10 : 18, marginTop: phone ? 20 : 34, justifyContent: "center", alignSelf: phone ? "stretch" : "center" }}>
               {doors.map((d, i) => (
                 <DoorCard key={d.door} testID={`door-${d.door}`} n={String(i + 1)} title={d.title} hint={d.help} art={<Art kind={ART[d.door]} width={phone ? 56 : 132} height={phone ? 48 : 112} />} busy={busy === d.door} disabled={!!busy && busy !== d.door} onPress={() => void pick(d.door)} />
               ))}
             </View>
             {error ? <ErrorLine testID="door-error">{error}</ErrorLine> : null}
-            <Foot device={device} onSignIn={() => setSignIn(true)} {...(onGetApp ? { onGetApp } : {})} />
+            <Foot device={device} onSignIn={onSignIn} {...(onGetApp ? { onGetApp } : {})} />
           </View>
-        </Step>
-      </Stage>
-    </JoinFrame>
   );
 }
