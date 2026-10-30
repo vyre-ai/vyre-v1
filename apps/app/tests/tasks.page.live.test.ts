@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createCapCaller } from "../../../client/src/gateway/index.ts";
 import { routes } from "../../../generated/routes.ts";
-import { bootFreshSpace, claimOnEdge, edge } from "./real-app-harness.test.ts";
+import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding} from "./real-app-harness.test.ts";
 import type { CapMap } from "../../../generated/types.ts";
 
 test("a canonical task opens from a copied Home link, edits, transitions, follows, reloads and keeps actual activity", async (t) => {
@@ -20,7 +20,7 @@ test("a canonical task opens from a copied Home link, edits, transitions, follow
     await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
     await page.getByTestId("claim-name").fill("Task Owner"); await page.getByTestId("claim-username").fill("taskowner");
     await page.getByTestId("claim-password").fill("fixture password 123"); await page.getByTestId("claim-confirm").fill("fixture password 123");
-    await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click();
+    await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click();await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
     const token = await page.evaluate(() => { const saved = JSON.parse(localStorage.getItem("vyre.session.v1")!); return saved.sessions?.[location.origin]?.token ?? saved.token; });
     const api = createCapCaller({ baseUrl: web.origin, token: () => token, routes: async () => routes });

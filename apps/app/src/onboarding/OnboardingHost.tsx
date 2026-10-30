@@ -127,7 +127,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
       {children}
       {shown && flow ? (
         <View style={s.fill}>
-          <OnboardingScreen flow={flow} spaceName={space.kind === "personal" ? (personName ?? space.name) : space.name} progress={progress} stepKey={step} live={hasAi && runtime !== null && person !== null} {...(hasAi && runtime && person ? { liveChat: <AssistantThread rt={runtime} person={person} flow={flow} step={step} progress={progress} /> } : {})} onOpenStep={setStep} onStep={onStep} onClose={() => { setShown(false); setStep(null); }} renderCard={renderCard} renderPreview={(card) => scriptFor(card, flow).preview === "" ? null : <PreviewPane call={call} card={card} progress={progress} fallback={scriptFor(card, flow).preview} />} />
+          <OnboardingScreen flow={flow} spaceName={space.kind === "personal" ? (personName ?? space.name) : space.name} progress={progress} stepKey={step} live={hasAi && runtime !== null && person !== null} {...(hasAi && runtime && person ? { liveChat: <AssistantThread rt={runtime} person={person} flow={flow} step={step} progress={progress} /> } : {})} onOpenStep={setStep} onStep={onStep} onClose={() => { setShown(false); setStep(null); if (call) void markSeen(call, flow).catch(() => undefined); }} renderCard={renderCard} renderPreview={(card) => scriptFor(card, flow).preview === "" ? null : <PreviewPane call={call} card={card} progress={progress} fallback={scriptFor(card, flow).preview} />} />
         </View>
       ) : null}
     </>

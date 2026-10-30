@@ -46,3 +46,7 @@ export const press = async (n: Node | null): Promise<void> => {
   await act(async () => { (n.props.onClick as (e: unknown) => void)({ stopPropagation() {}, preventDefault() {}, altKey: false, target: { getAttribute: () => null }, currentTarget: { getAttribute: () => null }, nativeEvent: {} }); });
 };
 export const flush = async (): Promise<void> => { await act(async () => { await new Promise((r) => setTimeout(r, 20)); }); };
+export const typeInto = async (n: Node | null, value: string): Promise<void> => {
+  if (!n) throw new Error("node not found");
+  await act(async () => { (n.props.onChange as (e: unknown) => void)({ target: { value }, nativeEvent: { text: value }, currentTarget: { value } }); });
+};

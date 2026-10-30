@@ -6,7 +6,7 @@ import fs from "node:fs";
 import { createCapCaller } from "../../../client/src/gateway/index.ts";
 import { routes } from "../../../generated/routes.ts";
 import { fileURLToPath } from "node:url";
-import { bootFreshSpace, edge, claimOnEdge } from "./real-app-harness.test.ts";
+import { bootFreshSpace, edge, claimOnEdge, dismissOnboarding } from "./real-app-harness.test.ts";
 import { vendor } from "../../../fixtures/model-vendor.ts";
 
 const PRELOAD = fileURLToPath(new URL("../../../fixtures/model-vendor-preload.mjs", import.meta.url));
@@ -34,6 +34,7 @@ test("with sync live, a committed record and a real agent turn's reply each reac
     await page.goto(claimOnEdge(space.claim!, web.origin));
     for (const [id, value] of [["claim-name", "Live owner"], ["claim-username", "liveowner"], ["claim-password", "fixture live password123"], ["claim-confirm", "fixture live password123"]] as const) await page.getByTestId(id).fill(value);
     for (const id of ["claim-next", "claim-saved", "claim-create"]) await page.getByTestId(id).click();
+    await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30000 });
     const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin]);
     const api = createCapCaller({ baseUrl: web.origin, token: () => stored.token, routes: async () => routes });

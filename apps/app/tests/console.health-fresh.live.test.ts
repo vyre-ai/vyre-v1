@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { bootFreshSpace, claimOnEdge, edge } from "./real-app-harness.test.ts";
+import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding} from "./real-app-harness.test.ts";
 import os from "node:os";
 import { DatabaseSync } from "node:sqlite";
 
@@ -53,7 +53,7 @@ test("production Console: a fresh Space is Server healthy, a real failure is not
     await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
     await page.getByTestId("claim-name").fill("Olivia Owner"); await page.getByTestId("claim-username").fill("olivia");
     await page.getByTestId("claim-password").fill("fixture password 123"); await page.getByTestId("claim-confirm").fill("fixture password 123");
-    await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click();
+    await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click();await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
 
     // Every check has run once, as the scheduler does within a minute; a new Space has nothing failing.
