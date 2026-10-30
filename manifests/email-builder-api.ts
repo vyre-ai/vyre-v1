@@ -1,5 +1,5 @@
 // email-builder-api (lane L8): server half of the one email builder used by Campaigns, Inbox templates and Automation email steps (spec 3.6).
-import { create, defineManifest, ev, outward, read, t, write } from '../packages/contracts/src/index.ts';
+import { create, defineManifest, ev, outward, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { id } from './_common.ts';
 
 const emailId = t.id('eml');
@@ -42,5 +42,9 @@ export default defineManifest({
       errors: ['validation.bad_input', 'validation.not_found', 'permission.no_grant'],
     }),
     write('email_builder.snippets.delete', 'Delete a composer snippet', { in: { snippetId }, out: { deleted: t.bool() }, tool: 'inbox' }),
+  ],
+  screens: [
+    // one design on its own: opened from Apps, from Inbox templates and from an Automation email step; Campaigns embeds the same builder in a step
+    screen('apps.email-builder', 'apps', 'ui:EmailBuilder', { q: { email: ['email_builder.get', { emailId: '/selected' }], versions: ['email_builder.versions', { emailId: '/selected' }] }, a: { save: ['email_builder.save', { emailId: '/selected' }] } }),
   ],
 });

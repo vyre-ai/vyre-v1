@@ -1059,6 +1059,9 @@ export function stubs(ctx: CallCtx) {
       reset_complete: call("identity.reset_complete"),
       reset_preview: call("identity.reset_preview"),
       reset_start: call("identity.reset_start"),
+      security: {
+        get: call("identity.security.get"),
+      },
       sign_in: call("identity.sign_in"),
       sign_in_options: call("identity.sign_in_options"),
       sign_out: call("identity.sign_out"),

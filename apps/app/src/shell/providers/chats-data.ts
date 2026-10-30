@@ -2,7 +2,8 @@
 // says what to open and this place decides (the open chat is local state of the place, the pane is a toggle). Nothing here touches the network.
 import type { ComposerLists, ListItem } from "../../../../../ui/src/Composer/index.tsx";
 import type { ChatsNav, ChatsSidebarData } from "../../places/chats/sidebar/data.tsx";
-import type { ConversationData, ConversationNav } from "../../places/chats/conversation/data.tsx";
+import type { ComposerFill, ConversationData, ConversationNav } from "../../places/chats/conversation/data.tsx";
+import { othersNeedingYou } from "../spaces/model.ts";
 import type { Candidate } from "../../places/chats/conversation/model.ts";
 import type { ChatRightPaneData, RightPaneNav } from "../../places/chats/rightpane/data.tsx";
 import type { Principal } from "../../places/home/sections-a/data.tsx";
@@ -57,12 +58,12 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
   };
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection,
-    space: { name: rt.space.name, otherNeedsYou: false, assistant: { agentId: rt.assistant.id, name: rt.assistant.name } },
+    space: { name: rt.space.name, otherNeedsYou: othersNeedingYou(rt.knownSpaces ?? [], rt.space.id).length > 0, assistant: { agentId: rt.assistant.id, name: rt.assistant.name } },
     nav, clock: rt.clock,
   };
 }
 
-export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: string, principals: readonly Principal[]): ConversationData {
+export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: string, principals: readonly Principal[], fill?: ComposerFill): ConversationData {
   const byId = new Map(principals.map((p) => [p.id, p] as const));
   const nav: ConversationNav = {
     openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
@@ -75,6 +76,7 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     nameOf: (id) => byId.get(id)?.name ?? id,
     kindOf: (id) => kindOf(byId.get(id)),
     nav, clock: rt.clock,
+    ...(fill ? { fill } : {}),
     lists: composerLists(principals, rt.me.id),
     directory: candidates(principals, rt.me.id),
     newKey,

@@ -347,15 +347,7 @@ export function deliveryNote(status: EmailRef["status"]): string {
 // ---------------------------------------------------------------- templates and snippets
 
 export interface Canned { name: string; body: string }
-/** The person's saved templates (a subject and body) and snippets (a few lines); the sample space has a few so the / menu is not empty. */
-export const TEMPLATES: readonly Canned[] = [
-  { name: "Book a call", body: "Hi {first},\n\nThanks for reaching out. I have time Tuesday or Thursday this week. Which works better for a 20 minute call?\n" },
-  { name: "Send the documents", body: "Hi {first},\n\nThe documents are attached. Please look them over and tell me what you would like to change.\n" },
-];
-export const SNIPPETS: readonly Canned[] = [
-  { name: "Thanks", body: "Thank you, I appreciate it." },
-  { name: "Office hours", body: "We are open Monday to Friday, 9 to 5." },
-];
+// What the person saved comes from the Space: templates are email designs (email_builder.list) and snippets are composer snippets (email_builder.snippets.list), read by contacttab/actions.ts.
 
 export const firstName = (name: string): string => name.trim().split(/\s+/)[0] ?? name;
 
@@ -364,10 +356,7 @@ export function fill(body: string, conv: Conversation): string {
   return body.replaceAll("{first}", firstName(conv.displayName));
 }
 
-/** The / menu of the composer: templates (with the contact's first name filled in) and snippets. */
-export function cannedLists(conv: Conversation): { templates: { t: string; body: string; kind: string }[]; snippets: { t: string; body: string; kind: string }[] } {
-  return {
-    templates: TEMPLATES.map((t) => ({ t: t.name, body: fill(t.body, conv), kind: "Template" })),
-    snippets: SNIPPETS.map((t) => ({ t: t.name, body: t.body, kind: "Snippet" })),
-  };
+/** The / menu of the composer: the person's snippets. Templates are chosen from the Templates button, where each is an email design that can also be edited in the email builder. */
+export function cannedLists(_conv: Conversation, snippets: readonly Canned[] = []): { templates: { t: string; body: string; kind: string }[]; snippets: { t: string; body: string; kind: string }[] } {
+  return { templates: [], snippets: snippets.map((t) => ({ t: t.name, body: t.body, kind: "Snippet" })) };
 }

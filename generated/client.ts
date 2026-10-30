@@ -1059,6 +1059,9 @@ export function createClient(transport: Transport) {
       reset_complete: call("identity.reset_complete", 1),
       reset_preview: call("identity.reset_preview", 1),
       reset_start: call("identity.reset_start", 1),
+      security: {
+        get: call("identity.security.get", 1),
+      },
       sign_in: call("identity.sign_in", 1),
       sign_in_options: call("identity.sign_in_options", 1),
       sign_out: call("identity.sign_out", 1),

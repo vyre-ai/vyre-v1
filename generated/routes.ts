@@ -14067,6 +14067,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/identity/security/get",
+    "cap": "identity.security.get",
+    "v": 1,
+    "module": "identity",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/identity/sign_in",
     "cap": "identity.sign_in",
     "v": 1,

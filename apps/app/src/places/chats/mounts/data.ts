@@ -10,7 +10,7 @@ import type { ChatsActions } from "../../../shell/providers/chats-data.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import type { Principal } from "../../home/sections-a/data.tsx";
 import type { ChatsSidebarData } from "../sidebar/data.tsx";
-import type { ConversationData } from "../conversation/data.tsx";
+import type { ComposerFill, ConversationData } from "../conversation/data.tsx";
 import type { ChatRightPaneData } from "../rightpane/data.tsx";
 import { LOCAL_PREFIX } from "../sidebar/model.ts";
 import { openSession } from "../terminal/session.ts";
@@ -80,7 +80,7 @@ export function titleFrom(rt: ShellRuntime, kind: string, id: string): string | 
   return undefined;
 }
 
-export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; canEdit: boolean; nameOf: (id: string) => string }): AgentPageData {
+export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; canEdit: boolean; nameOf: (id: string) => string; fill?: ComposerFill }): AgentPageData {
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, agent: o.agent, me: { id: rt.me.id, name: rt.me.name }, nameOf: o.nameOf, canEdit: o.canEdit,
     space: { name: rt.space.name, personal: rt.space.kind === "personal" },
@@ -90,7 +90,8 @@ export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; c
       openComputer: (computerId) => go.computer(computerId),
       openTerminal: (computerId) => go.terminalOfComputer(computerId),
       openFile: (fileId) => rt.open({ subject: { type: "file", id: fileId } }),
-      fillComposer: () => undefined,
+      // from the agent's page the text waits for the chat that opens next, with this agent
+      fillComposer: (text) => { o.fill?.set(text); go.agentChat(o.agent.agentId); },
       openSource: (kind, ref) => rt.open({ subject: { type: kind, id: ref } }),
       openAgentPage: (agentId) => go.agent(agentId),
       openRoutineFile: (agentId) => go.agent(agentId, "settings"),
@@ -231,7 +232,7 @@ export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: s
 }
 
 /** What the sidebar and the chat ask the place for. */
-export const chatsActions = (go: Go): ChatsActions => ({ openThread: go.chat, togglePane: go.togglePane, openAgentChat: go.agentChat, fillComposer: () => undefined });
+export const chatsActions = (go: Go, fill?: ComposerFill): ChatsActions => ({ openThread: go.chat, togglePane: go.togglePane, openAgentChat: go.agentChat, fillComposer: (text) => fill?.set(text) });
 
 /** The sidebar: its rows open in this place; Needs you and All agents are this place's own pages. */
 export function wireSidebar(rt: ShellRuntime, go: Go, toggleSidebar?: () => void): ChatsSidebarData {
@@ -240,8 +241,8 @@ export function wireSidebar(rt: ShellRuntime, go: Go, toggleSidebar?: () => void
 }
 
 /** The open chat: a face's page, a helper, the Computer chip, a channel's Connect sheet and the Waiting on line are all this place's doors. */
-export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string; list: readonly Principal[]; nameOf: (id: string) => string; leadId: string }): ConversationData {
-  const base = conversationData(rt, chatsActions(go), o.threadId, o.list);
+export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string; list: readonly Principal[]; nameOf: (id: string) => string; leadId: string; fill?: ComposerFill }): ConversationData {
+  const base = conversationData(rt, chatsActions(go, o.fill), o.threadId, o.list, o.fill);
   return {
     ...base,
     nav: {
@@ -255,8 +256,8 @@ export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string
 }
 
 /** The agent's pane: its Computer tab pops the computer out and opens a terminal on it, its Threads tab opens a helper as the helper chat. */
-export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: PaneAgent): ChatRightPaneData {
-  const base = paneData(rt, chatsActions(go), threadId, agent);
+export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: PaneAgent, fill?: ComposerFill): ChatRightPaneData {
+  const base = paneData(rt, chatsActions(go, fill), threadId, agent);
   return {
     ...base,
     agent,

@@ -75,7 +75,10 @@ function ConversationView(): ReactElement {
   const [cursor, setCursor] = useState<number | null>(null);
   const [pending, setPending] = useState<Pending[]>([]);
   const [line, setLine] = useState("");
-  const [typed, setTyped] = useState("");
+  // text asked for by a pane or a page ("Ask about this file"): taken when this conversation opens and whenever it is asked again, after what the person had typed
+  const [seed, setSeed] = useState<{ value: string; n: number }>(() => ({ value: data.fill?.take() ?? "", n: 0 }));
+  const [typed, setTyped] = useState(seed.value);
+  const typedRef = useRef(seed.value);
   const [atEnd, setAtEnd] = useState(true);
   const [jump, setJump] = useState(0);
   const [finding, setFinding] = useState(false);
@@ -94,6 +97,15 @@ function ConversationView(): ReactElement {
     g.addEventListener?.("keydown", onKey);
     return () => g.removeEventListener?.("keydown", onKey);
   }, []);
+
+  useEffect(() => data.fill?.subscribe(() => {
+    const t = data.fill?.take();
+    if (!t) return;
+    const value = typedRef.current.trim() === "" ? t : `${typedRef.current}\n${t}`;
+    typedRef.current = value;
+    setTyped(value);
+    setSeed((x) => ({ value, n: x.n + 1 }));
+  }), [data.fill]);
 
   const say = useCallback((text: string) => { setLine(text); }, []);
   /** A rejected write: say what did not happen and that it can be tried again. The page keeps what it showed. */
@@ -126,6 +138,8 @@ function ConversationView(): ReactElement {
     setPending((cur) => [...cur, p]);
     setLine("");
     setTyped("");
+    typedRef.current = "";
+    setSeed((x) => (x.value === "" ? x : { value: "", n: x.n }));
     run(p);
   };
 
@@ -335,10 +349,11 @@ function ConversationView(): ReactElement {
       ) : (
         <View style={st.composerBox}>
           <Composer
+            key={`composer-${seed.n}`} {...(seed.value !== "" ? { value: seed.value } : {})}
             testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={placeholderFor(thread, nameOf, isWorking)} working={isWorking}
             {...(lead ? { whoExtra: <ModelChip label={modelLabel(lead.model ?? "")} onPress={modelMenu} />, barExtra: <IconButton icon="monitor" label={`${nameOf(lead.agentId)}'s computer`} size={26} testID="computer-button" onPress={() => data.nav.openBeside("computer", lead.agentId)} /> } : {})}
             {...(lead ? { lead: nameOf(lead.agentId) } : {})} listening={collect(thread.agents.filter((a) => a.mode === "listen"), (a) => nameOf(a.agentId))}
-            lists={data.lists} agentChat={thread.kind !== "channel"} onChange={setTyped}
+            lists={data.lists} agentChat={thread.kind !== "channel"} onChange={(t) => { typedRef.current = t; setTyped(t); }}
             onSubmit={(p) => submit(p, "queue")} onInterrupt={(p) => submit(p, "interrupt")}
             onStop={() => void (working.length > 1 ? act.stopAll(data) : act.stopAgent(data, working[0])).then(() => say("Stopped. The steps so far are kept."), fail("Could not stop it."))}
           />

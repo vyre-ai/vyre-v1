@@ -107,7 +107,7 @@ function SpaceSecurityCard({ space, info }: { space: SpaceTile; info: SpaceSecur
       <View style={a.cardBox}>
         <SettingsRow
           id={`signin.totp.${space.id}`} label="Authenticator app" first sub={info.totp ? "One-time codes on your phone" : "Not set up"}
-          control={<SmallButton label={info.totp ? "Remove" : "Set up"} testID={`totp-${space.id}`} onPress={() => data.nav.manageSecurity?.(info.totp ? "totp-off" : "totp-on", space.id)} />}
+          control={<SmallButton label={info.totp ? "Remove" : "Set up"} testID={space.current ? (info.totp ? "totp-remove" : "totp-setup") : `totp-${space.id}`} onPress={() => data.nav.manageSecurity?.(info.totp ? "totp-off" : "totp-on", space.id)} />}
         />
         <SettingsRow
           id={`signin.passkey.${space.id}`} label="Passkeys" sub={info.passkeys.length > 0 ? info.passkeys.join(", ") : "None yet"}

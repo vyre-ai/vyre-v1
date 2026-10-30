@@ -98,8 +98,8 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
   }
 
   const manage: ReactElement[] = [];
-  if (hit("Record types")) manage.push(<SideRow key="types" id="manage:types" title="Record types" glyph="table" selected={false} onPress={() => { data.nav.openRecordTypes(); choose(); }} />);
-  if (hit("Schema map")) manage.push(<SideRow key="map" id="manage:map" title="Schema map" glyph="schema" selected={false} onPress={() => { data.nav.openSchemaMap(); choose(); }} />);
+  if (hit("Record types")) manage.push(<SideRow key="types" id="manage:types" title="Record types" glyph="table" selected={data.screen === "records.types"} onPress={() => { data.nav.openRecordTypes(); choose(); }} />);
+  if (hit("Schema map")) manage.push(<SideRow key="map" id="manage:map" title="Schema map" glyph="schema" selected={data.screen === "records.schema-map"} onPress={() => { data.nav.openSchemaMap(); choose(); }} />);
 
   return (
     <View style={styles.content} testID="records-sidebar" accessibilityLabel="Records sidebar">

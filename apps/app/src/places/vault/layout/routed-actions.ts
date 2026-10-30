@@ -1,4 +1,5 @@
 import type { VaultData } from "./data.tsx";
+import type { Expiry } from "./model.ts";
 
 export type RequestFulfilment =
   | { itemId: string }
@@ -19,4 +20,9 @@ export async function declineVaultRequest(data: VaultData, requestId: string, no
 
 export async function revokeVaultExport(data: VaultData, exportId: string): Promise<void> {
   await data.call("vault.exports.revoke", { exportId });
+}
+
+/** A .env download link for a folder that lasts as long as the person chose (the Space's policy sets the longest). */
+export async function exportVaultFolder(data: VaultData, folderId: string, expiresIn: Expiry, key: string): Promise<{ pullUrl: string; expiresAt: number }> {
+  return await data.call("vault.export_env", { folderId, expiresIn, idempotencyKey: key }) as { pullUrl: string; expiresAt: number };
 }

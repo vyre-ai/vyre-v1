@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createSampleVault } from "../layout/sample.ts";
-import { declineVaultRequest, fulfilVaultRequest, requestFields, revokeVaultExport } from "../layout/routed-actions.ts";
+import { declineVaultRequest, exportVaultFolder, fulfilVaultRequest, requestFields, revokeVaultExport } from "../layout/routed-actions.ts";
 
 test("a waiting Vault request can be fulfilled with an existing item", async () => {
   const s = createSampleVault();
@@ -71,4 +71,14 @@ test("an active export can be revoked", async () => {
     input: { exportId: "vex_marketing" },
   });
   assert.equal(s.replica.rows("exports").length, 0);
+});
+
+test("an export asks for the length of link the person chose: an hour, a day or seven days", async () => {
+  const s = createSampleVault();
+  for (const expiresIn of ["1h", "1d", "7d"] as const) {
+    await exportVaultFolder(s.data, "fld_marketing", expiresIn, `k-${expiresIn}`).catch(() => undefined);
+    const call = s.calls.at(-1);
+    assert.equal(call?.cap, "vault.export_env");
+    assert.deepEqual(call?.input, { folderId: "fld_marketing", expiresIn, idempotencyKey: `k-${expiresIn}` });
+  }
 });

@@ -140,6 +140,13 @@ export async function whoami(ctx: IdentityCtx, _input: Record<string, never>) {
   };
 }
 
+/** My sign-in here: when the password last changed (the day I joined, until it has), the linked GitHub account, the authenticator app and the passkeys (none until they ship). */
+export async function securityGet(ctx: IdentityCtx, _input: Record<string, never>) {
+  const a = me(ctx);
+  const changed = ctx.db.all(`SELECT changed_at FROM identity_password_changed WHERE person_id = ?`, a.person_id)[0] as { changed_at: number } | undefined;
+  return { passwordChangedAt: changed?.changed_at ?? a.created_at, ...(a.github_id && a.github_login ? { github: a.github_login } : {}), totp: !!a.totp_secret, passkeys: [] as string[] };
+}
+
 // ---- pairing: one stack for the app, the extension and the daemon
 export async function pairCreate(ctx: IdentityCtx, input: { purpose: "app" | "extension" | "daemon" }) {
   const a = me(ctx);

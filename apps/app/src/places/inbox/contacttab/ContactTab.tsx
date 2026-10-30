@@ -13,13 +13,13 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { useInboxData, useOnline, useOptionalInboxData, useScreenQuery } from "../sidebar/data.tsx";
 import { Face, Ghost, pointOf } from "../sidebar/parts.tsx";
 import type { Mailbox } from "../sidebar/model.ts";
-import { discardDraft, markRead, sendAgentDraft, sendEmail, sendText, setFollow } from "./actions.ts";
+import { discardDraft, listSnippets, listTemplates, markRead, sendAgentDraft, sendEmail, sendText, setFollow, templateContent } from "./actions.ts";
 import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
 import type { IconName } from "./icons.tsx";
 import { followMenuEntries, fromMenuEntries, quickEntries, templateEntries } from "./menus.ts";
 import {
-  buildFeed, canSend, cannedLists, choicesFor, draftCards, headerOf, initialDraft, namedTo, pickInbox, sendBlocker, startChannel, textTarget,
+  buildFeed, canSend, cannedLists, choicesFor, firstName, draftCards, headerOf, initialDraft, namedTo, pickInbox, sendBlocker, startChannel, textTarget,
 } from "./model.ts";
 import type { Chan, ComposerDraft, DraftCard, DraftRow, InboxChoice, SendOptions, ThreadOut } from "./model.ts";
 import { Bubbles, CallLine, DaySep, DraftBlock, EmailItem, QuietLine } from "./parts.tsx";
@@ -181,10 +181,24 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   // the dock (when one is mounted, `dock`) places the call and saves it to this conversation; otherwise the app's own handler, else the shell opens the dialer
   const dial = (): void => { const n = textTo ?? (conv.address.includes("@") ? null : conv.address); if (n && props.onDial) props.onDial(n); else if (n && dock) dock.dial(n, conv.contactId); else data.nav.openDialer(); };
 
-  const lists: ComposerLists = cannedLists(conv);
+  const [snippets, setSnippets] = useState<readonly { name: string; body: string }[]>([]);
+  useEffect(() => { let live = true; void listSnippets(data).then((x) => { if (live) setSnippets(x); }, () => undefined); return () => { live = false; }; }, [data]);
+  const lists: ComposerLists = cannedLists(conv, snippets);
   const hdr = headerOf(items);
   const starred = starMine ?? conv.starred === true;
-  const showTemplates = (x: number, y: number): void => menu.show(templateEntries(cannedLists(conv).templates, (body) => patch({ text: `${draft.text}${draft.text && !draft.text.endsWith("\n") ? "\n" : ""}${body}` })), x, y);
+  // Templates are the person's email designs: choosing one puts its text at the foot of the draft (and its subject in an empty subject); the last row opens the email builder
+  const insertTemplate = (emailId: string): void => {
+    void templateContent(data, emailId, firstName(conv.displayName)).then(
+      (t) => patch({ text: `${draft.text}${draft.text && !draft.text.endsWith("\n") ? "\n" : ""}${t.text}`, ...(t.subject && !draft.subject ? { subject: t.subject } : {}) }),
+      () => setNote("Could not open that template. Try again."),
+    );
+  };
+  const showTemplates = (x: number, y: number): void => {
+    void listTemplates(data).then(
+      (rows) => menu.show(templateEntries(rows.map((r) => ({ t: r.name, body: r.emailId })), insertTemplate, () => data.nav.openEmailDesign?.()), x, y),
+      () => setNote("Could not load your templates. Try again."),
+    );
+  };
   const showQuick = (x: number, y: number): void => menu.show(quickEntries(!!conv.contactId, { dial, openRecord: () => props.onOpenRecord?.(conv.contactId as string, hdr?.recordId), attach: () => { if (props.onAttach) props.onAttach(); else setNote("Attach from Files is not connected in this view"); } }), x, y);
   const mail = chan === "email";
   const unmatched = conv.needsMatch && !conv.contactId;

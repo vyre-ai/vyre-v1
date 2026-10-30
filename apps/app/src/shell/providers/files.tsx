@@ -1,7 +1,7 @@
 // The Files place in the shell (spec 3.5): the list of the open folder, Recent, Starred, Shared with me, Trash or Knowledge, with the Files sidebar in the shared place sidebar slot (P-L9_22).
 // Where the list is, the selection and Quick Look are the place's own state. On a phone the sidebar is the list and the body opens when a row is chosen. Before the Space's runtime exists
 // the place draws its loading frames.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import type { MountRow } from "../../places/files/mounts/index.ts";
 import type { ShellRuntime } from "./runtime.tsx";
@@ -17,8 +17,10 @@ import { MemoryMount } from "./files-memory.tsx";
 import { reviewData } from "./files-review.ts";
 import { SidebarContent } from "../sidebar/index.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
+import type { ShellRuntime } from "./runtime.tsx";
 
 import { useOpenedId, usePlaceHash } from "../hash/context.tsx";
+import { AgentFileGate, ReviewScreen, reviewKind } from "./files-review-screens.tsx";
 import { FileDetail } from "./file-detail.tsx";
 
 const TREE_W = 240;
@@ -33,6 +35,26 @@ function FolderBody({ rt, version, onUnmount }: { rt: ShellRuntime; version: num
       <FilesList />
     </View>
   );
+}
+
+/**
+ * The body beside the tree: a file (its viewer, or the agent file page for an agent's AGENT.md and agent.toml), one of the review screens the shell wrote to the hash (a change set, a compare,
+ * a commit, a history), or the list. Choosing anything in the tree gives the body back to the list.
+ */
+function FilesBody({ rt, fileId, memory, version, onUnmount }: { rt: ShellRuntime; fileId: string | null; memory: MemoryView["view"]; version: number; onUnmount(mount: MountRow): void }): ReactElement {
+  const { target, opened } = usePlaceHash();
+  const { state } = useFilesState();
+  const review = reviewKind(target);
+  const where = useRef(state.where);
+  useEffect(() => {
+    if (where.current !== state.where && review) opened({});
+    where.current = state.where;
+  }, [state.where, review, opened]);
+  // a compare and a history name the file in the same hash argument the viewer reads: the review screen wins
+  if (review) return <ReviewScreen rt={rt} target={target} />;
+  if (fileId) return <AgentFileGate rt={rt} fileId={fileId}><FileDetail rt={rt} fileId={fileId} /></AgentFileGate>;
+  if (memory) return <MemoryMount rt={rt} view={memory} />;
+  return <FolderBody rt={rt} version={version} onUnmount={onUnmount} />;
 }
 
 export default function FilesPlace(_props: { place: string }): ReactElement {
@@ -64,7 +86,7 @@ export default function FilesPlace(_props: { place: string }): ReactElement {
         <FilesStateProvider key={folderId ?? "root"} {...(folderId ? { initial: { where: { kind: "folder" as const, id: folderId } } } : {})}>
           <View testID="files-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
             <SidebarContent title="Files" searchPlaceholder="Search files">{(query, slot) => <FilesTree query={query} slot={slot} />}</SidebarContent>
-            {fileId ? <FileDetail rt={rt!} fileId={fileId} /> : memory ? <MemoryMount rt={rt!} view={memory} /> : <FolderBody rt={rt!} version={mountVersion} onUnmount={(mount) => setMountReq({ kind: "unmount", mount })} />}
+            <FilesBody rt={rt!} fileId={fileId} memory={memory} version={mountVersion} onUnmount={(mount) => setMountReq({ kind: "unmount", mount })} />
             <MountSheets rt={rt!} request={mountReq} onClose={() => setMountReq(null)} onChanged={() => setMountVersion((n) => n + 1)} />
           </View>
         </FilesStateProvider>

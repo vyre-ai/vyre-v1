@@ -22,6 +22,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "identity.reset_complete": Handler<"identity.reset_complete", X>;
   "identity.reset_preview": Handler<"identity.reset_preview", X>;
   "identity.reset_start": Handler<"identity.reset_start", X>;
+  "identity.security.get": Handler<"identity.security.get", X>;
   "identity.sign_in": Handler<"identity.sign_in", X>;
   "identity.sign_in_options": Handler<"identity.sign_in_options", X>;
   "identity.sign_out": Handler<"identity.sign_out", X>;

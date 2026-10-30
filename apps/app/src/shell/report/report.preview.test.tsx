@@ -198,3 +198,29 @@ test("previewRows without screenshot or log say Not attached, with no note line"
   assert.equal(rows.find((r) => r.label === "Last 20 trace ids")?.value, "None yet");
   assert.ok(!rows.some((r) => r.label === "What went wrong"));
 });
+
+test("nothing leaves until Send: opening the sheet, typing, expanding the list and ticking the Ask box submit and send nothing, and closing sends nothing either", async () => {
+  const run = createSampleDeps();
+  let sentToVyre = 0;
+  const ctl = new ReportController({ ...run.deps, sendToVyre: async () => { sentToVyre++; return {}; } });
+  ctl.open(ctx);
+  ctl.setNote("It broke");
+  ctl.toggleExpanded();
+  ctl.setShare(true);
+  await new Promise((r) => setTimeout(r, 0));
+  ctl.close?.();
+  assert.equal(run.submitted.length, 0, "no submit before Send");
+  assert.equal(sentToVyre, 0, "no send to the Vyre team before Send");
+  assert.equal(run.deps.outbox.list().length, 0, "nothing queued either");
+});
+
+test("the bundle holds names only: its keys are the fixed list, an event is a type and a time, and no message text or value is among them", async () => {
+  const run = createSampleDeps();
+  const ctl = new ReportController(run.deps);
+  ctl.open(ctx);
+  await new Promise((r) => setTimeout(r, 0));
+  const b = ctl.getState().bundle as unknown as Record<string, unknown>;
+  const allowed = new Set(["context", "traceIds", "events", "versions", "errors", "note", "screenshotFileId", "clientLogFileId"]);
+  assert.deepEqual(Object.keys(b).filter((k) => !allowed.has(k)), [], "no field outside the previewed list");
+  for (const e of (b["events"] as Array<Record<string, unknown>>)) assert.deepEqual(Object.keys(e).filter((k) => !["type", "at", "traceId"].includes(k)), [], "an event carries no content");
+});

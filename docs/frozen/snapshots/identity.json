@@ -18,6 +18,7 @@
     "identity.reset_complete@1": "f4dee504725019fb9675f957765de4594b554ada30fa86668e304f06c3280596",
     "identity.reset_preview@1": "e3589ba9793787ea7d6ce327c9fb8a6996c8e1f4d14f62a9474454b60e48f161",
     "identity.reset_start@1": "6e2354f449bd54445e11447b3f13c5d80a48d09730fbbdd0b0abfe105810545b",
+    "identity.security.get@1": "560ef56f59e72dcb3a8493a60c7f53b2beae478c58b8b190e49bcc4e1483200c",
     "identity.sign_in@1": "7c9d028f42e343f4a66d4201f1e676e78eb8be6d8030a617117218b2d7abd162",
     "identity.sign_in_options@1": "e68cea81145174f44617f6388d1b807b2cf1671438da847d3984c98496815d13",
     "identity.sign_out@1": "8eb7a3d15e095567046d9c4a8bb80d120b920a42a88744857cfe491539a73808",

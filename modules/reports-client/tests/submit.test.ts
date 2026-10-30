@@ -312,14 +312,14 @@ test("the drivers must be wired", async () => {
   assert.equal((await failed(call("reports.preview", w.ctx, { context: { place: "x" } }))).error.code, "internal.unavailable");
 });
 
-test("impl.ts registers every reports-client capability as deferred: it refuses with the shared message", async () => {
+test("impl.ts keeps only the inbound webhook deferred: it refuses with the shared message, every other capability is the real handler", async () => {
   const w = world();
-  for (const name of Object.keys(impl.handlers).filter((n) => n !== "reports.health")) {
-    let err: { error?: { code?: string; message?: string } } | null = null;
-    try { await (impl.handlers as Record<string, (c: unknown, i: unknown) => unknown>)[name]!(w.ctx, {}); } catch (e) { err = e as { error?: { code?: string; message?: string } }; }
-    assert.equal(err?.error?.code, "internal.unavailable", name);
-    assert.equal(err?.error?.message, "Not in this version yet", name);
-  }
+  const table = impl.handlers as Record<string, (c: unknown, i: unknown) => unknown>;
+  let err: { error?: { code?: string; message?: string } } | null = null;
+  try { await table["reports.resolved"]!(w.ctx, {}); } catch (e) { err = e as { error?: { code?: string; message?: string } }; }
+  assert.equal(err?.error?.code, "internal.unavailable");
+  assert.equal(err?.error?.message, "Not in this version yet");
+  for (const name of Object.keys(table).filter((n) => n !== "reports.resolved")) assert.equal(table[name], (handlers as Record<string, unknown>)[name], `${name} is the real handler`);
 });
 
 test("impl.ts keeps the health check real: a server without the reports client reads healthy with a hint, not down", async () => {
@@ -330,9 +330,10 @@ test("impl.ts keeps the health check real: a server without the reports client r
 });
 
 test("impl.ts exposes every reports-client handler, the host wiring and no projections", () => {
-  // Report a problem is deferred (ruling 60): impl.handlers carries the same capabilities as the real table, each registered to refuse; the real table stays in handlers/index.ts
+  // impl.handlers carries the same capabilities as the real table; only reports.resolved (the inbound webhook) is registered to refuse (ruling 60)
   assert.deepEqual(Object.keys(impl.handlers).sort(), Object.keys(handlers).sort());
   assert.equal(impl.configureReports, configureReports);
+  assert.equal(impl.hostSeams.configureReports, configureReports, "the host hands its drivers through the module's own seam");
   assert.equal(typeof impl.configureReplay, "function");
   assert.equal(typeof impl.replayRun, "function");
   assert.deepEqual(impl.projections, []);

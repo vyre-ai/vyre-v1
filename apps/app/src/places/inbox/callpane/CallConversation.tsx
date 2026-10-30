@@ -7,7 +7,7 @@ import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import { CallBar, CallPane } from "../../../../../../ui/src/Softphone/index.tsx";
 import { CallEndedStrip } from "./EndedStrip.tsx";
-import { ContactTab } from "../contacttab/index.ts";
+import { ContactTab } from "../contacttab/ContactTab.tsx";
 import type { ContactTabProps, ThreadOut } from "../contacttab/index.ts";
 import { useInboxData, useScreenQuery } from "../sidebar/data.tsx";
 import { usePhone } from "../softphone/phone.tsx";

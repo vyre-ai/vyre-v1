@@ -24,6 +24,7 @@ import { validateEvent, validateInput } from "../../../generated/validators.ts";
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
 import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
 import { createCtxSeal } from "../ctx/seal.ts";
+import { createReportsHost } from "../seams/reports.ts";
 import { ScheduleQueue } from "../ctx/schedule.ts";
 import type { ScheduledCall } from "../ctx/schedule.ts";
 import { createBlobStore } from "../ctx/blobs.ts";
@@ -223,6 +224,8 @@ export interface DaemonOptions {
     /** where a vault value may be filled, by kind (git_credential, container_env, env...): each receives the value for one call and must not keep or log it */
     vaultSinks?: Record<string, (f: { value: string; ref: string; handle: string; field: string; itemId: string }) => Promise<void> | void>;
   } & Partial<Omit<SeamDeps, "vault" | "drivers" | "owners">>;
+  /** Tests: the fetch Report a problem reaches reports.vyre.run with (default: the platform's). */
+  reportsFetch?: FetchLike;
   /** Tests: extra environment for every git command the git module runs (GIT_CONFIG_COUNT entries that point a remote address at a local repository). */
   gitEnv?: Record<string, string>;
   /** The address an agent computer reaches this daemon at (its container is not on localhost). Default http://host.docker.internal:<port>. */
@@ -897,6 +900,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }) : null,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
         setEngineHost: (d) => createEngineHost({ space: spaceId, invoke, now, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) }),
+        // Report a problem: the bundle sources (the person's last actions from the log, the versions) and the reports.vyre.run client, signed with a key derived from this Space's seal key
+        configureReports: () => createReportsHost({
+          space: spaceId, now, fetch: o.reportsFetch ?? ((u, i) => globalThis.fetch(u, i as RequestInit) as never),
+          logs: { all: (sql, ...args) => { sink.flush(); return sink.db.prepare(sql).all(...(args as never[])) as Array<Record<string, unknown>>; } },
+          sealKey: typeof sealKey.key === "string" ? new TextEncoder().encode(sealKey.key) : sealKey.key,
+          address: cfg.address ? (/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`) : null,
+          versions: { server: cfg.version, device: process.platform },
+        }),
         // Ask Vyre in the email builder is one real agent turn in a private Ask pane, run as the asker: their agent, model, account, spend limits and access (host/src/seams/email-ask.ts)
         configureEmailBuilder: () => ({
           ask: createEmailAskDriver({

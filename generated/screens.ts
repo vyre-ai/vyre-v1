@@ -396,6 +396,43 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "apps.email-builder",
+    "module": "email-builder-api",
+    "place": "apps",
+    "slot": "main",
+    "builtin": "ui:EmailBuilder",
+    "caller": "principal",
+    "queries": {
+      "email": {
+        "cap": "email_builder.get",
+        "input": {
+          "emailId": "/selected"
+        },
+        "live": true
+      },
+      "versions": {
+        "cap": "email_builder.versions",
+        "input": {
+          "emailId": "/selected"
+        },
+        "live": true
+      }
+    },
+    "actions": {
+      "save": {
+        "cap": "email_builder.save",
+        "input": {
+          "emailId": "/selected"
+        }
+      }
+    },
+    "needs": [],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "apps.form-settings",
     "module": "forms",
     "place": "apps",

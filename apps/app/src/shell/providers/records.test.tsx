@@ -7,6 +7,7 @@ import { liveQuery } from "../../../../../client/src/index.ts";
 import type { FakeReplica } from "../../../../../client/src/index.ts";
 import { createSampleFiles } from "../../places/files/list/sample.ts";
 import { createViewsSample } from "../../places/records/views-a/sample.ts";
+import { createSampleSchema } from "../../places/records/schemamap/sample.ts";
 import FilesPlace from "./files.tsx";
 import { folderNodes } from "./files-data.ts";
 import { RecordsDataProvider, RecordsSidebarSlot, RecordsStateProvider } from "../../places/records/sidebar/index.ts";
@@ -119,4 +120,42 @@ test("record type lookup validates hints and supports old links without leaking 
   assert.deepEqual(calls, ["schema.types.list", "records.get", "records.get"]);
   assert.equal(await resolveRecordType(call as ShellRuntime["call"], "rec_1", "contact"), "contact");
   await assert.rejects(resolveRecordType(call as ShellRuntime["call"], "rec_1", "hidden"));
+});
+
+test("Calendar, Timeline, Map and Charts are views of the place: a link that names one opens it", () => {
+  const rt = runtimeOver(createViewsSample());
+  const draw = (kind: string): string => html(<ShellRuntimeProvider value={rt}><PlaceHashProvider hash={`type=clients&kind=${kind}`} opened={() => undefined}><RecordsPlace place="records" /></PlaceHashProvider></ShellRuntimeProvider>);
+  assert.ok(draw("calendar").includes('data-testid="records-calendar"'), "the Calendar view");
+  assert.ok(!draw("table").includes('data-testid="records-calendar"'));
+  for (const kind of ["timeline", "map", "charts"]) assert.ok(!draw(kind).includes('data-testid="records-table"'), `${kind} is not the table`);
+});
+
+function schemaRuntime(opened: unknown[] = []): ShellRuntime {
+  const s = createSampleSchema();
+  const base = runtimeOver(createViewsSample(), opened);
+  return { ...base, screens: s.data.screens, call: s.data.call };
+}
+
+test("the Record types row writes its screen, and the screen mounts the read-only list of types", () => {
+  const rt = schemaRuntime();
+  const out = html(<ShellRuntimeProvider value={rt}><PlaceHashProvider hash="screen=records.types" opened={() => undefined}><RecordsPlace place="records" /></PlaceHashProvider></ShellRuntimeProvider>);
+  assert.ok(out.includes('data-testid="record-types"'), "the Record types list is the body");
+  assert.ok(!out.includes('data-testid="records-table"'), "not the table");
+});
+
+test("the Schema map row writes its screen, and the screen mounts the map", () => {
+  const rt = schemaRuntime();
+  const out = html(<ShellRuntimeProvider value={rt}><PlaceHashProvider hash="screen=records.schema-map" opened={() => undefined}><RecordsPlace place="records" /></PlaceHashProvider></ShellRuntimeProvider>);
+  assert.ok(out.includes('data-testid="schema-map-place"'), "the Schema map is the body");
+});
+
+test("the sidebar marks the Manage row of the screen the body shows", () => {
+  const rt = schemaRuntime();
+  const el = RecordsSidebarSlot({}) as ReactElement<{ children: (q: string, slot: SidebarSlotApi) => ReactElement }>;
+  const slot: SidebarSlotApi = { query: "", collapsed: false, setCollapsed: () => undefined, hasSidebar: true, compact: false, openBody: () => undefined, back: () => undefined, view: "body", title: "Records" };
+  const side = (screen?: string): string => html(<RecordsDataProvider value={recordsData(rt, screen)}><RecordsStateProvider>{el.props.children("", slot)}</RecordsStateProvider></RecordsDataProvider>);
+  assert.ok(side().includes("Record types") && side().includes("Schema map"), "both rows are listed under Manage");
+  assert.notEqual(side("records.types"), side(), "the Record types row is marked when its screen is open");
+  assert.notEqual(side("records.schema-map"), side(), "the Schema map row is marked when its screen is open");
+  assert.notEqual(side("records.schema-map"), side("records.types"), "each screen marks its own row");
 });

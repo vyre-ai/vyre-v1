@@ -11,7 +11,11 @@ import { Field, s, useOnline, useRead } from "./editor-ui.tsx";
 import type { AskAgent } from "../../../../../../ui/src/AskButton/types.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 type Step = CapMap["campaigns.get"]["out"]["steps"][number];
-export function CampaignEmail({ step, onChange }: { step: Step; onChange(config: Record<string, unknown>): void }): ReactElement {
+/**
+ * The email builder over one design. In a campaign it is a step's email (`step`, saved back into the step's config by `onChange`); on its own (Apps > an email design, Inbox templates) `title` and `intro`
+ * name it, and `step` is a stand-in that carries the design's id and content.
+ */
+export function CampaignEmail({ step, onChange, title = "Campaign email", intro = "Email designs save as versions. Save the campaign afterward to use the updated design in its steps." }: { step: Step; onChange(config: Record<string, unknown>): void; title?: string; intro?: string }): ReactElement {
   const d = useAppsData(), online = useOnline();
   const [emailId, setEmailId] = useState<string | null>(typeof step.config.emailId === "string" ? step.config.emailId : null);
   const [mode, setMode] = useState<EmailMode>((step.config.designMode as EmailMode | undefined) ?? "plain");
@@ -81,9 +85,9 @@ export function CampaignEmail({ step, onChange }: { step: Step; onChange(config:
     if (!online) throw new Error("Reconnect before saving or sending a test.");
     setStatus("Saving…");
     let id = idRef.current;
-    if (!id) { const out = await mutate(d, "email_builder.create", { name: snapshot.subject || "Campaign email", mode: mode === "visual" ? "blocks" : mode }, `campaign-email:${step.key}`); id = out.email.emailId; idRef.current = id; setEmailId(id); }
+    if (!id) { const out = await mutate(d, "email_builder.create", { name: snapshot.subject || title, mode: mode === "visual" ? "blocks" : mode }, `campaign-email:${step.key}`); id = out.email.emailId; idRef.current = id; setEmailId(id); }
     if (typeof id !== "string" || !id) throw new Error("The email service did not create a design.");
-    const email = { emailId: id, name: snapshot.subject || "Campaign email", mode: mode === "visual" ? "blocks" : mode, subject: snapshot.subject, plain: snapshot.plain, html: snapshot.html, blocks: snapshot.blocks.map(serverBlock) };
+    const email = { emailId: id, name: snapshot.subject || title, mode: mode === "visual" ? "blocks" : mode, subject: snapshot.subject, plain: snapshot.plain, html: snapshot.html, blocks: snapshot.blocks.map(serverBlock) };
     const saved = await mutate(d, "email_builder.save", { emailId: id, email }, actionKey());
     const html = mode === "visual" ? compileEmail(snapshot.blocks, { mode: "send" }) : mode === "html" ? snapshot.html : "";
     const text = mode === "visual" ? blocksToPlain(snapshot.blocks) : snapshot.plain;
@@ -101,9 +105,9 @@ export function CampaignEmail({ step, onChange }: { step: Step; onChange(config:
     const out = await mutate(d, "email_builder.send_test", { emailId: id, to: testTo.trim() }, actionKey());
     if (out.sent !== true) throw new Error("The provider did not confirm the test email.");
   };
-  return <View style={{ gap: 12 }}><Text style={s.text}>Email designs save as versions. Save the campaign afterward to use the updated design in its steps.</Text>
+  return <View style={{ gap: 12 }}><Text style={s.text}>{intro}</Text>
     <Field label="Your email address for test sends" value={testTo} onChange={setTestTo} />
-    <View style={{ minHeight: 620 }}><EmailBuilder id={emailId ?? step.key} title="Campaign email" subject={snapshot.subject} subjectB={snapshot.subjectB ?? undefined} plain={snapshot.plain} html={snapshot.html} blocks={snapshot.blocks} mode={mode} saveState={online ? dirty ? "Unsaved changes" : status : "Offline: not saved"}
+    <View style={{ minHeight: 620 }}><EmailBuilder id={emailId ?? step.key} title={title} subject={snapshot.subject} subjectB={snapshot.subjectB ?? undefined} plain={snapshot.plain} html={snapshot.html} blocks={snapshot.blocks} mode={mode} saveState={online ? dirty ? "Unsaved changes" : status : "Offline: not saved"}
       savedBlocks={(library.data?.blocks ?? []).map((block) => ({ id: block.blockId, name: block.name, block: visibleBlock(block.block, block.blockId), shared: block.shared }))}
       savedVersions={versions.data?.versions}
       onRestoreSavedVersion={async (version) => {
@@ -115,7 +119,7 @@ export function CampaignEmail({ step, onChange }: { step: Step; onChange(config:
         setDirty(true); setStatus("Restored saved version"); versions.refresh();
       }}
       onMode={(m) => { editRevision.current++; setMode(m); setDirty(true); }} onChange={(next) => { editRevision.current++; setSnapshot(next); setDirty(true); }} onTestSend={sendTest} onAsk={(instruction) => void ask(instruction)} onSuggest={() => void suggestSubjects()}
-      ask={{ place: "email", context: { kind: "email", id: emailId ?? step.key, title: "Campaign email", access: "edit" }, agents, ...(chosen ? { suggested: chosen.id } : {}), onPick: (agent) => setAgentId(agent.id), onAsk: (agent) => setAgentId(agent.id) }}
+      ask={{ place: "email", context: { kind: "email", id: emailId ?? step.key, title, access: "edit" }, agents, ...(chosen ? { suggested: chosen.id } : {}), onPick: (agent) => setAgentId(agent.id), onAsk: (agent) => setAgentId(agent.id) }}
       {...(chosen ? { askAgent: chosen.name } : {})} {...(asking ? { asking: { agent: asking.agent, onCancel: cancelAsk } } : {})} askError={askError}
       diffs={proposals.map((p, index) => ({ id: `${round.current}:${index}`, summary: `${p.path.replace(/^\//, "").replaceAll("/", " ")}: ${String(p.after ?? "Remove").slice(0, 180)}` }))} onAcceptDiff={(id) => accept(id)}
       onSaveBlock={async (name, block) => { await mutate(d, "email_builder.saved_blocks.save", { name, block: serverBlock(block) }, actionKey()); library.refresh(); }} />
