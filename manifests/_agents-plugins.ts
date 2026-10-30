@@ -125,7 +125,7 @@ export const pluginEvents: EventDef[] = [
 
 export const pluginScreens: KitScreenDef[] = [
   screen('console.skills', 'console', 'ui:ConsoleSkills', {
-    q: { skills: ['skills.list', { includeOff: true }, true] },
+    q: { skills: ['skills.list', { includeOff: '/state/includeOff' }, true] },
     a: {
       add: ['skills.add', { text: '/draft/text', name: '/draft/name' }], remove: ['skills.remove', { name: '/state/name', agentId: '/state/agentId' }, 'Remove this skill?'],
       toggle: ['skills.set_enabled', { name: '/state/name', agentId: '/state/agentId', enabled: '/state/enabled' }],

@@ -236,6 +236,7 @@ export const NAV: readonly NavGroup[] = [
     { key: "mail.shared-inboxes", title: "Shared inboxes", perm: "comms.shared_send" }, { key: "telephony.registration", title: "Texting registration", perm: "comms.numbers" },
   ] },
   { key: "integrations", title: "Integrations", pages: [
+    { key: "google.setup", title: "Google Workspace", perm: "connectors.manage" }, { key: "microsoft.setup", title: "Microsoft 365", perm: "connectors.manage" },
     { key: "console.integrations", title: "Connectors and connections", perm: "connectors.manage" }, { key: "events.webhooks", title: "Webhooks", perm: "connectors.manage" },
     { key: "console.mcp-sessions", title: "API keys", perm: "access.manage" },
   ] },

@@ -3289,7 +3289,7 @@ export const screens: ScreenIndexEntry[] = [
       "skills": {
         "cap": "skills.list",
         "input": {
-          "includeOff": true
+          "includeOff": "/state/includeOff"
         },
         "live": true
       }

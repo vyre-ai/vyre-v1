@@ -130,6 +130,10 @@ ${renderTree(t, 2, (c) => `call(${q(c)})`)}
         resource: c.resource, idempotency: c.idempotency, risk: c.risk, offline: c.offline ?? null, teamOnly: c.teamOnly ?? false, gate: c.gate?.act ?? null,
       };
     }).sort((a, b) => (a.path + a.method < b.path + b.method ? -1 : 1));
+    // One array literal of thousands of object literals makes tsc build a union too complex to represent (TS2590), so the table is emitted in chunks that are joined.
+    const routeChunks: typeof routes[] = [];
+    for (let i = 0; i < routes.length; i += 300) routeChunks.push(routes.slice(i, i + 300));
+    const chunks = routeChunks.map((c, i) => `const routes${i}: Route[] = ${JSON.stringify(c, null, 2)};\n`).join('\n');
     put('routes.ts', `${HEADER}import type { ResourceBinding } from '../packages/contracts/src/types.ts';
 
 export interface Route {
@@ -139,7 +143,8 @@ export interface Route {
   offline: 'patch' | 'queue' | 'online' | null; teamOnly: boolean; gate: string | null;
 }
 
-export const routes: Route[] = ${JSON.stringify(routes, null, 2)};
+${chunks}
+export const routes: Route[] = [${routeChunks.map((_, i) => `...routes${i}`).join(', ')}];
 `);
     const cli = allCaps.filter((c) => c.surfaces.cli).map((c) => ({ command: c.surfaces.cli as string, cap: c.name, v: c.v })).sort((a, b) => (a.command < b.command ? -1 : 1));
     put('cli.ts', `${HEADER}export const cliCommands: Array<{ command: string; cap: string; v: number }> = ${JSON.stringify(cli, null, 2)};\n`);

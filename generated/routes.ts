@@ -8,7 +8,7 @@ export interface Route {
   offline: 'patch' | 'queue' | 'online' | null; teamOnly: boolean; gate: string | null;
 }
 
-export const routes: Route[] = [
+const routes0: Route[] = [
   {
     "method": "GET",
     "path": "/book/availability",
@@ -5579,7 +5579,10 @@ export const routes: Route[] = [
     "offline": null,
     "teamOnly": true,
     "gate": null
-  },
+  }
+];
+
+const routes1: Route[] = [
   {
     "method": "POST",
     "path": "/v1/computers/record_start",
@@ -11115,7 +11118,10 @@ export const routes: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes2: Route[] = [
   {
     "method": "POST",
     "path": "/v1/git/commit",
@@ -16638,7 +16644,10 @@ export const routes: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/mcp/token/log_reveal",
@@ -22163,7 +22172,10 @@ export const routes: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/runs/get",
@@ -27678,7 +27690,10 @@ export const routes: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "none"
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/twilio/health",
@@ -29395,3 +29410,5 @@ export const routes: Route[] = [
     "gate": null
   }
 ];
+
+export const routes: Route[] = [...routes0, ...routes1, ...routes2, ...routes3, ...routes4, ...routes5];
