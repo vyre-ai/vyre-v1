@@ -189,7 +189,9 @@ jobs:
           [ "${#exes[@]}" -eq 1 ] || { echo "expected exactly one Windows installer, found ${#exes[@]}"; exit 1; }
           mkdir -p win-exe win-sum
           cp "${exes[0]}" win-exe/VyreSetup.exe
-          (cd win-exe && sha256sum VyreSetup.exe) > win-sum/VyreSetup.exe.sha256
+          # sha256sum on Windows writes binary mode ("<hash> *VyreSetup.exe"); release and the install script read the text form, two spaces
+          sum=$(sha256sum win-exe/VyreSetup.exe | cut -c1-64)
+          printf '%s  VyreSetup.exe\n' "$sum" > win-sum/VyreSetup.exe.sha256
           cat win-sum/VyreSetup.exe.sha256
           # the same installer is the Windows update bundle: its BLAKE2b-512 digest goes through sign beside the SHA-256
           node scripts/release/cli.ts updater-digest win-exe/VyreSetup.exe > win-sum/VyreSetup.exe.b2
