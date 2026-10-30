@@ -216,7 +216,7 @@ export async function crawl({ browser, space, name, web, csp, workers, maxScreen
     for (const e of els) {
       if (e.disabled) continue;
       if (e.noop) { stats.noop++; continue; }
-      if (/-selected$/.test(e.testid) || e.selected) { record(current, unit, e, { note: "already the current choice (aria-selected, aria-pressed, aria-current or a -selected test id)" }); continue; }   // pressing the current choice again may do nothing
+      if (e.selected) { record(current, unit, e, { note: "already the current choice (aria-selected, aria-pressed or aria-current set)" }); continue; }   // pressing the current choice again may do nothing
       if (!scope && CHROME.test(e.testid)) { const c = e.testid.replace(/-selected$/, ""); if (chromeDone.has(c)) continue; chromeDone.add(c); }
       if (RISKY.test(e.label)) { skipped.push({ space: name, place: unit.place, screen: screenKey(unit.url), path: unit.steps.map((s) => s.label), label: e.label, why: "ends the session or the Space; its confirm is not clicked" }); continue; }
       if (e.href && /^(mailto:|tel:|sms:)/.test(e.href)) continue;
