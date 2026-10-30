@@ -10,6 +10,7 @@ import type { ProviderApi, SeamApi } from "../../fixtures/suite/world.ts";
 const DOMAIN = "firm.test";
 const NOAH = `noah@${DOMAIN}`;
 const MIA = `mia@${DOMAIN}`;
+const SANA = `sana@${DOMAIN}`;
 const TENANT = "tenant-guid-1234";
 const CLIENT_ID = "11111111-2222-3333-4444-555555555555";
 const CLIENT_SECRET = "s3cr3t-value~abcdef";
@@ -29,7 +30,10 @@ const graphTime = (ms: number): { dateTime: string; timeZone: string } => ({ dat
 function microsoft() {
   let roles = ALL_ROLES.filter((r) => r !== "OnlineMeetingTranscript.Read.All");   // consent not granted for transcripts yet
   const asked: string[] = [];
-  const mail: Record<string, { id: string; subject: string; from: string; at: number }[]> = { [NOAH]: [{ id: "ms-m1", subject: "Can we talk about the deed?", from: "pat@acme.test", at: Date.UTC(2026, 9, 28, 15, 0) }] };
+  const mail: Record<string, { id: string; subject: string; from: string; at: number }[]> = {
+    [NOAH]: [{ id: "ms-m1", subject: "Can we talk about the deed?", from: "pat@acme.test", at: Date.UTC(2026, 9, 28, 15, 0) }],
+    [SANA]: [{ id: "ms-s1", subject: "Sana only: payroll question", from: "lee@acme.test", at: Date.UTC(2026, 9, 28, 16, 0) }],
+  };
   const START = Date.now() - 3_600_000, END = Date.now() - 1_800_000;
   const files: Record<string, { id: string; name: string }[]> = { [NOAH]: [{ id: "od-1", name: "Engagement letter.docx" }] };
 
@@ -99,7 +103,7 @@ function microsoft() {
   return { api, seam, asked, mail, files, clientState: () => clientState, grantTranscripts() { roles = ALL_ROLES; }, times: { START, END } };
 }
 
-const members = [{ userId: "usr_olivia", email: `olivia@${DOMAIN}` }, { userId: "usr_noah", email: NOAH }, { userId: "usr_mia", email: MIA }];
+const members = [{ userId: "usr_olivia", email: `olivia@${DOMAIN}` }, { userId: "usr_noah", email: NOAH }, { userId: "usr_mia", email: MIA }, { userId: "usr_sana", email: SANA }];
 
 test("Microsoft 365: setup, consent, check, then mail, calendar, Teams and OneDrive reach the product; an excluded member is never read", async () => {
   const g = microsoft();
@@ -118,7 +122,7 @@ test("Microsoft 365: setup, consent, check, then mail, calendar, Teams and OneDr
     // 2 Mia is excluded before setup; setup connects the others
     await w.ok(OWNER, "ms.consent.set_excluded", { email: MIA, excluded: true });
     const setup = await w.ok(OWNER, "ms.consent.setup", { vaultItem: "#Microsoft_App", tenantId: TENANT, domain: DOMAIN, idempotencyKey: w.idem() });
-    assert.deepEqual([setup.configured, setup.mappedMembers, setup.connected], [true, 2, 2]);
+    assert.deepEqual([setup.configured, setup.mappedMembers, setup.connected], [true, 3, 3]);
     const link = await w.ok(OWNER, "ms.consent.link", {});
     assert.equal(link.url, `https://login.microsoftonline.com/${TENANT}/adminconsent?client_id=${CLIENT_ID}`);
     assert.deepEqual([...link.permissions].sort(), [...ALL_ROLES].sort());
@@ -134,7 +138,7 @@ test("Microsoft 365: setup, consent, check, then mail, calendar, Teams and OneDr
     const fixed = await w.ok(OWNER, "ms.consent.verify", { policyConfirmed: true });
     assert.deepEqual([fixed.ok, fixed.missingPermissions], [true, []]);
     const status = await w.ok(OWNER, "ms.consent.status");
-    assert.deepEqual([status.configured, status.consentGiven, status.policyConfirmed, status.mappedMembers, status.excluded], [true, true, true, 2, [MIA]]);
+    assert.deepEqual([status.configured, status.consentGiven, status.policyConfirmed, status.mappedMembers, status.excluded], [true, true, true, 3, [MIA]]);
 
     // 4 mail
     const boxes = await w.ok(MEMBER, "mail.mailbox.list", {});
@@ -146,6 +150,15 @@ test("Microsoft 365: setup, consent, check, then mail, calendar, Teams and OneDr
     assert.deepEqual(list.messages.map((m: { subject: string }) => m.subject), ["Can we talk about the deed?"]);
     const threads = await w.ok(MEMBER, "inbox.list_by_thread", {});
     assert.ok(JSON.stringify(threads).includes("Can we talk about the deed?"), "the message is in the Inbox thread list");
+
+    // 4b each person sees only their own mail and meetings
+    const sanaBox = (await w.ok(OTHER, "mail.mailbox.list", {})).mailboxes.find((b: { address: string }) => b.address === SANA);
+    assert.ok(sanaBox, "Sana has her own mailbox");
+    await w.ok(OTHER, "mail.sync_now", { mailboxId: sanaBox.id });
+    const sanaThreads = JSON.stringify(await w.ok(OTHER, "inbox.list_by_thread", {}));
+    assert.ok(sanaThreads.includes("Sana only: payroll question") && !sanaThreads.includes("Can we talk about the deed?"), "Sana sees hers and not Noah's");
+    assert.equal(JSON.stringify(await w.ok(MEMBER, "inbox.list_by_thread", {})).includes("Sana only"), false, "Noah does not see Sana's");
+    assert.equal((await w.ok(OTHER, "mail.message.list", { mailboxId: mine[0].id })).messages.length, 0, "Sana cannot list Noah's mailbox");
 
     // 5 calendar
     const cals = await w.ok(MEMBER, "calendar.list_calendars", {});
@@ -160,6 +173,7 @@ test("Microsoft 365: setup, consent, check, then mail, calendar, Teams and OneDr
     // 6 Teams: the transcript, read as the organizer, lands in the Meeting the calendar event made
     const meetings = await w.ok(MEMBER, "meetings.list", {});
     assert.equal(meetings.meetings.length, 1, JSON.stringify(meetings));
+    assert.equal((await w.ok(OTHER, "meetings.list", {})).meetings.length, 0, "Sana does not see Noah's meeting");
     const transcript = await w.ok(MEMBER, "meetings.transcript.get", { meetingId: meetings.meetings[0].id });
     assert.deepEqual(transcript.segments.map((s: { speaker?: string; text: string }) => [s.speaker, s.text]), [["Noah Berg", "Thanks for joining the intake call."], ["Noah Berg", "Let us start with the deed."]]);
 

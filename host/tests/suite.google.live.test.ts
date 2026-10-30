@@ -200,11 +200,12 @@ test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach 
 
     // 7 Drive: Noah mounts a Drive folder in Files; a file of the folder arrives, and a change in Drive reaches the mount
     const tree = await w.ok(MEMBER, "files.tree", {});
-    const into = tree.roots.find((r: { key: string; folderId?: string }) => r.key === "shared_knowledge" || r.key === "knowledge")?.folderId ?? tree.roots.find((r: { folderId?: string }) => r.folderId)?.folderId;
+    const into = tree.roots.find((r: { key: string; folderId?: string }) => r.key === "personal")?.folderId;   // files mirror Drive: Noah's are Noah's
     assert.ok(into, "Noah has a Files folder to mount into");
     const added = await w.ok(MEMBER, "mounts.add", { into, source: { kind: "google_drive", connectionId: gcal.connectionId, ref: "root-folder" }, name: "Firm Drive", idempotencyKey: w.idem() });
     const listed = await w.ok(MEMBER, "files.list", { section: "space", folder: added.folderId });
     assert.deepEqual(listed.files.map((f: { name: string }) => f.name), ["Engagement letter.pdf"], JSON.stringify(listed));
+    assert.equal(JSON.stringify(await w.call(OTHER, "files.list", { section: "space", folder: added.folderId })).includes("Engagement letter"), false, "Sana does not see Noah's Drive files");
     g.files[NOAH]!.push({ id: "d-file2", name: "Closing statement.pdf", mimeType: "application/pdf", modifiedTime: "2026-10-29T09:00:00Z", parents: ["root-folder"] });
     await w.ok(MEMBER, "mounts.sync_now", { mountId: added.mountId, idempotencyKey: w.idem() });
     const after = await w.ok(MEMBER, "files.list", { section: "space", folder: added.folderId });

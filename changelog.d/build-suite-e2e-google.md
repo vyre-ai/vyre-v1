@@ -1,1 +1,2 @@
 - Proof, not product: Google Workspace is tested end to end on a booted server against a stand-in Google that checks the RS256 signature of every delegated sign-in. Key into the Vault, setup, a check that names the missing scope, Gmail in the Inbox, a Calendar event, a Meet transcript merged into its Meeting, a Drive file and a later Drive change in a mount, the push address, and an excluded member who is never read.
+- The live tests now prove each person sees only their own mail, calendar, Drive files and meetings: Noah and Sana each see theirs and neither sees the other's.
